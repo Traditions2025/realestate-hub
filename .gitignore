@@ -1,0 +1,5 @@
+node_modules/
+dist/
+realestate-hub.db
+*.log
+.DS_Store
