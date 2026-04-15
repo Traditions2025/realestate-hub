@@ -40,7 +40,7 @@ const navSections = [
 ]
 
 export default function App() {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [authed, setAuthed] = useState(false)
   const [checking, setChecking] = useState(true)
 
@@ -53,47 +53,59 @@ export default function App() {
       .finally(() => setChecking(false))
   }, [])
 
+  // Close sidebar on navigation (mobile)
+  const closeSidebar = () => {
+    if (window.innerWidth <= 768) setSidebarOpen(false)
+  }
+
   if (checking) return <div className="login-screen"><div className="login-card"><p>Loading...</p></div></div>
   if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />
 
   return (
     <div className="app-layout">
-      <aside className={`sidebar ${sidebarOpen ? '' : 'collapsed'}`}>
+      {/* Mobile top bar */}
+      <div className="mobile-topbar">
+        <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          {sidebarOpen ? '\u2715' : '\u2630'}
+        </button>
+        <img src="/logo.png" alt="Matt Smith Team" className="mobile-logo" />
+        <div style={{width: 40}}></div>
+      </div>
+
+      {/* Overlay */}
+      {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
+
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
         <div className="sidebar-header">
           <div className="logo">
-            {sidebarOpen ? (
-              <img src="/logo.png" alt="Matt Smith Team" className="logo-img" />
-            ) : (
-              <img src="/logo.png" alt="MST" className="logo-img-small" />
-            )}
+            <img src="/logo.png" alt="Matt Smith Team" className="logo-img" />
           </div>
-          <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
+          <button className="sidebar-toggle desktop-only" onClick={() => setSidebarOpen(!sidebarOpen)}>
             {sidebarOpen ? '\u2039' : '\u203A'}
           </button>
         </div>
         <nav className="sidebar-nav">
           {navSections.map(section => (
             <div key={section.label} className="nav-section">
-              {sidebarOpen && <div className="nav-section-label">{section.label}</div>}
+              <div className="nav-section-label">{section.label}</div>
               {section.items.map(item => (
                 <NavLink
                   key={item.path}
                   to={item.path}
                   end={item.path === '/'}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+                  onClick={closeSidebar}
                 >
                   <span className="nav-icon">{item.icon}</span>
-                  {sidebarOpen && <span className="nav-label">{item.label}</span>}
+                  <span className="nav-label">{item.label}</span>
                 </NavLink>
               ))}
             </div>
           ))}
         </nav>
-        {sidebarOpen && (
-          <div className="sidebar-footer">
-            <div className="team-sub">RE/MAX Concepts &middot; Cedar Rapids IA</div>
-          </div>
-        )}
+        <div className="sidebar-footer">
+          <div className="team-sub">RE/MAX Concepts &middot; Cedar Rapids IA</div>
+        </div>
       </aside>
 
       <main className="main-content">
