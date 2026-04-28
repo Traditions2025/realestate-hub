@@ -33,20 +33,15 @@ export default function Clients() {
     api.getClients(params).then(setItems)
   }
 
-  // Auto-sync Sierra on first load
+  // Initial load - no auto-sync (would be too heavy with all leads)
   useEffect(() => {
     load()
     // Load last sync info
     authFetch('/api/sierra/sync-log').then(r => r.json()).then(logs => {
       if (logs.length > 0) setSyncLog(logs[0])
     })
-    // Load Sierra lead counts
+    // Load Sierra lead counts so the button shows the total
     authFetch('/api/sierra/counts').then(r => r.json()).then(setSierraCounts).catch(() => {})
-    // Auto-sync if haven't synced in the last hour
-    if (!hasSynced.current) {
-      hasSynced.current = true
-      syncSierra(true)
-    }
   }, [])
 
   // Close sync menu when clicking outside
@@ -186,49 +181,14 @@ export default function Clients() {
           <p className="page-subtitle">Active buyers, sellers, and prospects — synced from Sierra Interactive</p>
         </div>
         <div className="header-actions">
-          <div className="sync-menu-wrap" onClick={e => e.stopPropagation()}>
-            <button
-              className="btn btn-primary"
-              onClick={() => setSyncMenuOpen(!syncMenuOpen)}
-              disabled={sierraStatus === 'syncing'}
-            >
-              {sierraStatus === 'syncing' ? 'Syncing Sierra...' : 'Sync Sierra Leads ▾'}
-            </button>
-            {syncMenuOpen && (
-              <div className="sync-menu">
-                <div className="sync-menu-header">Pull Sierra leads</div>
-                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Active,Prime')}>
-                  <div className="sync-menu-title">Active + Prime</div>
-                  <div className="sync-menu-desc">{sierraCounts ? `${(sierraCounts.Active || 0) + (sierraCounts.Prime || 0)} leads` : 'Hot leads only'}</div>
-                </button>
-                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Active')}>
-                  <div className="sync-menu-title">Active only</div>
-                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.Active || 0} leads` : ''}</div>
-                </button>
-                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Prime')}>
-                  <div className="sync-menu-title">Prime only</div>
-                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.Prime || 0} leads` : ''}</div>
-                </button>
-                <button className="sync-menu-item" onClick={() => syncSierra(false, 'New')}>
-                  <div className="sync-menu-title">New leads</div>
-                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.New || 0} leads` : 'Recent registrations'}</div>
-                </button>
-                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Watch')}>
-                  <div className="sync-menu-title">Watch list</div>
-                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.Watch || 0} leads` : ''}</div>
-                </button>
-                <div className="sync-menu-divider"></div>
-                <button className="sync-menu-item warn" onClick={() => {
-                  if (confirm(`Pull ALL leads from Sierra? This will sync ${sierraCounts?.total || 'thousands of'} leads and may take several minutes.`)) {
-                    syncSierra(false, 'all')
-                  }
-                }}>
-                  <div className="sync-menu-title">All leads</div>
-                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.total} total - takes a few minutes` : 'Everything in Sierra'}</div>
-                </button>
-              </div>
-            )}
-          </div>
+          <button
+            className="btn btn-primary"
+            onClick={() => syncSierra(false, 'all')}
+            disabled={sierraStatus === 'syncing'}
+            title={sierraCounts ? `Pulls all ${sierraCounts.total} Sierra leads - takes a few minutes` : 'Pull all Sierra leads'}
+          >
+            {sierraStatus === 'syncing' ? 'Syncing Sierra...' : `Sync All Sierra Leads${sierraCounts ? ` (${sierraCounts.total})` : ''}`}
+          </button>
           <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
         </div>
       </div>
