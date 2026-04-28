@@ -212,7 +212,13 @@ router.get('/counts', async (req, res) => {
         counts[s] = 0
       }
     }
-    counts.total = Object.values(counts).reduce((a, b) => a + b, 0)
+    // Real total - one query without status filter gives unique count
+    try {
+      const all = await sierraGet('/leads/find', { pageSize: 1 })
+      counts.total = all.data?.totalRecords || 0
+    } catch (e) {
+      counts.total = Object.values(counts).reduce((a, b) => a + b, 0)
+    }
     res.json(counts)
   } catch (err) {
     res.status(500).json({ error: err.message })
