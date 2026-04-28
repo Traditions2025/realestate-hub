@@ -107,7 +107,7 @@ function processLead(lead, sierraStatus) {
 // Query: ?statuses=Active,Prime  OR  ?statuses=all  (default: Active,Prime)
 router.post('/sync', async (req, res) => {
   try {
-    const statusParam = req.query.statuses || 'Active,Prime'
+    const statusParam = req.query.statuses || 'all'
     let statuses
     if (statusParam === 'all') {
       // Pull every status — this will be slow for 29K leads
