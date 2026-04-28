@@ -388,6 +388,83 @@ export async function initDb() {
     )
   `)
 
+  // Migration: drop agency_type CHECK constraint if it exists
+  // SQLite doesn't allow ALTER TABLE DROP CONSTRAINT, so we have to recreate the table
+  try {
+    const tableInfo = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")
+    const sql = tableInfo[0]?.values[0]?.[0] || ''
+    if (sql.includes("agency_type TEXT CHECK")) {
+      console.log('[migration] Removing agency_type CHECK constraint from transactions table...')
+      db.exec(`
+        BEGIN TRANSACTION;
+        ALTER TABLE transactions RENAME TO transactions_old;
+        CREATE TABLE transactions (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          property_address TEXT NOT NULL,
+          mls_number TEXT,
+          type TEXT NOT NULL DEFAULT 'purchase',
+          source TEXT,
+          buyer_name TEXT,
+          buyers_agent_name TEXT,
+          seller_name TEXT,
+          sellers_agent_name TEXT,
+          agency_type TEXT,
+          property_status TEXT NOT NULL DEFAULT 'Active',
+          list_price REAL,
+          purchase_price REAL,
+          contract_date TEXT,
+          closing_date TEXT,
+          mortgage_contingency_date TEXT,
+          appraisal_contingency_date TEXT,
+          appraisal_contingency_status TEXT DEFAULT 'Not Started',
+          inspection_contingency_date TEXT,
+          financing_release TEXT,
+          final_walkthrough TEXT,
+          inspection_release TEXT,
+          final_inspection_waiver TEXT,
+          type_of_finance TEXT,
+          remove_listing_alerts INTEGER DEFAULT 0,
+          email_contract_closing INTEGER DEFAULT 0,
+          ayse_added_to_loop INTEGER DEFAULT 0,
+          ayse_contracts_signed INTEGER DEFAULT 0,
+          earnest_money_deposit TEXT DEFAULT 'Not Started',
+          home_inspection TEXT DEFAULT 'Not Started',
+          home_inspector TEXT,
+          inspection_date TEXT,
+          whole_property_inspection INTEGER DEFAULT 0,
+          radon_test INTEGER DEFAULT 0,
+          wdi_inspection INTEGER DEFAULT 0,
+          septic_inspection INTEGER DEFAULT 0,
+          well_inspection INTEGER DEFAULT 0,
+          sewer_inspection INTEGER DEFAULT 0,
+          seller_acknowledgment INTEGER DEFAULT 0,
+          abstract TEXT,
+          title_commitment TEXT,
+          mortgage_payoff TEXT,
+          alta_statement TEXT,
+          deed_package TEXT,
+          utilities_set INTEGER DEFAULT 0,
+          sales_worksheet_added INTEGER DEFAULT 0,
+          submit_loop_review INTEGER DEFAULT 0,
+          approved_commission INTEGER DEFAULT 0,
+          closing_complete INTEGER DEFAULT 0,
+          testimonial_request INTEGER DEFAULT 0,
+          client_id INTEGER,
+          tc_assigned TEXT,
+          notes TEXT,
+          created_at TEXT DEFAULT (datetime('now')),
+          updated_at TEXT DEFAULT (datetime('now'))
+        );
+        INSERT INTO transactions SELECT * FROM transactions_old;
+        DROP TABLE transactions_old;
+        COMMIT;
+      `)
+      console.log('[migration] Done.')
+    }
+  } catch (e) {
+    console.error('[migration] Failed:', e.message)
+  }
+
   saveDb()
   return db
 }
