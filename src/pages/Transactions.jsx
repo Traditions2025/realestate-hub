@@ -83,11 +83,24 @@ export default function Transactions() {
     setSyncing(false)
   }
 
+  const clearAndResync = async () => {
+    if (!confirm('Clear all transactions and re-sync from Google Sheet? This will delete any manually added transactions.')) return
+    setSyncing(true)
+    try {
+      await authFetch('/api/transactions/clear-all', { method: 'POST' })
+      const r = await authFetch('/api/transactions/sync-sheet', { method: 'POST' })
+      const d = await r.json()
+      alert(`Cleared and re-synced ${d.synced} transactions from Google Sheet`)
+      load()
+    } catch (e) { alert('Resync failed: ' + e.message) }
+    setSyncing(false)
+  }
+
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
 
   // Pipeline groups
-  const pipelineStatuses = ['Active', 'Under Contract', 'Pending', 'Clear to Close']
+  const pipelineStatuses = ['Active', 'Under Contract', 'Pending', 'Clear to Close', 'Closed']
 
   return (
     <div className="page">
@@ -97,6 +110,9 @@ export default function Transactions() {
           <p className="page-subtitle">Matches your Google Sheet - every field, every checklist item</p>
         </div>
         <div className="header-actions">
+          <button className="btn btn-secondary" onClick={clearAndResync} disabled={syncing} title="Wipe all transactions and re-sync clean from Google Sheet">
+            Clear & Re-sync
+          </button>
           <button className="btn btn-secondary" onClick={syncSheet} disabled={syncing}>
             {syncing ? 'Syncing...' : 'Sync from Google Sheet'}
           </button>

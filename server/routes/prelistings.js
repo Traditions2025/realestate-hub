@@ -67,12 +67,12 @@ router.post('/sync-sheet', async (req, res) => {
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/1628DMNtqi5_hcS4e62RTjtHjwp5i8qk4wIloFO15dug/gviz/tq?tqx=out:csv&sheet=Potential%20Sellers'
     const response = await fetch(sheetUrl)
     const csv = await response.text()
-    const lines = csv.split('\n').filter(l => l.trim())
-    if (lines.length < 2) return res.json({ synced: 0 })
+    const rows = parseCSV(csv)
+    if (rows.length < 2) return res.json({ synced: 0 })
 
     let synced = 0
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i])
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i]
       if (!cols[0]) continue
       const existing = db.get('SELECT id FROM pre_listings WHERE property_address = ?', [cols[0]])
       if (existing) continue
@@ -97,24 +97,42 @@ router.post('/sync-sheet', async (req, res) => {
   }
 })
 
-function parseCSVLine(line) {
-  const result = []
-  let current = ''
+function parseCSV(csv) {
+  const rows = []
+  let row = []
+  let cell = ''
   let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
-      else { inQuotes = !inQuotes }
-    } else if (c === ',' && !inQuotes) {
-      result.push(current.trim())
-      current = ''
+
+  for (let i = 0; i < csv.length; i++) {
+    const c = csv[i]
+    if (inQuotes) {
+      if (c === '"') {
+        if (csv[i + 1] === '"') { cell += '"'; i++ }
+        else inQuotes = false
+      } else {
+        cell += c
+      }
     } else {
-      current += c
+      if (c === '"') inQuotes = true
+      else if (c === ',') { row.push(cell.trim()); cell = '' }
+      else if (c === '\n' || c === '\r') {
+        if (cell || row.length) {
+          row.push(cell.trim())
+          if (row.some(v => v !== '')) rows.push(row)
+          row = []
+          cell = ''
+        }
+        if (c === '\r' && csv[i + 1] === '\n') i++
+      } else {
+        cell += c
+      }
     }
   }
-  result.push(current.trim())
-  return result
+  if (cell || row.length) {
+    row.push(cell.trim())
+    if (row.some(v => v !== '')) rows.push(row)
+  }
+  return rows
 }
 
 export default router

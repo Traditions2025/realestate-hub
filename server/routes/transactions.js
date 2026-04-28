@@ -73,6 +73,13 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// Wipe all transactions (lets user re-sync clean from Google Sheet)
+router.post('/clear-all', (req, res) => {
+  db.run('DELETE FROM transactions')
+  logActivity('cleared', 'transaction', null, 'All transactions cleared')
+  res.json({ success: true })
+})
+
 // Sync from Google Sheet
 router.post('/sync-sheet', async (req, res) => {
   try {
@@ -80,18 +87,26 @@ router.post('/sync-sheet', async (req, res) => {
     const response = await fetch(sheetUrl)
     const csv = await response.text()
 
-    const lines = csv.split('\n').filter(l => l.trim())
-    if (lines.length < 2) return res.json({ synced: 0 })
+    const rows = parseCSV(csv)
+    if (rows.length < 2) return res.json({ synced: 0 })
 
     let synced = 0
-    for (let i = 1; i < lines.length; i++) {
-      const cols = parseCSVLine(lines[i])
+    for (let i = 1; i < rows.length; i++) {
+      const cols = rows[i]
       if (!cols[0]) continue // skip empty rows
 
-      const existing = db.get('SELECT id FROM transactions WHERE property_address = ? AND mls_number = ?',
-        [cols[0], n(cols[1])])
-
-      if (existing) continue // don't overwrite existing
+      const existing = db.get('SELECT id FROM transactions WHERE property_address = ?', [cols[0]])
+      if (existing) {
+        // Update key status fields without overwriting manual changes
+        db.run(`UPDATE transactions SET property_status=?, purchase_price=?, list_price=?,
+          contract_date=?, closing_date=?, updated_at=datetime('now') WHERE id=?`,
+          [n(cols[9]) || 'Active',
+            cols[11] ? parseFloat(cols[11].replace(/[$,]/g, '')) : null,
+            cols[10] ? parseFloat(cols[10].replace(/[$,]/g, '')) : null,
+            n(cols[12]), n(cols[13]), existing.id])
+        synced++
+        continue
+      }
 
       const boolVal = (v) => v === 'TRUE' ? 1 : 0
 
@@ -139,24 +154,43 @@ router.post('/sync-sheet', async (req, res) => {
   }
 })
 
-function parseCSVLine(line) {
-  const result = []
-  let current = ''
+// Proper CSV parser that handles quoted fields with embedded commas AND newlines
+function parseCSV(csv) {
+  const rows = []
+  let row = []
+  let cell = ''
   let inQuotes = false
-  for (let i = 0; i < line.length; i++) {
-    const c = line[i]
-    if (c === '"') {
-      if (inQuotes && line[i + 1] === '"') { current += '"'; i++ }
-      else { inQuotes = !inQuotes }
-    } else if (c === ',' && !inQuotes) {
-      result.push(current.trim())
-      current = ''
+
+  for (let i = 0; i < csv.length; i++) {
+    const c = csv[i]
+    if (inQuotes) {
+      if (c === '"') {
+        if (csv[i + 1] === '"') { cell += '"'; i++ }
+        else inQuotes = false
+      } else {
+        cell += c
+      }
     } else {
-      current += c
+      if (c === '"') inQuotes = true
+      else if (c === ',') { row.push(cell.trim()); cell = '' }
+      else if (c === '\n' || c === '\r') {
+        if (cell || row.length) {
+          row.push(cell.trim())
+          if (row.some(v => v !== '')) rows.push(row)
+          row = []
+          cell = ''
+        }
+        if (c === '\r' && csv[i + 1] === '\n') i++
+      } else {
+        cell += c
+      }
     }
   }
-  result.push(current.trim())
-  return result
+  if (cell || row.length) {
+    row.push(cell.trim())
+    if (row.some(v => v !== '')) rows.push(row)
+  }
+  return rows
 }
 
 export default router
