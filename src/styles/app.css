@@ -546,6 +546,17 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 .type-label { font-size: 11px; color: var(--text-muted); text-transform: capitalize; }
 
+.type-tag {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.type-tag.type-purchase { background: rgba(59, 130, 246, 0.15); color: #60a5fa; }
+.type-tag.type-listing { background: rgba(249, 115, 22, 0.15); color: #fb923c; }
+
 .pipeline-card-address {
   font-size: 13px;
   font-weight: 600;

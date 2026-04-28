@@ -146,8 +146,8 @@ export default function Transactions() {
               {stageItems.map(item => (
                 <div key={item.id} className="pipeline-card" onClick={() => openEdit(item)}>
                   <div className="pipeline-card-type">
-                    <StatusBadge status={item.type === 'purchase' ? 'active' : 'pending'} />
-                    <span className="type-label">{item.type}</span>
+                    <StatusBadge status={item.property_status?.toLowerCase().replace(/ /g, '_')} />
+                    <span className={`type-tag type-${item.type}`}>{item.type}</span>
                   </div>
                   <div className="pipeline-card-address">{item.property_address}</div>
                   <div className="pipeline-card-meta">

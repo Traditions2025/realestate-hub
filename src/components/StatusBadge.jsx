@@ -12,6 +12,8 @@ const statusColors = {
   withdrawn: '#ef4444',
   expired: '#dc2626',
   cancelled: '#991b1b',
+  terminated_sale_contract: '#ef4444',
+  terminated: '#ef4444',
 
   // Client statuses
   prime: '#f59e0b',
