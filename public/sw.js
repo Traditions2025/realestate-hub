@@ -1,31 +1,43 @@
-const CACHE_NAME = 'mst-hub-v1'
+// MST Hub service worker - network-first for everything except fonts/images
+const CACHE_NAME = 'mst-hub-v3'
 
 self.addEventListener('install', (event) => {
+  // Activate this worker immediately, replacing any old one
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(clients.claim())
+  event.waitUntil((async () => {
+    // Clear ALL old caches
+    const keys = await caches.keys()
+    await Promise.all(keys.filter(k => k !== CACHE_NAME).map(k => caches.delete(k)))
+    await clients.claim()
+  })())
 })
 
 self.addEventListener('fetch', (event) => {
-  // Network-first strategy for API calls
-  if (event.request.url.includes('/api/')) {
-    event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request))
-    )
+  const url = new URL(event.request.url)
+
+  // API calls: always go to network, no cache
+  if (url.pathname.startsWith('/api/')) {
+    event.respondWith(fetch(event.request))
     return
   }
 
-  // Cache-first for static assets
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetched = fetch(event.request).then((response) => {
-        const clone = response.clone()
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-        return response
-      })
-      return cached || fetched
-    })
-  )
+  // Network-first for HTML/JS/CSS - so new deploys reach users immediately
+  // Fall back to cache only if offline
+  event.respondWith((async () => {
+    try {
+      const fresh = await fetch(event.request)
+      // Cache the fresh response for offline fallback
+      const cache = await caches.open(CACHE_NAME)
+      cache.put(event.request, fresh.clone())
+      return fresh
+    } catch (err) {
+      // Offline fallback
+      const cached = await caches.match(event.request)
+      if (cached) return cached
+      throw err
+    }
+  })())
 })
