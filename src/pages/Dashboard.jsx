@@ -17,7 +17,7 @@ export default function Dashboard() {
   const syncSierra = async () => {
     setSyncing(true)
     try {
-      const r = await authFetch('/api/sierra/sync?statuses=all', { method: 'POST' })
+      const r = await authFetch('/api/sierra/sync', { method: 'POST' })
       const d = await r.json()
       if (d.error) alert('Sierra sync error: ' + d.error)
       else alert(`Sierra sync complete: ${d.total_synced} leads (${d.added} new, ${d.updated} updated)`)

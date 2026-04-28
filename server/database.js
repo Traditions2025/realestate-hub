@@ -5,7 +5,9 @@ import { dirname, join } from 'path'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
-const DB_PATH = join(__dirname, '..', 'realestate-hub.db')
+// Use persistent disk path on Render if mounted, otherwise local
+const DB_DIR = process.env.DB_DIR || join(__dirname, '..')
+const DB_PATH = join(DB_DIR, 'realestate-hub.db')
 
 let db
 
