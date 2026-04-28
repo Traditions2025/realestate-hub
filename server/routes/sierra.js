@@ -174,7 +174,7 @@ router.post('/sync', (req, res) => {
     return res.json({ success: true, alreadyRunning: true, progress: syncState.progress })
   }
 
-  const statusParam = req.query.statuses || 'Active,Prime,Watch,Pending'
+  const statusParam = req.query.statuses || 'all'
   let statuses
   if (statusParam === 'all') {
     statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Archived', 'Closed', 'Junk', 'DoNotContact', 'Blocked']

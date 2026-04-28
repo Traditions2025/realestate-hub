@@ -224,15 +224,11 @@ export default function Clients() {
         <div className="header-actions">
           <button
             className="btn btn-primary"
-            onClick={() => syncSierra(false, 'Active,Prime,Watch,Pending')}
+            onClick={() => syncSierra(false, 'all')}
             disabled={sierraStatus === 'syncing'}
-            title="Pulls Active, Prime, Watch, and Pending leads - meaningful prospects only"
+            title="Pulls every Sierra lead - all statuses"
           >
-            {sierraStatus === 'syncing' ? 'Syncing Sierra...' : (() => {
-              if (!sierraCounts) return 'Sync Sierra Leads'
-              const meaningful = (sierraCounts.Active || 0) + (sierraCounts.Prime || 0) + (sierraCounts.Watch || 0) + (sierraCounts.Pending || 0)
-              return `Sync Sierra Leads (${meaningful})`
-            })()}
+            {sierraStatus === 'syncing' ? 'Syncing Sierra...' : `Sync All Sierra Leads${sierraCounts ? ` (${sierraCounts.total.toLocaleString()})` : ''}`}
           </button>
           <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
         </div>
