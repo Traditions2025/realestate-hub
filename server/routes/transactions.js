@@ -91,9 +91,12 @@ router.post('/sync-sheet', async (req, res) => {
     if (rows.length < 2) return res.json({ synced: 0 })
 
     let synced = 0
+    let errors = []
     for (let i = 1; i < rows.length; i++) {
       const cols = rows[i]
       if (!cols[0]) continue // skip empty rows
+
+      try {
 
       const existing = db.get('SELECT id FROM transactions WHERE property_address = ?', [cols[0]])
       if (existing) {
@@ -145,10 +148,14 @@ router.post('/sync-sheet', async (req, res) => {
           boolVal(cols[47]), boolVal(cols[48]), n(cols[49])
         ])
       synced++
+      } catch (rowErr) {
+        errors.push({ row: i, address: cols[0], error: rowErr.message })
+        console.error(`[sync] Row ${i} failed (${cols[0]}):`, rowErr.message)
+      }
     }
 
-    logActivity('synced', 'transaction', null, `Synced ${synced} transactions from Google Sheet`)
-    res.json({ synced })
+    logActivity('synced', 'transaction', null, `Synced ${synced} transactions from Google Sheet${errors.length ? ` (${errors.length} errors)` : ''}`)
+    res.json({ synced, errors })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

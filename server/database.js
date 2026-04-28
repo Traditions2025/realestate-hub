@@ -67,7 +67,7 @@ export async function initDb() {
       buyers_agent_name TEXT,
       seller_name TEXT,
       sellers_agent_name TEXT,
-      agency_type TEXT CHECK(agency_type IN ('Buyer''s Agent', 'Listing Agent', 'Dual Agent', '')),
+      agency_type TEXT,
       -- Status & Pricing (Cols J-L)
       property_status TEXT NOT NULL DEFAULT 'Active',
       list_price REAL,
