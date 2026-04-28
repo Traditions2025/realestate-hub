@@ -15,9 +15,12 @@ router.get('/', (req, res) => {
       listings: db.get("SELECT COUNT(*) as count FROM transactions WHERE type = 'listing' AND property_status NOT IN ('Closed', 'Withdrawn', 'Expired', 'Cancelled')").count,
     },
     clients: {
-      active_buyers: db.get("SELECT COUNT(*) as count FROM clients WHERE type IN ('buyer', 'both') AND status = 'active'").count,
-      active_sellers: db.get("SELECT COUNT(*) as count FROM clients WHERE type IN ('seller', 'both') AND status = 'active'").count,
+      active_buyers: db.get("SELECT COUNT(*) as count FROM clients WHERE type IN ('buyer', 'both') AND status IN ('active', 'prime')").count,
+      active_sellers: db.get("SELECT COUNT(*) as count FROM clients WHERE type IN ('seller', 'both') AND status IN ('active', 'prime')").count,
+      active: db.get("SELECT COUNT(*) as count FROM clients WHERE status = 'active'").count,
+      prime: db.get("SELECT COUNT(*) as count FROM clients WHERE status = 'prime'").count,
       potential: db.get("SELECT COUNT(*) as count FROM clients WHERE status = 'potential'").count,
+      watch: db.get("SELECT COUNT(*) as count FROM clients WHERE status = 'watch'").count,
       total: db.get("SELECT COUNT(*) as count FROM clients").count,
     },
     tasks: {

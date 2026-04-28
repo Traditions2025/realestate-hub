@@ -16,6 +16,7 @@ const statusColors = {
   // Client statuses
   prime: '#f59e0b',
   potential: '#a78bfa',
+  watch: '#06b6d4',
   on_hold: '#6b7280',
 
   // Task statuses

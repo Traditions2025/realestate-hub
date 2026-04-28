@@ -21,6 +21,8 @@ export default function Clients() {
   const [detail, setDetail] = useState(null)
   const [sierraStatus, setSierraStatus] = useState(null) // null = not started, 'syncing', { added, updated, total_synced, error }
   const [syncLog, setSyncLog] = useState(null)
+  const [syncMenuOpen, setSyncMenuOpen] = useState(false)
+  const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
 
   const load = () => {
@@ -38,6 +40,8 @@ export default function Clients() {
     authFetch('/api/sierra/sync-log').then(r => r.json()).then(logs => {
       if (logs.length > 0) setSyncLog(logs[0])
     })
+    // Load Sierra lead counts
+    authFetch('/api/sierra/counts').then(r => r.json()).then(setSierraCounts).catch(() => {})
     // Auto-sync if haven't synced in the last hour
     if (!hasSynced.current) {
       hasSynced.current = true
@@ -45,12 +49,21 @@ export default function Clients() {
     }
   }, [])
 
+  // Close sync menu when clicking outside
+  useEffect(() => {
+    if (!syncMenuOpen) return
+    const close = () => setSyncMenuOpen(false)
+    setTimeout(() => document.addEventListener('click', close), 0)
+    return () => document.removeEventListener('click', close)
+  }, [syncMenuOpen])
+
   useEffect(() => { load() }, [filter, search, tab])
 
-  const syncSierra = async (silent = false) => {
+  const syncSierra = async (silent = false, statuses = 'Active,Prime') => {
     setSierraStatus('syncing')
+    setSyncMenuOpen(false)
     try {
-      const r = await authFetch('/api/sierra/sync', { method: 'POST' })
+      const r = await authFetch(`/api/sierra/sync?statuses=${encodeURIComponent(statuses)}`, { method: 'POST' })
       const d = await r.json()
       if (d.error) {
         setSierraStatus({ error: d.error })
@@ -150,14 +163,17 @@ export default function Clients() {
   }
 
   // Stats - load all clients for counts
-  const [allCounts, setAllCounts] = useState({ active: 0, prime: 0, buyers: 0, sellers: 0 })
+  const [allCounts, setAllCounts] = useState({ active: 0, prime: 0, potential: 0, watch: 0, buyers: 0, sellers: 0, total: 0 })
   useEffect(() => {
     api.getClients().then(all => {
       setAllCounts({
         active: all.filter(i => i.status === 'active').length,
         prime: all.filter(i => i.status === 'prime').length,
-        buyers: all.filter(i => (i.type === 'buyer' || i.type === 'both') && (i.status === 'active' || i.status === 'prime')).length,
-        sellers: all.filter(i => (i.type === 'seller' || i.type === 'both') && (i.status === 'active' || i.status === 'prime')).length,
+        potential: all.filter(i => i.status === 'potential').length,
+        watch: all.filter(i => i.status === 'watch').length,
+        buyers: all.filter(i => (i.type === 'buyer' || i.type === 'both')).length,
+        sellers: all.filter(i => (i.type === 'seller' || i.type === 'both')).length,
+        total: all.length,
       })
     })
   }, [items])
@@ -170,9 +186,49 @@ export default function Clients() {
           <p className="page-subtitle">Active buyers, sellers, and prospects — synced from Sierra Interactive</p>
         </div>
         <div className="header-actions">
-          <button className="btn btn-primary" onClick={() => syncSierra(false)} disabled={sierraStatus === 'syncing'}>
-            {sierraStatus === 'syncing' ? 'Syncing Sierra...' : 'Sync Sierra Leads'}
-          </button>
+          <div className="sync-menu-wrap" onClick={e => e.stopPropagation()}>
+            <button
+              className="btn btn-primary"
+              onClick={() => setSyncMenuOpen(!syncMenuOpen)}
+              disabled={sierraStatus === 'syncing'}
+            >
+              {sierraStatus === 'syncing' ? 'Syncing Sierra...' : 'Sync Sierra Leads ▾'}
+            </button>
+            {syncMenuOpen && (
+              <div className="sync-menu">
+                <div className="sync-menu-header">Pull Sierra leads</div>
+                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Active,Prime')}>
+                  <div className="sync-menu-title">Active + Prime</div>
+                  <div className="sync-menu-desc">{sierraCounts ? `${(sierraCounts.Active || 0) + (sierraCounts.Prime || 0)} leads` : 'Hot leads only'}</div>
+                </button>
+                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Active')}>
+                  <div className="sync-menu-title">Active only</div>
+                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.Active || 0} leads` : ''}</div>
+                </button>
+                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Prime')}>
+                  <div className="sync-menu-title">Prime only</div>
+                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.Prime || 0} leads` : ''}</div>
+                </button>
+                <button className="sync-menu-item" onClick={() => syncSierra(false, 'New')}>
+                  <div className="sync-menu-title">New leads</div>
+                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.New || 0} leads` : 'Recent registrations'}</div>
+                </button>
+                <button className="sync-menu-item" onClick={() => syncSierra(false, 'Watch')}>
+                  <div className="sync-menu-title">Watch list</div>
+                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.Watch || 0} leads` : ''}</div>
+                </button>
+                <div className="sync-menu-divider"></div>
+                <button className="sync-menu-item warn" onClick={() => {
+                  if (confirm(`Pull ALL leads from Sierra? This will sync ${sierraCounts?.total || 'thousands of'} leads and may take several minutes.`)) {
+                    syncSierra(false, 'all')
+                  }
+                }}>
+                  <div className="sync-menu-title">All leads</div>
+                  <div className="sync-menu-desc">{sierraCounts ? `${sierraCounts.total} total - takes a few minutes` : 'Everything in Sierra'}</div>
+                </button>
+              </div>
+            )}
+          </div>
           <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
         </div>
       </div>
@@ -209,9 +265,23 @@ export default function Clients() {
           Prime
           <span className="tab-count">{allCounts.prime}</span>
         </button>
+        {allCounts.potential > 0 && (
+          <button className={`client-tab ${tab === 'potential' ? 'active' : ''}`} onClick={() => setTab('potential')}>
+            <span className="tab-dot tab-dot-purple"></span>
+            New / Potential
+            <span className="tab-count">{allCounts.potential}</span>
+          </button>
+        )}
+        {allCounts.watch > 0 && (
+          <button className={`client-tab ${tab === 'watch' ? 'active' : ''}`} onClick={() => setTab('watch')}>
+            <span className="tab-dot tab-dot-cyan"></span>
+            Watch
+            <span className="tab-count">{allCounts.watch}</span>
+          </button>
+        )}
         <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
           All
-          <span className="tab-count">{allCounts.active + allCounts.prime}</span>
+          <span className="tab-count">{allCounts.total}</span>
         </button>
       </div>
 
@@ -232,7 +302,7 @@ export default function Clients() {
       </div>
 
       <div className="toolbar">
-        <input type="text" placeholder="Search name, email, phone..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
+        <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
         <select value={filter.type} onChange={e => setFilter(p => ({ ...p, type: e.target.value }))}>
           <option value="">All Types</option>
           <option value="buyer">Buyer</option>

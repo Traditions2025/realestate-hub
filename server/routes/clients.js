@@ -18,8 +18,13 @@ router.get('/', (req, res) => {
   if (type) { sql += ' AND type = ?'; params.push(type) }
   if (status) { sql += ' AND status = ?'; params.push(status) }
   if (search) {
-    sql += ' AND (first_name LIKE ? OR last_name LIKE ? OR email LIKE ? OR phone LIKE ?)'
-    params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`)
+    sql += ` AND (first_name LIKE ? OR last_name LIKE ?
+      OR (first_name || ' ' || last_name) LIKE ?
+      OR email LIKE ? OR phone LIKE ?
+      OR address LIKE ? OR city LIKE ? OR zip LIKE ?
+      OR source LIKE ? OR agent_assigned LIKE ?)`
+    const term = `%${search}%`
+    params.push(term, term, term, term, term, term, term, term, term, term)
   }
 
   sql += ' ORDER BY updated_at DESC'
