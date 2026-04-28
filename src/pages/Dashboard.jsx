@@ -39,6 +39,25 @@ export default function Dashboard() {
     setSyncing(false)
   }
 
+  const syncEverything = async () => {
+    setSyncing(true)
+    try {
+      const r = await authFetch('/api/seed/all', { method: 'POST' })
+      const d = await r.json()
+      const msg = [
+        d.results?.vendors?.added ? `${d.results.vendors.added} vendors` : null,
+        d.results?.partners?.added ? `${d.results.partners.added} partners` : null,
+        d.results?.calendar?.added ? `${d.results.calendar.added} calendar events` : null,
+        d.results?.transactions?.synced ? `${d.results.transactions.synced} transactions` : null,
+        d.results?.prelistings?.synced ? `${d.results.prelistings.synced} pre-listings` : null,
+        'Sierra sync started in background',
+      ].filter(Boolean).join(', ')
+      alert(`Sync Everything complete: ${msg}`)
+      load()
+    } catch (e) { alert('Sync failed: ' + e.message) }
+    setSyncing(false)
+  }
+
   if (loading) return <div className="page-loading">Loading dashboard...</div>
   if (!data) return <div className="page-loading">Failed to load dashboard</div>
 
@@ -55,8 +74,11 @@ export default function Dashboard() {
         </div>
         <div className="header-actions">
           <button className="btn btn-secondary" onClick={syncSheet} disabled={syncing}>Sync Google Sheet</button>
-          <button className="btn btn-primary" onClick={syncSierra} disabled={syncing}>
+          <button className="btn btn-secondary" onClick={syncSierra} disabled={syncing}>
             {syncing ? 'Syncing...' : 'Pull Sierra Leads'}
+          </button>
+          <button className="btn btn-primary" onClick={syncEverything} disabled={syncing}>
+            {syncing ? 'Syncing...' : 'Sync Everything'}
           </button>
         </div>
       </div>

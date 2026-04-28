@@ -6,6 +6,7 @@ import { initDb } from './database.js'
 import db from './database.js'
 
 import authRouter, { requireAuth } from './routes/auth.js'
+import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import transactionsRouter from './routes/transactions.js'
 import clientsRouter from './routes/clients.js'
 import tasksRouter from './routes/tasks.js'
@@ -26,6 +27,9 @@ const __dirname = dirname(__filename)
 
 async function start() {
   await initDb()
+
+  // Auto-seed vendors and partners on first boot (skipped if already exist)
+  autoSeedOnBoot()
 
   const app = express()
   const PORT = process.env.PORT || 3001
@@ -55,6 +59,7 @@ async function start() {
   app.use('/api/social-media', socialmediaRouter)
   app.use('/api/calendar', calendarRouter)
   app.use('/api/sierra', sierraRouter)
+  app.use('/api/seed', seedRouter)
 
   // Activity log
   app.get('/api/activity', (req, res) => {
