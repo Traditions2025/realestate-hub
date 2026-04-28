@@ -103,24 +103,27 @@ function processLead(lead, sierraStatus) {
   }
 }
 
-// Sync leads from Sierra
-// Query: ?statuses=Active,Prime  OR  ?statuses=all  (default: Active,Prime)
-router.post('/sync', async (req, res) => {
+// In-memory sync state so frontend can poll progress
+let syncState = {
+  running: false,
+  startedAt: null,
+  progress: { synced: 0, added: 0, updated: 0, currentStatus: null },
+  lastResult: null,
+  error: null,
+}
+
+async function runSyncBackground(statuses, statusParam) {
+  syncState = {
+    running: true,
+    startedAt: new Date().toISOString(),
+    progress: { synced: 0, added: 0, updated: 0, currentStatus: null },
+    lastResult: null,
+    error: null,
+  }
+
   try {
-    const statusParam = req.query.statuses || 'Active,Prime,Watch,Pending'
-    let statuses
-    if (statusParam === 'all') {
-      // Pull every status — this will be slow for 29K leads
-      statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending']
-    } else {
-      statuses = statusParam.split(',').map(s => s.trim())
-    }
-
-    let totalSynced = 0
-    let totalAdded = 0
-    let totalUpdated = 0
-
     for (const status of statuses) {
+      syncState.progress.currentStatus = status
       let page = 1
       let hasMore = true
 
@@ -138,10 +141,10 @@ router.post('/sync', async (req, res) => {
         if (!leads.length) { hasMore = false; break }
 
         for (const lead of leads) {
-          const result = processLead(lead, status)
-          if (result === 'added') totalAdded++
-          else if (result === 'updated') totalUpdated++
-          if (result) totalSynced++
+          const r = processLead(lead, status)
+          if (r === 'added') syncState.progress.added++
+          else if (r === 'updated') syncState.progress.updated++
+          if (r) syncState.progress.synced++
         }
 
         const totalPages = responseData.totalPages || 1
@@ -151,23 +154,56 @@ router.post('/sync', async (req, res) => {
     }
 
     db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)',
-      [statusParam, totalSynced, totalAdded, totalUpdated])
+      [statusParam, syncState.progress.synced, syncState.progress.added, syncState.progress.updated])
 
     db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
-      ['synced', 'sierra', `Sierra sync (${statusParam}): ${totalSynced} leads (${totalAdded} new, ${totalUpdated} updated)`])
+      ['synced', 'sierra', `Sierra sync (${statusParam}): ${syncState.progress.synced} leads (${syncState.progress.added} new, ${syncState.progress.updated} updated)`])
 
-    res.json({
+    syncState.lastResult = {
       success: true,
-      total_synced: totalSynced,
-      added: totalAdded,
-      updated: totalUpdated,
-      statuses_synced: statuses,
-    })
+      total_synced: syncState.progress.synced,
+      added: syncState.progress.added,
+      updated: syncState.progress.updated,
+      finishedAt: new Date().toISOString(),
+    }
   } catch (err) {
+    syncState.error = err.message
     db.run('INSERT INTO sierra_sync_log (sync_type, errors) VALUES (?,?)',
       ['sync_error', err.message])
-    res.status(500).json({ error: err.message })
+  } finally {
+    syncState.running = false
   }
+}
+
+// Start sync in background, respond immediately
+router.post('/sync', (req, res) => {
+  if (syncState.running) {
+    return res.json({ success: true, alreadyRunning: true, progress: syncState.progress })
+  }
+
+  const statusParam = req.query.statuses || 'Active,Prime,Watch,Pending'
+  let statuses
+  if (statusParam === 'all') {
+    statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending']
+  } else {
+    statuses = statusParam.split(',').map(s => s.trim())
+  }
+
+  // Fire and forget — runs in background
+  runSyncBackground(statuses, statusParam).catch(() => {})
+
+  res.json({ success: true, started: true, statuses })
+})
+
+// Poll sync status
+router.get('/sync-status', (req, res) => {
+  res.json({
+    running: syncState.running,
+    startedAt: syncState.startedAt,
+    progress: syncState.progress,
+    lastResult: syncState.lastResult,
+    error: syncState.error,
+  })
 })
 
 // Get total counts per status from Sierra (so user knows what they're pulling)

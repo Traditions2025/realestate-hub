@@ -54,20 +54,45 @@ export default function Clients() {
 
   useEffect(() => { load() }, [filter, search, tab])
 
-  const syncSierra = async (silent = false, statuses = 'Active,Prime') => {
+  const syncSierra = async (silent = false, statuses = 'Active,Prime,Watch,Pending') => {
     setSierraStatus('syncing')
     setSyncMenuOpen(false)
     try {
+      // Kick off background sync
       const r = await authFetch(`/api/sierra/sync?statuses=${encodeURIComponent(statuses)}`, { method: 'POST' })
       const d = await r.json()
       if (d.error) {
         setSierraStatus({ error: d.error })
         if (!silent) alert('Sierra sync error: ' + d.error)
-      } else {
-        setSierraStatus(d)
-        setSyncLog({ leads_synced: d.total_synced, leads_added: d.added, leads_updated: d.updated, synced_at: new Date().toISOString() })
-        load()
+        return
       }
+
+      // Poll for progress every 2 seconds
+      const poll = setInterval(async () => {
+        try {
+          const sr = await authFetch('/api/sierra/sync-status')
+          const status = await sr.json()
+          if (status.running) {
+            setSierraStatus({ syncing: true, progress: status.progress })
+          } else {
+            clearInterval(poll)
+            if (status.error) {
+              setSierraStatus({ error: status.error })
+            } else if (status.lastResult) {
+              setSierraStatus(status.lastResult)
+              setSyncLog({
+                leads_synced: status.lastResult.total_synced,
+                leads_added: status.lastResult.added,
+                leads_updated: status.lastResult.updated,
+                synced_at: status.lastResult.finishedAt,
+              })
+              load()
+            }
+          }
+        } catch (e) {
+          clearInterval(poll)
+        }
+      }, 2000)
     } catch (e) {
       setSierraStatus({ error: e.message })
       if (!silent) alert('Sync failed: ' + e.message)
@@ -200,7 +225,13 @@ export default function Clients() {
       {/* Sierra Sync Status Bar */}
       <div className="sierra-status-bar">
         {sierraStatus === 'syncing' && (
-          <div className="sierra-banner syncing">Pulling Active leads from Sierra Interactive...</div>
+          <div className="sierra-banner syncing">Starting Sierra sync...</div>
+        )}
+        {sierraStatus && sierraStatus.syncing && sierraStatus.progress && (
+          <div className="sierra-banner syncing">
+            Syncing Sierra leads... {sierraStatus.progress.synced} synced
+            {sierraStatus.progress.currentStatus ? ` (currently: ${sierraStatus.progress.currentStatus})` : ''}
+          </div>
         )}
         {sierraStatus && sierraStatus.total_synced !== undefined && (
           <div className="sierra-banner success">
