@@ -10,6 +10,14 @@ function logActivity(action, entityType, entityId, details) {
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)', [action, entityType, entityId, details])
 }
 
+// Get counts per status for tabs
+router.get('/status-counts', (req, res) => {
+  const rows = db.all(`SELECT status, COUNT(*) as count FROM clients
+    WHERE status IS NOT NULL AND status != ''
+    GROUP BY status ORDER BY count DESC`)
+  res.json(rows)
+})
+
 router.get('/', (req, res) => {
   const { type, status, search } = req.query
   let sql = 'SELECT * FROM clients WHERE 1=1'

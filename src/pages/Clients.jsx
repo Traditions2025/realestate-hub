@@ -182,21 +182,37 @@ export default function Clients() {
     if (detail) openDetail(client.id)
   }
 
-  // Stats - load all clients for counts
-  const [allCounts, setAllCounts] = useState({ active: 0, prime: 0, potential: 0, watch: 0, buyers: 0, sellers: 0, total: 0 })
+  // Status counts for tabs (loaded from server, all statuses)
+  const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
+  const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
   useEffect(() => {
+    authFetch('/api/clients/status-counts').then(r => r.json()).then(setStatusCounts).catch(() => {})
     api.getClients().then(all => {
       setAllCounts({
-        active: all.filter(i => i.status === 'active').length,
-        prime: all.filter(i => i.status === 'prime').length,
-        potential: all.filter(i => i.status === 'potential').length,
-        watch: all.filter(i => i.status === 'watch').length,
         buyers: all.filter(i => (i.type === 'buyer' || i.type === 'both')).length,
         sellers: all.filter(i => (i.type === 'seller' || i.type === 'both')).length,
         total: all.length,
       })
     })
   }, [items])
+
+  // Color and order for status tabs
+  const statusColors = {
+    prime: '#f59e0b', active: '#3b82f6', new: '#a78bfa', qualify: '#a78bfa',
+    watch: '#06b6d4', pending: '#8b5cf6', closed: '#10b981', archived: '#6b7280',
+    junk: '#6b7280', donotcontact: '#ef4444', blocked: '#ef4444',
+    potential: '#a78bfa', under_contract: '#8b5cf6', on_hold: '#6b7280',
+  }
+  const statusOrder = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'potential', 'under_contract', 'closed', 'archived', 'on_hold', 'junk', 'donotcontact', 'blocked']
+  const sortedStatusCounts = [...statusCounts].sort((a, b) => {
+    const ai = statusOrder.indexOf(a.status); const bi = statusOrder.indexOf(b.status)
+    if (ai === -1 && bi === -1) return b.count - a.count
+    if (ai === -1) return 1
+    if (bi === -1) return -1
+    return ai - bi
+  })
+
+  const formatStatus = (s) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
   return (
     <div className="page">
@@ -248,32 +264,19 @@ export default function Clients() {
         )}
       </div>
 
-      {/* Status Tabs */}
+      {/* Status Tabs - dynamic based on what statuses exist */}
       <div className="client-tabs">
-        <button className={`client-tab ${tab === 'active' ? 'active' : ''}`} onClick={() => setTab('active')}>
-          <span className="tab-dot tab-dot-blue"></span>
-          Active
-          <span className="tab-count">{allCounts.active}</span>
-        </button>
-        <button className={`client-tab ${tab === 'prime' ? 'active' : ''}`} onClick={() => setTab('prime')}>
-          <span className="tab-dot tab-dot-amber"></span>
-          Prime
-          <span className="tab-count">{allCounts.prime}</span>
-        </button>
-        {allCounts.potential > 0 && (
-          <button className={`client-tab ${tab === 'potential' ? 'active' : ''}`} onClick={() => setTab('potential')}>
-            <span className="tab-dot tab-dot-purple"></span>
-            New / Potential
-            <span className="tab-count">{allCounts.potential}</span>
+        {sortedStatusCounts.map(s => (
+          <button
+            key={s.status}
+            className={`client-tab ${tab === s.status ? 'active' : ''}`}
+            onClick={() => setTab(s.status)}
+          >
+            <span className="tab-dot" style={{ background: statusColors[s.status] || '#6b7280' }}></span>
+            {formatStatus(s.status)}
+            <span className="tab-count">{s.count}</span>
           </button>
-        )}
-        {allCounts.watch > 0 && (
-          <button className={`client-tab ${tab === 'watch' ? 'active' : ''}`} onClick={() => setTab('watch')}>
-            <span className="tab-dot tab-dot-cyan"></span>
-            Watch
-            <span className="tab-count">{allCounts.watch}</span>
-          </button>
-        )}
+        ))}
         <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
           All
           <span className="tab-count">{allCounts.total}</span>

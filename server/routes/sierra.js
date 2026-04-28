@@ -7,17 +7,10 @@ const n = (v) => v === undefined || v === '' ? null : v
 const SIERRA_API_KEY = process.env.SIERRA_API_KEY || 'b97e3302-1985-46a4-9032-cb92e5cb3dd8'
 const SIERRA_API_URL = 'https://api.sierrainteractivedev.com'
 
-// Map Sierra leadStatus to our client status
-const statusMap = {
-  'Prime': 'prime',
-  'Active': 'active',
-  'New': 'potential',
-  'Qualify': 'potential',
-  'Watch': 'watch',
-  'Pending': 'pending',
-  'Closed': 'closed',
-  'Archived': 'closed',
-  'Junk': 'on_hold',
+// Keep Sierra's exact status names (lowercased, with underscores for spaces)
+function mapStatus(sierraStatus) {
+  if (!sierraStatus) return 'active'
+  return sierraStatus.toLowerCase().replace(/\s+/g, '_')
 }
 
 async function sierraGet(endpoint, params = {}) {
@@ -52,7 +45,7 @@ function processLead(lead, sierraStatus) {
 
   // Use leadStatus from the lead itself if available, otherwise use the queried status
   const actualStatus = lead.leadStatus || sierraStatus
-  const clientStatus = statusMap[actualStatus] || 'active'
+  const clientStatus = mapStatus(actualStatus)
 
   // Determine type from leadType
   let type = 'buyer'
@@ -184,7 +177,7 @@ router.post('/sync', (req, res) => {
   const statusParam = req.query.statuses || 'Active,Prime,Watch,Pending'
   let statuses
   if (statusParam === 'all') {
-    statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending']
+    statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Archived', 'Closed', 'Junk', 'DoNotContact', 'Blocked']
   } else {
     statuses = statusParam.split(',').map(s => s.trim())
   }
@@ -210,7 +203,7 @@ router.get('/sync-status', (req, res) => {
 router.get('/counts', async (req, res) => {
   try {
     const counts = {}
-    const statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Closed', 'Archived']
+    const statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Closed', 'Archived', 'Junk', 'DoNotContact', 'Blocked']
     for (const s of statuses) {
       try {
         const data = await sierraGet('/leads/find', { pageSize: 1, leadStatus: s })
