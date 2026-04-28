@@ -7,6 +7,7 @@ import db from './database.js'
 
 import authRouter, { requireAuth } from './routes/auth.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
+import { startScheduler } from './scheduler.js'
 import transactionsRouter from './routes/transactions.js'
 import clientsRouter from './routes/clients.js'
 import tasksRouter from './routes/tasks.js'
@@ -81,6 +82,9 @@ async function start() {
     console.log(`  API Server:  http://localhost:${PORT}`)
     console.log('  =============================================')
     console.log('')
+
+    // Start auto-sync scheduler
+    startScheduler()
   })
 }
 
