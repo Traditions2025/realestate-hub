@@ -398,6 +398,12 @@ export default function Clients() {
               <div className="cl-name">
                 <strong>{item.first_name} {item.last_name}</strong>
                 {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
+                {item.tags && (() => {
+                  try {
+                    const tagList = JSON.parse(item.tags)
+                    return tagList.slice(0, 2).map((t, i) => <span key={i} className="lead-tag">{t}</span>)
+                  } catch { return null }
+                })()}
               </div>
               <div className="cl-status"><StatusBadge status={item.status} /></div>
               <div className="cl-phone">{item.phone || '—'}</div>
@@ -522,11 +528,28 @@ export default function Clients() {
                 <p><strong>Website Visits:</strong> {detail.visits || 0}</p>
                 {detail.lead_score && <p><strong>Realist Score:</strong> {detail.lead_score} {detail.lead_grade && <span className="email-status-tag">{detail.lead_grade}</span>}</p>}
                 <p><strong>Budget:</strong> {formatCurrency(detail.budget_min)} - {formatCurrency(detail.budget_max)}</p>
+                {detail.lender_name && <p><strong>Lender:</strong> {detail.lender_name} {detail.lender_status && <span className="email-status-tag">{detail.lender_status}</span>}</p>}
+                {detail.listing_agent_status && detail.listing_agent_status !== 'None' && <p><strong>Listing Status:</strong> {detail.listing_agent_status}</p>}
                 {detail.short_summary && <p style={{fontSize: 12, color: 'var(--text-muted)', marginTop: 8}}>{detail.short_summary}</p>}
                 {detail.sierra_creation_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Created: {detail.sierra_creation_date.split('T')[0]}</p>}
                 {detail.sierra_update_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Last Update: {detail.sierra_update_date.split('T')[0]}</p>}
               </div>
             </div>
+
+            {/* Tags */}
+            {detail.tags && (() => {
+              let tagList = []
+              try { tagList = JSON.parse(detail.tags) } catch {}
+              if (!tagList.length) return null
+              return (
+                <div className="detail-section">
+                  <h4>Tags ({tagList.length})</h4>
+                  <div className="lead-tags-list">
+                    {tagList.map((t, i) => <span key={i} className="lead-tag">{t}</span>)}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Sierra Activity Log */}
             {detail.sierra_lead_id && (

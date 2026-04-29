@@ -71,6 +71,10 @@ export async function initDb() {
       text_opt_out INTEGER DEFAULT 0,
       ealert_opt_out INTEGER DEFAULT 0,
       short_summary TEXT,
+      tags TEXT,
+      lender_name TEXT,
+      lender_status TEXT,
+      listing_agent_status TEXT,
       notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -427,6 +431,10 @@ export async function initDb() {
       ['text_opt_out', 'INTEGER DEFAULT 0'],
       ['ealert_opt_out', 'INTEGER DEFAULT 0'],
       ['short_summary', 'TEXT'],
+      ['tags', 'TEXT'],
+      ['lender_name', 'TEXT'],
+      ['lender_status', 'TEXT'],
+      ['listing_agent_status', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {

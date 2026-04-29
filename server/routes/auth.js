@@ -65,6 +65,7 @@ router.get('/verify', (req, res) => {
 export function requireAuth(req, res, next) {
   if (req.path === '/api/auth/login' || req.path === '/api/auth/verify') return next()
   if (req.path === '/api/db-status') return next() // public diagnostics
+  if (req.path === '/api/sierra/webhook') return next() // Sierra calls this
   if (!req.path.startsWith('/api/')) return next()
   const token = req.headers['x-auth-token']
   if (verifyToken(token)) return next()

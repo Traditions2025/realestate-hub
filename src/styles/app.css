@@ -1677,6 +1677,25 @@ input[type="range"] {
   color: var(--text-muted);
 }
 
+/* Lead tags from Sierra */
+.lead-tag {
+  display: inline-block;
+  margin: 2px 3px 2px 0;
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  background: rgba(139, 92, 246, 0.12);
+  color: #c4b5fd;
+  border: 1px solid rgba(139, 92, 246, 0.25);
+  white-space: nowrap;
+}
+
+.lead-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* Sierra activity feed */
 .sierra-activity-feed {
   display: flex;

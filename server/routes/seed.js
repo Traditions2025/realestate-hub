@@ -101,6 +101,24 @@ function seedCalendar() {
   return { added }
 }
 
+// Setup endpoint - registers Sierra webhooks for real-time updates
+router.post('/setup-webhooks', async (req, res) => {
+  try {
+    const baseUrl = req.body?.baseUrl || `https://${req.headers.host}`
+    const webhookUrl = `${baseUrl}/api/sierra/webhook`
+
+    const r = await fetch(`http://localhost:${process.env.PORT || 3001}/api/sierra/register-webhooks`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-auth-token': req.headers['x-auth-token'] || '' },
+      body: JSON.stringify({ baseUrl }),
+    })
+    const data = await r.json()
+    res.json(data)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Run all syncs - vendors, partners, Google Sheet, Sierra
 router.post('/all', async (req, res) => {
   const results = { vendors: null, partners: null, calendar: null, transactions: null, prelistings: null, sierra: null }
