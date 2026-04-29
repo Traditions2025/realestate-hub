@@ -99,8 +99,40 @@ export default function Transactions() {
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
 
-  // Pipeline groups
-  const pipelineStatuses = ['Active', 'Under Contract', 'Pending', 'Clear to Close', 'Closed']
+  // Pipeline groups - Pending merged into Under Contract
+  const pipelineStatuses = ['Active', 'Under Contract', 'Clear to Close', 'Closed']
+
+  // Compute upcoming action items for Under Contract transactions
+  const today = new Date()
+  today.setHours(0,0,0,0)
+  const parseDate = (s) => {
+    if (!s) return null
+    const parts = s.split(/[\/\-]/)
+    let d
+    if (parts[0].length === 4) d = new Date(s)
+    else d = new Date(`${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`)
+    return isNaN(d) ? null : d
+  }
+  const daysUntil = (date) => {
+    const d = parseDate(date)
+    if (!d) return null
+    return Math.ceil((d - today) / (1000 * 60 * 60 * 24))
+  }
+  const getUpcomingActions = (item) => {
+    const actions = [
+      { label: 'Inspection', date: item.inspection_contingency_date, status: item.home_inspection },
+      { label: 'Appraisal Contingency', date: item.appraisal_contingency_date, status: item.appraisal_contingency_status },
+      { label: 'Mortgage Contingency', date: item.mortgage_contingency_date },
+      { label: 'Financing Release', date: item.financing_release },
+      { label: 'Final Walkthrough', date: item.final_walkthrough },
+      { label: 'Closing', date: item.closing_date },
+    ]
+    return actions
+      .map(a => ({ ...a, days: daysUntil(a.date) }))
+      .filter(a => a.days !== null && a.days >= -2)
+      .sort((a, b) => a.days - b.days)
+      .slice(0, 3)
+  }
 
   return (
     <div className="page">
@@ -136,27 +168,56 @@ export default function Transactions() {
       {/* Pipeline View */}
       <div className="pipeline">
         {pipelineStatuses.map(stage => {
-          const stageItems = items.filter(i => i.property_status === stage)
+          // Merge Pending into Under Contract
+          const stageItems = stage === 'Under Contract'
+            ? items.filter(i => i.property_status === 'Under Contract' || i.property_status === 'Pending')
+            : items.filter(i => i.property_status === stage)
           return (
             <div key={stage} className="pipeline-column">
               <div className="pipeline-header">
                 <span>{stage}</span>
                 <span className="pipeline-count">{stageItems.length}</span>
               </div>
-              {stageItems.map(item => (
-                <div key={item.id} className="pipeline-card" onClick={() => openEdit(item)}>
-                  <div className="pipeline-card-type">
-                    <StatusBadge status={item.property_status?.toLowerCase().replace(/ /g, '_')} />
-                    <span className={`type-tag type-${item.type}`}>{item.type}</span>
+              <div className="pipeline-scroll">
+              {stageItems.map(item => {
+                const isUnderContract = stage === 'Under Contract'
+                const actions = isUnderContract ? getUpcomingActions(item) : []
+                return (
+                  <div key={item.id} className="pipeline-card" onClick={() => openEdit(item)}>
+                    <div className="pipeline-card-type">
+                      <StatusBadge status={item.property_status?.toLowerCase().replace(/ /g, '_')} />
+                      <span className={`type-tag type-${item.type}`}>{item.type}</span>
+                    </div>
+                    <div className="pipeline-card-address">{item.property_address}</div>
+                    <div className="pipeline-card-meta">
+                      <span>{item.buyer_name || item.seller_name || '—'}</span>
+                      {item.purchase_price && <span className="price">${Number(item.purchase_price).toLocaleString()}</span>}
+                    </div>
+                    {/* Upcoming actions for Under Contract */}
+                    {actions.length > 0 && (
+                      <div className="pipeline-actions">
+                        {actions.map((a, i) => {
+                          const urgent = a.days <= 3
+                          const overdue = a.days < 0
+                          return (
+                            <div key={i} className={`pipeline-action ${overdue ? 'overdue' : urgent ? 'urgent' : ''}`}>
+                              <span className="action-label">{a.label}</span>
+                              <span className="action-date">
+                                {a.date}
+                                {a.days >= 0 ? ` (${a.days}d)` : ` (${Math.abs(a.days)}d ago)`}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                    {!isUnderContract && item.closing_date && (
+                      <div className="pipeline-card-date">Close: {item.closing_date}</div>
+                    )}
                   </div>
-                  <div className="pipeline-card-address">{item.property_address}</div>
-                  <div className="pipeline-card-meta">
-                    <span>{item.buyer_name || item.seller_name || '—'}</span>
-                    {item.purchase_price && <span className="price">${Number(item.purchase_price).toLocaleString()}</span>}
-                  </div>
-                  {item.closing_date && <div className="pipeline-card-date">Close: {item.closing_date}</div>}
-                </div>
-              ))}
+                )
+              })}
+              </div>
             </div>
           )
         })}
