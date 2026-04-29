@@ -386,6 +386,11 @@ export default function Clients() {
       </div>
 
       {/* Client List View */}
+      {view === 'list' && items.length === 0 && (
+        <div className="empty-state-full">
+          {sierraStatus === 'syncing' ? 'Syncing clients from Sierra...' : 'No clients found in this status. Try another tab or sync from Sierra.'}
+        </div>
+      )}
       {view === 'list' && items.length > 0 && (
         <div className="client-list">
           <div className="client-list-header">
