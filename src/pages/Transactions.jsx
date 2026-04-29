@@ -223,8 +223,8 @@ export default function Transactions() {
         })}
       </div>
 
-      {/* Full Table */}
-      <div className="table-container">
+      {/* Full Table - desktop */}
+      <div className="table-container desktop-only-table">
         <table className="data-table">
           <thead>
             <tr>
@@ -264,6 +264,34 @@ export default function Transactions() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Card list - mobile */}
+      <div className="mobile-only-cards">
+        {items.length === 0 ? (
+          <div className="empty-state-full">No transactions found. Sync from Google Sheet or create one.</div>
+        ) : items.map(item => (
+          <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
+            <div className="data-card-header">
+              <div className="data-card-title">{item.property_address}</div>
+              <StatusBadge status={item.property_status?.toLowerCase().replace(/ /g, '_')} />
+            </div>
+            <div className="data-card-meta">
+              <span className={`type-tag type-${item.type}`}>{item.type}</span>
+              {item.mls_number && <span>MLS {item.mls_number}</span>}
+            </div>
+            <div className="data-card-body">
+              {item.buyer_name && <div><strong>Buyer:</strong> {item.buyer_name}</div>}
+              {item.seller_name && <div><strong>Seller:</strong> {item.seller_name}</div>}
+              {(item.purchase_price || item.list_price) && (
+                <div><strong>Price:</strong> {item.purchase_price ? `$${Number(item.purchase_price).toLocaleString()}` : `$${Number(item.list_price).toLocaleString()}`}</div>
+              )}
+              {item.contract_date && <div><strong>Contract:</strong> {item.contract_date}</div>}
+              {item.closing_date && <div><strong>Closing:</strong> {item.closing_date}</div>}
+              {item.tc_assigned && <div><strong>TC:</strong> {item.tc_assigned}</div>}
+            </div>
+          </div>
+        ))}
       </div>
 
       {/* Full Transaction Form Modal */}

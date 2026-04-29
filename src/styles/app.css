@@ -1355,12 +1355,15 @@ input[type="range"] {
   .notes-grid { grid-template-columns: 1fr; }
   .dashboard-grid { grid-template-columns: 1fr; }
 
-  /* Pipeline horizontal scroll */
+  /* Pipeline stacks vertically on mobile - each column is its own collapsible */
   .pipeline {
-    grid-template-columns: repeat(5, 240px);
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    padding-bottom: 8px;
+    grid-template-columns: 1fr;
+  }
+  .pipeline-column {
+    max-height: none;
+  }
+  .pipeline-scroll {
+    max-height: 400px;
   }
 
   /* Kanban stacks */
@@ -1551,6 +1554,66 @@ input[type="range"] {
 .client-tab.active .tab-count {
   background: rgba(59, 130, 246, 0.15);
   color: var(--accent);
+}
+
+/* ---- Mobile data cards ---- */
+.desktop-only-table { display: block; }
+.mobile-only-cards { display: none; }
+
+.data-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+}
+.data-card:hover { border-color: var(--accent); }
+
+.data-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.data-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  flex: 1;
+}
+
+.data-card-meta {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.data-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+.data-card-body strong {
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+@media (max-width: 768px) {
+  .desktop-only-table { display: none !important; }
+  .mobile-only-cards { display: block; }
 }
 
 /* ---- Sierra Status Bar ---- */

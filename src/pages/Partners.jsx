@@ -79,7 +79,8 @@ export default function Partners() {
         </select>
       </div>
 
-      <div className="table-container">
+      {/* Desktop table */}
+      <div className="table-container desktop-only-table">
         <table className="data-table">
           <thead>
             <tr>
@@ -122,6 +123,37 @@ export default function Partners() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile card view */}
+      <div className="mobile-only-cards">
+        {items.length === 0 ? (
+          <div className="empty-state-full">No partners yet. Add your first partner above.</div>
+        ) : items.map(item => (
+          <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
+            <div className="data-card-header">
+              <div className="data-card-title">
+                {item.preferred ? <span style={{color: '#10b981', marginRight: 4}}>&#9733;</span> : null}
+                {item.name}
+              </div>
+              <span className="status-badge" style={{
+                backgroundColor: `${relationColors[item.relationship_level] || '#6b7280'}18`,
+                color: relationColors[item.relationship_level] || '#6b7280',
+                borderColor: `${relationColors[item.relationship_level] || '#6b7280'}40`
+              }}>{item.relationship_level}</span>
+            </div>
+            <div className="data-card-meta">
+              <span>{item.role}</span>
+              {item.company && <span>{item.company}</span>}
+            </div>
+            <div className="data-card-body">
+              {item.phone && <div><strong>Phone:</strong> {item.phone}</div>}
+              {item.email && <div><strong>Email:</strong> {item.email}</div>}
+              {item.specialty && <div><strong>Specialty:</strong> {item.specialty}</div>}
+              {item.referral_count > 0 && <div><strong>Referrals:</strong> {item.referral_count}</div>}
+            </div>
+          </div>
+        ))}
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Partner' : 'Add Partner'}>
