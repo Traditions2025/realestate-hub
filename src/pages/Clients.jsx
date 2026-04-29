@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
+import MultiSelect from '../components/MultiSelect'
 import StatusBadge from '../components/StatusBadge'
 
 const emptyClient = {
@@ -34,6 +35,7 @@ export default function Clients() {
     zips_include: [],
     cities_include: [],
     sources_include: [],
+    email_statuses: [],
     has_email: false,
     exclude_optouts: false,
     score_min: '',
@@ -57,7 +59,7 @@ export default function Clients() {
     advFilters.statuses_include.length + advFilters.statuses_exclude.length +
     advFilters.tags_include.length + advFilters.tags_exclude.length +
     advFilters.zips_include.length + advFilters.cities_include.length +
-    advFilters.sources_include.length +
+    advFilters.sources_include.length + advFilters.email_statuses.length +
     (advFilters.has_email ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0)
@@ -92,6 +94,7 @@ export default function Clients() {
     if (advFilters.zips_include.length) params.zips_include = advFilters.zips_include.join(',')
     if (advFilters.cities_include.length) params.cities_include = advFilters.cities_include.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
+    if (advFilters.email_statuses.length) params.email_statuses = advFilters.email_statuses.join(',')
     if (advFilters.has_email) params.has_email = '1'
     if (advFilters.exclude_optouts) params.exclude_optouts = '1'
     if (advFilters.score_min) params.score_min = advFilters.score_min
@@ -257,6 +260,7 @@ export default function Clients() {
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
       zips_include: [], cities_include: [], sources_include: [],
+      email_statuses: [],
       has_email: false, exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '',
     })
@@ -306,6 +310,7 @@ export default function Clients() {
           zips_include: f.zips_include || [],
           cities_include: f.cities_include || [],
           sources_include: f.sources_include || [],
+          email_statuses: f.email_statuses || [],
           has_email: !!f.has_email,
           exclude_optouts: !!f.exclude_optouts,
           score_min: f.score_min || '',
@@ -652,118 +657,134 @@ export default function Clients() {
         </select>
       </div>
 
-      {/* Advanced Filter Panel */}
+      {/* Advanced Filter Panel - searchable multi-selects */}
       {filterPanelOpen && (
         <div className="filter-panel">
-          <div className="filter-section">
-            <h5>Status (Include)</h5>
-            <div className="filter-chips">
-              {ALL_STATUSES.map(s => (
-                <button key={s} type="button"
-                  className={`filter-chip ${advFilters.statuses_include.includes(s) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('statuses_include', s)}>
-                  {formatStatus(s)}
-                </button>
-              ))}
+          <div className="filter-grid">
+            <div className="filter-section">
+              <h5>Status (Include)</h5>
+              <MultiSelect
+                placeholder="Search statuses..."
+                options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
+                selected={advFilters.statuses_include}
+                onChange={v => setAdvFilters(p => ({ ...p, statuses_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Status (Exclude)</h5>
+              <MultiSelect mode="exclude"
+                placeholder="Exclude statuses..."
+                options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
+                selected={advFilters.statuses_exclude}
+                onChange={v => setAdvFilters(p => ({ ...p, statuses_exclude: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Tags (Include)</h5>
+              <MultiSelect
+                placeholder={`Search ${filterOptions.tags.length} tags...`}
+                options={filterOptions.tags}
+                selected={advFilters.tags_include}
+                onChange={v => setAdvFilters(p => ({ ...p, tags_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Tags (Exclude)</h5>
+              <MultiSelect mode="exclude"
+                placeholder="Exclude tags..."
+                options={filterOptions.tags}
+                selected={advFilters.tags_exclude}
+                onChange={v => setAdvFilters(p => ({ ...p, tags_exclude: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Zip Codes</h5>
+              <MultiSelect
+                placeholder={`Search ${filterOptions.zips.length} zips...`}
+                options={filterOptions.zips}
+                selected={advFilters.zips_include}
+                onChange={v => setAdvFilters(p => ({ ...p, zips_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Cities</h5>
+              <MultiSelect
+                placeholder={`Search ${filterOptions.cities.length} cities...`}
+                options={filterOptions.cities}
+                selected={advFilters.cities_include}
+                onChange={v => setAdvFilters(p => ({ ...p, cities_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Sources</h5>
+              <MultiSelect
+                placeholder={`Search ${filterOptions.sources.length} sources...`}
+                options={filterOptions.sources}
+                selected={advFilters.sources_include}
+                onChange={v => setAdvFilters(p => ({ ...p, sources_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Email Status</h5>
+              <MultiSelect
+                placeholder="Email statuses..."
+                options={[
+                  { value: 'ValidAddress', label: 'Valid Address' },
+                  { value: 'TwoWayEmailing', label: 'Two-Way Emailing' },
+                  { value: 'Unknown', label: 'Unknown' },
+                  { value: 'OptedOut', label: 'Opted Out' },
+                  { value: 'WrongAddress', label: 'Wrong Address' },
+                  { value: 'ReportedAsSpam', label: 'Reported As Spam' },
+                ]}
+                selected={advFilters.email_statuses}
+                onChange={v => setAdvFilters(p => ({ ...p, email_statuses: v }))}
+              />
             </div>
           </div>
-          <div className="filter-section">
-            <h5>Status (Exclude)</h5>
-            <div className="filter-chips">
-              {ALL_STATUSES.map(s => (
-                <button key={s} type="button"
-                  className={`filter-chip exclude ${advFilters.statuses_exclude.includes(s) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('statuses_exclude', s)}>
-                  {formatStatus(s)}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="filter-section">
-            <h5>Tags (Include) — top 30 most used</h5>
-            <div className="filter-chips">
-              {filterOptions.tags.slice(0, 30).map(t => (
-                <button key={t.tag} type="button"
-                  className={`filter-chip ${advFilters.tags_include.includes(t.tag) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('tags_include', t.tag)}>
-                  {t.tag} <span style={{opacity: 0.6}}>({t.count})</span>
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="filter-section">
-            <h5>Tags (Exclude)</h5>
-            <div className="filter-chips">
-              {filterOptions.tags.slice(0, 20).map(t => (
-                <button key={t.tag} type="button"
-                  className={`filter-chip exclude ${advFilters.tags_exclude.includes(t.tag) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('tags_exclude', t.tag)}>
-                  {t.tag}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="filter-section">
-            <h5>Zip Codes</h5>
-            <div className="filter-chips">
-              {filterOptions.zips.slice(0, 30).map(z => (
-                <button key={z} type="button"
-                  className={`filter-chip ${advFilters.zips_include.includes(z) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('zips_include', z)}>
-                  {z}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="filter-section">
-            <h5>Cities</h5>
-            <div className="filter-chips">
-              {filterOptions.cities.slice(0, 20).map(c => (
-                <button key={c} type="button"
-                  className={`filter-chip ${advFilters.cities_include.includes(c) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('cities_include', c)}>
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="filter-section">
-            <h5>Sources</h5>
-            <div className="filter-chips">
-              {filterOptions.sources.slice(0, 20).map(s => (
-                <button key={s} type="button"
-                  className={`filter-chip ${advFilters.sources_include.includes(s) ? 'active' : ''}`}
-                  onClick={() => toggleArrayFilter('sources_include', s)}>
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
+
           <div className="filter-section">
             <h5>Other</h5>
-            <div className="filter-row" style={{display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'}}>
-              <label className="checkbox-label" style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+            <div className="filter-other-row">
+              <label className="filter-check">
                 <input type="checkbox" checked={advFilters.has_email} onChange={e => setAdvFilters(p => ({ ...p, has_email: e.target.checked }))} />
                 Has email
               </label>
-              <label className="checkbox-label" style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+              <label className="filter-check">
                 <input type="checkbox" checked={advFilters.exclude_optouts} onChange={e => setAdvFilters(p => ({ ...p, exclude_optouts: e.target.checked }))} />
-                Exclude opt-outs
+                Exclude marketing opt-outs
               </label>
-              <label style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                Score min:
-                <input type="number" value={advFilters.score_min} onChange={e => setAdvFilters(p => ({ ...p, score_min: e.target.value }))} style={{width: 80}} />
+              <label className="filter-num">
+                Score min
+                <input type="number" value={advFilters.score_min} onChange={e => setAdvFilters(p => ({ ...p, score_min: e.target.value }))} />
               </label>
-              <label style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                Score max:
-                <input type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} style={{width: 80}} />
+              <label className="filter-num">
+                Score max
+                <input type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} />
               </label>
-              <label style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
-                Min visits:
-                <input type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} style={{width: 80}} />
+              <label className="filter-num">
+                Min visits
+                <input type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} />
               </label>
             </div>
           </div>
+
+          <div className="filter-quick-presets">
+            <span style={{fontSize: 11, color: 'var(--text-muted)', marginRight: 8}}>Quick presets:</span>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, has_email: true, exclude_optouts: true,
+              email_statuses: ['ValidAddress', 'TwoWayEmailing'],
+            }))}>Email-ready</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, has_email: true, exclude_optouts: true,
+              statuses_include: ['prime', 'active'],
+              email_statuses: ['ValidAddress', 'TwoWayEmailing'],
+            }))}>Hot Leads (Prime+Active)</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, statuses_exclude: ['junk', 'donotcontact', 'blocked', 'archived', 'closed'],
+              has_email: true, exclude_optouts: true,
+            }))}>Active Pipeline</button>
+          </div>
+
           {activeListId && (
             <div style={{textAlign: 'right', paddingTop: 8}}>
               <button className="btn-sm btn-danger" onClick={() => deleteSavedList(activeListId)}>Delete this list</button>

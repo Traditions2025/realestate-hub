@@ -130,6 +130,15 @@ function buildClientFilter(q) {
     where += ' AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)'
   }
 
+  // Email status filter
+  if (q.email_statuses) {
+    const arr = Array.isArray(q.email_statuses) ? q.email_statuses : q.email_statuses.split(',').filter(Boolean)
+    if (arr.length) {
+      where += ' AND email_status IN (' + arr.map(() => '?').join(',') + ')'
+      params.push(...arr)
+    }
+  }
+
   // Lead score min/max
   if (q.score_min) {
     where += ' AND CAST(lead_score AS INTEGER) >= ?'
@@ -189,7 +198,8 @@ router.get('/filter-options', (req, res) => {
       for (const t of parsed) tagCounts[t] = (tagCounts[t] || 0) + 1
     } catch {}
   }
-  const tags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 100).map(([t, c]) => ({ tag: t, count: c }))
+  // Return ALL tags so user can search/filter accurately
+  const tags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).map(([t, c]) => ({ tag: t, count: c }))
   res.json({ zips, cities, sources, tags })
 })
 

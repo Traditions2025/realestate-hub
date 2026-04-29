@@ -1682,44 +1682,178 @@ input[type="range"] {
   gap: 14px;
 }
 
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+
 .filter-section h5 {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-weight: 700;
 }
 
-.filter-chips {
+.filter-other-row {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-check {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.filter-num {
+  display: flex;
+  flex-direction: column;
+  font-size: 11px;
+  color: var(--text-muted);
+  gap: 2px;
+}
+.filter-num input { width: 100px; padding: 5px 8px; font-size: 13px; }
+
+.filter-quick-presets {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  max-height: 110px;
-  overflow-y: auto;
+  align-items: center;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
 }
 
-.filter-chip {
-  padding: 4px 10px;
-  background: var(--bg-elevated);
-  border: 1px solid var(--border);
-  border-radius: 99px;
-  font-size: 11px;
-  color: var(--text-secondary);
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
+/* MultiSelect component */
+.ms-wrap {
+  position: relative;
 }
-.filter-chip:hover { background: var(--bg-hover); }
-.filter-chip.active {
-  background: rgba(59, 130, 246, 0.15);
-  color: var(--accent);
+
+.ms-input {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-items: center;
+  padding: 6px 8px;
+  min-height: 36px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  cursor: text;
+  transition: border-color 0.15s;
+}
+.ms-input.open {
   border-color: var(--accent);
 }
-.filter-chip.exclude.active {
+
+.ms-placeholder {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.ms-search {
+  flex: 1;
+  min-width: 60px;
+  padding: 2px 4px !important;
+  background: transparent !important;
+  border: none !important;
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.ms-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px 2px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.ms-chip-include {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.ms-chip-exclude {
   background: rgba(239, 68, 68, 0.15);
   color: #ef4444;
-  border-color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.ms-chip-x {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  font-size: 14px;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.7;
+}
+.ms-chip-x:hover { opacity: 1; }
+
+.ms-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 60;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+.ms-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: left;
+}
+
+.ms-option:hover { background: var(--bg-hover); }
+.ms-option.selected { background: rgba(59, 130, 246, 0.1); color: var(--accent); }
+
+.ms-check {
+  width: 16px;
+  flex-shrink: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.ms-option-label { flex: 1; }
+.ms-option-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.ms-dropdown-more {
+  padding: 8px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  font-style: italic;
 }
 
 /* Mass action bar */
