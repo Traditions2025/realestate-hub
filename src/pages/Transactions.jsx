@@ -25,6 +25,7 @@ const emptyTx = {
 
 export default function Transactions() {
   const [items, setItems] = useState([])
+  const [preListings, setPreListings] = useState([])
   const [clients, setClients] = useState([])
   const [filter, setFilter] = useState({ type: '', property_status: '' })
   const [search, setSearch] = useState('')
@@ -39,10 +40,24 @@ export default function Transactions() {
     if (filter.property_status) params.property_status = filter.property_status
     if (search) params.search = search
     api.getTransactions(params).then(setItems)
+    // Pre-listings show in pipeline as the first column
+    const plParams = new URLSearchParams()
+    if (search) plParams.set('search', search)
+    authFetch('/api/pre-listings?' + plParams).then(r => r.json()).then(setPreListings).catch(() => {})
   }
 
   useEffect(() => { load(); api.getClients().then(setClients) }, [])
   useEffect(() => { load() }, [filter, search])
+
+  // Pre-listing checklist items for progress calculation
+  const plChecklist = ['marketing_materials_sent', 'seller_discovery_form', 'cma', 'seller_netsheet',
+    'loop_created', 'listing_contract_signed', 'getting_home_ready', 'schedule_photoshoot',
+    'get_spare_keys', 'install_lockbox', 'install_signs', 'written_description',
+    'coming_soon_post', 'coming_soon_email', 'listing_submitted_mls', 'posted_social_media']
+  const getPlProgress = (pl) => {
+    const done = plChecklist.filter(k => pl[k]).length
+    return Math.round((done / plChecklist.length) * 100)
+  }
 
   const openNew = () => { setEditing(null); setForm(emptyTx); setModalOpen(true) }
   const openEdit = (item) => {
@@ -167,6 +182,43 @@ export default function Transactions() {
 
       {/* Pipeline View */}
       <div className="pipeline">
+        {/* Pre-Listing column - pulls from pre_listings table */}
+        <div className="pipeline-column">
+          <div className="pipeline-header">
+            <span>Pre-Listing</span>
+            <span className="pipeline-count">{preListings.length}</span>
+          </div>
+          <div className="pipeline-scroll">
+            {preListings.map(pl => {
+              const progress = getPlProgress(pl)
+              return (
+                <div key={`pl-${pl.id}`} className="pipeline-card" onClick={() => window.location.href = '/pre-listings'}>
+                  <div className="pipeline-card-type">
+                    <StatusBadge status="pre_listing" />
+                    <span className="type-tag type-listing">pre-listing</span>
+                  </div>
+                  <div className="pipeline-card-address">{pl.property_address}</div>
+                  <div className="pipeline-card-meta">
+                    <span>{pl.owner_name || '—'}</span>
+                    <span style={{fontSize: 11, color: progress === 100 ? '#10b981' : '#3b82f6'}}>{progress}%</span>
+                  </div>
+                  <div className="progress-bar" style={{marginTop: 6, height: 4}}>
+                    <div className="progress-fill" style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#10b981' : '#3b82f6' }}></div>
+                  </div>
+                  {pl.walkthrough && pl.walkthrough !== 'Not Scheduled' && (
+                    <div className="pipeline-card-date">Walkthrough: {pl.walkthrough}</div>
+                  )}
+                </div>
+              )
+            })}
+            {preListings.length === 0 && (
+              <div style={{padding: '20px 14px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center'}}>
+                No pre-listings
+              </div>
+            )}
+          </div>
+        </div>
+
         {pipelineStatuses.map(stage => {
           // Merge Pending into Under Contract
           const stageItems = stage === 'Under Contract'
