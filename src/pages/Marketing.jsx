@@ -103,7 +103,7 @@ export default function Marketing() {
         </select>
       </div>
 
-      <div className="table-container">
+      <div className="table-container desktop-only-table">
         <table className="data-table">
           <thead>
             <tr>
@@ -158,6 +158,33 @@ export default function Marketing() {
             })}
           </tbody>
         </table>
+      </div>
+
+      {/* Mobile cards */}
+      <div className="mobile-only-cards">
+        {items.length === 0 ? (
+          <div className="empty-state-full">No campaigns found.</div>
+        ) : items.map(item => {
+          const roi = item.budget && item.spent ? ((item.leads_generated * 100) / item.spent).toFixed(1) : '—'
+          const spentPct = item.budget ? Math.round((item.spent / item.budget) * 100) : 0
+          return (
+            <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
+              <div className="data-card-header">
+                <div className="data-card-title">{item.name}</div>
+                <StatusBadge status={item.status} />
+              </div>
+              <div className="data-card-meta">
+                <span>{item.type?.replace(/_/g, ' ')}</span>
+                {item.platform && <span>{item.platform}</span>}
+              </div>
+              <div className="data-card-body">
+                {item.budget > 0 && <div><strong>Budget:</strong> {formatCurrency(item.budget)} <span style={{color: 'var(--text-muted)'}}>({formatCurrency(item.spent)} spent {spentPct}%)</span></div>}
+                {item.leads_generated > 0 && <div><strong>Leads:</strong> {item.leads_generated} (ROI {roi})</div>}
+                {item.start_date && <div><strong>Dates:</strong> {item.start_date}{item.end_date ? ` to ${item.end_date}` : ''}</div>}
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Campaign' : 'New Campaign'} wide>

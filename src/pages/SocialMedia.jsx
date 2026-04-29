@@ -145,7 +145,8 @@ export default function SocialMedia() {
           </div>
         </div>
       ) : (
-        <div className="table-container">
+        <>
+        <div className="table-container desktop-only-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -181,6 +182,29 @@ export default function SocialMedia() {
             </tbody>
           </table>
         </div>
+        <div className="mobile-only-cards">
+          {items.length === 0 ? (
+            <div className="empty-state-full">No posts scheduled</div>
+          ) : items.map(item => (
+            <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
+              <div className="data-card-header">
+                <div className="data-card-title">{item.title}</div>
+                <StatusBadge status={item.status} />
+              </div>
+              <div className="data-card-meta">
+                <span style={{color: platformColors[item.platform]}}>{item.platform}</span>
+                {item.post_type && <span>{item.post_type}</span>}
+              </div>
+              <div className="data-card-body">
+                {item.scheduled_date && <div><strong>Scheduled:</strong> {item.scheduled_date}{item.scheduled_time ? ` ${item.scheduled_time}` : ''}</div>}
+                {item.engagement_likes + item.engagement_comments + item.engagement_shares > 0 && (
+                  <div><strong>Engagement:</strong> {item.engagement_likes}L · {item.engagement_comments}C · {item.engagement_shares}S</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Post' : 'New Post'}>
