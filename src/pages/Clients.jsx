@@ -29,6 +29,10 @@ export default function Clients() {
   const [totalCount, setTotalCount] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [otherMenuOpen, setOtherMenuOpen] = useState(false)
+  const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
+  const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
+  const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
 
   const load = () => {
     const params = { limit: PAGE_SIZE, offset: 0 }
@@ -215,8 +219,6 @@ export default function Clients() {
   }
 
   // Status counts for tabs (loaded from server, all statuses)
-  const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
-  const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
   useEffect(() => {
     authFetch('/api/clients/status-counts').then(r => r.json()).then(setStatusCounts).catch(() => {})
     api.getClients().then(all => {
@@ -239,8 +241,6 @@ export default function Clients() {
   const PRIMARY_STATUSES = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'closed']
   const OTHER_STATUSES = ['archived', 'donotcontact', 'junk', 'blocked']
   const ALL_STATUSES = [...PRIMARY_STATUSES, ...OTHER_STATUSES]
-  const [otherMenuOpen, setOtherMenuOpen] = useState(false)
-  const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   useEffect(() => { localStorage.setItem('clients_view', view) }, [view])
 
   // Build the tabs list: combine all known statuses + any extras from DB, with counts
