@@ -18,6 +18,14 @@ router.get('/status-counts', (req, res) => {
   res.json(rows)
 })
 
+// Lightweight breakdown - just counts, no rows
+router.get('/breakdown', (req, res) => {
+  const total = db.get('SELECT COUNT(*) as c FROM clients').c
+  const buyers = db.get("SELECT COUNT(*) as c FROM clients WHERE type IN ('buyer','both')").c
+  const sellers = db.get("SELECT COUNT(*) as c FROM clients WHERE type IN ('seller','both')").c
+  res.json({ total, buyers, sellers })
+})
+
 router.get('/', (req, res) => {
   const { type, status, search } = req.query
   const limit = Math.min(Number(req.query.limit) || 100, 500)

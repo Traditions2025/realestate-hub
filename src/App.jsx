@@ -1,18 +1,20 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, NavLink } from 'react-router-dom'
 import LoginScreen from './components/LoginScreen'
-import Dashboard from './pages/Dashboard'
-import Transactions from './pages/Transactions'
-import PreListings from './pages/PreListings'
-import Clients from './pages/Clients'
-import Tasks from './pages/Tasks'
-import Projects from './pages/Projects'
-import Notes from './pages/Notes'
-import Marketing from './pages/Marketing'
-import Vendors from './pages/Vendors'
-import Partners from './pages/Partners'
-import SocialMedia from './pages/SocialMedia'
-import Calendar from './pages/Calendar'
+
+// Lazy load pages so initial bundle is smaller
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Transactions = lazy(() => import('./pages/Transactions'))
+const PreListings = lazy(() => import('./pages/PreListings'))
+const Clients = lazy(() => import('./pages/Clients'))
+const Tasks = lazy(() => import('./pages/Tasks'))
+const Projects = lazy(() => import('./pages/Projects'))
+const Notes = lazy(() => import('./pages/Notes'))
+const Marketing = lazy(() => import('./pages/Marketing'))
+const Vendors = lazy(() => import('./pages/Vendors'))
+const Partners = lazy(() => import('./pages/Partners'))
+const SocialMedia = lazy(() => import('./pages/SocialMedia'))
+const Calendar = lazy(() => import('./pages/Calendar'))
 
 const navSections = [
   { label: 'MAIN', items: [
@@ -41,16 +43,16 @@ const navSections = [
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [authed, setAuthed] = useState(false)
-  const [checking, setChecking] = useState(true)
+  // Optimistically authed if we have a token - skip the verify roundtrip on page load
+  const [authed, setAuthed] = useState(() => !!localStorage.getItem('mst_token'))
 
   useEffect(() => {
     const token = localStorage.getItem('mst_token')
-    if (!token) { setChecking(false); return }
+    if (!token) return
+    // Background verify - if it fails, an actual API call will redirect to login
     fetch('/api/auth/verify', { headers: { 'x-auth-token': token } })
-      .then(r => { if (r.ok) setAuthed(true); else localStorage.removeItem('mst_token') })
+      .then(r => { if (!r.ok) { localStorage.removeItem('mst_token'); setAuthed(false) } })
       .catch(() => {})
-      .finally(() => setChecking(false))
   }, [])
 
   // Close sidebar on navigation (mobile)
@@ -58,7 +60,6 @@ export default function App() {
     if (window.innerWidth <= 768) setSidebarOpen(false)
   }
 
-  if (checking) return <div className="login-screen"><div className="login-card"><p>Loading...</p></div></div>
   if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />
 
   return (
@@ -109,20 +110,22 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/transactions" element={<Transactions />} />
-          <Route path="/pre-listings" element={<PreListings />} />
-          <Route path="/clients" element={<Clients />} />
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/projects" element={<Projects />} />
-          <Route path="/notes" element={<Notes />} />
-          <Route path="/marketing" element={<Marketing />} />
-          <Route path="/vendors" element={<Vendors />} />
-          <Route path="/partners" element={<Partners />} />
-          <Route path="/social-media" element={<SocialMedia />} />
-          <Route path="/calendar" element={<Calendar />} />
-        </Routes>
+        <Suspense fallback={<div className="page-loading">Loading...</div>}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/transactions" element={<Transactions />} />
+            <Route path="/pre-listings" element={<PreListings />} />
+            <Route path="/clients" element={<Clients />} />
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/projects" element={<Projects />} />
+            <Route path="/notes" element={<Notes />} />
+            <Route path="/marketing" element={<Marketing />} />
+            <Route path="/vendors" element={<Vendors />} />
+            <Route path="/partners" element={<Partners />} />
+            <Route path="/social-media" element={<SocialMedia />} />
+            <Route path="/calendar" element={<Calendar />} />
+          </Routes>
+        </Suspense>
       </main>
     </div>
   )

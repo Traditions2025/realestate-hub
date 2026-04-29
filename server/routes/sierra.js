@@ -239,25 +239,19 @@ router.get('/sync-status', (req, res) => {
   })
 })
 
-// Get total counts per status from Sierra (so user knows what they're pulling)
+// Get counts per status from local DB (fast - no Sierra API calls)
 router.get('/counts', async (req, res) => {
   try {
-    const counts = {}
-    const statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Closed', 'Archived', 'Junk', 'DoNotContact', 'Blocked']
-    for (const s of statuses) {
-      try {
-        const data = await sierraGet('/leads/find', { pageSize: 1, leadStatus: s })
-        counts[s] = data.data?.totalRecords || 0
-      } catch (e) {
-        counts[s] = 0
-      }
-    }
-    // Real total - one query without status filter gives unique count
-    try {
-      const all = await sierraGet('/leads/find', { pageSize: 1 })
-      counts.total = all.data?.totalRecords || 0
-    } catch (e) {
-      counts.total = Object.values(counts).reduce((a, b) => a + b, 0)
+    const total = db.get('SELECT COUNT(*) as c FROM clients').c
+    const counts = { total }
+    const rows = db.all(`SELECT status, COUNT(*) as count FROM clients
+      WHERE status IS NOT NULL AND status != '' GROUP BY status`)
+    // Map our internal status back to Sierra naming for the UI
+    const reverseMap = { prime: 'Prime', active: 'Active', new: 'New', qualify: 'Qualify',
+      watch: 'Watch', pending: 'Pending', closed: 'Closed', archived: 'Archived',
+      junk: 'Junk', donotcontact: 'DoNotContact', blocked: 'Blocked' }
+    for (const r of rows) {
+      counts[reverseMap[r.status] || r.status] = r.count
     }
     res.json(counts)
   } catch (err) {

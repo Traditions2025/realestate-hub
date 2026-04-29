@@ -222,16 +222,12 @@ export default function Clients() {
   }
 
   // Status counts for tabs (loaded from server, all statuses)
+  // Only run on initial load + when sync completes - NOT every items change
   useEffect(() => {
     authFetch('/api/clients/status-counts').then(r => r.json()).then(setStatusCounts).catch(() => {})
-    api.getClients().then(all => {
-      setAllCounts({
-        buyers: all.filter(i => (i.type === 'buyer' || i.type === 'both')).length,
-        sellers: all.filter(i => (i.type === 'seller' || i.type === 'both')).length,
-        total: all.length,
-      })
-    })
-  }, [items])
+    // Get total count + buyer/seller breakdown via lightweight server query (not 45K rows!)
+    authFetch('/api/clients/breakdown').then(r => r.json()).then(setAllCounts).catch(() => {})
+  }, [])
 
   // Color and order for status tabs - always show all Sierra statuses
   const statusColors = {
