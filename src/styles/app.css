@@ -1659,12 +1659,56 @@ input[type="range"] {
 .client-list-header,
 .client-list-row {
   display: grid;
-  grid-template-columns: 0.5fr 1.4fr 0.6fr 0.7fr 1fr 1.4fr 1.6fr 1.2fr 0.8fr 1fr;
+  grid-template-columns: 0.5fr 1.4fr 0.7fr 1fr 1.6fr 1.4fr 1.2fr 0.5fr 0.8fr 1fr;
   gap: 12px;
   padding: 10px 14px;
   align-items: center;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
+}
+
+.email-status-tag {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 9px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+}
+
+/* Sierra activity feed */
+.sierra-activity-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.sierra-activity-item {
+  padding: 10px 12px;
+  background: var(--bg-elevated);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
+}
+
+.sierra-activity-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.sierra-activity-author { font-weight: 600; }
+
+.sierra-activity-content {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 /* Lead score badges */

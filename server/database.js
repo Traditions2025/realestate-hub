@@ -61,6 +61,16 @@ export async function initDb() {
       sierra_lead_id TEXT,
       lead_score TEXT,
       lead_grade TEXT,
+      visits INTEGER DEFAULT 0,
+      email_status TEXT,
+      phone_status TEXT,
+      sierra_update_date TEXT,
+      sierra_creation_date TEXT,
+      pond_id INTEGER,
+      marketing_email_opt_out INTEGER DEFAULT 0,
+      text_opt_out INTEGER DEFAULT 0,
+      ealert_opt_out INTEGER DEFAULT 0,
+      short_summary TEXT,
       notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -402,6 +412,31 @@ export async function initDb() {
       synced_at TEXT DEFAULT (datetime('now'))
     )
   `)
+
+  // Migration: add new client columns if missing (for existing databases)
+  try {
+    const cols = db.exec("PRAGMA table_info(clients)")[0]?.values.map(v => v[1]) || []
+    const newCols = [
+      ['visits', 'INTEGER DEFAULT 0'],
+      ['email_status', 'TEXT'],
+      ['phone_status', 'TEXT'],
+      ['sierra_update_date', 'TEXT'],
+      ['sierra_creation_date', 'TEXT'],
+      ['pond_id', 'INTEGER'],
+      ['marketing_email_opt_out', 'INTEGER DEFAULT 0'],
+      ['text_opt_out', 'INTEGER DEFAULT 0'],
+      ['ealert_opt_out', 'INTEGER DEFAULT 0'],
+      ['short_summary', 'TEXT'],
+    ]
+    for (const [name, type] of newCols) {
+      if (!cols.includes(name)) {
+        db.run(`ALTER TABLE clients ADD COLUMN ${name} ${type}`)
+        console.log(`[migration] Added clients.${name}`)
+      }
+    }
+  } catch (e) {
+    console.error('[migration] Client columns failed:', e.message)
+  }
 
   // Migration: drop agency_type CHECK constraint if it exists
   // SQLite doesn't allow ALTER TABLE DROP CONSTRAINT, so we have to recreate the table

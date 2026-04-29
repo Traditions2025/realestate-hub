@@ -81,6 +81,16 @@ function processLead(lead, sierraStatus) {
   const zip = n(lead.zip || lead.postalCode)
   const leadScore = extractRealistScore(lead)
   const leadGrade = gradeFromRealistScore(leadScore)
+  const visits = Number(lead.visits) || 0
+  const emailStatus = n(lead.emailStatus)
+  const phoneStatus = n(lead.phoneStatus)
+  const sierraUpdateDate = n(lead.updateDate)
+  const sierraCreationDate = n(lead.creationDate)
+  const pondId = lead.pondId || null
+  const meOptOut = lead.marketingEmailOptOut ? 1 : 0
+  const textOptOut = lead.textOptOut ? 1 : 0
+  const ealertOptOut = lead.eAlertOptOut ? 1 : 0
+  const shortSummary = n(lead.shortSummary)
 
   // Use leadStatus from the lead itself if available, otherwise use the queried status
   const actualStatus = lead.leadStatus || sierraStatus
@@ -119,18 +129,27 @@ function processLead(lead, sierraStatus) {
     db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
       source=?, address=?, city=?, state=?, zip=?, type=?,
       budget_min=?, budget_max=?, agent_assigned=?, lead_score=?, lead_grade=?,
-      status=?, updated_at=datetime('now') WHERE id=?`,
+      status=?, visits=?, email_status=?, phone_status=?,
+      sierra_update_date=?, sierra_creation_date=?, pond_id=?,
+      marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,
+      updated_at=datetime('now') WHERE id=?`,
       [firstName, lastName, email, phone, source, address, city, state, zip,
-        type, budgetMin, budgetMax, agentAssigned, leadScore, leadGrade, clientStatus, existing.id])
+        type, budgetMin, budgetMax, agentAssigned, leadScore, leadGrade, clientStatus,
+        visits, emailStatus, phoneStatus, sierraUpdateDate, sierraCreationDate, pondId,
+        meOptOut, textOptOut, ealertOptOut, shortSummary, existing.id])
     return 'updated'
   } else {
     db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status,
       source, agent_assigned, address, city, state, zip, budget_min, budget_max,
-      sierra_lead_id, lead_score, lead_grade)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      sierra_lead_id, lead_score, lead_grade, visits, email_status, phone_status,
+      sierra_update_date, sierra_creation_date, pond_id,
+      marketing_email_opt_out, text_opt_out, ealert_opt_out, short_summary)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [firstName, lastName, email, phone, type, clientStatus, source,
         agentAssigned, address, city, state, zip, budgetMin, budgetMax,
-        sierraId, leadScore, leadGrade])
+        sierraId, leadScore, leadGrade, visits, emailStatus, phoneStatus,
+        sierraUpdateDate, sierraCreationDate, pondId,
+        meOptOut, textOptOut, ealertOptOut, shortSummary])
     return 'added'
   }
 }
@@ -254,6 +273,25 @@ router.get('/counts', async (req, res) => {
       counts[reverseMap[r.status] || r.status] = r.count
     }
     res.json(counts)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Pull Sierra notes (activity log) for a specific lead
+router.get('/lead-notes/:sierraId', async (req, res) => {
+  try {
+    const data = await sierraGet(`/notes/${req.params.sierraId}`, { pageSize: 50, pageNumber: 1 })
+    const records = data.data?.records || []
+    // Strip HTML tags from content for cleaner display
+    const cleaned = records.map(n => ({
+      id: n.id,
+      date: n.dateCreated,
+      contents: (n.contents || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 500),
+      isSystem: n.isSystemItem,
+      author: n.byUser?.name || 'Unknown',
+    }))
+    res.json(cleaned)
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

@@ -141,10 +141,19 @@ export default function Clients() {
     setForm({ ...emptyClient, ...Object.fromEntries(Object.entries(item).filter(([k, v]) => v !== null && k in emptyClient)) })
     setModalOpen(true)
   }
+  const [sierraActivity, setSierraActivity] = useState(null)
   const openDetail = async (id) => {
     const d = await api.getClient(id)
     setDetail(d)
+    setSierraActivity(null)
     setDetailOpen(true)
+    // Lazy-load Sierra activity if it's a Sierra-synced lead
+    if (d.sierra_lead_id) {
+      authFetch(`/api/sierra/lead-notes/${d.sierra_lead_id}`)
+        .then(r => r.json())
+        .then(setSierraActivity)
+        .catch(() => setSierraActivity([]))
+    }
   }
 
   const save = async (e) => {
@@ -351,35 +360,9 @@ export default function Clients() {
         </button>
       </div>
 
-      {/* Stats Row - reflect current tab filter */}
-      <div className="stats-grid stats-small">
-        <div className="stat-card stat-blue">
-          <div className="stat-number">{totalCount.toLocaleString()}</div>
-          <div className="stat-label">
-            {tab === 'all' ? 'Total Leads' :
-             tab === 'active' ? 'Active Leads (Buyers + Sellers)' :
-             tab === 'prime' ? 'Prime Leads (Buyers + Sellers)' :
-             `${formatStatus(tab)} Leads`}
-          </div>
-        </div>
-        <div className="stat-card stat-green">
-          <div className="stat-number">{items.filter(i => i.type === 'buyer' || i.type === 'both').length.toLocaleString()}</div>
-          <div className="stat-label">Buyers loaded</div>
-        </div>
-        <div className="stat-card stat-rose">
-          <div className="stat-number">{items.filter(i => i.type === 'seller' || i.type === 'both').length.toLocaleString()}</div>
-          <div className="stat-label">Sellers loaded</div>
-        </div>
-      </div>
 
       <div className="toolbar">
         <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
-        <select value={filter.type} onChange={e => setFilter(p => ({ ...p, type: e.target.value }))}>
-          <option value="">All Types</option>
-          <option value="buyer">Buyer</option>
-          <option value="seller">Seller</option>
-          <option value="both">Both</option>
-        </select>
       </div>
 
       {/* Client List View */}
@@ -393,12 +376,12 @@ export default function Clients() {
           <div className="client-list-header">
             <div className="cl-score">Score</div>
             <div className="cl-name">Name</div>
-            <div className="cl-type">Type</div>
             <div className="cl-status">Status</div>
             <div className="cl-phone">Phone</div>
             <div className="cl-email">Email</div>
             <div className="cl-address">Address</div>
             <div className="cl-budget">Budget</div>
+            <div className="cl-visits">Visits</div>
             <div className="cl-source">Source</div>
             <div className="cl-actions">Actions</div>
           </div>
@@ -416,10 +399,12 @@ export default function Clients() {
                 <strong>{item.first_name} {item.last_name}</strong>
                 {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
               </div>
-              <div className="cl-type"><span className={`type-tag type-${item.type}`}>{item.type}</span></div>
               <div className="cl-status"><StatusBadge status={item.status} /></div>
               <div className="cl-phone">{item.phone || '—'}</div>
-              <div className="cl-email">{item.email || '—'}</div>
+              <div className="cl-email">
+                {item.email || '—'}
+                {item.email_status && item.email_status !== 'Unknown' && <span className="email-status-tag">{item.email_status}</span>}
+              </div>
               <div className="cl-address">
                 {item.address ? `${item.address}${item.city ? ', ' + item.city : ''}` : item.city || '—'}
               </div>
@@ -428,6 +413,7 @@ export default function Clients() {
                   ? `${formatCurrency(item.budget_min) || '?'} - ${formatCurrency(item.budget_max) || '?'}`
                   : '—'}
               </div>
+              <div className="cl-visits">{item.visits || 0}</div>
               <div className="cl-source">{item.source || '—'}</div>
               <div className="cl-actions" onClick={e => e.stopPropagation()}>
                 <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
@@ -521,23 +507,50 @@ export default function Clients() {
             <div className="detail-grid">
               <div className="detail-section">
                 <h4>Contact Info</h4>
-                <p><strong>Phone:</strong> {detail.phone || '—'}</p>
-                <p><strong>Email:</strong> {detail.email || '—'}</p>
+                <p><strong>Phone:</strong> {detail.phone || '—'} {detail.phone_status && detail.phone_status !== 'Unknown' && <span className="email-status-tag">{detail.phone_status}</span>}</p>
+                <p><strong>Email:</strong> {detail.email || '—'} {detail.email_status && detail.email_status !== 'Unknown' && <span className="email-status-tag">{detail.email_status}</span>}</p>
                 <p><strong>Address:</strong> {detail.address || '—'}</p>
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
+                {detail.marketing_email_opt_out ? <p style={{color: '#ef4444'}}><strong>Email Opt-Out:</strong> Yes</p> : null}
+                {detail.text_opt_out ? <p style={{color: '#ef4444'}}><strong>Text Opt-Out:</strong> Yes</p> : null}
                 {detail.sierra_lead_id && <p><strong>Sierra ID:</strong> {detail.sierra_lead_id}</p>}
               </div>
               <div className="detail-section">
-                <h4>Financial</h4>
+                <h4>Activity & Engagement</h4>
+                <p><strong>Website Visits:</strong> {detail.visits || 0}</p>
+                {detail.lead_score && <p><strong>Realist Score:</strong> {detail.lead_score} {detail.lead_grade && <span className="email-status-tag">{detail.lead_grade}</span>}</p>}
                 <p><strong>Budget:</strong> {formatCurrency(detail.budget_min)} - {formatCurrency(detail.budget_max)}</p>
-                <p><strong>Pre-Approval:</strong> {formatCurrency(detail.preapproval_amount)}</p>
-                <p><strong>Lender:</strong> {detail.preapproval_lender || '—'}</p>
-                {detail.lead_score && <p><strong>Lead Score:</strong> {detail.lead_score}</p>}
-                {detail.lead_grade && <p><strong>Lead Grade:</strong> {detail.lead_grade}</p>}
+                {detail.short_summary && <p style={{fontSize: 12, color: 'var(--text-muted)', marginTop: 8}}>{detail.short_summary}</p>}
+                {detail.sierra_creation_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Created: {detail.sierra_creation_date.split('T')[0]}</p>}
+                {detail.sierra_update_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Last Update: {detail.sierra_update_date.split('T')[0]}</p>}
               </div>
             </div>
+
+            {/* Sierra Activity Log */}
+            {detail.sierra_lead_id && (
+              <div className="detail-section">
+                <h4>Sierra Activity {sierraActivity && `(${sierraActivity.length})`}</h4>
+                {sierraActivity === null ? (
+                  <p style={{fontSize: 12, color: 'var(--text-muted)'}}>Loading activity...</p>
+                ) : sierraActivity.length === 0 ? (
+                  <p style={{fontSize: 12, color: 'var(--text-muted)'}}>No activity recorded</p>
+                ) : (
+                  <div className="sierra-activity-feed">
+                    {sierraActivity.slice(0, 20).map(a => (
+                      <div key={a.id} className="sierra-activity-item">
+                        <div className="sierra-activity-meta">
+                          <span className="sierra-activity-author">{a.author}</span>
+                          <span className="sierra-activity-date">{a.date ? new Date(a.date).toLocaleDateString() : ''}</span>
+                        </div>
+                        <div className="sierra-activity-content">{a.contents}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {detail.transactions?.length > 0 && (
               <div className="detail-section">

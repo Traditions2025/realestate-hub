@@ -90,26 +90,44 @@ function processLead(lead) {
 
   const leadScore = extractRealistScore(lead)
   const leadGrade = gradeFromRealistScore(leadScore)
+  const visits = Number(lead.visits) || 0
+  const emailStatus = n(lead.emailStatus)
+  const phoneStatus = n(lead.phoneStatus)
+  const sierraUpdateDate = n(lead.updateDate)
+  const sierraCreationDate = n(lead.creationDate)
+  const pondId = lead.pondId || null
+  const meOptOut = lead.marketingEmailOptOut ? 1 : 0
+  const textOptOut = lead.textOptOut ? 1 : 0
+  const ealertOptOut = lead.eAlertOptOut ? 1 : 0
+  const shortSummary = n(lead.shortSummary)
 
   const existing = db.get('SELECT id FROM clients WHERE sierra_lead_id = ?', [sierraId])
   if (existing) {
     db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
       source=?, address=?, city=?, state=?, zip=?, type=?,
       budget_min=?, budget_max=?, agent_assigned=?, status=?,
-      lead_score=?, lead_grade=?,
+      lead_score=?, lead_grade=?, visits=?, email_status=?, phone_status=?,
+      sierra_update_date=?, sierra_creation_date=?, pond_id=?,
+      marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,
       updated_at=datetime('now') WHERE id=?`,
       [firstName, lastName, email, phone, source, address, city, state, zip,
         type, budgetMin, budgetMax, agentAssigned, clientStatus,
-        leadScore, leadGrade, existing.id])
+        leadScore, leadGrade, visits, emailStatus, phoneStatus,
+        sierraUpdateDate, sierraCreationDate, pondId,
+        meOptOut, textOptOut, ealertOptOut, shortSummary, existing.id])
     return 'updated'
   } else {
     db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status,
       source, agent_assigned, address, city, state, zip, budget_min, budget_max,
-      sierra_lead_id, lead_score, lead_grade)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      sierra_lead_id, lead_score, lead_grade, visits, email_status, phone_status,
+      sierra_update_date, sierra_creation_date, pond_id,
+      marketing_email_opt_out, text_opt_out, ealert_opt_out, short_summary)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [firstName, lastName, email, phone, type, clientStatus, source,
         agentAssigned, address, city, state, zip, budgetMin, budgetMax,
-        sierraId, leadScore, leadGrade])
+        sierraId, leadScore, leadGrade, visits, emailStatus, phoneStatus,
+        sierraUpdateDate, sierraCreationDate, pondId,
+        meOptOut, textOptOut, ealertOptOut, shortSummary])
     return 'added'
   }
 }
