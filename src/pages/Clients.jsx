@@ -142,10 +142,22 @@ export default function Clients() {
     setModalOpen(true)
   }
   const [sierraActivity, setSierraActivity] = useState(null)
+  const [emailHistory, setEmailHistory] = useState([])
+  const [emailModalOpen, setEmailModalOpen] = useState(false)
+  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '' })
+  const [emailTemplates, setEmailTemplates] = useState([])
+  const [sending, setSending] = useState(false)
+
+  // Load email templates on mount
+  useEffect(() => {
+    authFetch('/api/email/templates').then(r => r.json()).then(setEmailTemplates).catch(() => {})
+  }, [])
+
   const openDetail = async (id) => {
     const d = await api.getClient(id)
     setDetail(d)
     setSierraActivity(null)
+    setEmailHistory([])
     setDetailOpen(true)
     // Lazy-load Sierra activity if it's a Sierra-synced lead
     if (d.sierra_lead_id) {
@@ -154,6 +166,48 @@ export default function Clients() {
         .then(setSierraActivity)
         .catch(() => setSierraActivity([]))
     }
+    // Load email history
+    authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
+  }
+
+  const openEmailComposer = (templateId = '') => {
+    if (templateId && detail) {
+      authFetch(`/api/email/preview/${templateId}/${detail.id}`)
+        .then(r => r.json())
+        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId }))
+    } else {
+      setEmailForm({ subject: '', body: '', template: '' })
+    }
+    setEmailModalOpen(true)
+  }
+
+  const sendEmail = async (e) => {
+    e.preventDefault()
+    if (!detail.email) { alert('No email address for this client'); return }
+    setSending(true)
+    try {
+      const r = await authFetch('/api/email/send', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_id: detail.id,
+          subject: emailForm.subject,
+          body: emailForm.body,
+          template: emailForm.template,
+        }),
+      })
+      const d = await r.json()
+      if (d.error) {
+        alert('Send failed: ' + d.error)
+      } else {
+        alert('Email sent!')
+        setEmailModalOpen(false)
+        // Refresh history
+        authFetch(`/api/email/history/${detail.id}`).then(r => r.json()).then(setEmailHistory)
+      }
+    } catch (err) {
+      alert('Send failed: ' + err.message)
+    }
+    setSending(false)
   }
 
   const save = async (e) => {
@@ -601,6 +655,40 @@ export default function Clients() {
 
             {detail.notes && <div className="detail-section"><h4>Notes</h4><p>{detail.notes}</p></div>}
 
+            {/* Email section */}
+            {detail.email && !detail.marketing_email_opt_out && (
+              <div className="detail-section">
+                <h4>Email</h4>
+                <div className="email-templates">
+                  <button className="btn btn-primary btn-sm" onClick={() => openEmailComposer('')}>
+                    Compose Email
+                  </button>
+                  {emailTemplates.map(t => (
+                    <button key={t.id} className="btn btn-secondary btn-sm" onClick={() => openEmailComposer(t.id)}>
+                      {t.name}
+                    </button>
+                  ))}
+                </div>
+                {emailHistory.length > 0 && (
+                  <div className="email-history">
+                    <div style={{fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 4px'}}>
+                      {emailHistory.length} email{emailHistory.length !== 1 ? 's' : ''} sent
+                    </div>
+                    {emailHistory.slice(0, 5).map(e => (
+                      <div key={e.id} className="email-history-item">
+                        <div className="email-history-meta">
+                          <span style={{color: e.status === 'sent' ? '#10b981' : '#ef4444'}}>{e.status === 'sent' ? '✓' : '✗'}</span>
+                          <span>{e.subject}</span>
+                          <span className="email-history-date">{new Date(e.sent_at).toLocaleDateString()}</span>
+                        </div>
+                        {e.error && <div className="email-error">{e.error}</div>}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Quick Actions */}
             <div className="detail-section">
               <h4>Quick Actions</h4>
@@ -634,6 +722,36 @@ export default function Clients() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Email Composer Modal */}
+      <Modal open={emailModalOpen} onClose={() => setEmailModalOpen(false)} title={`Email ${detail?.first_name || ''} ${detail?.last_name || ''}`} wide>
+        <form onSubmit={sendEmail}>
+          <label>To<input value={detail?.email || ''} disabled /></label>
+          <label>Template<select value={emailForm.template} onChange={e => {
+            const t = emailTemplates.find(x => x.id === e.target.value)
+            if (t && detail) {
+              authFetch(`/api/email/preview/${t.id}/${detail.id}`).then(r => r.json()).then(d =>
+                setEmailForm({ subject: d.subject, body: d.body, template: t.id }))
+            } else {
+              setEmailForm(p => ({ ...p, template: '' }))
+            }
+          }}>
+            <option value="">Custom (no template)</option>
+            {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select></label>
+          <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
+          <label>Body<textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={12} required /></label>
+          <p style={{fontSize: 11, color: 'var(--text-muted)'}}>
+            Available variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'}
+          </p>
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setEmailModalOpen(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={sending}>
+              {sending ? 'Sending...' : 'Send Email'}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Edit/New Modal */}

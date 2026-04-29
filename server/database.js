@@ -403,6 +403,29 @@ export async function initDb() {
   `)
 
   // =============================================
+  // EMAIL LOG
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS email_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      to_email TEXT NOT NULL,
+      from_email TEXT,
+      from_name TEXT,
+      subject TEXT,
+      body TEXT,
+      template TEXT,
+      status TEXT DEFAULT 'sent',
+      provider TEXT DEFAULT 'sendgrid',
+      provider_message_id TEXT,
+      error TEXT,
+      sent_by TEXT,
+      sent_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    )
+  `)
+
+  // =============================================
   // SIERRA SYNC LOG
   // =============================================
   db.run(`

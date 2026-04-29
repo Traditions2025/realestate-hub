@@ -22,6 +22,7 @@ import partnersRouter from './routes/partners.js'
 import socialmediaRouter from './routes/socialmedia.js'
 import calendarRouter from './routes/calendar.js'
 import sierraRouter from './routes/sierra.js'
+import emailRouter from './routes/email.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -60,6 +61,7 @@ async function start() {
   app.use('/api/social-media', socialmediaRouter)
   app.use('/api/calendar', calendarRouter)
   app.use('/api/sierra', sierraRouter)
+  app.use('/api/email', emailRouter)
   app.use('/api/seed', seedRouter)
 
   // Activity log

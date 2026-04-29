@@ -1677,6 +1677,47 @@ input[type="range"] {
   color: var(--text-muted);
 }
 
+/* Email templates and history */
+.email-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.email-history {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.email-history-item {
+  padding: 8px 12px;
+  background: var(--bg-elevated);
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.email-history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.email-history-date {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.email-error {
+  font-size: 11px;
+  color: var(--danger);
+  margin-top: 2px;
+}
+
 /* Lead tags from Sierra */
 .lead-tag {
   display: inline-block;
