@@ -161,6 +161,11 @@ body {
   max-width: 1400px;
 }
 
+/* Wide pages get more horizontal space */
+.page-wide {
+  max-width: none;
+}
+
 .page-loading {
   padding: 80px 32px;
   text-align: center;
@@ -1554,6 +1559,99 @@ input[type="range"] {
 .client-tab.active .tab-count {
   background: rgba(59, 130, 246, 0.15);
   color: var(--accent);
+}
+
+/* Other status dropdown */
+.other-tab-wrap {
+  position: relative;
+}
+.other-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  z-index: 50;
+  min-width: 220px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+}
+.other-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-primary);
+  text-align: left;
+}
+.other-menu-item:last-child { border-bottom: none; }
+.other-menu-item:hover { background: var(--bg-hover); }
+.other-menu-item.active { background: var(--bg-elevated); color: var(--accent); }
+
+/* Client list view */
+.client-list {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.client-list-header,
+.client-list-row {
+  display: grid;
+  grid-template-columns: 1.4fr 0.6fr 0.7fr 1fr 1.4fr 1.6fr 1.2fr 0.8fr 1fr;
+  gap: 12px;
+  padding: 10px 14px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.client-list-header {
+  background: var(--bg-elevated);
+  color: var(--text-muted);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-size: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.client-list-row {
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.client-list-row:hover { background: var(--bg-hover); }
+.client-list-row:last-child { border-bottom: none; }
+
+.client-list-row .cl-name { color: var(--text-primary); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.client-list-row .cl-phone, .client-list-row .cl-email,
+.client-list-row .cl-address, .client-list-row .cl-budget,
+.client-list-row .cl-source { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.client-list-row .cl-actions { display: flex; gap: 4px; }
+.client-list-row .cl-actions .action-btn {
+  padding: 3px 8px; font-size: 10px; min-width: 24px;
+}
+
+@media (max-width: 1024px) {
+  .client-list-header { display: none; }
+  .client-list-row {
+    grid-template-columns: 1fr;
+    padding: 12px 14px;
+    gap: 4px;
+  }
+  .client-list-row > div { white-space: normal; }
+  .client-list-row .cl-name { font-size: 14px; font-weight: 600; }
 }
 
 /* ---- Mobile data cards ---- */

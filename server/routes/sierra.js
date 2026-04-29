@@ -177,7 +177,8 @@ router.post('/sync', (req, res) => {
   const statusParam = req.query.statuses || 'all'
   let statuses
   if (statusParam === 'all') {
-    statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Archived', 'Closed', 'Junk', 'DoNotContact', 'Blocked']
+    // Skip 'Blocked' - Sierra's API returns bogus 45K instead of the real ~1 record
+    statuses = ['Prime', 'Active', 'New', 'Qualify', 'Watch', 'Pending', 'Archived', 'Closed', 'Junk', 'DoNotContact']
   } else {
     statuses = statusParam.split(',').map(s => s.trim())
   }

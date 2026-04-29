@@ -76,6 +76,14 @@ export default function Clients() {
     return () => document.removeEventListener('click', close)
   }, [syncMenuOpen])
 
+  // Close other-status menu when clicking outside
+  useEffect(() => {
+    if (!otherMenuOpen) return
+    const close = () => setOtherMenuOpen(false)
+    setTimeout(() => document.addEventListener('click', close), 0)
+    return () => document.removeEventListener('click', close)
+  }, [otherMenuOpen])
+
   useEffect(() => { load() }, [filter, search, tab])
 
   const syncSierra = async (silent = false, statuses = 'Active,Prime,Watch,Pending') => {
@@ -227,16 +235,20 @@ export default function Clients() {
     junk: '#6b7280', donotcontact: '#ef4444', blocked: '#ef4444',
     potential: '#a78bfa', under_contract: '#8b5cf6', on_hold: '#6b7280',
   }
-  // Always show these tabs in this order (even with 0 count)
-  const ALL_STATUSES = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'closed', 'archived', 'donotcontact', 'junk', 'blocked']
+  // Primary tabs (always visible) and "Other" tabs (in dropdown)
+  const PRIMARY_STATUSES = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'closed']
+  const OTHER_STATUSES = ['archived', 'donotcontact', 'junk', 'blocked']
+  const ALL_STATUSES = [...PRIMARY_STATUSES, ...OTHER_STATUSES]
+  const [otherMenuOpen, setOtherMenuOpen] = useState(false)
+  const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
+  useEffect(() => { localStorage.setItem('clients_view', view) }, [view])
 
   // Build the tabs list: combine all known statuses + any extras from DB, with counts
   const countsMap = Object.fromEntries(statusCounts.map(s => [s.status, s.count]))
-  const sortedStatusCounts = [
-    ...ALL_STATUSES.map(s => ({ status: s, count: countsMap[s] || 0 })),
-    // Show any DB statuses not in our default list (e.g. older mappings)
-    ...statusCounts.filter(s => !ALL_STATUSES.includes(s.status))
-  ]
+  const primaryTabs = PRIMARY_STATUSES.map(s => ({ status: s, count: countsMap[s] || 0 }))
+  const otherTabs = OTHER_STATUSES.map(s => ({ status: s, count: countsMap[s] || 0 }))
+  const otherTotal = otherTabs.reduce((sum, t) => sum + t.count, 0)
+  const isOtherTab = OTHER_STATUSES.includes(tab)
 
   const formatStatus = (s) => {
     if (s === 'donotcontact') return 'Do Not Contact'
@@ -244,7 +256,7 @@ export default function Clients() {
   }
 
   return (
-    <div className="page">
+    <div className={`page ${view === 'list' ? 'page-wide' : ''}`}>
       <div className="page-header">
         <div>
           <h1>Clients</h1>
@@ -289,9 +301,9 @@ export default function Clients() {
         )}
       </div>
 
-      {/* Status Tabs - dynamic based on what statuses exist */}
+      {/* Status Tabs - primary statuses always visible, others in dropdown */}
       <div className="client-tabs">
-        {sortedStatusCounts.map(s => (
+        {primaryTabs.map(s => (
           <button
             key={s.status}
             className={`client-tab ${tab === s.status ? 'active' : ''}`}
@@ -302,10 +314,44 @@ export default function Clients() {
             <span className="tab-count">{s.count}</span>
           </button>
         ))}
+
+        {/* Other dropdown */}
+        <div className="other-tab-wrap" onClick={e => e.stopPropagation()}>
+          <button
+            className={`client-tab ${isOtherTab ? 'active' : ''}`}
+            onClick={() => setOtherMenuOpen(!otherMenuOpen)}
+          >
+            <span className="tab-dot" style={{ background: '#6b7280' }}></span>
+            {isOtherTab ? formatStatus(tab) : 'Other'} <span className="tab-count">{isOtherTab ? (countsMap[tab] || 0) : otherTotal}</span>
+            <span style={{marginLeft: 4, fontSize: 10}}>▾</span>
+          </button>
+          {otherMenuOpen && (
+            <div className="other-menu">
+              {otherTabs.map(s => (
+                <button
+                  key={s.status}
+                  className={`other-menu-item ${tab === s.status ? 'active' : ''}`}
+                  onClick={() => { setTab(s.status); setOtherMenuOpen(false) }}
+                >
+                  <span className="tab-dot" style={{ background: statusColors[s.status] || '#6b7280' }}></span>
+                  <span style={{flex: 1}}>{formatStatus(s.status)}</span>
+                  <span className="tab-count">{s.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
         <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
           All
           <span className="tab-count">{allCounts.total}</span>
         </button>
+
+        {/* View toggle - far right */}
+        <div className="view-toggle" style={{marginLeft: 'auto'}}>
+          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
+          <button className={view === 'card' ? 'active' : ''} onClick={() => setView('card')}>Cards</button>
+        </div>
       </div>
 
       {/* Stats Row - reflect current tab filter */}
@@ -339,7 +385,51 @@ export default function Clients() {
         </select>
       </div>
 
+      {/* Client List View */}
+      {view === 'list' && items.length > 0 && (
+        <div className="client-list">
+          <div className="client-list-header">
+            <div className="cl-name">Name</div>
+            <div className="cl-type">Type</div>
+            <div className="cl-status">Status</div>
+            <div className="cl-phone">Phone</div>
+            <div className="cl-email">Email</div>
+            <div className="cl-address">Address</div>
+            <div className="cl-budget">Budget</div>
+            <div className="cl-source">Source</div>
+            <div className="cl-actions">Actions</div>
+          </div>
+          {items.map(item => (
+            <div key={item.id} className="client-list-row" onClick={() => openDetail(item.id)}>
+              <div className="cl-name">
+                <strong>{item.first_name} {item.last_name}</strong>
+                {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
+              </div>
+              <div className="cl-type"><span className={`type-tag type-${item.type}`}>{item.type}</span></div>
+              <div className="cl-status"><StatusBadge status={item.status} /></div>
+              <div className="cl-phone">{item.phone || '—'}</div>
+              <div className="cl-email">{item.email || '—'}</div>
+              <div className="cl-address">
+                {item.address ? `${item.address}${item.city ? ', ' + item.city : ''}` : item.city || '—'}
+              </div>
+              <div className="cl-budget">
+                {item.budget_min || item.budget_max
+                  ? `${formatCurrency(item.budget_min) || '?'} - ${formatCurrency(item.budget_max) || '?'}`
+                  : '—'}
+              </div>
+              <div className="cl-source">{item.source || '—'}</div>
+              <div className="cl-actions" onClick={e => e.stopPropagation()}>
+                <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
+                <button className="action-btn action-purchase" title="Create Purchase" onClick={e => addTransaction(item, 'purchase', e)}>P</button>
+                <button className="action-btn action-listing" title="Create Listing" onClick={e => addTransaction(item, 'listing', e)}>L</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Client Cards */}
+      {view === 'card' && (
       <div className="client-grid">
         {items.length === 0 ? (
           <div className="empty-state-full">
@@ -392,6 +482,7 @@ export default function Clients() {
           </div>
         ))}
       </div>
+      )}
 
       {/* Load More */}
       {hasMore && (
