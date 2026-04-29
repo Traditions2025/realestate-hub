@@ -96,9 +96,17 @@ export default function Calendar() {
       <div className="page-header">
         <div>
           <h1>Calendar</h1>
-          <p className="page-subtitle">Showings, closings, inspections, team events</p>
+          <p className="page-subtitle">Auto-syncs from Matt's Google Calendar every 5 minutes</p>
         </div>
-        <button className="btn btn-primary" onClick={() => openNew()}>+ New Event</button>
+        <div className="header-actions">
+          <button className="btn btn-secondary" onClick={async () => {
+            const r = await authFetch('/api/calendar/sync-ical', { method: 'POST' })
+            const d = await r.json()
+            if (d.error) alert('Sync failed: ' + d.error)
+            else { alert(`Calendar synced. Total events: ${d.total_events}`); load() }
+          }}>Sync Google Calendar</button>
+          <button className="btn btn-primary" onClick={() => openNew()}>+ New Event</button>
+        </div>
       </div>
 
       <div className="toolbar">

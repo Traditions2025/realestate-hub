@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { syncGoogleCalendar } from '../scheduler.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
@@ -47,6 +48,17 @@ router.put('/:id', (req, res) => {
 router.delete('/:id', (req, res) => {
   db.run('DELETE FROM calendar_events WHERE id = ?', [Number(req.params.id)])
   res.json({ success: true })
+})
+
+// Trigger Google Calendar iCal sync now
+router.post('/sync-ical', async (req, res) => {
+  try {
+    await syncGoogleCalendar()
+    const count = db.get('SELECT COUNT(*) as c FROM calendar_events').c
+    res.json({ success: true, total_events: count })
+  } catch (e) {
+    res.status(500).json({ error: e.message })
+  }
 })
 
 // Receive synced events from frontend (which calls Google Calendar MCP)
