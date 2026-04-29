@@ -220,23 +220,28 @@ export default function Clients() {
     })
   }, [items])
 
-  // Color and order for status tabs
+  // Color and order for status tabs - always show all Sierra statuses
   const statusColors = {
     prime: '#f59e0b', active: '#3b82f6', new: '#a78bfa', qualify: '#a78bfa',
     watch: '#06b6d4', pending: '#8b5cf6', closed: '#10b981', archived: '#6b7280',
     junk: '#6b7280', donotcontact: '#ef4444', blocked: '#ef4444',
     potential: '#a78bfa', under_contract: '#8b5cf6', on_hold: '#6b7280',
   }
-  const statusOrder = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'potential', 'under_contract', 'closed', 'archived', 'on_hold', 'junk', 'donotcontact', 'blocked']
-  const sortedStatusCounts = [...statusCounts].sort((a, b) => {
-    const ai = statusOrder.indexOf(a.status); const bi = statusOrder.indexOf(b.status)
-    if (ai === -1 && bi === -1) return b.count - a.count
-    if (ai === -1) return 1
-    if (bi === -1) return -1
-    return ai - bi
-  })
+  // Always show these tabs in this order (even with 0 count)
+  const ALL_STATUSES = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'closed', 'archived', 'donotcontact', 'junk', 'blocked']
 
-  const formatStatus = (s) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  // Build the tabs list: combine all known statuses + any extras from DB, with counts
+  const countsMap = Object.fromEntries(statusCounts.map(s => [s.status, s.count]))
+  const sortedStatusCounts = [
+    ...ALL_STATUSES.map(s => ({ status: s, count: countsMap[s] || 0 })),
+    // Show any DB statuses not in our default list (e.g. older mappings)
+    ...statusCounts.filter(s => !ALL_STATUSES.includes(s.status))
+  ]
+
+  const formatStatus = (s) => {
+    if (s === 'donotcontact') return 'Do Not Contact'
+    return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+  }
 
   return (
     <div className="page">
