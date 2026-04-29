@@ -192,7 +192,7 @@ export default function Clients() {
     if (detail) openDetail(client.id)
   }
 
-  const addTransaction = async (client, type, e) => {
+  const addTransaction = async (client, type, e, propStatus = 'Under Contract') => {
     if (e) e.stopPropagation()
     const address = client.address
       ? `${client.address}${client.city ? ', ' + client.city : ''}${client.state ? ', ' + client.state : ''}${client.zip ? ' ' + client.zip : ''}`
@@ -202,7 +202,7 @@ export default function Clients() {
     const txData = {
       property_address: addr,
       type: type,
-      property_status: 'Under Contract',
+      property_status: propStatus,
       client_id: client.id,
       buyer_name: type === 'purchase' ? `${client.first_name} ${client.last_name}` : '',
       seller_name: type === 'listing' ? `${client.first_name} ${client.last_name}` : '',
@@ -211,9 +211,12 @@ export default function Clients() {
       agency_type: type === 'purchase' ? "Buyer's Agent" : 'Listing Agent',
     }
     await api.createTransaction(txData)
-    // Update client status to under_contract
-    await api.updateClient(client.id, { status: 'under_contract' })
-    alert(`${type === 'purchase' ? 'Purchase' : 'Listing'} transaction created for ${client.first_name} ${client.last_name}`)
+    // Update client status only when going under contract
+    if (propStatus === 'Under Contract') {
+      await api.updateClient(client.id, { status: 'under_contract' })
+    }
+    const label = propStatus === 'Active' ? 'Active Listing' : (type === 'purchase' ? 'Purchase' : 'Listing')
+    alert(`${label} created for ${client.first_name} ${client.last_name}`)
     load()
     if (detail) openDetail(client.id)
   }
@@ -423,8 +426,9 @@ export default function Clients() {
               <div className="cl-source">{item.source || '—'}</div>
               <div className="cl-actions" onClick={e => e.stopPropagation()}>
                 <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
-                <button className="action-btn action-purchase" title="Create Purchase" onClick={e => addTransaction(item, 'purchase', e)}>P</button>
-                <button className="action-btn action-listing" title="Create Listing" onClick={e => addTransaction(item, 'listing', e)}>L</button>
+                <button className="action-btn action-active-listing" title="Active Listing (live on MLS)" onClick={e => addTransaction(item, 'listing', e, 'Active')}>AL</button>
+                <button className="action-btn action-purchase" title="Purchase Under Contract" onClick={e => addTransaction(item, 'purchase', e)}>P</button>
+                <button className="action-btn action-listing" title="Listing Under Contract" onClick={e => addTransaction(item, 'listing', e)}>L</button>
               </div>
             </div>
           ))}
@@ -473,12 +477,15 @@ export default function Clients() {
             </div>
             <div className="client-actions" onClick={e => e.stopPropagation()}>
               <button className="action-btn action-prelisting" onClick={e => addToPreListing(item, e)} title="Add to Pre-Listings">
-                Pre-Listing
+                Pre-List
               </button>
-              <button className="action-btn action-purchase" onClick={e => addTransaction(item, 'purchase', e)} title="Create Purchase Transaction">
+              <button className="action-btn action-active-listing" onClick={e => addTransaction(item, 'listing', e, 'Active')} title="Active Listing (live on MLS)">
+                Active
+              </button>
+              <button className="action-btn action-purchase" onClick={e => addTransaction(item, 'purchase', e)} title="Purchase Under Contract">
                 Purchase
               </button>
-              <button className="action-btn action-listing" onClick={e => addTransaction(item, 'listing', e)} title="Create Listing Transaction">
+              <button className="action-btn action-listing" onClick={e => addTransaction(item, 'listing', e)} title="Listing Under Contract">
                 Listing
               </button>
             </div>
@@ -555,6 +562,11 @@ export default function Clients() {
                   <span className="detail-action-icon">&#8962;</span>
                   <span>Add to Pre-Listing</span>
                   <span className="detail-action-desc">Start the seller pipeline</span>
+                </button>
+                <button className="detail-action-btn action-active-listing" onClick={() => addTransaction(detail, 'listing', null, 'Active')}>
+                  <span className="detail-action-icon">&#9733;</span>
+                  <span>Active Listing</span>
+                  <span className="detail-action-desc">Listing live on MLS</span>
                 </button>
                 <button className="detail-action-btn action-purchase" onClick={() => addTransaction(detail, 'purchase')}>
                   <span className="detail-action-icon">&#8644;</span>

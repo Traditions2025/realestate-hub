@@ -158,10 +158,11 @@ body {
 
 .page {
   padding: 32px;
-  max-width: 1400px;
+  max-width: none;
+  width: 100%;
 }
 
-/* Wide pages get more horizontal space */
+/* Legacy class - now same as default */
 .page-wide {
   max-width: none;
 }
@@ -835,10 +836,20 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 .action-btn.action-listing:hover { background: rgba(16, 185, 129, 0.2); }
 
+.action-btn.action-active-listing {
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
+  border-color: rgba(245, 158, 11, 0.25);
+}
+.action-btn.action-active-listing:hover { background: rgba(245, 158, 11, 0.2); }
+
+.detail-action-btn.action-active-listing:hover { border-color: #f59e0b; }
+.detail-action-btn.action-active-listing .detail-action-icon { color: #fbbf24; }
+
 /* Detail modal action buttons */
 .detail-actions-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12px;
 }
 
@@ -1770,8 +1781,15 @@ input[type="range"] {
 /* ---- Calendar ---- */
 .calendar-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
+  grid-template-columns: 1fr;
   gap: 20px;
+}
+
+/* On wider screens, show day detail in collapsible side panel below 1400px breakpoint instead */
+@media (min-width: 1500px) {
+  .calendar-layout {
+    grid-template-columns: 1fr 300px;
+  }
 }
 
 .cal-container {
@@ -1805,12 +1823,13 @@ input[type="range"] {
 }
 
 .cal-cell {
-  min-height: 100px;
-  padding: 4px 6px;
+  min-height: 110px;
+  padding: 6px 8px;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   transition: background 0.1s;
+  overflow: hidden;
 }
 .cal-cell:nth-child(7n) { border-right: none; }
 .cal-cell:hover { background: var(--bg-hover); }
