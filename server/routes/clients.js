@@ -18,6 +18,32 @@ router.get('/status-counts', (req, res) => {
   res.json(rows)
 })
 
+// Get just the IDs matching a filter (for "select all" mass actions)
+router.get('/ids', (req, res) => {
+  const { type, status, search } = req.query
+  const limit = Math.min(Number(req.query.limit) || 2000, 5000)
+
+  let where = ' WHERE 1=1'
+  const params = []
+  if (type) { where += ' AND type = ?'; params.push(type) }
+  if (status) { where += ' AND status = ?'; params.push(status) }
+  if (search) {
+    where += ` AND (first_name LIKE ? OR last_name LIKE ?
+      OR (first_name || ' ' || last_name) LIKE ?
+      OR email LIKE ? OR phone LIKE ?
+      OR address LIKE ? OR city LIKE ? OR zip LIKE ?
+      OR source LIKE ? OR agent_assigned LIKE ?)`
+    const term = `%${search}%`
+    params.push(term, term, term, term, term, term, term, term, term, term)
+  }
+  // Only include clients with valid email for mass action use
+  where += " AND email IS NOT NULL AND email != '' AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)"
+
+  const ids = db.all(`SELECT id FROM clients${where} ORDER BY updated_at DESC LIMIT ?`,
+    [...params, limit]).map(r => r.id)
+  res.json({ ids, count: ids.length })
+})
+
 // Lightweight breakdown - just counts, no rows
 router.get('/breakdown', (req, res) => {
   const total = db.get('SELECT COUNT(*) as c FROM clients').c

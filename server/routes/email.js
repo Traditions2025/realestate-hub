@@ -9,6 +9,20 @@ const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'mattsmithremax@gmail.com'
 const FROM_NAME = process.env.SENDGRID_FROM_NAME || 'Matt Smith Team'
 const REPLY_TO = process.env.SENDGRID_REPLY_TO || 'matt@mattsmithteam.com'
 
+// Email signature - appended to all template emails
+const SIGNATURE = `
+
+—
+Matt Smith
+Broker Associate | Residential, Commercial, Ag Real Estate
+Licensed in the State of Iowa
+Matt Smith Team | RE/MAX Concepts
+Local Trusted Realtor with 35+ years of Experience | Over 2,000 homes sold
+
+Phone: (319) 431-5859
+Website: https://www.mattsmithteam.com
+Office: RE/MAX Concepts, Cedar Rapids, IA`
+
 // Email templates with merge variables: {{first_name}}, {{last_name}}, {{address}}
 const TEMPLATES = {
   'follow_up': {
@@ -20,10 +34,7 @@ Just checking in to see how your home search is going. I wanted to make sure you
 
 Have any questions about the Cedar Rapids market or specific neighborhoods? I'm here to help.
 
-Talk soon,
-Matt Smith
-Matt Smith Team | RE/MAX Concepts
-(319) 431-5859`
+Talk soon,${SIGNATURE}`
   },
   'just_listed': {
     name: 'Just Listed',
@@ -32,10 +43,7 @@ Matt Smith Team | RE/MAX Concepts
 
 A new listing just hit the market in {{city}} that fits what you're looking for. Want to be among the first to see it before this weekend?
 
-Reply or text me back and I'll send the full details + schedule a showing.
-
-Matt Smith
-(319) 431-5859`
+Reply or text me back and I'll send the full details + schedule a showing.${SIGNATURE}`
   },
   'market_update': {
     name: 'Market Update',
@@ -48,10 +56,7 @@ Quick market snapshot for the Cedar Rapids metro area:
 - Average days on market trending shorter
 - Interest rates holding steady this month
 
-Curious what your home would sell for in today's market? I'd be glad to put together a free home value estimate.
-
-Matt Smith Team
-(319) 431-5859`
+Curious what your home would sell for in today's market? I'd be glad to put together a free home value estimate.${SIGNATURE}`
   },
   'home_value': {
     name: 'Home Value Check-in',
@@ -62,10 +67,7 @@ Quick question - have you wondered what your home at {{address}} is worth in tod
 
 Values in your neighborhood have shifted in the last year. I can put together a free, no-obligation home value report based on recent sales nearby.
 
-Just reply "yes" and I'll send it over.
-
-Matt Smith
-Matt Smith Team | RE/MAX Concepts`
+Just reply "yes" and I'll send it over.${SIGNATURE}`
   },
   'past_client': {
     name: 'Past Client Check-in',
@@ -74,10 +76,7 @@ Matt Smith Team | RE/MAX Concepts`
 
 Hope you're doing well. Just thinking of you and wanted to check in.
 
-If you ever know anyone thinking about buying or selling in Cedar Rapids, I'd appreciate the introduction. And if you ever have real estate questions yourself, I'm always here.
-
-Matt Smith
-Matt Smith Team`
+If you ever know anyone thinking about buying or selling in Cedar Rapids, I'd appreciate the introduction. And if you ever have real estate questions yourself, I'm always here.${SIGNATURE}`
   },
   'showing_followup': {
     name: 'Showing Follow-Up',
@@ -86,10 +85,7 @@ Matt Smith Team`
 
 Wanted to follow up on the showing today. What did you think?
 
-Anything specific that stood out (good or bad)? I'm happy to schedule another look or pull comps so we can decide on next steps.
-
-Matt Smith
-(319) 431-5859`
+Anything specific that stood out (good or bad)? I'm happy to schedule another look or pull comps so we can decide on next steps.${SIGNATURE}`
   },
 }
 
@@ -206,8 +202,8 @@ router.post('/bulk', async (req, res) => {
   if (!Array.isArray(client_ids) || client_ids.length === 0) {
     return res.status(400).json({ error: 'client_ids required' })
   }
-  if (client_ids.length > 200) {
-    return res.status(400).json({ error: 'Max 200 recipients per bulk send' })
+  if (client_ids.length > 2000) {
+    return res.status(400).json({ error: 'Max 2000 recipients per bulk send. Send in batches.' })
   }
 
   let sent = 0, failed = 0, skipped = 0

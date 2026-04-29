@@ -25,17 +25,22 @@ export default function Clients() {
   const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
 
-  const PAGE_SIZE = 100
+  const [pageSize, setPageSize] = useState(() => Number(localStorage.getItem('clients_page_size')) || 100)
+  useEffect(() => { localStorage.setItem('clients_page_size', String(pageSize)) }, [pageSize])
   const [totalCount, setTotalCount] = useState(0)
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
+  const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
+  const [bulkSending, setBulkSending] = useState(false)
   const [otherMenuOpen, setOtherMenuOpen] = useState(false)
   const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
 
   const load = () => {
-    const params = { limit: PAGE_SIZE, offset: 0 }
+    const params = { limit: pageSize, offset: 0 }
     if (filter.type) params.type = filter.type
     if (tab !== 'all') params.status = tab
     if (search) params.search = search
@@ -49,7 +54,7 @@ export default function Clients() {
   const loadMore = () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
-    const params = { limit: PAGE_SIZE, offset: items.length }
+    const params = { limit: pageSize, offset: items.length }
     if (filter.type) params.type = filter.type
     if (tab !== 'all') params.status = tab
     if (search) params.search = search
@@ -88,7 +93,7 @@ export default function Clients() {
     return () => document.removeEventListener('click', close)
   }, [otherMenuOpen])
 
-  useEffect(() => { load() }, [filter, search, tab])
+  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize])
 
   const syncSierra = async (silent = false, statuses = 'Active,Prime,Watch,Pending') => {
     setSierraStatus('syncing')
@@ -179,6 +184,71 @@ export default function Clients() {
       setEmailForm({ subject: '', body: '', template: '' })
     }
     setEmailModalOpen(true)
+  }
+
+  // Mass selection helpers
+  const toggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const selectAllVisible = () => {
+    setSelectedIds(new Set(items.map(i => i.id)))
+  }
+  const selectAllFiltered = async (limit) => {
+    const params = new URLSearchParams()
+    if (filter.type) params.set('type', filter.type)
+    if (tab !== 'all') params.set('status', tab)
+    if (search) params.set('search', search)
+    params.set('limit', limit)
+    const r = await authFetch('/api/clients/ids?' + params)
+    const d = await r.json()
+    setSelectedIds(new Set(d.ids))
+    alert(`Selected ${d.count} client${d.count !== 1 ? 's' : ''} with valid emails`)
+  }
+  const clearSelection = () => setSelectedIds(new Set())
+
+  const openBulkEmail = (templateId = '') => {
+    if (templateId) {
+      const t = emailTemplates.find(x => x.id === templateId)
+      if (t) {
+        setBulkEmailForm({ subject: t.subject, body: t.body, template: templateId })
+      }
+    } else {
+      setBulkEmailForm({ subject: '', body: '', template: '' })
+    }
+    setBulkEmailOpen(true)
+  }
+
+  const sendBulkEmail = async (e) => {
+    e.preventDefault()
+    if (selectedIds.size === 0) return alert('No clients selected')
+    if (!confirm(`Send this email to ${selectedIds.size} clients?`)) return
+    setBulkSending(true)
+    try {
+      const r = await authFetch('/api/email/bulk', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_ids: Array.from(selectedIds),
+          subject: bulkEmailForm.subject,
+          body: bulkEmailForm.body,
+          template: bulkEmailForm.template,
+        }),
+      })
+      const d = await r.json()
+      if (d.error) {
+        alert('Bulk send error: ' + d.error)
+      } else {
+        alert(`Bulk send complete: ${d.sent} sent, ${d.failed} failed, ${d.skipped} skipped`)
+        setBulkEmailOpen(false)
+        setSelectedIds(new Set())
+      }
+    } catch (err) {
+      alert('Send failed: ' + err.message)
+    }
+    setBulkSending(false)
   }
 
   const sendEmail = async (e) => {
@@ -417,6 +487,46 @@ export default function Clients() {
 
       <div className="toolbar">
         <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} title="Records per page">
+          <option value={100}>100 per page</option>
+          <option value={500}>500 per page</option>
+          <option value={1000}>1,000 per page</option>
+          <option value={2000}>2,000 per page</option>
+        </select>
+      </div>
+
+      {/* Mass action bar */}
+      <div className="mass-action-bar">
+        <div className="mass-action-left">
+          <button className="btn btn-sm btn-secondary" onClick={selectAllVisible}>
+            Select Visible ({items.length})
+          </button>
+          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(500)}>
+            Select 500
+          </button>
+          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(1000)}>
+            Select 1,000
+          </button>
+          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(2000)}>
+            Select 2,000
+          </button>
+          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(5000)}>
+            Select All Filtered
+          </button>
+          {selectedIds.size > 0 && (
+            <button className="btn btn-sm btn-danger" onClick={clearSelection}>
+              Clear ({selectedIds.size})
+            </button>
+          )}
+        </div>
+        {selectedIds.size > 0 && (
+          <div className="mass-action-right">
+            <span className="mass-action-count">{selectedIds.size} selected</span>
+            <button className="btn btn-primary btn-sm" onClick={() => openBulkEmail()}>
+              Email Selected
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Client List View */}
@@ -428,6 +538,14 @@ export default function Clients() {
       {view === 'list' && items.length > 0 && (
         <div className="client-list">
           <div className="client-list-header">
+            <div className="cl-check">
+              <input type="checkbox"
+                checked={items.length > 0 && items.every(i => selectedIds.has(i.id))}
+                onChange={e => {
+                  if (e.target.checked) selectAllVisible()
+                  else clearSelection()
+                }} />
+            </div>
             <div className="cl-score">Score</div>
             <div className="cl-name">Name</div>
             <div className="cl-status">Status</div>
@@ -440,7 +558,12 @@ export default function Clients() {
             <div className="cl-actions">Actions</div>
           </div>
           {items.map(item => (
-            <div key={item.id} className="client-list-row" onClick={() => openDetail(item.id)}>
+            <div key={item.id} className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`} onClick={() => openDetail(item.id)}>
+              <div className="cl-check" onClick={e => e.stopPropagation()}>
+                <input type="checkbox"
+                  checked={selectedIds.has(item.id)}
+                  onChange={() => toggleSelect(item.id)} />
+              </div>
               <div className="cl-score">
                 {item.lead_score !== null && item.lead_score !== undefined ? (
                   <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
@@ -722,6 +845,37 @@ export default function Clients() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Bulk Email Modal */}
+      <Modal open={bulkEmailOpen} onClose={() => setBulkEmailOpen(false)} title={`Bulk Email — ${selectedIds.size} recipients`} wide>
+        <form onSubmit={sendBulkEmail}>
+          <div style={{padding: '10px 14px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 6, fontSize: 13, marginBottom: 12}}>
+            ⚠️ This will send to {selectedIds.size} clients. Opt-outs and invalid emails will be skipped automatically.
+          </div>
+          <label>Template<select value={bulkEmailForm.template} onChange={e => {
+            const t = emailTemplates.find(x => x.id === e.target.value)
+            if (t) {
+              setBulkEmailForm({ subject: t.subject, body: t.body, template: t.id })
+            } else {
+              setBulkEmailForm(p => ({ ...p, template: '' }))
+            }
+          }}>
+            <option value="">Custom (no template)</option>
+            {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select></label>
+          <label>Subject<input value={bulkEmailForm.subject} onChange={e => setBulkEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
+          <label>Body<textarea value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={14} required /></label>
+          <p style={{fontSize: 11, color: 'var(--text-muted)'}}>
+            Variables auto-fill per recipient: {'{{first_name}} {{last_name}} {{address}} {{city}}'}
+          </p>
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailOpen(false)}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={bulkSending}>
+              {bulkSending ? 'Sending...' : `Send to ${selectedIds.size} Recipients`}
+            </button>
+          </div>
+        </form>
       </Modal>
 
       {/* Email Composer Modal */}

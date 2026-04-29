@@ -1659,12 +1659,42 @@ input[type="range"] {
 .client-list-header,
 .client-list-row {
   display: grid;
-  grid-template-columns: 0.5fr 1.4fr 0.7fr 1fr 1.6fr 1.4fr 1.2fr 0.5fr 0.8fr 1fr;
+  grid-template-columns: 30px 0.5fr 1.4fr 0.7fr 1fr 1.6fr 1.4fr 1.2fr 0.5fr 0.8fr 1fr;
   gap: 12px;
   padding: 10px 14px;
   align-items: center;
   border-bottom: 1px solid var(--border);
   font-size: 12px;
+}
+
+.client-list-row.selected { background: rgba(59, 130, 246, 0.08); }
+.cl-check input[type="checkbox"] { cursor: pointer; }
+
+/* Mass action bar */
+.mass-action-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.mass-action-left, .mass-action-right {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.mass-action-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
 }
 
 .email-status-tag {
