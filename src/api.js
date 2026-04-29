@@ -37,6 +37,20 @@ export const api = {
 
   // Clients
   getClients: (params) => request('/clients?' + new URLSearchParams(params || {})),
+  getClientsPaged: async (params) => {
+    const token = getToken()
+    const url = `${BASE}/clients?` + new URLSearchParams(params || {})
+    const res = await fetch(url, { headers: { 'Content-Type': 'application/json', 'x-auth-token': token } })
+    if (res.status === 401) { localStorage.removeItem('mst_token'); window.location.reload(); throw new Error('Unauthorized') }
+    if (!res.ok) throw new Error(`API error: ${res.status}`)
+    const data = await res.json()
+    return {
+      rows: data,
+      total: Number(res.headers.get('X-Total-Count') || 0),
+      limit: Number(res.headers.get('X-Page-Limit') || 100),
+      offset: Number(res.headers.get('X-Page-Offset') || 0),
+    }
+  },
   getClient: (id) => request(`/clients/${id}`),
   createClient: (data) => request('/clients', { method: 'POST', body: data }),
   updateClient: (id, data) => request(`/clients/${id}`, { method: 'PUT', body: data }),

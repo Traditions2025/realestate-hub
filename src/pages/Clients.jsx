@@ -25,12 +25,36 @@ export default function Clients() {
   const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
 
+  const PAGE_SIZE = 100
+  const [totalCount, setTotalCount] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+
   const load = () => {
-    const params = {}
+    const params = { limit: PAGE_SIZE, offset: 0 }
     if (filter.type) params.type = filter.type
     if (tab !== 'all') params.status = tab
     if (search) params.search = search
-    api.getClients(params).then(setItems)
+    api.getClientsPaged(params).then(({ rows, total }) => {
+      setItems(rows)
+      setTotalCount(total)
+      setHasMore(rows.length < total)
+    })
+  }
+
+  const loadMore = () => {
+    if (loadingMore || !hasMore) return
+    setLoadingMore(true)
+    const params = { limit: PAGE_SIZE, offset: items.length }
+    if (filter.type) params.type = filter.type
+    if (tab !== 'all') params.status = tab
+    if (search) params.search = search
+    api.getClientsPaged(params).then(({ rows, total }) => {
+      setItems(prev => [...prev, ...rows])
+      setTotalCount(total)
+      setHasMore(items.length + rows.length < total)
+      setLoadingMore(false)
+    }).catch(() => setLoadingMore(false))
   }
 
   // Initial load - no auto-sync (would be too heavy with all leads)
@@ -282,7 +306,7 @@ export default function Clients() {
       {/* Stats Row - reflect current tab filter */}
       <div className="stats-grid stats-small">
         <div className="stat-card stat-blue">
-          <div className="stat-number">{items.length}</div>
+          <div className="stat-number">{totalCount.toLocaleString()}</div>
           <div className="stat-label">
             {tab === 'all' ? 'Total Leads' :
              tab === 'active' ? 'Active Leads (Buyers + Sellers)' :
@@ -291,12 +315,12 @@ export default function Clients() {
           </div>
         </div>
         <div className="stat-card stat-green">
-          <div className="stat-number">{items.filter(i => i.type === 'buyer' || i.type === 'both').length}</div>
-          <div className="stat-label">Buyers in {tab === 'all' ? 'All' : formatStatus(tab)}</div>
+          <div className="stat-number">{items.filter(i => i.type === 'buyer' || i.type === 'both').length.toLocaleString()}</div>
+          <div className="stat-label">Buyers loaded</div>
         </div>
         <div className="stat-card stat-rose">
-          <div className="stat-number">{items.filter(i => i.type === 'seller' || i.type === 'both').length}</div>
-          <div className="stat-label">Sellers in {tab === 'all' ? 'All' : formatStatus(tab)}</div>
+          <div className="stat-number">{items.filter(i => i.type === 'seller' || i.type === 'both').length.toLocaleString()}</div>
+          <div className="stat-label">Sellers loaded</div>
         </div>
       </div>
 
@@ -363,6 +387,15 @@ export default function Clients() {
           </div>
         ))}
       </div>
+
+      {/* Load More */}
+      {hasMore && (
+        <div style={{textAlign: 'center', marginTop: 20}}>
+          <button className="btn btn-secondary" onClick={loadMore} disabled={loadingMore}>
+            {loadingMore ? 'Loading...' : `Load More (${totalCount - items.length} remaining)`}
+          </button>
+        </div>
+      )}
 
       {/* Detail Modal */}
       <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title={detail ? `${detail.first_name} ${detail.last_name}` : ''} wide>

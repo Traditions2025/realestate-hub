@@ -20,13 +20,16 @@ router.get('/status-counts', (req, res) => {
 
 router.get('/', (req, res) => {
   const { type, status, search } = req.query
-  let sql = 'SELECT * FROM clients WHERE 1=1'
+  const limit = Math.min(Number(req.query.limit) || 100, 500)
+  const offset = Number(req.query.offset) || 0
+
+  let where = ' WHERE 1=1'
   const params = []
 
-  if (type) { sql += ' AND type = ?'; params.push(type) }
-  if (status) { sql += ' AND status = ?'; params.push(status) }
+  if (type) { where += ' AND type = ?'; params.push(type) }
+  if (status) { where += ' AND status = ?'; params.push(status) }
   if (search) {
-    sql += ` AND (first_name LIKE ? OR last_name LIKE ?
+    where += ` AND (first_name LIKE ? OR last_name LIKE ?
       OR (first_name || ' ' || last_name) LIKE ?
       OR email LIKE ? OR phone LIKE ?
       OR address LIKE ? OR city LIKE ? OR zip LIKE ?
@@ -35,8 +38,15 @@ router.get('/', (req, res) => {
     params.push(term, term, term, term, term, term, term, term, term, term)
   }
 
-  sql += ' ORDER BY updated_at DESC'
-  res.json(db.all(sql, params))
+  const total = db.get(`SELECT COUNT(*) as c FROM clients${where}`, params).c
+  const rows = db.all(`SELECT * FROM clients${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+    [...params, limit, offset])
+
+  // Return as array for backwards compat, but also include pagination headers
+  res.set('X-Total-Count', String(total))
+  res.set('X-Page-Limit', String(limit))
+  res.set('X-Page-Offset', String(offset))
+  res.json(rows)
 })
 
 router.get('/:id', (req, res) => {
