@@ -21,7 +21,7 @@ Local Trusted Realtor with 35+ years of Experience | Over 2,000 homes sold
 
 Phone: (319) 431-5859
 Website: https://www.mattsmithteam.com
-Office: RE/MAX Concepts, Cedar Rapids, IA`
+Office: RE/MAX Concepts, 5235 Buffalo Rdg Dr NE, Cedar Rapids, IA 52411`
 
 // Email templates with merge variables: {{first_name}}, {{last_name}}, {{address}}
 const TEMPLATES = {
