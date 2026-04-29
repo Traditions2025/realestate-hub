@@ -258,9 +258,7 @@ function colorForEventType(type) {
   }[type] || 'blue'
 }
 
-async function syncGoogleCalendar() {
-  const url = process.env.GOOGLE_CALENDAR_ICAL_URL
-  if (!url) return
+async function syncOneCalendar(url, label) {
   try {
     const resp = await fetch(url)
     if (!resp.ok) throw new Error(`iCal fetch ${resp.status}`)
@@ -269,7 +267,7 @@ async function syncGoogleCalendar() {
 
     let added = 0, updated = 0
     const today = new Date()
-    const sixMonthsAgo = new Date(today.getFullYear(), today.getMonth() - 1, 1)
+    const oneMonthAgo = new Date(today.getFullYear(), today.getMonth() - 1, 1)
     const oneYearAhead = new Date(today.getFullYear(), today.getMonth() + 12, 1)
 
     for (const ev of events) {
@@ -277,14 +275,15 @@ async function syncGoogleCalendar() {
       const startInfo = parseICalDate(ev.start)
       if (!startInfo) continue
       const startDate = new Date(startInfo.date)
-      // Only sync events in -1 month to +12 months window
-      if (startDate < sixMonthsAgo || startDate > oneYearAhead) continue
+      if (startDate < oneMonthAgo || startDate > oneYearAhead) continue
 
       const endInfo = parseICalDate(ev.end)
       const eventType = guessEventType(ev.summary)
       const color = colorForEventType(eventType)
+      // Prefix UID with calendar label so events from different calendars don't collide
+      const uniqueId = ev.uid ? `${label}:${ev.uid}` : null
 
-      const existing = ev.uid ? db.get('SELECT id FROM calendar_events WHERE google_event_id = ?', [ev.uid]) : null
+      const existing = uniqueId ? db.get('SELECT id FROM calendar_events WHERE google_event_id = ?', [uniqueId]) : null
 
       if (existing) {
         db.run(`UPDATE calendar_events SET title=?, event_type=?, event_date=?, start_time=?,
@@ -296,16 +295,28 @@ async function syncGoogleCalendar() {
         db.run(`INSERT INTO calendar_events (title, event_type, event_date, start_time,
           end_time, location, description, color, google_event_id) VALUES (?,?,?,?,?,?,?,?,?)`,
           [ev.summary, eventType, startInfo.date, startInfo.time, endInfo?.time || null,
-            ev.location || null, ev.description || null, color, ev.uid])
+            ev.location || null, ev.description || null, color, uniqueId])
         added++
       }
     }
 
     if (added + updated > 0) {
-      console.log(`[scheduler] Google Calendar: ${added} added, ${updated} updated`)
+      console.log(`[scheduler] Calendar ${label}: ${added} added, ${updated} updated`)
     }
+    return { added, updated }
   } catch (err) {
-    console.error('[scheduler] Google Calendar sync error:', err.message)
+    console.error(`[scheduler] Calendar ${label} sync error:`, err.message)
+    return { added: 0, updated: 0, error: err.message }
+  }
+}
+
+async function syncGoogleCalendar() {
+  // Supports multiple comma-separated URLs in env var
+  const urls = (process.env.GOOGLE_CALENDAR_ICAL_URL || '').split(',').map(s => s.trim()).filter(Boolean)
+  if (urls.length === 0) return
+  for (let i = 0; i < urls.length; i++) {
+    const label = `cal${i + 1}`
+    await syncOneCalendar(urls[i], label)
   }
 }
 
