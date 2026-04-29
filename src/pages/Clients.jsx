@@ -219,7 +219,7 @@ export default function Clients() {
       <div className="page-header">
         <div>
           <h1>Clients</h1>
-          <p className="page-subtitle">Active buyers, sellers, and prospects — synced from Sierra Interactive</p>
+          <p className="page-subtitle">All leads (buyers + sellers) synced from Sierra Interactive</p>
         </div>
         <div className="header-actions">
           <button
@@ -279,19 +279,24 @@ export default function Clients() {
         </button>
       </div>
 
-      {/* Stats Row */}
+      {/* Stats Row - reflect current tab filter */}
       <div className="stats-grid stats-small">
         <div className="stat-card stat-blue">
           <div className="stat-number">{items.length}</div>
-          <div className="stat-label">{tab === 'all' ? 'Total' : tab === 'active' ? 'Active' : 'Prime'} Showing</div>
+          <div className="stat-label">
+            {tab === 'all' ? 'Total Leads' :
+             tab === 'active' ? 'Active Leads (Buyers + Sellers)' :
+             tab === 'prime' ? 'Prime Leads (Buyers + Sellers)' :
+             `${formatStatus(tab)} Leads`}
+          </div>
         </div>
         <div className="stat-card stat-green">
-          <div className="stat-number">{allCounts.buyers}</div>
-          <div className="stat-label">Buyers</div>
+          <div className="stat-number">{items.filter(i => i.type === 'buyer' || i.type === 'both').length}</div>
+          <div className="stat-label">Buyers in {tab === 'all' ? 'All' : formatStatus(tab)}</div>
         </div>
         <div className="stat-card stat-rose">
-          <div className="stat-number">{allCounts.sellers}</div>
-          <div className="stat-label">Sellers</div>
+          <div className="stat-number">{items.filter(i => i.type === 'seller' || i.type === 'both').length}</div>
+          <div className="stat-label">Sellers in {tab === 'all' ? 'All' : formatStatus(tab)}</div>
         </div>
       </div>
 
