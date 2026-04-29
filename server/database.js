@@ -1,5 +1,5 @@
 import initSqlJs from 'sql.js'
-import { readFileSync, writeFileSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -14,10 +14,25 @@ let db
 export async function initDb() {
   const SQL = await initSqlJs()
 
+  // Ensure DB directory exists
+  console.log(`[db] Database path: ${DB_PATH}`)
+  console.log(`[db] DB_DIR env var: ${process.env.DB_DIR || '(not set, using local)'}`)
+  if (!existsSync(DB_DIR)) {
+    try {
+      mkdirSync(DB_DIR, { recursive: true })
+      console.log(`[db] Created directory: ${DB_DIR}`)
+    } catch (e) {
+      console.error(`[db] FAILED to create ${DB_DIR}: ${e.message}`)
+    }
+  }
+
   if (existsSync(DB_PATH)) {
+    const stats = statSync(DB_PATH)
+    console.log(`[db] Loading existing database (${(stats.size / 1024).toFixed(1)} KB, modified ${stats.mtime.toISOString()})`)
     const buffer = readFileSync(DB_PATH)
     db = new SQL.Database(buffer)
   } else {
+    console.log(`[db] No existing database, creating new at ${DB_PATH}`)
     db = new SQL.Database()
   }
 
@@ -469,11 +484,45 @@ export async function initDb() {
   return db
 }
 
+let saveErrorLogged = false
 export function saveDb() {
   if (!db) return
-  const data = db.export()
-  const buffer = Buffer.from(data)
-  writeFileSync(DB_PATH, buffer)
+  try {
+    const data = db.export()
+    const buffer = Buffer.from(data)
+    writeFileSync(DB_PATH, buffer)
+    saveErrorLogged = false
+  } catch (e) {
+    if (!saveErrorLogged) {
+      console.error(`[db] CRITICAL: Failed to save DB to ${DB_PATH}: ${e.message}`)
+      console.error(`[db] Your data will be lost on restart. Check that DB_DIR=${DB_DIR} is writable.`)
+      saveErrorLogged = true
+    }
+  }
+}
+
+// Save status endpoint helper - reports persistence state
+export function getDbStatus() {
+  let fileExists = false
+  let fileSize = 0
+  let lastModified = null
+  try {
+    if (existsSync(DB_PATH)) {
+      fileExists = true
+      const stats = statSync(DB_PATH)
+      fileSize = stats.size
+      lastModified = stats.mtime.toISOString()
+    }
+  } catch (e) {}
+  return {
+    db_path: DB_PATH,
+    db_dir: DB_DIR,
+    db_dir_env: process.env.DB_DIR || null,
+    file_exists: fileExists,
+    file_size_kb: Math.round(fileSize / 1024),
+    last_modified: lastModified,
+    is_persistent: !!process.env.DB_DIR,
+  }
 }
 
 export function all(sql, params = []) {

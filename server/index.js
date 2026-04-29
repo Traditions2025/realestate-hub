@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { initDb } from './database.js'
+import { initDb, getDbStatus } from './database.js'
 import db from './database.js'
 
 import authRouter, { requireAuth } from './routes/auth.js'
@@ -67,6 +67,19 @@ async function start() {
     const limit = Number(req.query.limit) || 20
     const rows = db.all('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?', [limit])
     res.json(rows)
+  })
+
+  // DB persistence status - verify the database is being saved to a persistent disk
+  app.get('/api/db-status', (req, res) => {
+    const status = getDbStatus()
+    const counts = {
+      clients: db.get('SELECT COUNT(*) as c FROM clients').c,
+      transactions: db.get('SELECT COUNT(*) as c FROM transactions').c,
+      vendors: db.get('SELECT COUNT(*) as c FROM vendors').c,
+      partners: db.get('SELECT COUNT(*) as c FROM partners').c,
+      tasks: db.get('SELECT COUNT(*) as c FROM tasks').c,
+    }
+    res.json({ ...status, record_counts: counts })
   })
 
   // SPA fallback for production
