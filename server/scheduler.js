@@ -376,19 +376,17 @@ export { syncGoogleCalendar }
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
 
-  // Run all syncs once on boot (after a 30s delay so server is fully ready)
+  // Run syncs once on boot (after a 30s delay so server is fully ready)
   setTimeout(() => {
     console.log('[scheduler] Initial boot sync...')
     syncSierraIncremental()
-    syncGoogleSheet()
     syncGoogleCalendar()
+    // Google Sheet auto-sync DISABLED - hub is the source of truth for transactions.
+    // Use the "Sync from Google Sheet" button on Transactions page if needed.
   }, 30000)
 
   // Sierra incremental: every 10 minutes (only pulls leads updated since last run)
   setInterval(syncSierraIncremental, 10 * 60 * 1000)
-
-  // Google Sheet: every 5 minutes
-  setInterval(syncGoogleSheet, 5 * 60 * 1000)
 
   // Google Calendar: every 5 minutes
   setInterval(syncGoogleCalendar, 5 * 60 * 1000)

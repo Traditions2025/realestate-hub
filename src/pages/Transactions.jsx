@@ -154,7 +154,7 @@ export default function Transactions() {
       <div className="page-header">
         <div>
           <h1>Transaction Tracker</h1>
-          <p className="page-subtitle">Matches your Google Sheet - every field, every checklist item</p>
+          <p className="page-subtitle">Hub is the source of truth. Edit directly here — Google Sheet sync is manual.</p>
         </div>
         <div className="header-actions">
           <button className="btn btn-secondary" onClick={clearAndResync} disabled={syncing} title="Wipe all transactions and re-sync clean from Google Sheet">
