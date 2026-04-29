@@ -263,6 +263,10 @@ export default function Clients() {
           <p className="page-subtitle">All leads (buyers + sellers) synced from Sierra Interactive</p>
         </div>
         <div className="header-actions">
+          <div className="view-toggle">
+            <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
+            <button className={view === 'card' ? 'active' : ''} onClick={() => setView('card')}>Cards</button>
+          </div>
           <button
             className="btn btn-primary"
             onClick={() => syncSierra(false, 'all')}
@@ -346,12 +350,6 @@ export default function Clients() {
           All
           <span className="tab-count">{allCounts.total}</span>
         </button>
-
-        {/* View toggle - far right */}
-        <div className="view-toggle" style={{marginLeft: 'auto'}}>
-          <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
-          <button className={view === 'card' ? 'active' : ''} onClick={() => setView('card')}>Cards</button>
-        </div>
       </div>
 
       {/* Stats Row - reflect current tab filter */}
