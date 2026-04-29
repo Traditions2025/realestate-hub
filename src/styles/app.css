@@ -1670,6 +1670,58 @@ input[type="range"] {
 .client-list-row.selected { background: rgba(59, 130, 246, 0.08); }
 .cl-check input[type="checkbox"] { cursor: pointer; }
 
+/* Advanced filter panel */
+.filter-panel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.filter-section h5 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  font-weight: 700;
+}
+
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 110px;
+  overflow-y: auto;
+}
+
+.filter-chip {
+  padding: 4px 10px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+}
+.filter-chip:hover { background: var(--bg-hover); }
+.filter-chip.active {
+  background: rgba(59, 130, 246, 0.15);
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.filter-chip.exclude.active {
+  background: rgba(239, 68, 68, 0.15);
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
 /* Mass action bar */
 .mass-action-bar {
   display: flex;

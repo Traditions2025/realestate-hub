@@ -25,6 +25,46 @@ export default function Clients() {
   const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
 
+  // Advanced filters
+  const [advFilters, setAdvFilters] = useState({
+    statuses_include: [],
+    statuses_exclude: [],
+    tags_include: [],
+    tags_exclude: [],
+    zips_include: [],
+    cities_include: [],
+    sources_include: [],
+    has_email: false,
+    exclude_optouts: false,
+    score_min: '',
+    score_max: '',
+    visits_min: '',
+  })
+  const [filterPanelOpen, setFilterPanelOpen] = useState(false)
+  const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [] })
+  const [savedLists, setSavedLists] = useState([])
+  const [activeListId, setActiveListId] = useState(null)
+  const [saveListOpen, setSaveListOpen] = useState(false)
+  const [newListName, setNewListName] = useState('')
+
+  // Load filter options + saved lists once
+  useEffect(() => {
+    authFetch('/api/clients/filter-options').then(r => r.json()).then(setFilterOptions).catch(() => {})
+    authFetch('/api/lists').then(r => r.json()).then(setSavedLists).catch(() => {})
+  }, [])
+
+  const advFilterCount = (
+    advFilters.statuses_include.length + advFilters.statuses_exclude.length +
+    advFilters.tags_include.length + advFilters.tags_exclude.length +
+    advFilters.zips_include.length + advFilters.cities_include.length +
+    advFilters.sources_include.length +
+    (advFilters.has_email ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
+    (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
+    (advFilters.visits_min ? 1 : 0)
+  )
+
+  const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
+
   const [pageSize, setPageSize] = useState(() => Number(localStorage.getItem('clients_page_size')) || 100)
   useEffect(() => { localStorage.setItem('clients_page_size', String(pageSize)) }, [pageSize])
   const [totalCount, setTotalCount] = useState(0)
@@ -39,12 +79,29 @@ export default function Clients() {
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
 
-  const load = () => {
+  const buildLoadParams = () => {
     const params = { limit: pageSize, offset: 0 }
     if (filter.type) params.type = filter.type
     if (tab !== 'all') params.status = tab
     if (search) params.search = search
-    api.getClientsPaged(params).then(({ rows, total }) => {
+    // Advanced filters
+    if (advFilters.statuses_include.length) params.statuses_include = advFilters.statuses_include.join(',')
+    if (advFilters.statuses_exclude.length) params.statuses_exclude = advFilters.statuses_exclude.join(',')
+    if (advFilters.tags_include.length) params.tags_include = advFilters.tags_include.join(',')
+    if (advFilters.tags_exclude.length) params.tags_exclude = advFilters.tags_exclude.join(',')
+    if (advFilters.zips_include.length) params.zips_include = advFilters.zips_include.join(',')
+    if (advFilters.cities_include.length) params.cities_include = advFilters.cities_include.join(',')
+    if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
+    if (advFilters.has_email) params.has_email = '1'
+    if (advFilters.exclude_optouts) params.exclude_optouts = '1'
+    if (advFilters.score_min) params.score_min = advFilters.score_min
+    if (advFilters.score_max) params.score_max = advFilters.score_max
+    if (advFilters.visits_min) params.visits_min = advFilters.visits_min
+    return params
+  }
+
+  const load = () => {
+    api.getClientsPaged(buildLoadParams()).then(({ rows, total }) => {
       setItems(rows)
       setTotalCount(total)
       setHasMore(rows.length < total)
@@ -93,7 +150,7 @@ export default function Clients() {
     return () => document.removeEventListener('click', close)
   }, [otherMenuOpen])
 
-  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize])
+  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize, advFilters])
 
   const syncSierra = async (silent = false, statuses = 'Active,Prime,Watch,Pending') => {
     setSierraStatus('syncing')
@@ -184,6 +241,89 @@ export default function Clients() {
       setEmailForm({ subject: '', body: '', template: '' })
     }
     setEmailModalOpen(true)
+  }
+
+  // Toggle a value in an array filter
+  const toggleArrayFilter = (key, value) => {
+    setAdvFilters(prev => {
+      const arr = prev[key] || []
+      const next = arr.includes(value) ? arr.filter(v => v !== value) : [...arr, value]
+      return { ...prev, [key]: next }
+    })
+  }
+
+  const clearAllFilters = () => {
+    setAdvFilters({
+      statuses_include: [], statuses_exclude: [],
+      tags_include: [], tags_exclude: [],
+      zips_include: [], cities_include: [], sources_include: [],
+      has_email: false, exclude_optouts: false,
+      score_min: '', score_max: '', visits_min: '',
+    })
+    setTab('all')
+    setSearch('')
+    setActiveListId(null)
+  }
+
+  const saveAsList = async () => {
+    if (!newListName.trim()) return alert('Please enter a list name')
+    const filter_criteria = { ...advFilters }
+    if (tab !== 'all') filter_criteria.statuses_include = [...(filter_criteria.statuses_include || []), tab]
+    if (search) filter_criteria.search = search
+    const r = await authFetch('/api/lists', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: newListName.trim(),
+        description: `Filter-based list (${totalCount} matches at creation)`,
+        filter_criteria,
+        is_dynamic: true,
+      }),
+    })
+    const d = await r.json()
+    if (d.id) {
+      alert(`List "${newListName}" saved`)
+      setNewListName('')
+      setSaveListOpen(false)
+      authFetch('/api/lists').then(r => r.json()).then(setSavedLists)
+    }
+  }
+
+  const loadSavedList = async (listId) => {
+    if (!listId) {
+      clearAllFilters()
+      return
+    }
+    const r = await authFetch(`/api/lists/${listId}`)
+    const list = await r.json()
+    if (list.filter_criteria) {
+      try {
+        const f = JSON.parse(list.filter_criteria)
+        setAdvFilters({
+          statuses_include: f.statuses_include || [],
+          statuses_exclude: f.statuses_exclude || [],
+          tags_include: f.tags_include || [],
+          tags_exclude: f.tags_exclude || [],
+          zips_include: f.zips_include || [],
+          cities_include: f.cities_include || [],
+          sources_include: f.sources_include || [],
+          has_email: !!f.has_email,
+          exclude_optouts: !!f.exclude_optouts,
+          score_min: f.score_min || '',
+          score_max: f.score_max || '',
+          visits_min: f.visits_min || '',
+        })
+        setTab('all')
+        if (f.search) setSearch(f.search)
+      } catch {}
+    }
+    setActiveListId(listId)
+  }
+
+  const deleteSavedList = async (listId) => {
+    if (!confirm('Delete this list?')) return
+    await authFetch(`/api/lists/${listId}`, { method: 'DELETE' })
+    setSavedLists(prev => prev.filter(l => l.id !== listId))
+    if (activeListId === listId) setActiveListId(null)
   }
 
   // Mass selection helpers
@@ -487,6 +627,23 @@ export default function Clients() {
 
       <div className="toolbar">
         <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
+        <select value={activeListId || ''} onChange={e => loadSavedList(e.target.value ? Number(e.target.value) : null)} title="Saved lists">
+          <option value="">— Saved Lists —</option>
+          {savedLists.map(l => (
+            <option key={l.id} value={l.id}>{l.name} ({l.count})</option>
+          ))}
+        </select>
+        <button className="btn btn-secondary" onClick={() => setFilterPanelOpen(!filterPanelOpen)}>
+          Filters{advFilterCount > 0 ? ` (${advFilterCount})` : ''}
+        </button>
+        {hasActiveFilters && (
+          <button className="btn btn-secondary" onClick={() => setSaveListOpen(true)}>
+            Save as List
+          </button>
+        )}
+        {hasActiveFilters && (
+          <button className="btn-sm btn-danger" onClick={clearAllFilters}>Clear All</button>
+        )}
         <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} title="Records per page">
           <option value={100}>100 per page</option>
           <option value={500}>500 per page</option>
@@ -494,6 +651,141 @@ export default function Clients() {
           <option value={2000}>2,000 per page</option>
         </select>
       </div>
+
+      {/* Advanced Filter Panel */}
+      {filterPanelOpen && (
+        <div className="filter-panel">
+          <div className="filter-section">
+            <h5>Status (Include)</h5>
+            <div className="filter-chips">
+              {ALL_STATUSES.map(s => (
+                <button key={s} type="button"
+                  className={`filter-chip ${advFilters.statuses_include.includes(s) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('statuses_include', s)}>
+                  {formatStatus(s)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Status (Exclude)</h5>
+            <div className="filter-chips">
+              {ALL_STATUSES.map(s => (
+                <button key={s} type="button"
+                  className={`filter-chip exclude ${advFilters.statuses_exclude.includes(s) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('statuses_exclude', s)}>
+                  {formatStatus(s)}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Tags (Include) — top 30 most used</h5>
+            <div className="filter-chips">
+              {filterOptions.tags.slice(0, 30).map(t => (
+                <button key={t.tag} type="button"
+                  className={`filter-chip ${advFilters.tags_include.includes(t.tag) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('tags_include', t.tag)}>
+                  {t.tag} <span style={{opacity: 0.6}}>({t.count})</span>
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Tags (Exclude)</h5>
+            <div className="filter-chips">
+              {filterOptions.tags.slice(0, 20).map(t => (
+                <button key={t.tag} type="button"
+                  className={`filter-chip exclude ${advFilters.tags_exclude.includes(t.tag) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('tags_exclude', t.tag)}>
+                  {t.tag}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Zip Codes</h5>
+            <div className="filter-chips">
+              {filterOptions.zips.slice(0, 30).map(z => (
+                <button key={z} type="button"
+                  className={`filter-chip ${advFilters.zips_include.includes(z) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('zips_include', z)}>
+                  {z}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Cities</h5>
+            <div className="filter-chips">
+              {filterOptions.cities.slice(0, 20).map(c => (
+                <button key={c} type="button"
+                  className={`filter-chip ${advFilters.cities_include.includes(c) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('cities_include', c)}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Sources</h5>
+            <div className="filter-chips">
+              {filterOptions.sources.slice(0, 20).map(s => (
+                <button key={s} type="button"
+                  className={`filter-chip ${advFilters.sources_include.includes(s) ? 'active' : ''}`}
+                  onClick={() => toggleArrayFilter('sources_include', s)}>
+                  {s}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="filter-section">
+            <h5>Other</h5>
+            <div className="filter-row" style={{display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'}}>
+              <label className="checkbox-label" style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                <input type="checkbox" checked={advFilters.has_email} onChange={e => setAdvFilters(p => ({ ...p, has_email: e.target.checked }))} />
+                Has email
+              </label>
+              <label className="checkbox-label" style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                <input type="checkbox" checked={advFilters.exclude_optouts} onChange={e => setAdvFilters(p => ({ ...p, exclude_optouts: e.target.checked }))} />
+                Exclude opt-outs
+              </label>
+              <label style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                Score min:
+                <input type="number" value={advFilters.score_min} onChange={e => setAdvFilters(p => ({ ...p, score_min: e.target.value }))} style={{width: 80}} />
+              </label>
+              <label style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                Score max:
+                <input type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} style={{width: 80}} />
+              </label>
+              <label style={{display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6}}>
+                Min visits:
+                <input type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} style={{width: 80}} />
+              </label>
+            </div>
+          </div>
+          {activeListId && (
+            <div style={{textAlign: 'right', paddingTop: 8}}>
+              <button className="btn-sm btn-danger" onClick={() => deleteSavedList(activeListId)}>Delete this list</button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Save as List Modal */}
+      {saveListOpen && (
+        <Modal open={saveListOpen} onClose={() => setSaveListOpen(false)} title="Save as List">
+          <p style={{fontSize: 13, color: 'var(--text-muted)'}}>
+            Save the current filters as a reusable list. Matches {totalCount.toLocaleString()} clients right now.
+            The list updates dynamically — new leads matching the filter will appear automatically.
+          </p>
+          <label>List Name<input value={newListName} onChange={e => setNewListName(e.target.value)} placeholder="e.g. Cedar Rapids Sellers Off Market" autoFocus /></label>
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setSaveListOpen(false)}>Cancel</button>
+            <button type="button" className="btn btn-primary" onClick={saveAsList}>Save List</button>
+          </div>
+        </Modal>
+      )}
 
       {/* Mass action bar */}
       <div className="mass-action-bar">

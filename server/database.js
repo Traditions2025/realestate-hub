@@ -403,6 +403,22 @@ export async function initDb() {
   `)
 
   // =============================================
+  // CLIENT LISTS (saved filtered groups)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS client_lists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      filter_criteria TEXT,
+      is_dynamic INTEGER DEFAULT 1,
+      client_ids TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // =============================================
   // EMAIL LOG
   // =============================================
   db.run(`

@@ -20,25 +20,12 @@ router.get('/status-counts', (req, res) => {
 
 // Get just the IDs matching a filter (for "select all" mass actions)
 router.get('/ids', (req, res) => {
-  const { type, status, search } = req.query
   const limit = Math.min(Number(req.query.limit) || 2000, 5000)
-
-  let where = ' WHERE 1=1'
-  const params = []
-  if (type) { where += ' AND type = ?'; params.push(type) }
-  if (status) { where += ' AND status = ?'; params.push(status) }
-  if (search) {
-    where += ` AND (first_name LIKE ? OR last_name LIKE ?
-      OR (first_name || ' ' || last_name) LIKE ?
-      OR email LIKE ? OR phone LIKE ?
-      OR address LIKE ? OR city LIKE ? OR zip LIKE ?
-      OR source LIKE ? OR agent_assigned LIKE ?)`
-    const term = `%${search}%`
-    params.push(term, term, term, term, term, term, term, term, term, term)
-  }
-  // Only include clients with valid email for mass action use
-  where += " AND email IS NOT NULL AND email != '' AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)"
-
+  const { where, params } = buildClientFilter({
+    ...req.query,
+    has_email: '1',
+    exclude_optouts: '1',
+  })
   const ids = db.all(`SELECT id FROM clients${where} ORDER BY updated_at DESC LIMIT ?`,
     [...params, limit]).map(r => r.id)
   res.json({ ids, count: ids.length })
@@ -52,35 +39,158 @@ router.get('/breakdown', (req, res) => {
   res.json({ total, buyers, sellers })
 })
 
-router.get('/', (req, res) => {
-  const { type, status, search } = req.query
-  const limit = Math.min(Number(req.query.limit) || 100, 500)
-  const offset = Number(req.query.offset) || 0
-
+// Build the WHERE clause + params from query/body filters
+function buildClientFilter(q) {
   let where = ' WHERE 1=1'
   const params = []
 
-  if (type) { where += ' AND type = ?'; params.push(type) }
-  if (status) { where += ' AND status = ?'; params.push(status) }
-  if (search) {
+  if (q.type) { where += ' AND type = ?'; params.push(q.type) }
+
+  // Single status (legacy)
+  if (q.status) { where += ' AND status = ?'; params.push(q.status) }
+
+  // Multi-status include/exclude
+  if (q.statuses_include) {
+    const arr = Array.isArray(q.statuses_include) ? q.statuses_include : q.statuses_include.split(',').filter(Boolean)
+    if (arr.length) {
+      where += ' AND status IN (' + arr.map(() => '?').join(',') + ')'
+      params.push(...arr)
+    }
+  }
+  if (q.statuses_exclude) {
+    const arr = Array.isArray(q.statuses_exclude) ? q.statuses_exclude : q.statuses_exclude.split(',').filter(Boolean)
+    if (arr.length) {
+      where += ' AND (status IS NULL OR status NOT IN (' + arr.map(() => '?').join(',') + '))'
+      params.push(...arr)
+    }
+  }
+
+  // Tags include - lead must have ALL of these tags
+  if (q.tags_include) {
+    const arr = Array.isArray(q.tags_include) ? q.tags_include : q.tags_include.split(',').map(s => s.trim()).filter(Boolean)
+    for (const tag of arr) {
+      where += ' AND tags LIKE ?'
+      params.push(`%"${tag}"%`)
+    }
+  }
+  // Tags exclude - lead must NOT have any of these tags
+  if (q.tags_exclude) {
+    const arr = Array.isArray(q.tags_exclude) ? q.tags_exclude : q.tags_exclude.split(',').map(s => s.trim()).filter(Boolean)
+    for (const tag of arr) {
+      where += ' AND (tags IS NULL OR tags NOT LIKE ?)'
+      params.push(`%"${tag}"%`)
+    }
+  }
+
+  // Zip include/exclude
+  if (q.zips_include) {
+    const arr = Array.isArray(q.zips_include) ? q.zips_include : q.zips_include.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND zip IN (' + arr.map(() => '?').join(',') + ')'
+      params.push(...arr)
+    }
+  }
+  if (q.zips_exclude) {
+    const arr = Array.isArray(q.zips_exclude) ? q.zips_exclude : q.zips_exclude.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND (zip IS NULL OR zip NOT IN (' + arr.map(() => '?').join(',') + '))'
+      params.push(...arr)
+    }
+  }
+
+  // City include/exclude
+  if (q.cities_include) {
+    const arr = Array.isArray(q.cities_include) ? q.cities_include : q.cities_include.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND city IN (' + arr.map(() => '?').join(',') + ')'
+      params.push(...arr)
+    }
+  }
+
+  // Source include/exclude
+  if (q.sources_include) {
+    const arr = Array.isArray(q.sources_include) ? q.sources_include : q.sources_include.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND source IN (' + arr.map(() => '?').join(',') + ')'
+      params.push(...arr)
+    }
+  }
+  if (q.sources_exclude) {
+    const arr = Array.isArray(q.sources_exclude) ? q.sources_exclude : q.sources_exclude.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND (source IS NULL OR source NOT IN (' + arr.map(() => '?').join(',') + '))'
+      params.push(...arr)
+    }
+  }
+
+  // Has email / has phone
+  if (q.has_email === '1' || q.has_email === 'true') where += " AND email IS NOT NULL AND email != ''"
+  if (q.has_phone === '1' || q.has_phone === 'true') where += " AND phone IS NOT NULL AND phone != ''"
+  if (q.exclude_optouts === '1' || q.exclude_optouts === 'true') {
+    where += ' AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)'
+  }
+
+  // Lead score min/max
+  if (q.score_min) {
+    where += ' AND CAST(lead_score AS INTEGER) >= ?'
+    params.push(Number(q.score_min))
+  }
+  if (q.score_max) {
+    where += ' AND CAST(lead_score AS INTEGER) <= ?'
+    params.push(Number(q.score_max))
+  }
+
+  // Visits min
+  if (q.visits_min) {
+    where += ' AND visits >= ?'
+    params.push(Number(q.visits_min))
+  }
+
+  // Search
+  if (q.search) {
     where += ` AND (first_name LIKE ? OR last_name LIKE ?
       OR (first_name || ' ' || last_name) LIKE ?
       OR email LIKE ? OR phone LIKE ?
       OR address LIKE ? OR city LIKE ? OR zip LIKE ?
       OR source LIKE ? OR agent_assigned LIKE ?)`
-    const term = `%${search}%`
+    const term = `%${q.search}%`
     params.push(term, term, term, term, term, term, term, term, term, term)
   }
+
+  return { where, params }
+}
+
+router.get('/', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 5000)
+  const offset = Number(req.query.offset) || 0
+  const { where, params } = buildClientFilter(req.query)
 
   const total = db.get(`SELECT COUNT(*) as c FROM clients${where}`, params).c
   const rows = db.all(`SELECT * FROM clients${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
     [...params, limit, offset])
 
-  // Return as array for backwards compat, but also include pagination headers
   res.set('X-Total-Count', String(total))
   res.set('X-Page-Limit', String(limit))
   res.set('X-Page-Offset', String(offset))
   res.json(rows)
+})
+
+// Get distinct values for filter dropdowns (zips, cities, sources)
+router.get('/filter-options', (req, res) => {
+  const zips = db.all("SELECT DISTINCT zip FROM clients WHERE zip IS NOT NULL AND zip != '' ORDER BY zip").map(r => r.zip)
+  const cities = db.all("SELECT DISTINCT city FROM clients WHERE city IS NOT NULL AND city != '' ORDER BY city").map(r => r.city)
+  const sources = db.all("SELECT DISTINCT source FROM clients WHERE source IS NOT NULL AND source != '' ORDER BY source").map(r => r.source)
+  // Get popular tags
+  const allTagsRows = db.all("SELECT tags FROM clients WHERE tags IS NOT NULL AND tags != ''")
+  const tagCounts = {}
+  for (const row of allTagsRows) {
+    try {
+      const parsed = JSON.parse(row.tags)
+      for (const t of parsed) tagCounts[t] = (tagCounts[t] || 0) + 1
+    } catch {}
+  }
+  const tags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).slice(0, 100).map(([t, c]) => ({ tag: t, count: c }))
+  res.json({ zips, cities, sources, tags })
 })
 
 router.get('/:id', (req, res) => {
