@@ -27,6 +27,45 @@ async function sierraGet(endpoint, params = {}) {
   return resp.json()
 }
 
+// Extract Realist score - prefer specific number from shortSummary, fall back to tag range
+function extractRealistScore(lead) {
+  // 1. shortSummary has the specific number: "Realist Score: 541 | ..."
+  const summary = lead.shortSummary || ''
+  const m1 = summary.match(/realist\s*score\s*[:=]?\s*(\d{1,4})/i)
+  if (m1) return m1[1]
+
+  // 2. Fall back to tag range like "Realist score 800+"
+  const tags = lead.tags || []
+  for (const t of tags) {
+    const tagStr = typeof t === 'string' ? t : (t.name || t.tag || '')
+    const m = tagStr.match(/realist\s*score\s*(.+)/i)
+    if (m) return m[1].trim()
+  }
+  return null
+}
+
+// Grade based on numeric score (0-1000) or text range
+function gradeFromRealistScore(scoreStr) {
+  if (!scoreStr) return null
+  // Numeric
+  const n = parseInt(scoreStr, 10)
+  if (!isNaN(n)) {
+    if (n >= 800) return 'A+'
+    if (n >= 700) return 'A'
+    if (n >= 650) return 'B'
+    if (n >= 600) return 'C'
+    if (n >= 500) return 'D'
+    return 'F'
+  }
+  // Text range
+  if (scoreStr.includes('800')) return 'A+'
+  if (scoreStr.includes('700')) return 'A'
+  if (scoreStr.includes('650')) return 'B'
+  if (scoreStr.includes('600')) return 'C'
+  if (scoreStr.includes('500')) return 'D'
+  return 'F'
+}
+
 function processLead(lead, sierraStatus) {
   const sierraId = String(lead.id)
   const firstName = lead.firstName || ''
@@ -40,8 +79,8 @@ function processLead(lead, sierraStatus) {
   const city = n(lead.city)
   const state = n(lead.state) || 'IA'
   const zip = n(lead.zip || lead.postalCode)
-  const leadScore = n(lead.leadScore)
-  const leadGrade = n(lead.leadGrade)
+  const leadScore = extractRealistScore(lead)
+  const leadGrade = gradeFromRealistScore(leadScore)
 
   // Use leadStatus from the lead itself if available, otherwise use the queried status
   const actualStatus = lead.leadStatus || sierraStatus

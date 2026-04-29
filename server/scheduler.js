@@ -20,6 +20,39 @@ function mapStatus(sierraStatus) {
   return sierraStatus.toLowerCase().replace(/\s+/g, '_')
 }
 
+// Extract Realist score - prefer specific number from shortSummary, fall back to tag range
+function extractRealistScore(lead) {
+  const summary = lead.shortSummary || ''
+  const m1 = summary.match(/realist\s*score\s*[:=]?\s*(\d{1,4})/i)
+  if (m1) return m1[1]
+  const tags = lead.tags || []
+  for (const t of tags) {
+    const tagStr = typeof t === 'string' ? t : (t.name || t.tag || '')
+    const m = tagStr.match(/realist\s*score\s*(.+)/i)
+    if (m) return m[1].trim()
+  }
+  return null
+}
+
+function gradeFromRealistScore(scoreStr) {
+  if (!scoreStr) return null
+  const n = parseInt(scoreStr, 10)
+  if (!isNaN(n)) {
+    if (n >= 800) return 'A+'
+    if (n >= 700) return 'A'
+    if (n >= 650) return 'B'
+    if (n >= 600) return 'C'
+    if (n >= 500) return 'D'
+    return 'F'
+  }
+  if (scoreStr.includes('800')) return 'A+'
+  if (scoreStr.includes('700')) return 'A'
+  if (scoreStr.includes('650')) return 'B'
+  if (scoreStr.includes('600')) return 'C'
+  if (scoreStr.includes('500')) return 'D'
+  return 'F'
+}
+
 function processLead(lead) {
   const sierraId = String(lead.id)
   const firstName = lead.firstName || ''
@@ -55,21 +88,28 @@ function processLead(lead) {
     }
   }
 
+  const leadScore = extractRealistScore(lead)
+  const leadGrade = gradeFromRealistScore(leadScore)
+
   const existing = db.get('SELECT id FROM clients WHERE sierra_lead_id = ?', [sierraId])
   if (existing) {
     db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
       source=?, address=?, city=?, state=?, zip=?, type=?,
       budget_min=?, budget_max=?, agent_assigned=?, status=?,
+      lead_score=?, lead_grade=?,
       updated_at=datetime('now') WHERE id=?`,
       [firstName, lastName, email, phone, source, address, city, state, zip,
-        type, budgetMin, budgetMax, agentAssigned, clientStatus, existing.id])
+        type, budgetMin, budgetMax, agentAssigned, clientStatus,
+        leadScore, leadGrade, existing.id])
     return 'updated'
   } else {
     db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status,
-      source, agent_assigned, address, city, state, zip, budget_min, budget_max, sierra_lead_id)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      source, agent_assigned, address, city, state, zip, budget_min, budget_max,
+      sierra_lead_id, lead_score, lead_grade)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [firstName, lastName, email, phone, type, clientStatus, source,
-        agentAssigned, address, city, state, zip, budgetMin, budgetMax, sierraId])
+        agentAssigned, address, city, state, zip, budgetMin, budgetMax,
+        sierraId, leadScore, leadGrade])
     return 'added'
   }
 }

@@ -395,6 +395,7 @@ export default function Clients() {
       {view === 'list' && items.length > 0 && (
         <div className="client-list">
           <div className="client-list-header">
+            <div className="cl-score">Score</div>
             <div className="cl-name">Name</div>
             <div className="cl-type">Type</div>
             <div className="cl-status">Status</div>
@@ -407,6 +408,14 @@ export default function Clients() {
           </div>
           {items.map(item => (
             <div key={item.id} className="client-list-row" onClick={() => openDetail(item.id)}>
+              <div className="cl-score">
+                {item.lead_score !== null && item.lead_score !== undefined ? (
+                  <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
+                    {item.lead_score}
+                    {item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
+                  </span>
+                ) : <span className="lead-score-empty">—</span>}
+              </div>
               <div className="cl-name">
                 <strong>{item.first_name} {item.last_name}</strong>
                 {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
@@ -448,13 +457,19 @@ export default function Clients() {
               <div className="client-avatar" style={{background: item.sierra_lead_id ? '#8b5cf6' : '#3b82f6'}}>
                 {item.first_name?.[0]}{item.last_name?.[0]}
               </div>
-              <div>
+              <div style={{flex: 1}}>
                 <div className="client-name">{item.first_name} {item.last_name}</div>
                 <div className="client-type">
                   <span className={`client-type-badge type-${item.type}`}>{item.type}</span>
                   {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
                 </div>
               </div>
+              {item.lead_score !== null && item.lead_score !== undefined && (
+                <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
+                  {item.lead_score}
+                  {item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
+                </span>
+              )}
             </div>
             <div className="client-card-body">
               {item.phone && <div className="client-info">{item.phone}</div>}
