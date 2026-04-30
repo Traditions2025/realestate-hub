@@ -254,6 +254,29 @@ export default function Clients() {
     authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
   }
 
+  const [refreshing, setRefreshing] = useState(false)
+
+  const refreshFromSierra = async () => {
+    if (!detail?.sierra_lead_id) return
+    setRefreshing(true)
+    try {
+      const r = await authFetch(`/api/sierra/refresh-lead/${detail.sierra_lead_id}`, { method: 'POST' })
+      const d = await r.json()
+      if (!d.success) {
+        alert('Refresh failed: ' + (d.error || 'unknown error'))
+        return
+      }
+      // Reload the full detail (which re-pulls notes + listing interest too)
+      await openDetail(detail.id)
+      // Also refresh the row in the list view
+      load()
+    } catch (e) {
+      alert('Refresh failed: ' + e.message)
+    } finally {
+      setRefreshing(false)
+    }
+  }
+
   const openEmailComposer = (templateId = '') => {
     if (templateId && detail) {
       authFetch(`/api/email/preview/${templateId}/${detail.id}`)
@@ -1089,6 +1112,71 @@ export default function Clients() {
       <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title={detail ? `${detail.first_name} ${detail.last_name}` : ''} wide>
         {detail && (
           <div className="detail-view">
+            {/* PRIMARY ACTIONS — kept at top for fastest access */}
+            <div className="lead-action-bar">
+              <div className="lead-action-bar-row">
+                {detail.email && !detail.marketing_email_opt_out && (
+                  <button className="lead-action-btn lead-action-email" onClick={() => openEmailComposer('')}>
+                    <span className="lead-action-icon">✉</span>
+                    <span>Email</span>
+                  </button>
+                )}
+                {detail.phone && !detail.text_opt_out && (
+                  <button
+                    className="lead-action-btn lead-action-text"
+                    title="Twilio SMS coming soon"
+                    onClick={() => alert('Twilio SMS integration is in setup. Coming soon.')}
+                  >
+                    <span className="lead-action-icon">💬</span>
+                    <span>Text</span>
+                    <span className="lead-action-soon">soon</span>
+                  </button>
+                )}
+                {detail.phone && (
+                  <a className="lead-action-btn lead-action-call" href={`tel:${detail.phone}`}>
+                    <span className="lead-action-icon">📞</span>
+                    <span>Call</span>
+                  </a>
+                )}
+                <button
+                  className="lead-action-btn lead-action-voicemail"
+                  title="Recorded voicemail drops — coming with Twilio"
+                  onClick={() => alert('Recorded voicemail drops are planned with Twilio. Coming soon.')}
+                >
+                  <span className="lead-action-icon">🎙</span>
+                  <span>Voicemail</span>
+                  <span className="lead-action-soon">soon</span>
+                </button>
+                <button className="lead-action-btn lead-action-prelisting" onClick={() => addToPreListing(detail)}>
+                  <span className="lead-action-icon">⌂</span>
+                  <span>Pre-List</span>
+                </button>
+                <button className="lead-action-btn lead-action-active" onClick={() => addTransaction(detail, 'listing', null, 'Active')}>
+                  <span className="lead-action-icon">★</span>
+                  <span>Active Listing</span>
+                </button>
+                <button className="lead-action-btn lead-action-purchase" onClick={() => addTransaction(detail, 'purchase')}>
+                  <span className="lead-action-icon">⇄</span>
+                  <span>Purchase</span>
+                </button>
+                <button className="lead-action-btn lead-action-listing" onClick={() => addTransaction(detail, 'listing')}>
+                  <span className="lead-action-icon">◆</span>
+                  <span>Listing UC</span>
+                </button>
+                {detail.sierra_lead_id && (
+                  <button
+                    className="lead-action-btn lead-action-refresh"
+                    onClick={refreshFromSierra}
+                    disabled={refreshing}
+                    title="Pull this lead's latest data from Sierra"
+                  >
+                    <span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span>
+                    <span>{refreshing ? 'Refreshing...' : 'Refresh from Sierra'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
             <div className="detail-grid">
               <div className="detail-section">
                 <h4>Contact Info</h4>
@@ -1289,33 +1377,6 @@ export default function Clients() {
                 )}
               </div>
             )}
-
-            {/* Quick Actions */}
-            <div className="detail-section">
-              <h4>Quick Actions</h4>
-              <div className="detail-actions-grid">
-                <button className="detail-action-btn action-prelisting" onClick={() => addToPreListing(detail)}>
-                  <span className="detail-action-icon">&#8962;</span>
-                  <span>Add to Pre-Listing</span>
-                  <span className="detail-action-desc">Start the seller pipeline</span>
-                </button>
-                <button className="detail-action-btn action-active-listing" onClick={() => addTransaction(detail, 'listing', null, 'Active')}>
-                  <span className="detail-action-icon">&#9733;</span>
-                  <span>Active Listing</span>
-                  <span className="detail-action-desc">Listing live on MLS</span>
-                </button>
-                <button className="detail-action-btn action-purchase" onClick={() => addTransaction(detail, 'purchase')}>
-                  <span className="detail-action-icon">&#8644;</span>
-                  <span>Purchase - Under Contract</span>
-                  <span className="detail-action-desc">Create a buyer transaction</span>
-                </button>
-                <button className="detail-action-btn action-listing" onClick={() => addTransaction(detail, 'listing')}>
-                  <span className="detail-action-icon">&#9878;</span>
-                  <span>Listing - Under Contract</span>
-                  <span className="detail-action-desc">Create a seller transaction</span>
-                </button>
-              </div>
-            </div>
 
             <div className="form-actions">
               <button className="btn btn-secondary" onClick={() => { setDetailOpen(false); openEdit(detail) }}>Edit Client</button>

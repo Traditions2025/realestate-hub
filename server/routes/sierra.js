@@ -123,6 +123,31 @@ router.get('/sync-status', (req, res) => {
   })
 })
 
+// Single-lead refresh: pull one lead from Sierra and update the local row.
+// Useful when the user changes a lead in Sierra and wants to see it instantly
+// without waiting for the next 10-min incremental cycle.
+router.post('/refresh-lead/:sierraId', async (req, res) => {
+  const sierraId = req.params.sierraId
+  try {
+    const result = await sierraGet(`/leads/get/${sierraId}`, {
+      includeSavedSearches: 'true',
+      includeTags: 'true',
+    })
+    const lead = result.data || result
+    if (!lead || !lead.id) {
+      return res.status(404).json({ success: false, error: 'Lead not found in Sierra' })
+    }
+    const action = processLead(lead)
+    db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
+      ['refreshed', 'sierra', `Single-lead refresh: ${lead.firstName || ''} ${lead.lastName || ''} (${action})`])
+    const client = db.get('SELECT * FROM clients WHERE sierra_lead_id = ?', [String(sierraId)])
+    res.json({ success: true, action, client })
+  } catch (err) {
+    console.error('[refresh-lead] error:', err.message)
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
 router.get('/lead-notes/:sierraId', async (req, res) => {
   try {
     const data = await sierraGet(`/notes/${req.params.sierraId}`, { pageSize: 50, pageNumber: 1 })
