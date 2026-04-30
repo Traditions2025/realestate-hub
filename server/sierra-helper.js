@@ -77,17 +77,38 @@ export function processLead(lead, sierraStatusOverride) {
   }
 
   let budgetMin = null, budgetMax = null
+  let searchPriceMin = null, searchPriceMax = null
+  let searchBedsMin = null, searchBathsMin = null, searchSqftMin = null
+  const searchRegionsSet = new Set()
+  const searchTypesSet = new Set()
   const searches = lead.savedSearchesModel?.savedSearches || lead.savedSearches || []
-  if (searches.length > 0) {
-    const search = searches[0]
-    if (search.price) {
-      budgetMin = search.price.min || null
-      budgetMax = search.price.max || null
-    } else {
-      budgetMin = search.minPrice || search.priceMin || null
-      budgetMax = search.maxPrice || search.priceMax || null
+  const hasSavedSearch = searches.length > 0 ? 1 : 0
+  if (hasSavedSearch) {
+    // Use the WIDEST range across all saved searches (max coverage = more matches)
+    for (const s of searches) {
+      const pMin = s.price?.min ?? s.minPrice ?? s.priceMin ?? null
+      const pMax = s.price?.max ?? s.maxPrice ?? s.priceMax ?? null
+      const bMin = s.bedrooms?.min ?? s.bedroomsMin ?? null
+      const baMin = s.bathrooms?.min ?? s.bathroomsMin ?? null
+      const sfMin = s.squareFeet?.min ?? s.sqftMin ?? null
+      if (pMin != null && (searchPriceMin == null || pMin < searchPriceMin)) searchPriceMin = pMin
+      if (pMax != null && (searchPriceMax == null || pMax > searchPriceMax)) searchPriceMax = pMax
+      if (bMin != null && (searchBedsMin == null || bMin < searchBedsMin)) searchBedsMin = bMin
+      if (baMin != null && (searchBathsMin == null || baMin < searchBathsMin)) searchBathsMin = baMin
+      if (sfMin != null && (searchSqftMin == null || sfMin < searchSqftMin)) searchSqftMin = sfMin
+      if (s.mlsRegions) {
+        const regs = Array.isArray(s.mlsRegions) ? s.mlsRegions : String(s.mlsRegions).split(/[,;]/)
+        regs.forEach(r => { if (r && String(r).trim()) searchRegionsSet.add(String(r).trim()) })
+      }
+      if (s.propertyTypes && typeof s.propertyTypes === 'object') {
+        Object.entries(s.propertyTypes).forEach(([k, v]) => { if (v === 'On' || v === true) searchTypesSet.add(k) })
+      }
     }
+    budgetMin = searchPriceMin
+    budgetMax = searchPriceMax
   }
+  const searchRegions = searchRegionsSet.size ? JSON.stringify([...searchRegionsSet]) : null
+  const searchPropertyTypes = searchTypesSet.size ? JSON.stringify([...searchTypesSet]) : null
 
   const leadScore = extractRealistScore(lead)
   const leadGrade = gradeFromRealistScore(leadScore)
@@ -118,13 +139,18 @@ export function processLead(lead, sierraStatusOverride) {
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
       marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,
       tags=?, lender_name=?, lender_status=?, listing_agent_status=?,
+      search_price_min=?, search_price_max=?, search_beds_min=?, search_baths_min=?,
+      search_sqft_min=?, search_regions=?, search_property_types=?, has_saved_search=?,
       updated_at=datetime('now') WHERE id=?`,
       [firstName, lastName, email, phone, source, address, city, state, zip,
         type, budgetMin, budgetMax, agentAssigned, clientStatus,
         leadScore, leadGrade, visits, emailStatus, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
         meOptOut, textOptOut, ealertOptOut, shortSummary,
-        tagsStr, lenderName, lenderStatus, listingAgentStatus, existing.id])
+        tagsStr, lenderName, lenderStatus, listingAgentStatus,
+        searchPriceMin, searchPriceMax, searchBedsMin, searchBathsMin,
+        searchSqftMin, searchRegions, searchPropertyTypes, hasSavedSearch,
+        existing.id])
     return 'updated'
   } else {
     db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status,
@@ -132,14 +158,18 @@ export function processLead(lead, sierraStatusOverride) {
       sierra_lead_id, lead_score, lead_grade, visits, email_status, phone_status,
       sierra_update_date, sierra_creation_date, pond_id,
       marketing_email_opt_out, text_opt_out, ealert_opt_out, short_summary,
-      tags, lender_name, lender_status, listing_agent_status)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      tags, lender_name, lender_status, listing_agent_status,
+      search_price_min, search_price_max, search_beds_min, search_baths_min,
+      search_sqft_min, search_regions, search_property_types, has_saved_search)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [firstName, lastName, email, phone, type, clientStatus, source,
         agentAssigned, address, city, state, zip, budgetMin, budgetMax,
         sierraId, leadScore, leadGrade, visits, emailStatus, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
         meOptOut, textOptOut, ealertOptOut, shortSummary,
-        tagsStr, lenderName, lenderStatus, listingAgentStatus])
+        tagsStr, lenderName, lenderStatus, listingAgentStatus,
+        searchPriceMin, searchPriceMax, searchBedsMin, searchBathsMin,
+        searchSqftMin, searchRegions, searchPropertyTypes, hasSavedSearch])
     return 'added'
   }
 }

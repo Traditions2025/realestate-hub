@@ -2814,6 +2814,108 @@ input[type="range"] {
   transition: width 0.3s ease;
 }
 
+/* Matched Leads modal */
+.match-list {
+  max-height: 380px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-primary);
+}
+.match-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.match-row:last-child { border-bottom: none; }
+.match-row:hover { background: var(--bg-secondary); }
+.match-row.selected { background: rgba(200, 155, 74, 0.08); }
+.match-row input[type="checkbox"] {
+  margin-top: 4px;
+  accent-color: var(--accent);
+}
+.match-info { flex: 1; }
+.match-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.match-score-badge {
+  font-size: 10px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.match-soft-badge {
+  font-size: 10px;
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  padding: 2px 7px;
+  border-radius: 8px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+.match-contact {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+.match-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 4px;
+  align-items: center;
+}
+.match-reason {
+  font-size: 11px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  padding: 1px 7px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+.match-rank {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: 4px;
+}
+
+/* Email preview */
+.email-preview {
+  background: white;
+  color: #1a1a1a;
+  border-radius: 6px;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  max-height: 480px;
+  overflow-y: auto;
+}
+.email-preview-line {
+  font-size: 13px;
+  color: #444;
+  margin-bottom: 4px;
+}
+.email-preview-body {
+  font-size: 14px;
+  line-height: 1.55;
+  color: #1a1a1a;
+}
+.email-preview-body h3 { color: #1a1a1a; margin: 12px 0 8px; }
+.email-preview-body p { margin: 8px 0; }
+.email-preview-body a { color: #c89b4a; }
+
 /* Drag-and-drop kanban (Transactions) */
 .pipeline-card {
   cursor: pointer;

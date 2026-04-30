@@ -562,14 +562,6 @@ const ASSET_PROMPTS = {
     label: 'Just Listed Post',
     prompt: (l) => `Write a "JUST LISTED" social media post (110-160 words). Bold opening like "JUST LISTED!" or "NEW ON MARKET". Include address, beds/baths/sqft/price as a clean stat line. 2-3 sentences on what makes it special. CTA: "Call/text (319) 431-5859 to schedule your tour." End with 10-14 hashtags (mix local + national).\n\nPROPERTY:\n${summarizeListing(l)}`,
   },
-  open_house: {
-    column: 'marketing_open_house',
-    label: 'Open House Post',
-    prompt: (l, opts) => {
-      const oh = (l.open_house_date && l.open_house_time) ? `${l.open_house_date} from ${l.open_house_time}` : (opts?.when || 'this weekend — date/time to be confirmed')
-      return `Write an Open House announcement (110-160 words) for this listing. Lead with "OPEN HOUSE" + the date/time: ${oh}. Include the address, key stats (beds/baths/sqft/price), and 2-3 selling points. Friendly invite tone, no high-pressure language. CTA: "Stop by — or call/text (319) 431-5859 if you can't make it." 8-12 hashtags.\n\nPROPERTY:\n${summarizeListing(l)}`
-    },
-  },
   email_blast: {
     column: 'marketing_email_blast',
     label: 'Email Blast',
@@ -612,6 +604,121 @@ router.post('/:id/generate/:asset', async (req, res) => {
 })
 
 // List of available marketing assets (for UI buttons)
+// =============================================
+// MATCHED LEADS — find clients whose saved search criteria match this listing
+// =============================================
+router.get('/:id/matched-leads', (req, res) => {
+  const listing = getListing(req.params.id)
+  if (!listing) return res.status(404).json({ error: 'Listing not found' })
+
+  // Load all candidate clients with email + saved search
+  const candidates = db.all(`
+    SELECT id, first_name, last_name, email, phone, status, lead_score, visits, city, zip,
+           search_price_min, search_price_max, search_beds_min, search_baths_min,
+           search_sqft_min, search_regions, search_property_types
+    FROM clients
+    WHERE has_saved_search = 1
+      AND email IS NOT NULL AND email != ''
+      AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)
+      AND (email_status IS NULL OR email_status NOT IN ('Bounced','Invalid','Spam','OptedOut'))
+      AND (status IS NULL OR status NOT IN ('junk','donotcontact','blocked','archived'))
+  `)
+
+  const price = Number(listing.list_price) || null
+  const beds = Number(listing.bedrooms) || null
+  const baths = (Number(listing.bathrooms_full) || 0) + 0.5 * (Number(listing.bathrooms_half) || 0)
+  const sqft = Number(listing.square_feet) || null
+  const propType = listing.property_type || null
+  const city = (listing.city || '').toLowerCase()
+  const zip = (listing.zip || '').toLowerCase()
+
+  const strict = req.query.strict === '1'
+
+  const matches = []
+  for (const c of candidates) {
+    const reasons = []
+    let hard = true // hard filter passes
+    let score = 0
+
+    // Price: listing must fall within client's [min, max]
+    if (price && c.search_price_max) {
+      if (price > c.search_price_max + 5000) { hard = false }
+      else { score += 30; reasons.push('price ✓') }
+    } else if (price && c.search_price_min && price < c.search_price_min - 10000) {
+      hard = false
+    }
+
+    // Beds: listing must have ≥ min
+    if (beds && c.search_beds_min) {
+      if (beds < c.search_beds_min) { hard = false }
+      else { score += 20; reasons.push(`${beds}bd ✓`) }
+    }
+    // Baths
+    if (baths && c.search_baths_min) {
+      if (baths < c.search_baths_min) { hard = false }
+      else { score += 10; reasons.push(`${baths}ba ✓`) }
+    }
+    // Sqft
+    if (sqft && c.search_sqft_min) {
+      if (sqft < c.search_sqft_min) { hard = false }
+      else { score += 10 }
+    }
+    // Property type
+    if (propType && c.search_property_types) {
+      try {
+        const types = JSON.parse(c.search_property_types || '[]')
+        const norm = (s) => String(s).toLowerCase().replace(/\s+/g, '')
+        const lt = norm(propType)
+        const matched = types.some(t => norm(t) === lt || lt.includes(norm(t)) || norm(t).includes(lt))
+        if (matched) { score += 15; reasons.push('type ✓') }
+      } catch {}
+    }
+    // Region/zip overlap (bonus)
+    if (zip || city) {
+      try {
+        const regs = JSON.parse(c.search_regions || '[]').map(r => String(r).toLowerCase())
+        if (regs.some(r => r.includes(city) || (zip && r.includes(zip)))) {
+          score += 15
+          reasons.push('region ✓')
+        }
+      } catch {}
+    }
+    // Activity / score bonuses (sort tiebreakers)
+    if (c.visits) score += Math.min(10, Number(c.visits))
+    if (c.lead_score) {
+      const ls = parseInt(c.lead_score, 10)
+      if (!isNaN(ls)) score += Math.min(15, Math.floor(ls / 100))
+    }
+
+    if (strict && !hard) continue
+    if (!strict && score === 0) continue
+
+    matches.push({
+      id: c.id,
+      first_name: c.first_name,
+      last_name: c.last_name,
+      email: c.email,
+      phone: c.phone,
+      status: c.status,
+      lead_score: c.lead_score,
+      visits: c.visits,
+      city: c.city,
+      zip: c.zip,
+      score,
+      reasons,
+      hard_match: hard,
+    })
+  }
+
+  matches.sort((a, b) => b.score - a.score)
+  res.json({
+    listing_id: listing.id,
+    address: listing.property_address,
+    total: matches.length,
+    matches,
+  })
+})
+
 router.get('/_meta/assets', (_req, res) => {
   res.json(Object.entries(ASSET_PROMPTS).map(([key, v]) => ({ key, label: v.label, column: v.column })))
 })

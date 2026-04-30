@@ -123,6 +123,23 @@ function buildClientFilterForList(q) {
   if (q.score_min) { where += ' AND CAST(lead_score AS INTEGER) >= ?'; params.push(Number(q.score_min)) }
   if (q.score_max) { where += ' AND CAST(lead_score AS INTEGER) <= ?'; params.push(Number(q.score_max)) }
   if (q.visits_min) { where += ' AND visits >= ?'; params.push(Number(q.visits_min)) }
+  // Property criteria (saved search)
+  if (q.search_price_at_least) { where += ' AND search_price_max >= ?'; params.push(Number(q.search_price_at_least)) }
+  if (q.search_price_at_most) { where += ' AND (search_price_min IS NULL OR search_price_min <= ?)'; params.push(Number(q.search_price_at_most)) }
+  if (q.search_max_price_min) { where += ' AND search_price_max >= ?'; params.push(Number(q.search_max_price_min)) }
+  if (q.search_max_price_max) { where += ' AND search_price_max <= ?'; params.push(Number(q.search_max_price_max)) }
+  if (q.search_beds_min) { where += ' AND search_beds_min >= ?'; params.push(Number(q.search_beds_min)) }
+  if (q.search_baths_min) { where += ' AND search_baths_min >= ?'; params.push(Number(q.search_baths_min)) }
+  if (q.search_sqft_min) { where += ' AND search_sqft_min >= ?'; params.push(Number(q.search_sqft_min)) }
+  if (q.has_saved_search === 1 || q.has_saved_search === '1' || q.has_saved_search === true) where += ' AND has_saved_search = 1'
+  if (q.search_property_types?.length) {
+    where += ' AND (' + q.search_property_types.map(() => 'search_property_types LIKE ?').join(' OR ') + ')'
+    q.search_property_types.forEach(t => params.push(`%"${t}"%`))
+  }
+  if (q.search_regions?.length) {
+    where += ' AND (' + q.search_regions.map(() => 'search_regions LIKE ?').join(' OR ') + ')'
+    q.search_regions.forEach(r => params.push(`%${r}%`))
+  }
   return { where, params }
 }
 

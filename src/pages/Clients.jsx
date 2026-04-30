@@ -45,6 +45,15 @@ export default function Clients() {
     activity_days: '',
     created_days: '',
     inactive_days: '',
+    // Property criteria from saved searches
+    has_saved_search: false,
+    search_max_price_min: '',
+    search_max_price_max: '',
+    search_beds_min: '',
+    search_baths_min: '',
+    search_sqft_min: '',
+    search_property_types: [],
+    search_regions: [],
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -70,7 +79,12 @@ export default function Clients() {
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
     (advFilters.activity_days ? 1 : 0) + (advFilters.created_days ? 1 : 0) +
-    (advFilters.inactive_days ? 1 : 0)
+    (advFilters.inactive_days ? 1 : 0) +
+    (advFilters.has_saved_search ? 1 : 0) +
+    (advFilters.search_max_price_min ? 1 : 0) + (advFilters.search_max_price_max ? 1 : 0) +
+    (advFilters.search_beds_min ? 1 : 0) + (advFilters.search_baths_min ? 1 : 0) +
+    (advFilters.search_sqft_min ? 1 : 0) +
+    advFilters.search_property_types.length + advFilters.search_regions.length
   )
 
   const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
@@ -112,6 +126,15 @@ export default function Clients() {
     if (advFilters.activity_days) params.activity_days = advFilters.activity_days
     if (advFilters.created_days) params.created_days = advFilters.created_days
     if (advFilters.inactive_days) params.inactive_days = advFilters.inactive_days
+    // Property criteria
+    if (advFilters.has_saved_search) params.has_saved_search = '1'
+    if (advFilters.search_max_price_min) params.search_max_price_min = advFilters.search_max_price_min
+    if (advFilters.search_max_price_max) params.search_max_price_max = advFilters.search_max_price_max
+    if (advFilters.search_beds_min) params.search_beds_min = advFilters.search_beds_min
+    if (advFilters.search_baths_min) params.search_baths_min = advFilters.search_baths_min
+    if (advFilters.search_sqft_min) params.search_sqft_min = advFilters.search_sqft_min
+    if (advFilters.search_property_types.length) params.search_property_types = advFilters.search_property_types.join(',')
+    if (advFilters.search_regions.length) params.search_regions = advFilters.search_regions.join(',')
     params.sort = sortBy
     return params
   }
@@ -306,6 +329,10 @@ export default function Clients() {
       has_email: false, exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
       activity_days: '', created_days: '', inactive_days: '',
+      has_saved_search: false,
+      search_max_price_min: '', search_max_price_max: '',
+      search_beds_min: '', search_baths_min: '', search_sqft_min: '',
+      search_property_types: [], search_regions: [],
     })
     setTab('all')
     setSearch('')
@@ -863,6 +890,56 @@ export default function Clients() {
               <label className="filter-num">
                 Score max
                 <input type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} />
+              </label>
+            </div>
+          </div>
+
+          <div className="filter-section">
+            <h5>🎯 Looking For (saved search criteria)</h5>
+            <div className="filter-other-row">
+              <label className="filter-check">
+                <input type="checkbox" checked={advFilters.has_saved_search} onChange={e => setAdvFilters(p => ({ ...p, has_saved_search: e.target.checked }))} />
+                Has saved search
+              </label>
+              <label className="filter-num">
+                Max budget ≥
+                <input type="number" placeholder="e.g. 250000" value={advFilters.search_max_price_min} onChange={e => setAdvFilters(p => ({ ...p, search_max_price_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Max budget ≤
+                <input type="number" placeholder="e.g. 600000" value={advFilters.search_max_price_max} onChange={e => setAdvFilters(p => ({ ...p, search_max_price_max: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Beds min
+                <input type="number" min="0" max="10" value={advFilters.search_beds_min} onChange={e => setAdvFilters(p => ({ ...p, search_beds_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Baths min
+                <input type="number" min="0" max="10" value={advFilters.search_baths_min} onChange={e => setAdvFilters(p => ({ ...p, search_baths_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Sq Ft min
+                <input type="number" placeholder="e.g. 1500" value={advFilters.search_sqft_min} onChange={e => setAdvFilters(p => ({ ...p, search_sqft_min: e.target.value }))} />
+              </label>
+            </div>
+            <div className="filter-other-row" style={{marginTop: 6}}>
+              <label className="filter-num" style={{flex: 1, minWidth: 220}}>
+                Property types (comma-separated, e.g. SingleFamily, Condo)
+                <input
+                  type="text"
+                  placeholder="SingleFamily, Condo, Townhouse"
+                  value={advFilters.search_property_types.join(', ')}
+                  onChange={e => setAdvFilters(p => ({ ...p, search_property_types: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                />
+              </label>
+              <label className="filter-num" style={{flex: 1, minWidth: 220}}>
+                Regions (comma-separated, e.g. CRAAR, Cedar Rapids)
+                <input
+                  type="text"
+                  placeholder="CRAAR, Marion, Hiawatha"
+                  value={advFilters.search_regions.join(', ')}
+                  onChange={e => setAdvFilters(p => ({ ...p, search_regions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
+                />
               </label>
             </div>
           </div>

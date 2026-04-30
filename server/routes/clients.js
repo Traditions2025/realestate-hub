@@ -175,6 +175,64 @@ function buildClientFilter(q) {
     params.push(`-${Number(q.inactive_days)} days`)
   }
 
+  // ---- Property criteria filters (from saved search) ----
+  // "Looking for price ≥ X" — the lead's price ceiling has to allow X
+  if (q.search_price_at_least) {
+    where += ' AND search_price_max IS NOT NULL AND search_price_max >= ?'
+    params.push(Number(q.search_price_at_least))
+  }
+  // "Looking for price ≤ X" — the lead's price floor has to allow X
+  if (q.search_price_at_most) {
+    where += ' AND (search_price_min IS NULL OR search_price_min <= ?)'
+    params.push(Number(q.search_price_at_most))
+  }
+  // Lead is willing to pay at least this much (their max ≥ value)
+  if (q.search_max_price_min) {
+    where += ' AND search_price_max >= ?'
+    params.push(Number(q.search_max_price_min))
+  }
+  if (q.search_max_price_max) {
+    where += ' AND search_price_max <= ?'
+    params.push(Number(q.search_max_price_max))
+  }
+  // Beds/baths/sqft minimums the lead is looking for
+  if (q.search_beds_min) {
+    where += ' AND search_beds_min >= ?'
+    params.push(Number(q.search_beds_min))
+  }
+  if (q.search_beds_max) {
+    where += ' AND search_beds_min <= ?'
+    params.push(Number(q.search_beds_max))
+  }
+  if (q.search_baths_min) {
+    where += ' AND search_baths_min >= ?'
+    params.push(Number(q.search_baths_min))
+  }
+  if (q.search_sqft_min) {
+    where += ' AND search_sqft_min >= ?'
+    params.push(Number(q.search_sqft_min))
+  }
+  // Has at least one saved search
+  if (q.has_saved_search === '1') {
+    where += ' AND has_saved_search = 1'
+  }
+  // Property types (any-of)
+  const searchTypes = q.search_property_types
+    ? (Array.isArray(q.search_property_types) ? q.search_property_types : String(q.search_property_types).split(',').filter(Boolean))
+    : []
+  if (searchTypes.length) {
+    where += ' AND (' + searchTypes.map(() => 'search_property_types LIKE ?').join(' OR ') + ')'
+    searchTypes.forEach(t => params.push(`%"${t}"%`))
+  }
+  // Regions (any-of)
+  const searchRegions = q.search_regions
+    ? (Array.isArray(q.search_regions) ? q.search_regions : String(q.search_regions).split(',').filter(Boolean))
+    : []
+  if (searchRegions.length) {
+    where += ' AND (' + searchRegions.map(() => 'search_regions LIKE ?').join(' OR ') + ')'
+    searchRegions.forEach(r => params.push(`%${r}%`))
+  }
+
   // Search
   if (q.search) {
     where += ` AND (first_name LIKE ? OR last_name LIKE ?

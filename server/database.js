@@ -75,6 +75,14 @@ export async function initDb() {
       lender_name TEXT,
       lender_status TEXT,
       listing_agent_status TEXT,
+      search_price_min REAL,
+      search_price_max REAL,
+      search_beds_min INTEGER,
+      search_baths_min INTEGER,
+      search_sqft_min INTEGER,
+      search_regions TEXT,
+      search_property_types TEXT,
+      has_saved_search INTEGER DEFAULT 0,
       notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -540,6 +548,14 @@ export async function initDb() {
       ['lender_name', 'TEXT'],
       ['lender_status', 'TEXT'],
       ['listing_agent_status', 'TEXT'],
+      ['search_price_min', 'REAL'],
+      ['search_price_max', 'REAL'],
+      ['search_beds_min', 'INTEGER'],
+      ['search_baths_min', 'INTEGER'],
+      ['search_sqft_min', 'INTEGER'],
+      ['search_regions', 'TEXT'],
+      ['search_property_types', 'TEXT'],
+      ['has_saved_search', 'INTEGER DEFAULT 0'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {

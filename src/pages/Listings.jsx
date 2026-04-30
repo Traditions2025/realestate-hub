@@ -18,7 +18,6 @@ const ASSETS = [
   { key: 'social_facebook', label: 'Facebook', column: 'marketing_social_facebook' },
   { key: 'coming_soon', label: 'Coming Soon Post', column: 'marketing_coming_soon' },
   { key: 'just_listed', label: 'Just Listed Post', column: 'marketing_just_listed' },
-  { key: 'open_house', label: 'Open House Post', column: 'marketing_open_house' },
   { key: 'email_blast', label: 'Email Blast', column: 'marketing_email_blast' },
   { key: 'price_reduction', label: 'Price Reduction', column: 'marketing_price_reduction' },
 ]
@@ -31,8 +30,6 @@ const MARKETING_TASK_GROUPS = [
       { key: 'photos_scheduled', label: 'Schedule professional photoshoot' },
       { key: 'photos_taken', label: 'Photos taken' },
       { key: 'drone_photos', label: 'Drone / aerial photos' },
-      { key: 'virtual_tour', label: 'Virtual tour / 3D scan' },
-      { key: 'floor_plan', label: 'Floor plan created' },
       { key: 'walkthrough_video', label: 'Walkthrough video filmed' },
       { key: 'description_written', label: 'Listing description written' },
       { key: 'mls_ready', label: 'MLS submission ready' },
@@ -44,8 +41,8 @@ const MARKETING_TASK_GROUPS = [
       { key: 'cs_facebook', label: 'Coming Soon post — Facebook' },
       { key: 'cs_instagram', label: 'Coming Soon post — Instagram feed' },
       { key: 'cs_instagram_story', label: 'Coming Soon — Instagram Story' },
+      { key: 'cs_linkedin', label: 'Coming Soon post — LinkedIn' },
       { key: 'cs_email', label: 'Coming Soon email to database' },
-      { key: 'cs_postcard', label: 'Coming Soon postcard mailed' },
       { key: 'cs_notify_hot_buyers', label: 'Notify hot buyer leads (1-on-1)' },
     ],
   },
@@ -63,29 +60,13 @@ const MARKETING_TASK_GROUPS = [
       { key: 'jl_linkedin', label: 'Just Listed — LinkedIn' },
       { key: 'jl_youtube', label: 'Walkthrough video on YouTube' },
       { key: 'jl_fb_marketplace', label: 'Posted to Facebook Marketplace' },
-      { key: 'jl_zillow', label: 'Live on Zillow' },
-      { key: 'jl_realtor', label: 'Live on Realtor.com' },
       { key: 'jl_team_website', label: 'Live on team website (mattsmithteam.com)' },
       { key: 'jl_blog_post', label: 'Blog post published on website' },
       { key: 'jl_email_blast', label: 'Email blast sent to database' },
-      { key: 'jl_postcards', label: 'Just Listed postcards mailed' },
-      { key: 'jl_door_flyers', label: 'Door knocking / flyer distribution' },
       { key: 'jl_property_flyer', label: 'Property flyer printed' },
       { key: 'jl_brochure', label: 'Listing brochure printed' },
       { key: 'jl_agent_email', label: 'Submitted to local agent network' },
       { key: 'jl_broker_tour', label: 'Submitted to broker tour' },
-    ],
-  },
-  {
-    stage: 'Open House',
-    tasks: [
-      { key: 'oh_scheduled', label: 'Open house scheduled' },
-      { key: 'oh_facebook_event', label: 'Facebook event created' },
-      { key: 'oh_signs_ordered', label: 'Open house signs in place' },
-      { key: 'oh_social_post', label: 'Open house post on social' },
-      { key: 'oh_email_database', label: 'Open house email to database' },
-      { key: 'oh_held', label: 'Open house held' },
-      { key: 'oh_followup', label: 'Open house attendees followed up' },
     ],
   },
   {
@@ -103,6 +84,7 @@ const MARKETING_TASK_GROUPS = [
     tasks: [
       { key: 'uc_facebook', label: 'Sale Pending post — Facebook' },
       { key: 'uc_instagram', label: 'Sale Pending post — Instagram' },
+      { key: 'uc_linkedin', label: 'Sale Pending post — LinkedIn' },
       { key: 'uc_sign_rider', label: 'Sale Pending sign rider installed' },
     ],
   },
@@ -112,8 +94,9 @@ const MARKETING_TASK_GROUPS = [
       { key: 'js_facebook', label: 'Just Sold post — Facebook' },
       { key: 'js_instagram', label: 'Just Sold post — Instagram' },
       { key: 'js_tiktok', label: 'Just Sold post — TikTok' },
+      { key: 'js_linkedin', label: 'Just Sold post — LinkedIn' },
+      { key: 'js_youtube', label: 'Just Sold video — YouTube' },
       { key: 'js_blog_post', label: 'Just Sold blog post' },
-      { key: 'js_postcard', label: 'Just Sold postcard mailed to neighborhood' },
       { key: 'js_closing_photo', label: 'Closing day photo with clients' },
       { key: 'js_closing_gift', label: 'Closing gift delivered' },
       { key: 'js_testimonial', label: 'Testimonial requested' },
@@ -194,15 +177,7 @@ const FIELD_GROUPS = [
     label: 'Media',
     fields: [
       ['hero_photo', 'Hero Photo URL', 'text'],
-      ['virtual_tour_url', 'Virtual Tour URL', 'text'],
       ['mls_link', 'MLS Link', 'text'],
-    ],
-  },
-  {
-    label: 'Open House',
-    fields: [
-      ['open_house_date', 'Open House Date', 'date'],
-      ['open_house_time', 'Open House Time', 'text'],
     ],
   },
   {
@@ -255,6 +230,16 @@ export default function Listings() {
   const [addrOpen, setAddrOpen] = useState(false)
   const [autoFilling, setAutoFilling] = useState(false)
   const [autoFillResult, setAutoFillResult] = useState(null)
+  // Matched leads modal state
+  const [matchModalOpen, setMatchModalOpen] = useState(false)
+  const [matchLoading, setMatchLoading] = useState(false)
+  const [matches, setMatches] = useState([])
+  const [matchStrict, setMatchStrict] = useState(true)
+  const [matchSelected, setMatchSelected] = useState(new Set())
+  const [matchSubject, setMatchSubject] = useState('')
+  const [matchBody, setMatchBody] = useState('')
+  const [matchPreviewOpen, setMatchPreviewOpen] = useState(false)
+  const [matchSending, setMatchSending] = useState(false)
 
   const load = () => {
     const params = {}
@@ -540,6 +525,95 @@ export default function Listings() {
     }
   }
 
+  const buildMatchedEmail = (l) => {
+    const beds = l.bedrooms ? `${l.bedrooms}BR` : ''
+    const baths = fmtBaths(l) ? `${fmtBaths(l)}BA` : ''
+    const sqft = l.square_feet ? `${Number(l.square_feet).toLocaleString()} sqft` : ''
+    const stats = [beds, baths, sqft].filter(Boolean).join(' / ')
+    const subject = `New ${beds || 'home'} matching your search — ${l.property_address}${l.city ? ', ' + l.city : ''}`
+    const priceLine = l.list_price ? `Listed at $${Number(l.list_price).toLocaleString()}` : ''
+    const features = Array.isArray(l.features) && l.features.length ? `<p><strong>Highlights:</strong> ${l.features.slice(0, 5).join(', ')}.</p>` : ''
+    const body = `<p>Hi {{first_name}},</p>
+<p>A new home just hit the market that lines up with what you've been looking for, and I wanted you to see it before everyone else does.</p>
+<h3>${l.property_address}${l.city ? ', ' + l.city : ''}${l.state ? ', ' + l.state : ''} ${l.zip || ''}</h3>
+<p><strong>${stats}</strong>${priceLine ? ' &middot; ' + priceLine : ''}</p>
+${features}
+${l.description ? `<p>${String(l.description).slice(0, 400)}${l.description.length > 400 ? '...' : ''}</p>` : ''}
+${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : ''}
+<p>Want to see it in person? Just reply to this email or call/text me at (319) 431-5859 and we'll find a time.</p>
+<p>— Matt Smith<br/>Matt Smith Team — RE/MAX Concepts<br/>(319) 431-5859 | matt@mattsmithteam.com<br/>5235 Buffalo Rdg Dr NE, Cedar Rapids, IA 52411</p>`
+    return { subject, body }
+  }
+
+  const openMatchedLeads = async () => {
+    if (!editingId) { alert('Save the listing first.'); return }
+    setMatchModalOpen(true)
+    setMatchLoading(true)
+    try {
+      const r = await authFetch(`/api/listings/${editingId}/matched-leads?strict=${matchStrict ? '1' : '0'}`)
+      const d = await r.json()
+      setMatches(d.matches || [])
+      setMatchSelected(new Set((d.matches || []).map(m => m.id)))
+      const tpl = buildMatchedEmail(form)
+      setMatchSubject(tpl.subject)
+      setMatchBody(tpl.body)
+    } catch (e) {
+      alert('Failed to load matches: ' + e.message)
+    } finally {
+      setMatchLoading(false)
+    }
+  }
+
+  const refreshMatches = async (strict) => {
+    setMatchStrict(strict)
+    setMatchLoading(true)
+    try {
+      const r = await authFetch(`/api/listings/${editingId}/matched-leads?strict=${strict ? '1' : '0'}`)
+      const d = await r.json()
+      setMatches(d.matches || [])
+      setMatchSelected(new Set((d.matches || []).map(m => m.id)))
+    } finally {
+      setMatchLoading(false)
+    }
+  }
+
+  const toggleMatch = (id) => {
+    setMatchSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const sendToMatched = async () => {
+    if (matchSelected.size === 0) { alert('Select at least one recipient.'); return }
+    if (!matchSubject || !matchBody) { alert('Subject and body are required.'); return }
+    if (matchSelected.size > 200) {
+      if (!confirm(`You're about to send to ${matchSelected.size} recipients. Continue?`)) return
+    }
+    setMatchSending(true)
+    try {
+      const r = await authFetch('/api/email/bulk', {
+        method: 'POST',
+        body: JSON.stringify({
+          client_ids: [...matchSelected],
+          subject: matchSubject,
+          body: matchBody,
+          template: '',
+        }),
+      })
+      const d = await r.json()
+      if (d.error) { alert('Send failed: ' + d.error); return }
+      alert(`✓ Sent to ${d.sent || matchSelected.size} recipients` + (d.failed ? ` (${d.failed} failed)` : ''))
+      setMatchModalOpen(false)
+      setMatchPreviewOpen(false)
+    } catch (e) {
+      alert('Send failed: ' + e.message)
+    } finally {
+      setMatchSending(false)
+    }
+  }
+
   const copy = async (text) => {
     if (!text) return
     try {
@@ -639,6 +713,7 @@ export default function Listings() {
           </button>
           <button className={`listing-tab ${activeTab === 'import' ? 'active' : ''}`} onClick={() => setActiveTab('import')}>Import (PDF / URL)</button>
           <button className={`listing-tab ${activeTab === 'marketing' ? 'active' : ''}`} onClick={() => setActiveTab('marketing')}>AI Content</button>
+          <button className={`listing-tab ${activeTab === 'matched' ? 'active' : ''}`} onClick={() => setActiveTab('matched')}>📨 Send to Matched Leads</button>
         </div>
 
         {activeTab === 'details' && (
@@ -902,6 +977,43 @@ export default function Listings() {
           </div>
         )}
 
+        {activeTab === 'matched' && (
+          <div>
+            {!editingId && (
+              <div className="warning-banner" style={{padding: '10px 14px', background: '#3a2a14', border: '1px solid #c89b4a', borderRadius: 6, color: '#f4d8a3', marginBottom: 16}}>
+                Save the listing first (Property Details) to find matched leads.
+              </div>
+            )}
+            <p className="muted" style={{marginTop: 0}}>
+              Find buyer leads whose saved Sierra search criteria match this listing's price, beds/baths, sqft, and property type.
+              Click "Find Matches" to scan all 45K+ leads — runs locally, no AI cost.
+            </p>
+            <div className="form-row" style={{gap: 8, alignItems: 'center', marginBottom: 12}}>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={!editingId || matchLoading}
+                onClick={openMatchedLeads}
+              >
+                {matchLoading ? 'Searching...' : '🎯 Find Matched Leads'}
+              </button>
+              <label className="filter-check" style={{marginLeft: 12}}>
+                <input
+                  type="checkbox"
+                  checked={matchStrict}
+                  onChange={e => { setMatchStrict(e.target.checked); if (matches.length) refreshMatches(e.target.checked) }}
+                />
+                Strict match (must satisfy price + beds/baths)
+              </label>
+            </div>
+            {matches.length > 0 && (
+              <p className="muted" style={{margin: '8px 0'}}>
+                {matches.length} match{matches.length === 1 ? '' : 'es'} found ({matchSelected.size} selected). Open the modal to review and send.
+              </p>
+            )}
+          </div>
+        )}
+
         {activeTab === 'marketing' && (
           <div>
             {!editingId && (
@@ -952,6 +1064,134 @@ export default function Listings() {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Matched Leads modal */}
+      <Modal
+        open={matchModalOpen}
+        onClose={() => setMatchModalOpen(false)}
+        wide
+        title={`Matched Leads — ${form.property_address || 'Listing'}`}
+      >
+        <div>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap'}}>
+            <div>
+              <strong>{matches.length}</strong> match{matches.length === 1 ? '' : 'es'} &middot; <strong>{matchSelected.size}</strong> selected
+            </div>
+            <div style={{display: 'flex', gap: 8}}>
+              <label className="filter-check">
+                <input type="checkbox" checked={matchStrict} onChange={e => refreshMatches(e.target.checked)} />
+                Strict (require price + beds/baths)
+              </label>
+              <button
+                type="button"
+                className="btn-sm btn-secondary"
+                onClick={() => setMatchSelected(new Set(matches.map(m => m.id)))}
+              >Select all</button>
+              <button
+                type="button"
+                className="btn-sm btn-secondary"
+                onClick={() => setMatchSelected(new Set())}
+              >Clear</button>
+            </div>
+          </div>
+
+          <div className="match-list">
+            {matchLoading ? (
+              <div className="muted" style={{padding: 20, textAlign: 'center'}}>Searching matches...</div>
+            ) : matches.length === 0 ? (
+              <div className="muted" style={{padding: 20, textAlign: 'center'}}>
+                No matches found. Try unchecking "Strict" — or this listing may need more property details (price, beds, type).
+              </div>
+            ) : matches.map(m => (
+              <label key={m.id} className={`match-row ${matchSelected.has(m.id) ? 'selected' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={matchSelected.has(m.id)}
+                  onChange={() => toggleMatch(m.id)}
+                />
+                <div className="match-info">
+                  <div className="match-name">
+                    {m.first_name} {m.last_name}
+                    {m.lead_score && <span className="match-score-badge">Score {m.lead_score}</span>}
+                    {!m.hard_match && <span className="match-soft-badge">soft</span>}
+                  </div>
+                  <div className="match-contact">
+                    {m.email}{m.city ? ` · ${m.city}${m.zip ? ' ' + m.zip : ''}` : ''}
+                  </div>
+                  {m.reasons?.length > 0 && (
+                    <div className="match-reasons">
+                      {m.reasons.map((r, i) => <span key={i} className="match-reason">{r}</span>)}
+                      <span className="match-rank">match score: {m.score}</span>
+                    </div>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+
+          {matches.length > 0 && (
+            <>
+              <div className="field-group" style={{marginTop: 18}}>
+                <h4>Email Subject</h4>
+                <input
+                  type="text"
+                  value={matchSubject}
+                  onChange={e => setMatchSubject(e.target.value)}
+                  style={{width: '100%'}}
+                />
+              </div>
+              <div className="field-group">
+                <h4>Email Body (HTML)</h4>
+                <p className="muted">Use <code>{'{{first_name}}'}</code> for personalization. Each recipient gets their own copy.</p>
+                <textarea rows={14} value={matchBody} onChange={e => setMatchBody(e.target.value)} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5}} />
+              </div>
+
+              <div className="form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setMatchModalOpen(false)}>Cancel</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setMatchPreviewOpen(true)} disabled={!matchSelected.size}>
+                  👁 Preview Email
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={sendToMatched}
+                  disabled={matchSending || matchSelected.size === 0}
+                >
+                  {matchSending ? 'Sending...' : `Send to ${matchSelected.size} recipient${matchSelected.size === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Email preview modal */}
+      <Modal open={matchPreviewOpen} onClose={() => setMatchPreviewOpen(false)} title="Email Preview" wide>
+        {(() => {
+          const sample = matches.find(m => matchSelected.has(m.id)) || matches[0]
+          if (!sample) return null
+          const renderedSubject = matchSubject.replace(/{{first_name}}/g, sample.first_name || 'there')
+          const renderedBody = matchBody.replace(/{{first_name}}/g, sample.first_name || 'there')
+          return (
+            <div>
+              <p className="muted">Sample using <strong>{sample.first_name} {sample.last_name}</strong> ({sample.email})</p>
+              <div className="email-preview">
+                <div className="email-preview-line"><strong>To:</strong> {sample.email}</div>
+                <div className="email-preview-line"><strong>From:</strong> matt@mattsmithteam.com</div>
+                <div className="email-preview-line"><strong>Subject:</strong> {renderedSubject}</div>
+                <hr style={{margin: '12px 0', borderColor: 'var(--border)'}} />
+                <div className="email-preview-body" dangerouslySetInnerHTML={{__html: renderedBody}} />
+              </div>
+              <div className="form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setMatchPreviewOpen(false)}>Close Preview</button>
+                <button type="button" className="btn btn-primary" onClick={sendToMatched} disabled={matchSending}>
+                  {matchSending ? 'Sending...' : `Send to ${matchSelected.size}`}
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )
