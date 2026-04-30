@@ -662,16 +662,35 @@ export default function Listings() {
               {autoFillResult && (
                 <div className={`addr-result ${autoFillResult.ok ? 'ok' : 'fail'}`}>
                   {autoFillResult.ok ? (
-                    <>✓ Auto-filled {autoFillResult.fields} fields from {(autoFillResult.source || '').includes('zillow') ? 'Zillow' : (autoFillResult.source || '').includes('realtor') ? 'Realtor.com' : 'the web'}. Review below and save.</>
+                    <>
+                      ✓ Auto-filled {autoFillResult.fields} fields from{' '}
+                      <a href={autoFillResult.source} target="_blank" rel="noopener noreferrer" style={{color: 'inherit', textDecoration: 'underline'}}>
+                        {(autoFillResult.source || '').includes('zillow') ? 'Zillow'
+                          : (autoFillResult.source || '').includes('realtor') ? 'Realtor.com'
+                          : (autoFillResult.source || '').includes('redfin') ? 'Redfin'
+                          : (autoFillResult.source || '').includes('trulia') ? 'Trulia'
+                          : (autoFillResult.source || '').includes('homes.com') ? 'Homes.com'
+                          : 'the web'}
+                      </a>. Review the fields below and save.
+                    </>
                   ) : (
                     <>
-                      ✗ {autoFillResult.message}
-                      {autoFillResult.tried && (
-                        <div style={{marginTop: 4, fontSize: 12, opacity: 0.8}}>
-                          Tried: {autoFillResult.tried.map(t => `${t.source} (${t.ok ? 'ok' : t.error || 'no useful data'})`).join(' · ')}
+                      <div>✗ {autoFillResult.message}</div>
+                      {autoFillResult.tried && autoFillResult.tried.length > 0 && (
+                        <div style={{marginTop: 8, fontSize: 12, opacity: 0.85}}>
+                          <div style={{fontWeight: 600, marginBottom: 4}}>Sources tried:</div>
+                          {autoFillResult.tried.map((t, i) => (
+                            <div key={i} style={{marginBottom: 2}}>
+                              {t.ok ? '✓' : '✗'} <strong>{t.source}</strong>
+                              {t.error && <span> — {t.error}</span>}
+                              {t.url && <span style={{opacity: 0.6}}> · <a href={t.url} target="_blank" rel="noopener noreferrer" style={{color: 'inherit'}}>open</a></span>}
+                            </div>
+                          ))}
                         </div>
                       )}
-                      <div style={{marginTop: 4, fontSize: 12, opacity: 0.8}}>Tip: try uploading the MLS PDF in the Import tab instead.</div>
+                      <div style={{marginTop: 8, fontSize: 12, opacity: 0.85}}>
+                        💡 Tip: open one of the links above to see if the property exists on that site. If it does, paste the URL into the Import tab. If not, the property may not be currently listed for sale — upload the MLS PDF instead.
+                      </div>
                     </>
                   )}
                 </div>

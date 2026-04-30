@@ -269,23 +269,22 @@ router.post('/:id/extract-pdf', async (req, res) => {
 
 // Shared: fetch a URL, strip noise, ask Claude to extract listing fields
 async function fetchAndExtract(client, url) {
-  const fetchRes = await fetch(url, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-    redirect: 'follow',
-  })
+  const fetchRes = await fetchWithTimeout(url, 20000)
   if (!fetchRes.ok) {
-    const err = new Error(`fetch failed: ${fetchRes.status}`)
+    const err = new Error(`HTTP ${fetchRes.status}`)
     err.status = fetchRes.status
     throw err
   }
   let html = await fetchRes.text()
-  // Detect anti-bot pages
+  // Detect anti-bot / captcha pages
   const lower = html.toLowerCase()
-  if (lower.includes('captcha') && lower.includes('verify') && html.length < 50000) {
+  const isShort = html.length < 80000
+  if (isShort && (
+    (lower.includes('captcha') && lower.includes('verify')) ||
+    (lower.includes('press &amp; hold') || lower.includes('press & hold')) ||
+    lower.includes('access to this page has been denied') ||
+    lower.includes('checking your browser')
+  )) {
     throw new Error('blocked by anti-bot page')
   }
   html = html
@@ -388,8 +387,76 @@ router.get('/search-address', async (req, res) => {
 })
 
 // =============================================
-// AUTO-POPULATE FROM ADDRESS (tries Zillow → Realtor.com → Redfin)
+// AUTO-POPULATE FROM ADDRESS
+// Strategy: use DuckDuckGo HTML search to find the actual property URL on
+// Zillow/Realtor/Redfin/Trulia/Homes.com, then fetch it server-side.
+// Falls back to direct constructed URLs if search returns nothing.
 // =============================================
+
+const BROWSER_HEADERS = {
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+  'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  'Accept-Language': 'en-US,en;q=0.9',
+  'Accept-Encoding': 'gzip, deflate, br',
+  'Sec-Fetch-Dest': 'document',
+  'Sec-Fetch-Mode': 'navigate',
+  'Sec-Fetch-Site': 'none',
+  'Sec-Fetch-User': '?1',
+  'Upgrade-Insecure-Requests': '1',
+}
+
+async function fetchWithTimeout(url, ms = 15000, extraHeaders = {}) {
+  const controller = new AbortController()
+  const t = setTimeout(() => controller.abort(), ms)
+  try {
+    const r = await fetch(url, {
+      headers: { ...BROWSER_HEADERS, ...extraHeaders },
+      redirect: 'follow',
+      signal: controller.signal,
+    })
+    return r
+  } finally {
+    clearTimeout(t)
+  }
+}
+
+// Use DuckDuckGo HTML search to find the property page on a target domain
+async function searchForListingUrl(addressQuery, domain) {
+  const q = `${addressQuery} site:${domain}`
+  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`
+  try {
+    const r = await fetchWithTimeout(url, 12000, {
+      'Accept': 'text/html',
+      'Referer': 'https://duckduckgo.com/',
+    })
+    if (!r.ok) return null
+    const html = await r.text()
+    // DDG result links can be either direct or wrapped through /l/?uddg=...
+    const candidates = []
+    const directRe = new RegExp(`href="(https?://(?:www\\.)?${domain.replace('.', '\\.')}/[^"]+)"`, 'gi')
+    let m
+    while ((m = directRe.exec(html)) !== null) candidates.push(m[1])
+    const wrapRe = /href="\/\/duckduckgo\.com\/l\/\?uddg=([^"&]+)/gi
+    while ((m = wrapRe.exec(html)) !== null) {
+      try {
+        const decoded = decodeURIComponent(m[1])
+        if (decoded.includes(domain)) candidates.push(decoded)
+      } catch {}
+    }
+    // Pick the first that looks like a property detail (not a search results page)
+    for (const c of candidates) {
+      if (domain === 'zillow.com' && /\/homedetails\//.test(c)) return c
+      if (domain === 'realtor.com' && /realestateandhomes-detail/.test(c)) return c
+      if (domain === 'redfin.com' && /\/home\//.test(c)) return c
+      if (domain === 'trulia.com' && /\/p\//.test(c)) return c
+      if (domain === 'homes.com' && /\/property\//.test(c)) return c
+    }
+    return candidates[0] || null
+  } catch {
+    return null
+  }
+}
+
 router.post('/:id/auto-populate', async (req, res) => {
   const client = getClient()
   if (!client) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
@@ -397,50 +464,66 @@ router.post('/:id/auto-populate', async (req, res) => {
   const { property_address, city, state = 'IA', zip } = req.body || {}
   if (!property_address || !city) return res.status(400).json({ error: 'property_address and city required' })
 
-  const slug = [property_address, city, state, zip].filter(Boolean).map(slugifyAddr).join('-')
-
-  const candidates = [
-    { name: 'Realtor.com', url: `https://www.realtor.com/realestateandhomes-search/${encodeURIComponent([city, state, zip].filter(Boolean).join('_'))}/keyword-${encodeURIComponent(property_address)}` },
-    { name: 'Zillow', url: `https://www.zillow.com/homes/${slug}_rb/` },
-    { name: 'Redfin', url: `https://www.redfin.com/stingray/do/location-autocomplete?location=${encodeURIComponent(property_address + ' ' + city + ' ' + state + ' ' + zip)}` },
-  ]
-
+  const fullAddress = [property_address, city, state, zip].filter(Boolean).join(' ')
   const tried = []
   let extracted = null
   let sourceUrl = null
 
-  for (const c of candidates) {
+  const slug = [property_address, city, state, zip].filter(Boolean).map(slugifyAddr).join('-')
+
+  // Step 1: Search-based discovery — find the actual property URL on each site
+  const domains = ['zillow.com', 'realtor.com', 'redfin.com', 'trulia.com', 'homes.com']
+  const discovered = []
+  for (const d of domains) {
+    const found = await searchForListingUrl(fullAddress, d)
+    if (found) discovered.push({ source: d, url: found })
+  }
+
+  // Step 2: Add direct-pattern fallbacks if search didn't find that domain
+  const directFallbacks = [
+    { source: 'realtor.com (direct)', url: `https://www.realtor.com/realestateandhomes-detail/${slug}` },
+    { source: 'zillow.com (direct)', url: `https://www.zillow.com/homes/${slug}_rb/` },
+    { source: 'redfin.com (search)', url: `https://www.redfin.com/zipcode/${zip || ''}/filter/include=forsale+sold-1yr,viewport=${encodeURIComponent(fullAddress)}` },
+  ]
+  for (const f of directFallbacks) {
+    const dom = f.source.split(' ')[0]
+    if (!discovered.some(d => d.source === dom)) {
+      discovered.push(f)
+    }
+  }
+
+  // Step 3: Try each candidate
+  for (const c of discovered) {
     try {
       const data = await fetchAndExtract(client, c.url)
-      // Heuristic: if we got at least beds OR sqft OR price, consider it useful
       const useful = data && (data.bedrooms || data.square_feet || data.list_price || data.year_built)
-      tried.push({ source: c.name, ok: !!useful, hasData: !!data })
+      tried.push({ source: c.source, url: c.url, ok: !!useful })
       if (useful) {
         extracted = data
         sourceUrl = c.url
         break
       }
     } catch (e) {
-      tried.push({ source: c.name, ok: false, error: e.message })
+      tried.push({ source: c.source, url: c.url, ok: false, error: e.message })
     }
   }
 
   if (!extracted) {
     return res.status(404).json({
       success: false,
-      error: 'Could not auto-populate from any source. Try uploading the MLS PDF instead.',
+      error: 'Could not find this property on any public listing site. It may not be listed for sale (or sites blocked us). Try uploading the MLS PDF instead.',
       tried,
     })
   }
 
-  // Don't overwrite the user's address fields with the extracted ones (they searched for THIS address)
+  // Don't overwrite the user's address fields with the extracted ones
   delete extracted.property_address
   delete extracted.city
   delete extracted.state
   delete extracted.zip
 
   applyExtractedToListing(id, extracted, sourceUrl)
-  logActivity('auto_populated', id, `Auto-populated from ${tried.find(t => t.ok)?.source || 'web'}`)
+  logActivity('auto_populated', id, `Auto-populated from ${sourceUrl}`)
   res.json({ success: true, source: sourceUrl, extracted, tried })
 })
 
