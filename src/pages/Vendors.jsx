@@ -3,6 +3,7 @@ import { authFetch } from '../api'
 import Modal from '../components/Modal'
 
 const defaultCategories = [
+  'Mortgage Lender', 'Title Company', 'Real Estate Attorney', 'Insurance Agent',
   'Home Inspector', 'Photographer', 'Stager', 'Handyman', 'Plumber', 'Electrician',
   'HVAC', 'Roofer', 'Painter', 'Landscaper', 'Cleaner', 'Pest Control', 'Appraiser',
   'Surveyor', 'Mover', 'Locksmith', 'Carpet/Flooring', 'Window/Door', 'Foundation',
