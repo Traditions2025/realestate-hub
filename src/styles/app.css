@@ -2588,3 +2588,357 @@ input[type="range"] {
 ::-webkit-scrollbar-track { background: var(--bg-primary); }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
+
+/* ============================================================
+   LISTINGS PAGE
+   ============================================================ */
+.listings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 18px;
+}
+
+.listing-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  display: flex;
+  flex-direction: column;
+}
+.listing-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.25);
+}
+
+.listing-photo {
+  width: 100%;
+  height: 180px;
+  background-size: cover;
+  background-position: center;
+  background-color: var(--bg-primary);
+}
+.listing-photo-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 13px;
+  letter-spacing: 1px;
+}
+
+.listing-card-body {
+  padding: 14px 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.listing-stage-badge {
+  display: inline-block;
+  align-self: flex-start;
+  padding: 3px 10px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.7px;
+  border-radius: 4px;
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  margin-bottom: 4px;
+}
+
+.listing-address {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.3;
+}
+
+.listing-city {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.listing-price {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+  margin-top: 6px;
+}
+
+.listing-stats {
+  display: flex;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+.listing-stats span {
+  white-space: nowrap;
+}
+
+.listing-mls {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  letter-spacing: 0.5px;
+}
+
+/* Tabs inside the listing modal */
+.listing-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 18px;
+}
+.listing-tab {
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+.listing-tab:hover { color: var(--text-primary); }
+.listing-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.field-group {
+  margin-bottom: 18px;
+}
+.field-group h4 {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  margin: 0 0 10px;
+}
+
+.form-row-multi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px;
+}
+.form-row-multi label {
+  display: flex;
+  flex-direction: column;
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 500;
+  gap: 4px;
+}
+.form-row-multi label.wide-label {
+  grid-column: span 2;
+}
+@media (max-width: 600px) {
+  .form-row-multi label.wide-label { grid-column: span 1; }
+}
+
+/* Marketing assets */
+.asset-card {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+}
+.asset-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.asset-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.asset-actions {
+  display: flex;
+  gap: 6px;
+}
+.asset-card textarea {
+  width: 100%;
+  font-family: 'SF Mono', Menlo, monospace;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.muted {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Stage-specific badge colors */
+.listing-stage-badge.stage-pre_listing { background: rgba(168, 85, 247, 0.18); color: #c4b5fd; }
+.listing-stage-badge.stage-coming_soon { background: rgba(245, 158, 11, 0.18); color: #fbbf24; }
+.listing-stage-badge.stage-active { background: rgba(16, 185, 129, 0.18); color: #6ee7b7; }
+.listing-stage-badge.stage-under_contract { background: rgba(59, 130, 246, 0.18); color: #93c5fd; }
+.listing-stage-badge.stage-closed { background: rgba(107, 114, 128, 0.25); color: #d1d5db; }
+
+/* Card-level marketing progress */
+.listing-card-progress {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.listing-card-progress-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+  letter-spacing: 0.3px;
+}
+.listing-card-progress-bar {
+  height: 6px;
+  background: var(--bg-primary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.listing-card-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c89b4a, #f4d8a3);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* Tab badge (e.g. "12/63" on Marketing Tasks tab) */
+.tab-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  background: rgba(200, 155, 74, 0.2);
+  color: #f4d8a3;
+  border-radius: 10px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* Marketing Tasks tab - overall progress */
+.tasks-overall {
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 18px;
+}
+.tasks-overall-label {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+.tasks-overall-label strong {
+  color: var(--accent);
+  font-weight: 700;
+}
+.tasks-progress-bar {
+  height: 10px;
+  background: var(--bg-secondary);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.tasks-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c89b4a, #f4d8a3);
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+
+/* Task groups */
+.task-group {
+  margin-bottom: 24px;
+}
+.task-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+  gap: 12px;
+}
+.task-group-header h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.task-group-meta {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.task-group-count {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.task-group-bar {
+  height: 4px;
+  background: var(--bg-primary);
+  border-radius: 2px;
+  margin-bottom: 10px;
+  overflow: hidden;
+}
+.task-group-bar-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+.task-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 4px;
+}
+@media (min-width: 700px) {
+  .task-list { grid-template-columns: 1fr 1fr; }
+}
+.task-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+.task-item:hover {
+  background: var(--bg-primary);
+}
+.task-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--accent);
+}
+.task-item.done .task-label {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+.task-label {
+  flex: 1;
+}
+.task-stamp {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-style: italic;
+}

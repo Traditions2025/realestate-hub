@@ -419,6 +419,72 @@ export async function initDb() {
   `)
 
   // =============================================
+  // LISTINGS - unified pre-listing + active listing with full property data
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS listings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      property_address TEXT NOT NULL,
+      city TEXT,
+      state TEXT DEFAULT 'IA',
+      zip TEXT,
+      mls_number TEXT,
+      stage TEXT NOT NULL DEFAULT 'pre_listing',
+      status TEXT NOT NULL DEFAULT 'New',
+      list_price REAL,
+      original_list_price REAL,
+      bedrooms INTEGER,
+      bathrooms_full INTEGER,
+      bathrooms_half INTEGER,
+      square_feet INTEGER,
+      lot_size TEXT,
+      year_built INTEGER,
+      property_type TEXT,
+      garage_spaces INTEGER,
+      stories INTEGER,
+      basement TEXT,
+      heating TEXT,
+      cooling TEXT,
+      flooring TEXT,
+      schools TEXT,
+      hoa_fee REAL,
+      hoa_frequency TEXT,
+      taxes REAL,
+      features TEXT,
+      photos TEXT,
+      hero_photo TEXT,
+      virtual_tour_url TEXT,
+      mls_link TEXT,
+      description TEXT,
+      seller_name TEXT,
+      seller_phone TEXT,
+      seller_email TEXT,
+      list_date TEXT,
+      under_contract_date TEXT,
+      closing_date TEXT,
+      open_house_date TEXT,
+      open_house_time TEXT,
+      marketing_blog_post TEXT,
+      marketing_social_instagram TEXT,
+      marketing_social_facebook TEXT,
+      marketing_coming_soon TEXT,
+      marketing_just_listed TEXT,
+      marketing_open_house TEXT,
+      marketing_email_blast TEXT,
+      marketing_price_reduction TEXT,
+      marketing_listing_description TEXT,
+      marketing_tasks TEXT,
+      client_id INTEGER,
+      pre_listing_id INTEGER,
+      transaction_id INTEGER,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    )
+  `)
+
+  // =============================================
   // EMAIL LOG
   // =============================================
   db.run(`
@@ -483,6 +549,17 @@ export async function initDb() {
     }
   } catch (e) {
     console.error('[migration] Client columns failed:', e.message)
+  }
+
+  // Migration: add marketing_tasks column to listings if missing
+  try {
+    const cols = db.exec("PRAGMA table_info(listings)")[0]?.values.map(v => v[1]) || []
+    if (!cols.includes('marketing_tasks')) {
+      db.run('ALTER TABLE listings ADD COLUMN marketing_tasks TEXT')
+      console.log('[migration] Added listings.marketing_tasks')
+    }
+  } catch (e) {
+    console.error('[migration] listings.marketing_tasks failed:', e.message)
   }
 
   // Migration: drop agency_type CHECK constraint if it exists

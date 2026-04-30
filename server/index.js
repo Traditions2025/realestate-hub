@@ -17,6 +17,7 @@ import marketingRouter from './routes/marketing.js'
 import showingsRouter from './routes/showings.js'
 import dashboardRouter from './routes/dashboard.js'
 import prelistingsRouter from './routes/prelistings.js'
+import listingsRouter from './routes/listings.js'
 import vendorsRouter from './routes/vendors.js'
 import partnersRouter from './routes/partners.js'
 import socialmediaRouter from './routes/socialmedia.js'
@@ -38,7 +39,7 @@ async function start() {
   const PORT = process.env.PORT || 3001
 
   app.use(cors())
-  app.use(express.json())
+  app.use(express.json({ limit: '25mb' }))
 
   // Serve static files in production
   app.use(express.static(join(__dirname, '..', 'dist')))
@@ -57,6 +58,7 @@ async function start() {
   app.use('/api/showings', showingsRouter)
   app.use('/api/dashboard', dashboardRouter)
   app.use('/api/pre-listings', prelistingsRouter)
+  app.use('/api/listings', listingsRouter)
   app.use('/api/vendors', vendorsRouter)
   app.use('/api/partners', partnersRouter)
   app.use('/api/social-media', socialmediaRouter)

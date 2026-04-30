@@ -6,6 +6,7 @@ import LoginScreen from './components/LoginScreen'
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
 const PreListings = lazy(() => import('./pages/PreListings'))
+const Listings = lazy(() => import('./pages/Listings'))
 const Clients = lazy(() => import('./pages/Clients'))
 const Tasks = lazy(() => import('./pages/Tasks'))
 const Projects = lazy(() => import('./pages/Projects'))
@@ -24,6 +25,7 @@ const navSections = [
   { label: 'PIPELINE', items: [
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
     { path: '/pre-listings', label: 'Pre-Listings', icon: '\u2302' },
+    { path: '/listings', label: 'Listings', icon: '\u2605' },
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
   ]},
   { label: 'WORK', items: [
@@ -115,6 +117,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/pre-listings" element={<PreListings />} />
+            <Route path="/listings" element={<Listings />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/projects" element={<Projects />} />
