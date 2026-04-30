@@ -380,14 +380,16 @@ export default function Listings() {
         : { done: true, completed_at: new Date().toISOString() },
     }
     setForm(prev => ({ ...prev, marketing_tasks: updated }))
-    if (editingId) {
-      await authFetch(`/api/listings/${editingId}`, {
+    try {
+      const lid = await ensureListing()
+      await authFetch(`/api/listings/${lid}`, {
         method: 'PUT',
         body: JSON.stringify({ marketing_tasks: updated }),
       })
-      // Refresh list to update progress on cards (no full reload of modal)
       authFetch('/api/listings?' + new URLSearchParams(stage !== 'all' ? { stage } : {}))
         .then(r => r.json()).then(setItems).catch(() => {})
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -398,13 +400,16 @@ export default function Listings() {
       current[t.key] = mark ? { done: true, completed_at: stamp } : { done: false }
     }
     setForm(prev => ({ ...prev, marketing_tasks: current }))
-    if (editingId) {
-      await authFetch(`/api/listings/${editingId}`, {
+    try {
+      const lid = await ensureListing()
+      await authFetch(`/api/listings/${lid}`, {
         method: 'PUT',
         body: JSON.stringify({ marketing_tasks: current }),
       })
       authFetch('/api/listings?' + new URLSearchParams(stage !== 'all' ? { stage } : {}))
         .then(r => r.json()).then(setItems).catch(() => {})
+    } catch (e) {
+      console.error(e)
     }
   }
 
@@ -448,21 +453,43 @@ export default function Listings() {
     r.readAsDataURL(file)
   })
 
+  // Auto-create a placeholder listing if user hasn't saved one yet —
+  // this lets PDF/URL import work as the very first action when creating a listing.
+  const ensureListing = async () => {
+    if (editingId) return editingId
+    const placeholder = {
+      property_address: form.property_address || `Pending Import — ${new Date().toLocaleString()}`,
+      city: form.city || '',
+      state: form.state || 'IA',
+      zip: form.zip || '',
+      stage: form.stage || 'pre_listing',
+      status: form.status || 'New',
+    }
+    const r = await authFetch('/api/listings', {
+      method: 'POST',
+      body: JSON.stringify(placeholder),
+    })
+    const d = await r.json()
+    if (!d.id) throw new Error('Failed to create listing')
+    setEditingId(d.id)
+    return d.id
+  }
+
   const extractFromPdf = async (file) => {
-    if (!editingId) { alert('Save the listing first, then upload PDF.'); return }
-    if (!aiStatus.configured) { alert('AI is not configured. Set ANTHROPIC_API_KEY env var.'); return }
+    if (!aiStatus.configured) { alert('AI is not configured yet. Add ANTHROPIC_API_KEY on Render and redeploy.'); return }
     setExtracting('pdf')
     try {
+      const lid = await ensureListing()
       const pdf_base64 = await fileToBase64(file)
-      const r = await authFetch(`/api/listings/${editingId}/extract-pdf`, {
+      const r = await authFetch(`/api/listings/${lid}/extract-pdf`, {
         method: 'POST',
         body: JSON.stringify({ pdf_base64, filename: file.name }),
       })
       const d = await r.json()
       if (d.error) { alert('Extraction failed: ' + d.error); return }
       // Reload form with extracted data
-      await openEdit(editingId)
-      alert('PDF data extracted. Review the fields and save.')
+      await openEdit(lid)
+      alert(`✓ PDF extracted. Review the property details and click Save.`)
     } catch (e) {
       alert('Extraction failed: ' + e.message)
     } finally {
@@ -471,19 +498,19 @@ export default function Listings() {
   }
 
   const extractFromUrl = async () => {
-    if (!editingId) { alert('Save the listing first, then extract from URL.'); return }
     if (!urlInput) { alert('Paste a listing URL first.'); return }
-    if (!aiStatus.configured) { alert('AI is not configured. Set ANTHROPIC_API_KEY env var.'); return }
+    if (!aiStatus.configured) { alert('AI is not configured yet. Add ANTHROPIC_API_KEY on Render and redeploy.'); return }
     setExtracting('url')
     try {
-      const r = await authFetch(`/api/listings/${editingId}/extract-url`, {
+      const lid = await ensureListing()
+      const r = await authFetch(`/api/listings/${lid}/extract-url`, {
         method: 'POST',
         body: JSON.stringify({ url: urlInput }),
       })
       const d = await r.json()
       if (d.error) { alert('Extraction failed: ' + d.error); return }
-      await openEdit(editingId)
-      alert('URL data extracted. Review the fields and save.')
+      await openEdit(lid)
+      alert(`✓ URL extracted. Review the property details and click Save.`)
     } catch (e) {
       alert('Extraction failed: ' + e.message)
     } finally {
@@ -829,19 +856,23 @@ export default function Listings() {
 
         {activeTab === 'import' && (
           <div>
-            {!editingId && (
+            {!aiStatus.configured ? (
               <div className="warning-banner" style={{padding: '10px 14px', background: '#3a2a14', border: '1px solid #c89b4a', borderRadius: 6, color: '#f4d8a3', marginBottom: 16}}>
-                Save the listing (Property Details tab) first, then upload a PDF or paste a URL here.
+                AI extraction requires an ANTHROPIC_API_KEY env var on Render. Add it, redeploy, then come back here.
+              </div>
+            ) : (
+              <div className="addr-result ok" style={{marginBottom: 16}}>
+                ✓ AI is configured. Upload a PDF or paste a listing URL — the listing will be created automatically and the property fields filled in.
               </div>
             )}
 
             <div className="field-group">
               <h4>Upload PDF (MLS sheet, listing agreement, brochure)</h4>
-              <p className="muted">Claude reads the PDF and fills in the property details automatically.</p>
+              <p className="muted">Claude reads the PDF and fills in the property details automatically. Best results with MLS data sheets.</p>
               <input
                 type="file"
                 accept="application/pdf"
-                disabled={!editingId || extracting === 'pdf'}
+                disabled={extracting === 'pdf' || !aiStatus.configured}
                 onChange={e => { const f = e.target.files?.[0]; if (f) extractFromPdf(f); e.target.value = '' }}
               />
               {extracting === 'pdf' && <div className="muted" style={{marginTop: 8}}>Reading PDF — this can take 20-40 seconds...</div>}
@@ -856,12 +887,12 @@ export default function Listings() {
                   placeholder="https://..."
                   value={urlInput}
                   onChange={e => setUrlInput(e.target.value)}
-                  disabled={!editingId || extracting === 'url'}
+                  disabled={extracting === 'url'}
                 />
                 <button
                   className="btn btn-primary"
                   type="button"
-                  disabled={!editingId || !urlInput || extracting === 'url'}
+                  disabled={!urlInput || extracting === 'url' || !aiStatus.configured}
                   onClick={extractFromUrl}
                 >
                   {extracting === 'url' ? 'Extracting...' : 'Extract'}
