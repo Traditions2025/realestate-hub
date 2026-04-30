@@ -220,6 +220,7 @@ export default function Clients() {
     setModalOpen(true)
   }
   const [sierraActivity, setSierraActivity] = useState(null)
+  const [listingInterest, setListingInterest] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '' })
@@ -235,14 +236,19 @@ export default function Clients() {
     const d = await api.getClient(id)
     setDetail(d)
     setSierraActivity(null)
+    setListingInterest(null)
     setEmailHistory([])
     setDetailOpen(true)
-    // Lazy-load Sierra activity if it's a Sierra-synced lead
+    // Lazy-load Sierra activity + listing interest if it's a Sierra-synced lead
     if (d.sierra_lead_id) {
       authFetch(`/api/sierra/lead-notes/${d.sierra_lead_id}`)
         .then(r => r.json())
         .then(setSierraActivity)
         .catch(() => setSierraActivity([]))
+      authFetch(`/api/sierra/lead-listings/${d.sierra_lead_id}`)
+        .then(r => r.json())
+        .then(setListingInterest)
+        .catch(() => setListingInterest({ saved_searches: [], saved_listings: [], listing_activity: [] }))
     }
     // Load email history
     authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
@@ -1123,6 +1129,82 @@ export default function Clients() {
                 </div>
               )
             })()}
+
+            {/* Listing Interest */}
+            {detail.sierra_lead_id && listingInterest && (
+              <div className="detail-section">
+                <h4>Listing Interest</h4>
+
+                {/* Saved Searches */}
+                {listingInterest.saved_searches?.length > 0 && (
+                  <div className="listing-block">
+                    <div className="listing-block-title">What they're looking for ({listingInterest.saved_searches.length} saved search{listingInterest.saved_searches.length > 1 ? 'es' : ''})</div>
+                    {listingInterest.saved_searches.map((s, i) => (
+                      <div key={i} className="saved-search-card">
+                        <div className="ss-name">{s.name || 'Unnamed Search'}</div>
+                        <div className="ss-criteria">
+                          {(s.price_min || s.price_max) && <span>💰 {s.price_min ? `$${(s.price_min / 1000).toFixed(0)}K` : '?'} – {s.price_max ? `$${(s.price_max / 1000).toFixed(0)}K` : '?'}</span>}
+                          {s.bedrooms_min && <span>🛏️ {s.bedrooms_min}+ bed</span>}
+                          {s.bathrooms_min && <span>🛁 {s.bathrooms_min}+ bath</span>}
+                          {s.regions && <span>📍 {s.regions}</span>}
+                          {s.email_alerts && <span className="badge-on">Alerts ON</span>}
+                        </div>
+                        {s.property_types?.length > 0 && (
+                          <div className="ss-types">
+                            {s.property_types.map(t => <span key={t} className="ss-type">{t.replace(/([A-Z])/g, ' $1').trim()}</span>)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Saved Listings (if accessible) */}
+                {listingInterest.saved_listings?.length > 0 && (
+                  <div className="listing-block">
+                    <div className="listing-block-title">⭐ Saved Properties ({listingInterest.saved_listings.length})</div>
+                    {listingInterest.saved_listings.map((l, i) => (
+                      <div key={i} className="saved-listing">
+                        <div className="sl-address">{l.address}{l.city ? `, ${l.city}` : ''}</div>
+                        <div className="sl-meta">
+                          {l.price && <span className="sl-price">${Number(l.price).toLocaleString()}</span>}
+                          {l.bedrooms && <span>{l.bedrooms}bd</span>}
+                          {l.bathrooms && <span>{l.bathrooms}ba</span>}
+                          {l.mls && <span>MLS {l.mls}</span>}
+                          {l.status && <span className="sl-status">{l.status}</span>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Listing-related Activity */}
+                {listingInterest.listing_activity?.length > 0 && (
+                  <div className="listing-block">
+                    <div className="listing-block-title">🏠 Listing Activity ({listingInterest.listing_activity.length})</div>
+                    {listingInterest.listing_activity.slice(0, 10).map(a => (
+                      <div key={a.id} className="listing-activity-item">
+                        <div className="la-meta">
+                          <span className="la-author">{a.author}</span>
+                          <span className="la-date">{a.date ? new Date(a.date).toLocaleDateString() : ''}</span>
+                        </div>
+                        <div className="la-excerpt">{a.excerpt}</div>
+                        {(a.addresses?.length > 0 || a.mls_numbers?.length > 0) && (
+                          <div className="la-references">
+                            {a.addresses?.map((addr, i) => <span key={i} className="la-addr">📍 {addr}</span>)}
+                            {a.mls_numbers?.map((m, i) => <span key={`m${i}`} className="la-mls">MLS {m}</span>)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(!listingInterest.saved_searches?.length && !listingInterest.saved_listings?.length && !listingInterest.listing_activity?.length) && (
+                  <p style={{fontSize: 12, color: 'var(--text-muted)'}}>No listing activity recorded yet</p>
+                )}
+              </div>
+            )}
 
             {/* Sierra Activity Log */}
             {detail.sierra_lead_id && (

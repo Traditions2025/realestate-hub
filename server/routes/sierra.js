@@ -140,6 +140,92 @@ router.get('/lead-notes/:sierraId', async (req, res) => {
   }
 })
 
+// Pull listing interest data: saved searches + listing-mentioned notes + saved listings (if accessible)
+router.get('/lead-listings/:sierraId', async (req, res) => {
+  const sierraId = req.params.sierraId
+  const result = { saved_searches: [], saved_listings: [], listing_activity: [], errors: [] }
+
+  // 1. Get the lead with saved searches
+  try {
+    const leadData = await sierraGet(`/leads/get/${sierraId}`, {
+      includeSavedSearches: 'true',
+      includeTags: 'true',
+    })
+    const lead = leadData.data || leadData
+    const searches = lead.savedSearchesModel?.savedSearches || lead.savedSearches || []
+    result.saved_searches = searches.map(s => ({
+      name: s.searchName,
+      regions: s.mlsRegions,
+      price_min: s.price?.min,
+      price_max: s.price?.max,
+      bedrooms_min: s.bedrooms?.min,
+      bathrooms_min: s.bathrooms?.min,
+      sqft_min: s.squareFeet?.min,
+      property_types: s.propertyTypes ? Object.entries(s.propertyTypes).filter(([k, v]) => v === 'On').map(([k]) => k) : [],
+      email_alerts: s.sendEmailAlert === 'On',
+      property_status: s.propertyStatus ? Object.entries(s.propertyStatus).filter(([k, v]) => v === 'On').map(([k]) => k) : [],
+    }))
+    result.visits = lead.visits
+    result.last_activity = lead.updateDate
+  } catch (e) {
+    result.errors.push(`saved_searches: ${e.message}`)
+  }
+
+  // 2. Try saved listings endpoint
+  try {
+    const listingsData = await sierraGet(`/savedlistings/get/${sierraId}`)
+    const listings = listingsData.data || []
+    if (Array.isArray(listings) && listings.length > 0) {
+      result.saved_listings = listings.map(l => ({
+        mls: l.mlsNumber || l.mlsId,
+        address: l.address || l.streetAddress,
+        city: l.city,
+        price: l.listPrice,
+        status: l.status,
+        bedrooms: l.bedrooms,
+        bathrooms: l.bathrooms,
+      }))
+    }
+  } catch (e) {
+    // 403 is normal - most leads' saved listings are private
+    if (!e.message.includes('403')) result.errors.push(`saved_listings: ${e.message}`)
+  }
+
+  // 3. Parse notes for listing-related activity
+  try {
+    const notesData = await sierraGet(`/notes/${sierraId}`, { pageSize: 50, pageNumber: 1 })
+    const records = notesData.data?.records || []
+
+    // Patterns to find listing mentions
+    const addrPattern = /(\d{2,5}\s+[A-Z][^,<\n]{4,80}(?:\s+(?:St|Ave|Rd|Dr|Ln|Ct|Way|Pl|Blvd|Cir|Trl|Ter|Pkwy|Hwy|Lane|Drive|Court|Avenue|Road|Place|Boulevard)))/gi
+    const mlsPattern = /MLS\s*#?\s*(\d{6,9})/gi
+
+    for (const note of records) {
+      const cleaned = (note.contents || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+      const lower = cleaned.toLowerCase()
+      // Only include notes that mention listings/properties
+      if (!/listing|property|view|saw|searched|browsing|saved|favorite|showing|inquir/.test(lower)) continue
+
+      const addresses = [...new Set([...cleaned.matchAll(addrPattern)].map(m => m[1].trim()))]
+      const mlsNumbers = [...new Set([...cleaned.matchAll(mlsPattern)].map(m => m[1]))]
+
+      result.listing_activity.push({
+        id: note.id,
+        date: note.dateCreated,
+        author: note.byUser?.name || 'Unknown',
+        is_system: note.isSystemItem,
+        excerpt: cleaned.substring(0, 250),
+        addresses,
+        mls_numbers: mlsNumbers,
+      })
+    }
+  } catch (e) {
+    if (!e.message.includes('403')) result.errors.push(`notes: ${e.message}`)
+  }
+
+  res.json(result)
+})
+
 router.get('/sync-log', (req, res) => {
   const logs = db.all('SELECT * FROM sierra_sync_log ORDER BY synced_at DESC LIMIT 20')
   res.json(logs)
