@@ -250,6 +250,11 @@ export default function Listings() {
   const [extracting, setExtracting] = useState(null)
   const [urlInput, setUrlInput] = useState('')
   const [featuresInput, setFeaturesInput] = useState('')
+  const [addrQuery, setAddrQuery] = useState('')
+  const [addrSuggestions, setAddrSuggestions] = useState([])
+  const [addrOpen, setAddrOpen] = useState(false)
+  const [autoFilling, setAutoFilling] = useState(false)
+  const [autoFillResult, setAutoFillResult] = useState(null)
 
   const load = () => {
     const params = {}
@@ -263,6 +268,18 @@ export default function Listings() {
     authFetch('/api/listings/_meta/ai-status').then(r => r.json()).then(setAiStatus).catch(() => {})
   }, [])
   useEffect(() => { load() }, [stage, search])
+
+  // Debounced address autocomplete (Iowa only via Nominatim)
+  useEffect(() => {
+    if (addrQuery.trim().length < 3) { setAddrSuggestions([]); return }
+    const handle = setTimeout(() => {
+      authFetch('/api/listings/search-address?q=' + encodeURIComponent(addrQuery))
+        .then(r => r.json())
+        .then(rows => setAddrSuggestions(Array.isArray(rows) ? rows : []))
+        .catch(() => setAddrSuggestions([]))
+    }, 350)
+    return () => clearTimeout(handle)
+  }, [addrQuery])
 
   const counts = useMemo(() => {
     const c = { all: items.length }
@@ -296,6 +313,62 @@ export default function Listings() {
   }
 
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const pickAddress = (addr) => {
+    setForm(prev => ({
+      ...prev,
+      property_address: addr.property_address || prev.property_address,
+      city: addr.city || prev.city,
+      state: addr.state || prev.state || 'IA',
+      zip: addr.zip || prev.zip,
+    }))
+    setAddrQuery(`${addr.property_address}, ${addr.city}, ${addr.state} ${addr.zip || ''}`.trim())
+    setAddrOpen(false)
+    setAutoFillResult(null)
+  }
+
+  const autoFillFromWeb = async () => {
+    if (!aiStatus.configured) { alert('AI is not configured. Set ANTHROPIC_API_KEY env var on Render.'); return }
+    if (!form.property_address || !form.city) { alert('Pick or enter an address first (street + city).'); return }
+    setAutoFilling(true)
+    setAutoFillResult(null)
+    try {
+      // Save first if new
+      let lid = editingId
+      if (!lid) {
+        const r = await authFetch('/api/listings', {
+          method: 'POST',
+          body: JSON.stringify(buildPayload()),
+        })
+        const d = await r.json()
+        lid = d.id
+        setEditingId(lid)
+      } else {
+        await save()
+      }
+      const r = await authFetch(`/api/listings/${lid}/auto-populate`, {
+        method: 'POST',
+        body: JSON.stringify({
+          property_address: form.property_address,
+          city: form.city,
+          state: form.state || 'IA',
+          zip: form.zip,
+        }),
+      })
+      const d = await r.json()
+      if (!d.success) {
+        setAutoFillResult({ ok: false, message: d.error || 'No data found', tried: d.tried })
+        return
+      }
+      // Refresh form with newly populated data
+      await openEdit(lid)
+      setAutoFillResult({ ok: true, source: d.source, fields: Object.keys(d.extracted || {}).length })
+    } catch (e) {
+      setAutoFillResult({ ok: false, message: e.message })
+    } finally {
+      setAutoFilling(false)
+    }
+  }
 
   const toggleTask = async (taskKey) => {
     const current = form.marketing_tasks || {}
@@ -543,6 +616,68 @@ export default function Listings() {
 
         {activeTab === 'details' && (
           <form onSubmit={save}>
+            <div className="addr-search-box">
+              <h4>Quick Add — Search an Iowa Address</h4>
+              <div className="addr-search-wrapper">
+                <input
+                  type="text"
+                  className="addr-search-input"
+                  placeholder="Start typing... e.g. 2416 C St SW Cedar Rapids"
+                  value={addrQuery}
+                  onChange={e => { setAddrQuery(e.target.value); setAddrOpen(true) }}
+                  onFocus={() => setAddrOpen(true)}
+                  onBlur={() => setTimeout(() => setAddrOpen(false), 200)}
+                />
+                {addrOpen && addrSuggestions.length > 0 && (
+                  <div className="addr-suggestions">
+                    {addrSuggestions.map((s, i) => (
+                      <div
+                        key={i}
+                        className="addr-suggestion"
+                        onMouseDown={() => pickAddress(s)}
+                      >
+                        <div className="addr-suggestion-line1">
+                          {s.property_address}
+                        </div>
+                        <div className="addr-suggestion-line2">
+                          {[s.city, s.state, s.zip].filter(Boolean).join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="addr-actions">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={!form.property_address || !form.city || autoFilling}
+                  onClick={autoFillFromWeb}
+                  title={!aiStatus.configured ? 'Requires ANTHROPIC_API_KEY on Render' : ''}
+                >
+                  {autoFilling ? 'Searching web...' : '✨ Auto-fill from Web (Zillow / Realtor.com)'}
+                </button>
+                {!aiStatus.configured && <span className="muted" style={{marginLeft: 12}}>(needs API key)</span>}
+              </div>
+              {autoFillResult && (
+                <div className={`addr-result ${autoFillResult.ok ? 'ok' : 'fail'}`}>
+                  {autoFillResult.ok ? (
+                    <>✓ Auto-filled {autoFillResult.fields} fields from {(autoFillResult.source || '').includes('zillow') ? 'Zillow' : (autoFillResult.source || '').includes('realtor') ? 'Realtor.com' : 'the web'}. Review below and save.</>
+                  ) : (
+                    <>
+                      ✗ {autoFillResult.message}
+                      {autoFillResult.tried && (
+                        <div style={{marginTop: 4, fontSize: 12, opacity: 0.8}}>
+                          Tried: {autoFillResult.tried.map(t => `${t.source} (${t.ok ? 'ok' : t.error || 'no useful data'})`).join(' · ')}
+                        </div>
+                      )}
+                      <div style={{marginTop: 4, fontSize: 12, opacity: 0.8}}>Tip: try uploading the MLS PDF in the Import tab instead.</div>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+
             {FIELD_GROUPS.map(group => (
               <div key={group.label} className="field-group">
                 <h4>{group.label}</h4>

@@ -267,6 +267,57 @@ router.post('/:id/extract-pdf', async (req, res) => {
   }
 })
 
+// Shared: fetch a URL, strip noise, ask Claude to extract listing fields
+async function fetchAndExtract(client, url) {
+  const fetchRes = await fetch(url, {
+    headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml',
+      'Accept-Language': 'en-US,en;q=0.9',
+    },
+    redirect: 'follow',
+  })
+  if (!fetchRes.ok) {
+    const err = new Error(`fetch failed: ${fetchRes.status}`)
+    err.status = fetchRes.status
+    throw err
+  }
+  let html = await fetchRes.text()
+  // Detect anti-bot pages
+  const lower = html.toLowerCase()
+  if (lower.includes('captcha') && lower.includes('verify') && html.length < 50000) {
+    throw new Error('blocked by anti-bot page')
+  }
+  html = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+  if (html.length > 120000) html = html.slice(0, 120000)
+
+  const msg = await client.messages.create({
+    model: MODEL,
+    max_tokens: 4096,
+    messages: [{
+      role: 'user',
+      content: `${EXTRACT_SCHEMA_PROMPT}\n\nSource URL: ${url}\n\nPage HTML:\n${html}`,
+    }],
+  })
+  const text = msg.content?.[0]?.text || ''
+  return parseJsonFromText(text)
+}
+
+function applyExtractedToListing(id, data, sourceUrl) {
+  if (!data || typeof data !== 'object') return
+  if (sourceUrl && !data.mls_link) data.mls_link = sourceUrl
+  const normalized = normalizeBody(data)
+  if (!Object.keys(normalized).length) return
+  normalized.updated_at = new Date().toISOString()
+  const keys = Object.keys(normalized)
+  const sets = keys.map(k => `${k} = ?`).join(', ')
+  const values = [...keys.map(k => n(normalized[k])), id]
+  db.run(`UPDATE listings SET ${sets} WHERE id = ?`, values)
+}
+
 router.post('/:id/extract-url', async (req, res) => {
   const client = getClient()
   if (!client) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
@@ -274,43 +325,123 @@ router.post('/:id/extract-url', async (req, res) => {
   const { url } = req.body || {}
   if (!url) return res.status(400).json({ error: 'url required' })
   try {
-    const fetchRes = await fetch(url, {
-      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; MattSmithTeamHub/1.0)' },
-    })
-    if (!fetchRes.ok) return res.status(400).json({ error: `URL fetch failed: ${fetchRes.status}` })
-    let html = await fetchRes.text()
-    // Strip script/style and limit size
-    html = html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<!--[\s\S]*?-->/g, ' ')
-    if (html.length > 120000) html = html.slice(0, 120000)
-
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: `${EXTRACT_SCHEMA_PROMPT}\n\nSource URL: ${url}\n\nPage HTML:\n${html}`,
-      }],
-    })
-    const text = msg.content?.[0]?.text || ''
-    const data = parseJsonFromText(text)
-    if (!data.mls_link) data.mls_link = url
-    const normalized = normalizeBody(data)
-    if (Object.keys(normalized).length) {
-      normalized.updated_at = new Date().toISOString()
-      const keys = Object.keys(normalized)
-      const sets = keys.map(k => `${k} = ?`).join(', ')
-      const values = [...keys.map(k => n(normalized[k])), id]
-      db.run(`UPDATE listings SET ${sets} WHERE id = ?`, values)
-      logActivity('extracted_url', id, `Extracted listing data from URL: ${url}`)
-    }
+    const data = await fetchAndExtract(client, url)
+    applyExtractedToListing(id, data, url)
+    logActivity('extracted_url', id, `Extracted listing data from URL: ${url}`)
     res.json({ success: true, extracted: data })
   } catch (e) {
     console.error('[listings] extract-url failed:', e.message)
     res.status(500).json({ error: e.message })
   }
+})
+
+// =============================================
+// ADDRESS SEARCH (Nominatim — free, no API key)
+// =============================================
+function slugifyAddr(s) {
+  return (s || '').trim().replace(/\s+/g, '-').replace(/[^A-Za-z0-9-]/g, '')
+}
+
+router.get('/search-address', async (req, res) => {
+  const q = (req.query.q || '').trim()
+  if (q.length < 3) return res.json([])
+  try {
+    // Nominatim — restrict to US, then filter to Iowa server-side
+    const url = 'https://nominatim.openstreetmap.org/search?' + new URLSearchParams({
+      q,
+      countrycodes: 'us',
+      format: 'jsonv2',
+      addressdetails: '1',
+      limit: '8',
+    })
+    const r = await fetch(url, { headers: { 'User-Agent': 'MattSmithTeamHub/1.0 (matt@mattsmithteam.com)' } })
+    if (!r.ok) return res.status(502).json({ error: `Nominatim ${r.status}` })
+    const rows = await r.json()
+    const filtered = rows
+      .filter(row => {
+        const st = row.address?.state || ''
+        return /iowa/i.test(st) || row.address?.['ISO3166-2-lvl4'] === 'US-IA'
+      })
+      .map(row => {
+        const a = row.address || {}
+        const houseNumber = a.house_number || ''
+        const street = a.road || a.pedestrian || ''
+        const city = a.city || a.town || a.village || a.hamlet || a.municipality || a.county || ''
+        const state = 'IA'
+        const zip = a.postcode || ''
+        return {
+          display: row.display_name,
+          property_address: [houseNumber, street].filter(Boolean).join(' ').trim(),
+          city,
+          state,
+          zip,
+          lat: row.lat,
+          lon: row.lon,
+        }
+      })
+      .filter(x => x.property_address && x.city)
+    res.json(filtered)
+  } catch (e) {
+    console.error('[listings] search-address failed:', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+// =============================================
+// AUTO-POPULATE FROM ADDRESS (tries Zillow → Realtor.com → Redfin)
+// =============================================
+router.post('/:id/auto-populate', async (req, res) => {
+  const client = getClient()
+  if (!client) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
+  const id = Number(req.params.id)
+  const { property_address, city, state = 'IA', zip } = req.body || {}
+  if (!property_address || !city) return res.status(400).json({ error: 'property_address and city required' })
+
+  const slug = [property_address, city, state, zip].filter(Boolean).map(slugifyAddr).join('-')
+
+  const candidates = [
+    { name: 'Realtor.com', url: `https://www.realtor.com/realestateandhomes-search/${encodeURIComponent([city, state, zip].filter(Boolean).join('_'))}/keyword-${encodeURIComponent(property_address)}` },
+    { name: 'Zillow', url: `https://www.zillow.com/homes/${slug}_rb/` },
+    { name: 'Redfin', url: `https://www.redfin.com/stingray/do/location-autocomplete?location=${encodeURIComponent(property_address + ' ' + city + ' ' + state + ' ' + zip)}` },
+  ]
+
+  const tried = []
+  let extracted = null
+  let sourceUrl = null
+
+  for (const c of candidates) {
+    try {
+      const data = await fetchAndExtract(client, c.url)
+      // Heuristic: if we got at least beds OR sqft OR price, consider it useful
+      const useful = data && (data.bedrooms || data.square_feet || data.list_price || data.year_built)
+      tried.push({ source: c.name, ok: !!useful, hasData: !!data })
+      if (useful) {
+        extracted = data
+        sourceUrl = c.url
+        break
+      }
+    } catch (e) {
+      tried.push({ source: c.name, ok: false, error: e.message })
+    }
+  }
+
+  if (!extracted) {
+    return res.status(404).json({
+      success: false,
+      error: 'Could not auto-populate from any source. Try uploading the MLS PDF instead.',
+      tried,
+    })
+  }
+
+  // Don't overwrite the user's address fields with the extracted ones (they searched for THIS address)
+  delete extracted.property_address
+  delete extracted.city
+  delete extracted.state
+  delete extracted.zip
+
+  applyExtractedToListing(id, extracted, sourceUrl)
+  logActivity('auto_populated', id, `Auto-populated from ${tried.find(t => t.ok)?.source || 'web'}`)
+  res.json({ success: true, source: sourceUrl, extracted, tried })
 })
 
 // =============================================
