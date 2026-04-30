@@ -36,10 +36,12 @@ export default function Transactions() {
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
 
-  const onDragStart = (e, item) => {
-    setDraggingId(item.id)
+  // Drag payload format: "tx:<id>" or "pl:<id>"
+  const onDragStart = (e, kind, item) => {
+    const payload = `${kind}:${item.id}`
+    setDraggingId(payload)
     e.dataTransfer.effectAllowed = 'move'
-    try { e.dataTransfer.setData('text/plain', String(item.id)) } catch {}
+    try { e.dataTransfer.setData('text/plain', payload) } catch {}
   }
   const onDragEnd = () => { setDraggingId(null); setDragOverStage(null) }
   const onDragOver = (e, stage) => {
@@ -47,21 +49,89 @@ export default function Transactions() {
     e.dataTransfer.dropEffect = 'move'
     if (dragOverStage !== stage) setDragOverStage(stage)
   }
+
+  const promotePreListingToTransaction = async (pl, newStatus) => {
+    const txType = 'listing' // Pre-listings always become listing-type transactions
+    const ok = confirm(`Promote "${pl.property_address}" from Pre-Listing to ${newStatus}?\n\nThis will create a new ${txType} transaction. The pre-listing record will be marked as Listed.`)
+    if (!ok) return
+    try {
+      // Create the transaction
+      await api.createTransaction({
+        property_address: pl.property_address,
+        type: txType,
+        property_status: newStatus,
+        seller_name: pl.owner_name || '',
+        client_id: pl.client_id || null,
+        notes: pl.notes || '',
+      })
+      // Mark the pre-listing as Listed (so it drops out of the Pre-Listing column)
+      await authFetch(`/api/pre-listings/${pl.id}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: 'Listed' }),
+      })
+      load()
+    } catch (err) {
+      alert('Failed to promote pre-listing: ' + err.message)
+    }
+  }
+
+  const demoteTransactionToPreListing = async (tx) => {
+    const ok = confirm(`Move "${tx.property_address}" back to Pre-Listing?\n\nThis will create a new pre-listing record and mark the current transaction as Withdrawn.`)
+    if (!ok) return
+    try {
+      await authFetch('/api/pre-listings', {
+        method: 'POST',
+        body: JSON.stringify({
+          property_address: tx.property_address,
+          owner_name: tx.seller_name || '',
+          status: 'New',
+          client_id: tx.client_id || null,
+          notes: tx.notes || '',
+        }),
+      })
+      await api.updateTransaction(tx.id, { property_status: 'Withdrawn' })
+      load()
+    } catch (err) {
+      alert('Failed to demote transaction: ' + err.message)
+    }
+  }
+
   const onDrop = async (e, newStatus) => {
     e.preventDefault()
     setDragOverStage(null)
-    const id = draggingId || Number(e.dataTransfer.getData('text/plain'))
+    const payload = draggingId || e.dataTransfer.getData('text/plain')
     setDraggingId(null)
+    if (!payload) return
+    const [kind, idStr] = payload.split(':')
+    const id = Number(idStr)
     if (!id) return
+
+    if (kind === 'pl') {
+      // Pre-listing → transaction stage
+      const pl = preListings.find(p => p.id === id)
+      if (!pl) return
+      if (newStatus === 'Pre-Listing') return // dropped on same column
+      await promotePreListingToTransaction(pl, newStatus)
+      return
+    }
+
+    // Transaction card
     const item = items.find(i => i.id === id)
-    if (!item || item.property_status === newStatus) return
+    if (!item) return
+
+    if (newStatus === 'Pre-Listing') {
+      await demoteTransactionToPreListing(item)
+      return
+    }
+
+    if (item.property_status === newStatus) return
     // Optimistic update
     setItems(prev => prev.map(i => i.id === id ? { ...i, property_status: newStatus } : i))
     try {
       await api.updateTransaction(id, { property_status: newStatus })
     } catch (err) {
       alert('Failed to update status: ' + err.message)
-      load() // rollback
+      load()
     }
   }
 
@@ -214,7 +284,12 @@ export default function Transactions() {
       {/* Pipeline View */}
       <div className="pipeline">
         {/* Pre-Listing column - pulls from pre_listings table */}
-        <div className="pipeline-column">
+        <div
+          className={`pipeline-column ${dragOverStage === 'Pre-Listing' ? 'drop-target' : ''}`}
+          onDragOver={e => onDragOver(e, 'Pre-Listing')}
+          onDragLeave={() => setDragOverStage(s => s === 'Pre-Listing' ? null : s)}
+          onDrop={e => onDrop(e, 'Pre-Listing')}
+        >
           <div className="pipeline-header">
             <span>Pre-Listing</span>
             <span className="pipeline-count">{preListings.length}</span>
@@ -223,7 +298,14 @@ export default function Transactions() {
             {preListings.map(pl => {
               const progress = getPlProgress(pl)
               return (
-                <div key={`pl-${pl.id}`} className="pipeline-card" onClick={() => window.location.href = '/pre-listings'}>
+                <div
+                  key={`pl-${pl.id}`}
+                  className={`pipeline-card ${draggingId === `pl:${pl.id}` ? 'dragging' : ''}`}
+                  draggable
+                  onDragStart={e => onDragStart(e, 'pl', pl)}
+                  onDragEnd={onDragEnd}
+                  onClick={() => window.location.href = '/pre-listings'}
+                >
                   <div className="pipeline-card-type">
                     <StatusBadge status="pre_listing" />
                     <span className="type-tag type-listing">pre-listing</span>
@@ -274,9 +356,9 @@ export default function Transactions() {
                 return (
                   <div
                     key={item.id}
-                    className={`pipeline-card ${draggingId === item.id ? 'dragging' : ''}`}
+                    className={`pipeline-card ${draggingId === `tx:${item.id}` ? 'dragging' : ''}`}
                     draggable
-                    onDragStart={e => onDragStart(e, item)}
+                    onDragStart={e => onDragStart(e, 'tx', item)}
                     onDragEnd={onDragEnd}
                     onClick={() => openEdit(item)}
                   >
