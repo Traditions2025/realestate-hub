@@ -149,10 +149,30 @@ function buildClientFilter(q) {
     params.push(Number(q.score_max))
   }
 
-  // Visits min
+  // Visits min/max
   if (q.visits_min) {
     where += ' AND visits >= ?'
     params.push(Number(q.visits_min))
+  }
+  if (q.visits_max) {
+    where += ' AND visits <= ?'
+    params.push(Number(q.visits_max))
+  }
+
+  // Activity date filters - "active in past N days"
+  if (q.activity_days) {
+    where += " AND sierra_update_date IS NOT NULL AND sierra_update_date >= datetime('now', ?)"
+    params.push(`-${Number(q.activity_days)} days`)
+  }
+  // Created in past N days (new leads)
+  if (q.created_days) {
+    where += " AND sierra_creation_date IS NOT NULL AND sierra_creation_date >= datetime('now', ?)"
+    params.push(`-${Number(q.created_days)} days`)
+  }
+  // Inactive for N+ days (need re-engagement)
+  if (q.inactive_days) {
+    where += " AND (sierra_update_date IS NULL OR sierra_update_date < datetime('now', ?))"
+    params.push(`-${Number(q.inactive_days)} days`)
   }
 
   // Search
@@ -169,13 +189,30 @@ function buildClientFilter(q) {
   return { where, params }
 }
 
+// Map sort key to SQL ORDER BY
+const SORT_OPTIONS = {
+  recent_activity: 'sierra_update_date DESC NULLS LAST',
+  recent_added: 'sierra_creation_date DESC NULLS LAST',
+  most_visits: 'visits DESC',
+  least_visits: 'visits ASC',
+  highest_score: 'CAST(lead_score AS INTEGER) DESC NULLS LAST',
+  lowest_score: 'CAST(lead_score AS INTEGER) ASC NULLS LAST',
+  name_az: 'last_name ASC, first_name ASC',
+  name_za: 'last_name DESC, first_name DESC',
+  recent_update: 'updated_at DESC',
+  oldest_first: 'sierra_creation_date ASC NULLS LAST',
+}
+
 router.get('/', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 5000)
   const offset = Number(req.query.offset) || 0
   const { where, params } = buildClientFilter(req.query)
 
+  const sortKey = req.query.sort || 'recent_activity'
+  const orderBy = SORT_OPTIONS[sortKey] || SORT_OPTIONS.recent_activity
+
   const total = db.get(`SELECT COUNT(*) as c FROM clients${where}`, params).c
-  const rows = db.all(`SELECT * FROM clients${where} ORDER BY updated_at DESC LIMIT ? OFFSET ?`,
+  const rows = db.all(`SELECT * FROM clients${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     [...params, limit, offset])
 
   res.set('X-Total-Count', String(total))

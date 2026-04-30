@@ -41,7 +41,13 @@ export default function Clients() {
     score_min: '',
     score_max: '',
     visits_min: '',
+    visits_max: '',
+    activity_days: '',
+    created_days: '',
+    inactive_days: '',
   })
+  const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
+  useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [] })
   const [savedLists, setSavedLists] = useState([])
@@ -62,7 +68,9 @@ export default function Clients() {
     advFilters.sources_include.length + advFilters.email_statuses.length +
     (advFilters.has_email ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
-    (advFilters.visits_min ? 1 : 0)
+    (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
+    (advFilters.activity_days ? 1 : 0) + (advFilters.created_days ? 1 : 0) +
+    (advFilters.inactive_days ? 1 : 0)
   )
 
   const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
@@ -100,6 +108,11 @@ export default function Clients() {
     if (advFilters.score_min) params.score_min = advFilters.score_min
     if (advFilters.score_max) params.score_max = advFilters.score_max
     if (advFilters.visits_min) params.visits_min = advFilters.visits_min
+    if (advFilters.visits_max) params.visits_max = advFilters.visits_max
+    if (advFilters.activity_days) params.activity_days = advFilters.activity_days
+    if (advFilters.created_days) params.created_days = advFilters.created_days
+    if (advFilters.inactive_days) params.inactive_days = advFilters.inactive_days
+    params.sort = sortBy
     return params
   }
 
@@ -153,7 +166,7 @@ export default function Clients() {
     return () => document.removeEventListener('click', close)
   }, [otherMenuOpen])
 
-  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize, advFilters])
+  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize, advFilters, sortBy])
 
   const syncSierra = async (silent = false, statuses = 'Active,Prime,Watch,Pending') => {
     setSierraStatus('syncing')
@@ -262,7 +275,8 @@ export default function Clients() {
       zips_include: [], cities_include: [], sources_include: [],
       email_statuses: [],
       has_email: false, exclude_optouts: false,
-      score_min: '', score_max: '', visits_min: '',
+      score_min: '', score_max: '', visits_min: '', visits_max: '',
+      activity_days: '', created_days: '', inactive_days: '',
     })
     setTab('all')
     setSearch('')
@@ -649,6 +663,18 @@ export default function Clients() {
         {hasActiveFilters && (
           <button className="btn-sm btn-danger" onClick={clearAllFilters}>Clear All</button>
         )}
+        <select value={sortBy} onChange={e => setSortBy(e.target.value)} title="Sort by">
+          <option value="recent_activity">📅 Most Recent Activity</option>
+          <option value="recent_added">🆕 Recently Added</option>
+          <option value="oldest_first">⏳ Oldest First</option>
+          <option value="most_visits">👁️ Most Visits</option>
+          <option value="least_visits">📉 Fewest Visits</option>
+          <option value="highest_score">🔥 Highest Score</option>
+          <option value="lowest_score">❄️ Lowest Score</option>
+          <option value="name_az">🔤 Name A-Z</option>
+          <option value="name_za">🔡 Name Z-A</option>
+          <option value="recent_update">🔄 Last Updated</option>
+        </select>
         <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} title="Records per page">
           <option value={100}>100 per page</option>
           <option value={500}>500 per page</option>
@@ -743,6 +769,54 @@ export default function Clients() {
           </div>
 
           <div className="filter-section">
+            <h5>Activity & Engagement</h5>
+            <div className="filter-other-row">
+              <label className="filter-num">
+                Active in past (days)
+                <select value={advFilters.activity_days} onChange={e => setAdvFilters(p => ({ ...p, activity_days: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="1">1 day</option>
+                  <option value="3">3 days</option>
+                  <option value="7">7 days</option>
+                  <option value="14">14 days</option>
+                  <option value="30">30 days</option>
+                  <option value="90">90 days</option>
+                </select>
+              </label>
+              <label className="filter-num">
+                Inactive for (days+)
+                <select value={advFilters.inactive_days} onChange={e => setAdvFilters(p => ({ ...p, inactive_days: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="30">30+ days</option>
+                  <option value="60">60+ days</option>
+                  <option value="90">90+ days</option>
+                  <option value="180">6+ months</option>
+                  <option value="365">1+ year</option>
+                </select>
+              </label>
+              <label className="filter-num">
+                New leads (days)
+                <select value={advFilters.created_days} onChange={e => setAdvFilters(p => ({ ...p, created_days: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="1">Last 24 hours</option>
+                  <option value="3">Last 3 days</option>
+                  <option value="7">Last 7 days</option>
+                  <option value="14">Last 14 days</option>
+                  <option value="30">Last 30 days</option>
+                </select>
+              </label>
+              <label className="filter-num">
+                Min visits
+                <input type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Max visits
+                <input type="number" value={advFilters.visits_max} onChange={e => setAdvFilters(p => ({ ...p, visits_max: e.target.value }))} />
+              </label>
+            </div>
+          </div>
+
+          <div className="filter-section">
             <h5>Other</h5>
             <div className="filter-other-row">
               <label className="filter-check">
@@ -760,10 +834,6 @@ export default function Clients() {
               <label className="filter-num">
                 Score max
                 <input type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Min visits
-                <input type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} />
               </label>
             </div>
           </div>
@@ -783,6 +853,19 @@ export default function Clients() {
               ...p, statuses_exclude: ['junk', 'donotcontact', 'blocked', 'archived', 'closed'],
               has_email: true, exclude_optouts: true,
             }))}>Active Pipeline</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, activity_days: '7', has_email: true, exclude_optouts: true,
+            }))}>🔥 Active This Week</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, created_days: '7', has_email: true, exclude_optouts: true,
+            }))}>🆕 New This Week</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, inactive_days: '90', has_email: true, exclude_optouts: true,
+              statuses_exclude: ['junk', 'donotcontact', 'blocked', 'archived', 'closed'],
+            }))}>💤 Re-engagement (90d+)</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
+              ...p, visits_min: '5', has_email: true, exclude_optouts: true,
+            }))}>👁️ High Engagement (5+ visits)</button>
           </div>
 
           {activeListId && (
