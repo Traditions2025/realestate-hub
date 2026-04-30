@@ -2814,6 +2814,49 @@ input[type="range"] {
   transition: width 0.3s ease;
 }
 
+/* Drag-and-drop kanban (Transactions) */
+.pipeline-card {
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+.pipeline-card[draggable="true"] {
+  cursor: grab;
+}
+.pipeline-card[draggable="true"]:active {
+  cursor: grabbing;
+}
+.pipeline-card.dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+.pipeline-column.drop-target {
+  background: rgba(200, 155, 74, 0.08);
+  outline: 2px dashed rgba(200, 155, 74, 0.6);
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+.pipeline-column.drop-target .pipeline-header {
+  color: var(--accent);
+}
+
+/* Sortable column headers (Clients list) */
+.client-list-header .sortable {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.1s;
+}
+.client-list-header .sortable:hover {
+  color: var(--accent);
+}
+.client-list-header .sortable.active {
+  color: var(--accent);
+  font-weight: 700;
+}
+
 /* Lead action bar — pinned at top of client detail modal */
 .lead-action-bar {
   background: linear-gradient(135deg, rgba(200, 155, 74, 0.06), transparent);

@@ -971,14 +971,32 @@ export default function Clients() {
                   else clearSelection()
                 }} />
             </div>
-            <div className="cl-score">Score</div>
-            <div className="cl-name">Name</div>
+            <div
+              className={`cl-score sortable ${sortBy === 'highest_score' || sortBy === 'lowest_score' ? 'active' : ''}`}
+              onClick={() => setSortBy(sortBy === 'highest_score' ? 'lowest_score' : 'highest_score')}
+              title="Click to sort by score"
+            >
+              Score {sortBy === 'highest_score' ? '▼' : sortBy === 'lowest_score' ? '▲' : '⇅'}
+            </div>
+            <div
+              className={`cl-name sortable ${sortBy === 'name_az' || sortBy === 'name_za' ? 'active' : ''}`}
+              onClick={() => setSortBy(sortBy === 'name_az' ? 'name_za' : 'name_az')}
+              title="Click to sort by name"
+            >
+              Name {sortBy === 'name_az' ? '▼' : sortBy === 'name_za' ? '▲' : '⇅'}
+            </div>
             <div className="cl-status">Status</div>
             <div className="cl-phone">Phone</div>
             <div className="cl-email">Email</div>
             <div className="cl-address">Address</div>
             <div className="cl-budget">Budget</div>
-            <div className="cl-visits">Visits</div>
+            <div
+              className={`cl-visits sortable ${sortBy === 'most_visits' || sortBy === 'least_visits' ? 'active' : ''}`}
+              onClick={() => setSortBy(sortBy === 'most_visits' ? 'least_visits' : 'most_visits')}
+              title="Click to sort by website visits"
+            >
+              Visits {sortBy === 'most_visits' ? '▼' : sortBy === 'least_visits' ? '▲' : '⇅'}
+            </div>
             <div className="cl-source">Source</div>
             <div className="cl-actions">Actions</div>
           </div>

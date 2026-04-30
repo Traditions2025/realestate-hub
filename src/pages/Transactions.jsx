@@ -33,6 +33,37 @@ export default function Transactions() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyTx)
   const [syncing, setSyncing] = useState(false)
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverStage, setDragOverStage] = useState(null)
+
+  const onDragStart = (e, item) => {
+    setDraggingId(item.id)
+    e.dataTransfer.effectAllowed = 'move'
+    try { e.dataTransfer.setData('text/plain', String(item.id)) } catch {}
+  }
+  const onDragEnd = () => { setDraggingId(null); setDragOverStage(null) }
+  const onDragOver = (e, stage) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverStage !== stage) setDragOverStage(stage)
+  }
+  const onDrop = async (e, newStatus) => {
+    e.preventDefault()
+    setDragOverStage(null)
+    const id = draggingId || Number(e.dataTransfer.getData('text/plain'))
+    setDraggingId(null)
+    if (!id) return
+    const item = items.find(i => i.id === id)
+    if (!item || item.property_status === newStatus) return
+    // Optimistic update
+    setItems(prev => prev.map(i => i.id === id ? { ...i, property_status: newStatus } : i))
+    try {
+      await api.updateTransaction(id, { property_status: newStatus })
+    } catch (err) {
+      alert('Failed to update status: ' + err.message)
+      load() // rollback
+    }
+  }
 
   const load = () => {
     const params = {}
@@ -225,7 +256,13 @@ export default function Transactions() {
             ? items.filter(i => i.property_status === 'Under Contract' || i.property_status === 'Pending')
             : items.filter(i => i.property_status === stage)
           return (
-            <div key={stage} className="pipeline-column">
+            <div
+              key={stage}
+              className={`pipeline-column ${dragOverStage === stage ? 'drop-target' : ''}`}
+              onDragOver={e => onDragOver(e, stage)}
+              onDragLeave={() => setDragOverStage(s => s === stage ? null : s)}
+              onDrop={e => onDrop(e, stage)}
+            >
               <div className="pipeline-header">
                 <span>{stage}</span>
                 <span className="pipeline-count">{stageItems.length}</span>
@@ -235,7 +272,14 @@ export default function Transactions() {
                 const isUnderContract = stage === 'Under Contract'
                 const actions = isUnderContract ? getUpcomingActions(item) : []
                 return (
-                  <div key={item.id} className="pipeline-card" onClick={() => openEdit(item)}>
+                  <div
+                    key={item.id}
+                    className={`pipeline-card ${draggingId === item.id ? 'dragging' : ''}`}
+                    draggable
+                    onDragStart={e => onDragStart(e, item)}
+                    onDragEnd={onDragEnd}
+                    onClick={() => openEdit(item)}
+                  >
                     <div className="pipeline-card-type">
                       <StatusBadge status={item.property_status?.toLowerCase().replace(/ /g, '_')} />
                       <span className={`type-tag type-${item.type}`}>{item.type}</span>
