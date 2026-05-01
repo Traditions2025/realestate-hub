@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
-import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars } from '../transaction-email-templates.js'
+import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -13,9 +13,8 @@ const REPLY_TO = process.env.SENDGRID_REPLY_TO || 'matt@mattsmithteam.com'
 // Always-CC recipients on transaction-related emails (team coordination)
 const TRANSACTION_ALWAYS_CC = ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com']
 
-// Closer info (used to resolve "Cherryl" recipient)
-const CLOSER_NAME = process.env.CLOSER_NAME || 'Cherryl Kennedy'
-const CLOSER_EMAIL = process.env.CLOSER_EMAIL || 'cherryl@atyourserviceesc.com'
+// Closer info — resolved at request time from partners table (with env-var fallback)
+// See lookupCloser() in ../transaction-email-templates.js
 
 // Email signature - appended to all template emails
 const SIGNATURE = `
@@ -343,9 +342,14 @@ router.get('/prelisting-preview/:templateId/:preListingId', (req, res) => {
 function resolveRecipient(recipientType, client, tx) {
   if (recipientType === 'client') return client?.email || ''
   if (recipientType === 'lender') return '' // Lender email isn't stored; user must enter
-  if (recipientType === 'closer') return CLOSER_EMAIL
+  if (recipientType === 'closer') return lookupCloser().email || ''
   return ''
 }
+
+// Endpoint so the frontend can pre-populate Cherryl's email when "Email Cherryl" is clicked
+router.get('/closer-info', (_req, res) => {
+  res.json(lookupCloser())
+})
 
 // Send a pre-listing email (always CCs the team — same coordination policy)
 router.post('/send-prelisting', async (req, res) => {

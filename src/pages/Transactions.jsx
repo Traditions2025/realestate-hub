@@ -80,17 +80,35 @@ export default function Transactions() {
     authFetch('/api/email/transaction-templates').then(r => r.json()).then(setEmailTemplates).catch(() => {})
   }, [])
 
-  const openEmailComposer = (recipientType) => {
+  const openEmailComposer = async (recipientType) => {
     if (!editing) { alert('Save the transaction first.'); return }
+    let toEmail = ''
+    let toName = ''
+    if (recipientType === 'client') {
+      toEmail = linkedClient?.email || ''
+      toName = linkedClient ? `${linkedClient.first_name} ${linkedClient.last_name}` : ''
+    } else if (recipientType === 'closer') {
+      // Pull Cherryl's info from the Partners table dynamically
+      try {
+        const closer = await authFetch('/api/email/closer-info').then(r => r.json())
+        toEmail = closer?.email || ''
+        toName = closer?.name || ''
+        if (!toEmail) {
+          alert('Cherryl\'s email is not set. Add her on the Partners tab with role "Closer" or "Closing Coordinator", or set name "Cherryl" / company "At Your Service Escrow".')
+          return
+        }
+      } catch {
+        alert('Could not load closer info from Partners. Please check the Partners tab.')
+        return
+      }
+    } else if (recipientType === 'lender') {
+      toName = form.lender_name || ''
+    }
     setEmailForm({
       template_id: '',
       recipient_type: recipientType,
-      to_email: recipientType === 'client' ? (linkedClient?.email || '')
-              : recipientType === 'closer' ? 'cherryl@atyourserviceesc.com'
-              : '',
-      to_name: recipientType === 'client' ? (linkedClient ? `${linkedClient.first_name} ${linkedClient.last_name}` : '')
-             : recipientType === 'closer' ? 'Cherryl Kennedy'
-             : (recipientType === 'lender' ? form.lender_name : ''),
+      to_email: toEmail,
+      to_name: toName,
       subject: '',
       body: '',
       auto_cc: ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com'],

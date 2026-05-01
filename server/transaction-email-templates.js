@@ -1,4 +1,5 @@
 // Transaction email templates — buyer & seller workflows
+import db from './database.js'
 // Merge variables available:
 //   Client: {{first_name}}, {{last_name}}, {{full_name}}, {{email}}, {{phone}}, {{address}}, {{city}}
 //   Transaction: {{property_address}}, {{purchase_price}}, {{purchase_price_formatted}}, {{closing_date}},
@@ -63,7 +64,7 @@ INSURANCE COVERAGE
 There is an insurance contingency in the contract. Please make sure you have homeowners insurance lined up right away so the deadline is met. If you need recommendations for insurance providers, we'd be happy to share a few great options.
 
 UTILITIES
-Within one week of your closing date, you will want to set utilities up in your name so service begins the morning of closing day. We will send you a reminder as closing gets closer.
+At least 1 business week (5 business days) before your closing date of {{closing_date}}, you will need to set up utilities in your name so service begins the morning of closing day. We will send you a separate reminder a week ahead of closing.
 
 Utility providers for the Cedar Rapids area:
 - Alliant Energy: 800-255-4268
@@ -126,6 +127,46 @@ Our job throughout this process is to make sure you have complete clarity on wha
 Please let us know if you have any questions. Come in curious, not worried — this is the process working exactly as it should, and we've got you covered.${SIG}`,
   },
 
+  buyer_utilities_reminder: {
+    name: '⚡ Buyer — Utilities Setup Reminder (1 business week out)',
+    role: 'buyer',
+    recipient: 'client',
+    subject: 'Action needed: Set up utilities for {{property_address}} before {{closing_date}}',
+    body: `Hi {{first_name}},
+
+Quick reminder — closing on {{property_address}} is coming up on {{closing_date}}, which means it's time to set up your utilities.
+
+You'll want everything turned on in your name so service starts the morning of closing day. Please contact each provider at least 1 business week (5 business days) before closing.
+
+CEDAR RAPIDS / LINN COUNTY UTILITY PROVIDERS
+
+Electric:
+- Alliant Energy: 800-255-4268
+- Linn County REC (rural): 800-255-4268
+
+Gas:
+- MidAmerican Energy: 888-427-5632
+
+Water / Sewer / Trash:
+- City of Cedar Rapids: 319-286-5900
+- City of Marion: 319-377-1581
+- City of Hiawatha: 319-393-1515
+
+Internet / Cable (optional, schedule install):
+- Mediacom: 855-633-4226
+- ImOn Communications: 319-298-6484
+- CenturyLink / Quantum Fiber: 800-244-1111
+
+WHAT TO TELL EACH PROVIDER
+- Service start date: {{closing_date}}
+- Property address: {{property_address}}
+- You're the new owner
+
+Once everything's scheduled, just reply and let us know — we'll note it in the file. If you need help with any of these, give us a call at (319) 431-5859.
+
+Thanks!${SIG}`,
+  },
+
   buyer_closing_reminder: {
     name: '📅 Buyer — Closing Reminder (1 week out)',
     role: 'buyer',
@@ -135,11 +176,12 @@ Please let us know if you have any questions. Come in curious, not worried — t
 
 We're one week out from closing on {{property_address}} on {{closing_date}}. Quick reminders so everything stays on track:
 
-UTILITIES
-Within the next few days, please set up the following in your name effective {{closing_date}}:
+UTILITIES — please set up at least 1 business week (5 business days) before closing
+Set the following in your name effective {{closing_date}}:
 - Electric: Alliant Energy 800-255-4268 (or Linn County REC 800-255-4268 for rural)
 - Gas: MidAmerican Energy 888-427-5632
-- Water/Sewer/Trash: City of Cedar Rapids 319-286-5900
+- Water/Sewer/Trash: City of Cedar Rapids 319-286-5900 (Marion 319-377-1581 / Hiawatha 319-393-1515)
+- Internet: Mediacom, ImOn, or CenturyLink (at your preference)
 
 INSURANCE
 Make sure your homeowners insurance binder lists {{closing_date}} as the effective date. The lender will need a copy.
@@ -422,11 +464,49 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.lender_name = transaction.lender_name || ''
     v.lender_company = transaction.lender_company || ''
   }
-  // Closer (always Cherryl)
-  v.closer_name = process.env.CLOSER_NAME || 'Cherryl Kennedy'
-  v.closer_company = process.env.CLOSER_COMPANY || 'At Your Service Escrow'
-  v.closer_email = process.env.CLOSER_EMAIL || 'cherryl@atyourserviceesc.com'
+  // Closer info — look up from partners table by role first, fall back to env vars
+  const closer = lookupCloser()
+  v.closer_name = closer.name
+  v.closer_company = closer.company
+  v.closer_email = closer.email
+  v.closer_phone = closer.phone
   // Extras override
   for (const [k, val] of Object.entries(extra || {})) v[k] = val
   return v
+}
+
+// Resolve "the closer" (Cherryl) by checking partners table for a record
+// flagged as Closer / Closing Coordinator / Title Company / Escrow.
+// Cached for 5 min to avoid hammering the DB on every email.
+let _closerCache = null
+let _closerCacheTime = 0
+export function lookupCloser() {
+  const now = Date.now()
+  if (_closerCache && (now - _closerCacheTime < 5 * 60 * 1000)) return _closerCache
+  let row = null
+  try {
+    // Try multiple role variations — Matt may have entered any of these
+    const roles = ['Closer', 'Closing Coordinator', 'Closing', 'Escrow', 'Title Company']
+    for (const role of roles) {
+      row = db.get(
+        "SELECT * FROM partners WHERE role = ? AND email IS NOT NULL AND email != '' ORDER BY preferred DESC, id DESC LIMIT 1",
+        [role]
+      )
+      if (row) break
+    }
+    // Fall back: any partner whose name or company contains "cherryl" / "at your service"
+    if (!row) {
+      row = db.get(
+        "SELECT * FROM partners WHERE (LOWER(name) LIKE '%cherryl%' OR LOWER(company) LIKE '%at your service%') AND email IS NOT NULL AND email != '' ORDER BY preferred DESC, id DESC LIMIT 1"
+      )
+    }
+  } catch {}
+  _closerCache = {
+    name: row?.name || process.env.CLOSER_NAME || 'Cherryl Kennedy',
+    company: row?.company || process.env.CLOSER_COMPANY || 'At Your Service Escrow',
+    email: row?.email || process.env.CLOSER_EMAIL || '',
+    phone: row?.phone || process.env.CLOSER_PHONE || '',
+  }
+  _closerCacheTime = now
+  return _closerCache
 }
