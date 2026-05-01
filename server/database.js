@@ -122,6 +122,11 @@ export async function initDb() {
       final_inspection_waiver TEXT,
       -- Finance
       type_of_finance TEXT,
+      earnest_money_due_date TEXT,
+      ipi_due_date TEXT,
+      lender_name TEXT,
+      lender_company TEXT,
+      dotloop_status TEXT DEFAULT 'Not Submitted',
       -- Checklist Items (boolean columns from sheet)
       remove_listing_alerts INTEGER DEFAULT 0,
       email_contract_closing INTEGER DEFAULT 0,
@@ -565,6 +570,26 @@ export async function initDb() {
     }
   } catch (e) {
     console.error('[migration] Client columns failed:', e.message)
+  }
+
+  // Migration: add new transaction columns (earnest money due, IPI, lender, dotloop)
+  try {
+    const cols = db.exec("PRAGMA table_info(transactions)")[0]?.values.map(v => v[1]) || []
+    const newTxCols = [
+      ['earnest_money_due_date', 'TEXT'],
+      ['ipi_due_date', 'TEXT'],
+      ['lender_name', 'TEXT'],
+      ['lender_company', 'TEXT'],
+      ['dotloop_status', "TEXT DEFAULT 'Not Submitted'"],
+    ]
+    for (const [name, type] of newTxCols) {
+      if (!cols.includes(name)) {
+        db.run(`ALTER TABLE transactions ADD COLUMN ${name} ${type}`)
+        console.log(`[migration] Added transactions.${name}`)
+      }
+    }
+  } catch (e) {
+    console.error('[migration] transactions new cols failed:', e.message)
   }
 
   // Migration: add marketing_tasks column to listings if missing

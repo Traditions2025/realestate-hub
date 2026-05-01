@@ -34,6 +34,15 @@ export default function PreListings() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [syncing, setSyncing] = useState(false)
+  const [emailTpls, setEmailTpls] = useState([])
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [emailForm, setEmailForm] = useState({ template_id: '', to_email: '', to_name: '', subject: '', body: '' })
+  const [emailSending, setEmailSending] = useState(false)
+  const [linkedClient, setLinkedClient] = useState(null)
+
+  useEffect(() => {
+    authFetch('/api/email/prelisting-templates').then(r => r.json()).then(setEmailTpls).catch(() => {})
+  }, [])
 
   const load = () => {
     const params = {}
@@ -89,6 +98,55 @@ export default function PreListings() {
   }
 
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
+
+  const openEmail = async () => {
+    if (!editing) { alert('Save the pre-listing first.'); return }
+    let cl = null
+    if (form.client_id) {
+      try { cl = await authFetch(`/api/clients/${form.client_id}`).then(r => r.json()) } catch {}
+    }
+    setLinkedClient(cl)
+    setEmailForm({
+      template_id: '',
+      to_email: cl?.email || '',
+      to_name: cl ? `${cl.first_name} ${cl.last_name}` : '',
+      subject: '',
+      body: '',
+    })
+    setEmailOpen(true)
+  }
+
+  const loadTpl = async (tplId) => {
+    if (!tplId || !editing) return
+    try {
+      const r = await authFetch(`/api/email/prelisting-preview/${tplId}/${editing}`)
+      const d = await r.json()
+      if (d.error) { alert(d.error); return }
+      setEmailForm(prev => ({ ...prev, template_id: tplId, subject: d.subject, body: d.body, to_email: prev.to_email || d.suggested_to || '' }))
+    } catch (e) { alert(e.message) }
+  }
+
+  const sendEmail = async () => {
+    if (!emailForm.to_email || !emailForm.subject || !emailForm.body) { alert('Recipient, subject, and body required.'); return }
+    setEmailSending(true)
+    try {
+      const r = await authFetch('/api/email/send-prelisting', {
+        method: 'POST',
+        body: JSON.stringify({
+          pre_listing_id: editing,
+          to_email: emailForm.to_email,
+          to_name: emailForm.to_name,
+          subject: emailForm.subject,
+          body: emailForm.body,
+          template_id: emailForm.template_id,
+        }),
+      })
+      const d = await r.json()
+      if (d.error) { alert('Send failed: ' + d.error); return }
+      alert(`✓ Sent to ${emailForm.to_email}\nCC: ${(d.cc || []).join(', ')}`)
+      setEmailOpen(false)
+    } catch (e) { alert(e.message) } finally { setEmailSending(false) }
+  }
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
 
   const getProgress = (item) => {
@@ -177,11 +235,43 @@ export default function PreListings() {
             ))}
           </div>
           <label>Notes<textarea value={form.notes} onChange={e => f2('notes', e.target.value)} rows={3} /></label>
+          {editing && (
+            <div style={{marginTop: 16, padding: '12px 14px', background: 'rgba(200, 155, 74, 0.08)', border: '1px solid rgba(200, 155, 74, 0.3)', borderRadius: 6}}>
+              <h4 style={{margin: '0 0 8px', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--accent)'}}>📧 Send Pre-Listing Email</h4>
+              <p className="muted" style={{margin: '0 0 8px', fontSize: 12}}>Templates: photo day prep, walkthrough recap, listing agreement ready. Auto-CC the team.</p>
+              <button type="button" className="btn btn-secondary" onClick={openEmail}>Open Email Composer</button>
+            </div>
+          )}
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'}</button>
           </div>
         </form>
+      </Modal>
+
+      <Modal open={emailOpen} onClose={() => setEmailOpen(false)} title="Send Pre-Listing Email" wide>
+        <div className="field-group">
+          <h4>Template</h4>
+          <select value={emailForm.template_id} onChange={e => loadTpl(e.target.value)} style={{width: '100%'}}>
+            <option value="">— Choose a template (or write from scratch) —</option>
+            {emailTpls.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+        <div className="form-row">
+          <label>To (email)<input type="email" value={emailForm.to_email} onChange={e => setEmailForm(p => ({ ...p, to_email: e.target.value }))} /></label>
+          <label>To (name)<input value={emailForm.to_name} onChange={e => setEmailForm(p => ({ ...p, to_name: e.target.value }))} /></label>
+        </div>
+        <div className="muted" style={{padding: '6px 10px', background: 'rgba(200, 155, 74, 0.08)', borderRadius: 4, marginBottom: 10}}>
+          📋 Auto-CC: johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com
+        </div>
+        <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
+        <label>Body<textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} /></label>
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={() => setEmailOpen(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={sendEmail} disabled={emailSending || !emailForm.to_email}>
+            {emailSending ? 'Sending...' : 'Send Email'}
+          </button>
+        </div>
       </Modal>
     </div>
   )

@@ -2967,6 +2967,32 @@ input[type="range"] {
   font-weight: 700;
 }
 
+/* Linked client card on transaction modal */
+.linked-client-card {
+  margin-top: 8px;
+  padding: 10px 14px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 6px;
+}
+.linked-client-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.linked-client-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 /* Lead action bar — pinned at top of client detail modal */
 .lead-action-bar {
   background: linear-gradient(135deg, rgba(200, 155, 74, 0.06), transparent);

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars } from '../transaction-email-templates.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -8,6 +9,13 @@ const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || ''
 const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || 'mattsmithremax@gmail.com'
 const FROM_NAME = process.env.SENDGRID_FROM_NAME || 'Matt Smith Team'
 const REPLY_TO = process.env.SENDGRID_REPLY_TO || 'matt@mattsmithteam.com'
+
+// Always-CC recipients on transaction-related emails (team coordination)
+const TRANSACTION_ALWAYS_CC = ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com']
+
+// Closer info (used to resolve "Cherryl" recipient)
+const CLOSER_NAME = process.env.CLOSER_NAME || 'Cherryl Kennedy'
+const CLOSER_EMAIL = process.env.CLOSER_EMAIL || 'cherryl@atyourserviceesc.com'
 
 // Email signature - appended to all template emails
 const SIGNATURE = `
@@ -118,10 +126,16 @@ router.get('/preview/:templateId/:clientId', (req, res) => {
   })
 })
 
-// Send a single email via SendGrid
-async function sendViaSendGrid(to, toName, subject, body, replyTo) {
+// Send a single email via SendGrid (supports CC + BCC)
+async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = []) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
+  }
+  const personalization = { to: [{ email: to, name: toName || undefined }] }
+  if (ccList && ccList.length) {
+    // Dedupe and exclude the primary recipient from CC
+    const uniqueCc = [...new Set(ccList.filter(e => e && e.toLowerCase() !== to.toLowerCase()))]
+    if (uniqueCc.length) personalization.cc = uniqueCc.map(email => ({ email }))
   }
   const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
@@ -130,7 +144,7 @@ async function sendViaSendGrid(to, toName, subject, body, replyTo) {
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      personalizations: [{ to: [{ email: to, name: toName || undefined }] }],
+      personalizations: [personalization],
       from: { email: FROM_EMAIL, name: FROM_NAME },
       reply_to: { email: replyTo || REPLY_TO, name: FROM_NAME },
       subject,
@@ -260,6 +274,136 @@ router.get('/check-config', (req, res) => {
     from_email: FROM_EMAIL,
     from_name: FROM_NAME,
   })
+})
+
+// =========================================================
+// TRANSACTION & PRE-LISTING TEMPLATES + SEND
+// =========================================================
+
+// List available transaction templates
+router.get('/transaction-templates', (_req, res) => {
+  const list = Object.entries(TRANSACTION_TEMPLATES).map(([id, t]) => ({
+    id,
+    name: t.name,
+    role: t.role,
+    recipient: t.recipient,
+    subject: t.subject,
+  }))
+  res.json(list)
+})
+
+// List available pre-listing templates
+router.get('/prelisting-templates', (_req, res) => {
+  const list = Object.entries(PRELISTING_TEMPLATES).map(([id, t]) => ({
+    id,
+    name: t.name,
+    recipient: t.recipient,
+    subject: t.subject,
+  }))
+  res.json(list)
+})
+
+// Preview a transaction template — fills merge vars from transaction + linked client
+router.get('/transaction-preview/:templateId/:transactionId', (req, res) => {
+  const tpl = TRANSACTION_TEMPLATES[req.params.templateId]
+  if (!tpl) return res.status(404).json({ error: 'Template not found' })
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [Number(req.params.transactionId)])
+  if (!tx) return res.status(404).json({ error: 'Transaction not found' })
+  const client = tx.client_id ? db.get('SELECT * FROM clients WHERE id = ?', [tx.client_id]) : null
+  const vars = buildMergeVars(client, tx)
+  res.json({
+    template_id: req.params.templateId,
+    name: tpl.name,
+    role: tpl.role,
+    recipient: tpl.recipient,
+    subject: fillMergeVars(tpl.subject, vars),
+    body: fillMergeVars(tpl.body, vars),
+    suggested_to: resolveRecipient(tpl.recipient, client, tx),
+    auto_cc: TRANSACTION_ALWAYS_CC,
+  })
+})
+
+// Preview a pre-listing template
+router.get('/prelisting-preview/:templateId/:preListingId', (req, res) => {
+  const tpl = PRELISTING_TEMPLATES[req.params.templateId]
+  if (!tpl) return res.status(404).json({ error: 'Template not found' })
+  const pl = db.get('SELECT * FROM pre_listings WHERE id = ?', [Number(req.params.preListingId)])
+  if (!pl) return res.status(404).json({ error: 'Pre-listing not found' })
+  const client = pl.client_id ? db.get('SELECT * FROM clients WHERE id = ?', [pl.client_id]) : null
+  const vars = buildMergeVars(client, { property_address: pl.property_address })
+  res.json({
+    template_id: req.params.templateId,
+    name: tpl.name,
+    subject: fillMergeVars(tpl.subject, vars),
+    body: fillMergeVars(tpl.body, vars),
+    suggested_to: client?.email || '',
+  })
+})
+
+function resolveRecipient(recipientType, client, tx) {
+  if (recipientType === 'client') return client?.email || ''
+  if (recipientType === 'lender') return '' // Lender email isn't stored; user must enter
+  if (recipientType === 'closer') return CLOSER_EMAIL
+  return ''
+}
+
+// Send a pre-listing email (always CCs the team — same coordination policy)
+router.post('/send-prelisting', async (req, res) => {
+  const { pre_listing_id, to_email, to_name, subject, body, template_id, additional_cc } = req.body
+  if (!to_email || !subject || !body) {
+    return res.status(400).json({ error: 'to_email, subject, and body are required' })
+  }
+  const pl = pre_listing_id ? db.get('SELECT * FROM pre_listings WHERE id = ?', [Number(pre_listing_id)]) : null
+  const client = pl?.client_id ? db.get('SELECT * FROM clients WHERE id = ?', [pl.client_id]) : null
+
+  const ccList = [...TRANSACTION_ALWAYS_CC]
+  if (Array.isArray(additional_cc)) ccList.push(...additional_cc.filter(Boolean))
+
+  try {
+    const result = await sendViaSendGrid(to_email, to_name, subject, body, REPLY_TO, ccList)
+    db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
+      template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [n(client?.id), to_email, FROM_EMAIL, FROM_NAME, subject, body,
+        n(template_id), 'sent', 'sendgrid', n(result.messageId), n(req.body.sent_by) || 'team'])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['email_sent', 'pre_listing', pl?.id || null, `Pre-listing email sent to ${to_email}: ${subject}`])
+    res.json({ success: true, messageId: result.messageId, cc: ccList })
+  } catch (err) {
+    db.run(`INSERT INTO email_log (client_id, to_email, subject, body, template, status, error)
+      VALUES (?,?,?,?,?,?,?)`,
+      [n(client?.id), to_email, subject, body, n(template_id), 'failed', err.message])
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// Send a transaction-related email (always CCs the team)
+router.post('/send-transaction', async (req, res) => {
+  const { transaction_id, to_email, to_name, subject, body, template_id, additional_cc } = req.body
+  if (!to_email || !subject || !body) {
+    return res.status(400).json({ error: 'to_email, subject, and body are required' })
+  }
+  const tx = transaction_id ? db.get('SELECT * FROM transactions WHERE id = ?', [Number(transaction_id)]) : null
+  const client = tx?.client_id ? db.get('SELECT * FROM clients WHERE id = ?', [tx.client_id]) : null
+
+  // Build CC list: always-CC team members + any additional from request
+  const ccList = [...TRANSACTION_ALWAYS_CC]
+  if (Array.isArray(additional_cc)) ccList.push(...additional_cc.filter(Boolean))
+
+  try {
+    const result = await sendViaSendGrid(to_email, to_name, subject, body, REPLY_TO, ccList)
+    db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
+      template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [n(client?.id), to_email, FROM_EMAIL, FROM_NAME, subject, body,
+        n(template_id), 'sent', 'sendgrid', n(result.messageId), n(req.body.sent_by) || 'team'])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['email_sent', 'transaction', tx?.id || null, `Transaction email sent to ${to_email} (CC: ${ccList.join(', ')}): ${subject}`])
+    res.json({ success: true, messageId: result.messageId, cc: ccList })
+  } catch (err) {
+    db.run(`INSERT INTO email_log (client_id, to_email, subject, body, template, status, error)
+      VALUES (?,?,?,?,?,?,?)`,
+      [n(client?.id), to_email, subject, body, n(template_id), 'failed', err.message])
+    res.status(500).json({ error: err.message })
+  }
 })
 
 export default router

@@ -21,14 +21,16 @@ function logActivity(action, entityType, entityId, details) {
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)', [action, entityType, entityId, details])
 }
 
-// All fields matching Google Sheet "Transaction 2026" tab
+// All fields matching Google Sheet "Transaction 2026" tab + new fields
 const FIELDS = [
   'property_address', 'mls_number', 'type', 'source', 'buyer_name', 'buyers_agent_name',
   'seller_name', 'sellers_agent_name', 'agency_type', 'property_status', 'list_price',
   'purchase_price', 'contract_date', 'closing_date', 'mortgage_contingency_date',
   'appraisal_contingency_date', 'appraisal_contingency_status', 'inspection_contingency_date',
   'financing_release', 'final_walkthrough', 'inspection_release', 'final_inspection_waiver',
-  'type_of_finance', 'remove_listing_alerts', 'email_contract_closing', 'ayse_added_to_loop',
+  'type_of_finance',
+  'earnest_money_due_date', 'ipi_due_date', 'lender_name', 'lender_company', 'dotloop_status',
+  'remove_listing_alerts', 'email_contract_closing', 'ayse_added_to_loop',
   'ayse_contracts_signed', 'earnest_money_deposit', 'home_inspection', 'home_inspector',
   'inspection_date', 'whole_property_inspection', 'radon_test', 'wdi_inspection',
   'septic_inspection', 'well_inspection', 'sewer_inspection', 'seller_acknowledgment',

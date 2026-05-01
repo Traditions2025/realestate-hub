@@ -13,14 +13,41 @@ const emptyTx = {
   closing_date: '', mortgage_contingency_date: '', appraisal_contingency_date: '',
   appraisal_contingency_status: 'Not Started', inspection_contingency_date: '',
   financing_release: '', final_walkthrough: '', inspection_release: '', final_inspection_waiver: '',
-  type_of_finance: '', remove_listing_alerts: 0, email_contract_closing: 0,
+  type_of_finance: '',
+  earnest_money_due_date: '', ipi_due_date: '',
+  lender_name: '', lender_company: '',
+  dotloop_status: 'Not Submitted',
+  remove_listing_alerts: 0, email_contract_closing: 0,
   ayse_added_to_loop: 0, ayse_contracts_signed: 0, earnest_money_deposit: 'Not Started',
   home_inspection: 'Not Started', home_inspector: '', inspection_date: '',
   whole_property_inspection: 0, radon_test: 0, wdi_inspection: 0, septic_inspection: 0,
-  well_inspection: 0, sewer_inspection: 0, seller_acknowledgment: 0, abstract: '',
-  title_commitment: '', mortgage_payoff: '', alta_statement: '', deed_package: '',
+  well_inspection: 0, sewer_inspection: 0, seller_acknowledgment: 0, abstract: 'Not Started',
+  title_commitment: 'Not Started', mortgage_payoff: 'Not Started',
+  alta_statement: 'Not Ready', deed_package: 'Not Ready',
   utilities_set: 0, sales_worksheet_added: 0, submit_loop_review: 0, approved_commission: 0,
   closing_complete: 0, testimonial_request: 0, client_id: '', tc_assigned: '', notes: ''
+}
+
+// Dropdown options for document/status fields
+const ABSTRACT_OPTIONS = ['Not Started', 'Ordered', 'Received', 'N/A']
+const TITLE_COMMITMENT_OPTIONS = ['Not Started', 'Ordered', 'Received', 'N/A']
+const MORTGAGE_PAYOFF_OPTIONS = ['Not Started', 'Requested', 'Received', 'N/A']
+const ALTA_OPTIONS = ['Not Ready', 'Ready']
+const DEED_PACKAGE_OPTIONS = ['Not Ready', 'Ready', 'Signed']
+const DOTLOOP_OPTIONS = ['Not Submitted', 'Needs Review', 'Listing Approved', 'Approved for Commission']
+
+// Calculate earnest money due date — 3 business days from contract date
+function calcEarnestDue(contractDate) {
+  if (!contractDate) return ''
+  const d = new Date(contractDate)
+  if (isNaN(d)) return ''
+  let added = 0
+  while (added < 3) {
+    d.setDate(d.getDate() + 1)
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) added++
+  }
+  return d.toISOString().split('T')[0]
 }
 
 export default function Transactions() {
@@ -38,10 +65,93 @@ export default function Transactions() {
   const [extractingPdf, setExtractingPdf] = useState(false)
   const [extractResult, setExtractResult] = useState(null)
   const [aiConfigured, setAiConfigured] = useState(false)
+  const [linkedClient, setLinkedClient] = useState(null)
+  // Email composer
+  const [emailOpen, setEmailOpen] = useState(false)
+  const [emailTemplates, setEmailTemplates] = useState([])
+  const [emailForm, setEmailForm] = useState({
+    template_id: '', recipient_type: 'client', to_email: '', to_name: '',
+    subject: '', body: '', auto_cc: [],
+  })
+  const [emailSending, setEmailSending] = useState(false)
 
   useEffect(() => {
     authFetch('/api/transactions/_meta/ai-status').then(r => r.json()).then(d => setAiConfigured(!!d.configured)).catch(() => {})
+    authFetch('/api/email/transaction-templates').then(r => r.json()).then(setEmailTemplates).catch(() => {})
   }, [])
+
+  const openEmailComposer = (recipientType) => {
+    if (!editing) { alert('Save the transaction first.'); return }
+    setEmailForm({
+      template_id: '',
+      recipient_type: recipientType,
+      to_email: recipientType === 'client' ? (linkedClient?.email || '')
+              : recipientType === 'closer' ? 'cherryl@atyourserviceesc.com'
+              : '',
+      to_name: recipientType === 'client' ? (linkedClient ? `${linkedClient.first_name} ${linkedClient.last_name}` : '')
+             : recipientType === 'closer' ? 'Cherryl Kennedy'
+             : (recipientType === 'lender' ? form.lender_name : ''),
+      subject: '',
+      body: '',
+      auto_cc: ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com'],
+    })
+    setEmailOpen(true)
+  }
+
+  const loadEmailTemplate = async (templateId) => {
+    if (!templateId || !editing) return
+    try {
+      const r = await authFetch(`/api/email/transaction-preview/${templateId}/${editing}`)
+      const d = await r.json()
+      if (d.error) { alert(d.error); return }
+      setEmailForm(prev => ({
+        ...prev,
+        template_id: templateId,
+        subject: d.subject,
+        body: d.body,
+        recipient_type: d.recipient,
+        to_email: d.suggested_to || prev.to_email,
+        auto_cc: d.auto_cc || prev.auto_cc,
+      }))
+    } catch (e) {
+      alert('Failed to load template: ' + e.message)
+    }
+  }
+
+  const sendTransactionEmail = async () => {
+    if (!emailForm.to_email || !emailForm.subject || !emailForm.body) {
+      alert('Recipient, subject, and body are required.'); return
+    }
+    setEmailSending(true)
+    try {
+      const r = await authFetch('/api/email/send-transaction', {
+        method: 'POST',
+        body: JSON.stringify({
+          transaction_id: editing,
+          to_email: emailForm.to_email,
+          to_name: emailForm.to_name,
+          subject: emailForm.subject,
+          body: emailForm.body,
+          template_id: emailForm.template_id,
+        }),
+      })
+      const d = await r.json()
+      if (d.error) { alert('Send failed: ' + d.error); return }
+      alert(`✓ Email sent to ${emailForm.to_email}\nCC: ${(d.cc || []).join(', ')}`)
+      setEmailOpen(false)
+    } catch (e) {
+      alert('Send failed: ' + e.message)
+    } finally {
+      setEmailSending(false)
+    }
+  }
+
+  // When the modal-bound client_id changes, fetch full client info to display inline
+  useEffect(() => {
+    const cid = form.client_id
+    if (!cid) { setLinkedClient(null); return }
+    authFetch(`/api/clients/${cid}`).then(r => r.json()).then(setLinkedClient).catch(() => setLinkedClient(null))
+  }, [form.client_id])
 
   const fileToBase64 = (file) => new Promise((resolve, reject) => {
     const r = new FileReader()
@@ -603,28 +713,77 @@ export default function Transactions() {
               <label>Seller Name<input value={form.seller_name} onChange={e => f('seller_name', e.target.value)} /></label>
               <label>Seller's Agent<input value={form.sellers_agent_name} onChange={e => f('sellers_agent_name', e.target.value)} /></label>
             </div>
-            <label>TC Assigned<input value={form.tc_assigned} onChange={e => f('tc_assigned', e.target.value)} /></label>
-            <label>Client (from CRM)<select value={form.client_id} onChange={e => f('client_id', e.target.value)}>
+            <label>Client (from CRM — represents who we're working for)<select value={form.client_id} onChange={e => f('client_id', e.target.value)}>
               <option value="">Select client...</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}</option>)}
+              {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.email ? ' · ' + c.email : ''}</option>)}
+            </select></label>
+            {linkedClient && (
+              <div className="linked-client-card">
+                <div className="linked-client-name">
+                  📇 {linkedClient.first_name} {linkedClient.last_name}
+                  {linkedClient.lead_score && <span className="email-status-tag">Score {linkedClient.lead_score}</span>}
+                </div>
+                <div className="linked-client-row">
+                  {linkedClient.email && <span>✉ {linkedClient.email}</span>}
+                  {linkedClient.phone && <span>☎ {linkedClient.phone}</span>}
+                  {linkedClient.address && <span>📍 {linkedClient.address}{linkedClient.city ? ', ' + linkedClient.city : ''}</span>}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Lender */}
+          <div className="form-section">
+            <h4>Lender</h4>
+            <div className="form-row">
+              <label>Lender Name<input value={form.lender_name} onChange={e => f('lender_name', e.target.value)} placeholder="e.g. Tim Lamb" /></label>
+              <label>Lender Company<input value={form.lender_company} onChange={e => f('lender_company', e.target.value)} placeholder="e.g. Corda Credit Union" /></label>
+            </div>
+            <label>Type of Finance<select value={form.type_of_finance} onChange={e => f('type_of_finance', e.target.value)}>
+              <option value="">Select...</option>
+              {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
             </select></label>
           </div>
 
           {/* Pricing */}
           <div className="form-section">
             <h4>Pricing</h4>
-            <div className="form-row">
-              <label>List Price<input type="number" value={form.list_price} onChange={e => f('list_price', e.target.value)} /></label>
-              <label>Purchase Price<input type="number" value={form.purchase_price} onChange={e => f('purchase_price', e.target.value)} /></label>
-            </div>
+            <label>Purchase Price<input type="number" value={form.purchase_price} onChange={e => f('purchase_price', e.target.value)} /></label>
+            <label>Earnest Money Amount<input value={form.earnest_money_deposit} onChange={e => f('earnest_money_deposit', e.target.value)} placeholder="e.g. $5,000" /></label>
           </div>
 
           {/* Key Dates */}
           <div className="form-section">
             <h4>Key Dates</h4>
             <div className="form-row">
-              <label>Contract Date<input type="date" value={form.contract_date} onChange={e => f('contract_date', e.target.value)} /></label>
+              <label>Contract Date
+                <input
+                  type="date"
+                  value={form.contract_date}
+                  onChange={e => {
+                    const v = e.target.value
+                    setForm(prev => {
+                      const next = { ...prev, contract_date: v }
+                      // Auto-populate earnest money due date if empty (3 business days after contract)
+                      if (v && !prev.earnest_money_due_date) {
+                        next.earnest_money_due_date = calcEarnestDue(v)
+                      }
+                      return next
+                    })
+                  }}
+                />
+              </label>
               <label>Closing Date<input type="date" value={form.closing_date} onChange={e => f('closing_date', e.target.value)} /></label>
+            </div>
+            <div className="form-row">
+              <label title="Auto-set 3 business days after contract date — editable">
+                Earnest Money Due
+                <input type="date" value={form.earnest_money_due_date} onChange={e => f('earnest_money_due_date', e.target.value)} />
+              </label>
+              <label title="Initial Property Inspection response due">
+                IPI Due Date
+                <input type="date" value={form.ipi_due_date} onChange={e => f('ipi_due_date', e.target.value)} />
+              </label>
             </div>
             <div className="form-row">
               <label>Mortgage Contingency<input type="date" value={form.mortgage_contingency_date} onChange={e => f('mortgage_contingency_date', e.target.value)} /></label>
@@ -641,44 +800,72 @@ export default function Transactions() {
             <label>Final Inspection Waiver<input type="date" value={form.final_inspection_waiver} onChange={e => f('final_inspection_waiver', e.target.value)} /></label>
           </div>
 
-          {/* Inspections */}
-          <div className="form-section">
-            <h4>Inspections</h4>
+          {/* Inspection */}
+          <div className="form-section form-full">
+            <h4>Inspection</h4>
             <div className="form-row">
-              <label>Earnest Money<select value={form.earnest_money_deposit} onChange={e => f('earnest_money_deposit', e.target.value)}>
-                <option value="Not Started">Not Started</option><option value="Completed">Completed</option><option value="N/A">N/A</option>
-              </select></label>
               <label>Home Inspection<select value={form.home_inspection} onChange={e => f('home_inspection', e.target.value)}>
-                <option value="Not Started">Not Started</option><option value="In Progress">In Progress</option>
-                <option value="Completed">Completed</option><option value="N/A">N/A</option>
+                <option value="Not Started">Not Started</option><option value="Scheduled">Scheduled</option>
+                <option value="In Progress">In Progress</option><option value="Completed">Completed</option><option value="N/A">N/A</option>
               </select></label>
-            </div>
-            <div className="form-row">
-              <label>Home Inspector<input value={form.home_inspector} onChange={e => f('home_inspector', e.target.value)} /></label>
+              <label>Home Inspector<input value={form.home_inspector} onChange={e => f('home_inspector', e.target.value)} placeholder="e.g. 5 Seasons Home Inspections" /></label>
               <label>Inspection Date<input type="date" value={form.inspection_date} onChange={e => f('inspection_date', e.target.value)} /></label>
             </div>
             <label>Appraisal Status<select value={form.appraisal_contingency_status} onChange={e => f('appraisal_contingency_status', e.target.value)}>
               <option value="Not Started">Not Started</option><option value="Ordered">Ordered</option>
               <option value="Completed">Completed</option><option value="N/A">N/A</option>
             </select></label>
+            <div className="checklist-grid" style={{marginTop: 10}}>
+              {[
+                ['whole_property_inspection', 'Whole Property Inspection'],
+                ['radon_test', 'Radon Test'],
+                ['wdi_inspection', 'WDI (Wood-Destroying Insect)'],
+                ['septic_inspection', 'Septic Inspection'],
+                ['well_inspection', 'Well Inspection'],
+                ['sewer_inspection', 'Sewer Inspection'],
+              ].map(([key, label]) => (
+                <label key={key} className="checkbox-label">
+                  <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />
+                  {label}
+                </label>
+              ))}
+            </div>
           </div>
 
-          {/* Checklist */}
+          {/* Title & Closing Documents (dropdowns) */}
           <div className="form-section form-full">
-            <h4>Checklist</h4>
-            <div className="checklist-grid">
+            <h4>Title & Closing Documents</h4>
+            <div className="form-row" style={{gridTemplateColumns: 'repeat(5, 1fr)'}}>
+              <label>Abstract<select value={form.abstract || 'Not Started'} onChange={e => f('abstract', e.target.value)}>
+                {ABSTRACT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select></label>
+              <label>Title Commitment<select value={form.title_commitment || 'Not Started'} onChange={e => f('title_commitment', e.target.value)}>
+                {TITLE_COMMITMENT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select></label>
+              <label>Mortgage Payoff<select value={form.mortgage_payoff || 'Not Started'} onChange={e => f('mortgage_payoff', e.target.value)}>
+                {MORTGAGE_PAYOFF_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select></label>
+              <label>ALTA Statement<select value={form.alta_statement || 'Not Ready'} onChange={e => f('alta_statement', e.target.value)}>
+                {ALTA_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select></label>
+              <label>Deed Package<select value={form.deed_package || 'Not Ready'} onChange={e => f('deed_package', e.target.value)}>
+                {DEED_PACKAGE_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+              </select></label>
+            </div>
+          </div>
+
+          {/* Closing & Loop */}
+          <div className="form-section form-full">
+            <h4>Closing & Loop</h4>
+            <label>Dotloop Transaction Status<select value={form.dotloop_status || 'Not Submitted'} onChange={e => f('dotloop_status', e.target.value)}>
+              {DOTLOOP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+            </select></label>
+            <div className="checklist-grid" style={{marginTop: 10}}>
               {[
                 ['remove_listing_alerts', 'Remove Listing Alerts (Sierra & MLS)'],
                 ['email_contract_closing', 'Email Contract to Closing & Next Steps'],
                 ['ayse_added_to_loop', 'AYSE Added to Loop'],
                 ['ayse_contracts_signed', 'AYSE Contracts Signed'],
-                ['whole_property_inspection', 'Whole Property Inspection'],
-                ['radon_test', 'Radon Test'],
-                ['wdi_inspection', 'WDI Inspection'],
-                ['septic_inspection', 'Septic Inspection'],
-                ['well_inspection', 'Well Inspection'],
-                ['sewer_inspection', 'Sewer Inspection'],
-                ['seller_acknowledgment', 'Seller Acknowledgment'],
                 ['utilities_set', 'Utilities Set to New Owner'],
                 ['sales_worksheet_added', 'Sales Worksheet Added'],
                 ['submit_loop_review', 'Submit Loop for Review'],
@@ -694,27 +881,66 @@ export default function Transactions() {
             </div>
           </div>
 
-          {/* Title & Closing Docs */}
-          <div className="form-section form-full">
-            <h4>Title & Closing</h4>
-            <div className="form-row" style={{gridTemplateColumns: 'repeat(5, 1fr)'}}>
-              <label>Abstract<input value={form.abstract} onChange={e => f('abstract', e.target.value)} placeholder="Status..." /></label>
-              <label>Title Commitment<input value={form.title_commitment} onChange={e => f('title_commitment', e.target.value)} placeholder="Status..." /></label>
-              <label>Mortgage Payoff<input value={form.mortgage_payoff} onChange={e => f('mortgage_payoff', e.target.value)} /></label>
-              <label>ALTA Statement<input value={form.alta_statement} onChange={e => f('alta_statement', e.target.value)} /></label>
-              <label>Deed Package<input value={form.deed_package} onChange={e => f('deed_package', e.target.value)} /></label>
-            </div>
-          </div>
-
           <div className="form-section form-full">
             <label>Notes<textarea value={form.notes} onChange={e => f('notes', e.target.value)} rows={3} /></label>
           </div>
+
+          {editing && (
+            <div className="form-section form-full">
+              <h4>📧 Send Transaction Email</h4>
+              <p className="muted" style={{margin: '0 0 10px'}}>
+                All transaction emails auto-CC <strong>johnwithmattsmithteam@gmail.com</strong> and <strong>mattsmithremax@gmail.com</strong>.
+              </p>
+              <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                <button type="button" className="lead-action-btn lead-action-email" onClick={() => openEmailComposer('client')} disabled={!linkedClient?.email}>
+                  ✉ Email Client {linkedClient?.email ? `(${linkedClient.first_name})` : '(no email)'}
+                </button>
+                <button type="button" className="lead-action-btn lead-action-email" onClick={() => openEmailComposer('lender')}>
+                  🏦 Email Lender {form.lender_name ? `(${form.lender_name})` : ''}
+                </button>
+                <button type="button" className="lead-action-btn lead-action-email" onClick={() => openEmailComposer('closer')}>
+                  📋 Email Cherryl
+                </button>
+                <button type="button" className="lead-action-btn" onClick={() => openEmailComposer('custom')}>
+                  ✉ Custom Recipient
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'} Transaction</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Email Composer Modal */}
+      <Modal open={emailOpen} onClose={() => setEmailOpen(false)} title="Send Transaction Email" wide>
+        <div className="field-group">
+          <h4>Template</h4>
+          <select value={emailForm.template_id} onChange={e => loadEmailTemplate(e.target.value)} style={{width: '100%'}}>
+            <option value="">— Choose a template (or write from scratch) —</option>
+            {emailTemplates
+              .filter(t => emailForm.recipient_type === 'custom' || t.recipient === emailForm.recipient_type)
+              .map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+        <div className="form-row">
+          <label>To (email)<input type="email" value={emailForm.to_email} onChange={e => setEmailForm(p => ({ ...p, to_email: e.target.value }))} /></label>
+          <label>To (name)<input value={emailForm.to_name} onChange={e => setEmailForm(p => ({ ...p, to_name: e.target.value }))} /></label>
+        </div>
+        <div className="muted" style={{padding: '6px 10px', background: 'rgba(200, 155, 74, 0.08)', borderRadius: 4, marginBottom: 10}}>
+          📋 Auto-CC: {(emailForm.auto_cc || []).join(', ')}
+        </div>
+        <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
+        <label>Body<textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} /></label>
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={() => setEmailOpen(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={sendTransactionEmail} disabled={emailSending || !emailForm.to_email}>
+            {emailSending ? 'Sending...' : 'Send Email'}
+          </button>
+        </div>
       </Modal>
     </div>
   )
