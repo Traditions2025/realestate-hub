@@ -35,6 +35,63 @@ export default function Transactions() {
   const [syncing, setSyncing] = useState(false)
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
+  const [extractingPdf, setExtractingPdf] = useState(false)
+  const [extractResult, setExtractResult] = useState(null)
+  const [aiConfigured, setAiConfigured] = useState(false)
+
+  useEffect(() => {
+    authFetch('/api/transactions/_meta/ai-status').then(r => r.json()).then(d => setAiConfigured(!!d.configured)).catch(() => {})
+  }, [])
+
+  const fileToBase64 = (file) => new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => resolve(r.result.toString().split(',')[1])
+    r.onerror = reject
+    r.readAsDataURL(file)
+  })
+
+  // Auto-create a placeholder transaction so PDF extraction can work even on a brand new modal
+  const ensureTransactionId = async () => {
+    if (editing) return editing
+    const placeholder = {
+      property_address: form.property_address || `Pending Import — ${new Date().toLocaleString()}`,
+      type: form.type || 'purchase',
+      property_status: form.property_status || 'Active',
+    }
+    const r = await api.createTransaction(placeholder)
+    setEditing(r.id)
+    return r.id
+  }
+
+  const extractPurchaseAgreement = async (file) => {
+    if (!aiConfigured) { alert('AI extraction needs ANTHROPIC_API_KEY on Render.'); return }
+    setExtractingPdf(true)
+    setExtractResult(null)
+    try {
+      const id = await ensureTransactionId()
+      const pdf_base64 = await fileToBase64(file)
+      const r = await authFetch(`/api/transactions/${id}/extract-pdf`, {
+        method: 'POST',
+        body: JSON.stringify({ pdf_base64, filename: file.name }),
+      })
+      const d = await r.json()
+      if (d.error) {
+        setExtractResult({ ok: false, message: d.error })
+        return
+      }
+      // Refresh form with the updated row
+      const updated = await api.getTransaction(id)
+      const f = { ...emptyTx }
+      Object.keys(f).forEach(k => { if (updated[k] !== undefined && updated[k] !== null) f[k] = updated[k] })
+      setForm(f)
+      setExtractResult({ ok: true, count: d.updated_fields, fields: Object.keys(d.extracted || {}) })
+      load()
+    } catch (e) {
+      setExtractResult({ ok: false, message: e.message })
+    } finally {
+      setExtractingPdf(false)
+    }
+  }
 
   // Drag payload format: "tx:<id>" or "pl:<id>"
   const onDragStart = (e, kind, item) => {
@@ -160,8 +217,9 @@ export default function Transactions() {
     return Math.round((done / plChecklist.length) * 100)
   }
 
-  const openNew = () => { setEditing(null); setForm(emptyTx); setModalOpen(true) }
+  const openNew = () => { setEditing(null); setForm(emptyTx); setExtractResult(null); setModalOpen(true) }
   const openEdit = (item) => {
+    setExtractResult(null)
     setEditing(item.id)
     const f = { ...emptyTx }
     Object.keys(f).forEach(k => { if (item[k] !== undefined && item[k] !== null) f[k] = item[k] })
@@ -474,6 +532,35 @@ export default function Transactions() {
 
       {/* Full Transaction Form Modal */}
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Transaction' : 'New Transaction'} wide>
+        {/* Auto-extract from Purchase Agreement PDF */}
+        <div className="addr-search-box" style={{marginBottom: 18}}>
+          <h4>📄 Quick Fill — Upload Purchase Agreement</h4>
+          <p className="muted" style={{margin: '0 0 10px'}}>
+            Upload the signed Purchase Agreement (or Listing Agreement) PDF and Claude will auto-fill the property, parties, prices, and contingency dates below.
+          </p>
+          <div className="form-row" style={{gap: 8, alignItems: 'center'}}>
+            <input
+              type="file"
+              accept="application/pdf"
+              disabled={extractingPdf || !aiConfigured}
+              onChange={e => { const f = e.target.files?.[0]; if (f) extractPurchaseAgreement(f); e.target.value = '' }}
+            />
+            {!aiConfigured && <span className="muted">(needs ANTHROPIC_API_KEY)</span>}
+            {extractingPdf && <span className="muted">Reading PDF — 20-40 seconds...</span>}
+          </div>
+          {extractResult && (
+            <div className={`addr-result ${extractResult.ok ? 'ok' : 'fail'}`} style={{marginTop: 10}}>
+              {extractResult.ok ? (
+                <>
+                  ✓ Extracted {extractResult.count} field{extractResult.count === 1 ? '' : 's'}: {(extractResult.fields || []).slice(0, 8).join(', ')}{extractResult.fields?.length > 8 ? '...' : ''}. Review below and click Save.
+                </>
+              ) : (
+                <>✗ {extractResult.message}</>
+              )}
+            </div>
+          )}
+        </div>
+
         <form onSubmit={save} className="form-grid">
           {/* Property Info */}
           <div className="form-section">

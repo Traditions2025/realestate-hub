@@ -1,8 +1,21 @@
-import { Router } from 'express'
+import express, { Router } from 'express'
+import Anthropic from '@anthropic-ai/sdk'
 import db from '../database.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
+
+// Allow large PDF base64 uploads
+router.use(express.json({ limit: '25mb' }))
+
+const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
+let _client = null
+function getClient() {
+  if (_client) return _client
+  if (!process.env.ANTHROPIC_API_KEY) return null
+  _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  return _client
+}
 
 function logActivity(action, entityType, entityId, details) {
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)', [action, entityType, entityId, details])
@@ -199,5 +212,102 @@ function parseCSV(csv) {
   }
   return rows
 }
+
+// =============================================
+// PURCHASE AGREEMENT PDF EXTRACTION
+// =============================================
+const PURCHASE_AGREEMENT_PROMPT = `You are reading an Iowa real estate Purchase Agreement / Listing Agreement / contract document.
+
+Extract the following fields and return ONLY a single JSON object — omit any keys you cannot find with high confidence (do not invent values):
+
+{
+  "property_address": string (street + city, e.g. "2416 C St SW, Cedar Rapids, IA 52404"),
+  "mls_number": string,
+  "type": string ("purchase" if this is a buyer/purchase agreement, "listing" if this is a listing agreement),
+  "source": string (referral source, lead source, brokerage name),
+  "buyer_name": string (full names of all buyers, comma-separated if multiple, e.g. "John & Jane Smith"),
+  "buyers_agent_name": string (the buyer's agent name),
+  "seller_name": string (full names of all sellers, comma-separated if multiple),
+  "sellers_agent_name": string (the listing/seller's agent name),
+  "agency_type": string (one of: "Listing Agent", "Buyers Agent", "Dual Agency", "Designated Agency"),
+  "list_price": number (no commas or dollar signs),
+  "purchase_price": number (no commas or dollar signs — the agreed-upon price),
+  "contract_date": string (YYYY-MM-DD — the date the contract was signed/accepted),
+  "closing_date": string (YYYY-MM-DD),
+  "mortgage_contingency_date": string (YYYY-MM-DD — financing contingency deadline),
+  "appraisal_contingency_date": string (YYYY-MM-DD),
+  "inspection_contingency_date": string (YYYY-MM-DD — inspection deadline),
+  "type_of_finance": string (one of: "Conventional", "FHA", "VA", "USDA", "Cash", "Other"),
+  "earnest_money_deposit": string (just the dollar amount as a string, e.g. "$2,500", or "Not Started" if not yet collected),
+  "whole_property_inspection": number (1 if mentioned, 0 if not),
+  "radon_test": number (1 if radon test is mentioned/required, 0 if not),
+  "wdi_inspection": number (1 if Wood Destroying Insect / termite inspection mentioned, 0 if not),
+  "septic_inspection": number (1 if septic inspection mentioned, 0 if not),
+  "well_inspection": number (1 if well inspection mentioned, 0 if not),
+  "sewer_inspection": number (1 if sewer/lateral inspection mentioned, 0 if not),
+  "notes": string (any unusual terms, contingencies, or seller concessions worth flagging)
+}
+
+Rules:
+- For dates, if you only see a date like "5/15/2026" convert to "2026-05-15"
+- For prices and earnest money, look in the financial sections of the agreement
+- For inspection checkboxes, set to 1 ONLY if the document explicitly indicates the inspection is being performed/required
+- If the document is a Listing Agreement (not Purchase), set type=listing and skip buyer fields
+- Return ONLY the JSON object — no markdown fences, no commentary.`
+
+function parseJsonFromText(text) {
+  let t = (text || '').trim()
+  if (t.startsWith('```')) t = t.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim()
+  const first = t.indexOf('{')
+  const last = t.lastIndexOf('}')
+  if (first === -1 || last === -1) throw new Error('No JSON object found in model output')
+  return JSON.parse(t.slice(first, last + 1))
+}
+
+function applyExtractedToTransaction(id, data) {
+  if (!data || typeof data !== 'object') return 0
+  const allowed = FIELDS.filter(f => f in data && data[f] !== null && data[f] !== '')
+  if (!allowed.length) return 0
+  const sets = allowed.map(f => `${f} = ?`).join(', ')
+  const values = [...allowed.map(f => n(data[f])), id]
+  db.run(`UPDATE transactions SET ${sets}, updated_at = datetime('now') WHERE id = ?`, values)
+  return allowed.length
+}
+
+router.post('/:id/extract-pdf', async (req, res) => {
+  const client = getClient()
+  if (!client) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
+  const id = Number(req.params.id)
+  const exists = db.get('SELECT id FROM transactions WHERE id = ?', [id])
+  if (!exists) return res.status(404).json({ error: 'Transaction not found' })
+  const { pdf_base64, filename } = req.body || {}
+  if (!pdf_base64) return res.status(400).json({ error: 'pdf_base64 required' })
+
+  try {
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: pdf_base64 } },
+          { type: 'text', text: PURCHASE_AGREEMENT_PROMPT },
+        ],
+      }],
+    })
+    const text = msg.content?.[0]?.text || ''
+    const data = parseJsonFromText(text)
+    const updatedCount = applyExtractedToTransaction(id, data)
+    logActivity('extracted_pdf', 'transaction', id, `Extracted ${updatedCount} fields from purchase agreement${filename ? ': ' + filename : ''}`)
+    res.json({ success: true, extracted: data, updated_fields: updatedCount })
+  } catch (e) {
+    console.error('[transactions] extract-pdf failed:', e.message)
+    res.status(500).json({ error: e.message })
+  }
+})
+
+router.get('/_meta/ai-status', (_req, res) => {
+  res.json({ configured: !!process.env.ANTHROPIC_API_KEY, model: MODEL })
+})
 
 export default router
