@@ -1097,11 +1097,19 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   border-radius: 16px;
   width: 100%;
   max-width: 540px;
-  max-height: 85vh;
+  max-height: 90vh;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
-.modal-wide { max-width: 800px; }
+.modal-wide { max-width: 1200px; }
+.modal-body { overflow-x: hidden; }
+.modal-body * { box-sizing: border-box; }
+.modal-body input,
+.modal-body select,
+.modal-body textarea {
+  max-width: 100%;
+}
 
 .modal-header {
   display: flex;
