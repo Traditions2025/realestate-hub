@@ -65,12 +65,12 @@ function buildClientFilter(q) {
     }
   }
 
-  // Tags include - lead must have ALL of these tags
+  // Tags include - lead must have ANY of these tags (OR logic)
   if (q.tags_include) {
     const arr = Array.isArray(q.tags_include) ? q.tags_include : q.tags_include.split(',').map(s => s.trim()).filter(Boolean)
-    for (const tag of arr) {
-      where += ' AND tags LIKE ?'
-      params.push(`%"${tag}"%`)
+    if (arr.length) {
+      where += ' AND (' + arr.map(() => 'tags LIKE ?').join(' OR ') + ')'
+      arr.forEach(tag => params.push(`%"${tag}"%`))
     }
   }
   // Tags exclude - lead must NOT have any of these tags

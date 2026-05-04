@@ -804,22 +804,14 @@ export default function Clients() {
         <div className="filter-panel">
           <div className="filter-grid">
             <div className="filter-section">
-              <h5>Status (Include)</h5>
+              <h5>Status</h5>
               <MultiSelect
                 placeholder="Search statuses..."
                 options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
                 selected={advFilters.statuses_include}
                 onChange={v => setAdvFilters(p => ({ ...p, statuses_include: v }))}
               />
-            </div>
-            <div className="filter-section">
-              <h5>Status (Exclude)</h5>
-              <MultiSelect mode="exclude"
-                placeholder="Exclude statuses..."
-                options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
-                selected={advFilters.statuses_exclude}
-                onChange={v => setAdvFilters(p => ({ ...p, statuses_exclude: v }))}
-              />
+              <p className="muted" style={{fontSize: 11, margin: '4px 0 0'}}>Only leads with these statuses are shown.</p>
             </div>
             <div className="filter-section">
               <h5>Tags (Include)</h5>

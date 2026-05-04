@@ -92,10 +92,10 @@ function buildClientFilterForList(q) {
     where += ' AND (status IS NULL OR status NOT IN (' + q.statuses_exclude.map(() => '?').join(',') + '))'
     params.push(...q.statuses_exclude)
   }
+  // Tags include - lead must have ANY of these tags (OR logic)
   if (q.tags_include?.length) {
-    for (const tag of q.tags_include) {
-      where += ' AND tags LIKE ?'; params.push(`%"${tag}"%`)
-    }
+    where += ' AND (' + q.tags_include.map(() => 'tags LIKE ?').join(' OR ') + ')'
+    q.tags_include.forEach(tag => params.push(`%"${tag}"%`))
   }
   if (q.tags_exclude?.length) {
     for (const tag of q.tags_exclude) {
