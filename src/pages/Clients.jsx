@@ -1189,6 +1189,13 @@ export default function Clients() {
               Visits {sortBy === 'most_visits' ? '▼' : sortBy === 'least_visits' ? '▲' : '⇅'}
             </div>
             <div className="cl-source">Source</div>
+            <div
+              className={`cl-registered sortable ${sortBy === 'recent_added' || sortBy === 'oldest_first' ? 'active' : ''}`}
+              onClick={() => setSortBy(sortBy === 'recent_added' ? 'oldest_first' : 'recent_added')}
+              title="Click to sort by date registered in Sierra"
+            >
+              Registered {sortBy === 'recent_added' ? '▼' : sortBy === 'oldest_first' ? '▲' : '⇅'}
+            </div>
             <div className="cl-actions">Actions</div>
           </div>
           {items.map(item => (
@@ -1232,6 +1239,11 @@ export default function Clients() {
               </div>
               <div className="cl-visits">{item.visits || 0}</div>
               <div className="cl-source">{item.source || '—'}</div>
+              <div className="cl-registered" title={item.sierra_creation_date || ''}>
+                {item.sierra_creation_date
+                  ? new Date(item.sierra_creation_date.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
+                  : '—'}
+              </div>
               <div className="cl-actions" onClick={e => e.stopPropagation()}>
                 <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
                 <button className="action-btn action-active-listing" title="Active Listing (live on MLS)" onClick={e => addTransaction(item, 'listing', e, 'Active')}>AL</button>
