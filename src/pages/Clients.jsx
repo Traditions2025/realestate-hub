@@ -24,6 +24,7 @@ export default function Clients() {
   const [syncLog, setSyncLog] = useState(null)
   const [syncHealth, setSyncHealth] = useState(null)
   const [runningIncremental, setRunningIncremental] = useState(false)
+  const [batchRefreshState, setBatchRefreshState] = useState(null)
   const [syncMenuOpen, setSyncMenuOpen] = useState(false)
   const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
@@ -430,6 +431,36 @@ export default function Clients() {
     alert(`Selected ${d.count} matched lead${d.count !== 1 ? 's' : ''}${suffix}`)
   }
   const clearSelection = () => setSelectedIds(new Set())
+
+  const refreshSelectedFromSierra = async () => {
+    if (selectedIds.size === 0) return
+    if (selectedIds.size > 1000) {
+      alert('Max 1,000 leads per batch refresh. For more, use "Sync All Sierra Leads".')
+      return
+    }
+    if (!confirm(`Pull fresh data from Sierra for ${selectedIds.size} selected lead${selectedIds.size === 1 ? '' : 's'}?\n\nWill take ~${Math.ceil(selectedIds.size / 60)} minute${Math.ceil(selectedIds.size / 60) === 1 ? '' : 's'}. The hub stays usable during refresh.`)) return
+    try {
+      const r = await authFetch('/api/sierra/refresh-leads-batch', {
+        method: 'POST',
+        body: JSON.stringify({ client_ids: [...selectedIds] }),
+      })
+      const d = await r.json()
+      if (d.error) { alert('Refresh failed: ' + d.error); return }
+      // Poll status every 2 sec
+      const poll = async () => {
+        const sr = await authFetch('/api/sierra/refresh-leads-batch/status').then(x => x.json())
+        setBatchRefreshState(sr)
+        if (sr.running) setTimeout(poll, 2000)
+        else {
+          alert(`✓ Refresh complete: ${sr.done}/${sr.total} processed (${sr.added} new, ${sr.updated} updated, ${sr.errors} errors)`)
+          load()
+        }
+      }
+      poll()
+    } catch (e) {
+      alert('Refresh failed: ' + e.message)
+    }
+  }
 
   const openBulkEmail = (templateId = '') => {
     if (templateId) {
@@ -1081,6 +1112,16 @@ export default function Clients() {
         {selectedIds.size > 0 && (
           <div className="mass-action-right">
             <span className="mass-action-count">{selectedIds.size} selected</span>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={refreshSelectedFromSierra}
+              disabled={batchRefreshState?.running}
+              title="Pull fresh data from Sierra for the selected leads"
+            >
+              {batchRefreshState?.running
+                ? `↻ Refreshing ${batchRefreshState.done}/${batchRefreshState.total}...`
+                : `↻ Refresh Selected from Sierra`}
+            </button>
             <button className="btn btn-primary btn-sm" onClick={() => openBulkEmail()}>
               Email Selected
             </button>

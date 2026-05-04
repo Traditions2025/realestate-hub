@@ -123,6 +123,66 @@ router.get('/sync-status', (req, res) => {
   })
 })
 
+// Batch refresh: pull a specific set of leads from Sierra (by client_id or sierra_lead_id)
+// and update each one. Useful after filtering — refresh only the matched results
+// without running a full 45K-lead sync.
+let _batchState = {
+  running: false,
+  total: 0, done: 0, added: 0, updated: 0, errors: 0,
+  startedAt: null, finishedAt: null, lastError: null,
+}
+
+router.post('/refresh-leads-batch', async (req, res) => {
+  if (_batchState.running) {
+    return res.json({ success: true, alreadyRunning: true, progress: _batchState })
+  }
+  const ids = Array.isArray(req.body?.client_ids) ? req.body.client_ids : []
+  if (!ids.length) return res.status(400).json({ error: 'client_ids array required' })
+  if (ids.length > 1000) return res.status(400).json({ error: 'Max 1000 per batch — use Sync All Sierra Leads for larger sets' })
+
+  // Resolve to sierra_lead_id
+  const placeholders = ids.map(() => '?').join(',')
+  const rows = db.all(`SELECT sierra_lead_id FROM clients WHERE id IN (${placeholders}) AND sierra_lead_id IS NOT NULL`, ids)
+  const sierraIds = rows.map(r => r.sierra_lead_id)
+
+  // Kick off async — don't block the response
+  _batchState = {
+    running: true, total: sierraIds.length, done: 0, added: 0, updated: 0, errors: 0,
+    startedAt: new Date().toISOString(), finishedAt: null, lastError: null,
+  }
+
+  ;(async () => {
+    for (const sid of sierraIds) {
+      try {
+        const result = await sierraGet(`/leads/get/${sid}`, {
+          includeSavedSearches: 'true',
+          includeTags: 'true',
+        })
+        const lead = result.data || result
+        if (lead && lead.id) {
+          const action = processLead(lead)
+          if (action === 'added') _batchState.added++
+          else if (action === 'updated') _batchState.updated++
+        }
+      } catch (err) {
+        _batchState.errors++
+        _batchState.lastError = err.message
+      }
+      _batchState.done++
+    }
+    _batchState.running = false
+    _batchState.finishedAt = new Date().toISOString()
+    db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
+      ['batch_refresh', 'sierra', `Batch refresh: ${_batchState.done}/${_batchState.total} processed (${_batchState.added} new, ${_batchState.updated} updated, ${_batchState.errors} errors)`])
+  })().catch(() => { _batchState.running = false })
+
+  res.json({ success: true, started: true, total: sierraIds.length })
+})
+
+router.get('/refresh-leads-batch/status', (_req, res) => {
+  res.json(_batchState)
+})
+
 // Single-lead refresh: pull one lead from Sierra and update the local row.
 // Useful when the user changes a lead in Sierra and wants to see it instantly
 // without waiting for the next 10-min incremental cycle.
