@@ -2924,29 +2924,35 @@ input[type="range"] {
 .email-preview-body p { margin: 8px 0; }
 .email-preview-body a { color: #c89b4a; }
 
-/* Drag-and-drop kanban (Transactions) */
-.pipeline-card {
+/* Drag-and-drop kanban (Transactions + Tasks) */
+.pipeline-card,
+.kanban-card {
   cursor: pointer;
   user-select: none;
   transition: opacity 0.15s, transform 0.1s, box-shadow 0.15s;
 }
-.pipeline-card[draggable="true"] {
+.pipeline-card[draggable="true"],
+.kanban-card[draggable="true"] {
   cursor: grab;
 }
-.pipeline-card[draggable="true"]:active {
+.pipeline-card[draggable="true"]:active,
+.kanban-card[draggable="true"]:active {
   cursor: grabbing;
 }
-.pipeline-card.dragging {
+.pipeline-card.dragging,
+.kanban-card.dragging {
   opacity: 0.4;
   transform: scale(0.97);
 }
-.pipeline-column.drop-target {
+.pipeline-column.drop-target,
+.kanban-column.drop-target {
   background: rgba(200, 155, 74, 0.08);
   outline: 2px dashed rgba(200, 155, 74, 0.6);
   outline-offset: -2px;
   border-radius: 8px;
 }
-.pipeline-column.drop-target .pipeline-header {
+.pipeline-column.drop-target .pipeline-header,
+.kanban-column.drop-target .kanban-header {
   color: var(--accent);
 }
 

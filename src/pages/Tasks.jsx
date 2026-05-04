@@ -15,6 +15,36 @@ export default function Tasks() {
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyTask)
   const [view, setView] = useState('board') // board or list
+  const [draggingId, setDraggingId] = useState(null)
+  const [dragOverStatus, setDragOverStatus] = useState(null)
+
+  const onDragStart = (e, item) => {
+    setDraggingId(item.id)
+    e.dataTransfer.effectAllowed = 'move'
+    try { e.dataTransfer.setData('text/plain', String(item.id)) } catch {}
+  }
+  const onDragEnd = () => { setDraggingId(null); setDragOverStatus(null) }
+  const onDragOver = (e, status) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragOverStatus !== status) setDragOverStatus(status)
+  }
+  const onDrop = async (e, newStatus) => {
+    e.preventDefault()
+    setDragOverStatus(null)
+    const id = draggingId || Number(e.dataTransfer.getData('text/plain'))
+    setDraggingId(null)
+    if (!id) return
+    const item = items.find(i => i.id === id)
+    if (!item || item.status === newStatus) return
+    setItems(prev => prev.map(i => i.id === id ? { ...i, status: newStatus } : i))
+    try {
+      await api.updateTask(id, { status: newStatus })
+    } catch (err) {
+      alert('Failed to update status: ' + err.message)
+      load()
+    }
+  }
 
   const load = () => {
     const params = {}
@@ -89,7 +119,13 @@ export default function Tasks() {
           {['todo', 'in_progress', 'done'].map(status => {
             const statusItems = items.filter(i => i.status === status)
             return (
-              <div key={status} className="kanban-column">
+              <div
+                key={status}
+                className={`kanban-column ${dragOverStatus === status ? 'drop-target' : ''}`}
+                onDragOver={e => onDragOver(e, status)}
+                onDragLeave={() => setDragOverStatus(s => s === status ? null : s)}
+                onDrop={e => onDrop(e, status)}
+              >
                 <div className="kanban-header">
                   <span>{status.replace(/_/g, ' ')}</span>
                   <span className="kanban-count">{statusItems.length}</span>
@@ -97,7 +133,14 @@ export default function Tasks() {
                 </div>
                 <div className="kanban-cards">
                   {statusItems.map(item => (
-                    <div key={item.id} className="kanban-card" onClick={() => openEdit(item)}>
+                    <div
+                      key={item.id}
+                      className={`kanban-card ${draggingId === item.id ? 'dragging' : ''}`}
+                      draggable
+                      onDragStart={e => onDragStart(e, item)}
+                      onDragEnd={onDragEnd}
+                      onClick={() => openEdit(item)}
+                    >
                       <div className="kanban-card-top">
                         <StatusBadge status={item.priority} />
                         {item.category && <span className="task-category">{item.category}</span>}
