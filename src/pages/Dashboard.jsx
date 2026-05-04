@@ -3,13 +3,28 @@ import { Link } from 'react-router-dom'
 import { api, authFetch } from '../api'
 import StatusBadge from '../components/StatusBadge'
 
+const DASHBOARD_CACHE_KEY = 'mst_dashboard_cache'
+
 export default function Dashboard() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Hydrate from localStorage on first render — instant paint with last-known data
+  const [data, setData] = useState(() => {
+    try {
+      const raw = localStorage.getItem(DASHBOARD_CACHE_KEY)
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  })
+  const [loading, setLoading] = useState(false) // never show full-page loader if we have cached data
+  const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
 
   const load = () => {
-    api.dashboard().then(d => { setData(d); setLoading(false) }).catch(() => setLoading(false))
+    setRefreshing(true)
+    api.dashboard().then(d => {
+      setData(d)
+      setLoading(false)
+      setRefreshing(false)
+      try { localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(d)) } catch {}
+    }).catch(() => { setLoading(false); setRefreshing(false) })
   }
 
   useEffect(() => { load() }, [])
@@ -58,7 +73,8 @@ export default function Dashboard() {
     setSyncing(false)
   }
 
-  if (loading) return <div className="page-loading">Loading dashboard...</div>
+  // Only show full-page loader on truly first-ever load (no cache + no data yet)
+  if (!data && loading) return <div className="page-loading">Loading dashboard...</div>
   if (!data) return <div className="page-loading">Failed to load dashboard</div>
 
   const { transactions, clients, tasks, projects, pre_listings, marketing, social_media, vendors, partners, calendar } = data
@@ -69,7 +85,7 @@ export default function Dashboard() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Dashboard</h1>
+          <h1>Dashboard {refreshing && <span style={{fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>· refreshing...</span>}</h1>
           <p className="page-subtitle">Matt Smith Team Command Center</p>
         </div>
         <div className="header-actions">

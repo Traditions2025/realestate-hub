@@ -1,8 +1,14 @@
-// MST Hub service worker - smart caching for fast loads
-const CACHE_NAME = 'mst-hub-v4'
+// MST Hub service worker — instant-load caching for slow mobile networks
+const CACHE_NAME = 'mst-hub-v5'
+const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/logo.png', '/logo-dark.png']
 
 self.addEventListener('install', (event) => {
-  self.skipWaiting()
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME)
+    // Precache critical assets so the very next visit paints instantly
+    try { await cache.addAll(PRECACHE_URLS) } catch {}
+    self.skipWaiting()
+  })())
 })
 
 self.addEventListener('activate', (event) => {
@@ -14,6 +20,7 @@ self.addEventListener('activate', (event) => {
 })
 
 self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return
   const url = new URL(event.request.url)
 
   // API calls: always go to network, never cache
@@ -55,17 +62,16 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // HTML and everything else: network-first with cache fallback
+  // HTML and everything else: stale-while-revalidate
+  // Serve cached version IMMEDIATELY (instant paint), then update cache in the background.
+  // Next visit gets the freshly fetched version. Massive speed boost on slow mobile.
   event.respondWith((async () => {
-    try {
-      const fresh = await fetch(event.request)
-      const cache = await caches.open(CACHE_NAME)
-      cache.put(event.request, fresh.clone())
+    const cache = await caches.open(CACHE_NAME)
+    const cached = await cache.match(event.request)
+    const fetchPromise = fetch(event.request).then(fresh => {
+      if (fresh && fresh.status === 200) cache.put(event.request, fresh.clone())
       return fresh
-    } catch (err) {
-      const cached = await caches.match(event.request)
-      if (cached) return cached
-      throw err
-    }
+    }).catch(() => null)
+    return cached || (await fetchPromise) || new Response('Offline', { status: 503 })
   })())
 })
