@@ -412,13 +412,26 @@ export default function Listings() {
     if (e) e.preventDefault()
     const payload = buildPayload()
     const url = editingId ? `/api/listings/${editingId}` : '/api/listings'
-    const r = await authFetch(url, {
-      method: editingId ? 'PUT' : 'POST',
-      body: JSON.stringify(payload),
-    })
-    const d = await r.json()
-    if (!editingId && d.id) setEditingId(d.id)
-    load()
+    try {
+      const r = await authFetch(url, {
+        method: editingId ? 'PUT' : 'POST',
+        body: JSON.stringify(payload),
+      })
+      const d = await r.json()
+      if (!r.ok || d.error) {
+        throw new Error(d.error || `HTTP ${r.status}`)
+      }
+      if (!editingId && d.id) setEditingId(d.id)
+      // If the stage was changed, make sure the user can still see the card
+      // by switching to the matching stage tab (or 'all' if they were on a tab that no longer matches)
+      if (payload.stage && stage !== 'all' && stage !== payload.stage) {
+        setStage(payload.stage)
+      }
+      setOpenModal(false)
+      load()
+    } catch (err) {
+      alert('Save failed: ' + err.message)
+    }
   }
 
   const remove = async (id) => {
