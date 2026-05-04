@@ -152,10 +152,9 @@ export default function Clients() {
   const loadMore = () => {
     if (loadingMore || !hasMore) return
     setLoadingMore(true)
-    const params = { limit: pageSize, offset: items.length }
-    if (filter.type) params.type = filter.type
-    if (tab !== 'all') params.status = tab
-    if (search) params.search = search
+    // Use the SAME filters as the initial load — just bump the offset.
+    // (Earlier this was rebuilding from scratch and dropping advanced filters → load-more was returning unfiltered results.)
+    const params = { ...buildLoadParams(), offset: items.length }
     api.getClientsPaged(params).then(({ rows, total }) => {
       setItems(prev => [...prev, ...rows])
       setTotalCount(total)
