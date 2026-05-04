@@ -73,11 +73,13 @@ export default function Clients() {
     authFetch('/api/lists').then(r => r.json()).then(setSavedLists).catch(() => {})
   }, [])
 
+  // Defensive — if any field is undefined (e.g. from a stale saved list), treat as empty
+  const len = (v) => Array.isArray(v) ? v.length : 0
   const advFilterCount = (
-    advFilters.statuses_include.length + advFilters.statuses_exclude.length +
-    advFilters.tags_include.length + advFilters.tags_exclude.length +
-    advFilters.zips_include.length + advFilters.cities_include.length +
-    advFilters.sources_include.length + advFilters.email_statuses.length +
+    len(advFilters.statuses_include) + len(advFilters.statuses_exclude) +
+    len(advFilters.tags_include) + len(advFilters.tags_exclude) +
+    len(advFilters.zips_include) + len(advFilters.cities_include) +
+    len(advFilters.sources_include) + len(advFilters.email_statuses) +
     (advFilters.has_email ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -87,7 +89,7 @@ export default function Clients() {
     (advFilters.search_max_price_min ? 1 : 0) + (advFilters.search_max_price_max ? 1 : 0) +
     (advFilters.search_beds_min ? 1 : 0) + (advFilters.search_baths_min ? 1 : 0) +
     (advFilters.search_sqft_min ? 1 : 0) +
-    advFilters.search_property_types.length + advFilters.search_regions.length
+    len(advFilters.search_property_types) + len(advFilters.search_regions)
   )
 
   const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
@@ -375,6 +377,8 @@ export default function Clients() {
     if (list.filter_criteria) {
       try {
         const f = JSON.parse(list.filter_criteria)
+        // Merge with empty defaults so newer filter fields aren't undefined
+        // (older saved lists won't have these keys, which previously crashed the render)
         setAdvFilters({
           statuses_include: f.statuses_include || [],
           statuses_exclude: f.statuses_exclude || [],
@@ -389,6 +393,18 @@ export default function Clients() {
           score_min: f.score_min || '',
           score_max: f.score_max || '',
           visits_min: f.visits_min || '',
+          visits_max: f.visits_max || '',
+          activity_days: f.activity_days || '',
+          created_days: f.created_days || '',
+          inactive_days: f.inactive_days || '',
+          has_saved_search: !!f.has_saved_search,
+          search_max_price_min: f.search_max_price_min || '',
+          search_max_price_max: f.search_max_price_max || '',
+          search_beds_min: f.search_beds_min || '',
+          search_baths_min: f.search_baths_min || '',
+          search_sqft_min: f.search_sqft_min || '',
+          search_property_types: f.search_property_types || [],
+          search_regions: f.search_regions || [],
         })
         setTab('all')
         if (f.search) setSearch(f.search)
