@@ -183,7 +183,14 @@ export async function sierraGet(endpoint, params = {}) {
   const resp = await fetch(url.toString(), {
     headers: { 'Content-Type': 'application/json', 'Sierra-ApiKey': SIERRA_API_KEY }
   })
-  if (!resp.ok) throw new Error(`Sierra API ${resp.status}: ${resp.statusText}`)
+  if (!resp.ok) {
+    let bodyText = ''
+    try { bodyText = (await resp.text()).slice(0, 300) } catch {}
+    const err = new Error(`Sierra API ${resp.status} ${resp.statusText}${bodyText ? ' — ' + bodyText : ''}`)
+    err.status = resp.status
+    err.endpoint = endpoint
+    throw err
+  }
   return resp.json()
 }
 

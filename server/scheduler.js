@@ -4,12 +4,40 @@ import { processLead, sierraGet } from './sierra-helper.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
+// Convert SQLite "YYYY-MM-DD HH:MM:SS" (UTC) or any ISO string to Sierra-friendly UTC ISO with Z
+function toSierraDate(input) {
+  if (!input) return null
+  let d
+  if (input instanceof Date) d = input
+  else if (typeof input === 'string') {
+    // SQLite datetime('now') returns "YYYY-MM-DD HH:MM:SS" in UTC but lacks the Z marker.
+    // Adding " UTC" makes JS parse it correctly without local-tz drift.
+    d = input.includes('T') ? new Date(input) : new Date(input + ' UTC')
+  } else {
+    d = new Date(input)
+  }
+  if (isNaN(d.getTime())) return null
+  // Sierra accepts ISO 8601 with Z timezone marker — drop milliseconds for cleanliness
+  return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+}
+
 // Incremental Sierra sync - only leads updated since last sync
 async function syncSierraIncremental() {
   try {
-    const last = db.get("SELECT synced_at FROM sierra_sync_log WHERE sync_type = 'incremental' ORDER BY synced_at DESC LIMIT 1")
-    const since = last ? last.synced_at : new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-    const sinceFormatted = since.replace(' ', 'T').split('.')[0]
+    const last = db.get("SELECT synced_at FROM sierra_sync_log WHERE sync_type = 'incremental' AND (errors IS NULL OR errors = '') ORDER BY synced_at DESC LIMIT 1")
+    // Determine "since" — last successful incremental, or last full sync, or 1 day ago
+    let sinceRaw
+    if (last) sinceRaw = last.synced_at
+    else {
+      const lastFull = db.get("SELECT synced_at FROM sierra_sync_log WHERE sync_type NOT IN ('incremental','incremental_error','sync_error') AND (errors IS NULL OR errors = '') ORDER BY synced_at DESC LIMIT 1")
+      sinceRaw = lastFull ? lastFull.synced_at : new Date(Date.now() - 24 * 60 * 60 * 1000)
+    }
+    let sinceDate = toSierraDate(sinceRaw)
+    // Cap "since" to 7 days max — Sierra may reject very old dates and there's no point pulling > 7d incrementally
+    const sevenDaysAgo = toSierraDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
+    if (sinceDate && sinceDate < sevenDaysAgo) sinceDate = sevenDaysAgo
+    if (!sinceDate) sinceDate = sevenDaysAgo
+    const sinceFormatted = sinceDate
 
     let added = 0, updated = 0, total = 0
     let page = 1
