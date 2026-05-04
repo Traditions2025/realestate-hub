@@ -19,13 +19,16 @@ router.get('/status-counts', (req, res) => {
 })
 
 // Get just the IDs matching a filter (for "select all" mass actions)
+// By default returns ALL matching IDs regardless of email/opt-out status.
+// Pass ?email_ready=1 to only return clients with valid email + not opted out (for bulk email button).
 router.get('/ids', (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 2000, 5000)
-  const { where, params } = buildClientFilter({
-    ...req.query,
-    has_email: '1',
-    exclude_optouts: '1',
-  })
+  const limit = Math.min(Number(req.query.limit) || 10000, 50000)
+  const filterInput = { ...req.query }
+  if (req.query.email_ready === '1' || req.query.email_ready === 'true') {
+    filterInput.has_email = '1'
+    filterInput.exclude_optouts = '1'
+  }
+  const { where, params } = buildClientFilter(filterInput)
   const ids = db.all(`SELECT id FROM clients${where} ORDER BY updated_at DESC LIMIT ?`,
     [...params, limit]).map(r => r.id)
   res.json({ ids, count: ids.length })

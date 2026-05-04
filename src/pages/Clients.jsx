@@ -414,16 +414,20 @@ export default function Clients() {
   const selectAllVisible = () => {
     setSelectedIds(new Set(items.map(i => i.id)))
   }
-  const selectAllFiltered = async (limit) => {
-    const params = new URLSearchParams()
-    if (filter.type) params.set('type', filter.type)
-    if (tab !== 'all') params.set('status', tab)
-    if (search) params.set('search', search)
-    params.set('limit', limit)
+  const selectAllFiltered = async (limit, opts = {}) => {
+    // Use the full filter set (advFilters, search, status tab, etc.) — matches what's on screen.
+    const baseParams = buildLoadParams()
+    delete baseParams.limit
+    delete baseParams.offset
+    delete baseParams.sort
+    const params = new URLSearchParams(baseParams)
+    params.set('limit', limit || 50000)
+    if (opts.emailReady) params.set('email_ready', '1')
     const r = await authFetch('/api/clients/ids?' + params)
     const d = await r.json()
     setSelectedIds(new Set(d.ids))
-    alert(`Selected ${d.count} client${d.count !== 1 ? 's' : ''} with valid emails`)
+    const suffix = opts.emailReady ? ' with valid emails (opt-outs excluded)' : ''
+    alert(`Selected ${d.count} matched lead${d.count !== 1 ? 's' : ''}${suffix}`)
   }
   const clearSelection = () => setSelectedIds(new Set())
 
@@ -1054,17 +1058,19 @@ export default function Clients() {
           <button className="btn btn-sm btn-secondary" onClick={selectAllVisible}>
             Select Visible ({items.length})
           </button>
-          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(500)}>
-            Select 500
+          <button
+            className="btn btn-sm btn-primary"
+            onClick={() => selectAllFiltered(50000)}
+            title="Select every lead matching the current filters"
+          >
+            Select All Matched ({totalCount.toLocaleString()})
           </button>
-          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(1000)}>
-            Select 1,000
-          </button>
-          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(2000)}>
-            Select 2,000
-          </button>
-          <button className="btn btn-sm btn-secondary" onClick={() => selectAllFiltered(5000)}>
-            Select All Filtered
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={() => selectAllFiltered(50000, { emailReady: true })}
+            title="Select only matched leads with valid emails (opt-outs excluded) — for bulk email"
+          >
+            ✉ Email-Ready Only
           </button>
           {selectedIds.size > 0 && (
             <button className="btn btn-sm btn-danger" onClick={clearSelection}>
