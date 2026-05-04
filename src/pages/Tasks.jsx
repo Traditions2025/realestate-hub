@@ -229,7 +229,11 @@ export default function Tasks() {
           </div>
           <div className="form-row">
             <label>Due Date<input type="date" value={form.due_date} onChange={e => f('due_date', e.target.value)} /></label>
-            <label>Assigned To<input value={form.assigned_to} onChange={e => f('assigned_to', e.target.value)} /></label>
+            <label>Assigned To<select value={form.assigned_to || ''} onChange={e => f('assigned_to', e.target.value)}>
+              <option value="">Unassigned</option>
+              <option value="Matt">Matt</option>
+              <option value="Leo">Leo</option>
+            </select></label>
           </div>
           <label>Category<input value={form.category} onChange={e => f('category', e.target.value)} placeholder="TC, Marketing, Admin..." /></label>
           <div className="form-actions">
