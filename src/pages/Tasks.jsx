@@ -233,6 +233,20 @@ export default function Tasks() {
           </div>
           <label>Category<input value={form.category} onChange={e => f('category', e.target.value)} placeholder="TC, Marketing, Admin..." /></label>
           <div className="form-actions">
+            {editing && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={async () => {
+                  if (!confirm('Delete this task?')) return
+                  await api.deleteTask(editing)
+                  setModalOpen(false)
+                  load()
+                }}
+              >
+                Delete
+              </button>
+            )}
             <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'} Task</button>
           </div>
