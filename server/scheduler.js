@@ -47,8 +47,11 @@ async function syncSierraIncremental() {
     if (total > 0) {
       console.log(`[scheduler] Sierra incremental: ${total} leads (${added} new, ${updated} updated)`)
     }
+    return { success: true, total, added, updated, since: sinceFormatted }
   } catch (err) {
     console.error('[scheduler] Sierra sync error:', err.message)
+    db.run('INSERT INTO sierra_sync_log (sync_type, errors) VALUES (?,?)', ['incremental_error', err.message])
+    return { success: false, error: err.message }
   }
 }
 
@@ -178,7 +181,12 @@ async function syncGoogleCalendar() {
   }
 }
 
-export { syncGoogleCalendar }
+// Export the incremental sync function so a manual endpoint can trigger it on demand
+async function runIncrementalNow() {
+  return await syncSierraIncremental()
+}
+
+export { syncGoogleCalendar, runIncrementalNow }
 
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')

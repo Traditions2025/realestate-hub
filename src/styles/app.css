@@ -2289,6 +2289,11 @@ input[type="range"] {
   color: #a78bfa;
   border: 1px solid rgba(139, 92, 246, 0.2);
 }
+.sierra-banner.warning {
+  background: rgba(245, 158, 11, 0.10);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
 
 .sierra-tag {
   font-size: 9px;

@@ -22,6 +22,8 @@ export default function Clients() {
   const [detail, setDetail] = useState(null)
   const [sierraStatus, setSierraStatus] = useState(null) // null = not started, 'syncing', { added, updated, total_synced, error }
   const [syncLog, setSyncLog] = useState(null)
+  const [syncHealth, setSyncHealth] = useState(null)
+  const [runningIncremental, setRunningIncremental] = useState(false)
   const [syncMenuOpen, setSyncMenuOpen] = useState(false)
   const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
@@ -165,10 +167,11 @@ export default function Clients() {
   // Initial load - no auto-sync (would be too heavy with all leads)
   useEffect(() => {
     load()
-    // Load last sync info
+    // Load last sync info + health
     authFetch('/api/sierra/sync-log').then(r => r.json()).then(logs => {
       if (logs.length > 0) setSyncLog(logs[0])
     })
+    authFetch('/api/sierra/sync-health').then(r => r.json()).then(setSyncHealth).catch(() => {})
     // Load Sierra lead counts so the button shows the total
     authFetch('/api/sierra/counts').then(r => r.json()).then(setSierraCounts).catch(() => {})
   }, [])
@@ -645,11 +648,68 @@ export default function Clients() {
         {sierraStatus && sierraStatus.error && (
           <div className="sierra-banner error">Sierra sync error: {sierraStatus.error}</div>
         )}
-        {syncLog && !sierraStatus && (
-          <div className="sierra-banner info">
-            Last sync: {new Date(syncLog.synced_at).toLocaleString()} — {syncLog.leads_synced} leads
-          </div>
-        )}
+        {syncHealth && !sierraStatus && (() => {
+          const fmtAgo = (ts) => {
+            if (!ts) return 'never'
+            const d = new Date(ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z')
+            const mins = Math.floor((Date.now() - d.getTime()) / 60000)
+            if (mins < 1) return 'just now'
+            if (mins < 60) return `${mins} min ago`
+            if (mins < 1440) return `${Math.floor(mins / 60)} hr ago`
+            return `${Math.floor(mins / 1440)} day${Math.floor(mins / 1440) === 1 ? '' : 's'} ago`
+          }
+          const lastInc = syncHealth.last_incremental
+          const lastFull = syncHealth.last_full
+          const incrementalIsStale = !lastInc || (Date.now() - new Date(lastInc.synced_at.replace(' ', 'T') + 'Z').getTime()) > 30 * 60 * 1000
+          return (
+            <div className={`sierra-banner ${incrementalIsStale ? 'warning' : 'info'}`} style={{display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center'}}>
+              <div style={{flex: 1, minWidth: 250}}>
+                {lastFull && (
+                  <div><strong>Last full sync:</strong> {new Date(lastFull.synced_at.replace(' ', 'T') + 'Z').toLocaleString()} — {lastFull.leads_synced.toLocaleString()} leads</div>
+                )}
+                <div>
+                  <strong>Last incremental:</strong>{' '}
+                  {lastInc ? (
+                    <>{fmtAgo(lastInc.synced_at)} — {lastInc.leads_synced} updated · {syncHealth.incremental_runs_24h} runs in 24hr</>
+                  ) : (
+                    <span style={{color: '#fbbf24'}}>none on record</span>
+                  )}
+                </div>
+                {syncHealth.updates_since_full_sync > 0 && (
+                  <div style={{fontSize: 12, opacity: 0.8}}>{syncHealth.updates_since_full_sync.toLocaleString()} lead updates since last full sync</div>
+                )}
+                {incrementalIsStale && (
+                  <div style={{color: '#fbbf24', fontSize: 12, marginTop: 4}}>
+                    ⚠ Incremental sync hasn't run in 30+ min — scheduler may have stopped. Click "Run Sync Now" to trigger one.
+                  </div>
+                )}
+              </div>
+              <button
+                className="btn btn-sm btn-secondary"
+                disabled={runningIncremental}
+                onClick={async () => {
+                  setRunningIncremental(true)
+                  try {
+                    const r = await authFetch('/api/sierra/sync-incremental-now', { method: 'POST' })
+                    const d = await r.json()
+                    if (d.success) {
+                      alert(`✓ Incremental sync complete: ${d.total} leads (${d.added} new, ${d.updated} updated)`)
+                    } else {
+                      alert('Sync failed: ' + (d.error || 'unknown error'))
+                    }
+                    // Refresh health info
+                    const h = await authFetch('/api/sierra/sync-health').then(x => x.json())
+                    setSyncHealth(h)
+                    load()
+                  } catch (e) { alert('Failed: ' + e.message) }
+                  finally { setRunningIncremental(false) }
+                }}
+              >
+                {runningIncremental ? 'Syncing...' : '↻ Run Sync Now'}
+              </button>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Status Tabs - primary statuses always visible, others in dropdown */}

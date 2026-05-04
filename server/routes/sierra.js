@@ -256,6 +256,41 @@ router.get('/sync-log', (req, res) => {
   res.json(logs)
 })
 
+// Health summary: latest full sync, latest incremental, recent activity
+router.get('/sync-health', (req, res) => {
+  const lastFull = db.get(`SELECT * FROM sierra_sync_log
+    WHERE sync_type NOT IN ('incremental','incremental_error','sync_error')
+    ORDER BY synced_at DESC LIMIT 1`)
+  const lastIncremental = db.get(`SELECT * FROM sierra_sync_log
+    WHERE sync_type = 'incremental' ORDER BY synced_at DESC LIMIT 1`)
+  const lastError = db.get(`SELECT * FROM sierra_sync_log
+    WHERE errors IS NOT NULL AND errors != '' ORDER BY synced_at DESC LIMIT 1`)
+  const incremental24h = db.get(`SELECT COUNT(*) as c FROM sierra_sync_log
+    WHERE sync_type = 'incremental' AND synced_at >= datetime('now', '-1 day')`).c
+  const updatesSinceFullSync = lastFull ? db.get(`
+    SELECT COALESCE(SUM(leads_synced), 0) as c FROM sierra_sync_log
+    WHERE sync_type = 'incremental' AND synced_at > ?`, [lastFull.synced_at]).c : 0
+  res.json({
+    last_full: lastFull,
+    last_incremental: lastIncremental,
+    last_error: lastError,
+    incremental_runs_24h: incremental24h,
+    updates_since_full_sync: updatesSinceFullSync,
+    scheduler_expected_interval_min: 10,
+  })
+})
+
+// Manual trigger: kicks off an incremental sync immediately (skips the 10-min wait)
+router.post('/sync-incremental-now', async (req, res) => {
+  try {
+    const { runIncrementalNow } = await import('../scheduler.js')
+    const result = await runIncrementalNow()
+    res.json(result)
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message })
+  }
+})
+
 router.get('/test', async (req, res) => {
   try {
     const data = await sierraGet('/leads/find', { pageSize: 1, leadStatus: 'Active' })
