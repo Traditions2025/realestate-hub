@@ -103,7 +103,14 @@ body {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  /* Ensure long sidebars (many sections) can scroll on shorter screens */
+  min-height: 0;
 }
+.sidebar-nav::-webkit-scrollbar { width: 6px; }
+.sidebar-nav::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.sidebar-nav::-webkit-scrollbar-thumb:hover { background: var(--border-light); }
 
 .nav-item {
   display: flex;
