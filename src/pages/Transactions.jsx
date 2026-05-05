@@ -36,30 +36,47 @@ const ALTA_OPTIONS = ['Not Ready', 'Ready']
 const DEED_PACKAGE_OPTIONS = ['Not Ready', 'Ready', 'Signed']
 const DOTLOOP_OPTIONS = ['Not Submitted', 'Needs Review', 'Listing Approved', 'Approved for Commission']
 
-// Calculate earnest money due date — 3 business days from contract date
+// Parse a YYYY-MM-DD string as a LOCAL date (avoids UTC-vs-local off-by-one bugs)
+function parseLocalDate(s) {
+  if (!s) return null
+  const parts = s.split('-').map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) return null
+  return new Date(parts[0], parts[1] - 1, parts[2])
+}
+function formatLocalDate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+// Earnest money due — 3 business days after contract date (skip weekends)
 function calcEarnestDue(contractDate) {
-  if (!contractDate) return ''
-  const d = new Date(contractDate)
-  if (isNaN(d)) return ''
+  const d = parseLocalDate(contractDate)
+  if (!d) return ''
   let added = 0
   while (added < 3) {
     d.setDate(d.getDate() + 1)
     const dow = d.getDay()
     if (dow !== 0 && dow !== 6) added++
   }
-  return d.toISOString().split('T')[0]
+  return formatLocalDate(d)
 }
 
-// Final walkthrough is the last weekday before closing.
-// If closing is Mon, walkthrough is the previous Friday. Tue → Mon. Etc.
+// Final walkthrough — the day before closing.
+// If that day is Sat or Sun, walk backwards to the previous Friday.
+// Examples: closing Wed 6/10 → walkthrough Tue 6/9.
+//           closing Mon 6/8  → walkthrough Fri 6/5.
+//           closing Sun       → walkthrough Fri.
+//           closing Sat       → walkthrough Fri.
 function calcFinalWalkthrough(closingDate) {
-  if (!closingDate) return ''
-  const d = new Date(closingDate)
-  if (isNaN(d)) return ''
-  do {
+  const d = parseLocalDate(closingDate)
+  if (!d) return ''
+  d.setDate(d.getDate() - 1) // start at "day before closing"
+  while (d.getDay() === 0 || d.getDay() === 6) {
     d.setDate(d.getDate() - 1)
-  } while (d.getDay() === 0 || d.getDay() === 6) // skip Sun (0) and Sat (6)
-  return d.toISOString().split('T')[0]
+  }
+  return formatLocalDate(d)
 }
 
 export default function Transactions() {
