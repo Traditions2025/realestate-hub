@@ -57,6 +57,35 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// Append a note to a task's running notes log (JSON array of {at, by, text})
+router.post('/:id/notes', (req, res) => {
+  const id = Number(req.params.id)
+  const { text, by } = req.body || {}
+  if (!text || !text.trim()) return res.status(400).json({ error: 'text required' })
+  const row = db.get('SELECT notes_log FROM tasks WHERE id = ?', [id])
+  if (!row) return res.status(404).json({ error: 'Task not found' })
+  let log = []
+  try { log = row.notes_log ? JSON.parse(row.notes_log) : [] } catch { log = [] }
+  log.push({ at: new Date().toISOString(), by: (by || '').trim() || null, text: text.trim() })
+  db.run("UPDATE tasks SET notes_log = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(log), id])
+  logActivity('note_added', 'task', id, `Note added by ${by || 'team'}: ${text.trim().slice(0, 100)}`)
+  res.json({ success: true, notes_log: log })
+})
+
+// Delete a note by index (keeps the rest in order)
+router.delete('/:id/notes/:idx', (req, res) => {
+  const id = Number(req.params.id)
+  const idx = Number(req.params.idx)
+  const row = db.get('SELECT notes_log FROM tasks WHERE id = ?', [id])
+  if (!row) return res.status(404).json({ error: 'Task not found' })
+  let log = []
+  try { log = row.notes_log ? JSON.parse(row.notes_log) : [] } catch {}
+  if (idx < 0 || idx >= log.length) return res.status(400).json({ error: 'invalid index' })
+  log.splice(idx, 1)
+  db.run("UPDATE tasks SET notes_log = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(log), id])
+  res.json({ success: true, notes_log: log })
+})
+
 // =========================================================
 // One-time seed: Matt's current task backlog (organized by category)
 // Idempotent — won't duplicate tasks that already exist by title

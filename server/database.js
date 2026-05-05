@@ -214,6 +214,7 @@ export async function initDb() {
       category TEXT,
       related_type TEXT,
       related_id INTEGER,
+      notes_log TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
@@ -570,6 +571,17 @@ export async function initDb() {
     }
   } catch (e) {
     console.error('[migration] Client columns failed:', e.message)
+  }
+
+  // Migration: add notes_log column to tasks
+  try {
+    const taskCols = db.exec("PRAGMA table_info(tasks)")[0]?.values.map(v => v[1]) || []
+    if (!taskCols.includes('notes_log')) {
+      db.run('ALTER TABLE tasks ADD COLUMN notes_log TEXT')
+      console.log('[migration] Added tasks.notes_log')
+    }
+  } catch (e) {
+    console.error('[migration] tasks.notes_log failed:', e.message)
   }
 
   // Migration: add new transaction columns (earnest money due, IPI, lender, dotloop)

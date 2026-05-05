@@ -3,6 +3,11 @@ import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 
+function parseNotes(s) {
+  if (!s) return []
+  try { const v = JSON.parse(s); return Array.isArray(v) ? v : [] } catch { return [] }
+}
+
 const emptyTask = {
   title: '', description: '', priority: 'medium', status: 'todo',
   due_date: '', assigned_to: '', category: ''
@@ -56,8 +61,34 @@ export default function Tasks() {
   useEffect(() => { load() }, [])
   useEffect(() => { load() }, [filter])
 
-  const openNew = (status) => { setEditing(null); setForm({ ...emptyTask, status: status || 'todo' }); setModalOpen(true) }
-  const openEdit = (item) => { setEditing(item.id); setForm({ ...emptyTask, ...item }); setModalOpen(true) }
+  const [noteText, setNoteText] = useState('')
+  const [noteBy, setNoteBy] = useState('')
+
+  const openNew = (status) => { setEditing(null); setForm({ ...emptyTask, status: status || 'todo' }); setNoteText(''); setNoteBy(''); setModalOpen(true) }
+  const openEdit = (item) => { setEditing(item.id); setForm({ ...emptyTask, ...item }); setNoteText(''); setNoteBy(''); setModalOpen(true) }
+
+  const addNote = async () => {
+    if (!editing || !noteText.trim()) return
+    const r = await authFetch(`/api/tasks/${editing}/notes`, {
+      method: 'POST',
+      body: JSON.stringify({ text: noteText.trim(), by: noteBy || '' }),
+    })
+    const d = await r.json()
+    if (d.error) { alert(d.error); return }
+    // Update form's notes_log so the thread re-renders
+    setForm(prev => ({ ...prev, notes_log: JSON.stringify(d.notes_log) }))
+    setNoteText('')
+    load()
+  }
+
+  const removeNote = async (idx) => {
+    if (!editing) return
+    if (!confirm('Delete this note?')) return
+    const r = await authFetch(`/api/tasks/${editing}/notes/${idx}`, { method: 'DELETE' })
+    const d = await r.json()
+    if (d.error) { alert(d.error); return }
+    setForm(prev => ({ ...prev, notes_log: JSON.stringify(d.notes_log) }))
+  }
 
   const save = async (e) => {
     e.preventDefault()
@@ -236,6 +267,50 @@ export default function Tasks() {
             </select></label>
           </div>
           <label>Category<input value={form.category} onChange={e => f('category', e.target.value)} placeholder="TC, Marketing, Admin..." /></label>
+
+          {editing && (() => {
+            const notes = parseNotes(form.notes_log)
+            return (
+              <div style={{marginTop: 16, padding: '12px 14px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6}}>
+                <h4 style={{margin: '0 0 10px', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--accent)'}}>📝 Notes ({notes.length})</h4>
+                {notes.length > 0 && (
+                  <div style={{maxHeight: 240, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
+                    {notes.map((nt, i) => (
+                      <div key={i} style={{padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 4, fontSize: 13, position: 'relative'}}>
+                        <div style={{fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 8}}>
+                          <span>
+                            {nt.by ? <strong>{nt.by}</strong> : <em>—</em>}
+                            {' · '}
+                            {nt.at ? new Date(nt.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                          </span>
+                          <button type="button" className="btn-sm btn-danger" style={{padding: '0 6px', fontSize: 10}} onClick={() => removeNote(i)} title="Delete this note">✕</button>
+                        </div>
+                        <div style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word'}}>{nt.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{display: 'flex', gap: 6, alignItems: 'flex-start'}}>
+                  <select value={noteBy} onChange={e => setNoteBy(e.target.value)} style={{width: 110, flexShrink: 0}}>
+                    <option value="">— By —</option>
+                    <option value="Matt">Matt</option>
+                    <option value="Leo">Leo</option>
+                  </select>
+                  <textarea
+                    rows={2}
+                    placeholder="Add a note (status update, reminder, blocker)..."
+                    value={noteText}
+                    onChange={e => setNoteText(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); addNote() } }}
+                    style={{flex: 1}}
+                  />
+                  <button type="button" className="btn btn-sm btn-primary" disabled={!noteText.trim()} onClick={addNote}>Add</button>
+                </div>
+                <div style={{fontSize: 10, color: 'var(--text-muted)', marginTop: 4}}>Tip: Cmd/Ctrl + Enter to add quickly</div>
+              </div>
+            )
+          })()}
+
           <div className="form-actions">
             {editing && (
               <button
