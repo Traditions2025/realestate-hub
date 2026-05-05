@@ -22,7 +22,6 @@ const navSections = [
   { label: 'MAIN', items: [
     { path: '/', label: 'Dashboard', icon: '\u229E' },
     { path: '/calendar', label: 'Calendar', icon: '\u2630' },
-    { path: '/updates', label: 'Updates', icon: '\u27F3' },
   ]},
   { label: 'PIPELINE', items: [
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
@@ -42,6 +41,9 @@ const navSections = [
   { label: 'DIRECTORY', items: [
     { path: '/vendors', label: 'Vendors', icon: '\u2692' },
     { path: '/partners', label: 'Partners', icon: '\u2694' },
+  ]},
+  { label: 'SYSTEM', items: [
+    { path: '/updates', label: 'Updates', icon: '\u27f3' },
   ]},
 ]
 

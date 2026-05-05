@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "concurrently \"node server/index.js\" \"vite\"",
     "server": "node server/index.js",
-    "build": "vite build",
+    "changelog": "node scripts/generate-changelog.mjs",
+    "build": "node scripts/generate-changelog.mjs && vite build",
     "start": "node server/index.js"
   },
   "dependencies": {

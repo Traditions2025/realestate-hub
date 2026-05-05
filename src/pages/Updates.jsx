@@ -1,53 +1,176 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { authFetch } from '../api'
 
+// =====================================================
+// HUB UPDATES (development changelog from git history)
+// =====================================================
+const CATEGORY_META = {
+  feature:     { icon: '✨', label: 'Feature',     color: '#10b981' },
+  improvement: { icon: '🔧', label: 'Improvement', color: '#3b82f6' },
+  fix:         { icon: '🐛', label: 'Fix',         color: '#f59e0b' },
+  refactor:    { icon: '♻️', label: 'Refactor',    color: '#a855f7' },
+  schema:      { icon: '🗄', label: 'Schema',      color: '#ec4899' },
+  removal:     { icon: '🗑', label: 'Removal',     color: '#6b7280' },
+  docs:        { icon: '📝', label: 'Docs',        color: '#06b6d4' },
+  other:       { icon: '•',  label: 'Other',       color: '#9ca3af' },
+}
+
+function fmtDate(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+}
+function fmtTime(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return d.toLocaleString()
+}
+
+function HubUpdates() {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState('')
+  const [search, setSearch] = useState('')
+  const [expanded, setExpanded] = useState(new Set())
+
+  useEffect(() => {
+    fetch('/changelog.json')
+      .then(r => r.ok ? r.json() : { entries: [] })
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => { setData({ entries: [] }); setLoading(false) })
+  }, [])
+
+  const entries = data?.entries || []
+  const filtered = useMemo(() => {
+    return entries.filter(e => {
+      if (filter && e.category !== filter) return false
+      if (search) {
+        const t = search.toLowerCase()
+        if (!(e.subject + ' ' + e.body).toLowerCase().includes(t)) return false
+      }
+      return true
+    })
+  }, [entries, filter, search])
+
+  // Group by day
+  const grouped = useMemo(() => {
+    const groups = {}
+    for (const e of filtered) {
+      if (!e.date) continue
+      const key = fmtDate(e.date)
+      if (!groups[key]) groups[key] = []
+      groups[key].push(e)
+    }
+    return groups
+  }, [filtered])
+
+  const counts = useMemo(() => {
+    const c = {}
+    for (const e of entries) c[e.category] = (c[e.category] || 0) + 1
+    return c
+  }, [entries])
+
+  const toggle = (id) => {
+    setExpanded(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  if (loading) return <div className="page-loading">Loading hub updates...</div>
+
+  return (
+    <div>
+      <div className="toolbar" style={{flexWrap: 'wrap'}}>
+        <input
+          type="text"
+          placeholder="Search updates..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="search-input"
+        />
+        <select value={filter} onChange={e => setFilter(e.target.value)}>
+          <option value="">All categories</option>
+          {Object.entries(CATEGORY_META).map(([k, m]) => (
+            <option key={k} value={k}>
+              {m.icon} {m.label} ({counts[k] || 0})
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="muted" style={{margin: '8px 0 14px', fontSize: 12}}>
+        {entries.length} total updates
+        {data?.generated_at && ` · last updated ${new Date(data.generated_at).toLocaleString()}`}
+        {' · '}showing {filtered.length}
+      </div>
+
+      {Object.keys(grouped).length === 0 ? (
+        <div className="empty-state-full">No updates match the current filters.</div>
+      ) : Object.entries(grouped).map(([day, items]) => (
+        <div key={day} className="updates-day">
+          <h3 className="updates-day-header">{day}</h3>
+          <div className="updates-feed">
+            {items.map(e => {
+              const meta = CATEGORY_META[e.category] || CATEGORY_META.other
+              const isExpanded = expanded.has(e.hash)
+              const hasBody = e.body && e.body.length > 0
+              return (
+                <div key={e.hash} className="updates-row" onClick={() => hasBody && toggle(e.hash)} style={{cursor: hasBody ? 'pointer' : 'default'}}>
+                  <div className="updates-icon" style={{color: meta.color, borderColor: meta.color + '50', background: meta.color + '15'}}>
+                    {meta.icon}
+                  </div>
+                  <div className="updates-content">
+                    <div className="updates-line">
+                      <span className="updates-entity-badge" style={{background: meta.color + '20', color: meta.color}}>
+                        {meta.label}
+                      </span>
+                      <span className="updates-time" title={fmtTime(e.date)}>
+                        {new Date(e.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="updates-action" style={{marginTop: 2}}>{e.subject}</div>
+                    {hasBody && isExpanded && (
+                      <div className="updates-details" style={{marginTop: 8, padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, whiteSpace: 'pre-wrap'}}>
+                        {e.body}
+                      </div>
+                    )}
+                    {hasBody && !isExpanded && (
+                      <div className="muted" style={{fontSize: 11, marginTop: 2}}>Click to expand details</div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+// =====================================================
+// ACTIVITY LOG (business actions from activity_log table)
+// =====================================================
 const ACTION_ICONS = {
-  created: '✨',
-  updated: '✎',
-  deleted: '🗑',
-  synced: '↻',
-  refreshed: '↻',
-  email_sent: '✉',
-  generated: '🪄',
-  extracted_pdf: '📄',
-  extracted_url: '🔗',
-  auto_populated: '🌐',
-  webhook: '🔔',
-  seeded: '🌱',
-  note_added: '📝',
+  created: '✨', updated: '✎', deleted: '🗑', synced: '↻', refreshed: '↻',
+  email_sent: '✉', generated: '🪄', extracted_pdf: '📄', extracted_url: '🔗',
+  auto_populated: '🌐', webhook: '🔔', seeded: '🌱', note_added: '📝',
   batch_refresh: '↻',
 }
-
 const ENTITY_LABELS = {
-  client: 'Client',
-  transaction: 'Transaction',
-  pre_listing: 'Pre-Listing',
-  listing: 'Listing',
-  task: 'Task',
-  project: 'Project',
-  note: 'Note',
-  vendor: 'Vendor',
-  partner: 'Partner',
-  social_post: 'Social Post',
-  marketing: 'Marketing',
-  showing: 'Showing',
-  calendar: 'Calendar',
+  client: 'Client', transaction: 'Transaction', pre_listing: 'Pre-Listing',
+  listing: 'Listing', task: 'Task', project: 'Project', note: 'Note',
+  vendor: 'Vendor', partner: 'Partner', social_post: 'Social Post',
+  marketing: 'Marketing', showing: 'Showing', calendar: 'Calendar',
   sierra: 'Sierra',
 }
-
 const ENTITY_COLORS = {
-  client: '#3b82f6',
-  transaction: '#10b981',
-  pre_listing: '#a855f7',
-  listing: '#c89b4a',
-  task: '#f59e0b',
-  project: '#8b5cf6',
-  note: '#6b7280',
-  vendor: '#06b6d4',
-  partner: '#ec4899',
-  social_post: '#f43f5e',
-  marketing: '#ef4444',
-  sierra: '#7c3aed',
+  client: '#3b82f6', transaction: '#10b981', pre_listing: '#a855f7',
+  listing: '#c89b4a', task: '#f59e0b', project: '#8b5cf6', note: '#6b7280',
+  vendor: '#06b6d4', partner: '#ec4899', social_post: '#f43f5e',
+  marketing: '#ef4444', sierra: '#7c3aed',
 }
 
 function fmtAgo(ts) {
@@ -63,23 +186,18 @@ function fmtAgo(ts) {
   return d.toLocaleDateString()
 }
 
-function fmtAbsolute(ts) {
-  if (!ts) return ''
-  const d = new Date(ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z')
-  return d.toLocaleString()
-}
-
-export default function Updates() {
+function ActivityLog() {
   const [items, setItems] = useState([])
   const [total, setTotal] = useState(0)
-  const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({ entity_type: '', action: '', search: '', since: '' })
   const [filterOptions, setFilterOptions] = useState({ entity_types: [], actions: [] })
   const [pageSize, setPageSize] = useState(100)
   const [offset, setOffset] = useState(0)
 
-  const load = () => {
-    setLoading(true)
+  useEffect(() => {
+    authFetch('/api/activity/filters').then(r => r.json()).then(setFilterOptions).catch(() => {})
+  }, [])
+  useEffect(() => {
     const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) })
     if (filters.entity_type) params.set('entity_type', filters.entity_type)
     if (filters.action) params.set('action', filters.action)
@@ -88,14 +206,7 @@ export default function Updates() {
     authFetch('/api/activity?' + params)
       .then(r => r.json())
       .then(d => { setItems(d.rows || []); setTotal(d.total || 0) })
-      .catch(() => {})
-      .finally(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    authFetch('/api/activity/filters').then(r => r.json()).then(setFilterOptions).catch(() => {})
-  }, [])
-  useEffect(() => { load() }, [pageSize, offset, filters])
+  }, [pageSize, offset, filters])
 
   const grouped = useMemo(() => {
     const groups = {}
@@ -110,27 +221,13 @@ export default function Updates() {
   }, [items])
 
   const setFilter = (k, v) => { setFilters(prev => ({ ...prev, [k]: v })); setOffset(0) }
-  const clearFilters = () => { setFilters({ entity_type: '', action: '', search: '', since: '' }); setOffset(0) }
-  const hasFilters = filters.entity_type || filters.action || filters.search || filters.since
 
   return (
-    <div className="page">
-      <div className="page-header">
-        <div>
-          <h1>Updates</h1>
-          <p className="page-subtitle">Everything created, updated, synced, or sent across the hub</p>
-        </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary" onClick={load} disabled={loading}>
-            {loading ? 'Loading...' : '↻ Refresh'}
-          </button>
-        </div>
-      </div>
-
+    <div>
       <div className="toolbar">
         <input
           type="text"
-          placeholder="Search updates..."
+          placeholder="Search activity..."
           value={filters.search}
           onChange={e => setFilter('search', e.target.value)}
           className="search-input"
@@ -143,21 +240,14 @@ export default function Updates() {
           <option value="">All Actions</option>
           {filterOptions.actions.map(a => <option key={a} value={a}>{a.replace(/_/g, ' ')}</option>)}
         </select>
-        <select
-          value={filters.since}
-          onChange={e => setFilter('since', e.target.value)}
-          title="Time range"
-        >
+        <select value={filters.since} onChange={e => setFilter('since', e.target.value)}>
           <option value="">All time</option>
           <option value={new Date(Date.now() - 60 * 60 * 1000).toISOString()}>Last hour</option>
           <option value={new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}>Last 24 hours</option>
           <option value={new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()}>Last 7 days</option>
           <option value={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()}>Last 30 days</option>
         </select>
-        {hasFilters && (
-          <button className="btn-sm btn-danger" onClick={clearFilters}>Clear filters</button>
-        )}
-        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} title="Show per page">
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>
           <option value={50}>50</option>
           <option value={100}>100</option>
           <option value={250}>250</option>
@@ -166,11 +256,11 @@ export default function Updates() {
       </div>
 
       <div className="muted" style={{margin: '8px 0 14px', fontSize: 12}}>
-        Showing {items.length} of {total.toLocaleString()} updates
+        {items.length} of {total.toLocaleString()} entries
       </div>
 
-      {Object.keys(grouped).length === 0 && !loading ? (
-        <div className="empty-state-full">No updates match the current filters.</div>
+      {Object.keys(grouped).length === 0 ? (
+        <div className="empty-state-full">No activity matches the current filters.</div>
       ) : Object.entries(grouped).map(([day, entries]) => (
         <div key={day} className="updates-day">
           <h3 className="updates-day-header">{day}</h3>
@@ -191,7 +281,7 @@ export default function Updates() {
                           {ENTITY_LABELS[e.entity_type] || e.entity_type}
                         </span>
                       )}
-                      <span className="updates-time" title={fmtAbsolute(e.created_at)}>{fmtAgo(e.created_at)}</span>
+                      <span className="updates-time">{fmtAgo(e.created_at)}</span>
                     </div>
                     {e.details && <div className="updates-details">{e.details}</div>}
                   </div>
@@ -205,10 +295,42 @@ export default function Updates() {
       {items.length === pageSize && offset + pageSize < total && (
         <div style={{textAlign: 'center', marginTop: 20}}>
           <button className="btn btn-secondary" onClick={() => setOffset(prev => prev + pageSize)}>
-            Load More ({(total - offset - pageSize).toLocaleString()} remaining)
+            Load More
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// =====================================================
+// PAGE WITH TABS
+// =====================================================
+export default function Updates() {
+  const [tab, setTab] = useState('hub')
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1>Updates</h1>
+          <p className="page-subtitle">
+            {tab === 'hub'
+              ? 'Hub development history — features added, fixes shipped, improvements over time'
+              : 'Live activity feed — everything created, updated, synced or sent across the hub'}
+          </p>
+        </div>
+      </div>
+
+      <div className="listing-tabs" style={{marginBottom: 18}}>
+        <button className={`listing-tab ${tab === 'hub' ? 'active' : ''}`} onClick={() => setTab('hub')}>
+          🛠 Hub Updates
+        </button>
+        <button className={`listing-tab ${tab === 'activity' ? 'active' : ''}`} onClick={() => setTab('activity')}>
+          📊 Activity Log
+        </button>
+      </div>
+
+      {tab === 'hub' ? <HubUpdates /> : <ActivityLog />}
     </div>
   )
 }
