@@ -100,7 +100,7 @@ export default function Transactions() {
   const [emailTemplates, setEmailTemplates] = useState([])
   const [emailForm, setEmailForm] = useState({
     template_id: '', recipient_type: 'client', to_email: '', to_name: '',
-    subject: '', body: '', auto_cc: [], extra_cc: [],
+    subject: '', body: '', auto_cc: [], extra_cc: [], attachments: [],
   })
   const [emailSending, setEmailSending] = useState(false)
 
@@ -182,6 +182,7 @@ export default function Transactions() {
           body: emailForm.body,
           template_id: emailForm.template_id,
           additional_cc: emailForm.extra_cc || [],
+          attachments: emailForm.attachments || [],
         }),
       })
       const d = await r.json()
@@ -1083,7 +1084,14 @@ export default function Transactions() {
           </select>
         </div>
         <div className="form-row">
-          <label>To (email)<input type="email" value={emailForm.to_email} onChange={e => setEmailForm(p => ({ ...p, to_email: e.target.value }))} /></label>
+          <label>To (email — separate multiple with comma)
+            <input
+              type="text"
+              value={emailForm.to_email}
+              onChange={e => setEmailForm(p => ({ ...p, to_email: e.target.value }))}
+              placeholder="kevin@example.com, sara@example.com"
+            />
+          </label>
           <label>To (name)<input value={emailForm.to_name} onChange={e => setEmailForm(p => ({ ...p, to_name: e.target.value }))} /></label>
         </div>
         <div className="muted" style={{padding: '6px 10px', background: 'rgba(200, 155, 74, 0.08)', borderRadius: 4, marginBottom: 10}}>
@@ -1094,6 +1102,50 @@ export default function Transactions() {
         </div>
         <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
         <label>Body<textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} /></label>
+
+        <div className="field-group">
+          <h4>📎 Attachments</h4>
+          <input
+            type="file"
+            multiple
+            onChange={async (e) => {
+              const files = Array.from(e.target.files || [])
+              if (!files.length) return
+              const newAttachments = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+                const reader = new FileReader()
+                reader.onload = () => resolve({
+                  filename: file.name,
+                  type: file.type || 'application/octet-stream',
+                  size: file.size,
+                  content_base64: reader.result.toString().split(',')[1],
+                })
+                reader.onerror = reject
+                reader.readAsDataURL(file)
+              })))
+              setEmailForm(p => ({ ...p, attachments: [...(p.attachments || []), ...newAttachments] }))
+              e.target.value = ''
+            }}
+          />
+          {(emailForm.attachments || []).length > 0 && (
+            <div style={{marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 6}}>
+              {emailForm.attachments.map((att, i) => (
+                <span key={i} className="lead-tag" style={{padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                  📎 {att.filename} ({(att.size / 1024).toFixed(0)} KB)
+                  <button
+                    type="button"
+                    onClick={() => setEmailForm(p => ({ ...p, attachments: p.attachments.filter((_, idx) => idx !== i) }))}
+                    style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 14}}
+                  >✕</button>
+                </span>
+              ))}
+              <span className="muted" style={{fontSize: 11, alignSelf: 'center'}}>
+                Total: {((emailForm.attachments.reduce((s, a) => s + a.size, 0)) / 1024 / 1024).toFixed(2)} MB
+              </span>
+            </div>
+          )}
+          <p className="muted" style={{fontSize: 11, margin: '4px 0 0'}}>SendGrid limit: 30 MB total. PDFs, images, and most file types supported.</p>
+        </div>
+
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={() => setEmailOpen(false)}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={sendTransactionEmail} disabled={emailSending || !emailForm.to_email}>

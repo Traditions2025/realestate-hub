@@ -19,6 +19,35 @@ function addBusinessDays(dateStr, n) {
   return `${y}-${m}-${dd}`
 }
 
+// Pull recommended home inspectors from the Vendors table and format as a block.
+// Prefer those flagged Preferred; fall back to all home inspectors. Cap at 4.
+function formatInspectorsList() {
+  let rows = []
+  try {
+    rows = db.all(
+      "SELECT * FROM vendors WHERE category = 'Home Inspector' AND preferred = 1 ORDER BY rating DESC, company_name ASC LIMIT 4"
+    )
+    if (!rows.length) {
+      rows = db.all(
+        "SELECT * FROM vendors WHERE category = 'Home Inspector' ORDER BY rating DESC, company_name ASC LIMIT 4"
+      )
+    }
+  } catch {}
+  if (!rows.length) return ''
+  return rows.map(v => {
+    const lines = []
+    if (v.company_name) lines.push(v.company_name)
+    if (v.contact_name && v.contact_name !== v.company_name) lines.push(v.contact_name)
+    if (v.address) {
+      const cityState = [v.city, v.state].filter(Boolean).join(', ')
+      lines.push(cityState ? `${v.address}, ${cityState}` : v.address)
+    }
+    if (v.phone) lines.push(v.phone)
+    if (v.email) lines.push(v.email)
+    return lines.join('\n')
+  }).join('\n\n')
+}
+
 // Format a date string (YYYY-MM-DD) as "May 22, 2026"
 function fmtLongDate(dateStr) {
   if (!dateStr) return ''
@@ -85,14 +114,18 @@ INSURANCE CONTINGENCY
 Per the contract, this purchase is subject to you obtaining an acceptable insurance estimate or bid within 7 business days of the accepted offer. This makes your deadline {{insurance_contingency_date_long}}. We recommend reaching out to your insurance provider this week to ensure the property meets your coverage requirements and that the premiums fit within your budget.
 
 INSPECTIONS
-It's great to hear you've already connected with an inspector. Per the purchase contract, you have 10 business days for all inspections, making the deadline {{inspection_contingency_date_long}}.
+Per the purchase contract, you have 10 business days for all inspections, making the deadline {{inspection_contingency_date_long}}.
 
 Inspections include:
 - Whole Property Inspection
 - Radon Test
 - Wood-Destroying Insect Inspection
 
-Please let us know once the date and time are finalized.
+If you haven't already lined one up, here are some inspectors we recommend:
+
+{{recommended_inspectors}}
+
+You can contact them directly to get scheduled, or we can help coordinate it for you. Just let us know how you'd like to proceed, and please let us know once the date and time are finalized.
 
 HOME WARRANTY
 Per the contract, a 1-year home warranty is included and paid for by the seller.
@@ -526,6 +559,10 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.buyer_name = transaction.buyer_name || ''
     v.seller_name = transaction.seller_name || ''
   }
+  // Recommended inspectors — pull from vendors (category = 'Home Inspector')
+  // Prefer those flagged as Preferred; fall back to all home inspectors. Cap at 4.
+  v.recommended_inspectors = formatInspectorsList()
+
   // Closer info — look up from partners table by role first, fall back to env vars
   const closer = lookupCloser()
   v.closer_name = closer.name

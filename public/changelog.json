@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-05-05T18:10:26.075Z",
-  "count": 79,
+  "generated_at": "2026-05-05T18:41:16.072Z",
+  "count": 82,
   "entries": [
+    {
+      "hash": "98f7288",
+      "date": "2026-05-05T13:32:38-05:00",
+      "subject": "Buyer Under Contract template: polished version with insurance contingency calc + long-format dates",
+      "title": "Buyer Under Contract template: polished version with insurance contingency calc + long-format dates",
+      "body": "Replaced the existing buyer_under_contract body with the user's refined version. Key differences from the old version:\n- Adds INSURANCE CONTINGENCY section with auto-calculated 7-business-day deadline\n- Cleaner structure, less redundancy\n- Uses long-format dates ('June 2, 2026' instead of '2026-06-02') everywhere it matters\n- Trust-by-RE/MAX-Concepts wording for earnest money (matches what we actually do)\n- Mentions Cherryl as our team member (not separate company) for closing coordination\n\nNew template engine helpers in transaction-email-templates.js:\n- addBusinessDays(date, n): skip weekends, return YYYY-MM-DD\n- fmtLongDate('2026-06-02') => 'June 2, 2026'\n\nNew merge vars now available in any template:\n- {{insurance_contingency_date}} = contract_date + 7 business days (auto-computed)\n- {{insurance_contingency_date_long}}, {{closing_date_long}}, {{contract_date_long}},\n  {{earnest_money_due_date_long}}, {{ipi_due_date_long}}, {{mortgage_contingency_date_long}},\n  {{appraisal_contingency_date_long}}, {{inspection_contingency_date_long}}, {{final_walkthrough_long}}\n  — friendly long-format versions for use in email body copy",
+      "category": "other"
+    },
+    {
+      "hash": "5c9e8fe",
+      "date": "2026-05-05T13:26:51-05:00",
+      "subject": "Sidebar nav now scrolls when sections overflow viewport (SYSTEM > Updates was hidden below the fold)",
+      "title": "Sidebar nav now scrolls when sections overflow viewport (SYSTEM > Updates was hidden below the fold)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "bfd48ec",
+      "date": "2026-05-05T13:10:27-05:00",
+      "subject": "Updates page is now a development changelog (Hub Updates) + Activity Log moved to second tab",
+      "title": "Updates page is now a development changelog (Hub Updates) + Activity Log moved to second tab",
+      "body": "What 'Updates' means changed: instead of business activity (which lives in 'Activity Log' tab now), the default tab shows a curated changelog of every commit shipped to the hub.\n\nBuild pipeline:\n- New scripts/generate-changelog.mjs runs git log --max-count=500 at build time\n- Categorizes each commit: feature (Add/New/Build), fix (Fix/Bugfix), improvement (Update/Improve/Speed/Optimize/Bump), refactor, schema, removal, docs, other\n- Strips leading verbs from commit subjects for cleaner display titles\n- Writes public/changelog.json which ships as a static asset (no runtime git dependency)\n- 'build' npm script: 'node scripts/generate-changelog.mjs && vite build'\n- Falls back gracefully (writes empty file) if git unavailable, so prod builds never fail\n\nFrontend (Updates page):\n- Two tabs: '🛠 Hub Updates' (default) and '📊 Activity Log'\n- Hub Updates: timeline grouped by day, color-coded category badges, click any row to expand the full commit body, search + filter by category, count per category in the dropdown\n- Activity Log: same UI as before (live business actions from /api/activity)\n\nNav reorganization:\n- Updates moved out of MAIN section\n- New SYSTEM section at the bottom of the sidebar holds it\n- Keeps the main sidebar focused on day-to-day work; meta/system stuff stays out of the way",
+      "category": "improvement"
+    },
     {
       "hash": "15af1ad",
       "date": "2026-05-05T13:02:13-05:00",

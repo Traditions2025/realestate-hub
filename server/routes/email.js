@@ -125,15 +125,32 @@ router.get('/preview/:templateId/:clientId', (req, res) => {
   })
 })
 
-// Send a single email via SendGrid (supports CC + BCC)
-async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = []) {
+// Parse a To field into clean email array — accepts string ("a@x, b@y") or array
+function parseEmails(input) {
+  if (!input) return []
+  const arr = Array.isArray(input)
+    ? input
+    : String(input).split(/[,;\n]+/)
+  return [...new Set(arr.map(s => s && String(s).trim()).filter(Boolean))]
+}
+
+// Send a single email via SendGrid (supports multiple To, CC, BCC, attachments)
+async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = []) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
   }
-  const personalization = { to: [{ email: to, name: toName || undefined }] }
+  const toEmails = parseEmails(to)
+  if (!toEmails.length) throw new Error('No valid recipient email')
+  const personalization = {
+    to: toEmails.map((email, i) => ({
+      email,
+      name: i === 0 ? (toName || undefined) : undefined,
+    })),
+  }
+  const toLowerSet = new Set(toEmails.map(e => e.toLowerCase()))
   if (ccList && ccList.length) {
-    // Dedupe and exclude the primary recipient from CC
-    const uniqueCc = [...new Set(ccList.filter(e => e && e.toLowerCase() !== to.toLowerCase()))]
+    // Dedupe and exclude any primary recipients from CC
+    const uniqueCc = [...new Set(ccList.filter(e => e && !toLowerSet.has(e.toLowerCase())))]
     if (uniqueCc.length) personalization.cc = uniqueCc.map(email => ({ email }))
   }
   const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
@@ -151,6 +168,14 @@ async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = []) 
         { type: 'text/plain', value: body },
         { type: 'text/html', value: body.replace(/\n/g, '<br>') },
       ],
+      ...(Array.isArray(attachments) && attachments.length ? {
+        attachments: attachments.map(a => ({
+          content: a.content_base64 || a.content,
+          type: a.type || 'application/octet-stream',
+          filename: a.filename || 'attachment',
+          disposition: 'attachment',
+        })),
+      } : {}),
     }),
   })
 
@@ -364,7 +389,7 @@ router.get('/closer-info', (_req, res) => {
 
 // Send a pre-listing email (always CCs the team — same coordination policy)
 router.post('/send-prelisting', async (req, res) => {
-  const { pre_listing_id, to_email, to_name, subject, body, template_id, additional_cc } = req.body
+  const { pre_listing_id, to_email, to_name, subject, body, template_id, additional_cc, attachments } = req.body
   if (!to_email || !subject || !body) {
     return res.status(400).json({ error: 'to_email, subject, and body are required' })
   }
@@ -375,7 +400,7 @@ router.post('/send-prelisting', async (req, res) => {
   if (Array.isArray(additional_cc)) ccList.push(...additional_cc.filter(Boolean))
 
   try {
-    const result = await sendViaSendGrid(to_email, to_name, subject, body, REPLY_TO, ccList)
+    const result = await sendViaSendGrid(to_email, to_name, subject, body, REPLY_TO, ccList, attachments)
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
       template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
       [n(client?.id), to_email, FROM_EMAIL, FROM_NAME, subject, body,
@@ -393,7 +418,7 @@ router.post('/send-prelisting', async (req, res) => {
 
 // Send a transaction-related email (always CCs the team)
 router.post('/send-transaction', async (req, res) => {
-  const { transaction_id, to_email, to_name, subject, body, template_id, additional_cc } = req.body
+  const { transaction_id, to_email, to_name, subject, body, template_id, additional_cc, attachments } = req.body
   if (!to_email || !subject || !body) {
     return res.status(400).json({ error: 'to_email, subject, and body are required' })
   }
@@ -405,18 +430,22 @@ router.post('/send-transaction', async (req, res) => {
   if (Array.isArray(additional_cc)) ccList.push(...additional_cc.filter(Boolean))
 
   try {
-    const result = await sendViaSendGrid(to_email, to_name, subject, body, REPLY_TO, ccList)
+    const result = await sendViaSendGrid(to_email, to_name, subject, body, REPLY_TO, ccList, attachments)
+    const recipients = parseEmails(to_email).join(', ')
+    const attachNote = Array.isArray(attachments) && attachments.length
+      ? ` · ${attachments.length} attachment${attachments.length === 1 ? '' : 's'}: ${attachments.map(a => a.filename).join(', ')}`
+      : ''
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
       template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [n(client?.id), to_email, FROM_EMAIL, FROM_NAME, subject, body,
+      [n(client?.id), recipients, FROM_EMAIL, FROM_NAME, subject, body,
         n(template_id), 'sent', 'sendgrid', n(result.messageId), n(req.body.sent_by) || 'team'])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-      ['email_sent', 'transaction', tx?.id || null, `Transaction email sent to ${to_email} (CC: ${ccList.join(', ')}): ${subject}`])
-    res.json({ success: true, messageId: result.messageId, cc: ccList })
+      ['email_sent', 'transaction', tx?.id || null, `Transaction email sent to ${recipients} (CC: ${ccList.join(', ')})${attachNote}: ${subject}`])
+    res.json({ success: true, messageId: result.messageId, cc: ccList, recipients: parseEmails(to_email) })
   } catch (err) {
     db.run(`INSERT INTO email_log (client_id, to_email, subject, body, template, status, error)
       VALUES (?,?,?,?,?,?,?)`,
-      [n(client?.id), to_email, subject, body, n(template_id), 'failed', err.message])
+      [n(client?.id), String(to_email || ''), subject, body, n(template_id), 'failed', err.message])
     res.status(500).json({ error: err.message })
   }
 })
