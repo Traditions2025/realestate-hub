@@ -63,6 +63,7 @@ export default function Tasks() {
 
   const [noteText, setNoteText] = useState('')
   const [noteBy, setNoteBy] = useState('')
+  const [saving, setSaving] = useState(false)
 
   const openNew = (status) => { setEditing(null); setForm({ ...emptyTask, status: status || 'todo' }); setNoteText(''); setNoteBy(''); setModalOpen(true) }
   const openEdit = (item) => { setEditing(item.id); setForm({ ...emptyTask, ...item }); setNoteText(''); setNoteBy(''); setModalOpen(true) }
@@ -92,10 +93,18 @@ export default function Tasks() {
 
   const save = async (e) => {
     e.preventDefault()
-    if (editing) await api.updateTask(editing, form)
-    else await api.createTask(form)
-    setModalOpen(false)
-    load()
+    if (saving) return // guard against double-clicks during the network roundtrip
+    setSaving(true)
+    try {
+      if (editing) await api.updateTask(editing, form)
+      else await api.createTask(form)
+      setModalOpen(false)
+      load()
+    } catch (err) {
+      alert('Save failed: ' + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const toggleDone = async (item) => {
@@ -326,8 +335,10 @@ export default function Tasks() {
                 Delete
               </button>
             )}
-            <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
-            <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'} Task</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button>
+            <button type="submit" className="btn btn-primary" disabled={saving}>
+              {saving ? (editing ? 'Saving...' : 'Creating...') : (editing ? 'Update Task' : 'Create Task')}
+            </button>
           </div>
         </form>
       </Modal>
