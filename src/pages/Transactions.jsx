@@ -332,7 +332,23 @@ export default function Transactions() {
     authFetch('/api/pre-listings?' + plParams).then(r => r.json()).then(setPreListings).catch(() => {})
   }
 
-  useEffect(() => { load(); api.getClients().then(setClients) }, [])
+  useEffect(() => { load() }, [])
+
+  // Client search-as-you-type (replaces loading all 45K clients into a dropdown)
+  const [clientSearch, setClientSearch] = useState('')
+  const [clientResults, setClientResults] = useState([])
+  const [clientOpen, setClientOpen] = useState(false)
+  useEffect(() => {
+    if (clientSearch.trim().length < 2) { setClientResults([]); return }
+    const handle = setTimeout(() => {
+      const params = new URLSearchParams({ search: clientSearch, limit: 20 })
+      authFetch('/api/clients?' + params)
+        .then(r => r.json())
+        .then(rows => setClientResults(rows || []))
+        .catch(() => setClientResults([]))
+    }, 300)
+    return () => clearTimeout(handle)
+  }, [clientSearch])
   useEffect(() => { load() }, [filter, search])
 
   // Pre-listing checklist items for progress calculation
@@ -731,23 +747,62 @@ export default function Transactions() {
               <label>Seller Name<input value={form.seller_name} onChange={e => f('seller_name', e.target.value)} /></label>
               <label>Seller's Agent<input value={form.sellers_agent_name} onChange={e => f('sellers_agent_name', e.target.value)} /></label>
             </div>
-            <label>Client (from CRM — represents who we're working for)<select value={form.client_id} onChange={e => f('client_id', e.target.value)}>
-              <option value="">Select client...</option>
-              {clients.map(c => <option key={c.id} value={c.id}>{c.first_name} {c.last_name}{c.email ? ' · ' + c.email : ''}</option>)}
-            </select></label>
-            {linkedClient && (
-              <div className="linked-client-card">
-                <div className="linked-client-name">
-                  📇 {linkedClient.first_name} {linkedClient.last_name}
-                  {linkedClient.lead_score && <span className="email-status-tag">Score {linkedClient.lead_score}</span>}
+            <label>Client (from CRM — represents who we're working for)
+              {form.client_id && linkedClient ? (
+                <div className="linked-client-card" style={{position: 'relative', marginTop: 4}}>
+                  <button
+                    type="button"
+                    onClick={() => { f('client_id', ''); setClientSearch(''); setClientResults([]) }}
+                    title="Change client"
+                    style={{position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16}}
+                  >✕</button>
+                  <div className="linked-client-name">
+                    📇 {linkedClient.first_name} {linkedClient.last_name}
+                    {linkedClient.lead_score && <span className="email-status-tag">Score {linkedClient.lead_score}</span>}
+                  </div>
+                  <div className="linked-client-row">
+                    {linkedClient.email && <span>✉ {linkedClient.email}</span>}
+                    {linkedClient.phone && <span>☎ {linkedClient.phone}</span>}
+                    {linkedClient.address && <span>📍 {linkedClient.address}{linkedClient.city ? ', ' + linkedClient.city : ''}</span>}
+                  </div>
                 </div>
-                <div className="linked-client-row">
-                  {linkedClient.email && <span>✉ {linkedClient.email}</span>}
-                  {linkedClient.phone && <span>☎ {linkedClient.phone}</span>}
-                  {linkedClient.address && <span>📍 {linkedClient.address}{linkedClient.city ? ', ' + linkedClient.city : ''}</span>}
+              ) : (
+                <div style={{position: 'relative'}}>
+                  <input
+                    type="text"
+                    placeholder="Search by name or email (start typing 2+ chars)..."
+                    value={clientSearch}
+                    onChange={e => { setClientSearch(e.target.value); setClientOpen(true) }}
+                    onFocus={() => setClientOpen(true)}
+                    onBlur={() => setTimeout(() => setClientOpen(false), 200)}
+                  />
+                  {clientOpen && clientResults.length > 0 && (
+                    <div className="addr-suggestions">
+                      {clientResults.map(c => (
+                        <div
+                          key={c.id}
+                          className="addr-suggestion"
+                          onMouseDown={() => {
+                            f('client_id', c.id)
+                            setClientSearch('')
+                            setClientResults([])
+                            setClientOpen(false)
+                          }}
+                        >
+                          <div className="addr-suggestion-line1">{c.first_name} {c.last_name}</div>
+                          <div className="addr-suggestion-line2">
+                            {c.email || 'no email'}{c.phone ? ' · ' + c.phone : ''}{c.city ? ' · ' + c.city : ''}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {clientOpen && clientSearch.trim().length >= 2 && clientResults.length === 0 && (
+                    <div style={{padding: '8px 12px', fontSize: 12, color: 'var(--text-muted)'}}>No matches — try a different search</div>
+                  )}
                 </div>
-              </div>
-            )}
+              )}
+            </label>
           </div>
 
           {/* Lender */}
