@@ -95,7 +95,7 @@ At this point, you are officially under contract, which means the agreement is f
 Here's what to expect next:
 
 EARNEST MONEY
-Your earnest money is due within 3 business days of the accepted offer, by {{earnest_money_due_date_long}}. The earnest money amount is {{earnest_money}} and can be submitted by check or electronic ACH transfer. It will be held by the listing company, RE/MAX Concepts, and credited toward your costs at closing. If you prefer a check, you can drop it off at our RE/MAX office.
+Your earnest money is due within 3 business days of the accepted offer, by {{earnest_money_due_date_long}}. The earnest money amount is {{earnest_money}} and can be submitted by check or electronic ACH transfer. It will be held by the listing company, RE/MAX Concepts, and credited toward your costs at closing. If you prefer a check, you can drop it off at the front desk with Lavessa at our RE/MAX office.
 
 Earnest Money Summary
 - Amount: {{earnest_money}}
