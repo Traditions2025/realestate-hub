@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
+import RecommendModal from '../components/RecommendModal'
 
 const defaultCategories = [
   'Mortgage Lender', 'Title Company', 'Real Estate Attorney', 'Insurance Agent',
@@ -67,6 +68,50 @@ export default function Vendors() {
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const stars = (n) => '\u2605'.repeat(n) + '\u2606'.repeat(5 - n)
 
+  // Multi-select for "Send to Client"
+  const [selected, setSelected] = useState(new Set())
+  const [recommendOpen, setRecommendOpen] = useState(false)
+  const [recommendItems, setRecommendItems] = useState([])
+
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  const openRecommendOne = (vendor) => {
+    setRecommendItems([vendor])
+    setRecommendOpen(true)
+  }
+
+  const openRecommendBulk = () => {
+    const chosen = items.filter(v => selected.has(v.id))
+    if (!chosen.length) return
+    setRecommendItems(chosen)
+    setRecommendOpen(true)
+  }
+
+  const copyContact = async (v, e) => {
+    e?.stopPropagation()
+    const lines = [
+      v.contact_name ? `${v.contact_name}` : null,
+      v.company_name ? `${v.company_name}` : null,
+      v.phone ? `Phone: ${v.phone}` : null,
+      v.email ? `Email: ${v.email}` : null,
+      v.website ? `Website: ${v.website}` : null,
+    ].filter(Boolean).join('\n')
+    try {
+      await navigator.clipboard.writeText(lines)
+      // Quick visual feedback via title change handled by caller
+    } catch {
+      const t = document.createElement('textarea')
+      t.value = lines; document.body.appendChild(t); t.select()
+      document.execCommand('copy'); document.body.removeChild(t)
+    }
+  }
+
   // Group by category
   const grouped = {}
   items.forEach(item => {
@@ -91,6 +136,16 @@ export default function Vendors() {
           <option value="">All Categories</option>
           {defaultCategories.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        {selected.size > 0 && (
+          <>
+            <button className="btn btn-primary" onClick={openRecommendBulk}>
+              ✉ Send {selected.size} Selected to Client
+            </button>
+            <button className="btn btn-secondary" onClick={() => setSelected(new Set())}>
+              Clear ({selected.size})
+            </button>
+          </>
+        )}
       </div>
 
       {Object.keys(grouped).length === 0 ? (
@@ -100,8 +155,16 @@ export default function Vendors() {
           <h3 className="vendor-group-title">{cat} <span className="vendor-group-count">({vendors.length})</span></h3>
           <div className="client-grid">
             {vendors.map(v => (
-              <div key={v.id} className="client-card" onClick={() => openEdit(v)}>
+              <div key={v.id} className={`client-card ${selected.has(v.id) ? 'selected-card' : ''}`} onClick={() => openEdit(v)}>
                 <div className="client-card-header">
+                  <input
+                    type="checkbox"
+                    checked={selected.has(v.id)}
+                    onChange={() => toggleSelect(v.id)}
+                    onClick={e => e.stopPropagation()}
+                    title="Select for bulk recommendation"
+                    style={{marginRight: 6, accentColor: 'var(--accent)'}}
+                  />
                   <div className="client-avatar" style={{background: v.preferred ? '#10b981' : '#6366f1'}}>
                     {v.company_name.substring(0, 2).toUpperCase()}
                   </div>
@@ -113,14 +176,30 @@ export default function Vendors() {
                 <div className="client-card-body">
                   {v.phone && <div className="client-info">{v.phone}</div>}
                   {v.email && <div className="client-info">{v.email}</div>}
-                  {v.city && <div className="client-info">{v.city}, {v.state}</div>}
+                  {v.website && <div className="client-info">{v.website}</div>}
                   {v.rating > 0 && <div className="client-info" style={{color: '#f59e0b'}}>{stars(v.rating)}</div>}
                 </div>
-                <div className="client-card-footer">
-                  {v.preferred ? <span className="preferred-badge">Preferred</span> : <span></span>}
-                  <button className="btn-sm" onClick={e => { e.stopPropagation(); togglePreferred(v) }}>
-                    {v.preferred ? 'Remove Preferred' : 'Mark Preferred'}
-                  </button>
+                <div className="client-card-footer" onClick={e => e.stopPropagation()}>
+                  <div style={{display: 'flex', gap: 4, flexWrap: 'wrap'}}>
+                    <button
+                      className="btn-sm btn-secondary"
+                      title="Copy contact info to clipboard"
+                      onClick={async (e) => {
+                        await copyContact(v, e)
+                        e.target.textContent = '✓ Copied'
+                        setTimeout(() => { e.target.textContent = '📋 Copy' }, 1500)
+                      }}
+                    >📋 Copy</button>
+                    <button
+                      className="btn-sm btn-primary"
+                      title="Send this vendor's info to a client"
+                      onClick={(e) => { e.stopPropagation(); openRecommendOne(v) }}
+                    >✉ Send</button>
+                    <button className="btn-sm" onClick={e => { e.stopPropagation(); togglePreferred(v) }}>
+                      {v.preferred ? '★' : '☆'}
+                    </button>
+                  </div>
+                  {v.preferred && <span className="preferred-badge">Preferred</span>}
                 </div>
               </div>
             ))}
@@ -154,6 +233,13 @@ export default function Vendors() {
           </div>
         </form>
       </Modal>
+
+      <RecommendModal
+        open={recommendOpen}
+        onClose={() => setRecommendOpen(false)}
+        kind="vendor"
+        initialItems={recommendItems}
+      />
     </div>
   )
 }

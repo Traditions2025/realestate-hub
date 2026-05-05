@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
+import RecommendModal from '../components/RecommendModal'
 
 const roleOptions = [
   'Lender / Loan Officer', 'Title Company', 'Escrow Officer', 'Real Estate Attorney',
@@ -61,6 +62,41 @@ export default function Partners() {
 
   const relationColors = { strategic: '#10b981', preferred: '#3b82f6', contact: '#6b7280' }
 
+  const [selected, setSelected] = useState(new Set())
+  const [recommendOpen, setRecommendOpen] = useState(false)
+  const [recommendItems, setRecommendItems] = useState([])
+
+  const toggleSelect = (id) => {
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+  const openRecommendOne = (p) => { setRecommendItems([p]); setRecommendOpen(true) }
+  const openRecommendBulk = () => {
+    const chosen = items.filter(p => selected.has(p.id))
+    if (!chosen.length) return
+    setRecommendItems(chosen)
+    setRecommendOpen(true)
+  }
+
+  const copyContact = async (p) => {
+    const lines = [
+      p.name ? p.name : null,
+      p.company ? p.company : null,
+      p.role ? p.role : null,
+      p.phone ? `Phone: ${p.phone}` : null,
+      p.email ? `Email: ${p.email}` : null,
+      p.website ? `Website: ${p.website}` : null,
+    ].filter(Boolean).join('\n')
+    try { await navigator.clipboard.writeText(lines) } catch {
+      const t = document.createElement('textarea')
+      t.value = lines; document.body.appendChild(t); t.select()
+      document.execCommand('copy'); document.body.removeChild(t)
+    }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -77,6 +113,16 @@ export default function Partners() {
           <option value="">All Roles</option>
           {roleOptions.map(r => <option key={r} value={r}>{r}</option>)}
         </select>
+        {selected.size > 0 && (
+          <>
+            <button className="btn btn-primary" onClick={openRecommendBulk}>
+              ✉ Send {selected.size} Selected to Client
+            </button>
+            <button className="btn btn-secondary" onClick={() => setSelected(new Set())}>
+              Clear ({selected.size})
+            </button>
+          </>
+        )}
       </div>
 
       {/* Desktop table */}
@@ -84,6 +130,7 @@ export default function Partners() {
         <table className="data-table">
           <thead>
             <tr>
+              <th style={{width: 30}}></th>
               <th>Name</th>
               <th>Company</th>
               <th>Role</th>
@@ -97,9 +144,18 @@ export default function Partners() {
           </thead>
           <tbody>
             {items.length === 0 ? (
-              <tr><td colSpan="9" className="empty-state">No partners yet. Add your first partner above.</td></tr>
+              <tr><td colSpan="10" className="empty-state">No partners yet. Add your first partner above.</td></tr>
             ) : items.map(item => (
-              <tr key={item.id}>
+              <tr key={item.id} className={selected.has(item.id) ? 'row-selected' : ''}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(item.id)}
+                    onChange={() => toggleSelect(item.id)}
+                    style={{accentColor: 'var(--accent)'}}
+                    title="Select for bulk recommendation"
+                  />
+                </td>
                 <td className="cell-primary" onClick={() => openEdit(item)}>
                   {item.preferred ? <span style={{color: '#10b981', marginRight: 4}}>&#9733;</span> : null}
                   {item.name}
@@ -116,6 +172,17 @@ export default function Partners() {
                 }}>{item.relationship_level}</span></td>
                 <td>{item.referral_count || 0}</td>
                 <td>
+                  <button
+                    className="btn-sm btn-secondary"
+                    title="Copy contact info"
+                    onClick={async (e) => {
+                      await copyContact(item)
+                      const orig = e.target.textContent
+                      e.target.textContent = '✓'
+                      setTimeout(() => { e.target.textContent = orig }, 1200)
+                    }}
+                  >📋</button>
+                  <button className="btn-sm btn-primary" title="Send to client" onClick={() => openRecommendOne(item)}>✉</button>
                   <button className="btn-sm" onClick={() => openEdit(item)}>Edit</button>
                   <button className="btn-sm btn-danger" onClick={() => remove(item.id)}>Del</button>
                 </td>
@@ -151,6 +218,13 @@ export default function Partners() {
               {item.email && <div><strong>Email:</strong> {item.email}</div>}
               {item.specialty && <div><strong>Specialty:</strong> {item.specialty}</div>}
               {item.referral_count > 0 && <div><strong>Referrals:</strong> {item.referral_count}</div>}
+            </div>
+            <div style={{display: 'flex', gap: 6, marginTop: 8}} onClick={e => e.stopPropagation()}>
+              <button className="btn-sm btn-secondary" onClick={async () => {
+                await copyContact(item)
+                alert('✓ Contact copied to clipboard')
+              }}>📋 Copy</button>
+              <button className="btn-sm btn-primary" onClick={() => openRecommendOne(item)}>✉ Send</button>
             </div>
           </div>
         ))}
@@ -190,6 +264,13 @@ export default function Partners() {
           </div>
         </form>
       </Modal>
+
+      <RecommendModal
+        open={recommendOpen}
+        onClose={() => setRecommendOpen(false)}
+        kind="partner"
+        initialItems={recommendItems}
+      />
     </div>
   )
 }
