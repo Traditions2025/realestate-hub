@@ -95,12 +95,13 @@ At this point, you are officially under contract, which means the agreement is f
 Here's what to expect next:
 
 EARNEST MONEY
-Thank you for already initiating the electronic ACH transfer for your earnest money. The amount of {{earnest_money}} will be held in trust by the listing broker, RE/MAX Concepts, and credited toward your costs at closing.
+Your earnest money is due within 3 business days of the accepted offer, by {{earnest_money_due_date_long}}. The earnest money amount is {{earnest_money}} and can be submitted by check or electronic ACH transfer. It will be held by the listing company, RE/MAX Concepts, and credited toward your costs at closing. If you prefer a check, you can drop it off at our RE/MAX office.
 
 Earnest Money Summary
 - Amount: {{earnest_money}}
-- Method: Electronic ACH Transfer (Completed)
-- Held by: RE/MAX Concepts
+- Due by: {{earnest_money_due_date_long}}
+- Method: Check or Electronic ACH Transfer
+- Held by: Listing company (RE/MAX Concepts)
 - Applied to: Credited toward closing costs
 
 LOAN APPLICATION
