@@ -1,5 +1,32 @@
 // Transaction email templates — buyer & seller workflows
 import db from './database.js'
+
+// Add N business days to a YYYY-MM-DD date (skip Sat/Sun). Returns YYYY-MM-DD.
+function addBusinessDays(dateStr, n) {
+  if (!dateStr) return ''
+  const parts = String(dateStr).split('-').map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) return ''
+  const d = new Date(parts[0], parts[1] - 1, parts[2])
+  let added = 0
+  while (added < n) {
+    d.setDate(d.getDate() + 1)
+    const dow = d.getDay()
+    if (dow !== 0 && dow !== 6) added++
+  }
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${dd}`
+}
+
+// Format a date string (YYYY-MM-DD) as "May 22, 2026"
+function fmtLongDate(dateStr) {
+  if (!dateStr) return ''
+  const parts = String(dateStr).split('-').map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) return dateStr
+  const d = new Date(parts[0], parts[1] - 1, parts[2])
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
 // Merge variables available:
 //   Client: {{first_name}}, {{last_name}}, {{full_name}}, {{email}}, {{phone}}, {{address}}, {{city}}
 //   Transaction: {{property_address}}, {{purchase_price}}, {{purchase_price_formatted}}, {{closing_date}},
@@ -20,78 +47,75 @@ https://www.mattsmithteam.com`
 export const TRANSACTION_TEMPLATES = {
   // ============== BUYER TEMPLATES ==============
   buyer_under_contract: {
-    name: '🏠 Buyer — Congratulations / Under Contract',
+    name: '🏠 Buyer — Congratulations / Under Contract / Next Steps',
     role: 'buyer',
     recipient: 'client',
-    subject: 'Congratulations on Your New Home at {{property_address}}! Matt Smith Team',
+    subject: 'Congratulations On Your New Home at {{property_address}}! Matt Smith Team',
     body: `Hello {{first_name}},
 
-Congratulations on the purchase of your new home at {{property_address}}! :)
+Congratulations on the purchase of your new home at {{property_address}}!
 
 Purchase Price: {{purchase_price_formatted}}
-Closing Date: {{closing_date}}
+
+Closing Date: {{closing_date_long}}
 
 This is such an exciting step, and we are so grateful you've trusted us to help guide you through the process. Buying a home is a big milestone, and while there are a lot of moving parts between now and closing, we'll be here every step of the way to make it as smooth as possible.
 
-At this point, you are officially under contract, which means the agreement is fully signed and legally binding. Such an exciting time. As always, please reach out to us with any questions.
+At this point, you are officially under contract, which means the agreement is fully signed and legally binding. As always, please reach out to us with any questions.
 
 Here's what to expect next:
 
 EARNEST MONEY
-Your earnest money is due within 3 business days of the accepted offer, by {{earnest_money_due_date}}. The earnest money amount is {{earnest_money}} and can be submitted by check or electronic ACH transfer. It will be held by the listing company and credited toward your costs at closing. You can drop off a check at Matt's office, or he can swing by and pick it up from you.
+Thank you for already initiating the electronic ACH transfer for your earnest money. The amount of {{earnest_money}} will be held in trust by the listing broker, RE/MAX Concepts, and credited toward your costs at closing.
 
-Earnest Money Summary:
+Earnest Money Summary
 - Amount: {{earnest_money}}
-- Method: Check or Electronic ACH Transfer
-- Due by: {{earnest_money_due_date}}
+- Method: Electronic ACH Transfer (Completed)
+- Held by: RE/MAX Concepts
 - Applied to: Credited toward closing costs
 
 LOAN APPLICATION
-You've already started the loan process with {{lender_company}} and mortgage originator {{lender_name}}, and we've sent your purchase agreement over to them. Please make sure to provide any remaining requested documents as soon as possible to avoid delays.
+You have started the loan process with {{lender_company}} and mortgage originator {{lender_name}}, and we've sent your purchase agreement over to them. Please make sure to provide any remaining requested documents as soon as possible to avoid delays.
 
-You will also need to receive written loan commitment, including appraisal, by {{mortgage_contingency_date}}, as outlined in the contract. Your lender will coordinate the appraisal as part of this process.
+You will also need to receive written loan commitment, including appraisal, by {{mortgage_contingency_date_long}}, as outlined in the contract. Your lender will coordinate the appraisal as part of this process.
 
 Important reminder: while you are in the loan process, do not make any large purchases, open new credit accounts, or make other financial changes that could impact your credit. Lenders may recheck credit before closing.
 
+INSURANCE CONTINGENCY
+Per the contract, this purchase is subject to you obtaining an acceptable insurance estimate or bid within 7 business days of the accepted offer. This makes your deadline {{insurance_contingency_date_long}}. We recommend reaching out to your insurance provider this week to ensure the property meets your coverage requirements and that the premiums fit within your budget.
+
 INSPECTIONS
-Your inspections should be scheduled as soon as possible. These are due by {{inspection_contingency_date}}, so it is important to get them scheduled right away. Per the contract, these may include Whole Property Inspection, Radon Test, and Wood-Destroying Insect Inspection.
+It's great to hear you've already connected with an inspector. Per the purchase contract, you have 10 business days for all inspections, making the deadline {{inspection_contingency_date_long}}.
 
-Inspections are meant to identify major concerns related to structural, mechanical, safety, and health issues. They are not intended to make an older home new.
+Inspections include:
+- Whole Property Inspection
+- Radon Test
+- Wood-Destroying Insect Inspection
 
-If any inspection reveals significant issues, we will notify the seller in writing within the inspection period. The seller will then have 3 business days to respond, and both parties will have an additional 3 business days to negotiate any necessary repairs.
+Please let us know once the date and time are finalized.
 
-INSURANCE COVERAGE
-There is an insurance contingency in the contract. Please make sure you have homeowners insurance lined up right away so the deadline is met. If you need recommendations for insurance providers, we'd be happy to share a few great options.
+HOME WARRANTY
+Per the contract, a 1-year home warranty is included and paid for by the seller.
 
 UTILITIES
-At least 1 business week (5 business days) before your closing date of {{closing_date}}, you will need to set up utilities in your name so service begins the morning of closing day. We will send you a separate reminder a week ahead of closing.
-
-Utility providers for the Cedar Rapids area:
+Within one week of your closing date, you will want to set utilities up in your name so service begins the morning of closing day. Utility providers for this property include:
 - Alliant Energy: 800-255-4268
 - MidAmerican Energy: 888-427-5632
 - City of Cedar Rapids (Water/Sewer/Trash): 319-286-5900
 
 FINAL WALKTHROUGH
-Your final walkthrough is scheduled for {{final_walkthrough}}. We will confirm the time as we get closer to closing. This walkthrough gives you the opportunity to make sure the home is in the expected condition before signing final paperwork.
+Your final walkthrough will be scheduled for {{final_walkthrough_long}}. As we get closer to {{closing_date_long}}, we will confirm that time with you. This gives you the opportunity to make sure the home is in the expected condition before signing final paperwork.
 
 CLOSING DAY
-Your closing is scheduled for {{closing_date}}. We typically meet at the lender's office to sign final paperwork, and the appointment usually takes about an hour. We will coordinate the exact time and location with you as we get closer.
+Your closing is scheduled for {{closing_date_long}}. We typically meet at the lender's office to sign final paperwork, and the appointment usually takes about an hour.
 
-{{closer_name}} from {{closer_company}} will be handling the closing. She will be reaching out with documents and forms moving forward. {{closer_name}} has been an essential part of our team for over 25 years, so you'll be in excellent hands. The sooner those documents are completed and returned, the better.
+Also, {{closer_name}} from our team will be assisting with the closing coordination. She will be reaching out with documents and forms moving forward. {{closer_name}} has been an essential part of our team for over 25 years, so you'll be in excellent hands.
 
 I've also attached the complete Purchase Agreement for your reference.
 
-Please make sure you're aware of the deadlines above, and let us know if you have any questions along the way. We'll continue to provide updates as we get closer to closing.
+Please make sure you're aware of the deadlines above, and let us know if you have any questions along the way. Congratulations again, {{first_name}}!
 
-Once closing is complete, the home is officially yours. Congratulations!
-
-Helpful Tips for a Smooth Transition:
-- Please turn on email notifications on your phone so you do not miss any time-sensitive paperwork or signatures. All signed documents will be handled securely through Dotloop.
-- Stay in close communication with your lender and our team throughout the process.
-
-We are excited for you both and grateful to be part of this big milestone. Please don't hesitate to reach out if you need anything at all along the way.
-
-Congratulations again, {{first_name}}!${SIG}`,
+From all of us at The Matt Smith Team${SIG}`,
   },
 
   buyer_inspection: {
@@ -474,15 +498,26 @@ export function buildMergeVars(client, transaction, extra = {}) {
       ? '$' + Number(transaction.purchase_price).toLocaleString()
       : ''
     v.contract_date = transaction.contract_date || ''
+    v.contract_date_long = fmtLongDate(transaction.contract_date)
     v.closing_date = transaction.closing_date || ''
+    v.closing_date_long = fmtLongDate(transaction.closing_date)
     v.earnest_money = transaction.earnest_money_deposit || ''
     v.earnest_money_due_date = transaction.earnest_money_due_date || ''
+    v.earnest_money_due_date_long = fmtLongDate(transaction.earnest_money_due_date)
     v.ipi_due_date = transaction.ipi_due_date || ''
+    v.ipi_due_date_long = fmtLongDate(transaction.ipi_due_date)
     v.mortgage_contingency_date = transaction.mortgage_contingency_date || ''
+    v.mortgage_contingency_date_long = fmtLongDate(transaction.mortgage_contingency_date)
     v.appraisal_contingency_date = transaction.appraisal_contingency_date || ''
+    v.appraisal_contingency_date_long = fmtLongDate(transaction.appraisal_contingency_date)
     v.inspection_contingency_date = transaction.inspection_contingency_date || ''
+    v.inspection_contingency_date_long = fmtLongDate(transaction.inspection_contingency_date)
     v.financing_release = transaction.financing_release || ''
     v.final_walkthrough = transaction.final_walkthrough || ''
+    v.final_walkthrough_long = fmtLongDate(transaction.final_walkthrough)
+    // Insurance contingency = 7 business days after contract date
+    v.insurance_contingency_date = addBusinessDays(transaction.contract_date, 7)
+    v.insurance_contingency_date_long = fmtLongDate(v.insurance_contingency_date)
     v.type_of_finance = transaction.type_of_finance || ''
     v.lender_name = transaction.lender_name || ''
     v.lender_first_name = (transaction.lender_name || '').trim().split(/\s+/)[0] || ''
