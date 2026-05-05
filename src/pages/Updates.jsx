@@ -304,20 +304,180 @@ function ActivityLog() {
 }
 
 // =====================================================
+// EMAIL LOG (full history of all email sends — success + failed)
+// =====================================================
+function EmailLog() {
+  const [rows, setRows] = useState([])
+  const [total, setTotal] = useState(0)
+  const [sentCount, setSentCount] = useState(0)
+  const [failedCount, setFailedCount] = useState(0)
+  const [filters, setFilters] = useState({ search: '', status: '', since: '' })
+  const [pageSize, setPageSize] = useState(100)
+  const [offset, setOffset] = useState(0)
+  const [openRow, setOpenRow] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  const load = () => {
+    setLoading(true)
+    const params = new URLSearchParams({ limit: String(pageSize), offset: String(offset) })
+    if (filters.search) params.set('search', filters.search)
+    if (filters.status) params.set('status', filters.status)
+    if (filters.since) params.set('since', filters.since)
+    authFetch('/api/email/log?' + params)
+      .then(r => r.json())
+      .then(d => {
+        setRows(d.rows || [])
+        setTotal(d.total || 0)
+        setSentCount(d.sent || 0)
+        setFailedCount(d.failed || 0)
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+  useEffect(() => { load() }, [pageSize, offset, filters])
+
+  const setFilter = (k, v) => { setFilters(prev => ({ ...prev, [k]: v })); setOffset(0) }
+
+  const openDetail = async (id) => {
+    const r = await authFetch(`/api/email/log/${id}`).then(r => r.json())
+    setOpenRow(r)
+  }
+
+  return (
+    <div>
+      <div className="toolbar">
+        <input
+          type="text"
+          placeholder="Search by recipient, subject, or error..."
+          value={filters.search}
+          onChange={e => setFilter('search', e.target.value)}
+          className="search-input"
+        />
+        <select value={filters.status} onChange={e => setFilter('status', e.target.value)}>
+          <option value="">All statuses</option>
+          <option value="sent">✓ Sent only</option>
+          <option value="failed">✗ Failed only</option>
+        </select>
+        <select value={filters.since} onChange={e => setFilter('since', e.target.value)}>
+          <option value="">All time</option>
+          <option value={new Date(Date.now() - 60 * 60 * 1000).toISOString()}>Last hour</option>
+          <option value={new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()}>Last 24 hours</option>
+          <option value={new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()}>Last 7 days</option>
+          <option value={new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()}>Last 30 days</option>
+        </select>
+        <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}>
+          <option value={50}>50</option>
+          <option value={100}>100</option>
+          <option value={250}>250</option>
+        </select>
+        <button className="btn btn-sm btn-secondary" onClick={load} disabled={loading}>{loading ? 'Loading...' : '↻ Refresh'}</button>
+      </div>
+
+      <div className="muted" style={{margin: '8px 0 14px', fontSize: 12}}>
+        {total.toLocaleString()} total emails ·{' '}
+        <span style={{color: '#10b981'}}>{sentCount.toLocaleString()} sent</span>
+        {' · '}
+        <span style={{color: '#ef4444'}}>{failedCount.toLocaleString()} failed</span>
+        {' · '}showing {rows.length}
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="empty-state-full">No emails match the current filters.</div>
+      ) : (
+        <div className="updates-feed">
+          {rows.map(r => {
+            const isSent = r.status === 'sent'
+            const color = isSent ? '#10b981' : '#ef4444'
+            const icon = isSent ? '✓' : '✗'
+            const dt = r.sent_at ? new Date(r.sent_at.includes('T') ? r.sent_at : r.sent_at.replace(' ', 'T') + 'Z') : null
+            return (
+              <div key={r.id} className="updates-row" style={{cursor: 'pointer'}} onClick={() => openDetail(r.id)}>
+                <div className="updates-icon" style={{color, borderColor: color + '50', background: color + '15'}}>{icon}</div>
+                <div className="updates-content">
+                  <div className="updates-line">
+                    <span className="updates-action">{r.subject || '(no subject)'}</span>
+                    <span className="updates-entity-badge" style={{background: color + '20', color}}>
+                      {r.status}
+                    </span>
+                    {r.template && (
+                      <span className="updates-entity-badge" style={{background: 'rgba(168, 85, 247, 0.2)', color: '#c4b5fd'}}>
+                        {r.template}
+                      </span>
+                    )}
+                    <span className="updates-time" title={dt?.toLocaleString()}>
+                      {dt ? dt.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                    </span>
+                  </div>
+                  <div className="updates-details">
+                    <strong>To:</strong> {r.to_email || '—'}
+                    {r.error && (
+                      <div style={{color: '#fca5a5', marginTop: 4}}>
+                        <strong>Error:</strong> {r.error}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {rows.length === pageSize && offset + pageSize < total && (
+        <div style={{textAlign: 'center', marginTop: 20}}>
+          <button className="btn btn-secondary" onClick={() => setOffset(prev => prev + pageSize)}>
+            Load More ({(total - offset - pageSize).toLocaleString()} remaining)
+          </button>
+        </div>
+      )}
+
+      {/* Detail modal */}
+      {openRow && (
+        <div className="modal-overlay" onClick={() => setOpenRow(null)}>
+          <div className="modal modal-wide" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>Email Detail</h2>
+              <button className="modal-close" onClick={() => setOpenRow(null)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="email-preview" style={{marginBottom: 12}}>
+                <div className="email-preview-line"><strong>Status:</strong> {openRow.status}{openRow.status === 'failed' && openRow.error ? ' — ' + openRow.error : ''}</div>
+                <div className="email-preview-line"><strong>Sent at:</strong> {openRow.sent_at || '—'}</div>
+                <div className="email-preview-line"><strong>To:</strong> {openRow.to_email}</div>
+                <div className="email-preview-line"><strong>From:</strong> {openRow.from_name} &lt;{openRow.from_email}&gt;</div>
+                <div className="email-preview-line"><strong>Subject:</strong> {openRow.subject}</div>
+                {openRow.template && <div className="email-preview-line"><strong>Template:</strong> {openRow.template}</div>}
+                {openRow.provider_message_id && <div className="email-preview-line"><strong>SendGrid ID:</strong> {openRow.provider_message_id}</div>}
+                <hr style={{margin: '12px 0', borderColor: 'var(--border)'}} />
+                <div className="email-preview-body" style={{whiteSpace: 'pre-wrap'}}>{openRow.body}</div>
+              </div>
+              <div className="form-actions">
+                <button className="btn btn-secondary" onClick={() => setOpenRow(null)}>Close</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// =====================================================
 // PAGE WITH TABS
 // =====================================================
 export default function Updates() {
   const [tab, setTab] = useState('hub')
+  const subtitles = {
+    hub: 'Hub development history — features added, fixes shipped, improvements over time',
+    activity: 'Live activity feed — everything created, updated, synced or sent across the hub',
+    email: 'Every email send attempt — successful + failed, with timestamps and error details',
+  }
   return (
     <div className="page">
       <div className="page-header">
         <div>
           <h1>Updates</h1>
-          <p className="page-subtitle">
-            {tab === 'hub'
-              ? 'Hub development history — features added, fixes shipped, improvements over time'
-              : 'Live activity feed — everything created, updated, synced or sent across the hub'}
-          </p>
+          <p className="page-subtitle">{subtitles[tab]}</p>
         </div>
       </div>
 
@@ -328,9 +488,14 @@ export default function Updates() {
         <button className={`listing-tab ${tab === 'activity' ? 'active' : ''}`} onClick={() => setTab('activity')}>
           📊 Activity Log
         </button>
+        <button className={`listing-tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>
+          ✉ Email Log
+        </button>
       </div>
 
-      {tab === 'hub' ? <HubUpdates /> : <ActivityLog />}
+      {tab === 'hub' && <HubUpdates />}
+      {tab === 'activity' && <ActivityLog />}
+      {tab === 'email' && <EmailLog />}
     </div>
   )
 }

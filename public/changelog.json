@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-05-05T18:46:20.529Z",
-  "count": 83,
+  "generated_at": "2026-05-05T19:07:05.682Z",
+  "count": 86,
   "entries": [
+    {
+      "hash": "d9fb621",
+      "date": "2026-05-05T13:51:11-05:00",
+      "subject": "Earnest money: drop-off goes to Lavessa at the front desk of RE/MAX office",
+      "title": "Earnest money: drop-off goes to Lavessa at the front desk of RE/MAX office",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "e4fe8d6",
+      "date": "2026-05-05T13:50:54-05:00",
+      "subject": "Update buyer Earnest Money section: generic 'due in 3 biz days' wording, keep listing-company language",
+      "title": "buyer Earnest Money section: generic 'due in 3 biz days' wording, keep listing-company language",
+      "body": "Old wording assumed the buyer had already initiated the ACH transfer — but at the moment 'Under Contract / Next Steps' is sent, that's often not the case. New wording matches what Matt actually says:\n\n'Your earnest money is due within 3 business days of the accepted offer, by [date]. The earnest money amount is [amount] and can be submitted by check or electronic ACH transfer. It will be held by the listing company, RE/MAX Concepts, and credited toward your costs at closing. If you prefer a check, you can drop it off at our RE/MAX office.'\n\nEarnest Money Summary block updated to match (Due by date, both methods listed, listing-company phrasing).\n\nNote: 'RE/MAX Concepts' is hardcoded since most of Matt's deals are in-house. For deals where a different brokerage holds earnest, edit the body before sending — or we can promote this to a merge var later.",
+      "category": "improvement"
+    },
+    {
+      "hash": "40aca23",
+      "date": "2026-05-05T13:46:23-05:00",
+      "subject": "Conditional template sections (insurance contingency, home warranty) + remove vendor rating",
+      "title": "Conditional template sections (insurance contingency, home warranty) + remove vendor rating",
+      "body": "Conditional template engine:\n- fillMergeVars now supports {{#if VAR}}...{{/if}} blocks — if VAR is falsy/empty, the block AND one trailing newline are removed cleanly\n- Avoids leaving an awkward gap when a section is omitted\n\nNew transaction fields (default ON):\n- has_insurance_contingency (INTEGER, default 1)\n- has_home_warranty (INTEGER, default 1)\n- Both wired into FIELDS list, emptyTx, schema, and migration\n\nNew 'Contract Terms' section in transaction form with two checkboxes:\n- Insurance contingency in contract (7 business days)\n- 1-year home warranty included (paid by seller)\n- Helper text explains these control which sections appear in the buyer email\n\nBuyer Under Contract template:\n- INSURANCE CONTINGENCY block now wrapped in {{#if has_insurance_contingency}}...{{/if}}\n- HOME WARRANTY block wrapped in {{#if has_home_warranty}}...{{/if}}\n- Default for legacy rows (NULL column) = ON, so existing transactions still get the full template\n\nVendors:\n- Removed rating field from form (no longer asked for)\n- Removed star display from cards\n- Inspector lookup query simplified (sort by company_name only, no longer by rating)\n- Existing rating column kept in DB schema so legacy rows are preserved",
+      "category": "other"
+    },
     {
       "hash": "f7e60da",
       "date": "2026-05-05T13:41:18-05:00",

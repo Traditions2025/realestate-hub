@@ -292,6 +292,38 @@ router.get('/stats', (req, res) => {
   res.json({ total_sent: sent, total_failed: failed, sent_today: today })
 })
 
+// Full email log with filtering + pagination — covers BOTH successful and failed sends
+router.get('/log', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500)
+  const offset = Number(req.query.offset) || 0
+  let sql = 'SELECT * FROM email_log WHERE 1=1'
+  const params = []
+  if (req.query.search) {
+    sql += ' AND (to_email LIKE ? OR subject LIKE ? OR error LIKE ?)'
+    const term = `%${req.query.search}%`
+    params.push(term, term, term)
+  }
+  if (req.query.status) { sql += ' AND status = ?'; params.push(req.query.status) }
+  if (req.query.template) { sql += ' AND template = ?'; params.push(req.query.template) }
+  if (req.query.since) { sql += ' AND sent_at >= ?'; params.push(req.query.since) }
+  sql += ' ORDER BY sent_at DESC LIMIT ? OFFSET ?'
+  params.push(limit, offset)
+  const rows = db.all(sql, params)
+  const total = db.get('SELECT COUNT(*) as c FROM email_log').c
+  const sentCount = db.get("SELECT COUNT(*) as c FROM email_log WHERE status = 'sent'").c
+  const failedCount = db.get("SELECT COUNT(*) as c FROM email_log WHERE status = 'failed'").c
+  // Trim body in list response so we don't ship huge HTML over the wire
+  const trimmed = rows.map(r => ({ ...r, body: (r.body || '').slice(0, 200) }))
+  res.json({ rows: trimmed, total, sent: sentCount, failed: failedCount, limit, offset })
+})
+
+// Single email entry with full body
+router.get('/log/:id', (req, res) => {
+  const row = db.get('SELECT * FROM email_log WHERE id = ?', [Number(req.params.id)])
+  if (!row) return res.status(404).json({ error: 'Not found' })
+  res.json(row)
+})
+
 router.get('/check-config', (req, res) => {
   res.json({
     configured: !!SENDGRID_API_KEY,
