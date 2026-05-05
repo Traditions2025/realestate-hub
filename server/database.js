@@ -128,6 +128,8 @@ export async function initDb() {
       lender_company TEXT,
       lender_email TEXT,
       dotloop_status TEXT DEFAULT 'Not Submitted',
+      has_insurance_contingency INTEGER DEFAULT 1,
+      has_home_warranty INTEGER DEFAULT 1,
       -- Checklist Items (boolean columns from sheet)
       remove_listing_alerts INTEGER DEFAULT 0,
       email_contract_closing INTEGER DEFAULT 0,
@@ -595,6 +597,8 @@ export async function initDb() {
       ['lender_company', 'TEXT'],
       ['lender_email', 'TEXT'],
       ['dotloop_status', "TEXT DEFAULT 'Not Submitted'"],
+      ['has_insurance_contingency', 'INTEGER DEFAULT 1'],
+      ['has_home_warranty', 'INTEGER DEFAULT 1'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

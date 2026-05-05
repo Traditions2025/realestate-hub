@@ -30,6 +30,7 @@ const FIELDS = [
   'financing_release', 'final_walkthrough', 'inspection_release', 'final_inspection_waiver',
   'type_of_finance',
   'earnest_money_due_date', 'ipi_due_date', 'lender_name', 'lender_company', 'lender_email', 'dotloop_status',
+  'has_insurance_contingency', 'has_home_warranty',
   'remove_listing_alerts', 'email_contract_closing', 'ayse_added_to_loop',
   'ayse_contracts_signed', 'earnest_money_deposit', 'home_inspection', 'home_inspector',
   'inspection_date', 'whole_property_inspection', 'radon_test', 'wdi_inspection',

@@ -13,7 +13,7 @@ const defaultCategories = [
 
 const emptyVendor = {
   company_name: '', contact_name: '', category: 'Home Inspector', phone: '', email: '',
-  website: '', address: '', city: '', state: 'IA', rating: 0, preferred: 0, notes: ''
+  website: '', address: '', city: '', state: 'IA', preferred: 0, notes: ''
 }
 
 export default function Vendors() {
@@ -66,7 +66,6 @@ export default function Vendors() {
   }
 
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
-  const stars = (n) => '\u2605'.repeat(n) + '\u2606'.repeat(5 - n)
 
   // Multi-select for "Send to Client"
   const [selected, setSelected] = useState(new Set())
@@ -177,7 +176,6 @@ export default function Vendors() {
                   {v.phone && <div className="client-info">{v.phone}</div>}
                   {v.email && <div className="client-info">{v.email}</div>}
                   {v.website && <div className="client-info">{v.website}</div>}
-                  {v.rating > 0 && <div className="client-info" style={{color: '#f59e0b'}}>{stars(v.rating)}</div>}
                 </div>
                 <div className="client-card-footer" onClick={e => e.stopPropagation()}>
                   <div style={{display: 'flex', gap: 4, flexWrap: 'wrap'}}>
@@ -223,7 +221,6 @@ export default function Vendors() {
             <label>City<input value={form.city} onChange={e => f2('city', e.target.value)} /></label>
             <label>State<input value={form.state} onChange={e => f2('state', e.target.value)} /></label>
           </div>
-          <label>Rating (1-5)<input type="number" min="0" max="5" value={form.rating} onChange={e => f2('rating', Number(e.target.value))} /></label>
           <label className="checkbox-label"><input type="checkbox" checked={!!form.preferred} onChange={e => f2('preferred', e.target.checked ? 1 : 0)} /> Preferred Vendor</label>
           <label>Notes<textarea value={form.notes} onChange={e => f2('notes', e.target.value)} rows={3} /></label>
           <div className="form-actions">

@@ -25,11 +25,11 @@ function formatInspectorsList() {
   let rows = []
   try {
     rows = db.all(
-      "SELECT * FROM vendors WHERE category = 'Home Inspector' AND preferred = 1 ORDER BY rating DESC, company_name ASC LIMIT 4"
+      "SELECT * FROM vendors WHERE category = 'Home Inspector' AND preferred = 1 ORDER BY company_name ASC LIMIT 4"
     )
     if (!rows.length) {
       rows = db.all(
-        "SELECT * FROM vendors WHERE category = 'Home Inspector' ORDER BY rating DESC, company_name ASC LIMIT 4"
+        "SELECT * FROM vendors WHERE category = 'Home Inspector' ORDER BY company_name ASC LIMIT 4"
       )
     }
   } catch {}
@@ -110,9 +110,11 @@ You will also need to receive written loan commitment, including appraisal, by {
 
 Important reminder: while you are in the loan process, do not make any large purchases, open new credit accounts, or make other financial changes that could impact your credit. Lenders may recheck credit before closing.
 
+{{#if has_insurance_contingency}}
 INSURANCE CONTINGENCY
 Per the contract, this purchase is subject to you obtaining an acceptable insurance estimate or bid within 7 business days of the accepted offer. This makes your deadline {{insurance_contingency_date_long}}. We recommend reaching out to your insurance provider this week to ensure the property meets your coverage requirements and that the premiums fit within your budget.
 
+{{/if}}
 INSPECTIONS
 Per the purchase contract, you have 10 business days for all inspections, making the deadline {{inspection_contingency_date_long}}.
 
@@ -127,9 +129,11 @@ If you haven't already lined one up, here are some inspectors we recommend:
 
 You can contact them directly to get scheduled, or we can help coordinate it for you. Just let us know how you'd like to proceed, and please let us know once the date and time are finalized.
 
+{{#if has_home_warranty}}
 HOME WARRANTY
 Per the contract, a 1-year home warranty is included and paid for by the seller.
 
+{{/if}}
 UTILITIES
 Within one week of your closing date, you will want to set utilities up in your name so service begins the morning of closing day. Utility providers for this property include:
 - Alliant Energy: 800-255-4268
@@ -505,6 +509,13 @@ Thanks!${SIG}`,
 
 export function fillMergeVars(template, vars) {
   let s = template || ''
+  // Support {{#if VAR}}...{{/if}} conditional blocks.
+  // Block (and one trailing newline) is removed when VAR is falsy/empty so we
+  // don't leave an awkward blank section in the email body.
+  s = s.replace(/\{\{#if\s+(\w+)\}\}\n?([\s\S]*?)\{\{\/if\}\}\n?/g, (_, key, content) => {
+    const v = (vars || {})[key]
+    return v && v !== '0' && v !== 0 ? content : ''
+  })
   for (const [key, value] of Object.entries(vars || {})) {
     s = s.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value == null ? '' : String(value))
   }
@@ -558,6 +569,10 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.lender_email = transaction.lender_email || ''
     v.buyer_name = transaction.buyer_name || ''
     v.seller_name = transaction.seller_name || ''
+    // Conditional flags — used by {{#if has_insurance_contingency}}...{{/if}} blocks
+    // Default to enabled if column is null (existing rows from before the migration)
+    v.has_insurance_contingency = (transaction.has_insurance_contingency == null || transaction.has_insurance_contingency === 1) ? '1' : ''
+    v.has_home_warranty = (transaction.has_home_warranty == null || transaction.has_home_warranty === 1) ? '1' : ''
   }
   // Recommended inspectors — pull from vendors (category = 'Home Inspector')
   // Prefer those flagged as Preferred; fall back to all home inspectors. Cap at 4.

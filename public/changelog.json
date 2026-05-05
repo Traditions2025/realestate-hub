@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-05T18:41:16.072Z",
-  "count": 82,
+  "generated_at": "2026-05-05T18:46:20.529Z",
+  "count": 83,
   "entries": [
+    {
+      "hash": "f7e60da",
+      "date": "2026-05-05T13:41:18-05:00",
+      "subject": "Email composer: multiple To recipients + file attachments + recommended inspectors merge var",
+      "title": "Email composer: multiple To recipients + file attachments + recommended inspectors merge var",
+      "body": "Multi-recipient To:\n- To field now accepts comma-separated emails (e.g. 'kevin@x.com, sara@x.com')\n- Backend parseEmails() splits on comma/semicolon/newline, dedupes, trims\n- All recipients see each other in the To line (Gmail-style)\n- Field placeholder + label updated to indicate this\n\nFile attachments:\n- Email composer in Transactions + PreListings has new '📎 Attachments' section\n- File input is multi-select (Cmd/Ctrl+click for multiple)\n- Files are read client-side as base64, attached to the request body\n- Visible chips show filename + size, with ✕ to remove individual attachments\n- Total size displayed; SendGrid 30 MB limit noted\n- Backend send-transaction + send-prelisting endpoints accept attachments[] and pass to SendGrid\n- email_log activity entry now mentions attachments by name\n\nRecommended inspectors auto-injected into buyer template:\n- New {{recommended_inspectors}} merge var pulls from vendors table where category = 'Home Inspector'\n- Prioritizes vendors flagged 'Preferred', falls back to all inspectors, capped at 4\n- Each inspector formatted: company name, contact name, address, phone, email\n- buyer_under_contract template now includes 'If you haven't already lined one up, here are some inspectors we recommend:' followed by the formatted block",
+      "category": "other"
+    },
     {
       "hash": "98f7288",
       "date": "2026-05-05T13:32:38-05:00",

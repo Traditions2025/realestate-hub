@@ -17,6 +17,7 @@ const emptyTx = {
   earnest_money_due_date: '', ipi_due_date: '',
   lender_name: '', lender_company: '', lender_email: '',
   dotloop_status: 'Not Submitted',
+  has_insurance_contingency: 1, has_home_warranty: 1,
   remove_listing_alerts: 0, email_contract_closing: 0,
   ayse_added_to_loop: 0, ayse_contracts_signed: 0, earnest_money_deposit: 'Not Started',
   home_inspection: 'Not Started', home_inspector: '', inspection_date: '',
@@ -987,6 +988,20 @@ export default function Transactions() {
                 </label>
               ))}
             </div>
+          </div>
+
+          {/* Contract Contingencies — control which sections appear in the buyer email */}
+          <div className="form-section">
+            <h4>Contract Terms</h4>
+            <p className="muted" style={{margin: '0 0 8px', fontSize: 12}}>These control which sections appear in the buyer "Under Contract / Next Steps" email.</p>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={!!form.has_insurance_contingency} onChange={() => check('has_insurance_contingency')} />
+              Insurance contingency in contract (7 business days)
+            </label>
+            <label className="checkbox-label">
+              <input type="checkbox" checked={!!form.has_home_warranty} onChange={() => check('has_home_warranty')} />
+              1-year home warranty included (paid by seller)
+            </label>
           </div>
 
           {/* Title & Closing Documents (dropdowns) */}
