@@ -68,11 +68,28 @@ async function start() {
   app.use('/api/lists', listsRouter)
   app.use('/api/seed', seedRouter)
 
-  // Activity log
+  // Activity log — supports filtering by entity_type, action, since (ISO date), search
   app.get('/api/activity', (req, res) => {
-    const limit = Number(req.query.limit) || 20
-    const rows = db.all('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT ?', [limit])
-    res.json(rows)
+    const limit = Math.min(Number(req.query.limit) || 100, 500)
+    const offset = Number(req.query.offset) || 0
+    let sql = 'SELECT * FROM activity_log WHERE 1=1'
+    const params = []
+    if (req.query.entity_type) { sql += ' AND entity_type = ?'; params.push(req.query.entity_type) }
+    if (req.query.action) { sql += ' AND action = ?'; params.push(req.query.action) }
+    if (req.query.since) { sql += ' AND created_at >= ?'; params.push(req.query.since) }
+    if (req.query.search) { sql += ' AND (details LIKE ? OR action LIKE ? OR entity_type LIKE ?)'; const term = `%${req.query.search}%`; params.push(term, term, term) }
+    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?'
+    params.push(limit, offset)
+    const rows = db.all(sql, params)
+    const total = db.get('SELECT COUNT(*) as c FROM activity_log').c
+    res.json({ rows, total, limit, offset })
+  })
+
+  // Distinct values for filter dropdowns
+  app.get('/api/activity/filters', (_req, res) => {
+    const types = db.all("SELECT DISTINCT entity_type FROM activity_log WHERE entity_type IS NOT NULL AND entity_type != '' ORDER BY entity_type").map(r => r.entity_type)
+    const actions = db.all("SELECT DISTINCT action FROM activity_log WHERE action IS NOT NULL AND action != '' ORDER BY action").map(r => r.action)
+    res.json({ entity_types: types, actions })
   })
 
   // DB persistence status - verify the database is being saved to a persistent disk

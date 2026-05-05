@@ -15,7 +15,7 @@ const emptyTx = {
   financing_release: '', final_walkthrough: '', inspection_release: '', final_inspection_waiver: '',
   type_of_finance: '',
   earnest_money_due_date: '', ipi_due_date: '',
-  lender_name: '', lender_company: '',
+  lender_name: '', lender_company: '', lender_email: '',
   dotloop_status: 'Not Submitted',
   remove_listing_alerts: 0, email_contract_closing: 0,
   ayse_added_to_loop: 0, ayse_contracts_signed: 0, earnest_money_deposit: 'Not Started',
@@ -50,6 +50,18 @@ function calcEarnestDue(contractDate) {
   return d.toISOString().split('T')[0]
 }
 
+// Final walkthrough is the last weekday before closing.
+// If closing is Mon, walkthrough is the previous Friday. Tue → Mon. Etc.
+function calcFinalWalkthrough(closingDate) {
+  if (!closingDate) return ''
+  const d = new Date(closingDate)
+  if (isNaN(d)) return ''
+  do {
+    d.setDate(d.getDate() - 1)
+  } while (d.getDay() === 0 || d.getDay() === 6) // skip Sun (0) and Sat (6)
+  return d.toISOString().split('T')[0]
+}
+
 export default function Transactions() {
   const [items, setItems] = useState([])
   const [preListings, setPreListings] = useState([])
@@ -71,7 +83,7 @@ export default function Transactions() {
   const [emailTemplates, setEmailTemplates] = useState([])
   const [emailForm, setEmailForm] = useState({
     template_id: '', recipient_type: 'client', to_email: '', to_name: '',
-    subject: '', body: '', auto_cc: [],
+    subject: '', body: '', auto_cc: [], extra_cc: [],
   })
   const [emailSending, setEmailSending] = useState(false)
 
@@ -130,6 +142,7 @@ export default function Transactions() {
         recipient_type: d.recipient,
         to_email: d.suggested_to || prev.to_email,
         auto_cc: d.auto_cc || prev.auto_cc,
+        extra_cc: d.suggested_cc || [],
       }))
     } catch (e) {
       alert('Failed to load template: ' + e.message)
@@ -151,6 +164,7 @@ export default function Transactions() {
           subject: emailForm.subject,
           body: emailForm.body,
           template_id: emailForm.template_id,
+          additional_cc: emailForm.extra_cc || [],
         }),
       })
       const d = await r.json()
@@ -812,6 +826,7 @@ export default function Transactions() {
               <label>Lender Name<input value={form.lender_name} onChange={e => f('lender_name', e.target.value)} placeholder="e.g. Tim Lamb" /></label>
               <label>Lender Company<input value={form.lender_company} onChange={e => f('lender_company', e.target.value)} placeholder="e.g. Corda Credit Union" /></label>
             </div>
+            <label>Lender Email<input type="email" value={form.lender_email} onChange={e => f('lender_email', e.target.value)} placeholder="e.g. tim@cordacu.com" /></label>
             <label>Type of Finance<select value={form.type_of_finance} onChange={e => f('type_of_finance', e.target.value)}>
               <option value="">Select...</option>
               {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
@@ -837,16 +852,33 @@ export default function Transactions() {
                     const v = e.target.value
                     setForm(prev => {
                       const next = { ...prev, contract_date: v }
-                      // Auto-populate earnest money due date if empty (3 business days after contract)
                       if (v && !prev.earnest_money_due_date) {
                         next.earnest_money_due_date = calcEarnestDue(v)
                       }
                       return next
                     })
                   }}
+                  title="Auto-fills Earnest Money Due (3 business days later) when blank"
                 />
               </label>
-              <label>Closing Date<input type="date" value={form.closing_date} onChange={e => f('closing_date', e.target.value)} /></label>
+              <label>Closing Date
+                <input
+                  type="date"
+                  value={form.closing_date}
+                  onChange={e => {
+                    const v = e.target.value
+                    setForm(prev => {
+                      const next = { ...prev, closing_date: v }
+                      // Final walkthrough = last weekday before closing — auto-fill if blank
+                      if (v && !prev.final_walkthrough) {
+                        next.final_walkthrough = calcFinalWalkthrough(v)
+                      }
+                      return next
+                    })
+                  }}
+                  title="Auto-fills Final Walkthrough (1 weekday before) when blank"
+                />
+              </label>
             </div>
             <div className="form-row">
               <label title="Auto-set 3 business days after contract date — editable">
@@ -859,8 +891,42 @@ export default function Transactions() {
               </label>
             </div>
             <div className="form-row">
-              <label>Mortgage Contingency<input type="date" value={form.mortgage_contingency_date} onChange={e => f('mortgage_contingency_date', e.target.value)} /></label>
-              <label>Appraisal Contingency<input type="date" value={form.appraisal_contingency_date} onChange={e => f('appraisal_contingency_date', e.target.value)} /></label>
+              <label>Mortgage Contingency
+                <input
+                  type="date"
+                  value={form.mortgage_contingency_date}
+                  onChange={e => {
+                    const v = e.target.value
+                    setForm(prev => {
+                      const next = { ...prev, mortgage_contingency_date: v }
+                      // Mortgage and Appraisal contingency typically the same date — sync if appraisal is empty
+                      if (v && !prev.appraisal_contingency_date) {
+                        next.appraisal_contingency_date = v
+                      }
+                      return next
+                    })
+                  }}
+                  title="Mortgage & Appraisal contingencies typically share the same date — auto-syncs when appraisal is blank"
+                />
+              </label>
+              <label>Appraisal Contingency
+                <input
+                  type="date"
+                  value={form.appraisal_contingency_date}
+                  onChange={e => {
+                    const v = e.target.value
+                    setForm(prev => {
+                      const next = { ...prev, appraisal_contingency_date: v }
+                      // Reverse: mirror to mortgage if mortgage is empty
+                      if (v && !prev.mortgage_contingency_date) {
+                        next.mortgage_contingency_date = v
+                      }
+                      return next
+                    })
+                  }}
+                  title="Auto-syncs to Mortgage Contingency when blank"
+                />
+              </label>
             </div>
             <div className="form-row">
               <label>Inspection Contingency<input type="date" value={form.inspection_contingency_date} onChange={e => f('inspection_contingency_date', e.target.value)} /></label>
@@ -1004,7 +1070,10 @@ export default function Transactions() {
           <label>To (name)<input value={emailForm.to_name} onChange={e => setEmailForm(p => ({ ...p, to_name: e.target.value }))} /></label>
         </div>
         <div className="muted" style={{padding: '6px 10px', background: 'rgba(200, 155, 74, 0.08)', borderRadius: 4, marginBottom: 10}}>
-          📋 Auto-CC: {(emailForm.auto_cc || []).join(', ')}
+          📋 Auto-CC: {[...(emailForm.auto_cc || []), ...(emailForm.extra_cc || [])].join(', ') || 'none'}
+          {(emailForm.extra_cc || []).length > 0 && (
+            <span style={{marginLeft: 8, color: '#fbbf24', fontWeight: 600}}>(includes Cherryl)</span>
+          )}
         </div>
         <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
         <label>Body<textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} /></label>

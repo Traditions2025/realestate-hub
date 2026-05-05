@@ -126,6 +126,7 @@ export async function initDb() {
       ipi_due_date TEXT,
       lender_name TEXT,
       lender_company TEXT,
+      lender_email TEXT,
       dotloop_status TEXT DEFAULT 'Not Submitted',
       -- Checklist Items (boolean columns from sheet)
       remove_listing_alerts INTEGER DEFAULT 0,
@@ -592,6 +593,7 @@ export async function initDb() {
       ['ipi_due_date', 'TEXT'],
       ['lender_name', 'TEXT'],
       ['lender_company', 'TEXT'],
+      ['lender_email', 'TEXT'],
       ['dotloop_status', "TEXT DEFAULT 'Not Submitted'"],
     ]
     for (const [name, type] of newTxCols) {

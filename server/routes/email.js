@@ -319,6 +319,7 @@ router.get('/transaction-preview/:templateId/:transactionId', (req, res) => {
     body: fillMergeVars(tpl.body, vars),
     suggested_to: resolveRecipient(tpl.recipient, client, tx),
     auto_cc: TRANSACTION_ALWAYS_CC,
+    suggested_cc: suggestedCcs(tpl.recipient),
   })
 })
 
@@ -341,9 +342,19 @@ router.get('/prelisting-preview/:templateId/:preListingId', (req, res) => {
 
 function resolveRecipient(recipientType, client, tx) {
   if (recipientType === 'client') return client?.email || ''
-  if (recipientType === 'lender') return '' // Lender email isn't stored; user must enter
+  if (recipientType === 'lender') return tx?.lender_email || ''
+  if (recipientType === 'lender_team') return tx?.lender_email || ''
   if (recipientType === 'closer') return lookupCloser().email || ''
   return ''
+}
+
+// Suggested CCs based on recipient type
+function suggestedCcs(recipientType) {
+  if (recipientType === 'lender_team') {
+    const closer = lookupCloser()
+    return closer.email ? [closer.email] : []
+  }
+  return []
 }
 
 // Endpoint so the frontend can pre-populate Cherryl's email when "Email Cherryl" is clicked

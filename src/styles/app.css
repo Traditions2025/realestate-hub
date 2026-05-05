@@ -2930,6 +2930,86 @@ input[type="range"] {
 .email-preview-body p { margin: 8px 0; }
 .email-preview-body a { color: #c89b4a; }
 
+/* Updates page — activity feed */
+.updates-day {
+  margin-bottom: 24px;
+}
+.updates-day-header {
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: var(--accent);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.updates-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.updates-row {
+  display: flex;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  align-items: flex-start;
+  transition: border-color 0.1s;
+}
+.updates-row:hover {
+  border-color: var(--accent);
+}
+.updates-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+.updates-content {
+  flex: 1;
+  min-width: 0;
+}
+.updates-line {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+.updates-action {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+.updates-entity-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+.updates-time {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.updates-details {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+
 /* Drag-and-drop kanban (Transactions + Tasks) */
 .pipeline-card,
 .kanban-card {

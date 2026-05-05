@@ -318,6 +318,29 @@ Small details make a big difference — the cleaner and brighter the space, the 
 Please let us know if you have any questions. Thanks!${SIG}`,
   },
 
+  // ============== COMBINED LENDER + CHERRYL TEMPLATE ==============
+  buyer_pa_to_team: {
+    name: '📎 Buyer PA → Lender + Cherryl (signed off, attached)',
+    role: 'team',
+    recipient: 'lender_team', // Primary: lender, auto-CC: Cherryl + team
+    subject: '{{property_address}} - {{buyer_name}} | Matt Smith Team',
+    body: `Hi {{lender_first_name}} and {{closer_first_name}},
+
+We are officially under contract for our buyer, {{buyer_name}}, on {{property_address}}. Please see the attached accepted Purchase Agreement.
+
+Purchase Price: {{purchase_price_formatted}}
+Closing Date: {{closing_date}}
+
+Please let me know if you need anything further or have any questions.
+
+Thank you!
+
+John | Marketing & Operations Lead
+Matt Smith Team | RE/MAX
+Website: www.mattsmithteam.com
+Office: 5235 Buffalo Rdg Dr NE, Cedar Rapids, IA 52411`,
+  },
+
   // ============== LENDER / CHERRYL TEMPLATES ==============
   lender_intro: {
     name: '🏦 To Lender — Transaction Intro / PA Attached',
@@ -462,11 +485,16 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.final_walkthrough = transaction.final_walkthrough || ''
     v.type_of_finance = transaction.type_of_finance || ''
     v.lender_name = transaction.lender_name || ''
+    v.lender_first_name = (transaction.lender_name || '').trim().split(/\s+/)[0] || ''
     v.lender_company = transaction.lender_company || ''
+    v.lender_email = transaction.lender_email || ''
+    v.buyer_name = transaction.buyer_name || ''
+    v.seller_name = transaction.seller_name || ''
   }
   // Closer info — look up from partners table by role first, fall back to env vars
   const closer = lookupCloser()
   v.closer_name = closer.name
+  v.closer_first_name = (closer.name || '').trim().split(/\s+/)[0] || 'Cherryl'
   v.closer_company = closer.company
   v.closer_email = closer.email
   v.closer_phone = closer.phone
