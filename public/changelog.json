@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-06T23:31:54.698Z",
-  "count": 97,
+  "generated_at": "2026-05-06T23:37:54.544Z",
+  "count": 98,
   "entries": [
+    {
+      "hash": "0a3dbd6",
+      "date": "2026-05-06T18:31:57-05:00",
+      "subject": "Single email composer: same HTML upload + preview + attachments as bulk",
+      "title": "Single email composer: same HTML upload + preview + attachments as bulk",
+      "body": "The single email send-to-client modal (opens from a client's detail panel) was missing the HTML/attachment features that the bulk + transaction composers had. Now matches:\n\n- 📁 Load HTML File button — pick an .html file from disk, contents go straight into Body\n- 👁 Preview button — opens iframe rendering the HTML with merge variables (first_name/last_name/full_name/address/city) filled from the linked client\n- 📎 Add Attachment — multi-select files, attaches as base64 to the SendGrid send (PDFs, images, etc.)\n- Body textarea: 12 → 20 rows, monospace font, drag-resize\n- Backend /api/email/send now accepts attachments[] + cc[] params and forwards to sendViaSendGrid\n\nNet result: every email send modal in the hub (Single client, Bulk, Transaction, Pre-Listing) has identical capabilities — load HTML, preview, attach files, send.",
+      "category": "other"
+    },
     {
       "hash": "50d4a7b",
       "date": "2026-05-06T18:24:16-05:00",

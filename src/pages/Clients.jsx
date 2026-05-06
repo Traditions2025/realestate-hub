@@ -3,6 +3,7 @@ import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import MultiSelect from '../components/MultiSelect'
 import StatusBadge from '../components/StatusBadge'
+import { inlineImagesIntoBody } from '../components/inlineImages'
 
 const emptyClient = {
   first_name: '', last_name: '', email: '', phone: '', type: 'buyer', status: 'active',
@@ -1806,6 +1807,25 @@ export default function Clients() {
                   }}
                 />
               </label>
+              <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}} title="Embed images so they render in email">
+                📷 Inline Images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || [])
+                    if (!files.length) return
+                    const r = await inlineImagesIntoBody(bulkEmailForm.body, files)
+                    setBulkEmailForm(p => ({ ...p, body: r.newBody }))
+                    let msg = r.inlined.length ? `✓ Inlined ${r.inlined.length}: ${r.inlined.join(', ')}` : '⚠ No matching <img> tags found in the body'
+                    if (r.unmatched.length) msg += `\n\nStill unmatched: ${[...new Set(r.unmatched)].join(', ')}`
+                    alert(msg)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
@@ -1901,12 +1921,31 @@ export default function Clients() {
                   }}
                 />
               </label>
+              <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}} title="Embed images so they render in email (replaces local <img src> with base64)">
+                📷 Inline Images
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                  onChange={async (e) => {
+                    const files = Array.from(e.target.files || [])
+                    if (!files.length) return
+                    const r = await inlineImagesIntoBody(emailForm.body, files)
+                    setEmailForm(p => ({ ...p, body: r.newBody }))
+                    let msg = r.inlined.length ? `✓ Inlined ${r.inlined.length}: ${r.inlined.join(', ')}` : '⚠ No matching <img> tags found in the body'
+                    if (r.unmatched.length) msg += `\n\nStill unmatched (you may need to upload these): ${[...new Set(r.unmatched)].join(', ')}`
+                    alert(msg)
+                    e.target.value = ''
+                  }}
+                />
+              </label>
               <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setSingleEmailPreviewOpen(true)}>👁 Preview</button>
             </div>
           </div>
           <textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
           <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
-            Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · Plain text auto-formats; HTML renders as-is; or 📁 load an .html file.
+            Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · Plain text auto-formats · 📁 load .html · 📷 inline images so they render in email.
           </p>
 
           {/* Attachments */}

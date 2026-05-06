@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
+import { inlineImagesIntoBody } from '../components/inlineImages'
 
 const statusOptions = ['Active', 'Under Contract', 'Pending', 'Clear to Close', 'Closed', 'Pre-Listing', 'Withdrawn', 'Expired', 'Cancelled']
 const financeTypes = ['Conventional', 'FHA', 'VA', 'USDA', 'Cash', 'Other']
@@ -1162,12 +1163,31 @@ export default function Transactions() {
                 }}
               />
             </label>
+            <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
+              📷 Inline Images
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || [])
+                  if (!files.length) return
+                  const r = await inlineImagesIntoBody(emailForm.body, files)
+                  setEmailForm(p => ({ ...p, body: r.newBody }))
+                  let msg = r.inlined.length ? `✓ Inlined ${r.inlined.length}: ${r.inlined.join(', ')}` : '⚠ No matching <img> tags found'
+                  if (r.unmatched.length) msg += `\n\nStill unmatched: ${[...new Set(r.unmatched)].join(', ')}`
+                  alert(msg)
+                  e.target.value = ''
+                }}
+              />
+            </label>
             <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setEmailPreviewOpen(true)}>👁 Preview</button>
           </div>
         </div>
         <textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
         <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
-          Plain text or HTML — paste/type HTML tags or <strong>📁 Load an .html file</strong> for designed emails. Plain text auto-formats with paragraphs, clickable links, phones, and emails.
+          📁 Load HTML · 📷 Inline Images (so they render) · plain text also auto-formats with paragraphs and clickable links.
         </p>
 
         <div className="field-group">
