@@ -61,6 +61,59 @@ router.get('/:id', (req, res) => {
   res.json(row)
 })
 
+// Map transaction property_status → listing stage
+const STATUS_TO_STAGE = {
+  'Active': 'active',
+  'Coming Soon': 'coming_soon',
+  'Pre-Listing': 'pre_listing',
+  'Under Contract': 'under_contract',
+  'Pending': 'under_contract',
+  'Clear to Close': 'under_contract',
+  'Closed': 'closed',
+  'Withdrawn': 'closed',
+  'Expired': 'closed',
+  'Cancelled': 'closed',
+}
+const LIVE_STATUSES = new Set(['Active', 'Coming Soon', 'Under Contract', 'Pending', 'Clear to Close', 'Closed'])
+
+// Auto-sync a listing-type transaction into the listings table.
+// - Updates the linked listing if one exists (transaction_id match)
+// - Creates a new listing if none exists AND the transaction is in a "live" status
+// - No-op for purchase transactions
+function syncListingFromTransaction(txId) {
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+  if (!tx || tx.type !== 'listing') return null
+
+  const status = tx.property_status || 'Active'
+  const stage = STATUS_TO_STAGE[status] || 'active'
+
+  const existing = db.get('SELECT id FROM listings WHERE transaction_id = ?', [tx.id])
+  if (existing) {
+    db.run(`UPDATE listings SET
+      property_address = ?, mls_number = ?, list_price = ?,
+      stage = ?, status = ?, seller_name = ?, client_id = ?,
+      updated_at = datetime('now')
+      WHERE id = ?`,
+      [tx.property_address, tx.mls_number, tx.list_price, stage, status,
+        tx.seller_name, tx.client_id || null, existing.id])
+    logActivity('synced', 'listing', existing.id, `Auto-synced from transaction → ${status}`)
+    return existing.id
+  }
+
+  // Only create if status indicates the listing is live
+  if (LIVE_STATUSES.has(status)) {
+    const result = db.run(`INSERT INTO listings (
+      property_address, mls_number, list_price, stage, status,
+      seller_name, transaction_id, client_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [tx.property_address, tx.mls_number, tx.list_price, stage, status,
+        tx.seller_name, tx.id, tx.client_id || null])
+    logActivity('created', 'listing', result.lastInsertRowid, `Auto-created from transaction (${status}): ${tx.property_address}`)
+    return result.lastInsertRowid
+  }
+  return null
+}
+
 router.post('/', (req, res) => {
   const b = req.body
   const placeholders = FIELDS.map(() => '?').join(',')
@@ -68,6 +121,8 @@ router.post('/', (req, res) => {
 
   const result = db.run(`INSERT INTO transactions (${FIELDS.join(',')}) VALUES (${placeholders})`, values)
   logActivity('created', 'transaction', result.lastInsertRowid, `New ${b.type}: ${b.property_address}`)
+  // Auto-sync into Listings tab if this is a listing-type transaction
+  syncListingFromTransaction(result.lastInsertRowid)
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
@@ -80,6 +135,8 @@ router.put('/:id', (req, res) => {
 
   db.run(`UPDATE transactions SET ${sets} WHERE id = ?`, values)
   logActivity('updated', 'transaction', Number(req.params.id), 'Updated transaction')
+  // Mirror the change into Listings tab (creates or updates the linked listing)
+  syncListingFromTransaction(Number(req.params.id))
   res.json({ success: true })
 })
 
