@@ -1,5 +1,5 @@
 import express, { Router } from 'express'
-import db from '../database.js'
+import db, { beginBulk, endBulk } from '../database.js'
 
 const router = Router()
 router.use(express.json({ limit: '50mb' })) // Realist CSVs can be large
@@ -162,6 +162,11 @@ router.post('/import', async (req, res) => {
   let inserted = 0, skipped = 0, errors = 0
   let matchedClients = 0
 
+  // Bulk mode: defer DB save-to-disk until the end (otherwise we save the entire DB
+  // 6000+ times during the loop, which blocks the event loop for minutes)
+  beginBulk()
+  try {
+
   // Pre-load + normalize ALL client addresses once. Then build a map: normalized → [client_ids].
   // Avoids 3000 × 45000 = 135M LIKE comparisons; turns it into a single SELECT + O(1) map lookups.
   console.log('[realist] Building client address index...')
@@ -260,6 +265,11 @@ router.post('/import', async (req, res) => {
 
   db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
     ['imported', 'realist', `Realist CSV: ${inserted} properties imported/updated, ${matchedClients} client matches enriched, ${skipped} skipped, ${errors} errors`])
+  } finally {
+    // Always flush deferred writes to disk, even if an error happened mid-import
+    endBulk()
+  }
+  console.log(`[realist] Import done — ${inserted} properties, ${matchedClients} matches, ${errors} errors`)
 
   res.json({
     success: true,
@@ -296,37 +306,46 @@ router.get('/for-client/:id', (req, res) => {
 
 // Re-run matching against existing realist_properties — useful after the table is populated and new clients sync from Sierra
 router.post('/rematch', (_req, res) => {
-  // Build address map once (same optimization as import)
-  const allClients = db.all("SELECT id, address FROM clients WHERE address IS NOT NULL AND address != ''")
-  const addrMap = new Map()
-  for (const c of allClients) {
-    const cn = normalizeAddress(c.address)
-    if (!cn) continue
-    if (!addrMap.has(cn)) addrMap.set(cn, [])
-    addrMap.get(cn).push(c.id)
-  }
-
-  const properties = db.all('SELECT * FROM realist_properties')
+  let allClientsCount = 0
+  let propertiesCount = 0
   let updated = 0
-  for (const p of properties) {
-    const norm = p.address_normalized || normalizeAddress(p.property_address)
-    if (!norm) continue
-    const matches = addrMap.get(norm) || []
-    for (const cid of matches) {
-      db.run(`UPDATE clients SET
-        realist_property_id = ?, realist_market_value = ?, realist_assessed_value = ?,
-        realist_year_built = ?, realist_bedrooms = ?, realist_bathrooms_full = ?,
-        realist_owner_occupied = ?, realist_sell_score = ?,
-        realist_last_sale_price = ?, realist_last_sale_date = ?,
-        realist_matched_at = datetime('now')
-        WHERE id = ?`,
-        [p.id, p.market_value, p.assessed_value, p.year_built, p.bedrooms,
-          p.bathrooms_full, p.owner_occupied, p.sell_score,
-          p.last_sale_price, p.last_sale_date, cid])
-      updated++
+  beginBulk()
+  try {
+    // Build address map once (same optimization as import)
+    const allClients = db.all("SELECT id, address FROM clients WHERE address IS NOT NULL AND address != ''")
+    allClientsCount = allClients.length
+    const addrMap = new Map()
+    for (const c of allClients) {
+      const cn = normalizeAddress(c.address)
+      if (!cn) continue
+      if (!addrMap.has(cn)) addrMap.set(cn, [])
+      addrMap.get(cn).push(c.id)
     }
+
+    const properties = db.all('SELECT * FROM realist_properties')
+    propertiesCount = properties.length
+    for (const p of properties) {
+      const norm = p.address_normalized || normalizeAddress(p.property_address)
+      if (!norm) continue
+      const matches = addrMap.get(norm) || []
+      for (const cid of matches) {
+        db.run(`UPDATE clients SET
+          realist_property_id = ?, realist_market_value = ?, realist_assessed_value = ?,
+          realist_year_built = ?, realist_bedrooms = ?, realist_bathrooms_full = ?,
+          realist_owner_occupied = ?, realist_sell_score = ?,
+          realist_last_sale_price = ?, realist_last_sale_date = ?,
+          realist_matched_at = datetime('now')
+          WHERE id = ?`,
+          [p.id, p.market_value, p.assessed_value, p.year_built, p.bedrooms,
+            p.bathrooms_full, p.owner_occupied, p.sell_score,
+            p.last_sale_price, p.last_sale_date, cid])
+        updated++
+      }
+    }
+  } finally {
+    endBulk()
   }
-  res.json({ success: true, properties_scanned: properties.length, clients_indexed: allClients.length, client_matches_updated: updated })
+  res.json({ success: true, properties_scanned: propertiesCount, clients_indexed: allClientsCount, client_matches_updated: updated })
 })
 
 export default router

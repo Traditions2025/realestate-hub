@@ -767,6 +767,18 @@ export async function initDb() {
   return db
 }
 
+// Bulk mode: skip saveDb() inside the run() helper during long-running batch ops
+// (e.g. Realist CSV import). Caller must explicitly saveDb() when done.
+// Without this, a 3000-row import would call saveDb() 6000+ times = entire DB
+// written to disk thousands of times = seconds-to-minutes of blocked event loop.
+let _bulkMode = false
+export function beginBulk() { _bulkMode = true }
+export function endBulk() {
+  _bulkMode = false
+  saveDb()
+}
+export function inBulkMode() { return _bulkMode }
+
 let saveErrorLogged = false
 export function saveDb() {
   if (!db) return
@@ -828,8 +840,8 @@ export function run(sql, params = []) {
   db.run(sql, params)
   const lastId = db.exec("SELECT last_insert_rowid() as id")[0]?.values[0]?.[0]
   const changes = db.getRowsModified()
-  saveDb()
+  if (!_bulkMode) saveDb()
   return { lastInsertRowid: lastId, changes }
 }
 
-export default { all, get, run, initDb, saveDb }
+export default { all, get, run, initDb, saveDb, beginBulk, endBulk, inBulkMode }
