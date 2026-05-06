@@ -270,10 +270,30 @@ export default function Transactions() {
 
   const promotePreListingToTransaction = async (pl, newStatus) => {
     const txType = 'listing' // Pre-listings always become listing-type transactions
+    // Dedup: if a listing transaction already exists for this address, just update its status instead of creating another
+    const existing = items.find(i =>
+      i.type === 'listing' &&
+      (i.property_address || '').toLowerCase().trim() === (pl.property_address || '').toLowerCase().trim()
+    )
+    if (existing) {
+      const ok = confirm(`A listing transaction for "${pl.property_address}" already exists.\n\nUpdate its status to ${newStatus} and mark this pre-listing as Listed?`)
+      if (!ok) return
+      try {
+        await api.updateTransaction(existing.id, { property_status: newStatus })
+        await authFetch(`/api/pre-listings/${pl.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ status: 'Listed' }),
+        })
+        load()
+      } catch (err) {
+        alert('Failed: ' + err.message)
+      }
+      return
+    }
+
     const ok = confirm(`Promote "${pl.property_address}" from Pre-Listing to ${newStatus}?\n\nThis will create a new ${txType} transaction. The pre-listing record will be marked as Listed.`)
     if (!ok) return
     try {
-      // Create the transaction
       await api.createTransaction({
         property_address: pl.property_address,
         type: txType,
@@ -282,7 +302,6 @@ export default function Transactions() {
         client_id: pl.client_id || null,
         notes: pl.notes || '',
       })
-      // Mark the pre-listing as Listed (so it drops out of the Pre-Listing column)
       await authFetch(`/api/pre-listings/${pl.id}`, {
         method: 'PUT',
         body: JSON.stringify({ status: 'Listed' }),
@@ -518,7 +537,13 @@ export default function Transactions() {
 
       {/* Pipeline View */}
       <div className="pipeline">
-        {/* Pre-Listing column - pulls from pre_listings table */}
+        {/* Pre-Listing column - pulls from pre_listings table.
+            Hide pre-listings that have already been promoted ('Listed') or removed ('Withdrawn'). */}
+        {(() => {
+          const activePreListings = preListings.filter(pl =>
+            !['Listed', 'Withdrawn', 'Cancelled'].includes(pl.status)
+          )
+          return (
         <div
           className={`pipeline-column ${dragOverStage === 'Pre-Listing' ? 'drop-target' : ''}`}
           onDragOver={e => onDragOver(e, 'Pre-Listing')}
@@ -527,10 +552,10 @@ export default function Transactions() {
         >
           <div className="pipeline-header">
             <span>Pre-Listing</span>
-            <span className="pipeline-count">{preListings.length}</span>
+            <span className="pipeline-count">{activePreListings.length}</span>
           </div>
           <div className="pipeline-scroll">
-            {preListings.map(pl => {
+            {activePreListings.map(pl => {
               const progress = getPlProgress(pl)
               return (
                 <div
@@ -559,13 +584,15 @@ export default function Transactions() {
                 </div>
               )
             })}
-            {preListings.length === 0 && (
+            {activePreListings.length === 0 && (
               <div style={{padding: '20px 14px', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center'}}>
                 No pre-listings
               </div>
             )}
           </div>
         </div>
+          )
+        })()}
 
         {pipelineStatuses.map(stage => {
           // Merge Pending into Under Contract
