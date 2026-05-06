@@ -162,6 +162,19 @@ router.post('/import', async (req, res) => {
   let inserted = 0, skipped = 0, errors = 0
   let matchedClients = 0
 
+  // Pre-load + normalize ALL client addresses once. Then build a map: normalized → [client_ids].
+  // Avoids 3000 × 45000 = 135M LIKE comparisons; turns it into a single SELECT + O(1) map lookups.
+  console.log('[realist] Building client address index...')
+  const allClients = db.all("SELECT id, address FROM clients WHERE address IS NOT NULL AND address != ''")
+  const addrMap = new Map() // normalized address → array of client IDs
+  for (const c of allClients) {
+    const cn = normalizeAddress(c.address)
+    if (!cn) continue
+    if (!addrMap.has(cn)) addrMap.set(cn, [])
+    addrMap.get(cn).push(c.id)
+  }
+  console.log(`[realist] Indexed ${allClients.length} clients into ${addrMap.size} unique addresses`)
+
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i]
     if (!row || row.length < 3) continue
@@ -218,10 +231,9 @@ router.post('/import', async (req, res) => {
       }
       inserted++
 
-      // Match to clients with the same normalized address (any with that address get enriched)
-      const clientMatches = db.all(`SELECT id FROM clients WHERE address IS NOT NULL AND LOWER(REPLACE(REPLACE(address, '.', ''), ',', '')) LIKE ?`,
-        [`%${norm}%`])
-      for (const c of clientMatches) {
+      // Match clients via the pre-built normalized-address map (O(1) instead of LIKE scan)
+      const matchedIds = addrMap.get(norm) || []
+      for (const cid of matchedIds) {
         db.run(`UPDATE clients SET
           realist_property_id = ?,
           realist_market_value = ?,
@@ -237,7 +249,7 @@ router.post('/import', async (req, res) => {
           WHERE id = ?`,
           [propId, data.market_value, data.assessed_value, data.year_built, data.bedrooms,
             data.bathrooms_full, data.owner_occupied, data.sell_score,
-            data.last_sale_price, data.last_sale_date, c.id])
+            data.last_sale_price, data.last_sale_date, cid])
         matchedClients++
       }
     } catch (e) {
@@ -284,13 +296,23 @@ router.get('/for-client/:id', (req, res) => {
 
 // Re-run matching against existing realist_properties — useful after the table is populated and new clients sync from Sierra
 router.post('/rematch', (_req, res) => {
+  // Build address map once (same optimization as import)
+  const allClients = db.all("SELECT id, address FROM clients WHERE address IS NOT NULL AND address != ''")
+  const addrMap = new Map()
+  for (const c of allClients) {
+    const cn = normalizeAddress(c.address)
+    if (!cn) continue
+    if (!addrMap.has(cn)) addrMap.set(cn, [])
+    addrMap.get(cn).push(c.id)
+  }
+
   const properties = db.all('SELECT * FROM realist_properties')
   let updated = 0
   for (const p of properties) {
     const norm = p.address_normalized || normalizeAddress(p.property_address)
     if (!norm) continue
-    const matches = db.all(`SELECT id FROM clients WHERE address IS NOT NULL AND LOWER(REPLACE(REPLACE(address, '.', ''), ',', '')) LIKE ?`, [`%${norm}%`])
-    for (const c of matches) {
+    const matches = addrMap.get(norm) || []
+    for (const cid of matches) {
       db.run(`UPDATE clients SET
         realist_property_id = ?, realist_market_value = ?, realist_assessed_value = ?,
         realist_year_built = ?, realist_bedrooms = ?, realist_bathrooms_full = ?,
@@ -300,11 +322,11 @@ router.post('/rematch', (_req, res) => {
         WHERE id = ?`,
         [p.id, p.market_value, p.assessed_value, p.year_built, p.bedrooms,
           p.bathrooms_full, p.owner_occupied, p.sell_score,
-          p.last_sale_price, p.last_sale_date, c.id])
+          p.last_sale_price, p.last_sale_date, cid])
       updated++
     }
   }
-  res.json({ success: true, properties_scanned: properties.length, client_matches_updated: updated })
+  res.json({ success: true, properties_scanned: properties.length, clients_indexed: allClients.length, client_matches_updated: updated })
 })
 
 export default router
