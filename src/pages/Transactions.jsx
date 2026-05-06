@@ -1143,7 +1143,12 @@ export default function Transactions() {
           )}
         </div>
         <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
-        <label>Body<textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} /></label>
+        <label>Body
+          <textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} />
+          <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
+            Plain text or HTML — paste/type HTML tags (<code>&lt;p&gt;</code>, <code>&lt;a href&gt;</code>, <code>&lt;strong&gt;</code>, lists, tables) and they'll render in the email. Plain newlines work too.
+          </p>
+        </label>
 
         <div className="field-group">
           <h4>📎 Attachments</h4>

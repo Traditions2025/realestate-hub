@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-05-06T22:05:23.162Z",
-  "count": 89,
+  "generated_at": "2026-05-06T23:07:36.130Z",
+  "count": 94,
   "entries": [
+    {
+      "hash": "96b5695",
+      "date": "2026-05-06T17:33:46-05:00",
+      "subject": "Critical perf fix: Realist import in bulk mode (defers DB save-to-disk)",
+      "title": "Critical perf fix: Realist import in bulk mode (defers DB save-to-disk)",
+      "body": "The hub uses sql.js (SQLite-as-JS-library) which has no separate DB process — every db.run() in the run() helper called saveDb() which writes the ENTIRE DB to disk. With a 50-100MB database and 6,000+ writes during a Realist import, that's 6,000 full DB serializations on the same Node event loop. Result: server completely blocked, clients can't load, browser times out.\n\nFix:\n- New beginBulk()/endBulk() pair on database.js. While in bulk mode, the run() helper skips saveDb() — caller flushes once at the end.\n- Realist /import and /rematch now wrap their loops in try { beginBulk(); ... } finally { endBulk() } so disk is hit just twice instead of thousands of times.\n- try/finally guarantees the DB is unlocked even on error mid-import.\n\nExpected behavior:\n- 3,000-row Realist import: ~5-15 seconds (was 5+ minutes / hung server)\n- During import: leads + other endpoints stay responsive between writes (the loop releases the event loop more often)\n- After import: one big saveDb() flushes everything to /data/realestate-hub.db",
+      "category": "fix"
+    },
+    {
+      "hash": "59e0085",
+      "date": "2026-05-06T17:18:02-05:00",
+      "subject": "Show Realist import status banner on Clients page (no need to hit API URL directly)",
+      "title": "Show Realist import status banner on Clients page (no need to hit API URL directly)",
+      "body": "After mount, the page fetches /api/realist/stats and shows a banner just below the Sierra sync banner:\n- '🏘 Realist data: 3,000 properties imported · 412 clients enriched · Last import: 2026-05-06 22:15:23'\n- Re-match button next to it (re-runs the address matching after Sierra adds new leads)\n- If no Realist data has been imported yet, shows a yellow 'No Realist data imported yet' prompt instead\n\nRefreshes automatically after a successful import — no more guessing whether the upload landed.",
+      "category": "other"
+    },
+    {
+      "hash": "329f9b9",
+      "date": "2026-05-06T17:13:44-05:00",
+      "subject": "Realist import: O(1) address matching (was 135M LIKE comparisons → now 1 SELECT + map lookup)",
+      "title": "Realist import: O(1) address matching (was 135M LIKE comparisons → now 1 SELECT + map lookup)",
+      "body": "The previous matching loop ran a full table scan with REPLACE/REPLACE/LOWER/LIKE for every property × every client (3000 × 45000 = 135M ops). On Render Starter that took several minutes — long enough that the browser timed out before getting the response, even though properties were actually being inserted.\n\nNew approach:\n- Load all clients with addresses in one SELECT (45K rows, fast)\n- Normalize each address in JS, build Map<normalized_addr, [client_ids]>\n- For each property, look up matches with addrMap.get(norm) — O(1)\n- Same fix applied to /rematch endpoint\n\nResult: 3000-row Realist CSV import should now finish in 5-15 seconds instead of 5+ minutes. Browser will see the response and show the success alert as expected.",
+      "category": "other"
+    },
+    {
+      "hash": "ddd2614",
+      "date": "2026-05-06T17:06:34-05:00",
+      "subject": "Remove accidentally-committed Realist CSV from repo + add to gitignore",
+      "title": "accidentally-committed Realist CSV from repo + add to gitignore",
+      "body": "Realist exports contain owner names + property addresses (PII). Removing the export file from git tracking — local file is preserved on Matt's laptop. Added 'export_*.csv' and '*-realist*.csv' patterns to .gitignore so future Realist downloads stay local-only.\n\nNote: this only removes the file from future commits. The data was briefly in git history (one commit). If that's a concern, I can rewrite history with git filter-repo to scrub it from past commits too — let me know.",
+      "category": "removal"
+    },
+    {
+      "hash": "acb4a1c",
+      "date": "2026-05-06T17:05:42-05:00",
+      "subject": "Realist enrichment: import CSV → enrich Sierra leads with home value, sell score, year built, sale history",
+      "title": "Realist enrichment: import CSV → enrich Sierra leads with home value, sell score, year built, sale history",
+      "body": "New realist_properties table:\n- Stores Realist tax/AVM/market-value records keyed by normalized address\n- Captures: market value, assessed value, total assessment, last sale price/date/PPSF, building type/style, year built, beds/baths, sell score (0-1000), MLS status, subdivision, school district, township, zoning, owner info, occupied flag\n\nNew enrichment columns on clients (auto-populated on match):\n- realist_market_value, realist_assessed_value, realist_year_built, realist_bedrooms,\n  realist_bathrooms_full, realist_owner_occupied, realist_sell_score,\n  realist_last_sale_price, realist_last_sale_date, realist_property_id, realist_matched_at\n\nBackend (/api/realist/*):\n- POST /import: parses Realist CSV (handles Excel ='...' quirks, '$' currency, 'Tax: 4 MLS: 3' columns), upserts to realist_properties by normalized address, then matches to clients by lowercased+depunctuated address LIKE\n- GET /stats: total properties, enriched client count, last import time\n- GET /for-client/:id: lookup the realist record for a specific client (by stored fk or address fallback)\n- POST /rematch: re-run matching after Sierra adds new leads\n\nFrontend (Clients page):\n- New '🏘 Import Realist CSV' button in the page header — pick a file, server parses + enriches all in one shot\n- New '🏘 Realist Property Data' filter section in the advanced filter panel: home value range, year built range, sell score min, owner-occupied (yes/no/any), 'has Realist match' toggle\n- 6 new sort options: Highest/Lowest Home Value, Highest Sell Score, Newest/Oldest Built, Highest Last Sale\n- New gold-bordered Realist Property Data card on every client detail panel showing the matched home info",
+      "category": "other"
+    },
     {
       "hash": "2ae5d1f",
       "date": "2026-05-06T16:33:03-05:00",

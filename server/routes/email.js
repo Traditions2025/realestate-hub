@@ -125,6 +125,35 @@ router.get('/preview/:templateId/:clientId', (req, res) => {
   })
 })
 
+// Detect whether a body string contains HTML markup (paragraphs, links, formatting, etc.)
+function looksLikeHtml(s) {
+  if (!s) return false
+  return /<\/?(p|div|br|a|h[1-6]|ul|ol|li|strong|em|b|i|table|tr|td|img|span|hr|blockquote|pre|code)\b/i.test(s)
+}
+
+// Convert HTML to a readable plain-text alternative for the multipart email
+function htmlToPlain(html) {
+  if (!html) return ''
+  return String(html)
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p\s*>/gi, '\n\n')
+    .replace(/<\/div\s*>/gi, '\n')
+    .replace(/<\/li\s*>/gi, '\n')
+    .replace(/<\/h[1-6]\s*>/gi, '\n\n')
+    .replace(/<\/tr\s*>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // Parse a To field into clean email array — accepts string ("a@x, b@y") or array
 function parseEmails(input) {
   if (!input) return []
@@ -164,10 +193,17 @@ async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], 
       from: { email: FROM_EMAIL, name: FROM_NAME },
       reply_to: { email: replyTo || REPLY_TO, name: FROM_NAME },
       subject,
-      content: [
-        { type: 'text/plain', value: body },
-        { type: 'text/html', value: body.replace(/\n/g, '<br>') },
-      ],
+      content: (() => {
+        // If body has HTML tags: send it as-is for HTML, generate clean plain version by stripping tags
+        // Otherwise: plain version is body, HTML version converts \n to <br>
+        const isHtml = looksLikeHtml(body)
+        const html = isHtml ? body : body.replace(/\n/g, '<br>')
+        const plain = isHtml ? htmlToPlain(body) : body
+        return [
+          { type: 'text/plain', value: plain },
+          { type: 'text/html', value: html },
+        ]
+      })(),
       ...(Array.isArray(attachments) && attachments.length ? {
         attachments: attachments.map(a => ({
           content: a.content_base64 || a.content,
