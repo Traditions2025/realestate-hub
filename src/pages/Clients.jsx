@@ -1786,8 +1786,11 @@ export default function Clients() {
           </select></label>
           <label>Subject<input value={bulkEmailForm.subject} onChange={e => setBulkEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
           <label>Body<textarea value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={14} required /></label>
-          <p style={{fontSize: 11, color: 'var(--text-muted)'}}>
+          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
             Variables auto-fill per recipient: {'{{first_name}} {{last_name}} {{address}} {{city}}'}
+          </p>
+          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px'}}>
+            <strong>Plain text auto-formats</strong> — paragraph breaks (blank line), URLs, emails, and phone numbers all become clickable links automatically. Or paste raw HTML (<code>&lt;p&gt;</code>, <code>&lt;a href&gt;</code>, <code>&lt;strong&gt;</code>) and it renders as-is.
           </p>
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailOpen(false)}>Cancel</button>

@@ -131,6 +131,41 @@ function looksLikeHtml(s) {
   return /<\/?(p|div|br|a|h[1-6]|ul|ol|li|strong|em|b|i|table|tr|td|img|span|hr|blockquote|pre|code)\b/i.test(s)
 }
 
+// Convert plain text to nicely-formatted HTML:
+// - Escape entities, then auto-link URLs / emails / phones
+// - Treat blank lines as paragraph breaks (<p>...</p>)
+// - Single newlines become <br>
+function plainToHtml(text) {
+  if (!text) return ''
+  let s = String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  // http(s)://... URLs
+  s = s.replace(
+    /(\b(?:https?|ftp):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gi,
+    '<a href="$1">$1</a>'
+  )
+  // www.* URLs (no protocol)
+  s = s.replace(
+    /(^|\s)(www\.[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/gi,
+    '$1<a href="https://$2">$2</a>'
+  )
+  // Email addresses
+  s = s.replace(
+    /\b([A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,})\b/gi,
+    '<a href="mailto:$1">$1</a>'
+  )
+  // Phone numbers (319-431-5859 / (319) 431-5859 / 319.431.5859)
+  s = s.replace(
+    /(?<!\d)(\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4})(?!\d)/g,
+    (m) => `<a href="tel:${m.replace(/[^0-9+]/g, '')}">${m}</a>`
+  )
+  // Paragraph breaks on 2+ newlines, line breaks on single newlines
+  const paragraphs = s.split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+  return paragraphs.map(p => `<p style="margin: 0 0 12px 0;">${p.replace(/\n/g, '<br>')}</p>`).join('\n')
+}
+
 // Convert HTML to a readable plain-text alternative for the multipart email
 function htmlToPlain(html) {
   if (!html) return ''
@@ -194,10 +229,11 @@ async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], 
       reply_to: { email: replyTo || REPLY_TO, name: FROM_NAME },
       subject,
       content: (() => {
-        // If body has HTML tags: send it as-is for HTML, generate clean plain version by stripping tags
-        // Otherwise: plain version is body, HTML version converts \n to <br>
+        // Two paths:
+        //  - Body has actual HTML tags → send as-is for HTML, strip tags for plain version
+        //  - Body is plain text → auto-convert to HTML (wrap paragraphs, auto-link URLs/emails/phones)
         const isHtml = looksLikeHtml(body)
-        const html = isHtml ? body : body.replace(/\n/g, '<br>')
+        const html = isHtml ? body : plainToHtml(body)
         const plain = isHtml ? htmlToPlain(body) : body
         return [
           { type: 'text/plain', value: plain },
