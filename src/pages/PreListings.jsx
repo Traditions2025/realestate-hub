@@ -38,6 +38,7 @@ export default function PreListings() {
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ template_id: '', to_email: '', to_name: '', subject: '', body: '', attachments: [] })
   const [emailSending, setEmailSending] = useState(false)
+  const [emailPreviewOpen, setEmailPreviewOpen] = useState(false)
   const [linkedClient, setLinkedClient] = useState(null)
 
   useEffect(() => {
@@ -273,12 +274,31 @@ export default function PreListings() {
           📋 Auto-CC: johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com
         </div>
         <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
-        <label>Body
-          <textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} />
-          <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
-            Plain text or HTML — tags render in the email; plain newlines also work.
-          </p>
-        </label>
+        <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, marginTop: 8}}>
+          <span style={{fontSize: 13, fontWeight: 500}}>Body</span>
+          <div style={{display: 'flex', gap: 6}}>
+            <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
+              📁 Load HTML File
+              <input
+                type="file"
+                accept=".html,.htm,text/html"
+                style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                onChange={async (e) => {
+                  const file = e.target.files?.[0]
+                  if (!file) return
+                  const text = await file.text()
+                  setEmailForm(p => ({ ...p, body: text }))
+                  e.target.value = ''
+                }}
+              />
+            </label>
+            <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setEmailPreviewOpen(true)}>👁 Preview</button>
+          </div>
+        </div>
+        <textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
+        <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
+          Plain text or HTML — paste HTML or load an .html file. Plain text auto-formats.
+        </p>
 
         <div className="field-group">
           <h4>📎 Attachments</h4>
@@ -325,6 +345,23 @@ export default function PreListings() {
           <button type="button" className="btn btn-primary" onClick={sendEmail} disabled={emailSending || !emailForm.to_email}>
             {emailSending ? 'Sending...' : 'Send Email'}
           </button>
+        </div>
+      </Modal>
+
+      <Modal open={emailPreviewOpen} onClose={() => setEmailPreviewOpen(false)} title="Email Preview" wide>
+        <div>
+          <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 13}}>
+            <strong>To:</strong> {emailForm.to_email || '(no recipient)'}<br/>
+            <strong>Subject:</strong> {emailForm.subject || '(no subject)'}
+          </div>
+          <iframe
+            title="Email preview"
+            srcDoc={emailForm.body || ''}
+            style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
+          />
+          <div className="form-actions">
+            <button type="button" className="btn btn-secondary" onClick={() => setEmailPreviewOpen(false)}>Close</button>
+          </div>
         </div>
       </Modal>
     </div>

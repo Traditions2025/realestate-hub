@@ -120,6 +120,7 @@ export default function Clients() {
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
   const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
   const [bulkSending, setBulkSending] = useState(false)
+  const [bulkEmailPreviewOpen, setBulkEmailPreviewOpen] = useState(false)
   const [otherMenuOpen, setOtherMenuOpen] = useState(false)
   const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
@@ -1785,12 +1786,38 @@ export default function Clients() {
             {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select></label>
           <label>Subject<input value={bulkEmailForm.subject} onChange={e => setBulkEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
-          <label>Body<textarea value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={14} required /></label>
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4}}>
+            <span style={{fontSize: 13, fontWeight: 500}}>Body</span>
+            <div style={{display: 'flex', gap: 6}}>
+              <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}} title="Load an HTML file (.html) into the body">
+                📁 Load HTML File
+                <input
+                  type="file"
+                  accept=".html,.htm,text/html"
+                  style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const text = await file.text()
+                    setBulkEmailForm(p => ({ ...p, body: text }))
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn btn-sm btn-secondary"
+                disabled={!bulkEmailForm.body}
+                onClick={() => setBulkEmailPreviewOpen(true)}
+              >👁 Preview</button>
+            </div>
+          </div>
+          <textarea value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
           <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
             Variables auto-fill per recipient: {'{{first_name}} {{last_name}} {{address}} {{city}}'}
           </p>
           <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px'}}>
-            <strong>Plain text auto-formats</strong> — paragraph breaks (blank line), URLs, emails, and phone numbers all become clickable links automatically. Or paste raw HTML (<code>&lt;p&gt;</code>, <code>&lt;a href&gt;</code>, <code>&lt;strong&gt;</code>) and it renders as-is.
+            <strong>Plain text auto-formats</strong> — blank lines become paragraph breaks; URLs, emails, and phone numbers become clickable links. <strong>For designed HTML emails</strong>, click <em>Load HTML File</em> above or paste the markup directly — it renders as-is.
           </p>
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailOpen(false)}>Cancel</button>
@@ -1799,6 +1826,41 @@ export default function Clients() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Bulk Email Preview Modal */}
+      <Modal open={bulkEmailPreviewOpen} onClose={() => setBulkEmailPreviewOpen(false)} title="Email Preview" wide>
+        {(() => {
+          // Find first selected client to use as sample for merge variables
+          const sampleId = [...selectedIds][0]
+          const sample = sampleId ? items.find(i => i.id === sampleId) : null
+          const fill = (s) => (s || '')
+            .replace(/\{\{first_name\}\}/g, sample?.first_name || 'there')
+            .replace(/\{\{last_name\}\}/g, sample?.last_name || '')
+            .replace(/\{\{address\}\}/g, sample?.address || 'your home')
+            .replace(/\{\{city\}\}/g, sample?.city || 'Cedar Rapids')
+          const renderedSubject = fill(bulkEmailForm.subject)
+          const renderedBody = fill(bulkEmailForm.body)
+          return (
+            <div>
+              <p className="muted" style={{margin: '0 0 8px'}}>
+                Sample using <strong>{sample ? `${sample.first_name} ${sample.last_name}` : 'first selected recipient'}</strong>
+                {sample?.email ? ` (${sample.email})` : ''}
+              </p>
+              <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 13}}>
+                <strong>Subject:</strong> {renderedSubject}
+              </div>
+              <iframe
+                title="Email preview"
+                srcDoc={renderedBody}
+                style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
+              />
+              <div className="form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailPreviewOpen(false)}>Close</button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Email Composer Modal */}

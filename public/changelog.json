@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-06T23:13:11.320Z",
-  "count": 95,
+  "generated_at": "2026-05-06T23:24:14.447Z",
+  "count": 96,
   "entries": [
+    {
+      "hash": "bc5a065",
+      "date": "2026-05-06T18:13:13-05:00",
+      "subject": "Email: plain text now auto-formats to nice HTML — paragraphs, clickable URLs/emails/phones",
+      "title": "Email: plain text now auto-formats to nice HTML — paragraphs, clickable URLs/emails/phones",
+      "body": "The previous fix only handled the case where you pasted actual HTML markup. But when you typed plain text with paragraph breaks (blank lines) and links like 'Request My Free Marion Home Value' followed by a URL, Gmail saw it as one long blob with literal text URLs.\n\nNew plainToHtml() runs when no HTML tags are detected:\n- Escapes HTML entities (& < > → safe)\n- Converts URLs (http://, https://, www.*) to clickable <a href> links\n- Converts email addresses to mailto: links\n- Converts phone numbers (319-431-5859, (319) 431-5859, etc.) to tel: links\n- Splits on blank lines into <p> paragraphs (12px bottom margin)\n- Single newlines within a paragraph become <br>\n\nResult: paste a bulk-email body with paragraph breaks and a phone number / URL — recipient sees properly formatted email with clickable links, not a wall of text.\n\nBulk email modal in Clients now has a hint explaining this:\n'Plain text auto-formats — paragraph breaks (blank line), URLs, emails, and phone numbers all become clickable links automatically. Or paste raw HTML and it renders as-is.'\n\nSame pipeline works for transaction emails, pre-listing emails, and the recommend-vendor flow.",
+      "category": "other"
+    },
     {
       "hash": "e6a44e9",
       "date": "2026-05-06T18:07:39-05:00",

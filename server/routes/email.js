@@ -128,7 +128,7 @@ router.get('/preview/:templateId/:clientId', (req, res) => {
 // Detect whether a body string contains HTML markup (paragraphs, links, formatting, etc.)
 function looksLikeHtml(s) {
   if (!s) return false
-  return /<\/?(p|div|br|a|h[1-6]|ul|ol|li|strong|em|b|i|table|tr|td|img|span|hr|blockquote|pre|code)\b/i.test(s)
+  return /<\/?(html|head|body|p|div|br|a|h[1-6]|ul|ol|li|strong|em|b|i|table|tr|td|img|span|hr|blockquote|pre|code|style|center)\b/i.test(s) || /<!DOCTYPE\s+html/i.test(s)
 }
 
 // Convert plain text to nicely-formatted HTML:
