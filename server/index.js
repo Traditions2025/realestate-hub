@@ -18,6 +18,7 @@ import showingsRouter from './routes/showings.js'
 import dashboardRouter from './routes/dashboard.js'
 import prelistingsRouter from './routes/prelistings.js'
 import listingsRouter from './routes/listings.js'
+import realistRouter from './routes/realist.js'
 import vendorsRouter from './routes/vendors.js'
 import partnersRouter from './routes/partners.js'
 import socialmediaRouter from './routes/socialmedia.js'
@@ -59,6 +60,7 @@ async function start() {
   app.use('/api/dashboard', dashboardRouter)
   app.use('/api/pre-listings', prelistingsRouter)
   app.use('/api/listings', listingsRouter)
+  app.use('/api/realist', realistRouter)
   app.use('/api/vendors', vendorsRouter)
   app.use('/api/partners', partnersRouter)
   app.use('/api/social-media', socialmediaRouter)

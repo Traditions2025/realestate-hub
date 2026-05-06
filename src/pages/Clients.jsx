@@ -57,6 +57,14 @@ export default function Clients() {
     search_sqft_min: '',
     search_property_types: [],
     search_regions: [],
+    // Realist enrichment filters
+    has_realist: false,
+    realist_value_min: '',
+    realist_value_max: '',
+    realist_year_built_min: '',
+    realist_year_built_max: '',
+    realist_sell_score_min: '',
+    realist_owner_occupied: '', // '' | '1' | '0'
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -89,7 +97,12 @@ export default function Clients() {
     (advFilters.search_max_price_min ? 1 : 0) + (advFilters.search_max_price_max ? 1 : 0) +
     (advFilters.search_beds_min ? 1 : 0) + (advFilters.search_baths_min ? 1 : 0) +
     (advFilters.search_sqft_min ? 1 : 0) +
-    len(advFilters.search_property_types) + len(advFilters.search_regions)
+    len(advFilters.search_property_types) + len(advFilters.search_regions) +
+    (advFilters.has_realist ? 1 : 0) +
+    (advFilters.realist_value_min ? 1 : 0) + (advFilters.realist_value_max ? 1 : 0) +
+    (advFilters.realist_year_built_min ? 1 : 0) + (advFilters.realist_year_built_max ? 1 : 0) +
+    (advFilters.realist_sell_score_min ? 1 : 0) +
+    (advFilters.realist_owner_occupied ? 1 : 0)
   )
 
   const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
@@ -140,6 +153,14 @@ export default function Clients() {
     if (advFilters.search_sqft_min) params.search_sqft_min = advFilters.search_sqft_min
     if (advFilters.search_property_types.length) params.search_property_types = advFilters.search_property_types.join(',')
     if (advFilters.search_regions.length) params.search_regions = advFilters.search_regions.join(',')
+    // Realist filters
+    if (advFilters.has_realist) params.has_realist = '1'
+    if (advFilters.realist_value_min) params.realist_value_min = advFilters.realist_value_min
+    if (advFilters.realist_value_max) params.realist_value_max = advFilters.realist_value_max
+    if (advFilters.realist_year_built_min) params.realist_year_built_min = advFilters.realist_year_built_min
+    if (advFilters.realist_year_built_max) params.realist_year_built_max = advFilters.realist_year_built_max
+    if (advFilters.realist_sell_score_min) params.realist_sell_score_min = advFilters.realist_sell_score_min
+    if (advFilters.realist_owner_occupied) params.realist_owner_occupied = advFilters.realist_owner_occupied
     params.sort = sortBy
     return params
   }
@@ -338,6 +359,10 @@ export default function Clients() {
       search_max_price_min: '', search_max_price_max: '',
       search_beds_min: '', search_baths_min: '', search_sqft_min: '',
       search_property_types: [], search_regions: [],
+      has_realist: false,
+      realist_value_min: '', realist_value_max: '',
+      realist_year_built_min: '', realist_year_built_max: '',
+      realist_sell_score_min: '', realist_owner_occupied: '',
     })
     setTab('all')
     setSearch('')
@@ -675,6 +700,38 @@ export default function Clients() {
           >
             {sierraStatus === 'syncing' ? 'Syncing Sierra...' : `Sync All Sierra Leads${sierraCounts ? ` (${sierraCounts.total.toLocaleString()})` : ''}`}
           </button>
+          <label className="btn btn-secondary" style={{cursor: 'pointer', position: 'relative', overflow: 'hidden'}} title="Upload a Realist CSV to enrich leads with home values, sale prices, year built, sell score, owner-occupied flag">
+            🏘 Import Realist CSV
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+              onChange={async (e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                if (!confirm(`Import ${file.name} (${(file.size / 1024).toFixed(0)} KB)?\n\nThis will add/update Realist property records and auto-match them to clients by address.`)) {
+                  e.target.value = ''
+                  return
+                }
+                try {
+                  const csv = await file.text()
+                  const r = await authFetch('/api/realist/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/csv' },
+                    body: csv,
+                  })
+                  const d = await r.json()
+                  if (d.error) { alert('Import failed: ' + d.error); return }
+                  alert(`✓ Realist import complete:\n${d.properties_imported} properties imported\n${d.client_matches_enriched} client matches enriched\n${d.errors} errors`)
+                  load()
+                } catch (err) {
+                  alert('Import failed: ' + err.message)
+                } finally {
+                  e.target.value = ''
+                }
+              }}
+            />
+          </label>
           <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
         </div>
       </div>
@@ -840,6 +897,13 @@ export default function Clients() {
           <option value="name_az">🔤 Name A-Z</option>
           <option value="name_za">🔡 Name Z-A</option>
           <option value="recent_update">🔄 Last Updated</option>
+          <option disabled>──── Realist ────</option>
+          <option value="highest_value">🏠 Highest Home Value</option>
+          <option value="lowest_value">📉 Lowest Home Value</option>
+          <option value="highest_sell_score">🎯 Highest Sell Score</option>
+          <option value="newest_built">🆕 Newest Built</option>
+          <option value="oldest_built">🏚️ Oldest Built</option>
+          <option value="highest_last_sale">💰 Highest Last Sale</option>
         </select>
         <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))} title="Records per page">
           <option value={100}>100 per page</option>
@@ -1042,6 +1106,40 @@ export default function Clients() {
                   value={advFilters.search_regions.join(', ')}
                   onChange={e => setAdvFilters(p => ({ ...p, search_regions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
                 />
+              </label>
+            </div>
+          </div>
+
+          <div className="filter-section">
+            <h5>🏘 Realist Property Data (home values, sale history)</h5>
+            <div className="filter-other-row">
+              <label className="filter-check">
+                <input type="checkbox" checked={advFilters.has_realist} onChange={e => setAdvFilters(p => ({ ...p, has_realist: e.target.checked }))} />
+                Has Realist match
+              </label>
+              <label className="filter-num">
+                Home value ≥
+                <input type="number" placeholder="e.g. 250000" value={advFilters.realist_value_min} onChange={e => setAdvFilters(p => ({ ...p, realist_value_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Home value ≤
+                <input type="number" placeholder="e.g. 600000" value={advFilters.realist_value_max} onChange={e => setAdvFilters(p => ({ ...p, realist_value_max: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Year built ≥
+                <input type="number" min="1800" max="2030" value={advFilters.realist_year_built_min} onChange={e => setAdvFilters(p => ({ ...p, realist_year_built_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Sell score ≥
+                <input type="number" min="0" max="1000" placeholder="e.g. 700" value={advFilters.realist_sell_score_min} onChange={e => setAdvFilters(p => ({ ...p, realist_sell_score_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Owner-occupied
+                <select value={advFilters.realist_owner_occupied} onChange={e => setAdvFilters(p => ({ ...p, realist_owner_occupied: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="1">Yes (lives there)</option>
+                  <option value="0">No (rental/investor)</option>
+                </select>
               </label>
             </div>
           </div>
@@ -1423,6 +1521,28 @@ export default function Clients() {
                 {detail.sierra_update_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Last Update: {detail.sierra_update_date.split('T')[0]}</p>}
               </div>
             </div>
+
+            {/* Realist Property Data — only shows if matched */}
+            {detail.realist_property_id && (
+              <div className="detail-section" style={{background: 'rgba(200, 155, 74, 0.06)', border: '1px solid rgba(200, 155, 74, 0.25)', borderRadius: 8, padding: '12px 16px'}}>
+                <h4 style={{color: 'var(--accent)'}}>🏘 Realist Property Data</h4>
+                <div className="detail-grid" style={{gap: 12}}>
+                  {detail.realist_market_value && <p><strong>Home Value:</strong> {formatCurrency(detail.realist_market_value)}</p>}
+                  {detail.realist_assessed_value && <p><strong>Assessed:</strong> {formatCurrency(detail.realist_assessed_value)}</p>}
+                  {detail.realist_year_built && <p><strong>Year Built:</strong> {detail.realist_year_built}</p>}
+                  {detail.realist_bedrooms != null && <p><strong>Bedrooms:</strong> {detail.realist_bedrooms}</p>}
+                  {detail.realist_bathrooms_full != null && <p><strong>Full Baths:</strong> {detail.realist_bathrooms_full}</p>}
+                  {detail.realist_sell_score != null && (
+                    <p><strong>Sell Score:</strong> {detail.realist_sell_score} <span className="muted" style={{fontSize: 11}}>(0-1000)</span></p>
+                  )}
+                  {detail.realist_owner_occupied != null && (
+                    <p><strong>Owner-Occupied:</strong> {detail.realist_owner_occupied ? 'Yes' : 'No (rental/investor)'}</p>
+                  )}
+                  {detail.realist_last_sale_price && <p><strong>Last Sale:</strong> {formatCurrency(detail.realist_last_sale_price)}{detail.realist_last_sale_date ? ` (${detail.realist_last_sale_date})` : ''}</p>}
+                </div>
+                {detail.realist_matched_at && <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0'}}>Matched: {detail.realist_matched_at.split(' ')[0]}</p>}
+              </div>
+            )}
 
             {/* Tags */}
             {detail.tags && (() => {

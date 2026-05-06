@@ -83,6 +83,17 @@ export async function initDb() {
       search_regions TEXT,
       search_property_types TEXT,
       has_saved_search INTEGER DEFAULT 0,
+      realist_market_value REAL,
+      realist_assessed_value REAL,
+      realist_year_built INTEGER,
+      realist_bedrooms INTEGER,
+      realist_bathrooms_full INTEGER,
+      realist_owner_occupied INTEGER,
+      realist_sell_score INTEGER,
+      realist_last_sale_price REAL,
+      realist_last_sale_date TEXT,
+      realist_property_id INTEGER,
+      realist_matched_at TEXT,
       notes TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
@@ -502,6 +513,48 @@ export async function initDb() {
   `)
 
   // =============================================
+  // REALIST PROPERTIES (tax/AVM data from Realist exports)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS realist_properties (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      property_address TEXT NOT NULL,
+      address_normalized TEXT,
+      city TEXT,
+      state TEXT,
+      zip TEXT,
+      county TEXT,
+      owner_first_name TEXT,
+      owner_last_name TEXT,
+      owner_name_2 TEXT,
+      owner_occupied INTEGER DEFAULT 0,
+      market_value REAL,
+      assessed_value REAL,
+      total_assessment REAL,
+      last_sale_price REAL,
+      last_sale_date TEXT,
+      last_price_per_sqft REAL,
+      building_type TEXT,
+      style TEXT,
+      year_built INTEGER,
+      bedrooms INTEGER,
+      bathrooms_full INTEGER,
+      bathrooms_total TEXT,
+      sell_score INTEGER,
+      mls_status TEXT,
+      subdivision TEXT,
+      school_district TEXT,
+      township TEXT,
+      zoning TEXT,
+      raw_json TEXT,
+      imported_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_realist_addrnorm ON realist_properties(address_normalized)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_realist_zip ON realist_properties(zip)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_realist_sellscore ON realist_properties(sell_score)') } catch {}
+
+  // =============================================
   // EMAIL LOG
   // =============================================
   db.run(`
@@ -565,6 +618,18 @@ export async function initDb() {
       ['search_regions', 'TEXT'],
       ['search_property_types', 'TEXT'],
       ['has_saved_search', 'INTEGER DEFAULT 0'],
+      // Realist enrichment fields
+      ['realist_market_value', 'REAL'],
+      ['realist_assessed_value', 'REAL'],
+      ['realist_year_built', 'INTEGER'],
+      ['realist_bedrooms', 'INTEGER'],
+      ['realist_bathrooms_full', 'INTEGER'],
+      ['realist_owner_occupied', 'INTEGER'],
+      ['realist_sell_score', 'INTEGER'],
+      ['realist_last_sale_price', 'REAL'],
+      ['realist_last_sale_date', 'TEXT'],
+      ['realist_property_id', 'INTEGER'],
+      ['realist_matched_at', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {

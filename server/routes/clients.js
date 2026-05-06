@@ -219,6 +219,37 @@ function buildClientFilter(q) {
   if (q.has_saved_search === '1') {
     where += ' AND has_saved_search = 1'
   }
+
+  // ---- Realist enrichment filters ----
+  if (q.realist_value_min) {
+    where += ' AND realist_market_value >= ?'
+    params.push(Number(q.realist_value_min))
+  }
+  if (q.realist_value_max) {
+    where += ' AND realist_market_value <= ?'
+    params.push(Number(q.realist_value_max))
+  }
+  if (q.realist_year_built_min) {
+    where += ' AND realist_year_built >= ?'
+    params.push(Number(q.realist_year_built_min))
+  }
+  if (q.realist_year_built_max) {
+    where += ' AND realist_year_built <= ?'
+    params.push(Number(q.realist_year_built_max))
+  }
+  if (q.realist_sell_score_min) {
+    where += ' AND realist_sell_score >= ?'
+    params.push(Number(q.realist_sell_score_min))
+  }
+  if (q.realist_owner_occupied === '1') {
+    where += ' AND realist_owner_occupied = 1'
+  }
+  if (q.realist_owner_occupied === '0') {
+    where += ' AND realist_owner_occupied = 0'
+  }
+  if (q.has_realist === '1') {
+    where += ' AND realist_property_id IS NOT NULL'
+  }
   // Property types (any-of)
   const searchTypes = q.search_property_types
     ? (Array.isArray(q.search_property_types) ? q.search_property_types : String(q.search_property_types).split(',').filter(Boolean))
@@ -262,6 +293,13 @@ const SORT_OPTIONS = {
   name_za: 'last_name DESC, first_name DESC',
   recent_update: 'updated_at DESC',
   oldest_first: 'sierra_creation_date ASC NULLS LAST',
+  // Realist enrichment sorts
+  highest_value: 'realist_market_value DESC NULLS LAST',
+  lowest_value: 'realist_market_value ASC NULLS LAST',
+  highest_sell_score: 'realist_sell_score DESC NULLS LAST',
+  newest_built: 'realist_year_built DESC NULLS LAST',
+  oldest_built: 'realist_year_built ASC NULLS LAST',
+  highest_last_sale: 'realist_last_sale_price DESC NULLS LAST',
 }
 
 router.get('/', (req, res) => {

@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-05-05T19:07:05.682Z",
-  "count": 86,
+  "generated_at": "2026-05-06T22:05:23.162Z",
+  "count": 89,
   "entries": [
+    {
+      "hash": "2ae5d1f",
+      "date": "2026-05-06T16:33:03-05:00",
+      "subject": "Pre-Listing → Active drag: hide promoted pre-listings + dedup before creating transaction",
+      "title": "Pre-Listing → Active drag: hide promoted pre-listings + dedup before creating transaction",
+      "body": "Two related fixes:\n\n1. Pre-Listing column now filters out pre-listings with status='Listed', 'Withdrawn', or 'Cancelled'. Once a pre-listing is dragged into Active (or any later stage), it's marked 'Listed' on the backend — and now also drops out of the Pre-Listing column on the kanban so it doesn't keep showing as draggable.\n\n2. Dedup check on promote: before creating a new transaction, look for an existing listing-type transaction with the same property_address. If found, update its status to the new stage instead of creating a duplicate. Confirms with the user before either path so they always see what's about to happen.\n\nTogether: dragging Federalist Rd from Pre-Listing → Active will (a) flip the existing transaction's status to Active if one exists, or (b) create a new one if not. Either way, the pre-listing card disappears from the Pre-Listing column so you can't accidentally drag it twice.",
+      "category": "other"
+    },
+    {
+      "hash": "6d5eff5",
+      "date": "2026-05-06T16:00:29-05:00",
+      "subject": "Auto-sync listing-type transactions into Listings tab on save",
+      "title": "Auto-sync listing-type transactions into Listings tab on save",
+      "body": "When a transaction with type='listing' is created or updated, automatically mirror it into the listings table:\n- If a linked listing exists (transaction_id match): update it (address, MLS#, list price, stage, status, seller, client)\n- If no linked listing AND the transaction is in a 'live' status (Active/Coming Soon/Under Contract/Pending/Clear to Close/Closed): create one\n- Pre-Listing status only updates an existing listing (doesn't auto-create — pre-listings have their own table/flow)\n- Purchase-type transactions: no-op\n\nStatus → stage mapping:\n- Active → active, Coming Soon → coming_soon, Under Contract/Pending/Clear to Close → under_contract, Closed/Withdrawn/Expired/Cancelled → closed\n\nDrag-and-drop on the Transactions kanban already PUTs the new property_status, so dragging a listing card to 'Active' now propagates to the Listings tab automatically. Same for new listing-type transaction creation.",
+      "category": "other"
+    },
+    {
+      "hash": "a2397f2",
+      "date": "2026-05-05T14:07:08-05:00",
+      "subject": "Add Email Log tab to Updates page — full send history including failures with full error detail",
+      "title": "Email Log tab to Updates page — full send history including failures with full error detail",
+      "body": "Backend:\n- New GET /api/email/log returns paginated email_log entries with sent + failed counts\n- Filterable by recipient/subject/error text, status (sent/failed/all), and time range\n- New GET /api/email/log/:id returns the full row including the complete email body\n- Body trimmed to 200 chars in list response so the page stays fast even with 1000+ sends\n\nFrontend (third tab on Updates page — '✉ Email Log'):\n- Stats line at top: total · sent · failed counts in green/red\n- Each row shows: ✓/✗ icon, subject, status badge, template badge (if used), recipient, timestamp\n- Failed sends show the SendGrid error inline so you can see exactly what went wrong\n- Click any row to open the full email — subject, To, From, body, SendGrid message ID for tracing\n- Filters: search by recipient/subject/error, filter by status, time range, page size\n- Pagination via Load More for long histories",
+      "category": "feature"
+    },
     {
       "hash": "d9fb621",
       "date": "2026-05-05T13:51:11-05:00",
