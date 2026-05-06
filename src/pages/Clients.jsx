@@ -25,6 +25,10 @@ export default function Clients() {
   const [syncHealth, setSyncHealth] = useState(null)
   const [runningIncremental, setRunningIncremental] = useState(false)
   const [batchRefreshState, setBatchRefreshState] = useState(null)
+  const [realistStats, setRealistStats] = useState(null)
+  const loadRealistStats = () => {
+    authFetch('/api/realist/stats').then(r => r.json()).then(setRealistStats).catch(() => {})
+  }
   const [syncMenuOpen, setSyncMenuOpen] = useState(false)
   const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
@@ -195,6 +199,7 @@ export default function Clients() {
       if (logs.length > 0) setSyncLog(logs[0])
     })
     authFetch('/api/sierra/sync-health').then(r => r.json()).then(setSyncHealth).catch(() => {})
+    loadRealistStats()
     // Load Sierra lead counts so the button shows the total
     authFetch('/api/sierra/counts').then(r => r.json()).then(setSierraCounts).catch(() => {})
   }, [])
@@ -723,6 +728,7 @@ export default function Clients() {
                   const d = await r.json()
                   if (d.error) { alert('Import failed: ' + d.error); return }
                   alert(`✓ Realist import complete:\n${d.properties_imported} properties imported\n${d.client_matches_enriched} client matches enriched\n${d.errors} errors`)
+                  loadRealistStats()
                   load()
                 } catch (err) {
                   alert('Import failed: ' + err.message)
@@ -817,6 +823,40 @@ export default function Clients() {
             </div>
           )
         })()}
+
+        {/* Realist enrichment status */}
+        {realistStats && realistStats.total_properties > 0 && (
+          <div className="sierra-banner info" style={{display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center'}}>
+            <div style={{flex: 1, minWidth: 250}}>
+              <strong>🏘 Realist data:</strong>{' '}
+              {realistStats.total_properties.toLocaleString()} properties imported ·{' '}
+              {realistStats.enriched_clients.toLocaleString()} clients enriched
+              {realistStats.last_import && (
+                <span style={{fontSize: 11, marginLeft: 10, opacity: 0.7}}>
+                  Last import: {realistStats.last_import.split('.')[0].replace('T', ' ')}
+                </span>
+              )}
+            </div>
+            <button
+              className="btn btn-sm btn-secondary"
+              onClick={async () => {
+                const r = await authFetch('/api/realist/rematch', { method: 'POST' })
+                const d = await r.json()
+                alert(`✓ Re-matched: ${d.client_matches_updated} clients updated from ${d.properties_scanned} properties`)
+                loadRealistStats()
+                load()
+              }}
+              title="Re-run matching after Sierra adds new leads"
+            >
+              ↻ Re-match
+            </button>
+          </div>
+        )}
+        {realistStats && realistStats.total_properties === 0 && (
+          <div className="sierra-banner warning">
+            🏘 No Realist data imported yet. Click <strong>Import Realist CSV</strong> in the header to upload.
+          </div>
+        )}
       </div>
 
       {/* Status Tabs - primary statuses always visible, others in dropdown */}
