@@ -3,3 +3,8 @@ dist/
 realestate-hub.db
 *.log
 .DS_Store
+
+# Realist exports — contain personal owner names + addresses, never commit
+export_*.csv
+*-realist*.csv
+data/
