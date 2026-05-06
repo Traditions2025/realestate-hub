@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-06T23:24:14.447Z",
-  "count": 96,
+  "generated_at": "2026-05-06T23:31:54.698Z",
+  "count": 97,
   "entries": [
+    {
+      "hash": "50d4a7b",
+      "date": "2026-05-06T18:24:16-05:00",
+      "subject": "Email composers: 📁 Load HTML File button + 👁 Preview (iframe) on every send modal",
+      "title": "Email composers: 📁 Load HTML File button + 👁 Preview (iframe) on every send modal",
+      "body": "The hub already supported HTML in the body, but pasting a 200-line designed HTML email into a 14-row textarea was impractical and the user couldn't see what would actually arrive. Three things added:\n\n1. '📁 Load HTML File' button next to the Body label — pick a .html file from disk, contents drop straight into the textarea. No more copy-paste fiddling with long markup.\n\n2. '👁 Preview' button — opens a modal with the HTML rendered in a sandboxed iframe (white background, like an email client) showing exactly what the recipient sees. Subject + To shown above. For bulk emails, merge variables ({{first_name}}, etc.) are filled in using the first selected recipient as a sample.\n\n3. Textarea grew from 14 → 20 rows + resizable, monospace font for HTML readability.\n\nBackend looksLikeHtml regex extended to catch <html>, <head>, <body>, <style>, <center>, and <!DOCTYPE> declarations — full HTML documents now detected reliably.\n\nSame UX added to: Bulk Email modal (Clients), Send Transaction Email modal, Send Pre-Listing Email modal.",
+      "category": "other"
+    },
     {
       "hash": "bc5a065",
       "date": "2026-05-06T18:13:13-05:00",

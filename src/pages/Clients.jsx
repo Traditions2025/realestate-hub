@@ -278,7 +278,8 @@ export default function Clients() {
   const [listingInterest, setListingInterest] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
-  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '' })
+  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [] })
+  const [singleEmailPreviewOpen, setSingleEmailPreviewOpen] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState([])
   const [sending, setSending] = useState(false)
 
@@ -336,9 +337,9 @@ export default function Clients() {
     if (templateId && detail) {
       authFetch(`/api/email/preview/${templateId}/${detail.id}`)
         .then(r => r.json())
-        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId }))
+        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [] }))
     } else {
-      setEmailForm({ subject: '', body: '', template: '' })
+      setEmailForm({ subject: '', body: '', template: '', attachments: [] })
     }
     setEmailModalOpen(true)
   }
@@ -562,6 +563,7 @@ export default function Clients() {
           subject: emailForm.subject,
           body: emailForm.body,
           template: emailForm.template,
+          attachments: emailForm.attachments || [],
         }),
       })
       const d = await r.json()
@@ -1871,7 +1873,7 @@ export default function Clients() {
             const t = emailTemplates.find(x => x.id === e.target.value)
             if (t && detail) {
               authFetch(`/api/email/preview/${t.id}/${detail.id}`).then(r => r.json()).then(d =>
-                setEmailForm({ subject: d.subject, body: d.body, template: t.id }))
+                setEmailForm(p => ({ ...p, subject: d.subject, body: d.body, template: t.id })))
             } else {
               setEmailForm(p => ({ ...p, template: '' }))
             }
@@ -1880,10 +1882,76 @@ export default function Clients() {
             {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select></label>
           <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
-          <label>Body<textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={12} required /></label>
-          <p style={{fontSize: 11, color: 'var(--text-muted)'}}>
-            Available variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'}
+
+          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, marginTop: 8}}>
+            <span style={{fontSize: 13, fontWeight: 500}}>Body</span>
+            <div style={{display: 'flex', gap: 6}}>
+              <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
+                📁 Load HTML File
+                <input
+                  type="file"
+                  accept=".html,.htm,text/html"
+                  style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    const text = await file.text()
+                    setEmailForm(p => ({ ...p, body: text }))
+                    e.target.value = ''
+                  }}
+                />
+              </label>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setSingleEmailPreviewOpen(true)}>👁 Preview</button>
+            </div>
+          </div>
+          <textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
+          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
+            Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · Plain text auto-formats; HTML renders as-is; or 📁 load an .html file.
           </p>
+
+          {/* Attachments */}
+          <div style={{marginTop: 8}}>
+            <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden', display: 'inline-block'}}>
+              📎 Add Attachment
+              <input
+                type="file"
+                multiple
+                style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
+                onChange={async (e) => {
+                  const files = Array.from(e.target.files || [])
+                  if (!files.length) return
+                  const newAtt = await Promise.all(files.map(file => new Promise((resolve, reject) => {
+                    const reader = new FileReader()
+                    reader.onload = () => resolve({
+                      filename: file.name,
+                      type: file.type || 'application/octet-stream',
+                      size: file.size,
+                      content_base64: reader.result.toString().split(',')[1],
+                    })
+                    reader.onerror = reject
+                    reader.readAsDataURL(file)
+                  })))
+                  setEmailForm(p => ({ ...p, attachments: [...(p.attachments || []), ...newAtt] }))
+                  e.target.value = ''
+                }}
+              />
+            </label>
+            {(emailForm.attachments || []).length > 0 && (
+              <div style={{marginTop: 6, display: 'flex', flexWrap: 'wrap', gap: 6}}>
+                {emailForm.attachments.map((att, i) => (
+                  <span key={i} className="lead-tag" style={{padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6}}>
+                    📎 {att.filename} ({(att.size / 1024).toFixed(0)} KB)
+                    <button
+                      type="button"
+                      onClick={() => setEmailForm(p => ({ ...p, attachments: p.attachments.filter((_, idx) => idx !== i) }))}
+                      style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 14}}
+                    >✕</button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setEmailModalOpen(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={sending}>
@@ -1891,6 +1959,35 @@ export default function Clients() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Single Email Preview Modal */}
+      <Modal open={singleEmailPreviewOpen} onClose={() => setSingleEmailPreviewOpen(false)} title="Email Preview" wide>
+        {(() => {
+          const c = detail || {}
+          const fill = (s) => (s || '')
+            .replace(/\{\{first_name\}\}/g, c.first_name || 'there')
+            .replace(/\{\{last_name\}\}/g, c.last_name || '')
+            .replace(/\{\{full_name\}\}/g, `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'there')
+            .replace(/\{\{address\}\}/g, c.address || 'your home')
+            .replace(/\{\{city\}\}/g, c.city || 'Cedar Rapids')
+          return (
+            <div>
+              <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 13}}>
+                <strong>To:</strong> {c.email || '(no email)'}<br/>
+                <strong>Subject:</strong> {fill(emailForm.subject)}
+              </div>
+              <iframe
+                title="Email preview"
+                srcDoc={fill(emailForm.body)}
+                style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
+              />
+              <div className="form-actions">
+                <button type="button" className="btn btn-secondary" onClick={() => setSingleEmailPreviewOpen(false)}>Close</button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
 
       {/* Edit/New Modal */}

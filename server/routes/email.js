@@ -260,7 +260,7 @@ async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], 
 
 // Send to a single client
 router.post('/send', async (req, res) => {
-  const { client_id, to_email, subject, body, template } = req.body
+  const { client_id, to_email, subject, body, template, cc, attachments } = req.body
   let client = null
   let recipient = to_email
 
@@ -289,7 +289,10 @@ router.post('/send', async (req, res) => {
       recipient,
       client ? `${client.first_name} ${client.last_name}` : null,
       filledSubject,
-      filledBody
+      filledBody,
+      REPLY_TO,
+      Array.isArray(cc) ? cc : [],
+      Array.isArray(attachments) ? attachments : []
     )
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
       template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
