@@ -229,6 +229,7 @@ export async function initDb() {
       related_type TEXT,
       related_id INTEGER,
       notes_log TEXT,
+      completed_at TEXT,
       created_at TEXT DEFAULT (datetime('now')),
       updated_at TEXT DEFAULT (datetime('now'))
     )
@@ -641,15 +642,21 @@ export async function initDb() {
     console.error('[migration] Client columns failed:', e.message)
   }
 
-  // Migration: add notes_log column to tasks
+  // Migration: add notes_log + completed_at to tasks
   try {
     const taskCols = db.exec("PRAGMA table_info(tasks)")[0]?.values.map(v => v[1]) || []
     if (!taskCols.includes('notes_log')) {
       db.run('ALTER TABLE tasks ADD COLUMN notes_log TEXT')
       console.log('[migration] Added tasks.notes_log')
     }
+    if (!taskCols.includes('completed_at')) {
+      db.run('ALTER TABLE tasks ADD COLUMN completed_at TEXT')
+      console.log('[migration] Added tasks.completed_at')
+      // Backfill: any task already in 'done' gets stamped with its updated_at as a best-guess completion time
+      db.run("UPDATE tasks SET completed_at = updated_at WHERE status = 'done' AND completed_at IS NULL")
+    }
   } catch (e) {
-    console.error('[migration] tasks.notes_log failed:', e.message)
+    console.error('[migration] tasks columns failed:', e.message)
   }
 
   // Migration: add new transaction columns (earnest money due, IPI, lender, dotloop)

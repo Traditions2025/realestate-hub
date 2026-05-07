@@ -172,7 +172,15 @@ export default function Tasks() {
       {view === 'board' ? (
         <div className="kanban">
           {['todo', 'in_progress', 'done'].map(status => {
-            const statusItems = items.filter(i => i.status === status)
+            let statusItems = items.filter(i => i.status === status)
+            // Done column: sort by completion timestamp, newest first
+            if (status === 'done') {
+              statusItems = [...statusItems].sort((a, b) => {
+                const ta = a.completed_at || a.updated_at || ''
+                const tb = b.completed_at || b.updated_at || ''
+                return tb.localeCompare(ta)
+              })
+            }
             return (
               <div
                 key={status}
@@ -204,12 +212,17 @@ export default function Tasks() {
                       {item.description && <div className="kanban-card-desc">{item.description}</div>}
                       <div className="kanban-card-footer">
                         {item.assigned_to && <span className="task-assigned">{item.assigned_to}</span>}
-                        {item.due_date && (
-                          <span className={`task-due ${item.due_date < today && item.status !== 'done' ? 'overdue' : ''}`}>
+                        {item.due_date && item.status !== 'done' && (
+                          <span className={`task-due ${item.due_date < today ? 'overdue' : ''}`}>
                             {item.due_date}
                           </span>
                         )}
                       </div>
+                      {item.status === 'done' && item.completed_at && (
+                        <div style={{marginTop: 6, fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4}} title={new Date(item.completed_at).toLocaleString()}>
+                          ✓ Completed {new Date(item.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -228,13 +241,14 @@ export default function Tasks() {
                 <th>Status</th>
                 <th>Assigned</th>
                 <th>Due Date</th>
+                <th>Completed</th>
                 <th>Category</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan="8" className="empty-state">No tasks found</td></tr>
+                <tr><td colSpan="9" className="empty-state">No tasks found</td></tr>
               ) : items.map(item => (
                 <tr key={item.id} className={item.status === 'done' ? 'row-done' : ''}>
                   <td><input type="checkbox" checked={item.status === 'done'} onChange={() => toggleDone(item)} /></td>
@@ -243,6 +257,11 @@ export default function Tasks() {
                   <td><StatusBadge status={item.status} /></td>
                   <td>{item.assigned_to || '—'}</td>
                   <td className={item.due_date && item.due_date < today && item.status !== 'done' ? 'overdue' : ''}>{item.due_date || '—'}</td>
+                  <td style={{color: item.completed_at ? '#10b981' : 'var(--text-muted)', fontSize: 12}} title={item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}>
+                    {item.completed_at
+                      ? new Date(item.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
+                      : '—'}
+                  </td>
                   <td>{item.category || '—'}</td>
                   <td>
                     <button className="btn-sm" onClick={() => openEdit(item)}>Edit</button>

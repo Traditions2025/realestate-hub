@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-06T23:37:54.544Z",
-  "count": 98,
+  "generated_at": "2026-05-07T14:15:38.575Z",
+  "count": 99,
   "entries": [
+    {
+      "hash": "4d2d6e9",
+      "date": "2026-05-06T18:37:56-05:00",
+      "subject": "Add 'Inline Images' to all email composers — embed local images as base64 so they render",
+      "title": "'Inline Images' to all email composers — embed local images as base64 so they render",
+      "body": "The Marion equity-check email's hero photo didn't render in Gmail because the HTML file referenced 'image.jpg' as a local file path. Recipients can't access local paths.\n\nSolution: 📷 Inline Images button on every email composer. Click → pick the image files referenced in your HTML → each one is read as base64 and the matching <img src=\"...\"> tags are rewritten to use embedded data URIs. The email becomes self-contained — works in every email client, no image hosting needed, no broken images later.\n\nImplementation:\n- New shared helper src/components/inlineImages.js with inlineImagesIntoBody(body, files)\n  - Matches images by basename (handles ./photos/x.jpg vs just x.jpg)\n  - Skips already-absolute (http/https) and already-data: URIs\n  - Returns { newBody, inlined: [filenames], unmatched: [filenames still local in body] }\n- Wired into all four email composers: Single email (Clients detail), Bulk email (Clients), Send Transaction Email, Send Pre-Listing Email\n- Alert after inlining shows what got embedded + flags any local <img> srcs that still need files uploaded\n\nWorkflow for designed HTML emails now:\n1. Click 📁 Load HTML File → pick the .html file\n2. Click 📷 Inline Images → pick all the images the HTML references\n3. Click 👁 Preview → confirm everything renders with images\n4. Click Send → recipient gets a fully self-contained email with embedded images",
+      "category": "feature"
+    },
     {
       "hash": "0a3dbd6",
       "date": "2026-05-06T18:31:57-05:00",

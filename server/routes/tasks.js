@@ -40,14 +40,33 @@ router.post('/', (req, res) => {
 })
 
 router.put('/:id', (req, res) => {
+  const id = Number(req.params.id)
   const fields = req.body
   fields.updated_at = new Date().toISOString()
+
+  // Auto-stamp completion: when status changes, set/clear completed_at
+  if ('status' in fields) {
+    const current = db.get('SELECT status, completed_at FROM tasks WHERE id = ?', [id])
+    if (current) {
+      const wasDone = current.status === 'done'
+      const isDone = fields.status === 'done'
+      if (isDone && !wasDone) {
+        // Just marked done — capture timestamp
+        fields.completed_at = new Date().toISOString()
+      } else if (!isDone && wasDone) {
+        // Moved out of done — clear the completion timestamp
+        fields.completed_at = null
+      }
+      // If still done (was done, still done) — preserve existing completed_at unless caller explicitly set it
+    }
+  }
+
   const keys = Object.keys(fields)
   const sets = keys.map(k => `${k} = ?`).join(', ')
-  const values = [...keys.map(k => n(fields[k])), Number(req.params.id)]
+  const values = [...keys.map(k => n(fields[k])), id]
 
   db.run(`UPDATE tasks SET ${sets} WHERE id = ?`, values)
-  logActivity('updated', 'task', Number(req.params.id), 'Updated task')
+  logActivity('updated', 'task', id, fields.status === 'done' ? 'Marked done' : 'Updated task')
   res.json({ success: true })
 })
 
