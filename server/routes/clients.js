@@ -392,4 +392,23 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// Bulk type update — set type for multiple clients at once
+router.post('/bulk-type', (req, res) => {
+  const { ids, type } = req.body || {}
+  if (!Array.isArray(ids) || !ids.length) return res.status(400).json({ error: 'ids array required' })
+  if (!['buyer', 'seller', 'both'].includes(type)) return res.status(400).json({ error: 'type must be buyer, seller, or both' })
+
+  const now = new Date().toISOString()
+  db.beginBulk?.()
+  try {
+    const placeholders = ids.map(() => '?').join(',')
+    db.run(`UPDATE clients SET type = ?, updated_at = ? WHERE id IN (${placeholders})`,
+      [type, now, ...ids.map(Number)])
+    logActivity('bulk_type', 'client', 0, `Set ${ids.length} client${ids.length === 1 ? '' : 's'} as ${type}`)
+  } finally {
+    db.endBulk?.()
+  }
+  res.json({ success: true, updated: ids.length, type })
+})
+
 export default router

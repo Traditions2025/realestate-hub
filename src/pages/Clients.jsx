@@ -123,6 +123,34 @@ export default function Clients() {
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkEmailPreviewOpen, setBulkEmailPreviewOpen] = useState(false)
   const [otherMenuOpen, setOtherMenuOpen] = useState(false)
+  const [bulkActionsOpen, setBulkActionsOpen] = useState(false)
+  const bulkActionsRef = useRef(null)
+  useEffect(() => {
+    if (!bulkActionsOpen) return
+    const handler = (e) => {
+      if (bulkActionsRef.current && !bulkActionsRef.current.contains(e.target)) setBulkActionsOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [bulkActionsOpen])
+  const setBulkType = async (t) => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Set ${selectedIds.size} client${selectedIds.size === 1 ? '' : 's'} as ${t === 'both' ? 'Buyer & Seller' : t.charAt(0).toUpperCase() + t.slice(1)}?`)) return
+    const r = await authFetch('/api/clients/bulk-type', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids: [...selectedIds], type: t })
+    })
+    const d = await r.json()
+    if (d.success) {
+      alert(`✓ Updated ${d.updated} client${d.updated === 1 ? '' : 's'} to ${t}`)
+      setBulkActionsOpen(false)
+      setSelectedIds(new Set())
+      load()
+    } else {
+      alert('Failed: ' + (d.error || 'unknown error'))
+    }
+  }
   const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
@@ -1301,19 +1329,33 @@ export default function Clients() {
         {selectedIds.size > 0 && (
           <div className="mass-action-right">
             <span className="mass-action-count">{selectedIds.size} selected</span>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={refreshSelectedFromSierra}
-              disabled={batchRefreshState?.running}
-              title="Pull fresh data from Sierra for the selected leads"
-            >
-              {batchRefreshState?.running
-                ? `↻ Refreshing ${batchRefreshState.done}/${batchRefreshState.total}...`
-                : `↻ Refresh Selected from Sierra`}
-            </button>
-            <button className="btn btn-primary btn-sm" onClick={() => openBulkEmail()}>
-              Email Selected
-            </button>
+            <div className="bulk-actions-dropdown" ref={bulkActionsRef}>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setBulkActionsOpen(o => !o)}
+                disabled={batchRefreshState?.running}
+              >
+                {batchRefreshState?.running
+                  ? `↻ Refreshing ${batchRefreshState.done}/${batchRefreshState.total}...`
+                  : `Bulk Actions ▾`}
+              </button>
+              {bulkActionsOpen && (
+                <div className="bulk-actions-menu">
+                  <button onClick={() => { setBulkActionsOpen(false); openBulkEmail() }}>
+                    ✉ Email Selected
+                  </button>
+                  <div className="bulk-actions-divider" />
+                  <div className="bulk-actions-section-label">Set Type</div>
+                  <button onClick={() => setBulkType('buyer')}>🎯 Mark as Buyer</button>
+                  <button onClick={() => setBulkType('seller')}>🏠 Mark as Seller</button>
+                  <button onClick={() => setBulkType('both')}>🔄 Mark as Both</button>
+                  <div className="bulk-actions-divider" />
+                  <button onClick={() => { setBulkActionsOpen(false); refreshSelectedFromSierra() }}>
+                    ↻ Refresh Selected from Sierra
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -1569,6 +1611,30 @@ export default function Clients() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Type toggle — quick buyer/seller/both classification */}
+            <div className="type-toggle-row">
+              <span className="type-toggle-label">Type:</span>
+              {['buyer', 'seller', 'both'].map(t => (
+                <button
+                  key={t}
+                  className={`type-toggle-btn type-${t} ${detail.type === t ? 'active' : ''}`}
+                  onClick={async () => {
+                    if (detail.type === t) return
+                    await authFetch(`/api/clients/${detail.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ type: t })
+                    })
+                    setDetail(d => ({ ...d, type: t }))
+                    load()
+                  }}
+                  title={`Mark as ${t === 'both' ? 'buyer & seller' : t}`}
+                >
+                  {t === 'buyer' ? '🎯 Buyer' : t === 'seller' ? '🏠 Seller' : '🔄 Both'}
+                </button>
+              ))}
             </div>
 
             <div className="detail-grid">

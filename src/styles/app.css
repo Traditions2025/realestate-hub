@@ -1569,6 +1569,96 @@ input[type="range"] {
   border-radius: 8px;
 }
 
+/* Type toggle row on lead detail modal */
+.type-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin: 8px 0 4px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.type-toggle-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.type-toggle-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg-primary);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.type-toggle-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+.type-toggle-btn.type-buyer.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+.type-toggle-btn.type-seller.active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+}
+.type-toggle-btn.type-both.active {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c4b5fd;
+}
+
+/* Bulk actions dropdown */
+.bulk-actions-dropdown {
+  position: relative;
+  display: inline-block;
+}
+.bulk-actions-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+  z-index: 50;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.bulk-actions-menu button {
+  text-align: left;
+  padding: 8px 12px;
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+.bulk-actions-menu button:hover { background: var(--bg-hover); }
+.bulk-actions-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+.bulk-actions-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  padding: 6px 12px 2px;
+}
+
 .client-tab {
   display: flex;
   align-items: center;

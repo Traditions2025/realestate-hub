@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T15:03:45.116Z",
-  "count": 101,
+  "generated_at": "2026-05-07T15:21:32.414Z",
+  "count": 102,
   "entries": [
+    {
+      "hash": "c3f7924",
+      "date": "2026-05-07T10:03:47-05:00",
+      "subject": "Clients: Type filter row (All / Buyers / Sellers / Both) with smart 'both' inclusion",
+      "title": "Clients: Type filter row (All / Buyers / Sellers / Both) with smart 'both' inclusion",
+      "body": "New Type filter row sits below the Status tabs and combines with whatever status is selected. Workflow examples:\n- Click 'Active' tab + '🎯 Buyers' → only active buyers (and 'both' clients) shown\n- Click 'Active' tab + '🏠 Sellers' → only active sellers (and 'both' clients)\n- Click 'Prime' tab + '🎯 Buyers' → high-value buyer prospects only\n\nSmart inclusion logic on backend:\n- type=buyer matches WHERE type IN ('buyer', 'both')\n- type=seller matches WHERE type IN ('seller', 'both')\n- type=both matches WHERE type = 'both' (only the dual-tagged ones)\nThis means a client tagged as 'both' shows up in BOTH the buyer view AND the seller view (as expected — they're both).\n\nVisual: rounded pill tabs with color-coded active states (blue for buyers, green for sellers, purple for both) so it's obvious at a glance which filter is on.",
+      "category": "other"
+    },
     {
       "hash": "ac61ce7",
       "date": "2026-05-07T09:40:24-05:00",
