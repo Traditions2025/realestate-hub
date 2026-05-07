@@ -199,7 +199,7 @@ function parseEmails(input) {
 }
 
 // Send a single email via SendGrid (supports multiple To, CC, BCC, attachments)
-async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = []) {
+export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = []) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
   }

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T14:15:38.575Z",
-  "count": 99,
+  "generated_at": "2026-05-07T14:40:21.827Z",
+  "count": 100,
   "entries": [
+    {
+      "hash": "f4ffcd3",
+      "date": "2026-05-07T09:15:41-05:00",
+      "subject": "Tasks: capture + show completion timestamp; Done column sorted newest-completed first",
+      "title": "Tasks: capture + show completion timestamp; Done column sorted newest-completed first",
+      "body": "Schema:\n- New tasks.completed_at TEXT column + migration with backfill (existing 'done' rows get their updated_at as a best-guess completion time)\n\nBackend (PUT /api/tasks/:id):\n- The MOMENT a task transitions into 'done' (whether via drag-drop, the toggle checkbox, or the modal save), completed_at is stamped with new Date().toISOString()\n- If a 'done' task is moved back to 'todo' or 'in_progress', completed_at is cleared\n- A task that was already 'done' and stays 'done' (just other fields edited) keeps its original completion time\n\nFrontend (Tasks page):\n- Each kanban card in the 'Done' column shows '✓ Completed May 6, 26' in green below the footer; hover for full timestamp\n- 'Done' column auto-sorts by completion timestamp DESC — most recently completed at the top, so what got finished today is visible first\n- New 'Completed' column added to the list/table view, also showing the date\n- Due-date pill is hidden on done cards (no point showing a pending due date once it's complete)",
+      "category": "other"
+    },
     {
       "hash": "4d2d6e9",
       "date": "2026-05-06T18:37:56-05:00",

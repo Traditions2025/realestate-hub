@@ -64,6 +64,44 @@ export default function Tasks() {
   const [noteText, setNoteText] = useState('')
   const [noteBy, setNoteBy] = useState('')
   const [saving, setSaving] = useState(false)
+  // Nudge state
+  const [nudgeOpen, setNudgeOpen] = useState(false)
+  const [nudgeTask, setNudgeTask] = useState(null)
+  const [nudgeRecipient, setNudgeRecipient] = useState('')
+  const [nudgeMessage, setNudgeMessage] = useState('')
+  const [nudgeSender, setNudgeSender] = useState('')
+  const [nudgeSending, setNudgeSending] = useState(false)
+
+  const openNudge = (task) => {
+    setNudgeTask(task)
+    setNudgeRecipient(task?.assigned_to ? task.assigned_to.toLowerCase() : 'matt')
+    setNudgeMessage('')
+    setNudgeSender('Leo')
+    setNudgeOpen(true)
+  }
+  const sendNudge = async () => {
+    if (!nudgeTask) return
+    setNudgeSending(true)
+    try {
+      const r = await authFetch(`/api/tasks/${nudgeTask.id}/nudge`, {
+        method: 'POST',
+        body: JSON.stringify({
+          recipient: nudgeRecipient,
+          message: nudgeMessage,
+          sender: nudgeSender,
+        }),
+      })
+      const d = await r.json()
+      if (d.error) { alert('Nudge failed: ' + d.error); return }
+      alert(`✓ Nudged ${nudgeRecipient} (${d.sent_to})`)
+      setNudgeOpen(false)
+      load()
+    } catch (e) {
+      alert('Nudge failed: ' + e.message)
+    } finally {
+      setNudgeSending(false)
+    }
+  }
 
   const openNew = (status) => { setEditing(null); setForm({ ...emptyTask, status: status || 'todo' }); setNoteText(''); setNoteBy(''); setModalOpen(true) }
   const openEdit = (item) => { setEditing(item.id); setForm({ ...emptyTask, ...item }); setNoteText(''); setNoteBy(''); setModalOpen(true) }
@@ -223,6 +261,17 @@ export default function Tasks() {
                           ✓ Completed {new Date(item.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
                         </div>
                       )}
+                      {item.status !== 'done' && (
+                        <div style={{marginTop: 6, display: 'flex', gap: 4}} onClick={e => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn-sm btn-secondary"
+                            style={{fontSize: 11, padding: '2px 8px'}}
+                            onClick={(e) => { e.stopPropagation(); openNudge(item) }}
+                            title="Send a quick email reminder to Matt or Leo about this task"
+                          >👋 Nudge</button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -264,6 +313,9 @@ export default function Tasks() {
                   </td>
                   <td>{item.category || '—'}</td>
                   <td>
+                    {item.status !== 'done' && (
+                      <button className="btn-sm" onClick={() => openNudge(item)} title="Email Matt/Leo about this task">👋</button>
+                    )}
                     <button className="btn-sm" onClick={() => openEdit(item)}>Edit</button>
                     <button className="btn-sm btn-danger" onClick={() => remove(item.id)}>Del</button>
                   </td>
@@ -355,11 +407,66 @@ export default function Tasks() {
               </button>
             )}
             <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)} disabled={saving}>Cancel</button>
+            {editing && (
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={() => {
+                  const cur = items.find(i => i.id === editing) || { ...form, id: editing }
+                  openNudge(cur)
+                }}
+                title="Send a quick email reminder to Matt or Leo about this task"
+              >👋 Nudge</button>
+            )}
             <button type="submit" className="btn btn-primary" disabled={saving}>
               {saving ? (editing ? 'Saving...' : 'Creating...') : (editing ? 'Update Task' : 'Create Task')}
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Nudge Modal */}
+      <Modal open={nudgeOpen} onClose={() => setNudgeOpen(false)} title={`👋 Nudge — ${nudgeTask?.title || ''}`}>
+        <p className="muted" style={{margin: '0 0 12px'}}>
+          Sends a quick reminder email about this task. The full task details are auto-included.
+        </p>
+        <div className="form-row">
+          <label>To
+            <select value={nudgeRecipient} onChange={e => setNudgeRecipient(e.target.value)}>
+              <option value="matt">Matt (mattsmithremax@gmail.com)</option>
+              <option value="leo">Leo / John (johnwithmattsmithteam@gmail.com)</option>
+            </select>
+          </label>
+          <label>From
+            <select value={nudgeSender} onChange={e => setNudgeSender(e.target.value)}>
+              <option value="Leo">Leo</option>
+              <option value="Matt">Matt</option>
+              <option value="the team">the team</option>
+            </select>
+          </label>
+        </div>
+        <label>Optional message
+          <textarea
+            rows={3}
+            placeholder="e.g. Can you handle this today? Closing on Friday and we need it done."
+            value={nudgeMessage}
+            onChange={e => setNudgeMessage(e.target.value)}
+          />
+        </label>
+        {nudgeTask && (
+          <div className="muted" style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, fontSize: 12, marginTop: 8}}>
+            <strong>Task preview:</strong><br/>
+            {nudgeTask.title}<br/>
+            Status: {(nudgeTask.status || '').replace(/_/g, ' ')} · Priority: {nudgeTask.priority}
+            {nudgeTask.due_date && <> · Due: {nudgeTask.due_date}</>}
+          </div>
+        )}
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={() => setNudgeOpen(false)}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={sendNudge} disabled={nudgeSending}>
+            {nudgeSending ? 'Sending...' : 'Send Nudge'}
+          </button>
+        </div>
       </Modal>
     </div>
   )

@@ -1,8 +1,24 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { sendViaSendGrid } from './email.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
+
+// Team member emails for the Nudge feature
+const TEAM_EMAILS = {
+  matt: 'mattsmithremax@gmail.com',
+  leo: 'johnwithmattsmithteam@gmail.com',
+  john: 'johnwithmattsmithteam@gmail.com',
+}
+
+function fmtDateLong(s) {
+  if (!s) return ''
+  const parts = String(s).split('-').map(Number)
+  if (parts.length !== 3 || parts.some(isNaN)) return s
+  const d = new Date(parts[0], parts[1] - 1, parts[2])
+  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+}
 
 function logActivity(action, entityType, entityId, details) {
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)', [action, entityType, entityId, details])
@@ -218,6 +234,89 @@ router.post('/seed-matts-list', (req, res) => {
   }
   logActivity('seeded', 'task', null, `Imported Matt's task list: ${added} added, ${skipped} skipped (already existed)`)
   res.json({ success: true, added, skipped, total: MATTS_TASK_LIST.length })
+})
+
+// =========================================================
+// NUDGE — quick email reminder to Matt or Leo about a task
+// =========================================================
+router.post('/:id/nudge', async (req, res) => {
+  const id = Number(req.params.id)
+  const task = db.get('SELECT * FROM tasks WHERE id = ?', [id])
+  if (!task) return res.status(404).json({ error: 'Task not found' })
+
+  let { recipient, message, sender } = req.body || {}
+  // Resolve recipient → email address
+  // Accepts: 'matt', 'leo', 'john', or a raw email
+  const recipKey = String(recipient || task.assigned_to || '').trim().toLowerCase()
+  let toEmail = TEAM_EMAILS[recipKey]
+  let toName = recipKey
+  if (!toEmail && /@/.test(recipient || '')) {
+    toEmail = recipient.trim()
+    toName = recipient.split('@')[0]
+  }
+  if (!toEmail) {
+    return res.status(400).json({
+      error: 'No recipient — task has no assignee, or recipient must be "matt", "leo", or a valid email',
+    })
+  }
+
+  const recipFirst = (toName || recipKey || 'team').replace(/^./, c => c.toUpperCase()).split(/\s+/)[0]
+  const senderName = (sender || 'the Matt Smith Team Hub').trim()
+
+  const subject = `📌 Nudge: ${task.title}`
+  const dueLine = task.due_date ? `Due: ${fmtDateLong(task.due_date)}` : 'No due date set'
+  const lines = [
+    `Hi ${recipFirst},`,
+    '',
+    `Quick nudge from ${senderName} on this task:`,
+    '',
+    `— ${task.title}`,
+  ]
+  if (task.description) lines.push(`  ${task.description}`)
+  lines.push('')
+  lines.push(`Status: ${(task.status || '').replace(/_/g, ' ')}  ·  Priority: ${task.priority || 'medium'}`)
+  lines.push(dueLine)
+  if (task.assigned_to && task.assigned_to.toLowerCase() !== recipKey) {
+    lines.push(`Assigned to: ${task.assigned_to}`)
+  }
+  if (task.category) lines.push(`Category: ${task.category}`)
+  if (message && message.trim()) {
+    lines.push('')
+    lines.push(message.trim())
+  }
+  lines.push('')
+  lines.push('Open the hub to update or add notes:')
+  lines.push('https://realestate-hub-1rzu.onrender.com/tasks')
+  lines.push('')
+  lines.push('— Matt Smith Team Hub')
+
+  const body = lines.join('\n')
+
+  try {
+    await sendViaSendGrid(
+      toEmail,
+      recipFirst,
+      subject,
+      body,
+      undefined, // replyTo (default)
+      [],        // cc
+      []         // attachments
+    )
+    // Append a note to the task's running log so the nudge is recorded
+    let log = []
+    try { log = task.notes_log ? JSON.parse(task.notes_log) : [] } catch {}
+    log.push({
+      at: new Date().toISOString(),
+      by: senderName,
+      text: `📌 Nudge sent to ${recipFirst} (${toEmail})${message ? ': ' + message : ''}`,
+    })
+    db.run("UPDATE tasks SET notes_log = ?, updated_at = datetime('now') WHERE id = ?",
+      [JSON.stringify(log), id])
+    logActivity('nudged', 'task', id, `Nudged ${recipFirst} (${toEmail}): ${task.title}`)
+    res.json({ success: true, sent_to: toEmail })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 export default router
