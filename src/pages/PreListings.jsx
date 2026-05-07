@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
-import { inlineImagesIntoBody } from '../components/inlineImages'
+import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
+import EmailToolbar from '../components/EmailToolbar'
 
 const checklistItems = [
   ['marketing_materials_sent', 'Marketing Materials Sent'],
@@ -38,6 +39,7 @@ export default function PreListings() {
   const [emailTpls, setEmailTpls] = useState([])
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ template_id: '', to_email: '', to_name: '', subject: '', body: '', attachments: [] })
+  const plEmailBodyRef = useRef(null)
   const [emailSending, setEmailSending] = useState(false)
   const [emailPreviewOpen, setEmailPreviewOpen] = useState(false)
   const [linkedClient, setLinkedClient] = useState(null)
@@ -315,7 +317,14 @@ export default function PreListings() {
             <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setEmailPreviewOpen(true)}>👁 Preview</button>
           </div>
         </div>
-        <textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
+        <EmailToolbar
+          textareaRef={plEmailBodyRef}
+          body={emailForm.body}
+          setBody={(b) => setEmailForm(p => ({ ...p, body: b }))}
+          showPreview={false}
+          compact
+        />
+        <textarea ref={plEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
         <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
           📁 Load HTML · 📷 Inline Images (so they render) · plain text auto-formats.
         </p>
@@ -376,7 +385,7 @@ export default function PreListings() {
           </div>
           <iframe
             title="Email preview"
-            srcDoc={emailForm.body || ''}
+            srcDoc={autoEmbedYoutubeLinks(emailForm.body || '')}
             style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
           />
           <div className="form-actions">

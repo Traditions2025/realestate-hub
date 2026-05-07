@@ -1,6 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
+import EmailToolbar from '../components/EmailToolbar'
+import { autoEmbedYoutubeLinks } from '../components/inlineImages'
 
 const STAGES = [
   { key: 'all', label: 'All' },
@@ -238,6 +240,7 @@ export default function Listings() {
   const [matchSelected, setMatchSelected] = useState(new Set())
   const [matchSubject, setMatchSubject] = useState('')
   const [matchBody, setMatchBody] = useState('')
+  const matchBodyRef = useRef(null)
   const [matchPreviewOpen, setMatchPreviewOpen] = useState(false)
   const [matchSending, setMatchSending] = useState(false)
 
@@ -1157,7 +1160,14 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
               <div className="field-group">
                 <h4>Email Body (HTML)</h4>
                 <p className="muted">Use <code>{'{{first_name}}'}</code> for personalization. Each recipient gets their own copy.</p>
-                <textarea rows={14} value={matchBody} onChange={e => setMatchBody(e.target.value)} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5}} />
+                <EmailToolbar
+                  textareaRef={matchBodyRef}
+                  body={matchBody}
+                  setBody={setMatchBody}
+                  showPreview={false}
+                  compact
+                />
+                <textarea ref={matchBodyRef} rows={14} value={matchBody} onChange={e => setMatchBody(e.target.value)} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5}} />
               </div>
 
               <div className="form-actions">
@@ -1185,7 +1195,7 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
           const sample = matches.find(m => matchSelected.has(m.id)) || matches[0]
           if (!sample) return null
           const renderedSubject = matchSubject.replace(/{{first_name}}/g, sample.first_name || 'there')
-          const renderedBody = matchBody.replace(/{{first_name}}/g, sample.first_name || 'there')
+          const renderedBody = autoEmbedYoutubeLinks(matchBody.replace(/{{first_name}}/g, sample.first_name || 'there'))
           return (
             <div>
               <p className="muted">Sample using <strong>{sample.first_name} {sample.last_name}</strong> ({sample.email})</p>

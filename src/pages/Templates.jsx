@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
+import EmailToolbar from '../components/EmailToolbar'
+import { autoEmbedYoutubeLinks } from '../components/inlineImages'
 
 const TYPE_OPTIONS = [
   { value: 'email', label: 'Email', icon: '✉' },
@@ -35,6 +37,7 @@ export default function Templates() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const fileInputRef = useRef(null)
+  const tplBodyRef = useRef(null)
 
   const load = () => {
     const params = new URLSearchParams()
@@ -277,8 +280,18 @@ export default function Templates() {
             )}
           </div>
 
+          {form.type === 'email' && (
+            <EmailToolbar
+              textareaRef={tplBodyRef}
+              body={form.body}
+              setBody={(b) => setForm(p => ({ ...p, body: b }))}
+              showPreview={false}
+              compact
+            />
+          )}
           <label>Body
             <textarea
+              ref={tplBodyRef}
               value={form.body}
               onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
               rows={form.type === 'email' ? 18 : 8}
@@ -310,7 +323,7 @@ export default function Templates() {
           {form.is_html || looksLikeHtml(form.body) ? (
             <iframe
               title="preview"
-              srcDoc={form.body}
+              srcDoc={autoEmbedYoutubeLinks(form.body)}
               style={{width: '100%', height: 480, border: 0, background: '#fff'}}
             />
           ) : (

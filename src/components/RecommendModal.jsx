@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import Modal from './Modal'
 import { authFetch } from '../api'
+import EmailToolbar from './EmailToolbar'
 
 // Normalized item shape: { id, name, company, phone, email, website, role }
 // kind: 'vendor' | 'partner'  — used for labels + catalog endpoint
@@ -75,6 +76,7 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
   const [recommendationFor, setRecommendationFor] = useState('')
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
+  const recBodyRef = useRef(null)
   const [touchedSubject, setTouchedSubject] = useState(false)
   const [touchedBody, setTouchedBody] = useState(false)
 
@@ -289,7 +291,15 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
         </div>
         <div className="field-group">
           <h4>Body (use <code>{'{{first_name}}'}</code> for personalization)</h4>
+          <EmailToolbar
+            textareaRef={recBodyRef}
+            body={body}
+            setBody={(b) => { setBody(b); setTouchedBody(true) }}
+            showPreview={false}
+            compact
+          />
           <textarea
+            ref={recBodyRef}
             rows={12}
             value={body}
             onChange={e => { setBody(e.target.value); setTouchedBody(true) }}

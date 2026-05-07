@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T20:38:21.703Z",
-  "count": 105,
+  "generated_at": "2026-05-07T20:51:30.746Z",
+  "count": 106,
   "entries": [
+    {
+      "hash": "566e373",
+      "date": "2026-05-07T15:38:32-05:00",
+      "subject": "Templates: new manager tab for email/text/script/voicemail/note templates",
+      "title": "Templates: new manager tab for email/text/script/voicemail/note templates",
+      "body": "- New 'Templates' page under MARKETING in sidebar\n- Backend: templates table (name, type, category, subject, body, is_html,\n  tags, used_count, last_used_at) + CRUD + duplicate + used-counter\n- Frontend: type tabs (Email/Text/Script/Voicemail/Note), search across\n  name/subject/body/tags/category, edit modal with HTML auto-detect,\n  upload .html file, HTML preview in iframe, copy-body-to-clipboard,\n  duplicate, delete\n- Per-template merge-var support ({{first_name}}, {{address}}, etc.)\n  for future composer integration\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5a45648",
       "date": "2026-05-07T13:28:30-05:00",

@@ -125,6 +125,41 @@ router.get('/preview/:templateId/:clientId', (req, res) => {
   })
 })
 
+// Extract YouTube video ID from a URL (returns null if not a YouTube URL)
+function parseYoutubeId(url) {
+  if (!url) return null
+  const s = String(url).trim()
+  let m = s.match(/youtu\.be\/([A-Za-z0-9_-]{6,15})/)
+  if (m) return m[1]
+  m = s.match(/[?&]v=([A-Za-z0-9_-]{6,15})/)
+  if (m) return m[1]
+  m = s.match(/youtube\.com\/(?:embed|shorts)\/([A-Za-z0-9_-]{6,15})/)
+  if (m) return m[1]
+  return null
+}
+
+// Build email-safe YouTube preview block (clickable thumbnail with play overlay)
+function buildYoutubeEmbedHtml(url) {
+  const id = parseYoutubeId(url)
+  if (!id) return null
+  const watchUrl = `https://www.youtube.com/watch?v=${id}`
+  const thumb = `https://img.youtube.com/vi/${id}/hqdefault.jpg`
+  return `<div style="margin:14px 0;text-align:center;"><a href="${watchUrl}" target="_blank" rel="noopener" style="display:inline-block;position:relative;text-decoration:none;max-width:560px;width:100%;"><img src="${thumb}" alt="Watch video on YouTube" style="display:block;width:100%;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.18);" /><span style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(255,0,0,0.92);color:#fff;font-family:Arial,sans-serif;font-weight:700;font-size:18px;padding:10px 22px;border-radius:8px;letter-spacing:0.5px;">▶ Play</span></a><div style="font-family:Arial,sans-serif;font-size:12px;color:#666;margin-top:6px;">Click the image to watch on YouTube</div></div>`
+}
+
+// Replace bare YouTube URLs in a body with embedded thumbnail blocks.
+// Skips URLs already inside <a href="..."> or other attribute contexts.
+function autoEmbedYoutubeLinks(body) {
+  if (!body) return body
+  const re = /(https?:\/\/(?:www\.)?(?:youtube\.com\/(?:watch\?[\w=&-]+|embed\/[A-Za-z0-9_-]{6,15}|shorts\/[A-Za-z0-9_-]{6,15})|youtu\.be\/[A-Za-z0-9_-]{6,15})[^\s<"']*)/gi
+  return body.replace(re, (match, url, offset, full) => {
+    const before = full.slice(Math.max(0, offset - 80), offset)
+    if (/<a\b[^>]*$/i.test(before)) return match
+    if (/(href|src)\s*=\s*["'][^"']*$/i.test(before)) return match
+    return buildYoutubeEmbedHtml(url) || match
+  })
+}
+
 // Detect whether a body string contains HTML markup (paragraphs, links, formatting, etc.)
 function looksLikeHtml(s) {
   if (!s) return false
@@ -233,7 +268,9 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
         //  - Body has actual HTML tags → send as-is for HTML, strip tags for plain version
         //  - Body is plain text → auto-convert to HTML (wrap paragraphs, auto-link URLs/emails/phones)
         const isHtml = looksLikeHtml(body)
-        const html = isHtml ? body : plainToHtml(body)
+        let html = isHtml ? body : plainToHtml(body)
+        // Auto-replace plain YouTube URLs with clickable thumbnail blocks
+        html = autoEmbedYoutubeLinks(html)
         const plain = isHtml ? htmlToPlain(body) : body
         return [
           { type: 'text/plain', value: plain },
@@ -402,6 +439,22 @@ router.get('/log/:id', (req, res) => {
 router.get('/check-config', (req, res) => {
   res.json({
     configured: !!SENDGRID_API_KEY,
+    from_email: FROM_EMAIL,
+    from_name: FROM_NAME,
+  })
+})
+
+// Render preview — returns the exact HTML the recipient will receive.
+// Applies the same pipeline as sendViaSendGrid: plain→HTML, YouTube auto-embed.
+router.post('/preview', (req, res) => {
+  const { body, subject } = req.body || {}
+  if (!body) return res.status(400).json({ error: 'body required' })
+  const isHtml = looksLikeHtml(body)
+  let html = isHtml ? body : plainToHtml(body)
+  html = autoEmbedYoutubeLinks(html)
+  res.json({
+    subject: subject || '',
+    html,
     from_email: FROM_EMAIL,
     from_name: FROM_NAME,
   })

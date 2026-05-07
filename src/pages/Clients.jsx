@@ -3,7 +3,8 @@ import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import MultiSelect from '../components/MultiSelect'
 import StatusBadge from '../components/StatusBadge'
-import { inlineImagesIntoBody } from '../components/inlineImages'
+import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
+import EmailToolbar from '../components/EmailToolbar'
 
 const emptyClient = {
   first_name: '', last_name: '', email: '', phone: '', type: 'buyer', status: 'active',
@@ -308,6 +309,8 @@ export default function Clients() {
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [] })
+  const singleEmailBodyRef = useRef(null)
+  const bulkEmailBodyRef = useRef(null)
   const [singleEmailPreviewOpen, setSingleEmailPreviewOpen] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState([])
   const [sending, setSending] = useState(false)
@@ -1939,7 +1942,14 @@ export default function Clients() {
               >👁 Preview</button>
             </div>
           </div>
-          <textarea value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
+          <EmailToolbar
+            textareaRef={bulkEmailBodyRef}
+            body={bulkEmailForm.body}
+            setBody={(b) => setBulkEmailForm(p => ({ ...p, body: b }))}
+            showPreview={false}
+            compact
+          />
+          <textarea ref={bulkEmailBodyRef} value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
           <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
             Variables auto-fill per recipient: {'{{first_name}} {{last_name}} {{address}} {{city}}'}
           </p>
@@ -1979,7 +1989,7 @@ export default function Clients() {
               </div>
               <iframe
                 title="Email preview"
-                srcDoc={renderedBody}
+                srcDoc={autoEmbedYoutubeLinks(renderedBody)}
                 style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
               />
               <div className="form-actions">
@@ -2048,7 +2058,14 @@ export default function Clients() {
               <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setSingleEmailPreviewOpen(true)}>👁 Preview</button>
             </div>
           </div>
-          <textarea value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
+          <EmailToolbar
+            textareaRef={singleEmailBodyRef}
+            body={emailForm.body}
+            setBody={(b) => setEmailForm(p => ({ ...p, body: b }))}
+            showPreview={false}
+            compact
+          />
+          <textarea ref={singleEmailBodyRef} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
           <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
             Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · Plain text auto-formats · 📁 load .html · 📷 inline images so they render in email.
           </p>
@@ -2123,7 +2140,7 @@ export default function Clients() {
               </div>
               <iframe
                 title="Email preview"
-                srcDoc={fill(emailForm.body)}
+                srcDoc={autoEmbedYoutubeLinks(fill(emailForm.body))}
                 style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
               />
               <div className="form-actions">

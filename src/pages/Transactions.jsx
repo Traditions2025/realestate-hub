@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
-import { inlineImagesIntoBody } from '../components/inlineImages'
+import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
+import EmailToolbar from '../components/EmailToolbar'
 
 const statusOptions = ['Active', 'Under Contract', 'Pending', 'Clear to Close', 'Closed', 'Pre-Listing', 'Withdrawn', 'Expired', 'Cancelled']
 const financeTypes = ['Conventional', 'FHA', 'VA', 'USDA', 'Cash', 'Other']
@@ -106,6 +107,7 @@ export default function Transactions() {
   })
   const [emailSending, setEmailSending] = useState(false)
   const [emailPreviewOpen, setEmailPreviewOpen] = useState(false)
+  const txEmailBodyRef = useRef(null)
 
   useEffect(() => {
     authFetch('/api/transactions/_meta/ai-status').then(r => r.json()).then(d => setAiConfigured(!!d.configured)).catch(() => {})
@@ -1185,7 +1187,14 @@ export default function Transactions() {
             <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setEmailPreviewOpen(true)}>👁 Preview</button>
           </div>
         </div>
-        <textarea rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
+        <EmailToolbar
+          textareaRef={txEmailBodyRef}
+          body={emailForm.body}
+          setBody={(b) => setEmailForm(p => ({ ...p, body: b }))}
+          showPreview={false}
+          compact
+        />
+        <textarea ref={txEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
         <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
           📁 Load HTML · 📷 Inline Images (so they render) · plain text also auto-formats with paragraphs and clickable links.
         </p>
@@ -1253,7 +1262,7 @@ export default function Transactions() {
           </div>
           <iframe
             title="Email preview"
-            srcDoc={emailForm.body || ''}
+            srcDoc={autoEmbedYoutubeLinks(emailForm.body || '')}
             style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
           />
           <div className="form-actions">
