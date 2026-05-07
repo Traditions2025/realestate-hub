@@ -26,6 +26,7 @@ import calendarRouter from './routes/calendar.js'
 import sierraRouter from './routes/sierra.js'
 import emailRouter from './routes/email.js'
 import listsRouter from './routes/lists.js'
+import templatesRouter from './routes/templates.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -68,6 +69,7 @@ async function start() {
   app.use('/api/sierra', sierraRouter)
   app.use('/api/email', emailRouter)
   app.use('/api/lists', listsRouter)
+  app.use('/api/templates', templatesRouter)
   app.use('/api/seed', seedRouter)
 
   // Activity log — supports filtering by entity_type, action, since (ISO date), search

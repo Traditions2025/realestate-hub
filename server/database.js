@@ -579,6 +579,26 @@ export async function initDb() {
   `)
 
   // =============================================
+  // TEMPLATES (email, text, scripts)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL DEFAULT 'email',
+      category TEXT,
+      subject TEXT,
+      body TEXT NOT NULL,
+      is_html INTEGER DEFAULT 0,
+      tags TEXT,
+      used_count INTEGER DEFAULT 0,
+      last_used_at TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // =============================================
   // SIERRA SYNC LOG
   // =============================================
   db.run(`

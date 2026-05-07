@@ -3111,6 +3111,15 @@ input[type="range"] {
 .email-preview-body p { margin: 8px 0; }
 .email-preview-body a { color: #c89b4a; }
 
+/* Templates: brief flash on copy */
+.row-flash {
+  animation: rowFlash 0.8s ease-out;
+}
+@keyframes rowFlash {
+  0% { background: rgba(16, 185, 129, 0.25); }
+  100% { background: transparent; }
+}
+
 /* Updates page — activity feed */
 .updates-day {
   margin-bottom: 24px;
