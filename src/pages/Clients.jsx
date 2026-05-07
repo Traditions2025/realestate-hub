@@ -135,7 +135,7 @@ export default function Clients() {
   }, [bulkActionsOpen])
   const setBulkType = async (t) => {
     if (selectedIds.size === 0) return
-    if (!confirm(`Set ${selectedIds.size} client${selectedIds.size === 1 ? '' : 's'} as ${t === 'both' ? 'Buyer & Seller' : t.charAt(0).toUpperCase() + t.slice(1)}?`)) return
+    if (!confirm(`Set ${selectedIds.size} client${selectedIds.size === 1 ? '' : 's'} as ${t === 'both' ? 'Buyer/Seller' : t.charAt(0).toUpperCase() + t.slice(1)}?`)) return
     const r = await authFetch('/api/clients/bulk-type', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -964,9 +964,9 @@ export default function Clients() {
         <button
           className={`type-tab type-both ${filter.type === 'both' ? 'active' : ''}`}
           onClick={() => setFilter(p => ({ ...p, type: 'both' }))}
-          title="Only leads tagged as Both buyer and seller"
+          title="Only leads tagged as Buyer & Seller"
         >
-          🔄 Both
+          🔄 Buyer/Seller
         </button>
       </div>
 
@@ -1348,7 +1348,7 @@ export default function Clients() {
                   <div className="bulk-actions-section-label">Set Type</div>
                   <button onClick={() => setBulkType('buyer')}>🎯 Mark as Buyer</button>
                   <button onClick={() => setBulkType('seller')}>🏠 Mark as Seller</button>
-                  <button onClick={() => setBulkType('both')}>🔄 Mark as Both</button>
+                  <button onClick={() => setBulkType('both')}>🔄 Mark as Buyer/Seller</button>
                   <div className="bulk-actions-divider" />
                   <button onClick={() => { setBulkActionsOpen(false); refreshSelectedFromSierra() }}>
                     ↻ Refresh Selected from Sierra
@@ -1392,6 +1392,7 @@ export default function Clients() {
               Name {sortBy === 'name_az' ? '▼' : sortBy === 'name_za' ? '▲' : '⇅'}
             </div>
             <div className="cl-status">Status</div>
+            <div className="cl-type">Type</div>
             <div className="cl-phone">Phone</div>
             <div className="cl-email">Email</div>
             <div className="cl-address">Address</div>
@@ -1439,6 +1440,13 @@ export default function Clients() {
                 })()}
               </div>
               <div className="cl-status"><StatusBadge status={item.status} /></div>
+              <div className="cl-type">
+                {item.type && (
+                  <span className={`type-pill type-${item.type}`}>
+                    {item.type === 'buyer' ? '🎯 Buyer' : item.type === 'seller' ? '🏠 Seller' : '🔄 Buyer/Seller'}
+                  </span>
+                )}
+              </div>
               <div className="cl-phone">{item.phone || '—'}</div>
               <div className="cl-email">
                 {item.email || '—'}
@@ -1632,7 +1640,7 @@ export default function Clients() {
                   }}
                   title={`Mark as ${t === 'both' ? 'buyer & seller' : t}`}
                 >
-                  {t === 'buyer' ? '🎯 Buyer' : t === 'seller' ? '🏠 Seller' : '🔄 Both'}
+                  {t === 'buyer' ? '🎯 Buyer' : t === 'seller' ? '🏠 Seller' : '🔄 Buyer/Seller'}
                 </button>
               ))}
             </div>

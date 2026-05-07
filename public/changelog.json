@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T15:21:32.414Z",
-  "count": 102,
+  "generated_at": "2026-05-07T16:01:26.524Z",
+  "count": 103,
   "entries": [
+    {
+      "hash": "80f882f",
+      "date": "2026-05-07T10:21:43-05:00",
+      "subject": "Clients: per-lead Type toggle + bulk Set Type actions in dropdown",
+      "title": "Clients: per-lead Type toggle + bulk Set Type actions in dropdown",
+      "body": "- Detail modal: Buyer / Seller / Both toggle pills below action bar (one click to reclassify)\n- Bulk actions consolidated into a single 'Bulk Actions ▾' dropdown\n  containing: Email Selected, Mark as Buyer/Seller/Both, Refresh from Sierra\n- Backend: POST /api/clients/bulk-type for batch type updates (validated, logged)\n- Sierra leadType is unreliable for this team — manual classification only\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c3f7924",
       "date": "2026-05-07T10:03:47-05:00",
