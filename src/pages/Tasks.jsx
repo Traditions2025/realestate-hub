@@ -16,6 +16,7 @@ const emptyTask = {
 export default function Tasks() {
   const [items, setItems] = useState([])
   const [filter, setFilter] = useState({ status: '', priority: '' })
+  const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyTask)
@@ -193,6 +194,14 @@ export default function Tasks() {
       </div>
 
       <div className="toolbar">
+        <input
+          type="text"
+          className="search-input"
+          placeholder="Search tasks (title, description, notes, assigned)..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{flex: 1, minWidth: 240}}
+        />
         <select value={filter.priority} onChange={e => setFilter(p => ({ ...p, priority: e.target.value }))}>
           <option value="">All Priorities</option>
           <option value="high">High</option>
@@ -205,12 +214,27 @@ export default function Tasks() {
           <option value="in_progress">In Progress</option>
           <option value="done">Done</option>
         </select>
+        {search && (
+          <button className="btn btn-sm btn-secondary" onClick={() => setSearch('')}>Clear</button>
+        )}
       </div>
 
       {view === 'board' ? (
         <div className="kanban">
           {['todo', 'in_progress', 'done'].map(status => {
-            let statusItems = items.filter(i => i.status === status)
+            const q = search.trim().toLowerCase()
+            const matchesSearch = (it) => {
+              if (!q) return true
+              const hay = [
+                it.title,
+                it.description,
+                it.assigned_to,
+                it.related_type,
+                it.notes_log,
+              ].filter(Boolean).join(' ').toLowerCase()
+              return hay.includes(q)
+            }
+            let statusItems = items.filter(i => i.status === status && matchesSearch(i))
             // Done column: sort by completion timestamp, newest first
             if (status === 'done') {
               statusItems = [...statusItems].sort((a, b) => {
@@ -296,9 +320,17 @@ export default function Tasks() {
               </tr>
             </thead>
             <tbody>
-              {items.length === 0 ? (
-                <tr><td colSpan="9" className="empty-state">No tasks found</td></tr>
-              ) : items.map(item => (
+              {(() => {
+                const q = search.trim().toLowerCase()
+                const filtered = !q ? items : items.filter(it => {
+                  const hay = [it.title, it.description, it.assigned_to, it.related_type, it.notes_log]
+                    .filter(Boolean).join(' ').toLowerCase()
+                  return hay.includes(q)
+                })
+                if (filtered.length === 0) {
+                  return <tr><td colSpan="9" className="empty-state">No tasks found</td></tr>
+                }
+                return filtered.map(item => (
                 <tr key={item.id} className={item.status === 'done' ? 'row-done' : ''}>
                   <td><input type="checkbox" checked={item.status === 'done'} onChange={() => toggleDone(item)} /></td>
                   <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}</td>
@@ -320,7 +352,8 @@ export default function Tasks() {
                     <button className="btn-sm btn-danger" onClick={() => remove(item.id)}>Del</button>
                   </td>
                 </tr>
-              ))}
+                ))
+              })()}
             </tbody>
           </table>
         </div>

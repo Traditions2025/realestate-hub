@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T16:01:26.524Z",
-  "count": 103,
+  "generated_at": "2026-05-07T18:28:21.749Z",
+  "count": 104,
   "entries": [
+    {
+      "hash": "a0545ba",
+      "date": "2026-05-07T11:01:35-05:00",
+      "subject": "Clients: add Type column to list view; rename Both → Buyer/Seller",
+      "title": "Clients: add Type column to list view; rename Both → Buyer/Seller",
+      "body": "- New Type column in client list (between Status and Phone) shows\n  color-coded pill: 🎯 Buyer / 🏠 Seller / 🔄 Buyer/Seller\n- 'Both' renamed to 'Buyer/Seller' across type tabs, detail toggle,\n  bulk actions menu, and confirm dialog (DB value still 'both')\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "80f882f",
       "date": "2026-05-07T10:21:43-05:00",
