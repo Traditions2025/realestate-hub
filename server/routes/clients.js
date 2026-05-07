@@ -47,7 +47,16 @@ function buildClientFilter(q) {
   let where = ' WHERE 1=1'
   const params = []
 
-  if (q.type) { where += ' AND type = ?'; params.push(q.type) }
+  // Type filter: 'buyer' / 'seller' includes 'both' (clients flagged as both buyer & seller match either filter)
+  if (q.type === 'buyer') {
+    where += " AND type IN ('buyer', 'both')"
+  } else if (q.type === 'seller') {
+    where += " AND type IN ('seller', 'both')"
+  } else if (q.type === 'both') {
+    where += " AND type = 'both'"
+  } else if (q.type) {
+    where += ' AND type = ?'; params.push(q.type)
+  }
 
   // Single status (legacy)
   if (q.status) { where += ' AND status = ?'; params.push(q.status) }

@@ -1511,6 +1511,64 @@ input[type="range"] {
   padding-bottom: 0;
 }
 
+/* Type filter row (sub-filter under status tabs) */
+.type-tabs {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: -10px 0 14px;
+  flex-wrap: wrap;
+}
+.type-tabs-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+.type-tab {
+  padding: 5px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 16px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s;
+}
+.type-tab:hover { background: var(--bg-hover); color: var(--text-primary); }
+.type-tab.active {
+  color: var(--text-primary);
+  border-color: var(--accent);
+  background: rgba(200, 155, 74, 0.12);
+}
+.type-tab.type-buyer.active {
+  border-color: #3b82f6;
+  background: rgba(59, 130, 246, 0.12);
+  color: #93c5fd;
+}
+.type-tab.type-seller.active {
+  border-color: #10b981;
+  background: rgba(16, 185, 129, 0.12);
+  color: #6ee7b7;
+}
+.type-tab.type-both.active {
+  border-color: #a855f7;
+  background: rgba(168, 85, 247, 0.12);
+  color: #c4b5fd;
+}
+.type-tab .tab-count {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
 .client-tab {
   display: flex;
   align-items: center;

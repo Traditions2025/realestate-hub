@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T14:40:21.827Z",
-  "count": 100,
+  "generated_at": "2026-05-07T15:03:45.116Z",
+  "count": 101,
   "entries": [
+    {
+      "hash": "ac61ce7",
+      "date": "2026-05-07T09:40:24-05:00",
+      "subject": "Tasks: 👋 Nudge button — quick email reminder to Matt or Leo about a specific task",
+      "title": "Tasks: 👋 Nudge button — quick email reminder to Matt or Leo about a specific task",
+      "body": "Each open task (not done) now has a 👋 Nudge button on:\n- The kanban card (To Do + In Progress columns)\n- The list view's actions column\n- The edit modal's form actions\n\nClick it → small modal opens with:\n- To: Matt (mattsmithremax@gmail.com) or Leo / John (johnwithmattsmithteam@gmail.com), defaulted from task.assigned_to\n- From: Leo / Matt / the team\n- Optional message: 'Can you handle this today? Closing on Friday...'\n- Task preview at the bottom showing what's about to be sent\n\nEmail content auto-includes:\n- Task title (subject + body)\n- Description (if any)\n- Status, priority, due date, assignee, category\n- The optional custom message\n- Link back to /tasks in the hub\n- Sender name in the from-line\n\nBackend (POST /api/tasks/:id/nudge):\n- Imports sendViaSendGrid from email.js (now exported)\n- Resolves recipient: matt/leo/john keywords or raw email\n- Sends via SendGrid through the existing pipeline\n- Logs the nudge as a note in the task's notes_log + as an activity entry, so there's an audit trail of who got nudged when about what",
+      "category": "other"
+    },
     {
       "hash": "f4ffcd3",
       "date": "2026-05-07T09:15:41-05:00",

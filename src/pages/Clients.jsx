@@ -910,6 +910,37 @@ export default function Clients() {
         </button>
       </div>
 
+      {/* Type filter: All / Buyers / Sellers — combines with Status tabs above */}
+      <div className="type-tabs">
+        <span className="type-tabs-label">Type:</span>
+        <button
+          className={`type-tab ${!filter.type ? 'active' : ''}`}
+          onClick={() => setFilter(p => ({ ...p, type: '' }))}
+        >
+          All Types <span className="tab-count">{allCounts.total}</span>
+        </button>
+        <button
+          className={`type-tab type-buyer ${filter.type === 'buyer' ? 'active' : ''}`}
+          onClick={() => setFilter(p => ({ ...p, type: 'buyer' }))}
+          title="Includes leads tagged as Buyer or Both"
+        >
+          🎯 Buyers {tab === 'active' && <span className="tab-count">Active</span>}
+        </button>
+        <button
+          className={`type-tab type-seller ${filter.type === 'seller' ? 'active' : ''}`}
+          onClick={() => setFilter(p => ({ ...p, type: 'seller' }))}
+          title="Includes leads tagged as Seller or Both"
+        >
+          🏠 Sellers {tab === 'active' && <span className="tab-count">Active</span>}
+        </button>
+        <button
+          className={`type-tab type-both ${filter.type === 'both' ? 'active' : ''}`}
+          onClick={() => setFilter(p => ({ ...p, type: 'both' }))}
+          title="Only leads tagged as Both buyer and seller"
+        >
+          🔄 Both
+        </button>
+      </div>
 
       <div className="toolbar">
         <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
