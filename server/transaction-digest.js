@@ -116,42 +116,57 @@ function isTerminal(statusField, value) {
 }
 
 // Build the list of "action items" for a transaction.
-// An item is included when:
-//   - the status dropdown is set but NOT in a terminal state (still pending), OR
-//   - a target date exists (even without status)
-// An item is skipped when the status is terminal (Completed, Received, Ready, etc).
+//
+// Inclusion rules (status is primary, date is timing context):
+//   - If the status dropdown is in a TERMINAL state (Completed, Received,
+//     Ready, Signed, N/A, etc) → SKIP. The dropdown says it's done.
+//   - Otherwise INCLUDE the item, even when both date AND status are blank.
+//     A blank-blank item renders as "not set yet" so nothing slips through
+//     just because a deadline hasn't been entered.
+//
+// Cash-deal exception:
+//   - On cash purchases (type_of_finance === 'Cash'), mortgage-specific
+//     items are skipped (Mortgage contingency, Financing release) since
+//     there's no buyer financing to track.
 function buildActionItems(tx) {
   const today = todayLocal()
   const items = []
+  const isCash = String(tx.type_of_finance || '').toLowerCase() === 'cash'
 
-  const push = (label, dateStr, statusField) => {
+  const push = (label, dateStr, statusField, opts = {}) => {
+    if (isCash && opts.mortgageOnly) return  // skip mortgage-specific rows on cash deals
+
     const statusValue = statusField ? tx[statusField] : null
-    if (statusField && isTerminal(statusField, statusValue)) return  // primary: status says done
+    if (statusField && isTerminal(statusField, statusValue)) return  // status says done → drop
 
     const d = parseLocalDate(dateStr)
     const hasDate = !!d
     const hasPendingStatus = !!statusValue && !isTerminal(statusField, statusValue)
-    if (!hasDate && !hasPendingStatus) return  // nothing to surface
 
     const out = hasDate ? daysBetween(today, d) : null
+    let cls
+    if (hasDate) cls = classify(out)              // date-driven severity
+    else if (hasPendingStatus) cls = 'urgent'      // status pending, no date → urgent
+    else cls = 'normal'                            // truly blank — informational, "not set yet"
+
     items.push({
       label,
       date: dateStr,
       daysOut: out,
-      // No date but pending status → flag as 'urgent' so it bubbles above 'normal' date rows
-      class: hasDate ? classify(out) : 'urgent',
+      class: cls,
       status: statusValue,
       noDate: !hasDate,
+      blank: !hasDate && !hasPendingStatus,
     })
   }
 
-  // Date-driven items (status used as secondary signal)
+  // Date-driven items (status used as primary signal where available)
   push('Earnest money',         tx.earnest_money_due_date,      'earnest_money_deposit')
   push('IPI',                   tx.ipi_due_date)
   push('Inspection',            tx.inspection_contingency_date, 'home_inspection')
   push('Appraisal',             tx.appraisal_contingency_date,  'appraisal_contingency_status')
-  push('Mortgage contingency',  tx.mortgage_contingency_date)
-  push('Financing release',     null,                           'financing_release')
+  push('Mortgage contingency',  tx.mortgage_contingency_date,   null, { mortgageOnly: true })
+  push('Financing release',     null,                           'financing_release', { mortgageOnly: true })
   push('Inspection release',    null,                           'inspection_release')
   push('Final inspection waiver', null,                         'final_inspection_waiver')
   push('Final walkthrough',     tx.final_walkthrough)
@@ -190,7 +205,14 @@ function dateRow(it) {
   const c = COLORS[it.class] || COLORS.normal
   const tag = LABEL[it.class] ? `<span style="font-weight:700;color:${c};margin-right:6px;">${LABEL[it.class]}</span>` : ''
   const stat = it.status ? ` &middot; <span style="color:#6b7280;">${escapeHtml(it.status)}</span>` : ''
-  // Status-only row (no date set yet) — surface so it doesn't get forgotten
+  // Truly-blank row (no date, no status) — render muted so it doesn't compete
+  if (it.blank) {
+    return `<tr>
+      <td style="padding:4px 12px 4px 0;color:#9ca3af;font-size:13px;white-space:nowrap;">${escapeHtml(it.label)}</td>
+      <td style="padding:4px 0;color:#9ca3af;font-size:12px;font-style:italic;">not set yet</td>
+    </tr>`
+  }
+  // Status-only row (no date set yet, but status is pending) — surface so it doesn't get forgotten
   if (it.noDate) {
     return `<tr>
       <td style="padding:4px 12px 4px 0;color:#374151;font-size:13px;white-space:nowrap;">${escapeHtml(it.label)}</td>
