@@ -599,6 +599,24 @@ export async function initDb() {
   `)
 
   // =============================================
+  // TRANSACTION DIGEST LOG (one row per fired daily digest)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS digest_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      digest_date TEXT NOT NULL,
+      period TEXT NOT NULL,
+      sent_at TEXT DEFAULT (datetime('now')),
+      recipients TEXT,
+      transaction_count INTEGER,
+      action_count INTEGER,
+      success INTEGER DEFAULT 1,
+      error TEXT,
+      UNIQUE(digest_date, period)
+    )
+  `)
+
+  // =============================================
   // SIERRA SYNC LOG
   // =============================================
   db.run(`

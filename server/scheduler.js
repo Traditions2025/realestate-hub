@@ -1,6 +1,7 @@
 // Background scheduler - auto-syncs data without user clicks
 import db from './database.js'
 import { processLead, sierraGet } from './sierra-helper.js'
+import { sendDigest, chicagoDateKey } from './transaction-digest.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
@@ -214,7 +215,57 @@ async function runIncrementalNow() {
   return await syncSierraIncremental()
 }
 
-export { syncGoogleCalendar, runIncrementalNow }
+// =============================================================
+// Daily TC digest scheduling — fires at 9 AM and 1 PM America/Chicago.
+// Idempotent via digest_log unique(digest_date, period). Cheap minute-tick
+// so DST changes are picked up automatically (no need to recompute UTC).
+// =============================================================
+
+const DIGEST_TIMES = [
+  { period: 'morning',   hour: 9,  minute: 0 },
+  { period: 'afternoon', hour: 13, minute: 0 },
+]
+
+function chicagoNow() {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/Chicago',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date())
+  const get = (t) => Number(parts.find(p => p.type === t).value)
+  return {
+    date: `${get('year')}-${String(get('month')).padStart(2,'0')}-${String(get('day')).padStart(2,'0')}`,
+    hour: get('hour') === 24 ? 0 : get('hour'),  // some locales emit '24:00'
+    minute: get('minute'),
+  }
+}
+
+async function checkDigestTick() {
+  try {
+    const now = chicagoNow()
+    for (const slot of DIGEST_TIMES) {
+      // Fire when at-or-just-past the scheduled minute (within 5 min, in case the
+      // server tick was busy). digest_log uniqueness prevents double-send.
+      const minutesPast = (now.hour - slot.hour) * 60 + (now.minute - slot.minute)
+      if (minutesPast < 0 || minutesPast > 5) continue
+      const already = db.get(
+        'SELECT id FROM digest_log WHERE digest_date = ? AND period = ? AND success = 1',
+        [now.date, slot.period])
+      if (already) continue
+      console.log(`[digest] firing ${slot.period} digest for ${now.date} (${now.hour}:${String(now.minute).padStart(2,'0')} CT)`)
+      const r = await sendDigest(slot.period)
+      console.log('[digest] result:', r.skipped ? `skipped (${r.reason})` : (r.success ? `sent ${r.transactionCount} tx, ${r.actionCount} actions` : `FAILED: ${r.error}`))
+    }
+  } catch (err) {
+    console.error('[digest] tick error:', err.message)
+  }
+}
+
+async function runDigestNow(period = 'morning', force = true) {
+  return await sendDigest(period, { force })
+}
+
+export { syncGoogleCalendar, runIncrementalNow, runDigestNow }
 
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
@@ -231,4 +282,9 @@ export function startScheduler() {
 
   // Google Calendar - every 5 min
   setInterval(syncGoogleCalendar, 5 * 60 * 1000)
+
+  // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
+  setInterval(checkDigestTick, 60 * 1000)
+  // Also run once shortly after boot in case we just deployed past the scheduled time
+  setTimeout(checkDigestTick, 45 * 1000)
 }

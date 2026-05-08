@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
+import { buildDigest, sendDigest } from '../transaction-digest.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -442,6 +443,38 @@ router.get('/check-config', (req, res) => {
     from_email: FROM_EMAIL,
     from_name: FROM_NAME,
   })
+})
+
+// =====================================================================
+// TC daily digest — preview, force-send, history
+// =====================================================================
+
+// Preview the digest as HTML in the browser (renders directly, no email send)
+router.get('/tc-digest/preview', (req, res) => {
+  const period = req.query.period === 'afternoon' ? 'afternoon' : 'morning'
+  const built = buildDigest(period)
+  if (req.query.format === 'json') {
+    return res.json({ subject: built.subject, html: built.html, transactionCount: built.transactionCount, actionCount: built.actionCount, overdue: built.overdue, dueToday: built.dueToday })
+  }
+  res.set('Content-Type', 'text/html; charset=utf-8').send(built.html)
+})
+
+// Force-send the digest now (ignores idempotency)
+router.post('/tc-digest/send', async (req, res) => {
+  const period = (req.body?.period || req.query?.period) === 'afternoon' ? 'afternoon' : 'morning'
+  const force = req.body?.force !== false  // default true on manual trigger
+  try {
+    const r = await sendDigest(period, { force })
+    res.json(r)
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// History of recent digest fires
+router.get('/tc-digest/log', (req, res) => {
+  const rows = db.all('SELECT * FROM digest_log ORDER BY sent_at DESC LIMIT 50')
+  res.json(rows)
 })
 
 // Render preview — returns the exact HTML the recipient will receive.

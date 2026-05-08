@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T15:10:26.846Z",
-  "count": 107,
+  "generated_at": "2026-05-08T15:52:52.149Z",
+  "count": 108,
   "entries": [
+    {
+      "hash": "3b7edea",
+      "date": "2026-05-08T10:10:39-05:00",
+      "subject": "Email composers: unify image insert (no more 'no matching img' errors)",
+      "title": "Email composers: unify image insert (no more 'no matching img' errors)",
+      "body": "- New attachImagesSmart() helper: tries to inline matching <img> tags\n  first (HTML-from-file workflow); if none match, falls back to inserting\n  fresh base64 <img> tags at the cursor. Single button covers both cases.\n- EmailToolbar's 🖼 Insert Image now uses the smart helper\n- Removed the duplicate legacy '📷 Inline Images' button from Clients\n  single+bulk, Transactions, and PreListings composers — confusing\n  warning is gone, one image button per composer\n- Toolbar hint clarifies: 'Body is HTML — click Preview to see how it\n  will render in the inbox'\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ec617f3",
       "date": "2026-05-07T15:51:42-05:00",
