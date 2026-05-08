@@ -612,9 +612,20 @@ export default function Transactions() {
 
         {pipelineStatuses.map(stage => {
           // Merge Pending into Under Contract
-          const stageItems = stage === 'Under Contract'
+          let stageItems = stage === 'Under Contract'
             ? items.filter(i => i.property_status === 'Under Contract' || i.property_status === 'Pending')
             : items.filter(i => i.property_status === stage)
+          // Under Contract: sort by closing date, soonest first; rows w/o a date go to the bottom
+          if (stage === 'Under Contract') {
+            stageItems = [...stageItems].sort((a, b) => {
+              const da = a.closing_date || ''
+              const db = b.closing_date || ''
+              if (!da && !db) return 0
+              if (!da) return 1
+              if (!db) return -1
+              return da.localeCompare(db)
+            })
+          }
           return (
             <div
               key={stage}
