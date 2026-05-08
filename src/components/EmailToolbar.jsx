@@ -1,6 +1,6 @@
 import React, { useRef } from 'react'
 import {
-  imageFileToImgTag,
+  attachImagesSmart,
   parseYoutubeId,
   buildYoutubeEmbedHtml,
   insertAtCursor,
@@ -26,14 +26,9 @@ export default function EmailToolbar({ textareaRef, body, setBody, onPreview, sh
   const onImageChosen = async (e) => {
     const files = Array.from(e.target.files || [])
     if (!files.length) return
-    let snippet = ''
-    for (const f of files) {
-      if (!/^image\//.test(f.type)) continue
-      snippet += await imageFileToImgTag(f)
-    }
-    if (!snippet) return
     const ta = textareaRef?.current
-    setBody(insertAtCursor(ta, snippet, body || ''))
+    const r = await attachImagesSmart(body || '', files, ta)
+    if (r.count > 0) setBody(r.newBody)
     e.target.value = ''
   }
 
@@ -73,7 +68,7 @@ export default function EmailToolbar({ textareaRef, body, setBody, onPreview, sh
         </button>
       )}
       <span style={{fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto'}}>
-        Tip: paste a YouTube URL in the body — it'll auto-render as a preview when sent.
+        Body is HTML — click 👁 Preview to see how it'll render in the inbox.
       </span>
     </div>
   )

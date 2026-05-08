@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-07T20:51:30.746Z",
-  "count": 106,
+  "generated_at": "2026-05-08T15:10:26.846Z",
+  "count": 107,
   "entries": [
+    {
+      "hash": "ec617f3",
+      "date": "2026-05-07T15:51:42-05:00",
+      "subject": "Email composers: Insert Image, Insert YouTube, accurate Preview",
+      "title": "Email composers: Insert Image, Insert YouTube, accurate Preview",
+      "body": "- New shared EmailToolbar component (Insert Image / Insert YouTube)\n  added to all email composers: Clients single+bulk, Transactions,\n  PreListings, Listings 'Send to Matched', Recommend modal, Templates\n- Insert Image: file picker → embeds image as base64 data URI at the\n  cursor position so it renders in Gmail/Outlook without external host\n- Insert YouTube: prompts for URL, inserts a clickable thumbnail with\n  red Play overlay (iframes are blocked in most email clients)\n- Plain YouTube URLs pasted into the body auto-embed as thumbnails when\n  sent — applied server-side in sendViaSendGrid + new /api/email/preview\n- All Preview iframes now run autoEmbedYoutubeLinks so what you see\n  matches what the recipient gets\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "566e373",
       "date": "2026-05-07T15:38:32-05:00",

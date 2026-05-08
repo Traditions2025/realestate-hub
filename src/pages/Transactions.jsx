@@ -1165,25 +1165,6 @@ export default function Transactions() {
                 }}
               />
             </label>
-            <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
-              📷 Inline Images
-              <input
-                type="file"
-                accept="image/*"
-                multiple
-                style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-                onChange={async (e) => {
-                  const files = Array.from(e.target.files || [])
-                  if (!files.length) return
-                  const r = await inlineImagesIntoBody(emailForm.body, files)
-                  setEmailForm(p => ({ ...p, body: r.newBody }))
-                  let msg = r.inlined.length ? `✓ Inlined ${r.inlined.length}: ${r.inlined.join(', ')}` : '⚠ No matching <img> tags found'
-                  if (r.unmatched.length) msg += `\n\nStill unmatched: ${[...new Set(r.unmatched)].join(', ')}`
-                  alert(msg)
-                  e.target.value = ''
-                }}
-              />
-            </label>
             <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setEmailPreviewOpen(true)}>👁 Preview</button>
           </div>
         </div>

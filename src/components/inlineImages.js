@@ -108,6 +108,33 @@ export function autoEmbedYoutubeLinks(body) {
   })
 }
 
+// Smart image attach: first tries to inline any local <img src="..."> tags in
+// the body that match an uploaded file (HTML-from-file workflow). If nothing
+// matches, falls back to inserting fresh <img> tags at the textarea cursor
+// (or appended if no textarea ref). Returns { newBody, mode, count, message }.
+export async function attachImagesSmart(body, files, textareaEl) {
+  const imgFiles = files.filter(f => /^image\//.test(f.type))
+  if (!imgFiles.length) {
+    return { newBody: body || '', mode: 'none', count: 0, message: 'No image files were selected.' }
+  }
+  const r = await inlineImagesIntoBody(body || '', imgFiles)
+  if (r.inlined.length) {
+    let msg = `✓ Inlined ${r.inlined.length} image${r.inlined.length === 1 ? '' : 's'}: ${r.inlined.join(', ')}`
+    if (r.unmatched.length) msg += `\nStill unmatched: ${[...new Set(r.unmatched)].join(', ')}`
+    return { newBody: r.newBody, mode: 'inlined', count: r.inlined.length, message: msg }
+  }
+  // Fall back: insert each image at the cursor as a base64 <img> tag
+  let snippet = ''
+  for (const f of imgFiles) snippet += await imageFileToImgTag(f)
+  const newBody = textareaEl ? insertAtCursor(textareaEl, snippet, body || '') : (body || '') + snippet
+  return {
+    newBody,
+    mode: 'inserted',
+    count: imgFiles.length,
+    message: `Inserted ${imgFiles.length} image${imgFiles.length === 1 ? '' : 's'}. Click Preview to see how they will render.`,
+  }
+}
+
 // Insert text/HTML at the textarea's caret position; returns the new value.
 export function insertAtCursor(textareaEl, snippet, currentValue) {
   if (!textareaEl) return (currentValue || '') + snippet

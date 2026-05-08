@@ -1915,25 +1915,6 @@ export default function Clients() {
                   }}
                 />
               </label>
-              <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}} title="Embed images so they render in email">
-                📷 Inline Images
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || [])
-                    if (!files.length) return
-                    const r = await inlineImagesIntoBody(bulkEmailForm.body, files)
-                    setBulkEmailForm(p => ({ ...p, body: r.newBody }))
-                    let msg = r.inlined.length ? `✓ Inlined ${r.inlined.length}: ${r.inlined.join(', ')}` : '⚠ No matching <img> tags found in the body'
-                    if (r.unmatched.length) msg += `\n\nStill unmatched: ${[...new Set(r.unmatched)].join(', ')}`
-                    alert(msg)
-                    e.target.value = ''
-                  }}
-                />
-              </label>
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
@@ -2032,25 +2013,6 @@ export default function Clients() {
                     if (!file) return
                     const text = await file.text()
                     setEmailForm(p => ({ ...p, body: text }))
-                    e.target.value = ''
-                  }}
-                />
-              </label>
-              <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}} title="Embed images so they render in email (replaces local <img src> with base64)">
-                📷 Inline Images
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files || [])
-                    if (!files.length) return
-                    const r = await inlineImagesIntoBody(emailForm.body, files)
-                    setEmailForm(p => ({ ...p, body: r.newBody }))
-                    let msg = r.inlined.length ? `✓ Inlined ${r.inlined.length}: ${r.inlined.join(', ')}` : '⚠ No matching <img> tags found in the body'
-                    if (r.unmatched.length) msg += `\n\nStill unmatched (you may need to upload these): ${[...new Set(r.unmatched)].join(', ')}`
-                    alert(msg)
                     e.target.value = ''
                   }}
                 />
