@@ -189,32 +189,38 @@ function renderTransactionCard(tx) {
     docStatusRow('Deed',             tx.deed_package),
   ].filter(Boolean).join('')
 
-  // Listing & Disclosures phase
-  const phase1 = [
-    checklistChip('MLS Pending', tx.mls_pending_marked),
-    checklistChip('RPDS', tx.sellers_disclosure_received),
-    checklistChip('AYSE Loop', tx.ayse_added_to_loop),
-    checklistChip('AYSE Signed', tx.ayse_contracts_signed),
-  ].join('')
-  // Closing Logistics phase
-  const phase2 = [
-    checklistChip('Time Set', tx.closing_time_confirmed),
-    checklistChip('Location Set', tx.closing_location_confirmed),
-    checklistChip('CD Reviewed', tx.closing_disclosure_reviewed),
-    checklistChip('Wire Sent', tx.wire_instructions_sent),
-    checklistChip('Utilities', tx.utilities_set),
-  ].join('')
-  // Day-of & Post-Closing phase
-  const phase3 = [
-    checklistChip('Deed Signed', tx.seller_signed_deed),
-    checklistChip('Keys', tx.keys_remotes_collected),
-    checklistChip('Sign Removed', tx.sign_lockbox_removed),
-    checklistChip('MLS Sold', tx.mls_sold_marked),
-    checklistChip('Loop Reviewed', tx.submit_loop_review),
-    checklistChip('Commission Approved', tx.approved_commission),
-    checklistChip('Commission Received', tx.commission_received),
-    checklistChip('Testimonial', tx.testimonial_request),
-  ].join('')
+  // Side-aware chip rendering. tx.type is 'listing' or 'purchase'; if blank, show all.
+  const showSide = (side) => side === 'both' || !tx.type || side === tx.type
+
+  const chips = (items) => items
+    .filter(it => showSide(it.side))
+    .map(it => checklistChip(it.label, tx[it.field]))
+    .join('')
+
+  const phase1 = chips([
+    { field: 'mls_pending_marked',          label: 'MLS Pending',     side: 'listing' },
+    { field: 'sellers_disclosure_received', label: 'RPDS',            side: 'listing' },
+    { field: 'hoa_docs_provided',           label: 'HOA Docs',        side: 'listing' },
+    { field: 'ayse_added_to_loop',          label: 'AYSE Loop',       side: 'both' },
+    { field: 'ayse_contracts_signed',       label: 'AYSE Signed',     side: 'both' },
+  ])
+  const phase2 = chips([
+    { field: 'closing_time_confirmed',      label: 'Time Set',        side: 'both' },
+    { field: 'closing_location_confirmed',  label: 'Location Set',    side: 'both' },
+    { field: 'closing_disclosure_reviewed', label: 'CD Reviewed',     side: 'both' },
+    { field: 'wire_instructions_sent',      label: 'Wire Sent',       side: 'purchase' },
+    { field: 'utilities_set',               label: 'Utilities',       side: 'purchase' },
+  ])
+  const phase3 = chips([
+    { field: 'seller_signed_deed',          label: 'Deed Signed',         side: 'listing' },
+    { field: 'keys_remotes_collected',      label: 'Keys',                side: 'both' },
+    { field: 'sign_lockbox_removed',        label: 'Sign Removed',        side: 'listing' },
+    { field: 'mls_sold_marked',             label: 'MLS Sold',            side: 'listing' },
+    { field: 'submit_loop_review',          label: 'Loop Reviewed',       side: 'both' },
+    { field: 'approved_commission',         label: 'Commission Approved', side: 'both' },
+    { field: 'commission_received',         label: 'Commission Received', side: 'both' },
+    { field: 'testimonial_request',         label: 'Testimonial',         side: 'both' },
+  ])
   const checklist = phase1 + (phase2 ? `<div style="margin-top:4px;">${phase2}</div>` : '') + (phase3 ? `<div style="margin-top:4px;">${phase3}</div>` : '')
 
   const closingDetails = (tx.closing_time || tx.closing_location)

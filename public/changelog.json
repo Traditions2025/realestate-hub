@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T21:13:58.071Z",
-  "count": 112,
+  "generated_at": "2026-05-08T21:22:25.731Z",
+  "count": 113,
   "entries": [
+    {
+      "hash": "b2eee71",
+      "date": "2026-05-08T16:14:18-05:00",
+      "subject": "Transactions: expanded under-contract checklist (closing logistics, deed, post-close)",
+      "title": "Transactions: expanded under-contract checklist (closing logistics, deed, post-close)",
+      "body": "Adds 17 new fields organized into three phased sections so nothing\nfalls through the cracks between contract and post-close:\n\nLISTING & DISCLOSURES (immediately after going UC):\n  + MLS Marked Pending\n  + Seller's Disclosure (RPDS) Received\n  + HOA Docs Provided\n\nCLOSING LOGISTICS (new section, replaces lumped 'Closing & Loop'):\n  + Closing Time / Closing Location free-text fields\n  + Closing Time Confirmed\n  + Closing Location Confirmed\n  + Buyer/Seller Notified of When & Where\n  + Closing Disclosure Reviewed (3-day rule)\n  + Wire Instructions Sent (verified by phone)\n\nDAY-OF & POST-CLOSING (new section):\n  + Seller Signed Deed Package\n  + Keys / Garage Remotes Collected\n  + Sign + Lockbox Removed\n  + MLS Marked Sold\n  + Commission Received\n  + Thank-You Gift Sent\n  + 30-Day Post-Close Follow-Up\n\nSchema migration auto-adds the columns to existing DBs. Daily TC digest\n(9 AM + 1 PM CT email) surfaces all new chips and shows closing\ntime + location inline on each transaction card.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f5e6688",
       "date": "2026-05-08T13:22:41-05:00",

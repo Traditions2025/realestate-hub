@@ -36,7 +36,7 @@ const emptyTx = {
   mls_pending_marked: 0, mls_sold_marked: 0,
   sellers_disclosure_received: 0, hoa_docs_provided: 0,
   keys_remotes_collected: 0, sign_lockbox_removed: 0,
-  commission_received: 0, thank_you_gift_sent: 0, referral_followup_30day: 0,
+  commission_received: 0, referral_followup_30day: 0,
 }
 
 // Dropdown options for document/status fields
@@ -1109,83 +1109,78 @@ export default function Transactions() {
           </div>
 
           {/* Listing & Disclosures — first thing after going under contract */}
-          <div className="form-section form-full">
-            <h4>Listing & Disclosures</h4>
-            <label>Dotloop Transaction Status<select value={form.dotloop_status || 'Not Submitted'} onChange={e => f('dotloop_status', e.target.value)}>
-              {DOTLOOP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-            </select></label>
-            <div className="checklist-grid" style={{marginTop: 10}}>
-              {[
-                ['mls_pending_marked', 'MLS Marked Pending'],
-                ['remove_listing_alerts', 'Remove Listing Alerts (Sierra & MLS)'],
-                ['email_contract_closing', 'Email Contract to Closing & Next Steps'],
-                ['ayse_added_to_loop', 'AYSE Added to Loop'],
-                ['ayse_contracts_signed', 'AYSE Contracts Signed'],
-                ['sellers_disclosure_received', 'Seller’s Disclosure (RPDS) Received'],
-                ['hoa_docs_provided', 'HOA Docs Provided (if applicable)'],
-                ['seller_acknowledgment', 'Seller Acknowledgment Signed'],
-              ].map(([key, label]) => (
-                <label key={key} className="checkbox-label">
-                  <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Closing Logistics — schedule + the disclosure / wire prep */}
-          <div className="form-section form-full">
-            <h4>Closing Logistics</h4>
-            <div className="form-row">
-              <label>Closing Time
-                <input value={form.closing_time} onChange={e => f('closing_time', e.target.value)} placeholder="e.g. 10:00 AM CDT" />
+          {/* Each item has a side: 'both' = always shown; 'listing' = listing-side only; 'purchase' = buyer-side only.
+              When transaction.type is unset, we show everything so nothing's accidentally hidden. */}
+          {(() => {
+            const showItem = (it) => it.side === 'both' || !form.type || it.side === form.type
+            const renderChecks = (items) => items.filter(showItem).map(it => (
+              <label key={it.key} className="checkbox-label">
+                <input type="checkbox" checked={!!form[it.key]} onChange={() => check(it.key)} />
+                {it.label}
               </label>
-              <label>Closing Location
-                <input value={form.closing_location} onChange={e => f('closing_location', e.target.value)} placeholder="e.g. Heartland Title – Marion office" />
-              </label>
-            </div>
-            <div className="checklist-grid" style={{marginTop: 10}}>
-              {[
-                ['closing_time_confirmed', 'Closing Time Confirmed'],
-                ['closing_location_confirmed', 'Closing Location Confirmed'],
-                ['closing_attendees_notified', 'Buyer/Seller Notified of When & Where'],
-                ['closing_disclosure_reviewed', 'Closing Disclosure Reviewed (3-day rule)'],
-                ['wire_instructions_sent', 'Wire Instructions Sent (verified by phone)'],
-                ['utilities_set', 'Utilities Set to New Owner'],
-              ].map(([key, label]) => (
-                <label key={key} className="checkbox-label">
-                  <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
+            ))
+            const phase1 = [
+              { key: 'mls_pending_marked',         label: 'MLS Marked Pending',                       side: 'listing' },
+              { key: 'remove_listing_alerts',      label: 'Remove Listing Alerts (Sierra & MLS)',     side: 'listing' },
+              { key: 'email_contract_closing',     label: 'Email Contract to Closing & Next Steps',   side: 'both' },
+              { key: 'ayse_added_to_loop',         label: 'AYSE Added to Loop',                       side: 'both' },
+              { key: 'ayse_contracts_signed',      label: 'AYSE Contracts Signed',                    side: 'both' },
+              { key: 'sellers_disclosure_received',label: 'Seller’s Disclosure (RPDS) Received',     side: 'listing' },
+              { key: 'hoa_docs_provided',          label: 'HOA Docs Provided (if applicable)',        side: 'listing' },
+              { key: 'seller_acknowledgment',      label: 'Seller Acknowledgment Signed',             side: 'listing' },
+            ]
+            const phase2Logistics = [
+              { key: 'closing_time_confirmed',     label: 'Closing Time Confirmed',                   side: 'both' },
+              { key: 'closing_location_confirmed', label: 'Closing Location Confirmed',               side: 'both' },
+              { key: 'closing_attendees_notified', label: 'Buyer/Seller Notified of When & Where',    side: 'both' },
+              { key: 'closing_disclosure_reviewed',label: 'Closing Disclosure Reviewed (3-day rule)', side: 'both' },
+              { key: 'wire_instructions_sent',     label: 'Wire Instructions Sent (verified by phone)', side: 'purchase' },
+              { key: 'utilities_set',              label: 'Utilities Set to New Owner',               side: 'purchase' },
+            ]
+            const phase3 = [
+              { key: 'seller_signed_deed',     label: 'Seller Signed Deed Package',           side: 'listing' },
+              { key: 'keys_remotes_collected', label: 'Keys / Garage Remotes Collected',      side: 'both' },
+              { key: 'sign_lockbox_removed',   label: 'Sign + Lockbox Removed',               side: 'listing' },
+              { key: 'closing_complete',       label: 'Closing Complete',                     side: 'both' },
+              { key: 'mls_sold_marked',        label: 'MLS Marked Sold',                      side: 'listing' },
+              { key: 'sales_worksheet_added',  label: 'Sales Worksheet Added',                side: 'both' },
+              { key: 'submit_loop_review',     label: 'Submit Loop for Review',               side: 'both' },
+              { key: 'approved_commission',    label: 'Approved for Commission',              side: 'both' },
+              { key: 'commission_received',    label: 'Commission Received',                  side: 'both' },
+              { key: 'testimonial_request',    label: 'Testimonial Request Sent',             side: 'both' },
+              { key: 'referral_followup_30day',label: '30-Day Post-Close Follow-Up',          side: 'both' },
+            ]
+            const sideLabel = form.type === 'listing' ? '🏠 LISTING SIDE' : form.type === 'purchase' ? '🎯 PURCHASE SIDE' : 'ALL TASKS (set Type to filter)'
+            return (
+              <>
+                <div className="form-section form-full">
+                  <h4>Listing & Disclosures <span style={{fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8}}>{sideLabel}</span></h4>
+                  <label>Dotloop Transaction Status<select value={form.dotloop_status || 'Not Submitted'} onChange={e => f('dotloop_status', e.target.value)}>
+                    {DOTLOOP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select></label>
+                  <div className="checklist-grid" style={{marginTop: 10}}>{renderChecks(phase1)}</div>
+                </div>
 
-          {/* Day-of & Post-Closing — signing, handoff, follow-up */}
-          <div className="form-section form-full">
-            <h4>Day-of & Post-Closing</h4>
-            <div className="checklist-grid" style={{marginTop: 4}}>
-              {[
-                ['seller_signed_deed', 'Seller Signed Deed Package'],
-                ['keys_remotes_collected', 'Keys / Garage Remotes Collected'],
-                ['sign_lockbox_removed', 'Sign + Lockbox Removed'],
-                ['closing_complete', 'Closing Complete'],
-                ['mls_sold_marked', 'MLS Marked Sold'],
-                ['sales_worksheet_added', 'Sales Worksheet Added'],
-                ['submit_loop_review', 'Submit Loop for Review'],
-                ['approved_commission', 'Approved for Commission'],
-                ['commission_received', 'Commission Received'],
-                ['testimonial_request', 'Testimonial Request Sent'],
-                ['thank_you_gift_sent', 'Thank-You Gift Sent'],
-                ['referral_followup_30day', '30-Day Post-Close Follow-Up'],
-              ].map(([key, label]) => (
-                <label key={key} className="checkbox-label">
-                  <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
+                <div className="form-section form-full">
+                  <h4>Closing Logistics</h4>
+                  <div className="form-row">
+                    <label>Closing Time
+                      <input value={form.closing_time} onChange={e => f('closing_time', e.target.value)} placeholder="e.g. 10:00 AM CDT" />
+                    </label>
+                    <label>Closing Location
+                      <input value={form.closing_location} onChange={e => f('closing_location', e.target.value)} placeholder="e.g. Heartland Title – Marion office" />
+                    </label>
+                  </div>
+                  <div className="checklist-grid" style={{marginTop: 10}}>{renderChecks(phase2Logistics)}</div>
+                </div>
+
+                <div className="form-section form-full">
+                  <h4>Day-of & Post-Closing</h4>
+                  <div className="checklist-grid" style={{marginTop: 4}}>{renderChecks(phase3)}</div>
+                </div>
+              </>
+            )
+          })()}
 
           <div className="form-section form-full">
             <label>Notes<textarea value={form.notes} onChange={e => f('notes', e.target.value)} rows={3} /></label>

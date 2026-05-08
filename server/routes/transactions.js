@@ -45,7 +45,7 @@ const FIELDS = [
   'mls_pending_marked', 'mls_sold_marked',
   'sellers_disclosure_received', 'hoa_docs_provided',
   'keys_remotes_collected', 'sign_lockbox_removed',
-  'commission_received', 'thank_you_gift_sent', 'referral_followup_30day',
+  'commission_received', 'referral_followup_30day',
 ]
 
 router.get('/', (req, res) => {
