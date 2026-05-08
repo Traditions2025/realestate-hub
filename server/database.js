@@ -727,6 +727,9 @@ export async function initDb() {
       ['commission_received', 'INTEGER DEFAULT 0'],
       ['thank_you_gift_sent', 'INTEGER DEFAULT 0'],
       ['referral_followup_30day', 'INTEGER DEFAULT 0'],
+      // 2026-05-08 follow-ups
+      ['buyer_payment_method', 'TEXT'],
+      ['financing_release_followup', 'INTEGER DEFAULT 0'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

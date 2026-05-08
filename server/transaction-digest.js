@@ -192,47 +192,82 @@ function renderTransactionCard(tx) {
     docStatusRow('Deed',             tx.deed_package),
   ].filter(Boolean).join('')
 
-  // Side-aware chip rendering. tx.type is 'listing', 'purchase', or 'both' (dual agency).
-  // 'both' or blank → render every chip (we own both sides of the work).
+  // Side-aware. 'both' or blank → include every item.
   const showSide = (side) => {
     if (!tx.type || tx.type === 'both') return true
     return side === 'both' || side === tx.type
   }
 
-  const chips = (items) => items
-    .filter(it => showSide(it.side))
-    .map(it => checklistChip(it.label, tx[it.field]))
-    .join('')
+  // Phased checklist definition (one source of truth, mirrors the form)
+  const PHASES = [
+    { label: 'Listing & Disclosures', items: [
+      { field: 'mls_pending_marked',          label: 'MLS Marked Pending',                 side: 'listing' },
+      { field: 'remove_listing_alerts',       label: 'Remove Listing Alerts',              side: 'listing' },
+      { field: 'email_contract_closing',      label: 'Email Contract to Closing',          side: 'both' },
+      { field: 'ayse_added_to_loop',          label: 'AYSE Added to Loop',                 side: 'both' },
+      { field: 'ayse_contracts_signed',       label: 'AYSE Contracts Signed',              side: 'both' },
+      { field: 'sellers_disclosure_received', label: 'Seller’s Disclosure (RPDS)',         side: 'listing' },
+      { field: 'hoa_docs_provided',           label: 'HOA Docs Provided',                  side: 'listing' },
+      { field: 'seller_acknowledgment',       label: 'Seller Acknowledgment Signed',       side: 'listing' },
+    ]},
+    { label: 'Closing Logistics', items: [
+      { field: 'closing_time_confirmed',      label: 'Closing Time Confirmed',             side: 'both' },
+      { field: 'closing_location_confirmed',  label: 'Closing Location Confirmed',         side: 'both' },
+      { field: 'closing_attendees_notified',  label: 'Buyer/Seller Notified of When/Where',side: 'both' },
+      { field: 'closing_disclosure_reviewed', label: 'CD Reviewed (3-day rule)',           side: 'both' },
+      { field: 'financing_release_followup',  label: 'Followed Up on Financing Release',   side: 'both' },
+      { field: 'utilities_set',               label: 'Utilities Set to New Owner',         side: 'purchase' },
+    ]},
+    { label: 'Day-of & Post-Closing', items: [
+      { field: 'seller_signed_deed',          label: 'Seller Signed Deed Package',         side: 'listing' },
+      { field: 'keys_remotes_collected',      label: 'Keys / Remotes Collected',           side: 'both' },
+      { field: 'sign_lockbox_removed',        label: 'Sign + Lockbox Removed',             side: 'listing' },
+      { field: 'closing_complete',            label: 'Closing Complete',                   side: 'both' },
+      { field: 'mls_sold_marked',             label: 'MLS Marked Sold',                    side: 'listing' },
+      { field: 'sales_worksheet_added',       label: 'Sales Worksheet Added',              side: 'both' },
+      { field: 'submit_loop_review',          label: 'Submit Loop for Review',             side: 'both' },
+      { field: 'approved_commission',         label: 'Approved for Commission',            side: 'both' },
+      { field: 'commission_received',         label: 'Commission Received',                side: 'both' },
+      { field: 'testimonial_request',         label: 'Testimonial Request Sent',           side: 'both' },
+      { field: 'referral_followup_30day',     label: '30-Day Post-Close Follow-Up',        side: 'both' },
+    ]},
+  ]
 
-  const phase1 = chips([
-    { field: 'mls_pending_marked',          label: 'MLS Pending',     side: 'listing' },
-    { field: 'sellers_disclosure_received', label: 'RPDS',            side: 'listing' },
-    { field: 'hoa_docs_provided',           label: 'HOA Docs',        side: 'listing' },
-    { field: 'ayse_added_to_loop',          label: 'AYSE Loop',       side: 'both' },
-    { field: 'ayse_contracts_signed',       label: 'AYSE Signed',     side: 'both' },
-  ])
-  const phase2 = chips([
-    { field: 'closing_time_confirmed',      label: 'Time Set',        side: 'both' },
-    { field: 'closing_location_confirmed',  label: 'Location Set',    side: 'both' },
-    { field: 'closing_disclosure_reviewed', label: 'CD Reviewed',     side: 'both' },
-    { field: 'wire_instructions_sent',      label: 'Wire Sent',       side: 'purchase' },
-    { field: 'utilities_set',               label: 'Utilities',       side: 'purchase' },
-  ])
-  const phase3 = chips([
-    { field: 'seller_signed_deed',          label: 'Deed Signed',         side: 'listing' },
-    { field: 'keys_remotes_collected',      label: 'Keys',                side: 'both' },
-    { field: 'sign_lockbox_removed',        label: 'Sign Removed',        side: 'listing' },
-    { field: 'mls_sold_marked',             label: 'MLS Sold',            side: 'listing' },
-    { field: 'submit_loop_review',          label: 'Loop Reviewed',       side: 'both' },
-    { field: 'approved_commission',         label: 'Commission Approved', side: 'both' },
-    { field: 'commission_received',         label: 'Commission Received', side: 'both' },
-    { field: 'testimonial_request',         label: 'Testimonial',         side: 'both' },
-  ])
-  const checklist = phase1 + (phase2 ? `<div style="margin-top:4px;">${phase2}</div>` : '') + (phase3 ? `<div style="margin-top:4px;">${phase3}</div>` : '')
+  // Compute completion progress + pending list
+  const allRelevant = PHASES.flatMap(p => p.items.filter(it => showSide(it.side)))
+  const totalCount = allRelevant.length
+  const doneCount = allRelevant.filter(it => tx[it.field]).length
+  const pct = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
+  const progressColor = pct >= 80 ? '#16a34a' : pct >= 50 ? '#ca8a04' : '#dc2626'
 
-  const closingDetails = (tx.closing_time || tx.closing_location)
+  // Build per-phase pending lists (only items NOT yet done — what still needs doing)
+  const pendingHtml = PHASES.map(phase => {
+    const pending = phase.items.filter(it => showSide(it.side) && !tx[it.field])
+    if (!pending.length) return ''
+    const lis = pending.map(it => `<li style="margin:2px 0;color:#374151;">${escapeHtml(it.label)}</li>`).join('')
+    return `<div style="margin-top:6px;">
+      <div style="font-size:11px;font-weight:700;color:#9ca3af;text-transform:uppercase;letter-spacing:0.4px;">${escapeHtml(phase.label)}</div>
+      <ul style="margin:2px 0 0 18px;padding:0;font-size:12px;list-style:disc;">${lis}</ul>
+    </div>`
+  }).filter(Boolean).join('')
+
+  const progressBar = `
+    <div style="margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;font-size:11px;color:#6b7280;margin-bottom:3px;">
+        <span><strong>Checklist:</strong> ${doneCount} / ${totalCount} done (${pct}%)</span>
+        ${pendingHtml ? `<span style="color:${progressColor};font-weight:600;">${totalCount - doneCount} pending</span>` : '<span style="color:#16a34a;font-weight:600;">✓ All complete</span>'}
+      </div>
+      <div style="height:6px;background:#f3f4f6;border-radius:3px;overflow:hidden;">
+        <div style="height:100%;width:${pct}%;background:${progressColor};"></div>
+      </div>
+    </div>`
+
+  const checklist = progressBar + (pendingHtml ? `<div style="margin-top:8px;background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;">${pendingHtml}</div>` : '')
+
+  const closingDetails = (tx.closing_time || tx.closing_location || tx.buyer_payment_method)
     ? `<div style="margin-top:6px;font-size:12px;color:#374151;">
-        <strong>Closing:</strong> ${escapeHtml(tx.closing_time || 'time TBD')}${tx.closing_location ? ' &middot; ' + escapeHtml(tx.closing_location) : ''}
+        ${(tx.closing_time || tx.closing_location) ? `<strong>Closing:</strong> ${escapeHtml(tx.closing_time || 'time TBD')}${tx.closing_location ? ' &middot; ' + escapeHtml(tx.closing_location) : ''}` : ''}
+        ${tx.buyer_payment_method ? `${(tx.closing_time || tx.closing_location) ? ' &middot; ' : ''}<strong>Payment:</strong> ${escapeHtml(tx.buyer_payment_method)}` : ''}
       </div>`
     : ''
 

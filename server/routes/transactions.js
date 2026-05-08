@@ -46,6 +46,7 @@ const FIELDS = [
   'sellers_disclosure_received', 'hoa_docs_provided',
   'keys_remotes_collected', 'sign_lockbox_removed',
   'commission_received', 'referral_followup_30day',
+  'buyer_payment_method', 'financing_release_followup',
 ]
 
 router.get('/', (req, res) => {

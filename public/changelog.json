@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T23:27:10.772Z",
-  "count": 114,
+  "generated_at": "2026-05-08T23:43:22.634Z",
+  "count": 115,
   "entries": [
+    {
+      "hash": "4eae4d0",
+      "date": "2026-05-08T18:27:21-05:00",
+      "subject": "Transactions: 'Both' Type option for dual-agency deals",
+      "title": "Transactions: 'Both' Type option for dual-agency deals",
+      "body": "When the team represents both buyer and seller, set Type = Both.\n- Form: shows every checklist item from both sides (no filtering)\n  with a 🔄 BOTH SIDES (dual agency) badge in the section header\n- Daily digest: same — every chip from both sides renders so neither\n  half of the work falls through; transaction card shows a purple\n  'BOTH SIDES' pill instead of the green LISTING / blue PURCHASE\n- Also fixed digest's side-pill detection: was reading tx.transaction_type\n  (never set), now reads tx.type which is the actual column\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b3a254d",
       "date": "2026-05-08T16:22:40-05:00",

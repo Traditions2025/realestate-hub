@@ -37,6 +37,7 @@ const emptyTx = {
   sellers_disclosure_received: 0, hoa_docs_provided: 0,
   keys_remotes_collected: 0, sign_lockbox_removed: 0,
   commission_received: 0, referral_followup_30day: 0,
+  buyer_payment_method: '', financing_release_followup: 0,
 }
 
 // Dropdown options for document/status fields
@@ -45,6 +46,7 @@ const TITLE_COMMITMENT_OPTIONS = ['Not Started', 'Ordered', 'Received', 'N/A']
 const MORTGAGE_PAYOFF_OPTIONS = ['Not Started', 'Requested', 'Received', 'N/A']
 const ALTA_OPTIONS = ['Not Ready', 'Ready']
 const DEED_PACKAGE_OPTIONS = ['Not Ready', 'Ready', 'Signed']
+const PAYMENT_METHOD_OPTIONS = ['', 'Wire (verified by phone)', 'Check', 'Cashier’s Check', 'Cash', 'Other']
 const DOTLOOP_OPTIONS = ['Not Submitted', 'Needs Review', 'Listing Approved', 'Approved for Commission']
 
 // Parse a date string as a LOCAL date (no UTC drift). Accepts:
@@ -1140,7 +1142,7 @@ export default function Transactions() {
               { key: 'closing_location_confirmed', label: 'Closing Location Confirmed',               side: 'both' },
               { key: 'closing_attendees_notified', label: 'Buyer/Seller Notified of When & Where',    side: 'both' },
               { key: 'closing_disclosure_reviewed',label: 'Closing Disclosure Reviewed (3-day rule)', side: 'both' },
-              { key: 'wire_instructions_sent',     label: 'Wire Instructions Sent (verified by phone)', side: 'purchase' },
+              { key: 'financing_release_followup', label: 'Followed Up on Financing Release',         side: 'both' },
               { key: 'utilities_set',              label: 'Utilities Set to New Owner',               side: 'purchase' },
             ]
             const phase3 = [
@@ -1181,6 +1183,12 @@ export default function Transactions() {
                       <input value={form.closing_location} onChange={e => f('closing_location', e.target.value)} placeholder="e.g. Heartland Title – Marion office" />
                     </label>
                   </div>
+                  <label>Verify How Buyer Is Paying
+                    <select value={form.buyer_payment_method || ''} onChange={e => f('buyer_payment_method', e.target.value)}>
+                      <option value="">— Not Verified —</option>
+                      {PAYMENT_METHOD_OPTIONS.filter(o => o).map(o => <option key={o} value={o}>{o}</option>)}
+                    </select>
+                  </label>
                   <div className="checklist-grid" style={{marginTop: 10}}>{renderChecks(phase2Logistics)}</div>
                 </div>
 
