@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T18:16:24.424Z",
-  "count": 110,
+  "generated_at": "2026-05-08T18:22:30.364Z",
+  "count": 111,
   "entries": [
+    {
+      "hash": "6677ea5",
+      "date": "2026-05-08T13:16:32-05:00",
+      "subject": "Transactions: sort Under Contract column by closing date (soonest first)",
+      "title": "Transactions: sort Under Contract column by closing date (soonest first)",
+      "body": "Within the Under Contract / Pending kanban column, transactions are\nordered by closing_date ascending. Rows without a closing date drop\nto the bottom so the most time-sensitive deals stay at the top.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1f9d79c",
       "date": "2026-05-08T13:11:58-05:00",

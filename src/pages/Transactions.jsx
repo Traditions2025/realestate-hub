@@ -39,12 +39,18 @@ const ALTA_OPTIONS = ['Not Ready', 'Ready']
 const DEED_PACKAGE_OPTIONS = ['Not Ready', 'Ready', 'Signed']
 const DOTLOOP_OPTIONS = ['Not Submitted', 'Needs Review', 'Listing Approved', 'Approved for Commission']
 
-// Parse a YYYY-MM-DD string as a LOCAL date (avoids UTC-vs-local off-by-one bugs)
+// Parse a date string as a LOCAL date (no UTC drift). Accepts:
+//   YYYY-MM-DD                (HTML date input / ISO)
+//   YYYY-MM-DDTHH:MM[:SS]     (ISO datetime)
+//   M/D/YYYY or MM/DD/YYYY    (legacy Google Sheet format)
 function parseLocalDate(s) {
   if (!s) return null
-  const parts = s.split('-').map(Number)
-  if (parts.length !== 3 || parts.some(isNaN)) return null
-  return new Date(parts[0], parts[1] - 1, parts[2])
+  const str = String(s).trim()
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) return new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]))
+  return null
 }
 function formatLocalDate(d) {
   const y = d.getFullYear()
@@ -615,15 +621,16 @@ export default function Transactions() {
           let stageItems = stage === 'Under Contract'
             ? items.filter(i => i.property_status === 'Under Contract' || i.property_status === 'Pending')
             : items.filter(i => i.property_status === stage)
-          // Under Contract: sort by closing date, soonest first; rows w/o a date go to the bottom
+          // Under Contract: sort by closing date, soonest first; rows w/o a date go to the bottom.
+          // parseDate handles both ISO (YYYY-MM-DD) and legacy M/D/YYYY from older Sheet syncs.
           if (stage === 'Under Contract') {
             stageItems = [...stageItems].sort((a, b) => {
-              const da = a.closing_date || ''
-              const db = b.closing_date || ''
+              const da = parseDate(a.closing_date)
+              const db = parseDate(b.closing_date)
               if (!da && !db) return 0
               if (!da) return 1
               if (!db) return -1
-              return da.localeCompare(db)
+              return da.getTime() - db.getTime()
             })
           }
           return (

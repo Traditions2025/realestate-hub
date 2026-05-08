@@ -15,11 +15,15 @@ const ACTIVE_STATUSES = ['Under Contract', 'Pending', 'Clear to Close']
 // Date helpers (timezone-safe local-date math)
 // =====================================================================
 
+// Accepts ISO (YYYY-MM-DD) or legacy Sheet format (M/D/YYYY)
 function parseLocalDate(s) {
   if (!s) return null
-  const m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/)
-  if (!m) return null
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  const str = String(s).trim()
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) return new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]))
+  return null
 }
 
 function formatLocalDate(d) {

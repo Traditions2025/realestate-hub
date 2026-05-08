@@ -370,4 +370,50 @@ router.get('/_meta/ai-status', (_req, res) => {
   res.json({ configured: !!process.env.ANTHROPIC_API_KEY, model: MODEL })
 })
 
+// =====================================================================
+// Date normalization — converts legacy M/D/YYYY date strings (from the
+// original Google Sheet sync) into ISO YYYY-MM-DD across every date
+// column. Idempotent: rows already in ISO are skipped. Status-text values
+// like "Completed and Sent" / "Pending" stay as-is.
+// =====================================================================
+router.post('/normalize-dates', (req, res) => {
+  const dateColumns = [
+    'contract_date', 'closing_date',
+    'mortgage_contingency_date', 'appraisal_contingency_date', 'inspection_contingency_date',
+    'financing_release', 'final_walkthrough', 'inspection_release', 'final_inspection_waiver',
+    'earnest_money_due_date', 'ipi_due_date', 'inspection_date',
+  ]
+  const slashRe = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/
+
+  const txs = db.all('SELECT * FROM transactions')
+  let rowsTouched = 0
+  let cellsConverted = 0
+  const sample = []
+
+  for (const tx of txs) {
+    const updates = {}
+    for (const col of dateColumns) {
+      const v = tx[col]
+      if (!v) continue
+      const m = String(v).trim().match(slashRe)
+      if (!m) continue  // already ISO or status-text — leave alone
+      const iso = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+      updates[col] = iso
+      cellsConverted++
+    }
+    if (Object.keys(updates).length) {
+      const sets = Object.keys(updates).map(k => `${k} = ?`).join(', ')
+      const vals = [...Object.values(updates), tx.id]
+      db.run(`UPDATE transactions SET ${sets}, updated_at = datetime('now') WHERE id = ?`, vals)
+      rowsTouched++
+      if (sample.length < 5) sample.push({ id: tx.id, address: tx.property_address, changes: updates })
+    }
+  }
+
+  logActivity('normalize_dates', 'transaction', 0,
+    `Converted ${cellsConverted} cells across ${rowsTouched} transactions to ISO format`)
+
+  res.json({ rowsTouched, cellsConverted, sample, totalScanned: txs.length })
+})
+
 export default router
