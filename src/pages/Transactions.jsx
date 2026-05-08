@@ -815,7 +815,9 @@ export default function Transactions() {
             <div className="form-row">
               <label>MLS #<input value={form.mls_number} onChange={e => f('mls_number', e.target.value)} /></label>
               <label>Type<select value={form.type} onChange={e => f('type', e.target.value)}>
-                <option value="purchase">Purchase</option><option value="listing">Listing</option>
+                <option value="purchase">Purchase (we represent buyer)</option>
+                <option value="listing">Listing (we represent seller)</option>
+                <option value="both">Both (dual agency / both sides)</option>
               </select></label>
             </div>
             <div className="form-row">
@@ -1112,7 +1114,11 @@ export default function Transactions() {
           {/* Each item has a side: 'both' = always shown; 'listing' = listing-side only; 'purchase' = buyer-side only.
               When transaction.type is unset, we show everything so nothing's accidentally hidden. */}
           {(() => {
-            const showItem = (it) => it.side === 'both' || !form.type || it.side === form.type
+            // 'both' = we represent both sides → must do every task; same when type is unset
+            const showItem = (it) => {
+              if (!form.type || form.type === 'both') return true
+              return it.side === 'both' || it.side === form.type
+            }
             const renderChecks = (items) => items.filter(showItem).map(it => (
               <label key={it.key} className="checkbox-label">
                 <input type="checkbox" checked={!!form[it.key]} onChange={() => check(it.key)} />
@@ -1150,7 +1156,11 @@ export default function Transactions() {
               { key: 'testimonial_request',    label: 'Testimonial Request Sent',             side: 'both' },
               { key: 'referral_followup_30day',label: '30-Day Post-Close Follow-Up',          side: 'both' },
             ]
-            const sideLabel = form.type === 'listing' ? '🏠 LISTING SIDE' : form.type === 'purchase' ? '🎯 PURCHASE SIDE' : 'ALL TASKS (set Type to filter)'
+            const sideLabel =
+              form.type === 'listing'  ? '🏠 LISTING SIDE'
+            : form.type === 'purchase' ? '🎯 PURCHASE SIDE'
+            : form.type === 'both'     ? '🔄 BOTH SIDES (dual agency)'
+            : 'ALL TASKS (set Type to filter)'
             return (
               <>
                 <div className="form-section form-full">

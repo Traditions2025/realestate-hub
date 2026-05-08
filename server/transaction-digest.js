@@ -175,9 +175,12 @@ function renderTransactionCard(tx) {
   const items = buildActionItems(tx)
   const urgent = items.filter(it => SEVERITY[it.class] <= 2)  // overdue/today/urgent
   const headerColor = urgent.length ? '#dc2626' : '#1f2937'
-  const sideLabel = (tx.transaction_type || '').toLowerCase().startsWith('list') ? 'LISTING' : 'PURCHASE'
-  const sidePill  = sideLabel === 'LISTING' ? pill(sideLabel, '#10b981', 'rgba(16,185,129,0.08)')
-                                            : pill(sideLabel, '#3b82f6', 'rgba(59,130,246,0.08)')
+  // Type is 'listing', 'purchase', or 'both' (dual agency)
+  const t = String(tx.type || '').toLowerCase()
+  const sidePill =
+    t === 'both'    ? pill('BOTH SIDES', '#a855f7', 'rgba(168,85,247,0.08)')
+  : t === 'listing' ? pill('LISTING',    '#10b981', 'rgba(16,185,129,0.08)')
+  :                   pill('PURCHASE',   '#3b82f6', 'rgba(59,130,246,0.08)')
 
   const dotloop = tx.dotloop_status ? pill(`Dotloop: ${tx.dotloop_status}`, '#7c3aed', 'rgba(124,58,237,0.08)') : ''
 
@@ -189,8 +192,12 @@ function renderTransactionCard(tx) {
     docStatusRow('Deed',             tx.deed_package),
   ].filter(Boolean).join('')
 
-  // Side-aware chip rendering. tx.type is 'listing' or 'purchase'; if blank, show all.
-  const showSide = (side) => side === 'both' || !tx.type || side === tx.type
+  // Side-aware chip rendering. tx.type is 'listing', 'purchase', or 'both' (dual agency).
+  // 'both' or blank → render every chip (we own both sides of the work).
+  const showSide = (side) => {
+    if (!tx.type || tx.type === 'both') return true
+    return side === 'both' || side === tx.type
+  }
 
   const chips = (items) => items
     .filter(it => showSide(it.side))

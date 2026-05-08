@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T21:22:25.731Z",
-  "count": 113,
+  "generated_at": "2026-05-08T23:27:10.772Z",
+  "count": 114,
   "entries": [
+    {
+      "hash": "b3a254d",
+      "date": "2026-05-08T16:22:40-05:00",
+      "subject": "Transactions: side-aware checklist (listing vs purchase) + drop Thank-You Gift",
+      "title": "Transactions: side-aware checklist (listing vs purchase) + drop Thank-You Gift",
+      "body": "- Each checklist item now has a side: 'both' / 'listing' / 'purchase'.\n  When transaction Type is set, only relevant items render. When Type\n  is blank, all items show so nothing's hidden by accident.\n- Listing-side only:\n    MLS Marked Pending/Sold, Remove Listing Alerts,\n    Seller's Disclosure (RPDS), HOA Docs, Seller Acknowledgment,\n    Seller Signed Deed Package, Sign + Lockbox Removed\n- Purchase-side only:\n    Wire Instructions Sent, Utilities Set to New Owner\n- Both: AYSE, all closing logistics, commission/loop steps, testimonial,\n    keys collected, 30-day follow-up\n- Header tag in 'Listing & Disclosures' shows current side so it's clear\n  what's filtered: 🏠 LISTING SIDE / 🎯 PURCHASE SIDE\n- Daily digest chips apply the same filtering — purchase-side digests\n  don't get listing-only chips and vice versa.\n- Removed Thank-You Gift Sent (UI + FIELDS allowlist; column stays in\n  DB so existing data isn't dropped).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b2eee71",
       "date": "2026-05-08T16:14:18-05:00",
