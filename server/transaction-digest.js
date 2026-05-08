@@ -92,33 +92,77 @@ const LABEL = {
   normal:  '',
 }
 
-// Build the list of "action items" for a transaction — date-driven things to track.
+// Status dropdowns are the PRIMARY signal of done-ness. Dates are timing context.
+// If a status is in the terminal set below, the item is considered done and is
+// dropped from the action list regardless of the date.
+const TERMINAL_STATUSES = {
+  earnest_money_deposit:        ['Completed'],
+  home_inspection:              ['Completed', 'Waived', 'N/A', 'Not Applicable'],
+  appraisal_contingency_status: ['Completed', 'Waived', 'N/A', 'Not Applicable'],
+  abstract:                     ['Received', 'N/A'],
+  title_commitment:             ['Received', 'N/A'],
+  mortgage_payoff:              ['Received', 'N/A'],
+  alta_statement:               ['Ready'],
+  deed_package:                 ['Signed'],
+  financing_release:            ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'],
+  inspection_release:           ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'],
+  final_inspection_waiver:      ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'],
+}
+
+function isTerminal(statusField, value) {
+  if (!value) return false
+  const list = TERMINAL_STATUSES[statusField]
+  return !!(list && list.includes(value))
+}
+
+// Build the list of "action items" for a transaction.
+// An item is included when:
+//   - the status dropdown is set but NOT in a terminal state (still pending), OR
+//   - a target date exists (even without status)
+// An item is skipped when the status is terminal (Completed, Received, Ready, etc).
 function buildActionItems(tx) {
   const today = todayLocal()
   const items = []
 
   const push = (label, dateStr, statusField) => {
+    const statusValue = statusField ? tx[statusField] : null
+    if (statusField && isTerminal(statusField, statusValue)) return  // primary: status says done
+
     const d = parseLocalDate(dateStr)
-    if (!d) return
-    const out = daysBetween(today, d)
-    const cls = classify(out)
+    const hasDate = !!d
+    const hasPendingStatus = !!statusValue && !isTerminal(statusField, statusValue)
+    if (!hasDate && !hasPendingStatus) return  // nothing to surface
+
+    const out = hasDate ? daysBetween(today, d) : null
     items.push({
       label,
       date: dateStr,
       daysOut: out,
-      class: cls,
-      status: statusField ? tx[statusField] : null,
+      // No date but pending status → flag as 'urgent' so it bubbles above 'normal' date rows
+      class: hasDate ? classify(out) : 'urgent',
+      status: statusValue,
+      noDate: !hasDate,
     })
   }
 
-  push('Earnest money due',          tx.earnest_money_due_date,    'earnest_money_deposit')
-  push('IPI due',                    tx.ipi_due_date)
-  push('Inspection deadline',        tx.inspection_contingency_date, 'home_inspection')
-  push('Appraisal contingency',      tx.appraisal_contingency_date,  'appraisal_contingency_status')
-  push('Mortgage contingency',       tx.mortgage_contingency_date)
-  push('Financing release',          tx.financing_release)
-  push('Final walkthrough',          tx.final_walkthrough)
-  push('Closing',                    tx.closing_date)
+  // Date-driven items (status used as secondary signal)
+  push('Earnest money',         tx.earnest_money_due_date,      'earnest_money_deposit')
+  push('IPI',                   tx.ipi_due_date)
+  push('Inspection',            tx.inspection_contingency_date, 'home_inspection')
+  push('Appraisal',             tx.appraisal_contingency_date,  'appraisal_contingency_status')
+  push('Mortgage contingency',  tx.mortgage_contingency_date)
+  push('Financing release',     null,                           'financing_release')
+  push('Inspection release',    null,                           'inspection_release')
+  push('Final inspection waiver', null,                         'final_inspection_waiver')
+  push('Final walkthrough',     tx.final_walkthrough)
+  push('Closing',               tx.closing_date)
+
+  // Document statuses (status-only, no associated date column)
+  push('Abstract',          null, 'abstract')
+  push('Title commitment',  null, 'title_commitment')
+  push('Mortgage payoff',   null, 'mortgage_payoff')
+  push('ALTA',              null, 'alta_statement')
+  push('Deed',              null, 'deed_package')
 
   return items.sort((a, b) => {
     const sa = SEVERITY[a.class] ?? 9
@@ -145,11 +189,18 @@ function pill(label, color, bg) {
 function dateRow(it) {
   const c = COLORS[it.class] || COLORS.normal
   const tag = LABEL[it.class] ? `<span style="font-weight:700;color:${c};margin-right:6px;">${LABEL[it.class]}</span>` : ''
+  const stat = it.status ? ` &middot; <span style="color:#6b7280;">${escapeHtml(it.status)}</span>` : ''
+  // Status-only row (no date set yet) — surface so it doesn't get forgotten
+  if (it.noDate) {
+    return `<tr>
+      <td style="padding:4px 12px 4px 0;color:#374151;font-size:13px;white-space:nowrap;">${escapeHtml(it.label)}</td>
+      <td style="padding:4px 0;color:${c};font-size:13px;font-weight:500;">${tag}<em style="color:#9ca3af;">no date set</em>${stat}</td>
+    </tr>`
+  }
   const days = it.daysOut == null ? '' :
     it.daysOut === 0 ? ' (today)' :
     it.daysOut < 0   ? ` (${Math.abs(it.daysOut)}d ago)` :
                        ` (in ${it.daysOut}d)`
-  const stat = it.status ? ` &middot; <span style="color:#6b7280;">${escapeHtml(it.status)}</span>` : ''
   return `<tr>
     <td style="padding:4px 12px 4px 0;color:#374151;font-size:13px;white-space:nowrap;">${escapeHtml(it.label)}</td>
     <td style="padding:4px 0;color:${c};font-size:13px;font-weight:500;">${tag}${escapeHtml(fmtDate(it.date))}${days}${stat}</td>
@@ -288,7 +339,7 @@ function renderTransactionCard(tx) {
       ${seller ? `<strong>Seller:</strong> ${escapeHtml(seller)}` : ''}
       ${lender ? ` &middot; <strong>Lender:</strong> ${escapeHtml(lender)}` : ''}
     </div>
-    ${items.length ? `<table style="border-collapse:collapse;width:100%;margin-bottom:6px;"><tbody>${items.map(dateRow).join('')}</tbody></table>` : '<div style="color:#9ca3af;font-size:12px;">No dates set on this transaction.</div>'}
+    ${items.length ? `<table style="border-collapse:collapse;width:100%;margin-bottom:6px;"><tbody>${items.map(dateRow).join('')}</tbody></table>` : '<div style="color:#9ca3af;font-size:12px;">No outstanding action items — all statuses complete.</div>'}
     ${closingDetails}
     ${docs ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;">${docs}</div>` : ''}
     ${checklist ? `<div style="margin-top:6px;">${checklist}</div>` : ''}
@@ -351,11 +402,15 @@ export function buildDigest(period = 'morning') {
   if (allActions.length) {
     const rows = allActions.slice(0, 50).map(({ tx, item }) => {
       const c = COLORS[item.class]
+      // No date → show status (or em-dash); with date → show formatted date
+      const detail = item.noDate
+        ? (item.status ? escapeHtml(item.status) : '<em>no date</em>')
+        : escapeHtml(fmtDate(item.date))
       return `<tr>
         <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:${c};font-weight:700;white-space:nowrap;">${LABEL[item.class] || ''}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:13px;color:#1f2937;">${escapeHtml(tx.property_address || '—')}</td>
         <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#374151;">${escapeHtml(item.label)}</td>
-        <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6b7280;white-space:nowrap;">${escapeHtml(fmtDate(item.date))}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #f3f4f6;font-size:12px;color:#6b7280;white-space:nowrap;">${detail}</td>
       </tr>`
     }).join('')
     actionsBlock = `
