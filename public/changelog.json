@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T15:52:52.149Z",
-  "count": 108,
+  "generated_at": "2026-05-08T18:10:20.547Z",
+  "count": 109,
   "entries": [
+    {
+      "hash": "3cba515",
+      "date": "2026-05-08T10:53:18-05:00",
+      "subject": "TC daily digest: 9 AM + 1 PM CT email of all active transactions",
+      "title": "TC daily digest: 9 AM + 1 PM CT email of all active transactions",
+      "body": "Server-side scheduling (runs on Render so it works regardless of any\nlaptop being on). Idempotent via digest_log unique(date, period).\n\nPulls every transaction in 'Under Contract' / 'Pending' / 'Clear to Close'\nand emails a per-transaction status card showing:\n  - Earnest money / IPI due dates with status\n  - Inspection / Mortgage / Appraisal / Financing release deadlines\n  - Final walkthrough + closing dates with days-out classification\n  - Document statuses (Abstract, Title, Mortgage Payoff, ALTA, Deed)\n  - Dotloop status, lender, parties, notes\n\nTop of email is an Action Items table sorted by severity:\n  OVERDUE → TODAY → URGENT (≤3d) → WATCH (≤7d)\n\nNew endpoints:\n  GET  /api/email/tc-digest/preview?period=morning|afternoon  (HTML)\n  GET  /api/email/tc-digest/preview?format=json               (JSON)\n  POST /api/email/tc-digest/send  body { period, force }\n  GET  /api/email/tc-digest/log                               (history)\n\nRecipients: johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com\n(override via TC_DIGEST_RECIPIENTS env var on Render).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3b7edea",
       "date": "2026-05-08T10:10:39-05:00",

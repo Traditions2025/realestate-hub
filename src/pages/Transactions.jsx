@@ -53,6 +53,18 @@ function formatLocalDate(d) {
   return `${y}-${m}-${day}`
 }
 
+// Mortgage / Appraisal contingency — 30 calendar days after contract date.
+// If that date lands on a weekend, roll BACK to the prior Friday.
+function calcContingencyDate(contractDate, days = 30) {
+  const d = parseLocalDate(contractDate)
+  if (!d) return ''
+  d.setDate(d.getDate() + days)
+  while (d.getDay() === 0 || d.getDay() === 6) {
+    d.setDate(d.getDate() - 1)
+  }
+  return formatLocalDate(d)
+}
+
 // Earnest money due — 3 business days after contract date (skip weekends)
 function calcEarnestDue(contractDate) {
   const d = parseLocalDate(contractDate)
@@ -887,7 +899,13 @@ export default function Transactions() {
           <div className="form-section">
             <h4>Pricing</h4>
             <label>Purchase Price<input type="number" value={form.purchase_price} onChange={e => f('purchase_price', e.target.value)} /></label>
-            <label>Earnest Money Amount<input value={form.earnest_money_deposit} onChange={e => f('earnest_money_deposit', e.target.value)} placeholder="e.g. $5,000" /></label>
+            <label>Earnest Money Status
+              <select value={form.earnest_money_deposit || 'Not Started'} onChange={e => f('earnest_money_deposit', e.target.value)}>
+                <option>Not Started</option>
+                <option>In Progress</option>
+                <option>Completed</option>
+              </select>
+            </label>
           </div>
 
           {/* Key Dates */}
@@ -902,13 +920,20 @@ export default function Transactions() {
                     const v = e.target.value
                     setForm(prev => {
                       const next = { ...prev, contract_date: v }
-                      if (v && !prev.earnest_money_due_date) {
-                        next.earnest_money_due_date = calcEarnestDue(v)
+                      if (v) {
+                        if (!prev.earnest_money_due_date) {
+                          next.earnest_money_due_date = calcEarnestDue(v)
+                        }
+                        // Mortgage + Appraisal contingency = 30 calendar days after contract,
+                        // rolled back to the prior Friday if it lands on a weekend.
+                        const cont30 = calcContingencyDate(v, 30)
+                        if (!prev.mortgage_contingency_date) next.mortgage_contingency_date = cont30
+                        if (!prev.appraisal_contingency_date) next.appraisal_contingency_date = cont30
                       }
                       return next
                     })
                   }}
-                  title="Auto-fills Earnest Money Due (3 business days later) when blank"
+                  title="Auto-fills Earnest Money Due (3 biz days), Mortgage + Appraisal Contingency (30 days, no weekends) when blank"
                 />
               </label>
               <label>Closing Date
