@@ -207,8 +207,6 @@ function renderTransactionCard(tx) {
       { field: 'ayse_added_to_loop',          label: 'AYSE Added to Loop',                 side: 'both' },
       { field: 'ayse_contracts_signed',       label: 'AYSE Contracts Signed',              side: 'both' },
       { field: 'sellers_disclosure_received', label: 'Seller’s Disclosure (RPDS)',         side: 'listing' },
-      { field: 'hoa_docs_provided',           label: 'HOA Docs Provided',                  side: 'listing' },
-      { field: 'seller_acknowledgment',       label: 'Seller Acknowledgment Signed',       side: 'listing' },
     ]},
     { label: 'Closing Logistics', items: [
       { field: 'closing_time_confirmed',      label: 'Closing Time Confirmed',             side: 'both' },

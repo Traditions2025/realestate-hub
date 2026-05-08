@@ -1134,8 +1134,6 @@ export default function Transactions() {
               { key: 'ayse_added_to_loop',         label: 'AYSE Added to Loop',                       side: 'both' },
               { key: 'ayse_contracts_signed',      label: 'AYSE Contracts Signed',                    side: 'both' },
               { key: 'sellers_disclosure_received',label: 'Seller’s Disclosure (RPDS) Received',     side: 'listing' },
-              { key: 'hoa_docs_provided',          label: 'HOA Docs Provided (if applicable)',        side: 'listing' },
-              { key: 'seller_acknowledgment',      label: 'Seller Acknowledgment Signed',             side: 'listing' },
             ]
             const phase2Logistics = [
               { key: 'closing_time_confirmed',     label: 'Closing Time Confirmed',                   side: 'both' },

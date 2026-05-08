@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T23:43:22.634Z",
-  "count": 115,
+  "generated_at": "2026-05-08T23:47:19.451Z",
+  "count": 116,
   "entries": [
+    {
+      "hash": "66cc35a",
+      "date": "2026-05-08T18:43:36-05:00",
+      "subject": "Transactions: payment method dropdown + financing follow-up + pending-only digest",
+      "title": "Transactions: payment method dropdown + financing follow-up + pending-only digest",
+      "body": "Form changes:\n- Closing Logistics: 'Verify How Buyer Is Paying' dropdown replaces the\n  Wire Instructions checkbox. Options: Wire (verified by phone), Check,\n  Cashier's Check, Cash, Other. Selecting any value implies verification.\n- New 'Followed Up on Financing Release' checkbox in Closing Logistics\n\nDigest changes:\n- Per-transaction card now shows a progress bar (X/Y done, color-coded\n  red <50% / amber <80% / green ≥80%) instead of a sea of green/gray chips\n- Below the bar: ONLY the pending items grouped by phase, in a yellow\n  callout box — so 'what still needs doing' is the focus\n- 'All complete' badge when nothing's pending\n- Closing line now also shows buyer payment method when set\n- Progress count + pending list respect the side filter (purchase / listing\n  / both / blank-shows-all)\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4eae4d0",
       "date": "2026-05-08T18:27:21-05:00",
