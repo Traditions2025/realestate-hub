@@ -189,12 +189,39 @@ function renderTransactionCard(tx) {
     docStatusRow('Deed',             tx.deed_package),
   ].filter(Boolean).join('')
 
-  const checklist = [
-    checklistChip('Utilities Set', tx.utilities_set),
-    checklistChip('Sales Worksheet', tx.sales_worksheet_added),
+  // Listing & Disclosures phase
+  const phase1 = [
+    checklistChip('MLS Pending', tx.mls_pending_marked),
+    checklistChip('RPDS', tx.sellers_disclosure_received),
+    checklistChip('AYSE Loop', tx.ayse_added_to_loop),
+    checklistChip('AYSE Signed', tx.ayse_contracts_signed),
+  ].join('')
+  // Closing Logistics phase
+  const phase2 = [
+    checklistChip('Time Set', tx.closing_time_confirmed),
+    checklistChip('Location Set', tx.closing_location_confirmed),
+    checklistChip('CD Reviewed', tx.closing_disclosure_reviewed),
+    checklistChip('Wire Sent', tx.wire_instructions_sent),
+    checklistChip('Utilities', tx.utilities_set),
+  ].join('')
+  // Day-of & Post-Closing phase
+  const phase3 = [
+    checklistChip('Deed Signed', tx.seller_signed_deed),
+    checklistChip('Keys', tx.keys_remotes_collected),
+    checklistChip('Sign Removed', tx.sign_lockbox_removed),
+    checklistChip('MLS Sold', tx.mls_sold_marked),
     checklistChip('Loop Reviewed', tx.submit_loop_review),
     checklistChip('Commission Approved', tx.approved_commission),
+    checklistChip('Commission Received', tx.commission_received),
+    checklistChip('Testimonial', tx.testimonial_request),
   ].join('')
+  const checklist = phase1 + (phase2 ? `<div style="margin-top:4px;">${phase2}</div>` : '') + (phase3 ? `<div style="margin-top:4px;">${phase3}</div>` : '')
+
+  const closingDetails = (tx.closing_time || tx.closing_location)
+    ? `<div style="margin-top:6px;font-size:12px;color:#374151;">
+        <strong>Closing:</strong> ${escapeHtml(tx.closing_time || 'time TBD')}${tx.closing_location ? ' &middot; ' + escapeHtml(tx.closing_location) : ''}
+      </div>`
+    : ''
 
   const buyer  = tx.buyer_name  || (tx.transaction_type === 'purchase' ? '—' : '')
   const seller = tx.seller_name || ''
@@ -216,6 +243,7 @@ function renderTransactionCard(tx) {
       ${lender ? ` &middot; <strong>Lender:</strong> ${escapeHtml(lender)}` : ''}
     </div>
     ${items.length ? `<table style="border-collapse:collapse;width:100%;margin-bottom:6px;"><tbody>${items.map(dateRow).join('')}</tbody></table>` : '<div style="color:#9ca3af;font-size:12px;">No dates set on this transaction.</div>'}
+    ${closingDetails}
     ${docs ? `<div style="margin-top:8px;padding-top:8px;border-top:1px dashed #e5e7eb;">${docs}</div>` : ''}
     ${checklist ? `<div style="margin-top:6px;">${checklist}</div>` : ''}
     ${tx.notes ? `<div style="margin-top:8px;font-size:12px;color:#4b5563;background:#fafafa;padding:8px 10px;border-radius:6px;border-left:3px solid #d1d5db;"><strong>Notes:</strong> ${escapeHtml(tx.notes)}</div>` : ''}

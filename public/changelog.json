@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-08T18:22:30.364Z",
-  "count": 111,
+  "generated_at": "2026-05-08T21:13:58.071Z",
+  "count": 112,
   "entries": [
+    {
+      "hash": "f5e6688",
+      "date": "2026-05-08T13:22:41-05:00",
+      "subject": "Transactions: accept legacy M/D/YYYY date format + one-time normalizer",
+      "title": "Transactions: accept legacy M/D/YYYY date format + one-time normalizer",
+      "body": "The original Google Sheet sync stored dates as M/D/YYYY strings.\nHTML date inputs and the new digest expect YYYY-MM-DD. That mismatch\ncaused dates like '5/15/2026' to be treated as missing — sort dropped\nthem to the bottom of Under Contract, and the daily digest skipped\ntheir action items.\n\n- Frontend parseLocalDate now accepts both YYYY-MM-DD and M/D/YYYY\n- Server digest parseLocalDate same\n- Kanban Under Contract sort uses parseDate (format-tolerant)\n- New endpoint POST /api/transactions/normalize-dates: idempotent\n  one-time migration that rewrites M/D/YYYY → ISO across every date\n  column, leaving status-text values (e.g. \"Completed and Sent\")\n  untouched\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6677ea5",
       "date": "2026-05-08T13:16:32-05:00",

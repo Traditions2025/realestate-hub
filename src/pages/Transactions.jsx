@@ -28,7 +28,15 @@ const emptyTx = {
   title_commitment: 'Not Started', mortgage_payoff: 'Not Started',
   alta_statement: 'Not Ready', deed_package: 'Not Ready',
   utilities_set: 0, sales_worksheet_added: 0, submit_loop_review: 0, approved_commission: 0,
-  closing_complete: 0, testimonial_request: 0, client_id: '', tc_assigned: '', notes: ''
+  closing_complete: 0, testimonial_request: 0, client_id: '', tc_assigned: '', notes: '',
+  // Expanded under-contract checklist
+  closing_time: '', closing_location: '',
+  closing_time_confirmed: 0, closing_location_confirmed: 0, closing_attendees_notified: 0,
+  closing_disclosure_reviewed: 0, wire_instructions_sent: 0, seller_signed_deed: 0,
+  mls_pending_marked: 0, mls_sold_marked: 0,
+  sellers_disclosure_received: 0, hoa_docs_provided: 0,
+  keys_remotes_collected: 0, sign_lockbox_removed: 0,
+  commission_received: 0, thank_you_gift_sent: 0, referral_followup_30day: 0,
 }
 
 // Dropdown options for document/status fields
@@ -1100,24 +1108,76 @@ export default function Transactions() {
             </div>
           </div>
 
-          {/* Closing & Loop */}
+          {/* Listing & Disclosures — first thing after going under contract */}
           <div className="form-section form-full">
-            <h4>Closing & Loop</h4>
+            <h4>Listing & Disclosures</h4>
             <label>Dotloop Transaction Status<select value={form.dotloop_status || 'Not Submitted'} onChange={e => f('dotloop_status', e.target.value)}>
               {DOTLOOP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
             </select></label>
             <div className="checklist-grid" style={{marginTop: 10}}>
               {[
+                ['mls_pending_marked', 'MLS Marked Pending'],
                 ['remove_listing_alerts', 'Remove Listing Alerts (Sierra & MLS)'],
                 ['email_contract_closing', 'Email Contract to Closing & Next Steps'],
                 ['ayse_added_to_loop', 'AYSE Added to Loop'],
                 ['ayse_contracts_signed', 'AYSE Contracts Signed'],
+                ['sellers_disclosure_received', 'Seller’s Disclosure (RPDS) Received'],
+                ['hoa_docs_provided', 'HOA Docs Provided (if applicable)'],
+                ['seller_acknowledgment', 'Seller Acknowledgment Signed'],
+              ].map(([key, label]) => (
+                <label key={key} className="checkbox-label">
+                  <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Closing Logistics — schedule + the disclosure / wire prep */}
+          <div className="form-section form-full">
+            <h4>Closing Logistics</h4>
+            <div className="form-row">
+              <label>Closing Time
+                <input value={form.closing_time} onChange={e => f('closing_time', e.target.value)} placeholder="e.g. 10:00 AM CDT" />
+              </label>
+              <label>Closing Location
+                <input value={form.closing_location} onChange={e => f('closing_location', e.target.value)} placeholder="e.g. Heartland Title – Marion office" />
+              </label>
+            </div>
+            <div className="checklist-grid" style={{marginTop: 10}}>
+              {[
+                ['closing_time_confirmed', 'Closing Time Confirmed'],
+                ['closing_location_confirmed', 'Closing Location Confirmed'],
+                ['closing_attendees_notified', 'Buyer/Seller Notified of When & Where'],
+                ['closing_disclosure_reviewed', 'Closing Disclosure Reviewed (3-day rule)'],
+                ['wire_instructions_sent', 'Wire Instructions Sent (verified by phone)'],
                 ['utilities_set', 'Utilities Set to New Owner'],
+              ].map(([key, label]) => (
+                <label key={key} className="checkbox-label">
+                  <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* Day-of & Post-Closing — signing, handoff, follow-up */}
+          <div className="form-section form-full">
+            <h4>Day-of & Post-Closing</h4>
+            <div className="checklist-grid" style={{marginTop: 4}}>
+              {[
+                ['seller_signed_deed', 'Seller Signed Deed Package'],
+                ['keys_remotes_collected', 'Keys / Garage Remotes Collected'],
+                ['sign_lockbox_removed', 'Sign + Lockbox Removed'],
+                ['closing_complete', 'Closing Complete'],
+                ['mls_sold_marked', 'MLS Marked Sold'],
                 ['sales_worksheet_added', 'Sales Worksheet Added'],
                 ['submit_loop_review', 'Submit Loop for Review'],
                 ['approved_commission', 'Approved for Commission'],
-                ['closing_complete', 'Closing Complete'],
+                ['commission_received', 'Commission Received'],
                 ['testimonial_request', 'Testimonial Request Sent'],
+                ['thank_you_gift_sent', 'Thank-You Gift Sent'],
+                ['referral_followup_30day', '30-Day Post-Close Follow-Up'],
               ].map(([key, label]) => (
                 <label key={key} className="checkbox-label">
                   <input type="checkbox" checked={!!form[key]} onChange={() => check(key)} />

@@ -709,6 +709,24 @@ export async function initDb() {
       ['dotloop_status', "TEXT DEFAULT 'Not Submitted'"],
       ['has_insurance_contingency', 'INTEGER DEFAULT 1'],
       ['has_home_warranty', 'INTEGER DEFAULT 1'],
+      // Expanded under-contract checklist (added 2026-05-08)
+      ['closing_time', 'TEXT'],
+      ['closing_location', 'TEXT'],
+      ['closing_time_confirmed', 'INTEGER DEFAULT 0'],
+      ['closing_location_confirmed', 'INTEGER DEFAULT 0'],
+      ['closing_attendees_notified', 'INTEGER DEFAULT 0'],
+      ['closing_disclosure_reviewed', 'INTEGER DEFAULT 0'],
+      ['wire_instructions_sent', 'INTEGER DEFAULT 0'],
+      ['seller_signed_deed', 'INTEGER DEFAULT 0'],
+      ['mls_pending_marked', 'INTEGER DEFAULT 0'],
+      ['mls_sold_marked', 'INTEGER DEFAULT 0'],
+      ['sellers_disclosure_received', 'INTEGER DEFAULT 0'],
+      ['hoa_docs_provided', 'INTEGER DEFAULT 0'],
+      ['keys_remotes_collected', 'INTEGER DEFAULT 0'],
+      ['sign_lockbox_removed', 'INTEGER DEFAULT 0'],
+      ['commission_received', 'INTEGER DEFAULT 0'],
+      ['thank_you_gift_sent', 'INTEGER DEFAULT 0'],
+      ['referral_followup_30day', 'INTEGER DEFAULT 0'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

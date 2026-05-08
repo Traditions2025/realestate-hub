@@ -37,7 +37,15 @@ const FIELDS = [
   'septic_inspection', 'well_inspection', 'sewer_inspection', 'seller_acknowledgment',
   'abstract', 'title_commitment', 'mortgage_payoff', 'alta_statement', 'deed_package',
   'utilities_set', 'sales_worksheet_added', 'submit_loop_review', 'approved_commission',
-  'closing_complete', 'testimonial_request', 'client_id', 'tc_assigned', 'notes'
+  'closing_complete', 'testimonial_request', 'client_id', 'tc_assigned', 'notes',
+  // Expanded under-contract checklist
+  'closing_time', 'closing_location',
+  'closing_time_confirmed', 'closing_location_confirmed', 'closing_attendees_notified',
+  'closing_disclosure_reviewed', 'wire_instructions_sent', 'seller_signed_deed',
+  'mls_pending_marked', 'mls_sold_marked',
+  'sellers_disclosure_received', 'hoa_docs_provided',
+  'keys_remotes_collected', 'sign_lockbox_removed',
+  'commission_received', 'thank_you_gift_sent', 'referral_followup_30day',
 ]
 
 router.get('/', (req, res) => {
