@@ -123,6 +123,65 @@ function syncListingFromTransaction(txId) {
   return null
 }
 
+// Auto-sync a transaction's closing into the hub's calendar. Creates a
+// 'Closing' event when closing_date is set; updates when fields change;
+// deletes when the transaction is closed/cancelled or the date is cleared.
+// Linked via related_type='transaction', related_id=tx.id.
+function syncClosingToCalendar(txId) {
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+  if (!tx) return null
+
+  const existing = db.get(
+    "SELECT id FROM calendar_events WHERE related_type = 'transaction' AND related_id = ? AND event_type = 'Closing'",
+    [tx.id])
+
+  // Removal conditions: terminal status or no date → drop the calendar event
+  const terminalStatuses = ['Closed', 'Cancelled', 'Withdrawn', 'Expired', 'Terminated Sale Contract']
+  const isTerminal = terminalStatuses.includes(tx.property_status)
+  if (!tx.closing_date || isTerminal) {
+    if (existing) {
+      db.run('DELETE FROM calendar_events WHERE id = ?', [existing.id])
+      logActivity('removed', 'calendar_event', existing.id, `Closing event removed (${tx.property_address})`)
+    }
+    return null
+  }
+
+  // Normalize date to YYYY-MM-DD if it came in as M/D/YYYY (legacy)
+  let event_date = tx.closing_date
+  const m = String(tx.closing_date).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) event_date = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+
+  const title = `Closing — ${tx.property_address || 'Property'}`
+  const location = tx.closing_location || null
+  const start_time = tx.closing_time || null
+  const partiesLine = [tx.buyer_name && `Buyer: ${tx.buyer_name}`, tx.seller_name && `Seller: ${tx.seller_name}`]
+    .filter(Boolean).join(' · ')
+  const lenderLine = [tx.lender_name, tx.lender_company].filter(Boolean).join(' / ')
+  const description = [
+    partiesLine,
+    lenderLine ? `Lender: ${lenderLine}` : '',
+    tx.purchase_price ? `Price: $${Number(tx.purchase_price).toLocaleString()}` : '',
+  ].filter(Boolean).join('\n')
+
+  if (existing) {
+    db.run(`UPDATE calendar_events SET
+      title=?, event_date=?, start_time=?, location=?, description=?,
+      updated_at=datetime('now')
+      WHERE id=?`,
+      [title, event_date, start_time, location, description, existing.id])
+    return existing.id
+  } else {
+    const result = db.run(`INSERT INTO calendar_events (
+      title, event_type, event_date, start_time, location, description,
+      related_type, related_id, color
+    ) VALUES (?, 'Closing', ?, ?, ?, ?, 'transaction', ?, 'green')`,
+      [title, event_date, start_time, location, description, tx.id])
+    logActivity('created', 'calendar_event', result.lastInsertRowid,
+      `Closing event auto-added: ${tx.property_address} ${event_date}${start_time ? ' '+start_time : ''}`)
+    return result.lastInsertRowid
+  }
+}
+
 router.post('/', (req, res) => {
   const b = req.body
   const placeholders = FIELDS.map(() => '?').join(',')
@@ -132,6 +191,8 @@ router.post('/', (req, res) => {
   logActivity('created', 'transaction', result.lastInsertRowid, `New ${b.type}: ${b.property_address}`)
   // Auto-sync into Listings tab if this is a listing-type transaction
   syncListingFromTransaction(result.lastInsertRowid)
+  // Auto-sync closing into the hub calendar
+  syncClosingToCalendar(result.lastInsertRowid)
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
@@ -146,6 +207,8 @@ router.put('/:id', (req, res) => {
   logActivity('updated', 'transaction', Number(req.params.id), 'Updated transaction')
   // Mirror the change into Listings tab (creates or updates the linked listing)
   syncListingFromTransaction(Number(req.params.id))
+  // Sync/update closing event in calendar (handles add, update, AND removal on terminal status)
+  syncClosingToCalendar(Number(req.params.id))
   res.json({ success: true })
 })
 
@@ -423,6 +486,163 @@ router.post('/normalize-dates', (req, res) => {
     `Converted ${cellsConverted} cells across ${rowsTouched} transactions to ISO format`)
 
   res.json({ rowsTouched, cellsConverted, sample, totalScanned: txs.length })
+})
+
+// =====================================================================
+// Closing invite — emails an iCalendar (.ics) attachment to chosen
+// recipients. They can add it to Google / Outlook / Apple calendar.
+// Body: { recipients: ['email1', 'email2', ...], message?: 'optional note' }
+// Returns 400 if the transaction lacks date/time/location.
+// =====================================================================
+
+function escapeIcs(s) {
+  return String(s == null ? '' : s)
+    .replace(/\\/g, '\\\\')
+    .replace(/,/g, '\\,')
+    .replace(/;/g, '\\;')
+    .replace(/\n/g, '\\n')
+}
+
+function buildIcs({ uid, title, dtStartUtc, dtEndUtc, location, description, organizerEmail, organizerName, attendees }) {
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Matt Smith Team//Hub Closing Invite//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:REQUEST',
+    'BEGIN:VEVENT',
+    `UID:${uid}`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g,'').split('.')[0]}Z`,
+    `DTSTART:${dtStartUtc}`,
+    `DTEND:${dtEndUtc}`,
+    `SUMMARY:${escapeIcs(title)}`,
+    `LOCATION:${escapeIcs(location)}`,
+    `DESCRIPTION:${escapeIcs(description)}`,
+    `ORGANIZER;CN=${escapeIcs(organizerName)}:mailto:${organizerEmail}`,
+    ...(attendees || []).map(a =>
+      `ATTENDEE;RSVP=TRUE;CN=${escapeIcs(a)};PARTSTAT=NEEDS-ACTION:mailto:${a}`),
+    'STATUS:CONFIRMED',
+    'TRANSP:OPAQUE',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ]
+  return lines.join('\r\n')
+}
+
+// Convert "10:00 AM CDT" / "10:00 AM" / "14:00" + a YYYY-MM-DD date into a UTC ICS timestamp.
+// Defaults to 10:00 AM America/Chicago if no time is parseable.
+function buildClosingTimes(eventDate, timeStr) {
+  // Parse the date as local Chicago date; default to 10am if no time
+  const dateM = String(eventDate || '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!dateM) return null
+  const [, y, mo, d] = dateM
+  let hour = 10
+  let minute = 0
+  const tm = String(timeStr || '').match(/(\d{1,2})\s*:?\s*(\d{2})?\s*(am|pm)?/i)
+  if (tm) {
+    hour = Number(tm[1])
+    minute = Number(tm[2] || 0)
+    const ampm = (tm[3] || '').toLowerCase()
+    if (ampm === 'pm' && hour < 12) hour += 12
+    if (ampm === 'am' && hour === 12) hour = 0
+  }
+  // Build a Date as if "America/Chicago" — DST-aware via formatToParts inverse trick
+  // Simpler: assume CDT (UTC-5) Mar-Nov, CST (UTC-6) Nov-Mar. Determine which by checking
+  // what en-US "America/Chicago" reports for the given date's tz offset.
+  const probe = new Date(Date.UTC(Number(y), Number(mo)-1, Number(d), 12, 0, 0))
+  const fmt = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', timeZoneName: 'short' })
+  const tzShort = fmt.formatToParts(probe).find(p => p.type === 'timeZoneName')?.value || 'CDT'
+  const offsetHours = tzShort === 'CST' ? 6 : 5  // hours behind UTC
+  // Start in UTC
+  const startUtc = new Date(Date.UTC(Number(y), Number(mo)-1, Number(d), hour + offsetHours, minute, 0))
+  const endUtc = new Date(startUtc.getTime() + 60 * 60 * 1000)  // 1-hour block
+  const toIcs = (dt) => dt.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z'
+  return { dtStartUtc: toIcs(startUtc), dtEndUtc: toIcs(endUtc) }
+}
+
+router.post('/:id/send-closing-invite', async (req, res) => {
+  const id = Number(req.params.id)
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [id])
+  if (!tx) return res.status(404).json({ error: 'transaction not found' })
+
+  if (!tx.closing_date) {
+    return res.status(400).json({ error: 'Set Closing Date before sending invite' })
+  }
+
+  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients
+    : String(req.body?.recipients || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+  if (!recipients.length) return res.status(400).json({ error: 'recipients required' })
+
+  // Lazy-import to avoid circular load
+  const { sendViaSendGrid } = await import('./email.js')
+
+  // Normalize date if M/D/YYYY
+  let eventDate = tx.closing_date
+  const m = String(eventDate).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) eventDate = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+
+  const times = buildClosingTimes(eventDate, tx.closing_time)
+  if (!times) return res.status(400).json({ error: 'invalid closing_date format' })
+
+  const title = `Closing — ${tx.property_address || 'Property'}`
+  const location = tx.closing_location || 'TBD'
+  const parties = [tx.buyer_name && `Buyer: ${tx.buyer_name}`, tx.seller_name && `Seller: ${tx.seller_name}`]
+    .filter(Boolean).join('\n')
+  const lender = [tx.lender_name, tx.lender_company].filter(Boolean).join(' / ')
+  const description = [
+    parties,
+    lender ? `Lender: ${lender}` : '',
+    tx.purchase_price ? `Price: $${Number(tx.purchase_price).toLocaleString()}` : '',
+    req.body?.message ? `\nNote: ${req.body.message}` : '',
+  ].filter(Boolean).join('\n')
+
+  const organizerEmail = process.env.SENDGRID_FROM_EMAIL || 'matt@mattsmithteam.com'
+  const ics = buildIcs({
+    uid: `closing-${tx.id}-${Date.now()}@mattsmithteam`,
+    title,
+    dtStartUtc: times.dtStartUtc,
+    dtEndUtc: times.dtEndUtc,
+    location,
+    description,
+    organizerEmail,
+    organizerName: 'Matt Smith Team',
+    attendees: recipients,
+  })
+
+  const subject = `📅 Closing — ${tx.property_address || 'Property'} (${eventDate}${tx.closing_time ? ' '+tx.closing_time : ''})`
+  const htmlBody = `
+<p>You're invited to the closing of <strong>${tx.property_address || 'a property'}</strong>.</p>
+<ul>
+  <li><strong>Date:</strong> ${eventDate}</li>
+  ${tx.closing_time ? `<li><strong>Time:</strong> ${tx.closing_time}</li>` : ''}
+  <li><strong>Location:</strong> ${location}</li>
+  ${parties ? `<li><strong>Parties:</strong> ${parties.replace(/\n/g, ' · ')}</li>` : ''}
+  ${lender ? `<li><strong>Lender:</strong> ${lender}</li>` : ''}
+</ul>
+${req.body?.message ? `<p>${String(req.body.message).replace(/</g,'&lt;')}</p>` : ''}
+<p>The attached <code>.ics</code> file will add this to your calendar automatically.</p>
+<p>— Matt Smith Team</p>`
+
+  try {
+    await sendViaSendGrid(
+      recipients,
+      '',
+      subject,
+      htmlBody,
+      undefined,
+      [],
+      [{
+        filename: 'closing.ics',
+        content: Buffer.from(ics, 'utf-8').toString('base64'),
+        type: 'text/calendar; method=REQUEST',
+      }]
+    )
+    logActivity('invite_sent', 'transaction', tx.id,
+      `Closing invite sent to ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}`)
+    res.json({ success: true, recipients, eventDate, time: tx.closing_time, location })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 export default router

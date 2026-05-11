@@ -1210,6 +1210,53 @@ export default function Transactions() {
                       {PAYMENT_METHOD_OPTIONS.filter(o => o).map(o => <option key={o} value={o}>{o}</option>)}
                     </select>
                   </label>
+                  {editing && form.closing_date && (
+                    <div style={{marginTop: 12, padding: '10px 12px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, fontSize: 13}}>
+                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
+                        <div>
+                          📅 <strong>Closing on the hub calendar:</strong> auto-synced from this transaction. Edits here update the calendar event.
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          onClick={async () => {
+                            if (!form.closing_time || !form.closing_location) {
+                              alert('Set Closing Time and Closing Location before sending the invite.\n\nSave the transaction first if you just entered them.')
+                              return
+                            }
+                            const defaultRecipients = [
+                              form.buyer_name && form.buyer_email,
+                              form.seller_name && form.seller_email,
+                              form.lender_email,
+                            ].filter(Boolean).join(', ')
+                            const input = prompt(
+                              'Send closing calendar invite to (comma-separated emails):',
+                              defaultRecipients || ''
+                            )
+                            if (!input) return
+                            const note = prompt('Optional note to include in the invite (leave blank for none):', '') || ''
+                            try {
+                              const r = await authFetch(`/api/transactions/${editing}/send-closing-invite`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ recipients: input, message: note }),
+                              })
+                              const d = await r.json()
+                              if (d.success) {
+                                alert(`✓ Invite sent to ${d.recipients.length} recipient${d.recipients.length === 1 ? '' : 's'}.\n\nThey'll get a calendar attachment they can add with one click.`)
+                              } else {
+                                alert('Failed: ' + (d.error || 'unknown'))
+                              }
+                            } catch (err) {
+                              alert('Failed to send invite: ' + err.message)
+                            }
+                          }}
+                        >
+                          📧 Send Closing Invite (.ics)
+                        </button>
+                      </div>
+                    </div>
+                  )}
                   <div className="checklist-grid" style={{marginTop: 10}}>{renderChecks(phase2Logistics)}</div>
                 </div>
 

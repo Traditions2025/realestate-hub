@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-11T21:16:49.995Z",
-  "count": 127,
+  "generated_at": "2026-05-11T22:39:46.331Z",
+  "count": 128,
   "entries": [
+    {
+      "hash": "e9699a0",
+      "date": "2026-05-11T16:16:55-05:00",
+      "subject": "Transactions: undo-style demote to Pre-Listing (no Withdrawn artifact)",
+      "title": "Transactions: undo-style demote to Pre-Listing (no Withdrawn artifact)",
+      "body": "Dragging a transaction from Active back to the Pre-Listing column used\nto (1) create a duplicate pre-listings row and (2) mark the transaction\nas Withdrawn. That left clutter for what's really just an undo of a\nmis-drag.\n\nNew behavior:\n- If the transaction was originally promoted from a pre-listing\n  (pre_listing_id is set) → flip that pre-listing's status from 'Listed'\n  back to 'New' and DELETE the transaction. True undo, original card\n  reappears in the Pre-Listing column.\n- If no link exists (transaction created directly) → create a fresh\n  pre-listing carrying address/owner/notes, delete the transaction.\n\nEither path leaves NO Withdrawn marker behind.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "51dedfd",
       "date": "2026-05-11T10:57:34-05:00",
