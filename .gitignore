@@ -1,6 +1,9 @@
 node_modules/
 dist/
 realestate-hub.db
+realestate-hub.db.broken-*
+realestate-hub.db.pre-boot-*
+backups/
 *.log
 .DS_Store
 
