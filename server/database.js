@@ -741,19 +741,15 @@ export async function initDb() {
     console.error('[migration] transactions new cols failed:', e.message)
   }
 
-  // Migration: add marketing_tasks + notes_log to listings if missing
+  // Migration: add marketing_tasks column to listings if missing
   try {
     const cols = db.exec("PRAGMA table_info(listings)")[0]?.values.map(v => v[1]) || []
     if (!cols.includes('marketing_tasks')) {
       db.run('ALTER TABLE listings ADD COLUMN marketing_tasks TEXT')
       console.log('[migration] Added listings.marketing_tasks')
     }
-    if (!cols.includes('notes_log')) {
-      db.run('ALTER TABLE listings ADD COLUMN notes_log TEXT')
-      console.log('[migration] Added listings.notes_log')
-    }
   } catch (e) {
-    console.error('[migration] listings columns failed:', e.message)
+    console.error('[migration] listings.marketing_tasks failed:', e.message)
   }
 
   // Migration: drop agency_type CHECK constraint if it exists
