@@ -83,9 +83,59 @@ export function listBackups() {
     .map(f => {
       const p = join(BACKUP_DIR, f)
       const s = statSync(p)
-      return { name: f, sizeKb: Math.round(s.size / 1024), mtime: s.mtime.toISOString() }
+      return { name: f, sizeKb: Math.round(s.size / 1024), mtime: s.mtime.toISOString(), location: 'backups' }
     })
     .sort((a, b) => b.mtime.localeCompare(a.mtime))
+}
+
+// List ALL recovery candidates: includes /data/realestate-hub.db.broken-* files
+// (left over from the now-disabled auto-rename recovery) AND /data/backups/*.
+// Use this to find data wiped by the old recovery path.
+export function listRecoveryCandidates() {
+  const out = []
+  if (existsSync(DB_DIR)) {
+    for (const f of readdirSync(DB_DIR)) {
+      if (!f.startsWith('realestate-hub.db.')) continue
+      // Skip current live file; we want sidecars
+      if (f === 'realestate-hub.db') continue
+      try {
+        const p = join(DB_DIR, f)
+        const s = statSync(p)
+        if (!s.isFile()) continue
+        out.push({
+          name: f,
+          path: p,
+          sizeKb: Math.round(s.size / 1024),
+          mtime: s.mtime.toISOString(),
+          location: 'data',
+          kind: f.includes('broken') ? 'broken' : 'other',
+        })
+      } catch {}
+    }
+  }
+  for (const b of listBackups()) {
+    out.push({ ...b, path: join(BACKUP_DIR, b.name), kind: 'backup' })
+  }
+  return out.sort((a, b) => b.mtime.localeCompare(a.mtime))
+}
+
+// Copy a chosen sidecar file back over /data/realestate-hub.db. The current
+// live file is renamed aside first so this is reversible. Returns { restoredFrom, backedUpAs }.
+export function restoreFromFile(sourcePath) {
+  if (!existsSync(sourcePath)) throw new Error(`source not found: ${sourcePath}`)
+  // Safety: refuse to restore from outside DB_DIR
+  if (!sourcePath.startsWith(DB_DIR)) throw new Error('source must be inside data dir')
+  const stat = statSync(sourcePath)
+  if (!stat.isFile()) throw new Error('source is not a file')
+  if (stat.size < 1024) throw new Error('source file too small, likely empty')
+
+  const ts = tsLabel()
+  const aside = `${DB_PATH}.replaced-${ts}`
+  if (existsSync(DB_PATH)) {
+    writeFileSync(aside, readFileSync(DB_PATH))
+  }
+  writeFileSync(DB_PATH, readFileSync(sourcePath))
+  return { restoredFrom: sourcePath, backedUpAs: aside, size: stat.size }
 }
 
 // Send the DB as a gzipped email attachment. Off-Render backup.

@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-05-11T15:43:45.772Z",
-  "count": 124,
+  "generated_at": "2026-05-11T15:57:32.801Z",
+  "count": 126,
   "entries": [
+    {
+      "hash": "c552032",
+      "date": "2026-05-11T10:44:25-05:00",
+      "subject": "Ignore /backups directory (DB files shouldn't be in git)",
+      "title": "Ignore /backups directory (DB files shouldn't be in git)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "0a763ce",
+      "date": "2026-05-11T10:43:48-05:00",
+      "subject": "Data protection: 5-layer backup + integrity system (never lose data again)",
+      "title": "Data protection: 5-layer backup + integrity system (never lose data again)",
+      "body": "Direct response to today's DB corruption incident. The hub now has\nfive independent guards against data loss:\n\nLAYER 1 — OFF-RENDER EMAIL BACKUPS (server/backup.js)\n  Daily at 2 AM CT, the DB is gzipped and emailed as an attachment to\n  BACKUP_RECIPIENTS (defaults to mattsmithremax@gmail.com; comma-separated\n  env var). Capped at 25 MB compressed to stay under SendGrid's limit.\n  Off-disk copies survive even a total Render outage.\n\nLAYER 2 — PRE-MIGRATION SNAPSHOTS (server/database.js)\n  Before any migration runs, initDb() copies the file to\n  /data/backups/realestate-hub.db.pre-boot-{ts}. Keeps last 10 boots.\n  If a migration corrupts the file, the rollback is one cp away.\n\nLAYER 3 — MIGRATION LEDGER (_migrations table + runMigration helper)\n  Each named migration runs at most once. The agency_type CHECK\n  recreate-table migration re-ran every boot and slowly corrupted the\n  disk for weeks; with the ledger that pattern is impossible. Future\n  migrations must use runMigration('descriptive_name', fn).\n\nLAYER 4 — POST-MIGRATION INTEGRITY CHECK\n  PRAGMA quick_check on load (was added in 0430e39); PRAGMA\n  integrity_check now also runs after migrations. checkDbHealth()\n  exported for use by the health endpoint.\n\nLAYER 5 — RENDER HEALTH ENDPOINT (GET /api/health)\n  Unauthenticated. Returns 503 if the DB is unqueryable so Render's\n  health probe drops the sick instance and keeps the prior healthy\n  one routed. Configure the Render service's 'Health Check Path' to\n  /api/health to activate.\n\nMANUAL CONTROLS\n  POST /api/backup/now      — fire the daily backup right now\n  GET  /api/backup/list     — list on-disk backups (for restore UIs)\n\nThe disabled agency_type recreate-table migration stays disabled.\nBackup file rotation deletes anything older than the last 14 daily +\n10 pre-boot copies so the disk doesn't fill up.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0430e39",
       "date": "2026-05-11T10:09:11-05:00",

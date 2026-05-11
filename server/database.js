@@ -52,13 +52,22 @@ export async function initDb() {
       // Sanity check — touch the file to surface "disk image malformed" errors immediately
       db.exec('PRAGMA quick_check;')
     } catch (corruptErr) {
-      const ts = new Date().toISOString().replace(/[:.]/g, '-')
-      const brokenPath = `${DB_PATH}.broken-${ts}`
-      console.error(`[db] !!! DATABASE FILE IS CORRUPT — ${corruptErr.message}`)
-      console.error(`[db] !!! Moving broken file to ${brokenPath} and booting with a fresh empty DB.`)
-      console.error(`[db] !!! To recover prior data: use the most recent backup in /data/backups (pre-boot or daily), the most recent emailed backup, or restore the Render disk from a snapshot.`)
-      try { renameSync(DB_PATH, brokenPath) } catch (e) { console.error(`[db] rename failed: ${e.message}`) }
-      db = new SQL.Database()
+      // !!! DO NOT AUTO-RENAME / AUTO-RECOVER ANYMORE !!!
+      // The previous behavior wiped real data on 2026-05-11 because sql.js
+      // sometimes throws on healthy-but-large DB files, or because a single
+      // corrupted page makes the whole file unloadable even though most data
+      // is fine. Wiping the file = silent data loss.
+      //
+      // New behavior: log loudly and CRASH the boot. A 502 is recoverable
+      // (rollback, restore snapshot, manual fix). Wiped data is not.
+      console.error('[db] ============================================')
+      console.error(`[db] !!! DATABASE FILE FAILED TO LOAD: ${corruptErr.message}`)
+      console.error(`[db] !!! File: ${DB_PATH}`)
+      console.error(`[db] !!! NOT auto-renaming. NOT creating fresh DB.`)
+      console.error('[db] !!! Crashing instead so data is NOT lost.')
+      console.error('[db] !!! Recovery: restore from a backup or Render snapshot, then redeploy.')
+      console.error('[db] ============================================')
+      throw corruptErr
     }
   } else {
     console.log(`[db] No existing database, creating new at ${DB_PATH}`)

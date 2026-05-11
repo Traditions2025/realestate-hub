@@ -141,6 +141,36 @@ async function start() {
     }
   })
 
+  // List ALL recovery candidates including .broken-* sidecar files in /data/.
+  app.get('/api/backup/candidates', async (_req, res) => {
+    try {
+      const { listRecoveryCandidates } = await import('./backup.js')
+      res.json(listRecoveryCandidates())
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  // Restore the live DB from a chosen candidate file. Request body:
+  // { source: "/data/realestate-hub.db.broken-..." }
+  // The current live DB is renamed aside first. After this call you must
+  // restart the service (Render: Manual Deploy → Deploy latest commit) so
+  // the new file is loaded into memory.
+  app.post('/api/backup/restore', async (req, res) => {
+    try {
+      const { source } = req.body || {}
+      if (!source) return res.status(400).json({ error: 'source path required' })
+      const { restoreFromFile } = await import('./backup.js')
+      const result = restoreFromFile(source)
+      res.json({
+        ...result,
+        next_step: 'Restart the service so the new file is loaded into memory (Render: Manual Deploy → Deploy latest commit).',
+      })
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   // SPA fallback for production
   app.get('*', (req, res) => {
     res.sendFile(join(__dirname, '..', 'dist', 'index.html'))
