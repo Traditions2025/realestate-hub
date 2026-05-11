@@ -1,6 +1,15 @@
 import express, { Router } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import db from '../database.js'
+import { sendViaSendGrid } from './email.js'
+
+// Map @mention handles to real email addresses. Add more handles by extending this map.
+const MENTION_RECIPIENTS = {
+  matt: 'mattsmithremax@gmail.com',
+  leo:  'johnwithmattsmithteam@gmail.com',
+  john: 'johnwithmattsmithteam@gmail.com',
+}
+const HUB_BASE = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
@@ -725,6 +734,92 @@ router.get('/_meta/assets', (_req, res) => {
 
 router.get('/_meta/ai-status', (_req, res) => {
   res.json({ configured: !!process.env.ANTHROPIC_API_KEY, model: MODEL })
+})
+
+// =====================================================================
+// Internal notes thread on each listing.
+// notes_log is a JSON array of { at, by, text, mentions: [handle] }
+// @matt / @leo / @john in the text triggers an email notification.
+// =====================================================================
+
+function parseMentions(text) {
+  if (!text) return []
+  const out = new Set()
+  const re = /(?<![A-Za-z0-9_])@([A-Za-z]{2,20})/g
+  let m
+  while ((m = re.exec(text)) !== null) {
+    const handle = m[1].toLowerCase()
+    if (MENTION_RECIPIENTS[handle]) out.add(handle)
+  }
+  return [...out]
+}
+
+async function notifyMentions(listing, note, mentions) {
+  const seen = new Set()
+  for (const handle of mentions) {
+    const to = MENTION_RECIPIENTS[handle]
+    if (!to || seen.has(to)) continue
+    seen.add(to)
+    const subject = `You were mentioned on ${listing.property_address || 'a listing'} — Matt Smith Team`
+    const safeText = String(note.text || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const html = `
+<div style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Arial,sans-serif;max-width:560px;">
+  <h2 style="font-size:16px;margin:0 0 6px;color:#1f2937;">@${handle} — you were mentioned on a listing</h2>
+  <div style="font-size:13px;color:#6b7280;margin-bottom:14px;">${escapeHtmlLite(listing.property_address || '')}</div>
+  <div style="background:#f9fafb;border-left:3px solid #c89b4a;padding:10px 14px;border-radius:4px;font-size:14px;color:#111827;white-space:pre-wrap;">${safeText}</div>
+  <div style="font-size:12px;color:#6b7280;margin-top:10px;">
+    — ${escapeHtmlLite(note.by || 'team')} &middot; ${new Date(note.at).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT
+  </div>
+  <div style="margin-top:18px;">
+    <a href="${HUB_BASE}/listings" style="background:#c89b4a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">Open Listing in Hub</a>
+  </div>
+</div>`
+    try {
+      await sendViaSendGrid(to, '', subject, html, undefined, [], [])
+    } catch (err) {
+      console.error('[listing-mention] send failed:', err.message)
+    }
+  }
+}
+
+function escapeHtmlLite(s) {
+  return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
+router.post('/:id/notes', async (req, res) => {
+  const id = Number(req.params.id)
+  const { text, by } = req.body || {}
+  if (!text || !text.trim()) return res.status(400).json({ error: 'text required' })
+  const row = db.get('SELECT * FROM listings WHERE id = ?', [id])
+  if (!row) return res.status(404).json({ error: 'Listing not found' })
+
+  let log = []
+  try { log = row.notes_log ? JSON.parse(row.notes_log) : [] } catch {}
+
+  const mentions = parseMentions(text)
+  const note = { at: new Date().toISOString(), by: (by || '').trim() || null, text: text.trim(), mentions }
+  log.push(note)
+  db.run("UPDATE listings SET notes_log = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(log), id])
+
+  // Fire-and-forget mention emails (don't block the response)
+  if (mentions.length) {
+    notifyMentions(row, note, mentions).catch(() => {})
+  }
+
+  res.json({ success: true, notes_log: log, mentions })
+})
+
+router.delete('/:id/notes/:idx', (req, res) => {
+  const id = Number(req.params.id)
+  const idx = Number(req.params.idx)
+  const row = db.get('SELECT notes_log FROM listings WHERE id = ?', [id])
+  if (!row) return res.status(404).json({ error: 'Listing not found' })
+  let log = []
+  try { log = row.notes_log ? JSON.parse(row.notes_log) : [] } catch {}
+  if (idx < 0 || idx >= log.length) return res.status(400).json({ error: 'invalid index' })
+  log.splice(idx, 1)
+  db.run("UPDATE listings SET notes_log = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(log), id])
+  res.json({ success: true, notes_log: log })
 })
 
 export default router

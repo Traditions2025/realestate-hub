@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-05-08T23:47:19.451Z",
-  "count": 116,
+  "generated_at": "2026-05-11T14:18:32.432Z",
+  "count": 119,
   "entries": [
+    {
+      "hash": "835cb3c",
+      "date": "2026-05-08T18:59:58-05:00",
+      "subject": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
+      "title": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
+      "body": "- Cash deals (type_of_finance = 'Cash') skip Mortgage Contingency and\n  Financing Release rows — no buyer financing, no need to track them.\n- Action items now appear even when both date and status are blank.\n  Skipped only when status is in a TERMINAL state (Completed / Received\n  / Ready / Signed / N/A). Blank rows render muted ('not set yet') so\n  they don't compete with active items but still flag that nothing's\n  been entered.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "81c6401",
+      "date": "2026-05-08T18:54:10-05:00",
+      "subject": "Digest: status dropdowns are primary, dates are timing context",
+      "title": "Digest: status dropdowns are primary, dates are timing context",
+      "body": "Items in the per-transaction action list are now driven by status:\n\n- Status terminal (Completed / Received / Ready / Signed / N/A) →\n  item is dropped regardless of date. The dropdown is the source of\n  truth for done-ness.\n- Status pending + date set → show with date-based severity\n  (OVERDUE / TODAY / URGENT / WATCH)\n- Status pending + no date → still surface as URGENT with\n  '(no date set) · status: ...' so it doesn't fall through the cracks\n\nNew items added to the action list because they have status dropdowns:\n  Inspection release, Final inspection waiver,\n  Abstract, Title commitment, Mortgage payoff, ALTA, Deed package\n\nTop-of-email Action Items table now renders status text in the\n'date' column when no date is set.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b0c705b",
+      "date": "2026-05-08T18:47:21-05:00",
+      "subject": "Transactions: remove HOA Docs and Seller Acknowledgment from checklist",
+      "title": "Transactions: remove HOA Docs and Seller Acknowledgment from checklist",
+      "body": "Removed from both the form and the daily digest. DB columns stay\nin place so any prior data isn't dropped.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "66cc35a",
       "date": "2026-05-08T18:43:36-05:00",

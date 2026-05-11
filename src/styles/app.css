@@ -2883,6 +2883,141 @@ input[type="range"] {
   letter-spacing: 0.5px;
 }
 
+/* ----- Listings: stage pipeline (top-of-page status tabs, redesigned) ----- */
+.stage-pipeline {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  margin: 10px 0 18px;
+}
+@media (max-width: 768px) {
+  .stage-pipeline { grid-template-columns: repeat(3, 1fr); }
+}
+.stage-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: transform 0.12s, border-color 0.12s, background 0.12s;
+  min-height: 72px;
+  position: relative;
+  overflow: hidden;
+}
+.stage-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--accent-dim, #6b7280);
+  transition: background 0.12s;
+}
+.stage-card:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+.stage-card.active {
+  border-color: var(--accent);
+  background: rgba(200, 155, 74, 0.08);
+  box-shadow: 0 2px 8px rgba(200, 155, 74, 0.15);
+}
+.stage-count {
+  font-size: 28px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+.stage-label {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.stage-card.active .stage-label { color: var(--accent); }
+/* Per-stage accent bar */
+.stage-card.stage-all::before          { background: #9ca3af; }
+.stage-card.stage-pre_listing::before  { background: #6366f1; }
+.stage-card.stage-coming_soon::before  { background: #f59e0b; }
+.stage-card.stage-active::before       { background: #10b981; }
+.stage-card.stage-under_contract::before { background: #3b82f6; }
+.stage-card.stage-closed::before       { background: #64748b; }
+
+/* Notes thread inside listing modal */
+.notes-thread { max-width: 760px; }
+.note-composer {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.notes-list { display: flex; flex-direction: column; gap: 10px; }
+.note-row {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+}
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.note-by {
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.note-when { color: var(--text-muted); }
+.note-notified {
+  background: rgba(200, 155, 74, 0.12);
+  color: #f4d8a3;
+  padding: 1px 8px;
+  border-radius: 8px;
+  font-size: 10px;
+}
+.note-del {
+  margin-left: auto;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 0;
+}
+.note-del:hover { color: #ef4444; border-color: #ef4444; }
+.note-body {
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.note-body .mention {
+  background: rgba(59, 130, 246, 0.18);
+  color: #93c5fd;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
 /* Tabs inside the listing modal */
 .listing-tabs {
   display: flex;

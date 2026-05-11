@@ -237,6 +237,35 @@ export default function Listings() {
   const [matchLoading, setMatchLoading] = useState(false)
   const [matches, setMatches] = useState([])
   const [matchStrict, setMatchStrict] = useState(true)
+  const [noteDraft, setNoteDraft] = useState({ text: '', by: 'Leo' })
+  const [postingNote, setPostingNote] = useState(false)
+
+  const postNote = async () => {
+    if (!editingId || !noteDraft.text.trim() || postingNote) return
+    setPostingNote(true)
+    try {
+      const r = await authFetch(`/api/listings/${editingId}/notes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: noteDraft.text, by: noteDraft.by }),
+      })
+      const d = await r.json()
+      if (d.success) {
+        setForm(prev => ({ ...prev, notes_log: d.notes_log }))
+        setNoteDraft({ text: '', by: noteDraft.by })
+      }
+    } finally {
+      setPostingNote(false)
+    }
+  }
+
+  const removeNote = async (idx) => {
+    if (!editingId) return
+    if (!confirm('Delete this note?')) return
+    const r = await authFetch(`/api/listings/${editingId}/notes/${idx}`, { method: 'DELETE' })
+    const d = await r.json()
+    if (d.success) setForm(prev => ({ ...prev, notes_log: d.notes_log }))
+  }
   const [matchSelected, setMatchSelected] = useState(new Set())
   const [matchSubject, setMatchSubject] = useState('')
   const [matchBody, setMatchBody] = useState('')
@@ -292,6 +321,11 @@ export default function Listings() {
     f.features = Array.isArray(r.features) ? r.features : []
     f.photos = Array.isArray(r.photos) ? r.photos : []
     f.marketing_tasks = (r.marketing_tasks && typeof r.marketing_tasks === 'object') ? r.marketing_tasks : {}
+    // notes_log is stored as a JSON string in the DB
+    f.notes_log = (() => {
+      if (Array.isArray(r.notes_log)) return r.notes_log
+      try { return r.notes_log ? JSON.parse(r.notes_log) : [] } catch { return [] }
+    })()
     setForm(f)
     setFeaturesInput((f.features || []).join(', '))
     setEditingId(id)
@@ -662,12 +696,20 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
         </div>
       )}
 
-      <div className="status-tabs">
-        {STAGES.map(s => (
-          <button key={s.key} className={`tab ${stage === s.key ? 'active' : ''}`} onClick={() => setStage(s.key)}>
-            {s.label} <span className="tab-count">{counts[s.key] ?? 0}</span>
-          </button>
-        ))}
+      <div className="stage-pipeline">
+        {STAGES.map(s => {
+          const count = counts[s.key] ?? 0
+          return (
+            <button
+              key={s.key}
+              className={`stage-card stage-${s.key} ${stage === s.key ? 'active' : ''}`}
+              onClick={() => setStage(s.key)}
+            >
+              <span className="stage-count">{count}</span>
+              <span className="stage-label">{s.label}</span>
+            </button>
+          )
+        })}
       </div>
 
       <div className="toolbar">
@@ -727,6 +769,12 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
             Marketing Tasks
             {editingId && <span className="tab-badge">{countDoneTasks(form.marketing_tasks)}/{TOTAL_TASKS}</span>}
           </button>
+          {editingId && (
+            <button className={`listing-tab ${activeTab === 'notes' ? 'active' : ''}`} onClick={() => setActiveTab('notes')}>
+              💬 Notes
+              {Array.isArray(form.notes_log) && form.notes_log.length > 0 && <span className="tab-badge">{form.notes_log.length}</span>}
+            </button>
+          )}
           <button className={`listing-tab ${activeTab === 'import' ? 'active' : ''}`} onClick={() => setActiveTab('import')}>Import (PDF / URL)</button>
           <button className={`listing-tab ${activeTab === 'marketing' ? 'active' : ''}`} onClick={() => setActiveTab('marketing')}>AI Content</button>
           <button className={`listing-tab ${activeTab === 'matched' ? 'active' : ''}`} onClick={() => setActiveTab('matched')}>📨 Send to Matched Leads</button>
@@ -942,6 +990,77 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
                 </div>
               )
             })}
+          </div>
+        )}
+
+        {activeTab === 'notes' && editingId && (
+          <div className="notes-thread">
+            <div className="muted" style={{fontSize: 12, marginBottom: 10}}>
+              Internal notes for the team. Tag <strong>@matt</strong> or <strong>@leo</strong> in a note — they'll get an email notification.
+            </div>
+
+            <div className="note-composer">
+              <div className="form-row" style={{marginBottom: 6}}>
+                <label style={{flex: '0 0 110px'}}>
+                  By
+                  <select value={noteDraft.by} onChange={e => setNoteDraft(p => ({ ...p, by: e.target.value }))}>
+                    <option>Leo</option>
+                    <option>Matt</option>
+                    <option>Hunter</option>
+                    <option>Cherryl</option>
+                    <option>Other</option>
+                  </select>
+                </label>
+                <label style={{flex: 1}}>
+                  Add a note (use @matt or @leo to notify)
+                  <textarea
+                    value={noteDraft.text}
+                    onChange={e => setNoteDraft(p => ({ ...p, text: e.target.value }))}
+                    rows={3}
+                    placeholder="e.g. Spoke with seller — @matt please follow up on price reduction strategy"
+                    style={{fontFamily: 'inherit', fontSize: 13}}
+                  />
+                </label>
+              </div>
+              <div style={{display: 'flex', justifyContent: 'flex-end', gap: 8}}>
+                <button type="button" className="btn btn-primary btn-sm" onClick={postNote} disabled={!noteDraft.text.trim() || postingNote}>
+                  {postingNote ? 'Posting...' : 'Post Note'}
+                </button>
+              </div>
+            </div>
+
+            <div className="notes-list" style={{marginTop: 16}}>
+              {(form.notes_log || []).length === 0 ? (
+                <div className="muted" style={{fontSize: 12, padding: '16px 0', textAlign: 'center'}}>
+                  No notes yet. Be the first to add one.
+                </div>
+              ) : (
+                [...form.notes_log].reverse().map((note, revIdx) => {
+                  const idx = form.notes_log.length - 1 - revIdx
+                  // Highlight @mentions in the rendered text
+                  const rendered = String(note.text || '').replace(
+                    /(?<![A-Za-z0-9_])@([A-Za-z]{2,20})/g,
+                    (m, h) => `<span class="mention">@${h}</span>`
+                  )
+                  const when = new Date(note.at).toLocaleString('en-US', {
+                    month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+                  })
+                  return (
+                    <div key={idx} className="note-row">
+                      <div className="note-header">
+                        <span className="note-by">{note.by || 'Team'}</span>
+                        <span className="note-when">{when}</span>
+                        {Array.isArray(note.mentions) && note.mentions.length > 0 && (
+                          <span className="note-notified">📧 notified: {note.mentions.map(m => `@${m}`).join(', ')}</span>
+                        )}
+                        <button type="button" className="note-del" onClick={() => removeNote(idx)} title="Delete note">×</button>
+                      </div>
+                      <div className="note-body" dangerouslySetInnerHTML={{__html: rendered}} />
+                    </div>
+                  )
+                })
+              )}
+            </div>
           </div>
         )}
 
