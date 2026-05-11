@@ -29,6 +29,23 @@ export async function initDb() {
   if (existsSync(DB_PATH)) {
     const stats = statSync(DB_PATH)
     console.log(`[db] Loading existing database (${(stats.size / 1024).toFixed(1)} KB, modified ${stats.mtime.toISOString()})`)
+
+    // ---- LAYER 2: pre-boot snapshot ----
+    // Copy the on-disk file to /data/backups/...pre-boot-{ts} BEFORE running
+    // any migrations. If migrations corrupt the file, this snapshot is the
+    // recovery point. Lazy-loaded to avoid circular import paths.
+    try {
+      const { backupDbToDisk, rotateBackups } = await import('./backup.js')
+      const snap = backupDbToDisk('pre-boot')
+      if (snap.path) {
+        console.log(`[db] pre-boot snapshot saved: ${snap.filename} (${(snap.size/1024).toFixed(0)} KB)`)
+        rotateBackups('pre-boot', 10)  // keep last 10 boots
+      }
+    } catch (e) {
+      console.error(`[db] pre-boot snapshot failed: ${e.message}`)
+      // Continue — snapshot failure must not block boot
+    }
+
     const buffer = readFileSync(DB_PATH)
     try {
       db = new SQL.Database(buffer)
@@ -39,7 +56,7 @@ export async function initDb() {
       const brokenPath = `${DB_PATH}.broken-${ts}`
       console.error(`[db] !!! DATABASE FILE IS CORRUPT — ${corruptErr.message}`)
       console.error(`[db] !!! Moving broken file to ${brokenPath} and booting with a fresh empty DB.`)
-      console.error(`[db] !!! To recover prior data: download the .broken-* file via Render shell / disk, or restore the disk from a snapshot.`)
+      console.error(`[db] !!! To recover prior data: use the most recent backup in /data/backups (pre-boot or daily), the most recent emailed backup, or restore the Render disk from a snapshot.`)
       try { renameSync(DB_PATH, brokenPath) } catch (e) { console.error(`[db] rename failed: ${e.message}`) }
       db = new SQL.Database()
     }
@@ -47,6 +64,17 @@ export async function initDb() {
     console.log(`[db] No existing database, creating new at ${DB_PATH}`)
     db = new SQL.Database()
   }
+
+  // ---- LAYER 3: migration ledger ----
+  // Future migrations should use runMigration(name, fn) so each runs exactly
+  // once. The agency_type bug existed because the recreate-table migration
+  // re-ran on every boot, retrying a half-broken state each time. With the
+  // ledger, that pattern is impossible: name = applied = done forever.
+  db.run(`CREATE TABLE IF NOT EXISTS _migrations (
+    name TEXT PRIMARY KEY,
+    applied_at TEXT NOT NULL DEFAULT (datetime('now')),
+    notes TEXT
+  )`)
 
   // =============================================
   // CLIENTS
@@ -849,8 +877,55 @@ export async function initDb() {
     console.error('[migration] Failed:', e.message)
   }
 
+  // ---- LAYER 4: post-migration integrity check ----
+  // Confirm the DB is still healthy after migrations. If it isn't, log
+  // loudly but don't crash — Render's health probe (LAYER 5) will refuse
+  // to route traffic to a sick instance, preserving the prior good one.
+  try {
+    const r = db.exec('PRAGMA integrity_check;')
+    const result = r[0]?.values[0]?.[0]
+    if (result && result !== 'ok') {
+      console.error(`[db] !!! INTEGRITY CHECK FAILED AFTER MIGRATIONS: ${result}`)
+    } else {
+      console.log('[db] integrity check: ok')
+    }
+  } catch (e) {
+    console.error(`[db] integrity check threw: ${e.message}`)
+  }
+
   saveDb()
   return db
+}
+
+// Run a named migration exactly once. Records success in the _migrations
+// table. If it throws, the migration is NOT marked applied — fix the bug,
+// redeploy, it'll retry next boot. Callers must ensure their migration is
+// idempotent so a retry is safe.
+export function runMigration(name, fn, opts = {}) {
+  if (!db) throw new Error('runMigration called before initDb')
+  const existing = db.get('SELECT name FROM _migrations WHERE name = ?', [name])
+  if (existing) return { skipped: true, name }
+  try {
+    fn()
+    db.run('INSERT INTO _migrations (name, notes) VALUES (?, ?)', [name, opts.notes || null])
+    console.log(`[migration] applied: ${name}`)
+    return { applied: true, name }
+  } catch (err) {
+    console.error(`[migration] FAILED: ${name} — ${err.message}`)
+    throw err
+  }
+}
+
+// Health: cheap DB liveness check for /api/health. Returns ok=false if the
+// DB can't be queried, so Render's health probe drops the instance.
+export function checkDbHealth() {
+  if (!db) return { ok: false, error: 'db not initialized' }
+  try {
+    const c = db.get('SELECT COUNT(*) as c FROM clients').c
+    return { ok: true, clients: c }
+  } catch (e) {
+    return { ok: false, error: e.message }
+  }
 }
 
 // Bulk mode: skip saveDb() inside the run() helper during long-running batch ops
@@ -930,4 +1005,4 @@ export function run(sql, params = []) {
   return { lastInsertRowid: lastId, changes }
 }
 
-export default { all, get, run, initDb, saveDb, beginBulk, endBulk, inBulkMode }
+export default { all, get, run, initDb, saveDb, beginBulk, endBulk, inBulkMode, runMigration, checkDbHealth }

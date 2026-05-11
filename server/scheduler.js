@@ -2,6 +2,7 @@
 import db from './database.js'
 import { processLead, sierraGet } from './sierra-helper.js'
 import { sendDigest, chicagoDateKey } from './transaction-digest.js'
+import { runDailyBackup } from './backup.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
@@ -265,6 +266,28 @@ async function runDigestNow(period = 'morning', force = true) {
   return await sendDigest(period, { force })
 }
 
+// =============================================================
+// Daily backup — fires once a day at 2:00 AM America/Chicago.
+// Same minute-tick + done-flag pattern as the digest, idempotent.
+// =============================================================
+const BACKUP_HOUR = 2
+const BACKUP_MINUTE = 0
+let lastBackupDate = null
+
+async function checkBackupTick() {
+  try {
+    const now = chicagoNow()
+    const minutesPast = (now.hour - BACKUP_HOUR) * 60 + (now.minute - BACKUP_MINUTE)
+    if (minutesPast < 0 || minutesPast > 10) return
+    if (lastBackupDate === now.date) return  // already ran today
+    lastBackupDate = now.date
+    console.log(`[backup] firing daily backup for ${now.date}`)
+    await runDailyBackup()
+  } catch (err) {
+    console.error('[backup] tick error:', err.message)
+  }
+}
+
 export { syncGoogleCalendar, runIncrementalNow, runDigestNow }
 
 export function startScheduler() {
@@ -287,4 +310,7 @@ export function startScheduler() {
   setInterval(checkDigestTick, 60 * 1000)
   // Also run once shortly after boot in case we just deployed past the scheduled time
   setTimeout(checkDigestTick, 45 * 1000)
+
+  // Daily backup tick (2:00 AM CT) — disk rotation + gzipped email attachment
+  setInterval(checkBackupTick, 60 * 1000)
 }

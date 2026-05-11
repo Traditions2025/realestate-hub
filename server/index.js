@@ -109,6 +109,38 @@ async function start() {
     res.json({ ...status, record_counts: counts })
   })
 
+  // ---- LAYER 5: health check (unauthenticated) ----
+  // Configure Render's "Health Check Path" to /api/health. If the DB ever
+  // becomes unqueryable, this returns 503 and Render keeps the prior healthy
+  // instance routed instead of swapping in a broken one.
+  app.get('/api/health', (_req, res) => {
+    const h = db.checkDbHealth ? db.checkDbHealth() : { ok: true, note: 'check-not-available' }
+    if (h.ok) return res.json({ ok: true, ...h, ts: new Date().toISOString() })
+    res.status(503).json({ ok: false, ...h, ts: new Date().toISOString() })
+  })
+
+  // Manual backup trigger — run the daily backup right now (useful for testing
+  // or for a "make a backup before I do something risky" workflow).
+  app.post('/api/backup/now', async (_req, res) => {
+    try {
+      const { runDailyBackup } = await import('./backup.js')
+      const result = await runDailyBackup()
+      res.json(result)
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
+  // List on-disk backups — for diagnostics and a future restore UI.
+  app.get('/api/backup/list', async (_req, res) => {
+    try {
+      const { listBackups } = await import('./backup.js')
+      res.json(listBackups())
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   // SPA fallback for production
   app.get('*', (req, res) => {
     res.sendFile(join(__dirname, '..', 'dist', 'index.html'))

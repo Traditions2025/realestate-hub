@@ -1,7 +1,71 @@
 {
-  "generated_at": "2026-05-08T23:47:19.451Z",
-  "count": 116,
+  "generated_at": "2026-05-11T15:43:45.772Z",
+  "count": 124,
   "entries": [
+    {
+      "hash": "0430e39",
+      "date": "2026-05-11T10:09:11-05:00",
+      "subject": "db: malformed-file recovery + disable the migration that caused corruption",
+      "title": "db: malformed-file recovery + disable the migration that caused corruption",
+      "body": "Two safety fixes for the production outage caused by a corrupt\nrealestate-hub.db on Render's persistent disk:\n\n1. initDb() now wraps the load in try/catch + runs PRAGMA quick_check.\n   If the file is unreadable ('disk image malformed', etc), it's\n   renamed to *.broken-{timestamp} (preserving for later recovery)\n   and a fresh empty DB is created so the server can boot. Loud logs\n   tell the operator the file was set aside.\n\n2. Disabled the agency_type CHECK-constraint recreate-table migration.\n   Its hardcoded new schema (~55 cols) no longer matched the live\n   transactions table (~80+ cols after later ALTER ADD COLUMN\n   migrations), so every boot hit:\n       INSERT INTO transactions SELECT * FROM transactions_old;\n       -> table has 55 columns but 82 values were supplied\n   That happened inside a BEGIN TRANSACTION block; the partial state\n   plus the saveDb() at the end of initDb was slowly corrupting the\n   on-disk file. The CHECK constraint is harmless — agency_type only\n   ever takes a few specific values from the UI dropdown. Left the\n   block behind a `false` guard so the original intent is documented.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e67acdc",
+      "date": "2026-05-11T09:51:12-05:00",
+      "subject": "Revert \"Listings: internal notes thread with @mentions + redesigned stage tabs\"",
+      "title": "Revert \"Listings: internal notes thread with @mentions + redesigned stage tabs\"",
+      "body": "This reverts commit ab07ae2e9099ecb5ec068dc9b602b443170a5c7a.",
+      "category": "other"
+    },
+    {
+      "hash": "5f2ab2f",
+      "date": "2026-05-11T09:51:12-05:00",
+      "subject": "Revert \"Fix: lazy-import sendViaSendGrid in listings to break circular import\"",
+      "title": "Revert \"Fix: lazy-import sendViaSendGrid in listings to break circular import\"",
+      "body": "This reverts commit 1875ce09310c92a2428c9581266162aa28b3cf42.",
+      "category": "fix"
+    },
+    {
+      "hash": "1875ce0",
+      "date": "2026-05-11T09:39:38-05:00",
+      "subject": "Fix: lazy-import sendViaSendGrid in listings to break circular import",
+      "title": "Fix: lazy-import sendViaSendGrid in listings to break circular import",
+      "body": "Production deploys were failing on Render — Render's Node runtime\ncrashed on the circular dependency:\n  routes/listings.js → routes/email.js → transaction-digest.js → routes/email.js\n\nLocal Node 24 handles ESM cyclic named exports fine, but Render's\nenvironment doesn't. Moved the import inside notifyMentions() so\nthe cycle never resolves at module-load time.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "ab07ae2",
+      "date": "2026-05-11T09:18:45-05:00",
+      "subject": "Listings: internal notes thread with @mentions + redesigned stage tabs",
+      "title": "Listings: internal notes thread with @mentions + redesigned stage tabs",
+      "body": "Backend:\n- New listings.notes_log column (JSON array of {at, by, text, mentions})\n- POST /api/listings/:id/notes — parses @matt / @leo / @john mentions,\n  emails the mentioned teammate(s) with the note text and a link back\n  to the hub\n- DELETE /api/listings/:id/notes/:idx\n\nFrontend — listing modal:\n- New 💬 Notes tab with composer (by-author dropdown, multi-line text)\n  and a reverse-chronological thread of past notes\n- @mentions render as inline pills in the saved notes\n- 'notified: @matt' badge shows when a note triggered an email\n- Per-note delete button\n\nFrontend — stage tabs redesigned:\n- Replaced the small text-tab strip with a 6-column card grid showing\n  large count + uppercase label, color-coded left accent bar per stage\n  (purple pre-listing / amber coming soon / green active / blue under\n  contract / slate closed) and a subtle lift + glow on the active card\n- Mobile collapses to 3 columns\n\nAlso: deleted the orphan 2416 C St SW listing (id=1) on the live DB\nthat was creating the duplicate row.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "835cb3c",
+      "date": "2026-05-08T18:59:58-05:00",
+      "subject": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
+      "title": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
+      "body": "- Cash deals (type_of_finance = 'Cash') skip Mortgage Contingency and\n  Financing Release rows — no buyer financing, no need to track them.\n- Action items now appear even when both date and status are blank.\n  Skipped only when status is in a TERMINAL state (Completed / Received\n  / Ready / Signed / N/A). Blank rows render muted ('not set yet') so\n  they don't compete with active items but still flag that nothing's\n  been entered.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "81c6401",
+      "date": "2026-05-08T18:54:10-05:00",
+      "subject": "Digest: status dropdowns are primary, dates are timing context",
+      "title": "Digest: status dropdowns are primary, dates are timing context",
+      "body": "Items in the per-transaction action list are now driven by status:\n\n- Status terminal (Completed / Received / Ready / Signed / N/A) →\n  item is dropped regardless of date. The dropdown is the source of\n  truth for done-ness.\n- Status pending + date set → show with date-based severity\n  (OVERDUE / TODAY / URGENT / WATCH)\n- Status pending + no date → still surface as URGENT with\n  '(no date set) · status: ...' so it doesn't fall through the cracks\n\nNew items added to the action list because they have status dropdowns:\n  Inspection release, Final inspection waiver,\n  Abstract, Title commitment, Mortgage payoff, ALTA, Deed package\n\nTop-of-email Action Items table now renders status text in the\n'date' column when no date is set.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b0c705b",
+      "date": "2026-05-08T18:47:21-05:00",
+      "subject": "Transactions: remove HOA Docs and Seller Acknowledgment from checklist",
+      "title": "Transactions: remove HOA Docs and Seller Acknowledgment from checklist",
+      "body": "Removed from both the form and the daily digest. DB columns stay\nin place so any prior data isn't dropped.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "66cc35a",
       "date": "2026-05-08T18:43:36-05:00",
