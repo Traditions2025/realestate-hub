@@ -779,6 +779,9 @@ export async function initDb() {
       // 2026-05-08 follow-ups
       ['buyer_payment_method', 'TEXT'],
       ['financing_release_followup', 'INTEGER DEFAULT 0'],
+      // 2026-05-11 closing-invite auto-send tracking
+      ['closing_invite_signature', 'TEXT'],
+      ['closing_invite_sent_at', 'TEXT'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

@@ -1212,47 +1212,80 @@ export default function Transactions() {
                   </label>
                   {editing && form.closing_date && (
                     <div style={{marginTop: 12, padding: '10px 12px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, fontSize: 13}}>
-                      <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap'}}>
-                        <div>
-                          📅 <strong>Closing on the hub calendar:</strong> auto-synced from this transaction. Edits here update the calendar event.
+                      <div style={{marginBottom: 8}}>
+                        📅 <strong>Closing on the hub calendar:</strong> auto-synced from this transaction. Edits here update the calendar event.
+                      </div>
+                      {form.closing_time && form.closing_location && (
+                        <div style={{fontSize: 12, color: form.closing_invite_sent_at ? '#10b981' : '#fbbf24', marginBottom: 8}}>
+                          {form.closing_invite_sent_at
+                            ? `✓ Team auto-invite sent to John + Matt — ${new Date(form.closing_invite_sent_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Re-fires automatically if Closing Time or Location changes.`
+                            : '⏳ Team auto-invite will fire to John + Matt the next time this transaction is saved (Closing Time + Location are both set).'
+                          }
                         </div>
+                      )}
+                      <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
                         <button
                           type="button"
                           className="btn btn-sm btn-secondary"
+                          disabled={!form.closing_time || !form.closing_location}
                           onClick={async () => {
-                            if (!form.closing_time || !form.closing_location) {
-                              alert('Set Closing Time and Closing Location before sending the invite.\n\nSave the transaction first if you just entered them.')
-                              return
-                            }
-                            const defaultRecipients = [
-                              form.buyer_name && form.buyer_email,
-                              form.seller_name && form.seller_email,
-                              form.lender_email,
-                            ].filter(Boolean).join(', ')
-                            const input = prompt(
-                              'Send closing calendar invite to (comma-separated emails):',
-                              defaultRecipients || ''
-                            )
-                            if (!input) return
-                            const note = prompt('Optional note to include in the invite (leave blank for none):', '') || ''
+                            const fallback = form.buyer_name ? `${form.buyer_name}'s email` : 'buyer@example.com'
+                            const email = prompt(`Send closing invite to BUYER${form.buyer_name ? ` (${form.buyer_name})` : ''}:\n\nEnter their email address:`, '')
+                            if (!email || !email.trim()) return
+                            const note = prompt('Optional note to include (leave blank to skip):', '') || ''
                             try {
                               const r = await authFetch(`/api/transactions/${editing}/send-closing-invite`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ recipients: input, message: note }),
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ recipients: email.trim(), audience: 'buyer', message: note }),
                               })
                               const d = await r.json()
-                              if (d.success) {
-                                alert(`✓ Invite sent to ${d.recipients.length} recipient${d.recipients.length === 1 ? '' : 's'}.\n\nThey'll get a calendar attachment they can add with one click.`)
-                              } else {
-                                alert('Failed: ' + (d.error || 'unknown'))
-                              }
-                            } catch (err) {
-                              alert('Failed to send invite: ' + err.message)
-                            }
+                              alert(d.success ? `✓ Buyer invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                            } catch (err) { alert('Failed: ' + err.message) }
+                          }}
+                          title={!form.closing_time || !form.closing_location ? 'Set Closing Time AND Location first' : 'Send calendar invite to the buyer'}
+                        >
+                          📧 Send to Buyer
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          disabled={!form.closing_time || !form.closing_location}
+                          onClick={async () => {
+                            const email = prompt(`Send closing invite to SELLER${form.seller_name ? ` (${form.seller_name})` : ''}:\n\nEnter their email address:`, '')
+                            if (!email || !email.trim()) return
+                            const note = prompt('Optional note to include (leave blank to skip):', '') || ''
+                            try {
+                              const r = await authFetch(`/api/transactions/${editing}/send-closing-invite`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ recipients: email.trim(), audience: 'seller', message: note }),
+                              })
+                              const d = await r.json()
+                              alert(d.success ? `✓ Seller invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                            } catch (err) { alert('Failed: ' + err.message) }
+                          }}
+                          title={!form.closing_time || !form.closing_location ? 'Set Closing Time AND Location first' : 'Send calendar invite to the seller'}
+                        >
+                          📧 Send to Seller
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-secondary"
+                          disabled={!form.closing_time || !form.closing_location}
+                          onClick={async () => {
+                            const email = prompt('Send closing invite to another email address:', '')
+                            if (!email || !email.trim()) return
+                            const note = prompt('Optional note to include (leave blank to skip):', '') || ''
+                            try {
+                              const r = await authFetch(`/api/transactions/${editing}/send-closing-invite`, {
+                                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ recipients: email.trim(), audience: 'other', message: note }),
+                              })
+                              const d = await r.json()
+                              alert(d.success ? `✓ Invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                            } catch (err) { alert('Failed: ' + err.message) }
                           }}
                         >
-                          📧 Send Closing Invite (.ics)
+                          📧 Send to Other
                         </button>
                       </div>
                     </div>

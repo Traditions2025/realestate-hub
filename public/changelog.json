@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-11T22:39:46.331Z",
-  "count": 128,
+  "generated_at": "2026-05-11T22:51:57.713Z",
+  "count": 129,
   "entries": [
+    {
+      "hash": "07d383d",
+      "date": "2026-05-11T17:39:49-05:00",
+      "subject": "Transactions: auto-sync closing to calendar + send .ics invite",
+      "title": "Transactions: auto-sync closing to calendar + send .ics invite",
+      "body": "Two new capabilities tied to the Closing Time / Closing Location fields:\n\n1. AUTO HUB CALENDAR SYNC\n   Whenever a transaction is saved with a closing_date, a 'Closing'\n   event is created/updated in the hub's calendar_events table:\n     - Title: 'Closing — <address>'\n     - Date / time from closing_date + closing_time\n     - Location from closing_location\n     - Description carries buyer/seller/lender/price\n     - related_type='transaction', related_id=tx.id for linkage\n   Removed automatically when status becomes Closed/Cancelled/Withdrawn/\n   Expired/Terminated, or when closing_date is cleared. Edits to the\n   transaction's fields propagate to the calendar entry.\n\n2. SEND CLOSING INVITE (.ICS)\n   New endpoint: POST /api/transactions/:id/send-closing-invite\n     body { recipients: 'email1, email2, ...', message?: '...' }\n   Builds an iCalendar (.ics) attachment with the closing details and\n   emails it via SendGrid. Recipients click to add to Google / Outlook\n   / Apple calendar.\n   - Handles DST automatically (computes America/Chicago offset for\n     the event date using Intl)\n   - Defaults to 10:00 AM if closing_time can't be parsed\n   - 1-hour block by default\n\n   UI: green callout in the Closing Logistics section (visible when\n   closing_date is set) with a 'Send Closing Invite' button that\n   prompts for recipients (pre-fills buyer/seller/lender emails) plus\n   an optional note.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e9699a0",
       "date": "2026-05-11T16:16:55-05:00",

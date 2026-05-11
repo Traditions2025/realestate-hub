@@ -47,6 +47,7 @@ const FIELDS = [
   'keys_remotes_collected', 'sign_lockbox_removed',
   'commission_received', 'referral_followup_30day',
   'buyer_payment_method', 'financing_release_followup',
+  'closing_invite_signature', 'closing_invite_sent_at',
 ]
 
 router.get('/', (req, res) => {
@@ -188,12 +189,16 @@ router.post('/', (req, res) => {
   const values = FIELDS.map(f => n(b[f]))
 
   const result = db.run(`INSERT INTO transactions (${FIELDS.join(',')}) VALUES (${placeholders})`, values)
-  logActivity('created', 'transaction', result.lastInsertRowid, `New ${b.type}: ${b.property_address}`)
+  const txId = result.lastInsertRowid
+  logActivity('created', 'transaction', txId, `New ${b.type}: ${b.property_address}`)
   // Auto-sync into Listings tab if this is a listing-type transaction
-  syncListingFromTransaction(result.lastInsertRowid)
+  syncListingFromTransaction(txId)
   // Auto-sync closing into the hub calendar
-  syncClosingToCalendar(result.lastInsertRowid)
-  res.status(201).json({ id: result.lastInsertRowid })
+  syncClosingToCalendar(txId)
+  // Auto-send closing invite to TEAM when date + time + location all set (idempotent via signature)
+  // Fire-and-forget so the HTTP response isn't blocked on SendGrid latency
+  maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
+  res.status(201).json({ id: txId })
 })
 
 router.put('/:id', (req, res) => {
@@ -204,11 +209,14 @@ router.put('/:id', (req, res) => {
   const values = [...keys.map(k => n(fields[k])), Number(req.params.id)]
 
   db.run(`UPDATE transactions SET ${sets} WHERE id = ?`, values)
-  logActivity('updated', 'transaction', Number(req.params.id), 'Updated transaction')
+  const txId = Number(req.params.id)
+  logActivity('updated', 'transaction', txId, 'Updated transaction')
   // Mirror the change into Listings tab (creates or updates the linked listing)
-  syncListingFromTransaction(Number(req.params.id))
+  syncListingFromTransaction(txId)
   // Sync/update closing event in calendar (handles add, update, AND removal on terminal status)
-  syncClosingToCalendar(Number(req.params.id))
+  syncClosingToCalendar(txId)
+  // Auto-fire team invite if closing time/location just got filled in (or changed)
+  maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
   res.json({ success: true })
 })
 
@@ -560,20 +568,16 @@ function buildClosingTimes(eventDate, timeStr) {
   return { dtStartUtc: toIcs(startUtc), dtEndUtc: toIcs(endUtc) }
 }
 
-router.post('/:id/send-closing-invite', async (req, res) => {
-  const id = Number(req.params.id)
-  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [id])
-  if (!tx) return res.status(404).json({ error: 'transaction not found' })
+// Hard-coded team recipients (override via TEAM_CLOSING_INVITE_RECIPIENTS env var, comma-separated)
+const TEAM_CLOSING_RECIPIENTS = (process.env.TEAM_CLOSING_INVITE_RECIPIENTS ||
+  'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com')
+  .split(',').map(s => s.trim()).filter(Boolean)
 
-  if (!tx.closing_date) {
-    return res.status(400).json({ error: 'Set Closing Date before sending invite' })
-  }
-
-  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients
-    : String(req.body?.recipients || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
-  if (!recipients.length) return res.status(400).json({ error: 'recipients required' })
-
-  // Lazy-import to avoid circular load
+// Build + send a closing invite. Reusable from both the HTTP endpoint and
+// the auto-send trigger. Throws on failure (caller decides logging).
+async function sendClosingInvite(tx, recipients, opts = {}) {
+  if (!tx.closing_date) throw new Error('Closing Date required')
+  if (!recipients.length) throw new Error('recipients required')
   const { sendViaSendGrid } = await import('./email.js')
 
   // Normalize date if M/D/YYYY
@@ -582,7 +586,7 @@ router.post('/:id/send-closing-invite', async (req, res) => {
   if (m) eventDate = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
 
   const times = buildClosingTimes(eventDate, tx.closing_time)
-  if (!times) return res.status(400).json({ error: 'invalid closing_date format' })
+  if (!times) throw new Error('invalid closing_date format')
 
   const title = `Closing — ${tx.property_address || 'Property'}`
   const location = tx.closing_location || 'TBD'
@@ -593,7 +597,7 @@ router.post('/:id/send-closing-invite', async (req, res) => {
     parties,
     lender ? `Lender: ${lender}` : '',
     tx.purchase_price ? `Price: $${Number(tx.purchase_price).toLocaleString()}` : '',
-    req.body?.message ? `\nNote: ${req.body.message}` : '',
+    opts.message ? `\nNote: ${opts.message}` : '',
   ].filter(Boolean).join('\n')
 
   const organizerEmail = process.env.SENDGRID_FROM_EMAIL || 'matt@mattsmithteam.com'
@@ -609,9 +613,10 @@ router.post('/:id/send-closing-invite', async (req, res) => {
     attendees: recipients,
   })
 
-  const subject = `📅 Closing — ${tx.property_address || 'Property'} (${eventDate}${tx.closing_time ? ' '+tx.closing_time : ''})`
+  const audienceLabel = opts.audience ? ` (${opts.audience})` : ''
+  const subject = `📅 Closing — ${tx.property_address || 'Property'} (${eventDate}${tx.closing_time ? ' '+tx.closing_time : ''})${audienceLabel}`
   const htmlBody = `
-<p>You're invited to the closing of <strong>${tx.property_address || 'a property'}</strong>.</p>
+<p>${opts.audience === 'team' ? `<strong>Team auto-notification:</strong> closing time + location have been set for <strong>${tx.property_address || 'a property'}</strong>.` : `You're invited to the closing of <strong>${tx.property_address || 'a property'}</strong>.`}</p>
 <ul>
   <li><strong>Date:</strong> ${eventDate}</li>
   ${tx.closing_time ? `<li><strong>Time:</strong> ${tx.closing_time}</li>` : ''}
@@ -619,27 +624,75 @@ router.post('/:id/send-closing-invite', async (req, res) => {
   ${parties ? `<li><strong>Parties:</strong> ${parties.replace(/\n/g, ' · ')}</li>` : ''}
   ${lender ? `<li><strong>Lender:</strong> ${lender}</li>` : ''}
 </ul>
-${req.body?.message ? `<p>${String(req.body.message).replace(/</g,'&lt;')}</p>` : ''}
+${opts.message ? `<p>${String(opts.message).replace(/</g,'&lt;')}</p>` : ''}
 <p>The attached <code>.ics</code> file will add this to your calendar automatically.</p>
 <p>— Matt Smith Team</p>`
 
+  await sendViaSendGrid(
+    recipients,
+    '',
+    subject,
+    htmlBody,
+    undefined,
+    [],
+    [{
+      filename: 'closing.ics',
+      content: Buffer.from(ics, 'utf-8').toString('base64'),
+      type: 'text/calendar; method=REQUEST',
+    }]
+  )
+
+  return { recipients, eventDate, time: tx.closing_time, location }
+}
+
+// Auto-fire the team closing invite when closing_date + closing_time +
+// closing_location are all set, but only when those fields CHANGE since
+// the last send (tracked via closing_invite_signature). Won't spam.
+async function maybeSendTeamClosingInvite(txId) {
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+  if (!tx) return null
+  if (!tx.closing_date || !tx.closing_time || !tx.closing_location) return null
+
+  const sig = `${tx.closing_date}|${tx.closing_time}|${tx.closing_location}`
+  if (tx.closing_invite_signature === sig) return null  // unchanged, skip
+
   try {
-    await sendViaSendGrid(
-      recipients,
-      '',
-      subject,
-      htmlBody,
-      undefined,
-      [],
-      [{
-        filename: 'closing.ics',
-        content: Buffer.from(ics, 'utf-8').toString('base64'),
-        type: 'text/calendar; method=REQUEST',
-      }]
-    )
+    const result = await sendClosingInvite(tx, TEAM_CLOSING_RECIPIENTS, { audience: 'team' })
+    const sentAt = new Date().toISOString()
+    db.run(`UPDATE transactions SET closing_invite_signature = ?, closing_invite_sent_at = ?, updated_at = datetime('now') WHERE id = ?`,
+      [sig, sentAt, tx.id])
+    logActivity('team_invite', 'transaction', tx.id,
+      `Team auto-invite sent to ${result.recipients.length} (${tx.property_address})`)
+    return { sent: true, ...result, sentAt }
+  } catch (err) {
+    console.error('[closing-invite] team auto-send failed:', err.message)
+    logActivity('team_invite_failed', 'transaction', tx.id, `Team auto-invite FAILED: ${err.message}`)
+    return { sent: false, error: err.message }
+  }
+}
+
+router.post('/:id/send-closing-invite', async (req, res) => {
+  const id = Number(req.params.id)
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [id])
+  if (!tx) return res.status(404).json({ error: 'transaction not found' })
+
+  if (!tx.closing_date) {
+    return res.status(400).json({ error: 'Set Closing Date before sending invite' })
+  }
+
+  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients
+    : String(req.body?.recipients || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+  if (!recipients.length) return res.status(400).json({ error: 'recipients required' })
+
+  try {
+    const audience = req.body?.audience || 'recipients'
+    const result = await sendClosingInvite(tx, recipients, {
+      audience,
+      message: req.body?.message,
+    })
     logActivity('invite_sent', 'transaction', tx.id,
-      `Closing invite sent to ${recipients.length} recipient${recipients.length === 1 ? '' : 's'}`)
-    res.json({ success: true, recipients, eventDate, time: tx.closing_time, location })
+      `Closing invite sent to ${audience}: ${recipients.join(', ')}`)
+    res.json({ success: true, ...result })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
