@@ -1,5 +1,5 @@
 import initSqlJs from 'sql.js'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -30,7 +30,19 @@ export async function initDb() {
     const stats = statSync(DB_PATH)
     console.log(`[db] Loading existing database (${(stats.size / 1024).toFixed(1)} KB, modified ${stats.mtime.toISOString()})`)
     const buffer = readFileSync(DB_PATH)
-    db = new SQL.Database(buffer)
+    try {
+      db = new SQL.Database(buffer)
+      // Sanity check — touch the file to surface "disk image malformed" errors immediately
+      db.exec('PRAGMA quick_check;')
+    } catch (corruptErr) {
+      const ts = new Date().toISOString().replace(/[:.]/g, '-')
+      const brokenPath = `${DB_PATH}.broken-${ts}`
+      console.error(`[db] !!! DATABASE FILE IS CORRUPT — ${corruptErr.message}`)
+      console.error(`[db] !!! Moving broken file to ${brokenPath} and booting with a fresh empty DB.`)
+      console.error(`[db] !!! To recover prior data: download the .broken-* file via Render shell / disk, or restore the disk from a snapshot.`)
+      try { renameSync(DB_PATH, brokenPath) } catch (e) { console.error(`[db] rename failed: ${e.message}`) }
+      db = new SQL.Database()
+    }
   } else {
     console.log(`[db] No existing database, creating new at ${DB_PATH}`)
     db = new SQL.Database()
@@ -752,9 +764,17 @@ export async function initDb() {
     console.error('[migration] listings.marketing_tasks failed:', e.message)
   }
 
-  // Migration: drop agency_type CHECK constraint if it exists
-  // SQLite doesn't allow ALTER TABLE DROP CONSTRAINT, so we have to recreate the table
-  try {
+  // DISABLED 2026-05-11: this migration was permanently failing because its
+  // hardcoded new schema (~55 cols) no longer matches the current transactions
+  // table (~80+ cols after later ALTER ADD COLUMN migrations). Every failed
+  // boot was re-running a half-written BEGIN TRANSACTION block, which caused
+  // the persistent DB file on Render to become malformed over time. The
+  // agency_type CHECK constraint, if still present, is harmless — agency_type
+  // only ever takes a few specific values and we don't write disallowed ones.
+  // Leaving the block below behind a constant `false` guard so the historical
+  // intent is documented but the code path is dead.
+  // eslint-disable-next-line no-constant-condition
+  if (false) try {
     const tableInfo = db.exec("SELECT sql FROM sqlite_master WHERE type='table' AND name='transactions'")
     const sql = tableInfo[0]?.values[0]?.[0] || ''
     if (sql.includes("agency_type TEXT CHECK")) {
