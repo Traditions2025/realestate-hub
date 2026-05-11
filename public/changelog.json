@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-11T15:57:32.801Z",
-  "count": 126,
+  "generated_at": "2026-05-11T21:16:49.995Z",
+  "count": 127,
   "entries": [
+    {
+      "hash": "51dedfd",
+      "date": "2026-05-11T10:57:34-05:00",
+      "subject": "db: disable destructive auto-recovery; add /broken-file discovery + restore",
+      "title": "db: disable destructive auto-recovery; add /broken-file discovery + restore",
+      "body": "The 2026-05-11 incident lost data twice because the malformed-DB\nrecovery path in 0430e39 auto-renamed the live file and created a\nfresh empty one. That's silent data loss disguised as 'recovery'.\nWorse: it fires on EVERY corrupt-load throw, so any boot with a\ntransient read issue trashed the disk.\n\nNEW: on a load failure, just THROW. Boot crashes loudly (502).\nA 502 is recoverable. Wiped data is not.\n\nTo find data the old recovery moved aside, two new endpoints:\n  GET  /api/backup/candidates   — lists /data/*.broken-* sidecars\n                                  plus all /data/backups/* snapshots,\n                                  newest first\n  POST /api/backup/restore body { source: \"/data/...path...\" }\n                                — copies the chosen file over\n                                  /data/realestate-hub.db (current\n                                  one renamed aside first). Caller\n                                  must redeploy to load into memory.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c552032",
       "date": "2026-05-11T10:44:25-05:00",

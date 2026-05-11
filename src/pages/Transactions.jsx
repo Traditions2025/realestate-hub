@@ -344,21 +344,44 @@ export default function Transactions() {
     }
   }
 
+  // Undo a wrong-direction move (Active → Pre-Listing). Does NOT mark Withdrawn.
+  // Path 1: transaction was promoted from a pre-listing (has pre_listing_id) →
+  //   restore that pre-listing's status to 'New' and delete the transaction.
+  //   This is true "undo" — pre-listing card re-appears in the Pre-Listing column,
+  //   no orphan Withdrawn transaction left behind.
+  // Path 2: transaction has no pre_listing_id (manually created) →
+  //   create a fresh pre-listing from the transaction's data and delete the
+  //   transaction. Same end state, no Withdrawn flag.
   const demoteTransactionToPreListing = async (tx) => {
-    const ok = confirm(`Move "${tx.property_address}" back to Pre-Listing?\n\nThis will create a new pre-listing record and mark the current transaction as Withdrawn.`)
-    if (!ok) return
+    const hasLink = !!tx.pre_listing_id
+    const msg = hasLink
+      ? `Undo move and put "${tx.property_address}" back in Pre-Listing?\n\nThe transaction record will be deleted and the original pre-listing entry restored. Any checklist progress on the transaction will be lost.`
+      : `Move "${tx.property_address}" back to Pre-Listing?\n\nA pre-listing entry will be created and the transaction record removed. No Withdrawn marker.`
+    if (!confirm(msg)) return
     try {
-      await authFetch('/api/pre-listings', {
-        method: 'POST',
-        body: JSON.stringify({
-          property_address: tx.property_address,
-          owner_name: tx.seller_name || '',
-          status: 'New',
-          client_id: tx.client_id || null,
-          notes: tx.notes || '',
-        }),
-      })
-      await api.updateTransaction(tx.id, { property_status: 'Withdrawn' })
+      if (hasLink) {
+        // Restore the linked pre-listing
+        await authFetch(`/api/pre-listings/${tx.pre_listing_id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: 'New' }),
+        })
+      } else {
+        // Create a new pre-listing carrying over the address / owner / notes
+        await authFetch('/api/pre-listings', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            property_address: tx.property_address,
+            owner_name: tx.seller_name || '',
+            status: 'New',
+            client_id: tx.client_id || null,
+            notes: tx.notes || '',
+          }),
+        })
+      }
+      // Delete the wrong-direction transaction (no Withdrawn marker)
+      await authFetch(`/api/transactions/${tx.id}`, { method: 'DELETE' })
       load()
     } catch (err) {
       alert('Failed to demote transaction: ' + err.message)
