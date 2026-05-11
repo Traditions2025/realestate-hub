@@ -1,7 +1,9 @@
 import express, { Router } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import db from '../database.js'
-import { sendViaSendGrid } from './email.js'
+// NOTE: sendViaSendGrid is lazy-imported inside notifyMentions to avoid a
+// circular import cycle (listings → email → transaction-digest → email).
+// Some Node versions on hosted runtimes crash on cold-start with that cycle.
 
 // Map @mention handles to real email addresses. Add more handles by extending this map.
 const MENTION_RECIPIENTS = {
@@ -755,6 +757,9 @@ function parseMentions(text) {
 }
 
 async function notifyMentions(listing, note, mentions) {
+  if (!mentions || !mentions.length) return
+  // Lazy-import to break the listings ↔ email circular dependency at module-load time
+  const { sendViaSendGrid } = await import('./email.js')
   const seen = new Set()
   for (const handle of mentions) {
     const to = MENTION_RECIPIENTS[handle]

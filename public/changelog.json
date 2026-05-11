@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-11T14:18:32.432Z",
-  "count": 119,
+  "generated_at": "2026-05-11T14:39:36.172Z",
+  "count": 120,
   "entries": [
+    {
+      "hash": "ab07ae2",
+      "date": "2026-05-11T09:18:45-05:00",
+      "subject": "Listings: internal notes thread with @mentions + redesigned stage tabs",
+      "title": "Listings: internal notes thread with @mentions + redesigned stage tabs",
+      "body": "Backend:\n- New listings.notes_log column (JSON array of {at, by, text, mentions})\n- POST /api/listings/:id/notes — parses @matt / @leo / @john mentions,\n  emails the mentioned teammate(s) with the note text and a link back\n  to the hub\n- DELETE /api/listings/:id/notes/:idx\n\nFrontend — listing modal:\n- New 💬 Notes tab with composer (by-author dropdown, multi-line text)\n  and a reverse-chronological thread of past notes\n- @mentions render as inline pills in the saved notes\n- 'notified: @matt' badge shows when a note triggered an email\n- Per-note delete button\n\nFrontend — stage tabs redesigned:\n- Replaced the small text-tab strip with a 6-column card grid showing\n  large count + uppercase label, color-coded left accent bar per stage\n  (purple pre-listing / amber coming soon / green active / blue under\n  contract / slate closed) and a subtle lift + glow on the active card\n- Mobile collapses to 3 columns\n\nAlso: deleted the orphan 2416 C St SW listing (id=1) on the live DB\nthat was creating the duplicate row.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "835cb3c",
       "date": "2026-05-08T18:59:58-05:00",
