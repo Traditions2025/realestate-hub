@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-12T18:10:11.030Z",
-  "count": 131,
+  "generated_at": "2026-05-12T18:20:45.212Z",
+  "count": 132,
   "entries": [
+    {
+      "hash": "159d73e",
+      "date": "2026-05-12T13:10:13-05:00",
+      "subject": "db: fix disk-mount race that wiped DB on every Render deploy",
+      "title": "db: fix disk-mount race that wiped DB on every Render deploy",
+      "body": "ROOT CAUSE of the 2026-05-11 and 2026-05-12 data wipes:\nRender's persistent disk mounts asynchronously. The Node process starts\nBEFORE /data is fully visible. initDb()'s existsSync(DB_PATH) was\nreturning FALSE even though the real 24 MB DB file existed on the disk.\nThat sent boot down the `else` branch (create empty in-memory DB) and\nsaveDb() at the end of initDb wrote the empty DB over the real file\nonce /data finished mounting. Silent total data loss every deploy.\n\nFIX (two layers of defense):\n1. Retry existsSync for up to 30 seconds (500ms × 60). Wait for /data\n   to mount before deciding the file doesn't exist.\n2. If main file is still missing AFTER mount confirms (backups dir\n   exists), the file genuinely vanished — auto-restore from the\n   newest backup in /data/backups/ instead of overwriting with empty.\n   Only proceeds with restore if a backup > 100 KB is available (skip\n   tiny / corrupted ones).\n\nEither layer alone would have prevented yesterday's wipe; together\nthey make this class of bug impossible.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "2c27f63",
       "date": "2026-05-12T12:40:22-05:00",

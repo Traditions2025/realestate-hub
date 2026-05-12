@@ -1,5 +1,5 @@
 import initSqlJs from 'sql.js'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, copyFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -26,30 +26,32 @@ export async function initDb() {
     }
   }
 
-  // ---- DISK-MOUNT RACE FIX (added 2026-05-12 after 2nd data wipe) ----
+  // ---- DISK-MOUNT RACE FIX (added 2026-05-12 after 3rd data wipe) ----
   // Render's persistent disk mounts asynchronously. The Node process can
   // start BEFORE /data is fully visible, in which case existsSync(DB_PATH)
   // returns false even though the real file exists on disk.
   // Without retries: boot's `else` branch ran (created empty in-memory DB),
   // then saveDb() at end of initDb wrote the empty DB on top of the real
   // 24 MB file → silent data loss.
-  // Retries up to ~30 seconds for the file to appear OR for the backups dir
-  // to confirm the disk is in fact mounted.
-  let attempts = 0
   const backupDir = join(DB_DIR, 'backups')
-  while (!existsSync(DB_PATH) && !existsSync(backupDir) && attempts < 60) {
+
+  // STEP 1: wait up to 30s for SOMETHING in /data to be visible.
+  // We poll for the backups dir specifically since the main file might
+  // appear briefly empty during mount.
+  let attempts = 0
+  while (!existsSync(backupDir) && !existsSync(DB_PATH) && attempts < 60) {
     console.log(`[db] waiting for /data to mount... (${attempts+1}/60)`)
     await new Promise(r => setTimeout(r, 500))
     attempts++
   }
+  console.log(`[db] /data probe: DB_PATH exists=${existsSync(DB_PATH)} size=${existsSync(DB_PATH) ? statSync(DB_PATH).size : 'n/a'}, backupDir exists=${existsSync(backupDir)}`)
 
-  // If DB file is missing but backups exist, the disk IS mounted and the
-  // main file genuinely vanished. That's a sign of corruption/wipe; auto-
-  // restore from the most recent backup instead of writing fresh empty over
-  // it later.
-  if (!existsSync(DB_PATH) && existsSync(backupDir)) {
+  // STEP 2: find newest usable backup (used either for auto-restore OR
+  // for sanity comparison if the main file is suspiciously small).
+  function newestUsableBackup() {
+    if (!existsSync(backupDir)) return null
     try {
-      const files = (await import('fs')).readdirSync(backupDir)
+      const files = readdirSync(backupDir)
         .filter(f => f.startsWith('realestate-hub.db.'))
         .map(f => {
           const p = join(backupDir, f)
@@ -58,15 +60,38 @@ export async function initDb() {
         })
         .filter(x => x.size > 100 * 1024)  // > 100 KB = real data
         .sort((a, b) => b.mtime - a.mtime)
-      if (files.length > 0) {
-        const newest = files[0]
-        console.warn(`[db] !!! /data/realestate-hub.db is MISSING but ${files.length} backup(s) exist.`)
-        console.warn(`[db] !!! Auto-restoring from ${newest.name} (${(newest.size/1024/1024).toFixed(1)} MB).`)
-        const { copyFileSync } = await import('fs')
-        copyFileSync(newest.path, DB_PATH)
-      }
+      return files[0] || null
     } catch (e) {
-      console.error('[db] auto-restore from backup failed:', e.message)
+      console.error('[db] reading backups dir failed:', e.message)
+      return null
+    }
+  }
+
+  // STEP 3: if main file is missing OR suspiciously tiny (< 100 KB) BUT
+  // a real backup exists, restore from the backup. A real DB with even
+  // just seeded data is ~140 KB; below that threshold means the file is
+  // corrupted/truncated/empty due to a prior failed boot.
+  const dbExists = existsSync(DB_PATH)
+  const dbTooSmall = dbExists && statSync(DB_PATH).size < 100 * 1024
+  if (!dbExists || dbTooSmall) {
+    const backup = newestUsableBackup()
+    if (backup) {
+      console.warn(`[db] !!! Main DB ${!dbExists ? 'MISSING' : `too small (${statSync(DB_PATH).size} bytes)`} but backup exists.`)
+      console.warn(`[db] !!! Auto-restoring from ${backup.name} (${(backup.size/1024/1024).toFixed(1)} MB).`)
+      try {
+        // Move the suspect file aside first (if it exists) for forensic review
+        if (dbExists) {
+          const aside = `${DB_PATH}.replaced-${new Date().toISOString().replace(/[:.]/g, '-')}`
+          renameSync(DB_PATH, aside)
+          console.warn(`[db] !!! suspect file moved to ${aside}`)
+        }
+        copyFileSync(backup.path, DB_PATH)
+        console.warn(`[db] !!! restore complete: ${statSync(DB_PATH).size} bytes`)
+      } catch (e) {
+        console.error('[db] auto-restore copy failed:', e.message)
+      }
+    } else if (!dbExists) {
+      console.log('[db] no DB and no usable backup — truly first boot')
     }
   }
 
