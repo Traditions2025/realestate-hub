@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-12T19:17:47.725Z",
-  "count": 134,
+  "generated_at": "2026-05-12T21:44:26.113Z",
+  "count": 135,
   "entries": [
+    {
+      "hash": "107403e",
+      "date": "2026-05-12T14:17:50-05:00",
+      "subject": "db: wait for BOTH /data paths to settle (mount-race bug fix)",
+      "title": "db: wait for BOTH /data paths to settle (mount-race bug fix)",
+      "body": "Previous loop exited as soon as EITHER /data/realestate-hub.db OR\n/data/backups was visible. If the main file mounted first and the\nbackups dir mounted slightly later, newestUsableBackup() returned\nnull → auto-restore couldn't fire → restored data got wiped again.\n\nTwo-phase wait:\n  1. Wait up to 30s for at least one of the two paths to appear\n  2. Then wait up to 10s more for the other path to settle\n\nThis ensures `newestUsableBackup()` sees the backups dir before the\nauto-restore decision is made.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0cee838",
       "date": "2026-05-12T13:31:51-05:00",

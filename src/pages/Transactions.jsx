@@ -1329,6 +1329,32 @@ export default function Transactions() {
           )}
 
           <div className="form-actions">
+            {editing && (
+              <button
+                type="button"
+                className="btn btn-danger"
+                style={{marginRight: 'auto'}}
+                onClick={async () => {
+                  const confirmMsg = `Delete this transaction?\n\n  ${form.property_address || 'Untitled'}\n\nThis removes it from the Transactions tab. Any linked Listings entry will need to be deleted separately if applicable.\n\nThis cannot be undone.`
+                  if (!confirm(confirmMsg)) return
+                  try {
+                    const r = await authFetch(`/api/transactions/${editing}`, { method: 'DELETE' })
+                    if (r.ok) {
+                      setModalOpen(false)
+                      load()
+                    } else {
+                      const d = await r.json().catch(() => ({}))
+                      alert('Delete failed: ' + (d.error || r.statusText))
+                    }
+                  } catch (err) {
+                    alert('Delete failed: ' + err.message)
+                  }
+                }}
+                title="Permanently delete this transaction (cannot be undone)"
+              >
+                🗑 Delete Transaction
+              </button>
+            )}
             <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
             <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'} Transaction</button>
           </div>
