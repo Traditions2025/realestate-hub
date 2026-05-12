@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-11T22:51:57.713Z",
-  "count": 129,
+  "generated_at": "2026-05-12T17:18:02.673Z",
+  "count": 130,
   "entries": [
+    {
+      "hash": "910890b",
+      "date": "2026-05-11T17:52:01-05:00",
+      "subject": "Closings: auto-invite team (John + Matt) + per-audience Buyer/Seller buttons",
+      "title": "Closings: auto-invite team (John + Matt) + per-audience Buyer/Seller buttons",
+      "body": "When a transaction has closing_date + closing_time + closing_location all\nset, an iCalendar invite fires automatically to the team:\n  johnwithmattsmithteam@gmail.com\n  mattsmithremax@gmail.com\n(override via TEAM_CLOSING_INVITE_RECIPIENTS env var)\n\nThe auto-send is idempotent — tracked via a closing_invite_signature\ncolumn ('date|time|location'). It only re-fires when one of those three\nfields changes, so saving the transaction for unrelated reasons won't\nre-spam the team.\n\nUI in the Closing Logistics section now shows a status line:\n  ✓ Team auto-invite sent to John + Matt — May 12 at 10:32 AM\n  ↳ Re-fires automatically if Closing Time or Location changes.\n\nPlus three on-demand buttons (audience-tagged):\n  📧 Send to Buyer\n  📧 Send to Seller\n  📧 Send to Other\nEach prompts for the email + optional note, sends the same .ics\nattachment, and logs to activity_log with the audience label.\n\nRefactored: extracted sendClosingInvite() as a shared helper used by\nboth the auto-send path and the HTTP endpoint (no more duplicated code).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "07d383d",
       "date": "2026-05-11T17:39:49-05:00",

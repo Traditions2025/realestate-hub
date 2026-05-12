@@ -12,6 +12,68 @@ const TEAM_EMAILS = {
   john: 'johnwithmattsmithteam@gmail.com',
 }
 
+// Per-change notifications — fired on every task create / update / note-add.
+// Override the recipient list via TASK_NOTIFY_RECIPIENTS env var (comma-separated).
+// Pass `silent: true` in the request body to skip notifications (used by the
+// bulk seed endpoint so importing 60 tasks doesn't fire 60 emails).
+const TASK_NOTIFY_RECIPIENTS = (process.env.TASK_NOTIFY_RECIPIENTS ||
+  'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com')
+  .split(',').map(s => s.trim()).filter(Boolean)
+
+const HUB_TASKS_URL = (process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com') + '/tasks'
+
+async function notifyTaskChange(action, task, opts = {}) {
+  if (!TASK_NOTIFY_RECIPIENTS.length) return
+  if (opts.silent) return
+  try {
+    const verb =
+      action === 'created'    ? 'created' :
+      action === 'updated'    ? 'updated' :
+      action === 'note_added' ? 'note added to' :
+      action === 'deleted'    ? 'deleted' :
+                                action
+    const subject = `[Task ${verb}] ${task.title || 'Untitled'}`
+    const due = task.due_date ? fmtDateLong(task.due_date) : '—'
+    const lines = [
+      `<p><strong>Task ${verb}</strong> on the Matt Smith Team Hub.</p>`,
+      '<ul>',
+      `<li><strong>Title:</strong> ${escapeHtmlLite(task.title || '—')}</li>`,
+      task.description ? `<li><strong>Description:</strong> ${escapeHtmlLite(task.description)}</li>` : '',
+      `<li><strong>Status:</strong> ${escapeHtmlLite((task.status || 'todo').replace(/_/g,' '))}</li>`,
+      `<li><strong>Priority:</strong> ${escapeHtmlLite(task.priority || 'medium')}</li>`,
+      `<li><strong>Due:</strong> ${escapeHtmlLite(due)}</li>`,
+      task.assigned_to ? `<li><strong>Assigned to:</strong> ${escapeHtmlLite(task.assigned_to)}</li>` : '',
+      task.category ? `<li><strong>Category:</strong> ${escapeHtmlLite(task.category)}</li>` : '',
+      '</ul>',
+    ]
+    if (opts.note) {
+      lines.push(`<p style="background:#f9fafb;border-left:3px solid #c89b4a;padding:10px 14px;border-radius:4px;font-size:14px;"><strong>Note${opts.noteBy ? ' by ' + escapeHtmlLite(opts.noteBy) : ''}:</strong><br>${escapeHtmlLite(opts.note).replace(/\n/g,'<br>')}</p>`)
+    }
+    if (opts.changeSummary) {
+      lines.push(`<p style="font-size:12px;color:#6b7280;"><strong>What changed:</strong> ${escapeHtmlLite(opts.changeSummary)}</p>`)
+    }
+    lines.push(`<p><a href="${HUB_TASKS_URL}" style="background:#c89b4a;color:#fff;padding:8px 16px;border-radius:6px;text-decoration:none;font-weight:600;font-size:13px;">Open Tasks in Hub</a></p>`)
+    lines.push('<p style="font-size:11px;color:#9ca3af;">— Matt Smith Team Hub</p>')
+
+    await sendViaSendGrid(
+      TASK_NOTIFY_RECIPIENTS,
+      'Matt Smith Team',
+      subject,
+      lines.filter(Boolean).join('\n'),
+      undefined,
+      [],
+      []
+    )
+  } catch (err) {
+    console.error('[task-notify] send failed:', err.message)
+  }
+}
+
+function escapeHtmlLite(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+}
+
 function fmtDateLong(s) {
   if (!s) return ''
   const parts = String(s).split('-').map(Number)
@@ -52,6 +114,9 @@ router.post('/', (req, res) => {
       n(b.assigned_to), n(b.category), n(b.related_type), n(b.related_id)])
 
   logActivity('created', 'task', result.lastInsertRowid, `New task: ${b.title}`)
+  // Notify team — fire-and-forget so HTTP response isn't blocked on SendGrid
+  const created = db.get('SELECT * FROM tasks WHERE id = ?', [result.lastInsertRowid])
+  notifyTaskChange('created', created, { silent: !!b.silent }).catch(() => {})
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
@@ -83,6 +148,13 @@ router.put('/:id', (req, res) => {
 
   db.run(`UPDATE tasks SET ${sets} WHERE id = ?`, values)
   logActivity('updated', 'task', id, fields.status === 'done' ? 'Marked done' : 'Updated task')
+  // Build a short "what changed" summary for the notification email
+  const changedKeys = Object.keys(fields).filter(k => k !== 'updated_at' && k !== 'notes_log')
+  const changeSummary = changedKeys.length
+    ? changedKeys.map(k => `${k} → ${String(fields[k] || '').slice(0, 60)}`).join('; ')
+    : 'minor update'
+  const after = db.get('SELECT * FROM tasks WHERE id = ?', [id])
+  notifyTaskChange('updated', after, { silent: !!fields.silent, changeSummary }).catch(() => {})
   res.json({ success: true })
 })
 
@@ -97,13 +169,16 @@ router.post('/:id/notes', (req, res) => {
   const id = Number(req.params.id)
   const { text, by } = req.body || {}
   if (!text || !text.trim()) return res.status(400).json({ error: 'text required' })
-  const row = db.get('SELECT notes_log FROM tasks WHERE id = ?', [id])
+  const row = db.get('SELECT * FROM tasks WHERE id = ?', [id])
   if (!row) return res.status(404).json({ error: 'Task not found' })
   let log = []
   try { log = row.notes_log ? JSON.parse(row.notes_log) : [] } catch { log = [] }
-  log.push({ at: new Date().toISOString(), by: (by || '').trim() || null, text: text.trim() })
+  const noteText = text.trim()
+  const noteBy = (by || '').trim() || null
+  log.push({ at: new Date().toISOString(), by: noteBy, text: noteText })
   db.run("UPDATE tasks SET notes_log = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(log), id])
-  logActivity('note_added', 'task', id, `Note added by ${by || 'team'}: ${text.trim().slice(0, 100)}`)
+  logActivity('note_added', 'task', id, `Note added by ${by || 'team'}: ${noteText.slice(0, 100)}`)
+  notifyTaskChange('note_added', row, { silent: !!req.body.silent, note: noteText, noteBy }).catch(() => {})
   res.json({ success: true, notes_log: log })
 })
 
@@ -223,16 +298,24 @@ const MATTS_TASK_LIST = [
 router.post('/seed-matts-list', (req, res) => {
   let added = 0
   let skipped = 0
-  for (const t of MATTS_TASK_LIST) {
-    const existing = db.get('SELECT id FROM tasks WHERE title = ?', [t.title])
-    if (existing) { skipped++; continue }
-    db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category)
-      VALUES (?,?,?,?,?,?,?)`,
-      [t.title, n(t.description), t.priority || 'medium', t.status || 'todo',
-        n(t.due_date), n(t.assigned_to), n(t.category)])
-    added++
+  // Bulk mode: skip saveDb() between each INSERT — would otherwise write the
+  // full 24 MB DB to disk 59 times. With bulk mode we write once at the end.
+  db.beginBulk?.()
+  try {
+    for (const t of MATTS_TASK_LIST) {
+      const existing = db.get('SELECT id FROM tasks WHERE title = ?', [t.title])
+      if (existing) { skipped++; continue }
+      db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category)
+        VALUES (?,?,?,?,?,?,?)`,
+        [t.title, n(t.description), t.priority || 'medium', t.status || 'todo',
+          n(t.due_date), n(t.assigned_to), n(t.category)])
+      added++
+    }
+  } finally {
+    db.endBulk?.()  // single saveDb() here
   }
   logActivity('seeded', 'task', null, `Imported Matt's task list: ${added} added, ${skipped} skipped (already existed)`)
+  // No per-task notification emails on bulk seed — would spam 60+ emails
   res.json({ success: true, added, skipped, total: MATTS_TASK_LIST.length })
 })
 

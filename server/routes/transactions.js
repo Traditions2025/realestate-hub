@@ -243,6 +243,10 @@ router.post('/sync-sheet', async (req, res) => {
     const rows = parseCSV(csv)
     if (rows.length < 2) return res.json({ synced: 0 })
 
+    // Bulk mode: batch all the INSERTs/UPDATEs and saveDb ONCE at the end
+    // instead of N times (writing 24 MB on every row). ~10-20× speedup.
+    db.beginBulk?.()
+
     let synced = 0
     let errors = []
     for (let i = 1; i < rows.length; i++) {
@@ -307,9 +311,11 @@ router.post('/sync-sheet', async (req, res) => {
       }
     }
 
+    db.endBulk?.()  // flush all the writes as one disk save
     logActivity('synced', 'transaction', null, `Synced ${synced} transactions from Google Sheet${errors.length ? ` (${errors.length} errors)` : ''}`)
     res.json({ synced, errors })
   } catch (err) {
+    db.endBulk?.()  // make sure we don't leave bulk mode on after an error
     res.status(500).json({ error: err.message })
   }
 })
@@ -470,24 +476,31 @@ router.post('/normalize-dates', (req, res) => {
   let cellsConverted = 0
   const sample = []
 
-  for (const tx of txs) {
-    const updates = {}
-    for (const col of dateColumns) {
-      const v = tx[col]
-      if (!v) continue
-      const m = String(v).trim().match(slashRe)
-      if (!m) continue  // already ISO or status-text — leave alone
-      const iso = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
-      updates[col] = iso
-      cellsConverted++
+  // Bulk mode: 17 transactions × 24 MB per save = 408 MB written without bulk.
+  // With bulk, one write at the end.
+  db.beginBulk?.()
+  try {
+    for (const tx of txs) {
+      const updates = {}
+      for (const col of dateColumns) {
+        const v = tx[col]
+        if (!v) continue
+        const m = String(v).trim().match(slashRe)
+        if (!m) continue  // already ISO or status-text — leave alone
+        const iso = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+        updates[col] = iso
+        cellsConverted++
+      }
+      if (Object.keys(updates).length) {
+        const sets = Object.keys(updates).map(k => `${k} = ?`).join(', ')
+        const vals = [...Object.values(updates), tx.id]
+        db.run(`UPDATE transactions SET ${sets}, updated_at = datetime('now') WHERE id = ?`, vals)
+        rowsTouched++
+        if (sample.length < 5) sample.push({ id: tx.id, address: tx.property_address, changes: updates })
+      }
     }
-    if (Object.keys(updates).length) {
-      const sets = Object.keys(updates).map(k => `${k} = ?`).join(', ')
-      const vals = [...Object.values(updates), tx.id]
-      db.run(`UPDATE transactions SET ${sets}, updated_at = datetime('now') WHERE id = ?`, vals)
-      rowsTouched++
-      if (sample.length < 5) sample.push({ id: tx.id, address: tx.property_address, changes: updates })
-    }
+  } finally {
+    db.endBulk?.()
   }
 
   logActivity('normalize_dates', 'transaction', 0,
