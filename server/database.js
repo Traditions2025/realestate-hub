@@ -67,19 +67,25 @@ export async function initDb() {
     }
   }
 
-  // STEP 3: if main file is missing OR suspiciously tiny (< 100 KB) BUT
-  // a real backup exists, restore from the backup. A real DB with even
-  // just seeded data is ~140 KB; below that threshold means the file is
-  // corrupted/truncated/empty due to a prior failed boot.
+  // STEP 3: decide whether to auto-restore. The trigger conditions:
+  //   - File is missing entirely, OR
+  //   - File is too tiny to contain real data (< 100 KB), OR
+  //   - File is suspiciously small compared to the newest backup
+  //     (< 50% of backup size — strong signal the disk was wiped)
+  // The 50% ratio handles the case we hit at 18:11 — file at 148 KB
+  // (just above absolute threshold) but backup at 24 MB. Ratio catches it.
   const dbExists = existsSync(DB_PATH)
-  const dbTooSmall = dbExists && statSync(DB_PATH).size < 100 * 1024
-  if (!dbExists || dbTooSmall) {
-    const backup = newestUsableBackup()
+  const liveSize = dbExists ? statSync(DB_PATH).size : 0
+  const backup = newestUsableBackup()
+  const suspicious =
+    !dbExists ||
+    liveSize < 100 * 1024 ||
+    (backup && liveSize < backup.size * 0.5)
+  if (suspicious) {
     if (backup) {
-      console.warn(`[db] !!! Main DB ${!dbExists ? 'MISSING' : `too small (${statSync(DB_PATH).size} bytes)`} but backup exists.`)
-      console.warn(`[db] !!! Auto-restoring from ${backup.name} (${(backup.size/1024/1024).toFixed(1)} MB).`)
+      console.warn(`[db] !!! Main DB looks wiped: live=${liveSize} bytes, newest backup=${backup.size} bytes (${backup.name})`)
+      console.warn(`[db] !!! Auto-restoring from backup.`)
       try {
-        // Move the suspect file aside first (if it exists) for forensic review
         if (dbExists) {
           const aside = `${DB_PATH}.replaced-${new Date().toISOString().replace(/[:.]/g, '-')}`
           renameSync(DB_PATH, aside)
