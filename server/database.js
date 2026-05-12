@@ -26,51 +26,83 @@ export async function initDb() {
     }
   }
 
+  // ---- DISK-MOUNT RACE FIX (added 2026-05-12 after 2nd data wipe) ----
+  // Render's persistent disk mounts asynchronously. The Node process can
+  // start BEFORE /data is fully visible, in which case existsSync(DB_PATH)
+  // returns false even though the real file exists on disk.
+  // Without retries: boot's `else` branch ran (created empty in-memory DB),
+  // then saveDb() at end of initDb wrote the empty DB on top of the real
+  // 24 MB file → silent data loss.
+  // Retries up to ~30 seconds for the file to appear OR for the backups dir
+  // to confirm the disk is in fact mounted.
+  let attempts = 0
+  const backupDir = join(DB_DIR, 'backups')
+  while (!existsSync(DB_PATH) && !existsSync(backupDir) && attempts < 60) {
+    console.log(`[db] waiting for /data to mount... (${attempts+1}/60)`)
+    await new Promise(r => setTimeout(r, 500))
+    attempts++
+  }
+
+  // If DB file is missing but backups exist, the disk IS mounted and the
+  // main file genuinely vanished. That's a sign of corruption/wipe; auto-
+  // restore from the most recent backup instead of writing fresh empty over
+  // it later.
+  if (!existsSync(DB_PATH) && existsSync(backupDir)) {
+    try {
+      const files = (await import('fs')).readdirSync(backupDir)
+        .filter(f => f.startsWith('realestate-hub.db.'))
+        .map(f => {
+          const p = join(backupDir, f)
+          const s = statSync(p)
+          return { name: f, path: p, size: s.size, mtime: s.mtimeMs }
+        })
+        .filter(x => x.size > 100 * 1024)  // > 100 KB = real data
+        .sort((a, b) => b.mtime - a.mtime)
+      if (files.length > 0) {
+        const newest = files[0]
+        console.warn(`[db] !!! /data/realestate-hub.db is MISSING but ${files.length} backup(s) exist.`)
+        console.warn(`[db] !!! Auto-restoring from ${newest.name} (${(newest.size/1024/1024).toFixed(1)} MB).`)
+        const { copyFileSync } = await import('fs')
+        copyFileSync(newest.path, DB_PATH)
+      }
+    } catch (e) {
+      console.error('[db] auto-restore from backup failed:', e.message)
+    }
+  }
+
   if (existsSync(DB_PATH)) {
     const stats = statSync(DB_PATH)
     console.log(`[db] Loading existing database (${(stats.size / 1024).toFixed(1)} KB, modified ${stats.mtime.toISOString()})`)
 
     // ---- LAYER 2: pre-boot snapshot ----
-    // Copy the on-disk file to /data/backups/...pre-boot-{ts} BEFORE running
-    // any migrations. If migrations corrupt the file, this snapshot is the
-    // recovery point. Lazy-loaded to avoid circular import paths.
     try {
       const { backupDbToDisk, rotateBackups } = await import('./backup.js')
       const snap = backupDbToDisk('pre-boot')
       if (snap.path) {
         console.log(`[db] pre-boot snapshot saved: ${snap.filename} (${(snap.size/1024).toFixed(0)} KB)`)
-        rotateBackups('pre-boot', 10)  // keep last 10 boots
+        rotateBackups('pre-boot', 10)
       }
     } catch (e) {
       console.error(`[db] pre-boot snapshot failed: ${e.message}`)
-      // Continue — snapshot failure must not block boot
     }
 
     const buffer = readFileSync(DB_PATH)
     try {
       db = new SQL.Database(buffer)
-      // Sanity check — touch the file to surface "disk image malformed" errors immediately
       db.exec('PRAGMA quick_check;')
     } catch (corruptErr) {
-      // !!! DO NOT AUTO-RENAME / AUTO-RECOVER ANYMORE !!!
-      // The previous behavior wiped real data on 2026-05-11 because sql.js
-      // sometimes throws on healthy-but-large DB files, or because a single
-      // corrupted page makes the whole file unloadable even though most data
-      // is fine. Wiping the file = silent data loss.
-      //
-      // New behavior: log loudly and CRASH the boot. A 502 is recoverable
-      // (rollback, restore snapshot, manual fix). Wiped data is not.
       console.error('[db] ============================================')
       console.error(`[db] !!! DATABASE FILE FAILED TO LOAD: ${corruptErr.message}`)
       console.error(`[db] !!! File: ${DB_PATH}`)
-      console.error(`[db] !!! NOT auto-renaming. NOT creating fresh DB.`)
+      console.error('[db] !!! NOT auto-renaming. NOT creating fresh DB.')
       console.error('[db] !!! Crashing instead so data is NOT lost.')
-      console.error('[db] !!! Recovery: restore from a backup or Render snapshot, then redeploy.')
       console.error('[db] ============================================')
       throw corruptErr
     }
   } else {
-    console.log(`[db] No existing database, creating new at ${DB_PATH}`)
+    // Truly no DB anywhere — first-ever boot OR Render disk really is empty.
+    // This is now a rare path because of the retry+auto-restore above.
+    console.log(`[db] No existing database AND no usable backup, creating new at ${DB_PATH}`)
     db = new SQL.Database()
   }
 

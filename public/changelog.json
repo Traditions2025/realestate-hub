@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-12T17:18:02.673Z",
-  "count": 130,
+  "generated_at": "2026-05-12T18:10:11.030Z",
+  "count": 131,
   "entries": [
+    {
+      "hash": "2c27f63",
+      "date": "2026-05-12T12:40:22-05:00",
+      "subject": "Tasks: notify Matt + Leo on every create/update/note + bulk-mode perf fix",
+      "title": "Tasks: notify Matt + Leo on every create/update/note + bulk-mode perf fix",
+      "body": "Tasks tab:\n- Every task created, updated, or note-added fires an email\n  notification to johnwithmattsmithteam@gmail.com and\n  mattsmithremax@gmail.com (override via TASK_NOTIFY_RECIPIENTS env).\n- Subject includes the action: \"[Task created] / [Task updated] /\n  [Task note added to] <title>\"\n- Body shows title, description, status, priority, due, assignee,\n  category. Update emails include a 'what changed' summary; note\n  emails include the note text in a quote block.\n- Fire-and-forget (HTTP response doesn't block on SendGrid).\n- Bulk seed (POST /tasks/seed-matts-list) intentionally skips\n  notifications — would otherwise spam 60 emails per bulk import.\n\nPerformance fix (bulk-mode wrap on the three slow loops):\n- POST /tasks/seed-matts-list: 60× saveDb -> 1× (60× less disk I/O)\n- POST /transactions/sync-sheet: 17× saveDb -> 1×\n- POST /transactions/normalize-dates: 17× saveDb -> 1×\n- With the DB at 24 MB, this saves ~1.4 GB of disk writes per\n  seed-matts-list click. Felt as the hub slowing down during\n  bulk imports.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "910890b",
       "date": "2026-05-11T17:52:01-05:00",
