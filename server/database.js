@@ -35,12 +35,24 @@ export async function initDb() {
   // 24 MB file → silent data loss.
   const backupDir = join(DB_DIR, 'backups')
 
-  // STEP 1: wait up to 30s for SOMETHING in /data to be visible.
-  // We poll for the backups dir specifically since the main file might
-  // appear briefly empty during mount.
+  // STEP 1: wait up to 30s for /data to mount. Wait for BOTH the main
+  // file path AND the backups dir to be visible — earlier version of
+  // this code exited as soon as either appeared, which meant the
+  // backups-dir check below could miss backups if /data/backups mounted
+  // slightly after /data/realestate-hub.db.
   let attempts = 0
-  while (!existsSync(backupDir) && !existsSync(DB_PATH) && attempts < 60) {
+  const wantBoth = () => existsSync(DB_PATH) && existsSync(backupDir)
+  const wantEither = () => existsSync(DB_PATH) || existsSync(backupDir)
+  // First wait for ANY signal that the disk mounted at all
+  while (!wantEither() && attempts < 60) {
     console.log(`[db] waiting for /data to mount... (${attempts+1}/60)`)
+    await new Promise(r => setTimeout(r, 500))
+    attempts++
+  }
+  // Then wait briefly for the OTHER path so we don't make a decision
+  // based on a half-mounted disk
+  const settleStart = attempts
+  while (!wantBoth() && attempts < settleStart + 20) {
     await new Promise(r => setTimeout(r, 500))
     attempts++
   }

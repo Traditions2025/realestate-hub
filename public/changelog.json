@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-12T18:31:49.520Z",
-  "count": 133,
+  "generated_at": "2026-05-12T19:17:47.725Z",
+  "count": 134,
   "entries": [
+    {
+      "hash": "0cee838",
+      "date": "2026-05-12T13:31:51-05:00",
+      "subject": "db: auto-restore also triggers on size ratio (live < 50% of newest backup)",
+      "title": "db: auto-restore also triggers on size ratio (live < 50% of newest backup)",
+      "body": "The 100 KB threshold from the previous commit missed the actual wipe\npattern we hit on 2026-05-12: live DB at 148 KB (barely above\nthreshold), newest backup at 24 MB. Plain absolute size check let it\nslip through.\n\nSmarter check: if newest backup exists AND live size < 50% of backup\nsize, treat as suspicious and auto-restore. The 50% ratio catches a\nwiped DB regardless of absolute size, while still allowing healthy\ngrowth (a slightly-smaller-than-yesterday DB is normal during cleanups).\n\nConditions now:\n  - File missing → restore\n  - File < 100 KB absolute → restore\n  - File < 50% of newest backup size → restore (NEW)\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5ba7910",
       "date": "2026-05-12T13:20:47-05:00",
