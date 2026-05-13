@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-13T14:35:21.766Z",
-  "count": 136,
+  "generated_at": "2026-05-13T15:18:03.701Z",
+  "count": 137,
   "entries": [
+    {
+      "hash": "89cc1f5",
+      "date": "2026-05-13T09:35:43-05:00",
+      "subject": "Walkthrough scheduling + Tasks deadlines strip + pre-listings filter",
+      "title": "Walkthrough scheduling + Tasks deadlines strip + pre-listings filter",
+      "body": "Three independent changes bundled into one deploy:\n\nPART 2 — Final Walkthrough scheduling (parallel to Closing)\n  - New fields: final_walkthrough_time, final_walkthrough_location,\n    final_walkthrough_confirmed, plus invite_signature/sent_at tracking\n  - Edit modal: Time + Location inputs below the Date input, plus a\n    purple callout with status line + Send to Buyer/Seller/Other\n    invite buttons (visible when date is set)\n  - syncWalkthroughToCalendar() — auto-creates a purple 'Walkthrough'\n    event in the hub calendar when date is set; updates on edits;\n    deletes when transaction closes/cancels\n  - maybeSendTeamWalkthroughInvite() — fires .ics to team\n    (John + Matt) once date+time+location are ALL set, idempotent via\n    signature so it won't re-spam on unrelated saves\n  - New checklist item in Closing Logistics: 'Final Walkthrough Time\n    + Location Confirmed' (side: both)\n  - POST /api/transactions/:id/send-walkthrough-invite\n\nPART 3 — Tasks tab: 'Transaction Deadlines' strip\n  - Above the kanban, a horizontal-scrollable row of date-driven\n    items from every Active/UC transaction\n  - Sorted by severity (OVERDUE → TODAY → URGENT → WATCH → normal)\n  - Color-coded left accent bar matching severity\n  - Cash deals skip mortgage contingency (matches digest logic)\n  - Terminal statuses (Completed/Waived/Received/etc.) drop their\n    item from the list — only PENDING items render\n  - Each card click → /transactions\n\nPre-listings: I also did a data cleanup pass on the live DB before\nthis commit — marked 2416 C St SW + Federalist as 'Listed' (they're\nalready active listings/transactions) and deleted two duplicates of\nexisting rows. No code change for that; just data.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3fcdfe7",
       "date": "2026-05-12T16:44:28-05:00",

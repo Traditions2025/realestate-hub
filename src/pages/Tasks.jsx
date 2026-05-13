@@ -271,42 +271,6 @@ export default function Tasks() {
         </div>
       </div>
 
-      {/* Transaction Deadlines — read-only snapshot of date-driven items from
-          all Active/UC transactions. Click an address to open in the
-          Transactions tab. Sorted by urgency. */}
-      {txDeadlines.length > 0 && (
-        <div className="tx-deadlines">
-          <div className="tx-deadlines-header">
-            <span className="tx-deadlines-title">📅 Transaction Deadlines</span>
-            <span className="tx-deadlines-count">{txDeadlines.length} upcoming</span>
-            <span className="tx-deadlines-hint">From your active transactions — click an address to open it</span>
-          </div>
-          <div className="tx-deadlines-row">
-            {txDeadlines.map((it, idx) => {
-              const c = CLS_COLOR[it.cls]
-              const tag = CLS_LABEL[it.cls]
-              const dateStr = (() => {
-                const d = parseAnyDate(it.date)
-                return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : it.date
-              })()
-              const daysOut = it.daysOut == null ? '' :
-                it.daysOut === 0 ? 'today' :
-                it.daysOut < 0 ? `${Math.abs(it.daysOut)}d ago` :
-                `in ${it.daysOut}d`
-              return (
-                <a key={`${it.txId}-${idx}`} href="/transactions" className="tx-deadline-card" style={{borderLeftColor: c}}>
-                  {tag && <span className="tx-deadline-tag" style={{color: c}}>{tag}</span>}
-                  <div className="tx-deadline-label">{it.label}</div>
-                  <div className="tx-deadline-addr">{it.address}</div>
-                  <div className="tx-deadline-when" style={{color: c}}>{dateStr} <span className="tx-deadline-rel">· {daysOut}</span></div>
-                  {it.status && <div className="tx-deadline-status">{it.status}</div>}
-                </a>
-              )
-            })}
-          </div>
-        </div>
-      )}
-
       <div className="toolbar">
         <input
           type="text"
@@ -416,6 +380,57 @@ export default function Tasks() {
               </div>
             )
           })}
+
+          {/* 4th column: TRANSACTION DEADLINES (read-only, not a drop target) */}
+          <div className="kanban-column kanban-column-readonly">
+            <div className="kanban-header">
+              <span>deadlines</span>
+              <span className="kanban-count">{txDeadlines.length}</span>
+            </div>
+            <div className="kanban-cards">
+              {txDeadlines.length === 0 ? (
+                <div style={{padding: '20px 12px', color: 'var(--text-muted)', fontSize: 12, textAlign: 'center'}}>
+                  No upcoming deadlines on active transactions.
+                </div>
+              ) : txDeadlines.map((it, idx) => {
+                const c = CLS_COLOR[it.cls]
+                const tag = CLS_LABEL[it.cls]
+                const dateStr = (() => {
+                  const d = parseAnyDate(it.date)
+                  return d ? d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : it.date
+                })()
+                const daysOut = it.daysOut == null ? '' :
+                  it.daysOut === 0 ? 'today' :
+                  it.daysOut < 0 ? `${Math.abs(it.daysOut)}d ago` :
+                  `in ${it.daysOut}d`
+                return (
+                  <a
+                    key={`dl-${it.txId}-${idx}`}
+                    href="/transactions"
+                    className="kanban-card kanban-card-deadline"
+                    style={{borderLeft: `4px solid ${c}`, textDecoration: 'none', color: 'inherit'}}
+                  >
+                    <div className="kanban-card-top">
+                      {tag ? (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, color: c, letterSpacing: 0.4,
+                        }}>{tag}</span>
+                      ) : (
+                        <span style={{fontSize: 10, color: 'var(--text-muted)'}}>UPCOMING</span>
+                      )}
+                    </div>
+                    <div className="kanban-card-title">{it.label}</div>
+                    <div className="kanban-card-desc">{it.address}</div>
+                    <div className="kanban-card-footer">
+                      <span style={{color: c, fontWeight: 600}}>{dateStr}</span>
+                      <span style={{color: 'var(--text-muted)', fontSize: 11}}>{daysOut}</span>
+                    </div>
+                    {it.status && <div style={{fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>}
+                  </a>
+                )
+              })}
+            </div>
+          </div>
         </div>
       ) : (
         <div className="table-container">
