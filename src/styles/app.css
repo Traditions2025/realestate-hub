@@ -1577,10 +1577,24 @@ input[type="range"] {
   color: var(--accent);
 }
 .kanban-card-deadline {
-  cursor: pointer;
   display: block;
 }
 .kanban-card-deadline:hover {
+  border-color: var(--accent);
+}
+/* Inline status dropdown on a deadline card */
+.deadline-status-select {
+  margin-top: 6px;
+  width: 100%;
+  font-size: 11px;
+  padding: 4px 6px;
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.deadline-status-select:hover {
   border-color: var(--accent);
 }
 

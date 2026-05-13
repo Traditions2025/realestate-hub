@@ -33,6 +33,14 @@ const DEADLINE_TERMINAL = {
   inspection_release:           new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
 }
 
+// Status options per field — clicking the inline dropdown on a deadline
+// card lets the user change the status without opening the transaction.
+const DEADLINE_STATUS_OPTIONS = {
+  earnest_money_deposit:        ['Not Started', 'In Progress', 'Completed'],
+  home_inspection:              ['Not Started', 'Ordered', 'Completed', 'Waived', 'N/A'],
+  appraisal_contingency_status: ['Not Started', 'Ordered', 'Completed', 'Waived', 'N/A'],
+}
+
 // Compute pending date-driven deadlines from one transaction
 function deadlinesFromTransaction(tx) {
   const items = []
@@ -49,16 +57,21 @@ function deadlinesFromTransaction(tx) {
       date: dateStr, daysOut,
       cls: daysOut < 0 ? 'overdue' : daysOut === 0 ? 'today' : daysOut <= 3 ? 'urgent' : daysOut <= 7 ? 'watch' : 'normal',
       status: statusValue,
+      statusField,  // exposes the field name so the UI can render an inline dropdown
     })
   }
   // Skip mortgage / appraisal / financing for Cash deals
   const isCash = String(tx.type_of_finance || '').toLowerCase() === 'cash'
+  // Listing-side transactions don't track buyer-side milestones (final walkthrough
+  // is something the BUYER schedules to check the property before closing).
+  const isListingOnly = tx.type === 'listing'
+
   push('Earnest money',         tx.earnest_money_due_date,      'earnest_money_deposit')
   push('IPI',                   tx.ipi_due_date)
   push('Inspection',            tx.inspection_contingency_date, 'home_inspection')
   push('Appraisal',             tx.appraisal_contingency_date,  'appraisal_contingency_status')
   if (!isCash) push('Mortgage contingency',  tx.mortgage_contingency_date)
-  push('Final walkthrough',     tx.final_walkthrough)
+  if (!isListingOnly) push('Final walkthrough', tx.final_walkthrough)
   push('Closing',               tx.closing_date)
   return items
 }
@@ -84,23 +97,35 @@ export default function Tasks() {
   const [dragOverStatus, setDragOverStatus] = useState(null)
   const [txDeadlines, setTxDeadlines] = useState([])
 
-  useEffect(() => {
-    // Fetch active transactions and compute deadlines once
+  const refreshDeadlines = () => {
     const ACTIVE = new Set(['Active', 'Under Contract', 'Pending', 'Clear to Close'])
-    authFetch('/api/transactions')
+    return authFetch('/api/transactions')
       .then(r => r.json())
       .then(rows => {
         const txs = (Array.isArray(rows) ? rows : []).filter(t => ACTIVE.has(t.property_status))
         const all = []
         for (const tx of txs) all.push(...deadlinesFromTransaction(tx))
         // Strict chronological order: most-overdue first, then today, then future.
-        // Nearest-to-farthest by date — the urgency tag/color already conveys
-        // severity, so sorting purely by daysOut keeps the column predictable.
         all.sort((a, b) => (a.daysOut ?? 9999) - (b.daysOut ?? 9999))
         setTxDeadlines(all)
       })
       .catch(() => setTxDeadlines([]))
-  }, [])
+  }
+  useEffect(() => { refreshDeadlines() }, [])
+
+  // Update one status field on a transaction (inline edit from a deadline card)
+  const updateDeadlineStatus = async (txId, statusField, newValue) => {
+    try {
+      await authFetch(`/api/transactions/${txId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [statusField]: newValue }),
+      })
+      refreshDeadlines()
+    } catch (err) {
+      alert('Failed to update status: ' + err.message)
+    }
+  }
 
   const onDragStart = (e, item) => {
     setDraggingId(item.id)
@@ -403,12 +428,12 @@ export default function Tasks() {
                   it.daysOut === 0 ? 'today' :
                   it.daysOut < 0 ? `${Math.abs(it.daysOut)}d ago` :
                   `in ${it.daysOut}d`
+                const statusOptions = it.statusField ? DEADLINE_STATUS_OPTIONS[it.statusField] : null
                 return (
-                  <a
+                  <div
                     key={`dl-${it.txId}-${idx}`}
-                    href="/transactions"
                     className="kanban-card kanban-card-deadline"
-                    style={{borderLeft: `4px solid ${c}`, textDecoration: 'none', color: 'inherit'}}
+                    style={{borderLeft: `4px solid ${c}`}}
                   >
                     <div className="kanban-card-top">
                       {tag ? (
@@ -420,13 +445,28 @@ export default function Tasks() {
                       )}
                     </div>
                     <div className="kanban-card-title">{it.label}</div>
-                    <div className="kanban-card-desc">{it.address}</div>
+                    <a href="/transactions" className="kanban-card-desc" style={{textDecoration: 'none', color: 'var(--text-muted)', display: 'block'}} title="Open transaction">
+                      {it.address}
+                    </a>
                     <div className="kanban-card-footer">
                       <span style={{color: c, fontWeight: 600}}>{dateStr}</span>
                       <span style={{color: 'var(--text-muted)', fontSize: 11}}>{daysOut}</span>
                     </div>
-                    {it.status && <div style={{fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>}
-                  </a>
+                    {/* Inline status dropdown — only when the deadline has a status field */}
+                    {statusOptions ? (
+                      <select
+                        className="deadline-status-select"
+                        value={it.status || statusOptions[0]}
+                        onChange={(e) => updateDeadlineStatus(it.txId, it.statusField, e.target.value)}
+                        onClick={e => e.stopPropagation()}
+                        title="Update status — saves immediately"
+                      >
+                        {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                      </select>
+                    ) : it.status ? (
+                      <div style={{fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>
+                    ) : null}
+                  </div>
                 )
               })}
             </div>
