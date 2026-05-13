@@ -1569,6 +1569,101 @@ input[type="range"] {
   border-radius: 8px;
 }
 
+/* Transaction Deadlines strip on Tasks tab */
+.tx-deadlines {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+}
+.tx-deadlines-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+.tx-deadlines-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+.tx-deadlines-count {
+  background: rgba(200, 155, 74, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(200, 155, 74, 0.3);
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tx-deadlines-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+.tx-deadlines-row {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.tx-deadline-card {
+  flex: 0 0 200px;
+  min-width: 200px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 4px solid #6b7280;
+  border-radius: 6px;
+  padding: 8px 10px;
+  text-decoration: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  transition: transform 0.1s, background 0.1s;
+}
+.tx-deadline-card:hover {
+  transform: translateY(-1px);
+  background: var(--bg-hover);
+}
+.tx-deadline-tag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+.tx-deadline-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+.tx-deadline-addr {
+  font-size: 11px;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tx-deadline-when {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.tx-deadline-rel {
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.8;
+}
+.tx-deadline-status {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 /* Inline type pill in client list rows */
 .type-pill {
   display: inline-block;

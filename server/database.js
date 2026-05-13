@@ -857,6 +857,12 @@ export async function initDb() {
       // 2026-05-11 closing-invite auto-send tracking
       ['closing_invite_signature', 'TEXT'],
       ['closing_invite_sent_at', 'TEXT'],
+      // 2026-05-13 final-walkthrough scheduling
+      ['final_walkthrough_time', 'TEXT'],
+      ['final_walkthrough_location', 'TEXT'],
+      ['final_walkthrough_invite_signature', 'TEXT'],
+      ['final_walkthrough_invite_sent_at', 'TEXT'],
+      ['final_walkthrough_confirmed', 'INTEGER DEFAULT 0'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

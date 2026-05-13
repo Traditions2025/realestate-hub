@@ -48,6 +48,9 @@ const FIELDS = [
   'commission_received', 'referral_followup_30day',
   'buyer_payment_method', 'financing_release_followup',
   'closing_invite_signature', 'closing_invite_sent_at',
+  'final_walkthrough_time', 'final_walkthrough_location',
+  'final_walkthrough_invite_signature', 'final_walkthrough_invite_sent_at',
+  'final_walkthrough_confirmed',
 ]
 
 router.get('/', (req, res) => {
@@ -183,6 +186,59 @@ function syncClosingToCalendar(txId) {
   }
 }
 
+// Auto-sync a transaction's FINAL WALKTHROUGH into the hub's calendar.
+// Same pattern as syncClosingToCalendar — separate event_type='Walkthrough'.
+function syncWalkthroughToCalendar(txId) {
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+  if (!tx) return null
+
+  const existing = db.get(
+    "SELECT id FROM calendar_events WHERE related_type = 'transaction' AND related_id = ? AND event_type = 'Walkthrough'",
+    [tx.id])
+
+  const terminalStatuses = ['Closed', 'Cancelled', 'Withdrawn', 'Expired', 'Terminated Sale Contract']
+  const isTerminal = terminalStatuses.includes(tx.property_status)
+  if (!tx.final_walkthrough || isTerminal) {
+    if (existing) {
+      db.run('DELETE FROM calendar_events WHERE id = ?', [existing.id])
+      logActivity('removed', 'calendar_event', existing.id, `Walkthrough event removed (${tx.property_address})`)
+    }
+    return null
+  }
+
+  // Normalize M/D/YYYY → ISO
+  let event_date = tx.final_walkthrough
+  const m = String(tx.final_walkthrough).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) event_date = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+
+  const title = `Final Walkthrough — ${tx.property_address || 'Property'}`
+  const location = tx.final_walkthrough_location || null
+  const start_time = tx.final_walkthrough_time || null
+  const partiesLine = [tx.buyer_name && `Buyer: ${tx.buyer_name}`, tx.seller_name && `Seller: ${tx.seller_name}`]
+    .filter(Boolean).join(' · ')
+  const description = [
+    partiesLine,
+    tx.closing_date ? `Closing: ${tx.closing_date}${tx.closing_time ? ' at ' + tx.closing_time : ''}` : '',
+  ].filter(Boolean).join('\n')
+
+  if (existing) {
+    db.run(`UPDATE calendar_events SET
+      title=?, event_date=?, start_time=?, location=?, description=?,
+      updated_at=datetime('now') WHERE id=?`,
+      [title, event_date, start_time, location, description, existing.id])
+    return existing.id
+  } else {
+    const result = db.run(`INSERT INTO calendar_events (
+      title, event_type, event_date, start_time, location, description,
+      related_type, related_id, color
+    ) VALUES (?, 'Walkthrough', ?, ?, ?, ?, 'transaction', ?, 'purple')`,
+      [title, event_date, start_time, location, description, tx.id])
+    logActivity('created', 'calendar_event', result.lastInsertRowid,
+      `Walkthrough event auto-added: ${tx.property_address} ${event_date}${start_time ? ' '+start_time : ''}`)
+    return result.lastInsertRowid
+  }
+}
+
 router.post('/', (req, res) => {
   const b = req.body
   const placeholders = FIELDS.map(() => '?').join(',')
@@ -195,9 +251,11 @@ router.post('/', (req, res) => {
   syncListingFromTransaction(txId)
   // Auto-sync closing into the hub calendar
   syncClosingToCalendar(txId)
+  syncWalkthroughToCalendar(txId)
   // Auto-send closing invite to TEAM when date + time + location all set (idempotent via signature)
   // Fire-and-forget so the HTTP response isn't blocked on SendGrid latency
   maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
+  maybeSendTeamWalkthroughInvite(txId).catch(err => console.error('[walkthrough-invite] async error:', err.message))
   res.status(201).json({ id: txId })
 })
 
@@ -215,8 +273,10 @@ router.put('/:id', (req, res) => {
   syncListingFromTransaction(txId)
   // Sync/update closing event in calendar (handles add, update, AND removal on terminal status)
   syncClosingToCalendar(txId)
+  syncWalkthroughToCalendar(txId)
   // Auto-fire team invite if closing time/location just got filled in (or changed)
   maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
+  maybeSendTeamWalkthroughInvite(txId).catch(err => console.error('[walkthrough-invite] async error:', err.message))
   res.json({ success: true })
 })
 
@@ -683,6 +743,113 @@ async function maybeSendTeamClosingInvite(txId) {
     return { sent: false, error: err.message }
   }
 }
+
+// =====================================================================
+// FINAL WALKTHROUGH invite — parallel to closing invite. Builds .ics
+// from final_walkthrough date/time + final_walkthrough_location and
+// emails it to chosen recipients (team auto / Buyer / Seller / Other).
+// =====================================================================
+
+async function sendWalkthroughInvite(tx, recipients, opts = {}) {
+  if (!tx.final_walkthrough) throw new Error('Final Walkthrough date required')
+  if (!recipients.length) throw new Error('recipients required')
+  const { sendViaSendGrid } = await import('./email.js')
+
+  let eventDate = tx.final_walkthrough
+  const m = String(eventDate).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) eventDate = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+
+  const times = buildClosingTimes(eventDate, tx.final_walkthrough_time)
+  if (!times) throw new Error('invalid final_walkthrough date format')
+
+  const title = `Final Walkthrough — ${tx.property_address || 'Property'}`
+  const location = tx.final_walkthrough_location || tx.property_address || 'TBD'
+  const parties = [tx.buyer_name && `Buyer: ${tx.buyer_name}`, tx.seller_name && `Seller: ${tx.seller_name}`]
+    .filter(Boolean).join('\n')
+  const description = [
+    parties,
+    tx.closing_date ? `Closing scheduled: ${tx.closing_date}${tx.closing_time ? ' at ' + tx.closing_time : ''}` : '',
+    opts.message ? `\nNote: ${opts.message}` : '',
+  ].filter(Boolean).join('\n')
+
+  const organizerEmail = process.env.SENDGRID_FROM_EMAIL || 'matt@mattsmithteam.com'
+  const ics = buildIcs({
+    uid: `walkthrough-${tx.id}-${Date.now()}@mattsmithteam`,
+    title,
+    dtStartUtc: times.dtStartUtc,
+    dtEndUtc: times.dtEndUtc,
+    location,
+    description,
+    organizerEmail,
+    organizerName: 'Matt Smith Team',
+    attendees: recipients,
+  })
+
+  const audienceLabel = opts.audience ? ` (${opts.audience})` : ''
+  const subject = `🚶 Final Walkthrough — ${tx.property_address || 'Property'} (${eventDate}${tx.final_walkthrough_time ? ' '+tx.final_walkthrough_time : ''})${audienceLabel}`
+  const htmlBody = `
+<p>${opts.audience === 'team' ? `<strong>Team auto-notification:</strong> final walkthrough scheduled for <strong>${tx.property_address || 'a property'}</strong>.` : `You're invited to the final walkthrough of <strong>${tx.property_address || 'a property'}</strong>.`}</p>
+<ul>
+  <li><strong>Date:</strong> ${eventDate}</li>
+  ${tx.final_walkthrough_time ? `<li><strong>Time:</strong> ${tx.final_walkthrough_time}</li>` : ''}
+  <li><strong>Location:</strong> ${location}</li>
+  ${parties ? `<li><strong>Parties:</strong> ${parties.replace(/\n/g, ' · ')}</li>` : ''}
+  ${tx.closing_date ? `<li><strong>Closing follows:</strong> ${tx.closing_date}${tx.closing_time ? ' at ' + tx.closing_time : ''}</li>` : ''}
+</ul>
+${opts.message ? `<p>${String(opts.message).replace(/</g,'&lt;')}</p>` : ''}
+<p>The attached <code>.ics</code> file will add this to your calendar automatically.</p>
+<p>— Matt Smith Team</p>`
+
+  await sendViaSendGrid(
+    recipients, '', subject, htmlBody, undefined, [],
+    [{ filename: 'walkthrough.ics', content: Buffer.from(ics, 'utf-8').toString('base64'), type: 'text/calendar; method=REQUEST' }]
+  )
+
+  return { recipients, eventDate, time: tx.final_walkthrough_time, location }
+}
+
+async function maybeSendTeamWalkthroughInvite(txId) {
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+  if (!tx) return null
+  if (!tx.final_walkthrough || !tx.final_walkthrough_time || !tx.final_walkthrough_location) return null
+  const sig = `${tx.final_walkthrough}|${tx.final_walkthrough_time}|${tx.final_walkthrough_location}`
+  if (tx.final_walkthrough_invite_signature === sig) return null
+
+  try {
+    const result = await sendWalkthroughInvite(tx, TEAM_CLOSING_RECIPIENTS, { audience: 'team' })
+    const sentAt = new Date().toISOString()
+    db.run(`UPDATE transactions SET final_walkthrough_invite_signature = ?, final_walkthrough_invite_sent_at = ?, updated_at = datetime('now') WHERE id = ?`,
+      [sig, sentAt, tx.id])
+    logActivity('team_walkthrough_invite', 'transaction', tx.id,
+      `Team walkthrough auto-invite sent to ${result.recipients.length} (${tx.property_address})`)
+    return { sent: true, ...result, sentAt }
+  } catch (err) {
+    console.error('[walkthrough-invite] team auto-send failed:', err.message)
+    logActivity('team_walkthrough_invite_failed', 'transaction', tx.id, `Team walkthrough auto-invite FAILED: ${err.message}`)
+    return { sent: false, error: err.message }
+  }
+}
+
+router.post('/:id/send-walkthrough-invite', async (req, res) => {
+  const id = Number(req.params.id)
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [id])
+  if (!tx) return res.status(404).json({ error: 'transaction not found' })
+  if (!tx.final_walkthrough) return res.status(400).json({ error: 'Set Final Walkthrough date before sending invite' })
+
+  const recipients = Array.isArray(req.body?.recipients) ? req.body.recipients
+    : String(req.body?.recipients || '').split(/[,;\n]+/).map(s => s.trim()).filter(Boolean)
+  if (!recipients.length) return res.status(400).json({ error: 'recipients required' })
+
+  try {
+    const audience = req.body?.audience || 'recipients'
+    const result = await sendWalkthroughInvite(tx, recipients, { audience, message: req.body?.message })
+    logActivity('walkthrough_invite_sent', 'transaction', tx.id,
+      `Walkthrough invite sent to ${audience}: ${recipients.join(', ')}`)
+    res.json({ success: true, ...result })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 
 router.post('/:id/send-closing-invite', async (req, res) => {
   const id = Number(req.params.id)

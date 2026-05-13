@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-12T21:44:26.113Z",
-  "count": 135,
+  "generated_at": "2026-05-13T14:35:21.766Z",
+  "count": 136,
   "entries": [
+    {
+      "hash": "3fcdfe7",
+      "date": "2026-05-12T16:44:28-05:00",
+      "subject": "Transactions: add Delete button to the edit modal",
+      "title": "Transactions: add Delete button to the edit modal",
+      "body": "Frontend-only change. The DELETE /api/transactions/:id endpoint has\nexisted for a long time but was only reachable via row-action buttons\nelsewhere — now there's a clear 🗑 Delete Transaction button on the\nedit modal itself for removing duplicates / wrong entries.\n\n- Only renders when editing an existing transaction (no delete in\n  the New Transaction modal)\n- Left-aligned in the form-actions row so it's visually separated\n  from the right-side Save/Cancel\n- Confirm dialog warns about Listings linkage (if the transaction\n  was auto-synced to a Listings entry, that needs separate deletion)\n- Refreshes the list and closes the modal after success\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "107403e",
       "date": "2026-05-12T14:17:50-05:00",

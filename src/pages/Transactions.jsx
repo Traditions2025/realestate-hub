@@ -15,6 +15,8 @@ const emptyTx = {
   closing_date: '', mortgage_contingency_date: '', appraisal_contingency_date: '',
   appraisal_contingency_status: 'Not Started', inspection_contingency_date: '',
   financing_release: '', final_walkthrough: '', inspection_release: '', final_inspection_waiver: '',
+  final_walkthrough_time: '', final_walkthrough_location: '', final_walkthrough_confirmed: 0,
+  final_walkthrough_invite_signature: '', final_walkthrough_invite_sent_at: '',
   type_of_finance: '',
   earnest_money_due_date: '', ipi_due_date: '',
   lender_name: '', lender_company: '', lender_email: '',
@@ -1058,8 +1060,50 @@ export default function Transactions() {
             </div>
             <div className="form-row">
               <label>Inspection Contingency<input type="date" value={form.inspection_contingency_date} onChange={e => f('inspection_contingency_date', e.target.value)} /></label>
-              <label>Final Walkthrough<input type="date" value={form.final_walkthrough} onChange={e => f('final_walkthrough', e.target.value)} /></label>
+              <label>Final Walkthrough Date<input type="date" value={form.final_walkthrough} onChange={e => f('final_walkthrough', e.target.value)} /></label>
             </div>
+            <div className="form-row">
+              <label>Final Walkthrough Time
+                <input value={form.final_walkthrough_time} onChange={e => f('final_walkthrough_time', e.target.value)} placeholder="e.g. 3:00 PM CDT" />
+              </label>
+              <label>Final Walkthrough Location
+                <input value={form.final_walkthrough_location} onChange={e => f('final_walkthrough_location', e.target.value)} placeholder={form.property_address || 'e.g. property address'} />
+              </label>
+            </div>
+            {editing && form.final_walkthrough && (
+              <div style={{padding: '10px 12px', background: 'rgba(168,85,247,0.07)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: 6, fontSize: 13, marginTop: 8}}>
+                <div style={{marginBottom: 6}}>🚶 <strong>Walkthrough on the hub calendar:</strong> auto-synced.</div>
+                {form.final_walkthrough_time && form.final_walkthrough_location && (
+                  <div style={{fontSize: 12, color: form.final_walkthrough_invite_sent_at ? '#10b981' : '#fbbf24', marginBottom: 8}}>
+                    {form.final_walkthrough_invite_sent_at
+                      ? `✓ Team walkthrough invite sent — ${new Date(form.final_walkthrough_invite_sent_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
+                      : '⏳ Team invite will fire on next Save (time + location set).'}
+                  </div>
+                )}
+                <div style={{display: 'flex', gap: 8, flexWrap: 'wrap'}}>
+                  {['buyer','seller','other'].map(aud => (
+                    <button key={aud} type="button" className="btn btn-sm btn-secondary"
+                      disabled={!form.final_walkthrough_time || !form.final_walkthrough_location}
+                      onClick={async () => {
+                        const label = aud[0].toUpperCase() + aud.slice(1)
+                        const email = prompt(`Send walkthrough invite to ${label}:\n\nEnter their email:`, '')
+                        if (!email || !email.trim()) return
+                        const note = prompt('Optional note (blank to skip):', '') || ''
+                        try {
+                          const r = await authFetch(`/api/transactions/${editing}/send-walkthrough-invite`, {
+                            method: 'POST', headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ recipients: email.trim(), audience: aud, message: note }),
+                          })
+                          const d = await r.json()
+                          alert(d.success ? `✓ Walkthrough invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                        } catch (err) { alert('Failed: ' + err.message) }
+                      }}>
+                      📧 Send Walkthrough Invite to {aud[0].toUpperCase()+aud.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="form-row">
               <label>Financing Release<input type="date" value={form.financing_release} onChange={e => f('financing_release', e.target.value)} /></label>
               <label>Inspection Release<input type="date" value={form.inspection_release} onChange={e => f('inspection_release', e.target.value)} /></label>
@@ -1163,6 +1207,7 @@ export default function Transactions() {
               { key: 'closing_location_confirmed', label: 'Closing Location Confirmed',               side: 'both' },
               { key: 'closing_attendees_notified', label: 'Buyer/Seller Notified of When & Where',    side: 'both' },
               { key: 'closing_disclosure_reviewed',label: 'Closing Disclosure Reviewed (3-day rule)', side: 'both' },
+              { key: 'final_walkthrough_confirmed',label: 'Final Walkthrough Time + Location Confirmed', side: 'both' },
               { key: 'financing_release_followup', label: 'Followed Up on Financing Release',         side: 'both' },
               { key: 'utilities_set',              label: 'Utilities Set to New Owner',               side: 'purchase' },
             ]

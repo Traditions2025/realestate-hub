@@ -13,6 +13,65 @@ const emptyTask = {
   due_date: '', assigned_to: '', category: ''
 }
 
+// Parse a date string (ISO or M/D/YYYY) into a local Date
+function parseAnyDate(s) {
+  if (!s) return null
+  const str = String(s).trim()
+  let m = str.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]))
+  m = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+  if (m) return new Date(Number(m[3]), Number(m[1]) - 1, Number(m[2]))
+  return null
+}
+
+// Terminal status values that mean "this milestone is done" (drop from view)
+const DEADLINE_TERMINAL = {
+  earnest_money_deposit:        new Set(['Completed']),
+  home_inspection:              new Set(['Completed', 'Waived', 'N/A', 'Not Applicable']),
+  appraisal_contingency_status: new Set(['Completed', 'Waived', 'N/A', 'Not Applicable']),
+  financing_release:            new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
+  inspection_release:           new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
+}
+
+// Compute pending date-driven deadlines from one transaction
+function deadlinesFromTransaction(tx) {
+  const items = []
+  const today = new Date()
+  today.setHours(0,0,0,0)
+  const push = (label, dateStr, statusField) => {
+    const statusValue = statusField ? tx[statusField] : null
+    if (statusField && DEADLINE_TERMINAL[statusField]?.has(statusValue)) return
+    const d = parseAnyDate(dateStr)
+    if (!d) return
+    const daysOut = Math.round((d.getTime() - today.getTime()) / 86400000)
+    items.push({
+      txId: tx.id, address: tx.property_address, label,
+      date: dateStr, daysOut,
+      cls: daysOut < 0 ? 'overdue' : daysOut === 0 ? 'today' : daysOut <= 3 ? 'urgent' : daysOut <= 7 ? 'watch' : 'normal',
+      status: statusValue,
+    })
+  }
+  // Skip mortgage / appraisal / financing for Cash deals
+  const isCash = String(tx.type_of_finance || '').toLowerCase() === 'cash'
+  push('Earnest money',         tx.earnest_money_due_date,      'earnest_money_deposit')
+  push('IPI',                   tx.ipi_due_date)
+  push('Inspection',            tx.inspection_contingency_date, 'home_inspection')
+  push('Appraisal',             tx.appraisal_contingency_date,  'appraisal_contingency_status')
+  if (!isCash) push('Mortgage contingency',  tx.mortgage_contingency_date)
+  push('Final walkthrough',     tx.final_walkthrough)
+  push('Closing',               tx.closing_date)
+  return items
+}
+
+const CLS_COLOR = {
+  overdue: '#dc2626', today: '#dc2626', urgent: '#ea580c',
+  watch: '#ca8a04', normal: '#6b7280',
+}
+const CLS_LABEL = {
+  overdue: 'OVERDUE', today: 'TODAY', urgent: 'URGENT', watch: 'WATCH', normal: '',
+}
+const CLS_RANK = { overdue: 0, today: 1, urgent: 2, watch: 3, normal: 4 }
+
 export default function Tasks() {
   const [items, setItems] = useState([])
   const [filter, setFilter] = useState({ status: '', priority: '' })
@@ -23,6 +82,25 @@ export default function Tasks() {
   const [view, setView] = useState('board') // board or list
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStatus, setDragOverStatus] = useState(null)
+  const [txDeadlines, setTxDeadlines] = useState([])
+
+  useEffect(() => {
+    // Fetch active transactions and compute deadlines once
+    const ACTIVE = new Set(['Active', 'Under Contract', 'Pending', 'Clear to Close'])
+    authFetch('/api/transactions')
+      .then(r => r.json())
+      .then(rows => {
+        const txs = (Array.isArray(rows) ? rows : []).filter(t => ACTIVE.has(t.property_status))
+        const all = []
+        for (const tx of txs) all.push(...deadlinesFromTransaction(tx))
+        all.sort((a, b) => {
+          if (CLS_RANK[a.cls] !== CLS_RANK[b.cls]) return CLS_RANK[a.cls] - CLS_RANK[b.cls]
+          return (a.daysOut ?? 9999) - (b.daysOut ?? 9999)
+        })
+        setTxDeadlines(all)
+      })
+      .catch(() => setTxDeadlines([]))
+  }, [])
 
   const onDragStart = (e, item) => {
     setDraggingId(item.id)
@@ -192,6 +270,42 @@ export default function Tasks() {
           <button className="btn btn-primary" onClick={() => openNew()}>+ New Task</button>
         </div>
       </div>
+
+      {/* Transaction Deadlines — read-only snapshot of date-driven items from
+          all Active/UC transactions. Click an address to open in the
+          Transactions tab. Sorted by urgency. */}
+      {txDeadlines.length > 0 && (
+        <div className="tx-deadlines">
+          <div className="tx-deadlines-header">
+            <span className="tx-deadlines-title">📅 Transaction Deadlines</span>
+            <span className="tx-deadlines-count">{txDeadlines.length} upcoming</span>
+            <span className="tx-deadlines-hint">From your active transactions — click an address to open it</span>
+          </div>
+          <div className="tx-deadlines-row">
+            {txDeadlines.map((it, idx) => {
+              const c = CLS_COLOR[it.cls]
+              const tag = CLS_LABEL[it.cls]
+              const dateStr = (() => {
+                const d = parseAnyDate(it.date)
+                return d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : it.date
+              })()
+              const daysOut = it.daysOut == null ? '' :
+                it.daysOut === 0 ? 'today' :
+                it.daysOut < 0 ? `${Math.abs(it.daysOut)}d ago` :
+                `in ${it.daysOut}d`
+              return (
+                <a key={`${it.txId}-${idx}`} href="/transactions" className="tx-deadline-card" style={{borderLeftColor: c}}>
+                  {tag && <span className="tx-deadline-tag" style={{color: c}}>{tag}</span>}
+                  <div className="tx-deadline-label">{it.label}</div>
+                  <div className="tx-deadline-addr">{it.address}</div>
+                  <div className="tx-deadline-when" style={{color: c}}>{dateStr} <span className="tx-deadline-rel">· {daysOut}</span></div>
+                  {it.status && <div className="tx-deadline-status">{it.status}</div>}
+                </a>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="toolbar">
         <input
