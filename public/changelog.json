@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-13T15:18:03.701Z",
-  "count": 137,
+  "generated_at": "2026-05-13T15:28:07.567Z",
+  "count": 138,
   "entries": [
+    {
+      "hash": "36bae7e",
+      "date": "2026-05-13T10:18:09-05:00",
+      "subject": "Tasks: Transaction Deadlines moved into a 4th kanban column",
+      "title": "Tasks: Transaction Deadlines moved into a 4th kanban column",
+      "body": "The horizontal strip at the top was cramped. Reworked as a proper 4th\nkanban column (\"DEADLINES\") sitting next to TO DO / IN PROGRESS / DONE\nso the styling matches and each card is full-size and readable.\n\n- Kanban grid is now 4 columns (collapses to 2 below 1100px)\n- DEADLINES column is read-only — no drop target, no add button\n- Each card uses the same kanban-card shape as task cards, with a\n  colored left border indicating urgency (OVERDUE/TODAY/URGENT/WATCH)\n- Card layout: severity tag, action label, property address, date +\n  days-out, status (if pending)\n- Click any card → /transactions\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "89cc1f5",
       "date": "2026-05-13T09:35:43-05:00",

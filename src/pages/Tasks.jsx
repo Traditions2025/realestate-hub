@@ -93,10 +93,10 @@ export default function Tasks() {
         const txs = (Array.isArray(rows) ? rows : []).filter(t => ACTIVE.has(t.property_status))
         const all = []
         for (const tx of txs) all.push(...deadlinesFromTransaction(tx))
-        all.sort((a, b) => {
-          if (CLS_RANK[a.cls] !== CLS_RANK[b.cls]) return CLS_RANK[a.cls] - CLS_RANK[b.cls]
-          return (a.daysOut ?? 9999) - (b.daysOut ?? 9999)
-        })
+        // Strict chronological order: most-overdue first, then today, then future.
+        // Nearest-to-farthest by date — the urgency tag/color already conveys
+        // severity, so sorting purely by daysOut keeps the column predictable.
+        all.sort((a, b) => (a.daysOut ?? 9999) - (b.daysOut ?? 9999))
         setTxDeadlines(all)
       })
       .catch(() => setTxDeadlines([]))
