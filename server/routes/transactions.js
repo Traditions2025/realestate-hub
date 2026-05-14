@@ -323,10 +323,14 @@ router.delete('/:id', (req, res) => {
 })
 
 // Wipe all transactions (lets user re-sync clean from Google Sheet)
+// DISABLED 2026-05-14. This was only used by 'Clear & Re-sync' (which is
+// also disabled). Wiping all transactions is too destructive to keep
+// reachable without a paired safe-restore flow.
 router.post('/clear-all', (req, res) => {
-  db.run('DELETE FROM transactions')
-  logActivity('cleared', 'transaction', null, 'All transactions cleared')
-  res.json({ success: true })
+  res.status(410).json({
+    error: 'Endpoint disabled. Use the per-transaction Delete button to remove individual rows.',
+    disabled_at: '2026-05-14',
+  })
 })
 
 // DISABLED 2026-05-14. The hub is the master file for transactions; we do not

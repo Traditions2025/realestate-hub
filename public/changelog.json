@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-14T14:47:01.557Z",
-  "count": 142,
+  "generated_at": "2026-05-14T14:58:13.686Z",
+  "count": 143,
   "entries": [
+    {
+      "hash": "280de32",
+      "date": "2026-05-14T09:47:06-05:00",
+      "subject": "Hub is master: kill Google Sheet sync entirely (transactions + pre-listings)",
+      "title": "Hub is master: kill Google Sheet sync entirely (transactions + pre-listings)",
+      "body": "The persistent duplicate-pre-listings problem was caused by the\nDashboard's 'Sync Everything' / 'Sync Google Sheet' buttons triggering\nsheet pulls. The sheet has the same property recorded with multiple\naddress variants ('230 Bever Ln SE' vs 'bever lane se', with/without\ncommas) so each sync re-inserted them as 'new' rows.\n\nPer user direction (stated multiple times now), the hub is the master\nfile for transactions and pre-listings. Sheet sync is fully disabled:\n\n- POST /api/transactions/sync-sheet → 410 Gone\n- POST /api/pre-listings/sync-sheet → 410 Gone\n- /api/seed/all no longer calls the sheet endpoints\n- Dashboard 'Sync Google Sheet' and 'Sync Everything' buttons removed\n- Only 'Pull Sierra Leads' button remains (Sierra is a separate\n  external source — that integration stays untouched)\n- Original sheet-pull code preserved behind _disabled_* function names\n  in case the user ever changes their mind\n\nSaved durable memory rule: feedback_hub_is_master.md.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a87fea7",
       "date": "2026-05-14T09:36:05-05:00",

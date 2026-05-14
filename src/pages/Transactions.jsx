@@ -122,7 +122,6 @@ export default function Transactions() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyTx)
-  const [syncing, setSyncing] = useState(false)
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
   const [extractingPdf, setExtractingPdf] = useState(false)
@@ -500,29 +499,9 @@ export default function Transactions() {
     load()
   }
 
-  const syncSheet = async () => {
-    setSyncing(true)
-    try {
-      const r = await authFetch('/api/transactions/sync-sheet', { method: 'POST' })
-      const d = await r.json()
-      alert(`Synced ${d.synced} transactions from Google Sheet`)
-      load()
-    } catch (e) { alert('Sync failed: ' + e.message) }
-    setSyncing(false)
-  }
-
-  const clearAndResync = async () => {
-    if (!confirm('Clear all transactions and re-sync from Google Sheet? This will delete any manually added transactions.')) return
-    setSyncing(true)
-    try {
-      await authFetch('/api/transactions/clear-all', { method: 'POST' })
-      const r = await authFetch('/api/transactions/sync-sheet', { method: 'POST' })
-      const d = await r.json()
-      alert(`Cleared and re-synced ${d.synced} transactions from Google Sheet`)
-      load()
-    } catch (e) { alert('Resync failed: ' + e.message) }
-    setSyncing(false)
-  }
+  // Google Sheet sync REMOVED 2026-05-14. The hub is the master file —
+  // never pull from the sheet. syncSheet and clearAndResync handlers
+  // deleted along with their buttons.
 
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
@@ -567,15 +546,9 @@ export default function Transactions() {
       <div className="page-header">
         <div>
           <h1>Transaction Tracker</h1>
-          <p className="page-subtitle">Hub is the source of truth. Edit directly here — Google Sheet sync is manual.</p>
+          <p className="page-subtitle">Hub is the source of truth. Edit directly here.</p>
         </div>
         <div className="header-actions">
-          <button className="btn btn-secondary" onClick={clearAndResync} disabled={syncing} title="Wipe all transactions and re-sync clean from Google Sheet">
-            Clear & Re-sync
-          </button>
-          <button className="btn btn-secondary" onClick={syncSheet} disabled={syncing}>
-            {syncing ? 'Syncing...' : 'Sync from Google Sheet'}
-          </button>
           <button className="btn btn-primary" onClick={openNew}>+ New Transaction</button>
         </div>
       </div>
@@ -753,7 +726,7 @@ export default function Transactions() {
           </thead>
           <tbody>
             {items.length === 0 ? (
-              <tr><td colSpan="11" className="empty-state">No transactions found. Sync from Google Sheet or create one.</td></tr>
+              <tr><td colSpan="11" className="empty-state">No transactions found. Click + New Transaction to add one.</td></tr>
             ) : items.map(item => (
               <tr key={item.id}>
                 <td className="cell-primary" onClick={() => openEdit(item)}>{item.property_address}</td>
@@ -779,7 +752,7 @@ export default function Transactions() {
       {/* Card list - mobile */}
       <div className="mobile-only-cards">
         {items.length === 0 ? (
-          <div className="empty-state-full">No transactions found. Sync from Google Sheet or create one.</div>
+          <div className="empty-state-full">No transactions found. Click + New Transaction to add one.</div>
         ) : items.map(item => (
           <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
             <div className="data-card-header">

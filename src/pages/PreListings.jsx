@@ -35,7 +35,6 @@ export default function PreListings() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
-  const [syncing, setSyncing] = useState(false)
   const [emailTpls, setEmailTpls] = useState([])
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ template_id: '', to_email: '', to_name: '', subject: '', body: '', attachments: [] })
@@ -90,16 +89,7 @@ export default function PreListings() {
     load()
   }
 
-  const syncSheet = async () => {
-    setSyncing(true)
-    try {
-      const r = await authFetch('/api/pre-listings/sync-sheet', { method: 'POST' })
-      const d = await r.json()
-      alert(`Synced ${d.synced} potential sellers from Google Sheet`)
-      load()
-    } catch (e) { alert('Sync failed: ' + e.message) }
-    setSyncing(false)
-  }
+  // Google Sheet sync REMOVED 2026-05-14. The hub is the master file.
 
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
@@ -167,9 +157,6 @@ export default function PreListings() {
           <p className="page-subtitle">Potential sellers - from walkthrough to MLS activation</p>
         </div>
         <div className="header-actions">
-          <button className="btn btn-secondary" onClick={syncSheet} disabled={syncing}>
-            {syncing ? 'Syncing...' : 'Sync from Google Sheet'}
-          </button>
           <button className="btn btn-primary" onClick={openNew}>+ New Pre-Listing</button>
         </div>
       </div>
@@ -186,7 +173,7 @@ export default function PreListings() {
           const HIDE = new Set(['Listed', 'Withdrawn', 'Cancelled'])
           const visible = items.filter(it => !HIDE.has(it.status))
           if (visible.length === 0) {
-            return <div className="empty-state-full">No active pre-listings. Sync from Google Sheet or add one above.</div>
+            return <div className="empty-state-full">No active pre-listings. Click + New Pre-Listing to add one.</div>
           }
           return visible.map(item => {
           const progress = getProgress(item)
