@@ -61,6 +61,35 @@ router.delete('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// Normalize an address for fuzzy-dedup matching. Strips punctuation, lowercases,
+// collapses whitespace, and abbreviates common street suffix words. Catches:
+//   "230 Bever Ln SE, Cedar Rapids, IA 52403"
+//   "230 bever lane se, Cedar Rapids, IA 52403"
+//   "230 Bever Ln SE Cedar Rapids IA 52403"
+//   → all reduce to "230 bever ln se cedar rapids ia 52403"
+function normalizeAddress(s) {
+  if (!s) return ''
+  return String(s)
+    .toLowerCase()
+    .replace(/[.,#]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .replace(/\bstreet\b/g, 'st')
+    .replace(/\bavenue\b/g, 'ave')
+    .replace(/\blane\b/g, 'ln')
+    .replace(/\bdrive\b/g, 'dr')
+    .replace(/\bcourt\b/g, 'ct')
+    .replace(/\broad\b/g, 'rd')
+    .replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\bcircle\b/g, 'cir')
+    .replace(/\bplace\b/g, 'pl')
+    .replace(/\bparkway\b/g, 'pkwy')
+    .replace(/\bnortheast\b/g, 'ne')
+    .replace(/\bnorthwest\b/g, 'nw')
+    .replace(/\bsoutheast\b/g, 'se')
+    .replace(/\bsouthwest\b/g, 'sw')
+    .trim()
+}
+
 // Sync Potential Sellers from Google Sheet
 router.post('/sync-sheet', async (req, res) => {
   try {
@@ -70,12 +99,34 @@ router.post('/sync-sheet', async (req, res) => {
     const rows = parseCSV(csv)
     if (rows.length < 2) return res.json({ synced: 0 })
 
+    // Pre-load existing pre-listings + active listings + transactions into a
+    // normalized-address index so the dedup catches "Bever Ln" vs "bever lane",
+    // "3822 Banar Ave SW, Cedar Rapids" vs "3822 Banar Ave SW Cedar Rapids",
+    // etc. Also skips any sheet row whose address is already a Listing or an
+    // active Transaction (they're past the pre-listing stage).
+    const existingPL = db.all('SELECT id, property_address FROM pre_listings')
+    const existingListings = db.all('SELECT property_address FROM listings')
+    const activeStatuses = ['Active', 'Under Contract', 'Pending', 'Clear to Close']
+    const placeholders = activeStatuses.map(() => '?').join(',')
+    const activeTx = db.all(
+      `SELECT property_address FROM transactions WHERE property_status IN (${placeholders})`,
+      activeStatuses)
+
+    const skipSet = new Set()
+    for (const r of existingListings) skipSet.add(normalizeAddress(r.property_address))
+    for (const r of activeTx) skipSet.add(normalizeAddress(r.property_address))
+    const plIndex = new Map()  // normalized addr → existing pl id
+    for (const r of existingPL) plIndex.set(normalizeAddress(r.property_address), r.id)
+
     let synced = 0
+    let skipped = 0
     for (let i = 1; i < rows.length; i++) {
       const cols = rows[i]
       if (!cols[0]) continue
-      const existing = db.get('SELECT id FROM pre_listings WHERE property_address = ?', [cols[0]])
-      if (existing) continue
+      const norm = normalizeAddress(cols[0])
+      if (skipSet.has(norm)) { skipped++; continue }   // already a listing/active tx
+      if (plIndex.has(norm)) { skipped++; continue }   // already a pre-listing (any variant)
+
       const bv = (v) => v === 'TRUE' ? 1 : 0
       db.run(`INSERT INTO pre_listings (property_address, owner_name, walkthrough, status,
         marketing_materials_sent, seller_discovery_form, cma, seller_netsheet, loop_created,
@@ -88,10 +139,11 @@ router.post('/sync-sheet', async (req, res) => {
           bv(cols[9]), bv(cols[10]), bv(cols[11]), bv(cols[12]), bv(cols[13]),
           bv(cols[14]), bv(cols[15]), bv(cols[16]), bv(cols[17]), bv(cols[18]),
           bv(cols[19]), n(cols[20])])
+      plIndex.set(norm, true)  // prevent the same address appearing twice in one sheet
       synced++
     }
-    logActivity('synced', 'pre_listing', null, `Synced ${synced} potential sellers from Google Sheet`)
-    res.json({ synced })
+    logActivity('synced', 'pre_listing', null, `Synced ${synced} potential sellers from Google Sheet (${skipped} skipped: already exist)`)
+    res.json({ synced, skipped })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }

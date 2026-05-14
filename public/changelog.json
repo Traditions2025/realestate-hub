@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-14T14:23:58.968Z",
-  "count": 140,
+  "generated_at": "2026-05-14T14:36:00.279Z",
+  "count": 141,
   "entries": [
+    {
+      "hash": "de857a4",
+      "date": "2026-05-14T09:24:05-05:00",
+      "subject": "Transactions/Tasks/Digest: financing status + side filters + click-to-edit modal",
+      "title": "Transactions/Tasks/Digest: financing status + side filters + click-to-edit modal",
+      "body": "Four user-driven changes bundled:\n\n1. NEW: 'Financing Status' dropdown (Not Started / In Progress / Approved)\n   - New column financing_status; lives in the Lender section of the\n     transaction form, next to Type of Finance.\n   - When 'Approved', the Mortgage/Financing deadline drops off the\n     Tasks Deadlines column AND the daily digest stops nagging.\n\n2. Mortgage Payoff is now LISTING-SIDE ONLY\n   - Hidden from the transaction form when type='purchase' (replaced\n     with a small italic \"(listing-side only)\" hint)\n   - Filtered out of the digest's action items + per-transaction\n     doc-status row on purchase-only transactions.\n\n3. Click-to-edit deadline modal (instead of /transactions redirect)\n   - Click any card in the Tasks Deadlines column → small modal opens\n     with: Date input + Status dropdown (whichever applies) + Save /\n     Cancel / Open Full Transaction buttons.\n   - Saves via PUT /api/transactions/:id and refreshes the list\n     without leaving the Tasks page.\n\n4. Digest 'Mortgage contingency' row now carries financing_status as\n   its primary signal (relabeled 'Mortgage / Financing'). Approved =>\n   drop the row.\n\nDEADLINE_STATUS_OPTIONS map synced with the actual Transactions.jsx\ndropdown values to keep inline-edit options consistent. Appraisal N/A\nalready worked end-to-end; verified.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ffbc792",
       "date": "2026-05-13T13:42:05-05:00",

@@ -179,9 +179,16 @@ export default function PreListings() {
       </div>
 
       <div className="project-grid">
-        {items.length === 0 ? (
-          <div className="empty-state-full">No pre-listings. Sync from Google Sheet or add one above.</div>
-        ) : items.map(item => {
+        {(() => {
+          // Hide pre-listings that have been promoted to a Listing/Transaction
+          // (status='Listed') or pulled off the market ('Withdrawn'/'Cancelled').
+          // They stay in the DB for history but shouldn't clutter the active view.
+          const HIDE = new Set(['Listed', 'Withdrawn', 'Cancelled'])
+          const visible = items.filter(it => !HIDE.has(it.status))
+          if (visible.length === 0) {
+            return <div className="empty-state-full">No active pre-listings. Sync from Google Sheet or add one above.</div>
+          }
+          return visible.map(item => {
           const progress = getProgress(item)
           return (
             <div key={item.id} className="project-card" onClick={() => openEdit(item)}>
@@ -213,7 +220,8 @@ export default function PreListings() {
               </div>
             </div>
           )
-        })}
+          })
+        })()}
       </div>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Pre-Listing' : 'New Pre-Listing'}>

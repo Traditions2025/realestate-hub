@@ -90,6 +90,39 @@ const STATUS_TO_STAGE = {
 }
 const LIVE_STATUSES = new Set(['Active', 'Coming Soon', 'Under Contract', 'Pending', 'Clear to Close', 'Closed'])
 
+// Normalize address for fuzzy match against pre-listings (handles "Bever Ln SE"
+// vs "bever lane se", missing commas, etc.)
+function normalizeAddr(s) {
+  if (!s) return ''
+  return String(s)
+    .toLowerCase().replace(/[.,#]/g, ' ').replace(/\s+/g, ' ')
+    .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave')
+    .replace(/\blane\b/g, 'ln').replace(/\bdrive\b/g, 'dr')
+    .replace(/\bcourt\b/g, 'ct').replace(/\broad\b/g, 'rd')
+    .replace(/\bboulevard\b/g, 'blvd').replace(/\bcircle\b/g, 'cir')
+    .replace(/\bplace\b/g, 'pl').replace(/\bparkway\b/g, 'pkwy')
+    .replace(/\bnortheast\b/g, 'ne').replace(/\bnorthwest\b/g, 'nw')
+    .replace(/\bsoutheast\b/g, 'se').replace(/\bsouthwest\b/g, 'sw')
+    .trim()
+}
+
+// When a transaction is created/updated to an active status, mark any
+// pre-listing with a matching address as 'Listed' so it stops appearing in
+// the Pre-Listings tab. Handles fuzzy address matches.
+function markMatchingPreListingsAsListed(txId) {
+  const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+  if (!tx || !tx.property_address) return
+  if (!LIVE_STATUSES.has(tx.property_status)) return  // only "live" transactions trigger this
+  const target = normalizeAddr(tx.property_address)
+  const pls = db.all("SELECT id, property_address, status FROM pre_listings WHERE status NOT IN ('Listed','Withdrawn','Cancelled')")
+  for (const pl of pls) {
+    if (normalizeAddr(pl.property_address) === target) {
+      db.run("UPDATE pre_listings SET status = 'Listed', updated_at = datetime('now') WHERE id = ?", [pl.id])
+      logActivity('auto_listed', 'pre_listing', pl.id, `Auto-marked Listed (matching transaction ${tx.id})`)
+    }
+  }
+}
+
 // Auto-sync a listing-type transaction into the listings table.
 // - Updates the linked listing if one exists (transaction_id match)
 // - Creates a new listing if none exists AND the transaction is in a "live" status
@@ -250,6 +283,7 @@ router.post('/', (req, res) => {
   logActivity('created', 'transaction', txId, `New ${b.type}: ${b.property_address}`)
   // Auto-sync into Listings tab if this is a listing-type transaction
   syncListingFromTransaction(txId)
+  markMatchingPreListingsAsListed(txId)
   // Auto-sync closing into the hub calendar
   syncClosingToCalendar(txId)
   syncWalkthroughToCalendar(txId)
@@ -272,6 +306,7 @@ router.put('/:id', (req, res) => {
   logActivity('updated', 'transaction', txId, 'Updated transaction')
   // Mirror the change into Listings tab (creates or updates the linked listing)
   syncListingFromTransaction(txId)
+  markMatchingPreListingsAsListed(txId)
   // Sync/update closing event in calendar (handles add, update, AND removal on terminal status)
   syncClosingToCalendar(txId)
   syncWalkthroughToCalendar(txId)
