@@ -133,23 +133,13 @@ router.post('/all', async (req, res) => {
     // Calendar (only seeds if empty)
     results.calendar = seedCalendar()
 
-    // Google Sheet - Transactions
-    try {
-      const r = await fetch(`http://localhost:${process.env.PORT || 3001}/api/transactions/sync-sheet`, {
-        method: 'POST',
-        headers: { 'x-auth-token': req.headers['x-auth-token'] || '' }
-      })
-      results.transactions = await r.json()
-    } catch (e) { results.transactions = { error: e.message } }
-
-    // Google Sheet - Pre-listings
-    try {
-      const r = await fetch(`http://localhost:${process.env.PORT || 3001}/api/pre-listings/sync-sheet`, {
-        method: 'POST',
-        headers: { 'x-auth-token': req.headers['x-auth-token'] || '' }
-      })
-      results.prelistings = await r.json()
-    } catch (e) { results.prelistings = { error: e.message } }
+    // Google Sheet sync REMOVED 2026-05-14. The hub is the master file
+    // for transactions and pre-listings. Re-running the sheet sync was
+    // creating duplicate pre-listings because the sheet has the same
+    // property recorded with multiple address variants. Per user
+    // direction, the hub is now authoritative — no sheet pulls.
+    results.transactions = { skipped: 'sheet sync disabled — hub is master' }
+    results.prelistings = { skipped: 'sheet sync disabled — hub is master' }
 
     // Sierra (background sync)
     try {

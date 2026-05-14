@@ -329,8 +329,21 @@ router.post('/clear-all', (req, res) => {
   res.json({ success: true })
 })
 
-// Sync from Google Sheet
-router.post('/sync-sheet', async (req, res) => {
+// DISABLED 2026-05-14. The hub is the master file for transactions; we do not
+// pull from the Google Sheet anymore. Repeated re-imports were creating
+// duplicates (the sheet has multiple address variants for the same property
+// and the dedup couldn't match them all). Per user direction.
+router.post('/sync-sheet', (req, res) => {
+  res.status(410).json({
+    error: 'Google Sheet sync is disabled. The hub is the master file for transactions.',
+    disabled_at: '2026-05-14',
+  })
+})
+
+// Keep the original implementation around behind a guard so we don't lose the
+// code if the user ever wants to re-enable it.
+// eslint-disable-next-line no-unused-vars
+async function _disabled_syncTransactionsFromSheet(req, res) {
   try {
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/1628DMNtqi5_hcS4e62RTjtHjwp5i8qk4wIloFO15dug/gviz/tq?tqx=out:csv&sheet=Transaction%202026'
     const response = await fetch(sheetUrl)
@@ -414,7 +427,7 @@ router.post('/sync-sheet', async (req, res) => {
     db.endBulk?.()  // make sure we don't leave bulk mode on after an error
     res.status(500).json({ error: err.message })
   }
-})
+}  // end _disabled_syncTransactionsFromSheet
 
 // Proper CSV parser that handles quoted fields with embedded commas AND newlines
 function parseCSV(csv) {

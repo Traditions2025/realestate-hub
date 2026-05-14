@@ -41,37 +41,12 @@ export default function Dashboard() {
     setSyncing(false)
   }
 
-  const syncSheet = async () => {
-    setSyncing(true)
-    try {
-      const r1 = await authFetch('/api/transactions/sync-sheet', { method: 'POST' })
-      const d1 = await r1.json()
-      const r2 = await authFetch('/api/pre-listings/sync-sheet', { method: 'POST' })
-      const d2 = await r2.json()
-      alert(`Synced ${d1.synced} transactions + ${d2.synced} pre-listings from Google Sheet`)
-      load()
-    } catch (e) { alert('Sync failed: ' + e.message) }
-    setSyncing(false)
-  }
-
-  const syncEverything = async () => {
-    setSyncing(true)
-    try {
-      const r = await authFetch('/api/seed/all', { method: 'POST' })
-      const d = await r.json()
-      const msg = [
-        d.results?.vendors?.added ? `${d.results.vendors.added} vendors` : null,
-        d.results?.partners?.added ? `${d.results.partners.added} partners` : null,
-        d.results?.calendar?.added ? `${d.results.calendar.added} calendar events` : null,
-        d.results?.transactions?.synced ? `${d.results.transactions.synced} transactions` : null,
-        d.results?.prelistings?.synced ? `${d.results.prelistings.synced} pre-listings` : null,
-        'Sierra sync started in background',
-      ].filter(Boolean).join(', ')
-      alert(`Sync Everything complete: ${msg}`)
-      load()
-    } catch (e) { alert('Sync failed: ' + e.message) }
-    setSyncing(false)
-  }
+  // Google Sheet sync REMOVED 2026-05-14 — the hub is the master file for
+  // transactions and pre-listings. The 'Sync Google Sheet' and 'Sync
+  // Everything' buttons used to pull the sheet and were creating duplicates
+  // on every run because the sheet has multiple address variants for the
+  // same property. Sierra incremental sync (every 10 min) is still active
+  // and is what keeps Sierra leads up to date.
 
   // Only show full-page loader on truly first-ever load (no cache + no data yet)
   if (!data && loading) return <div className="page-loading">Loading dashboard...</div>
@@ -89,12 +64,8 @@ export default function Dashboard() {
           <p className="page-subtitle">Matt Smith Team Command Center</p>
         </div>
         <div className="header-actions">
-          <button className="btn btn-secondary" onClick={syncSheet} disabled={syncing}>Sync Google Sheet</button>
           <button className="btn btn-secondary" onClick={syncSierra} disabled={syncing}>
             {syncing ? 'Syncing...' : 'Pull Sierra Leads'}
-          </button>
-          <button className="btn btn-primary" onClick={syncEverything} disabled={syncing}>
-            {syncing ? 'Syncing...' : 'Sync Everything'}
           </button>
         </div>
       </div>

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-14T14:36:00.279Z",
-  "count": 141,
+  "generated_at": "2026-05-14T14:47:01.557Z",
+  "count": 142,
   "entries": [
+    {
+      "hash": "a87fea7",
+      "date": "2026-05-14T09:36:05-05:00",
+      "subject": "Pre-listings: fix persistent duplicate + Listed-still-showing bugs",
+      "title": "Pre-listings: fix persistent duplicate + Listed-still-showing bugs",
+      "body": "Two compounding bugs explained the recurring complaint:\n\n1. PreListings page rendered every row without filtering.\n   - The Transactions kanban already hid status IN ('Listed',\n     'Withdrawn', 'Cancelled'), but the standalone Pre-Listings page\n     showed everything. So 8506 Federalist (Listed) and 2416 C St SW\n     (Listed) kept appearing despite the status flip yesterday.\n   - Fix: added the same filter to PreListings.jsx.\n\n2. POST /api/pre-listings/sync-sheet did exact-string dedup against\n   property_address, but the Google Sheet has the same property\n   recorded multiple ways:\n     \"230 Bever Ln SE, Cedar Rapids, IA 52403\"\n     \"230 bever lane se, Cedar Rapids, IA 52403\"\n     \"3822 Banar Ave SW, Cedar Rapids, IA 52404\"\n     \"3822 Banar Ave SW Cedar Rapids, IA 52404\"   (no comma)\n   Different strings → dedup missed → every sync re-inserted them.\n   - Fix: normalizeAddress() — lowercase, strip punctuation, expand\n     suffix abbreviations (lane→ln, drive→dr, etc.) and direction\n     words (southwest→sw). Used as the dedup key.\n   - Also pre-loads existing pre-listings + active listings + active\n     transactions and skips any sheet row whose normalized address\n     matches anything we already track. The sync will never recreate\n     a property that's already promoted past the pre-listing stage.\n\n3. Added markMatchingPreListingsAsListed(txId) which fires on every\n   transaction POST/PUT. If an active-status transaction matches any\n   pre-listing by normalized address, that pre-listing flips to\n   'Listed'. So even when someone manually creates a transaction\n   without going through the promote flow, the matching pre-listing\n   gets cleaned up automatically.\n\nAlso did a one-time data delete of id=17 (Bever Ln dup) and id=18\n(Banar Ave dup) which had been re-imported by yesterday's sync run.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "de857a4",
       "date": "2026-05-14T09:24:05-05:00",

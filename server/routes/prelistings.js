@@ -90,8 +90,19 @@ function normalizeAddress(s) {
     .trim()
 }
 
-// Sync Potential Sellers from Google Sheet
-router.post('/sync-sheet', async (req, res) => {
+// DISABLED 2026-05-14. The hub is the master file for pre-listings; we do
+// not pull from the Google Sheet anymore. Per user direction (and yes, the
+// dedup logic was already in place — but the user has stated the hub is the
+// source of truth and the sheet sync should not run at all).
+router.post('/sync-sheet', (req, res) => {
+  res.status(410).json({
+    error: 'Google Sheet sync is disabled. The hub is the master file for pre-listings.',
+    disabled_at: '2026-05-14',
+  })
+})
+
+// eslint-disable-next-line no-unused-vars
+async function _disabled_syncPreListingsFromSheet(req, res) {
   try {
     const sheetUrl = 'https://docs.google.com/spreadsheets/d/1628DMNtqi5_hcS4e62RTjtHjwp5i8qk4wIloFO15dug/gviz/tq?tqx=out:csv&sheet=Potential%20Sellers'
     const response = await fetch(sheetUrl)
@@ -147,7 +158,7 @@ router.post('/sync-sheet', async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
-})
+}  // end _disabled_syncPreListingsFromSheet
 
 function parseCSV(csv) {
   const rows = []
