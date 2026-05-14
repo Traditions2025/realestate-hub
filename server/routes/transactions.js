@@ -51,6 +51,7 @@ const FIELDS = [
   'final_walkthrough_time', 'final_walkthrough_location',
   'final_walkthrough_invite_signature', 'final_walkthrough_invite_sent_at',
   'final_walkthrough_confirmed',
+  'financing_status',
 ]
 
 router.get('/', (req, res) => {

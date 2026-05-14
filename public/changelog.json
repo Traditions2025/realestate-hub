@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-13T18:41:59.029Z",
-  "count": 139,
+  "generated_at": "2026-05-14T14:23:58.968Z",
+  "count": 140,
   "entries": [
+    {
+      "hash": "ffbc792",
+      "date": "2026-05-13T13:42:05-05:00",
+      "subject": "Tasks deadlines: inline status dropdown + skip walkthrough on listing-only",
+      "title": "Tasks deadlines: inline status dropdown + skip walkthrough on listing-only",
+      "body": "Two changes:\n\n1. Listing-side transactions (type='listing') no longer surface\n   Final Walkthrough — that's a buyer-side activity (the buyer\n   schedules and conducts the walkthrough to check the property\n   before closing). Purchase + dual-agency transactions still see it.\n\n2. Each deadline card with a status dropdown field now has an inline\n   <select> at the bottom of the card. Changing the value PUTs to\n   /api/transactions/:id and the deadlines list auto-refreshes.\n   Currently editable inline:\n     - Earnest money (Not Started / In Progress / Completed)\n     - Inspection (Not Started / Ordered / Completed / Waived / N/A)\n     - Appraisal (Not Started / Ordered / Completed / Waived / N/A)\n   When a status becomes terminal (Completed / Waived / N/A), the\n   card automatically drops off the column on the next refresh.\n   Cards without a status field (Closing, walkthrough, etc.) still\n   click-through to /transactions.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e5b5824",
       "date": "2026-05-13T10:28:14-05:00",

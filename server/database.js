@@ -863,6 +863,8 @@ export async function initDb() {
       ['final_walkthrough_invite_signature', 'TEXT'],
       ['final_walkthrough_invite_sent_at', 'TEXT'],
       ['final_walkthrough_confirmed', 'INTEGER DEFAULT 0'],
+      // 2026-05-13 buyer financing approval status (separate from financing_release)
+      ['financing_status', 'TEXT'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

@@ -17,6 +17,7 @@ const emptyTx = {
   financing_release: '', final_walkthrough: '', inspection_release: '', final_inspection_waiver: '',
   final_walkthrough_time: '', final_walkthrough_location: '', final_walkthrough_confirmed: 0,
   final_walkthrough_invite_signature: '', final_walkthrough_invite_sent_at: '',
+  financing_status: 'Not Started',
   type_of_finance: '',
   earnest_money_due_date: '', ipi_due_date: '',
   lender_name: '', lender_company: '', lender_email: '',
@@ -944,10 +945,17 @@ export default function Transactions() {
               <label>Lender Company<input value={form.lender_company} onChange={e => f('lender_company', e.target.value)} placeholder="e.g. Corda Credit Union" /></label>
             </div>
             <label>Lender Email<input type="email" value={form.lender_email} onChange={e => f('lender_email', e.target.value)} placeholder="e.g. tim@cordacu.com" /></label>
-            <label>Type of Finance<select value={form.type_of_finance} onChange={e => f('type_of_finance', e.target.value)}>
-              <option value="">Select...</option>
-              {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
-            </select></label>
+            <div className="form-row">
+              <label>Type of Finance<select value={form.type_of_finance} onChange={e => f('type_of_finance', e.target.value)}>
+                <option value="">Select...</option>
+                {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select></label>
+              <label>Financing Status<select value={form.financing_status || 'Not Started'} onChange={e => f('financing_status', e.target.value)}>
+                <option>Not Started</option>
+                <option>In Progress</option>
+                <option>Approved</option>
+              </select></label>
+            </div>
           </div>
 
           {/* Pricing */}
@@ -1167,9 +1175,15 @@ export default function Transactions() {
               <label>Title Commitment<select value={form.title_commitment || 'Not Started'} onChange={e => f('title_commitment', e.target.value)}>
                 {TITLE_COMMITMENT_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select></label>
-              <label>Mortgage Payoff<select value={form.mortgage_payoff || 'Not Started'} onChange={e => f('mortgage_payoff', e.target.value)}>
-                {MORTGAGE_PAYOFF_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
-              </select></label>
+              {form.type !== 'purchase' ? (
+                <label>Mortgage Payoff<select value={form.mortgage_payoff || 'Not Started'} onChange={e => f('mortgage_payoff', e.target.value)}>
+                  {MORTGAGE_PAYOFF_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select></label>
+              ) : (
+                <div style={{fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center', fontStyle: 'italic'}}>
+                  Mortgage Payoff<br/>(listing-side only)
+                </div>
+              )}
               <label>ALTA Statement<select value={form.alta_statement || 'Not Ready'} onChange={e => f('alta_statement', e.target.value)}>
                 {ALTA_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
               </select></label>

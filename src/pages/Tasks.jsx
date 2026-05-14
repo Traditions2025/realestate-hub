@@ -27,18 +27,28 @@ function parseAnyDate(s) {
 // Terminal status values that mean "this milestone is done" (drop from view)
 const DEADLINE_TERMINAL = {
   earnest_money_deposit:        new Set(['Completed']),
-  home_inspection:              new Set(['Completed', 'Waived', 'N/A', 'Not Applicable']),
-  appraisal_contingency_status: new Set(['Completed', 'Waived', 'N/A', 'Not Applicable']),
+  home_inspection:              new Set(['Completed', 'N/A', 'Not Applicable']),
+  appraisal_contingency_status: new Set(['Completed', 'N/A', 'Not Applicable']),
+  financing_status:             new Set(['Approved']),
   financing_release:            new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
   inspection_release:           new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
 }
 
-// Status options per field — clicking the inline dropdown on a deadline
-// card lets the user change the status without opening the transaction.
+// Status options per field — match the dropdowns in Transactions.jsx exactly.
 const DEADLINE_STATUS_OPTIONS = {
   earnest_money_deposit:        ['Not Started', 'In Progress', 'Completed'],
-  home_inspection:              ['Not Started', 'Ordered', 'Completed', 'Waived', 'N/A'],
-  appraisal_contingency_status: ['Not Started', 'Ordered', 'Completed', 'Waived', 'N/A'],
+  home_inspection:              ['Not Started', 'Scheduled', 'In Progress', 'Completed', 'N/A'],
+  appraisal_contingency_status: ['Not Started', 'Ordered', 'Completed', 'N/A'],
+  financing_status:             ['Not Started', 'In Progress', 'Approved'],
+}
+
+// Date column name (if any) for a status field — used by the date-only deadlines
+// to know which underlying transaction date field to update.
+const FIELD_TO_DATE_COLUMN = {
+  earnest_money_deposit: 'earnest_money_due_date',
+  home_inspection: 'inspection_contingency_date',
+  appraisal_contingency_status: 'appraisal_contingency_date',
+  financing_status: 'mortgage_contingency_date',
 }
 
 // Compute pending date-driven deadlines from one transaction
@@ -70,7 +80,9 @@ function deadlinesFromTransaction(tx) {
   push('IPI',                   tx.ipi_due_date)
   push('Inspection',            tx.inspection_contingency_date, 'home_inspection')
   push('Appraisal',             tx.appraisal_contingency_date,  'appraisal_contingency_status')
-  if (!isCash) push('Mortgage contingency',  tx.mortgage_contingency_date)
+  // Mortgage contingency row carries the financing_status dropdown so the user
+  // can update Not Started / In Progress / Approved inline. Approved → row drops off.
+  if (!isCash) push('Mortgage / Financing',  tx.mortgage_contingency_date, 'financing_status')
   if (!isListingOnly) push('Final walkthrough', tx.final_walkthrough)
   push('Closing',               tx.closing_date)
   return items
@@ -113,17 +125,48 @@ export default function Tasks() {
   }
   useEffect(() => { refreshDeadlines() }, [])
 
-  // Update one status field on a transaction (inline edit from a deadline card)
-  const updateDeadlineStatus = async (txId, statusField, newValue) => {
+  // Modal state for editing a deadline (status + date) without leaving Tasks
+  const [deadlineEditing, setDeadlineEditing] = useState(null)
+  const [deadlineForm, setDeadlineForm] = useState({ date: '', status: '' })
+  const [deadlineSaving, setDeadlineSaving] = useState(false)
+
+  const openDeadlineEditor = (it) => {
+    // Normalize date to YYYY-MM-DD for the <input type="date">
+    let d = it.date || ''
+    const m = String(d).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/)
+    if (m) d = `${m[3]}-${String(m[1]).padStart(2,'0')}-${String(m[2]).padStart(2,'0')}`
+    setDeadlineForm({ date: d, status: it.status || '' })
+    setDeadlineEditing(it)
+  }
+
+  const saveDeadlineEdit = async () => {
+    if (!deadlineEditing || deadlineSaving) return
+    setDeadlineSaving(true)
     try {
-      await authFetch(`/api/transactions/${txId}`, {
+      const it = deadlineEditing
+      const payload = {}
+      // Date column: prefer the explicit FIELD_TO_DATE_COLUMN mapping for status
+      // fields; otherwise use the date column the deadline was sourced from.
+      const dateCol =
+        it.statusField ? FIELD_TO_DATE_COLUMN[it.statusField] :
+        it.label === 'Closing' ? 'closing_date' :
+        it.label === 'Final walkthrough' ? 'final_walkthrough' :
+        it.label === 'IPI' ? 'ipi_due_date' :
+        null
+      if (dateCol && deadlineForm.date !== '') payload[dateCol] = deadlineForm.date
+      if (it.statusField && deadlineForm.status) payload[it.statusField] = deadlineForm.status
+      if (Object.keys(payload).length === 0) { setDeadlineEditing(null); return }
+      await authFetch(`/api/transactions/${it.txId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ [statusField]: newValue }),
+        body: JSON.stringify(payload),
       })
-      refreshDeadlines()
+      await refreshDeadlines()
+      setDeadlineEditing(null)
     } catch (err) {
-      alert('Failed to update status: ' + err.message)
+      alert('Failed to save: ' + err.message)
+    } finally {
+      setDeadlineSaving(false)
     }
   }
 
@@ -428,12 +471,13 @@ export default function Tasks() {
                   it.daysOut === 0 ? 'today' :
                   it.daysOut < 0 ? `${Math.abs(it.daysOut)}d ago` :
                   `in ${it.daysOut}d`
-                const statusOptions = it.statusField ? DEADLINE_STATUS_OPTIONS[it.statusField] : null
                 return (
                   <div
                     key={`dl-${it.txId}-${idx}`}
                     className="kanban-card kanban-card-deadline"
-                    style={{borderLeft: `4px solid ${c}`}}
+                    style={{borderLeft: `4px solid ${c}`, cursor: 'pointer'}}
+                    onClick={() => openDeadlineEditor(it)}
+                    title="Click to update date or status without leaving Tasks"
                   >
                     <div className="kanban-card-top">
                       {tag ? (
@@ -445,27 +489,16 @@ export default function Tasks() {
                       )}
                     </div>
                     <div className="kanban-card-title">{it.label}</div>
-                    <a href="/transactions" className="kanban-card-desc" style={{textDecoration: 'none', color: 'var(--text-muted)', display: 'block'}} title="Open transaction">
+                    <div className="kanban-card-desc" style={{color: 'var(--text-muted)'}}>
                       {it.address}
-                    </a>
+                    </div>
                     <div className="kanban-card-footer">
                       <span style={{color: c, fontWeight: 600}}>{dateStr}</span>
                       <span style={{color: 'var(--text-muted)', fontSize: 11}}>{daysOut}</span>
                     </div>
-                    {/* Inline status dropdown — only when the deadline has a status field */}
-                    {statusOptions ? (
-                      <select
-                        className="deadline-status-select"
-                        value={it.status || statusOptions[0]}
-                        onChange={(e) => updateDeadlineStatus(it.txId, it.statusField, e.target.value)}
-                        onClick={e => e.stopPropagation()}
-                        title="Update status — saves immediately"
-                      >
-                        {statusOptions.map(opt => <option key={opt} value={opt}>{opt}</option>)}
-                      </select>
-                    ) : it.status ? (
+                    {it.status && (
                       <div style={{fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>
-                    ) : null}
+                    )}
                   </div>
                 )
               })}
@@ -669,6 +702,74 @@ export default function Tasks() {
             {nudgeSending ? 'Sending...' : 'Send Nudge'}
           </button>
         </div>
+      </Modal>
+
+      {/* Deadline Edit Modal — click a deadline card → inline edit date + status */}
+      <Modal
+        open={!!deadlineEditing}
+        onClose={() => setDeadlineEditing(null)}
+        title={deadlineEditing ? `Update: ${deadlineEditing.label}` : ''}
+      >
+        {deadlineEditing && (() => {
+          const it = deadlineEditing
+          const opts = it.statusField ? DEADLINE_STATUS_OPTIONS[it.statusField] : null
+          const dateCol =
+            it.statusField ? FIELD_TO_DATE_COLUMN[it.statusField] :
+            it.label === 'Closing' ? 'closing_date' :
+            it.label === 'Final walkthrough' ? 'final_walkthrough' :
+            it.label === 'IPI' ? 'ipi_due_date' :
+            null
+          return (
+            <div>
+              <div style={{fontSize: 13, color: 'var(--text-muted)', marginBottom: 14}}>
+                <strong style={{color: 'var(--text-primary)'}}>{it.address}</strong>
+              </div>
+
+              {dateCol && (
+                <label style={{display: 'block', marginBottom: 12}}>
+                  Date
+                  <input
+                    type="date"
+                    value={deadlineForm.date}
+                    onChange={e => setDeadlineForm(p => ({ ...p, date: e.target.value }))}
+                    style={{width: '100%', marginTop: 4}}
+                  />
+                </label>
+              )}
+
+              {opts && (
+                <label style={{display: 'block', marginBottom: 12}}>
+                  Status
+                  <select
+                    value={deadlineForm.status || opts[0]}
+                    onChange={e => setDeadlineForm(p => ({ ...p, status: e.target.value }))}
+                    style={{width: '100%', marginTop: 4}}
+                  >
+                    {opts.map(o => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </label>
+              )}
+
+              {!dateCol && !opts && (
+                <p className="muted">Nothing to edit on this deadline type. Open the full transaction for more options.</p>
+              )}
+
+              <div className="form-actions">
+                <a
+                  href="/transactions"
+                  className="btn btn-secondary btn-sm"
+                  style={{marginRight: 'auto', textDecoration: 'none'}}
+                >
+                  Open Full Transaction →
+                </a>
+                <button type="button" className="btn btn-secondary" onClick={() => setDeadlineEditing(null)}>Cancel</button>
+                <button type="button" className="btn btn-primary" onClick={saveDeadlineEdit} disabled={deadlineSaving}>
+                  {deadlineSaving ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
+          )
+        })()}
       </Modal>
     </div>
   )

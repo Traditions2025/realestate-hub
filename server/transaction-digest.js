@@ -104,6 +104,7 @@ const TERMINAL_STATUSES = {
   mortgage_payoff:              ['Received', 'N/A'],
   alta_statement:               ['Ready'],
   deed_package:                 ['Signed'],
+  financing_status:             ['Approved'],
   financing_release:            ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'],
   inspection_release:           ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'],
   final_inspection_waiver:      ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'],
@@ -160,22 +161,28 @@ function buildActionItems(tx) {
     })
   }
 
+  // Side filter: listing-side doesn't track final walkthrough (buyer-side activity)
+  // and purchase-side doesn't need mortgage payoff (only matters if YOU'RE the
+  // seller, i.e. listing or both).
+  const isListingOnly = tx.type === 'listing'
+  const isPurchaseOnly = tx.type === 'purchase'
+
   // Date-driven items (status used as primary signal where available)
   push('Earnest money',         tx.earnest_money_due_date,      'earnest_money_deposit')
   push('IPI',                   tx.ipi_due_date)
   push('Inspection',            tx.inspection_contingency_date, 'home_inspection')
   push('Appraisal',             tx.appraisal_contingency_date,  'appraisal_contingency_status')
-  push('Mortgage contingency',  tx.mortgage_contingency_date,   null, { mortgageOnly: true })
+  push('Mortgage / Financing',  tx.mortgage_contingency_date,   'financing_status', { mortgageOnly: true })
   push('Financing release',     null,                           'financing_release', { mortgageOnly: true })
   push('Inspection release',    null,                           'inspection_release')
   push('Final inspection waiver', null,                         'final_inspection_waiver')
-  push('Final walkthrough',     tx.final_walkthrough)
+  if (!isListingOnly) push('Final walkthrough', tx.final_walkthrough)
   push('Closing',               tx.closing_date)
 
   // Document statuses (status-only, no associated date column)
   push('Abstract',          null, 'abstract')
   push('Title commitment',  null, 'title_commitment')
-  push('Mortgage payoff',   null, 'mortgage_payoff')
+  if (!isPurchaseOnly) push('Mortgage payoff',   null, 'mortgage_payoff')  // listing/both only
   push('ALTA',              null, 'alta_statement')
   push('Deed',              null, 'deed_package')
 
@@ -260,7 +267,7 @@ function renderTransactionCard(tx) {
   const docs = [
     docStatusRow('Abstract',         tx.abstract),
     docStatusRow('Title',            tx.title_commitment),
-    docStatusRow('Mortgage Payoff',  tx.mortgage_payoff),
+    t === 'purchase' ? '' : docStatusRow('Mortgage Payoff',  tx.mortgage_payoff),
     docStatusRow('ALTA',             tx.alta_statement),
     docStatusRow('Deed',             tx.deed_package),
   ].filter(Boolean).join('')
