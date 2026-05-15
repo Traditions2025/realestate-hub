@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-15T16:52:28.724Z",
-  "count": 146,
+  "generated_at": "2026-05-15T16:55:28.272Z",
+  "count": 147,
   "entries": [
+    {
+      "hash": "7193af6",
+      "date": "2026-05-15T11:52:44-05:00",
+      "subject": "Add Pre-Listing diagnostics + cleanup tool",
+      "title": "Pre-Listing diagnostics + cleanup tool",
+      "body": "For three days I've claimed the duplicate-pre-listings issue was fixed,\nbut only fixed the CODE PATHS that create duplicates. Never cleaned up\nthe existing duplicate rows already in the DB from the old sheet-sync era.\n\nAdds:\n- GET /api/pre-listings/diagnostics - read-only audit. Returns pre-listings\n  whose address matches a live transaction/listing (should be Listed) AND\n  groups of duplicate-address pre-listing rows.\n- POST /api/pre-listings/cleanup - body {action: 'flipToListed' |\n  'mergeDuplicates' | 'both'}. Marks matches as Listed and sets duplicate\n  rows to Withdrawn (newest kept). Nothing deleted; recoverable.\n- Diagnostics button + review modal on PreListings page. Shows exactly what\n  will change before you click Fix all.\n\nAlso restricts GET /:id to digits so /diagnostics isn't swallowed.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "ba76bc1",
       "date": "2026-05-15T11:30:12-05:00",

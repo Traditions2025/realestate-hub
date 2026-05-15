@@ -61,9 +61,9 @@ export default function PreListings() {
 
   const runCleanup = async (action) => {
     const label = action === 'flipToListed' ? 'flip matching to Listed'
-      : action === 'mergeDuplicates' ? 'merge duplicates (newest kept, rest set to Withdrawn)'
-      : 'flip + merge'
-    if (!confirm(`Run cleanup: ${label}?`)) return
+      : action === 'mergeDuplicates' ? 'DELETE duplicate rows (newest kept)'
+      : 'flip + delete duplicates'
+    if (!confirm(`Run cleanup: ${label}?\n\nThis cannot be undone.`)) return
     setDiagLoading(true)
     try {
       const r = await authFetch('/api/pre-listings/cleanup', {
@@ -71,7 +71,7 @@ export default function PreListings() {
         body: JSON.stringify({ action })
       })
       const result = await r.json()
-      alert(`Done. Flipped ${result.flippedCount || 0}, merged ${result.mergedCount || 0}.`)
+      alert(`Done. Flipped ${result.flippedCount || 0} to Listed, deleted ${result.deletedCount || 0} duplicate row(s).`)
       const r2 = await authFetch('/api/pre-listings/diagnostics')
       setDiagData(await r2.json())
       load()
@@ -440,7 +440,7 @@ export default function PreListings() {
                     <tbody>
                       {g.rows.map((pl, i) => (
                         <tr key={pl.id} style={{borderBottom: '1px solid var(--border)'}}>
-                          <td style={{padding: 4, width: 80}}>{i === 0 ? <strong style={{color: '#10b981'}}>KEEP</strong> : <span style={{color: '#ef4444'}}>withdraw</span>}</td>
+                          <td style={{padding: 4, width: 80}}>{i === 0 ? <strong style={{color: '#10b981'}}>KEEP</strong> : <span style={{color: '#ef4444'}}>delete</span>}</td>
                           <td style={{padding: 4}}>{pl.property_address}</td>
                           <td style={{padding: 4}}>{pl.status}</td>
                           <td style={{padding: 4, fontSize: 11, color: 'var(--text-muted)'}}>updated {pl.updated_at}</td>
@@ -458,7 +458,7 @@ export default function PreListings() {
                 Flip {diagData.shouldBeListed.length} to Listed
               </button>
               <button className="btn btn-secondary" disabled={diagData.duplicates.length === 0} onClick={() => runCleanup('mergeDuplicates')}>
-                Merge {diagData.duplicates.length} duplicate groups
+                Delete duplicates from {diagData.duplicates.length} group(s)
               </button>
               <button className="btn btn-primary" disabled={diagData.shouldBeListed.length === 0 && diagData.duplicates.length === 0} onClick={() => runCleanup('both')}>
                 Fix all

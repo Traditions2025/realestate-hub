@@ -158,8 +158,8 @@ router.get('/diagnostics', (_req, res) => {
 // =============================================================
 // CLEANUP — body { action: 'flipToListed' | 'mergeDuplicates' | 'both' }
 // flipToListed:    sets status='Listed' for every PL matching a live tx/listing
-// mergeDuplicates: in each duplicate group, keeps the newest row; marks the
-//                  rest 'Withdrawn' (NOT deleted, so nothing is lost forever)
+// mergeDuplicates: in each duplicate group, keeps the newest row and DELETES
+//                  the rest (per user direction — no Withdrawn tagging)
 // =============================================================
 router.post('/cleanup', (req, res) => {
   try {
@@ -168,9 +168,9 @@ router.post('/cleanup', (req, res) => {
     const wantMerge = action === 'mergeDuplicates' || action === 'both'
 
     let flippedCount = 0
-    let mergedCount = 0
+    let deletedCount = 0
     const flippedIds = []
-    const mergedIds = []
+    const deletedIds = []
 
     if (wantFlip) {
       const LIVE_TX = ['Active', 'Coming Soon', 'Under Contract', 'Pending', 'Clear to Close', 'Closed']
@@ -208,16 +208,16 @@ router.post('/cleanup', (req, res) => {
         group.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
         const [, ...rest] = group
         for (const pl of rest) {
-          db.run("UPDATE pre_listings SET status = 'Withdrawn', updated_at = datetime('now') WHERE id = ?", [pl.id])
-          mergedCount++
-          mergedIds.push(pl.id)
+          db.run('DELETE FROM pre_listings WHERE id = ?', [pl.id])
+          deletedCount++
+          deletedIds.push(pl.id)
         }
       }
     }
 
     logActivity('cleanup', 'pre_listing', null,
-      `Cleanup: flipped ${flippedCount} to Listed, merged ${mergedCount} duplicates to Withdrawn`)
-    res.json({ flippedCount, mergedCount, flippedIds, mergedIds })
+      `Cleanup: flipped ${flippedCount} to Listed, deleted ${deletedCount} duplicate row(s)`)
+    res.json({ flippedCount, deletedCount, flippedIds, deletedIds })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
