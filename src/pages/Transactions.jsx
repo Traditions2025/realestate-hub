@@ -509,6 +509,23 @@ export default function Transactions() {
   // Pipeline groups - Pending merged into Under Contract
   const pipelineStatuses = ['Active', 'Under Contract', 'Clear to Close', 'Closed']
 
+  // Global sort: Under Contract / Pending first (soonest closing on top, no-date
+  // rows at the bottom of that group), then everything else in original order.
+  const sortedItems = (() => {
+    const isUC = (s) => s === 'Under Contract' || s === 'Pending'
+    const uc = items.filter(i => isUC(i.property_status))
+    const rest = items.filter(i => !isUC(i.property_status))
+    uc.sort((a, b) => {
+      const da = parseDate(a.closing_date)
+      const db = parseDate(b.closing_date)
+      if (!da && !db) return 0
+      if (!da) return 1
+      if (!db) return -1
+      return da.getTime() - db.getTime()
+    })
+    return [...uc, ...rest]
+  })()
+
   // Compute upcoming action items for Under Contract transactions
   const today = new Date()
   today.setHours(0,0,0,0)
@@ -725,9 +742,9 @@ export default function Transactions() {
             </tr>
           </thead>
           <tbody>
-            {items.length === 0 ? (
+            {sortedItems.length === 0 ? (
               <tr><td colSpan="11" className="empty-state">No transactions found. Click + New Transaction to add one.</td></tr>
-            ) : items.map(item => (
+            ) : sortedItems.map(item => (
               <tr key={item.id}>
                 <td className="cell-primary" onClick={() => openEdit(item)}>{item.property_address}</td>
                 <td>{item.mls_number || '—'}</td>
@@ -751,9 +768,9 @@ export default function Transactions() {
 
       {/* Card list - mobile */}
       <div className="mobile-only-cards">
-        {items.length === 0 ? (
+        {sortedItems.length === 0 ? (
           <div className="empty-state-full">No transactions found. Click + New Transaction to add one.</div>
-        ) : items.map(item => (
+        ) : sortedItems.map(item => (
           <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
             <div className="data-card-header">
               <div className="data-card-title">{item.property_address}</div>
