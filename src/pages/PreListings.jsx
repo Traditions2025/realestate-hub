@@ -42,6 +42,45 @@ export default function PreListings() {
   const [emailSending, setEmailSending] = useState(false)
   const [emailPreviewOpen, setEmailPreviewOpen] = useState(false)
   const [linkedClient, setLinkedClient] = useState(null)
+  const [diagOpen, setDiagOpen] = useState(false)
+  const [diagData, setDiagData] = useState(null)
+  const [diagLoading, setDiagLoading] = useState(false)
+
+  const openDiagnostics = async () => {
+    setDiagOpen(true)
+    setDiagLoading(true)
+    try {
+      const r = await authFetch('/api/pre-listings/diagnostics')
+      setDiagData(await r.json())
+    } catch (err) {
+      setDiagData({ error: err.message })
+    } finally {
+      setDiagLoading(false)
+    }
+  }
+
+  const runCleanup = async (action) => {
+    const label = action === 'flipToListed' ? 'flip matching to Listed'
+      : action === 'mergeDuplicates' ? 'merge duplicates (newest kept, rest set to Withdrawn)'
+      : 'flip + merge'
+    if (!confirm(`Run cleanup: ${label}?`)) return
+    setDiagLoading(true)
+    try {
+      const r = await authFetch('/api/pre-listings/cleanup', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action })
+      })
+      const result = await r.json()
+      alert(`Done. Flipped ${result.flippedCount || 0}, merged ${result.mergedCount || 0}.`)
+      const r2 = await authFetch('/api/pre-listings/diagnostics')
+      setDiagData(await r2.json())
+      load()
+    } catch (err) {
+      alert('Cleanup failed: ' + err.message)
+    } finally {
+      setDiagLoading(false)
+    }
+  }
 
   useEffect(() => {
     authFetch('/api/email/prelisting-templates').then(r => r.json()).then(setEmailTpls).catch(() => {})
@@ -157,6 +196,9 @@ export default function PreListings() {
           <p className="page-subtitle">Potential sellers - from walkthrough to MLS activation</p>
         </div>
         <div className="header-actions">
+          <button className="btn btn-secondary" onClick={openDiagnostics} title="Find duplicates and pre-listings that should be Listed">
+            Diagnostics
+          </button>
           <button className="btn btn-primary" onClick={openNew}>+ New Pre-Listing</button>
         </div>
       </div>
@@ -351,6 +393,79 @@ export default function PreListings() {
             {emailSending ? 'Sending...' : 'Send Email'}
           </button>
         </div>
+      </Modal>
+
+      <Modal open={diagOpen} onClose={() => setDiagOpen(false)} title="Pre-Listing Diagnostics" wide>
+        {diagLoading && <div style={{padding: 20, textAlign: 'center'}}>Loading...</div>}
+        {!diagLoading && diagData && diagData.error && (
+          <div style={{color: '#ef4444', padding: 12}}>Error: {diagData.error}</div>
+        )}
+        {!diagLoading && diagData && !diagData.error && (
+          <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
+            <div style={{padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 6, fontSize: 13}}>
+              <strong>{diagData.summary.shouldBeListedCount}</strong> pre-listing(s) match an active transaction or listing and should be flipped to <em>Listed</em>.<br/>
+              <strong>{diagData.summary.duplicateGroups}</strong> address(es) appear on multiple pre-listing rows ({diagData.summary.duplicateRows} total rows).
+            </div>
+
+            <div>
+              <h3 style={{margin: '0 0 8px'}}>Should be Listed ({diagData.shouldBeListed.length})</h3>
+              {diagData.shouldBeListed.length === 0 && <div style={{color: 'var(--text-muted)', fontSize: 13}}>None.</div>}
+              {diagData.shouldBeListed.length > 0 && (
+                <table style={{width: '100%', fontSize: 13, borderCollapse: 'collapse'}}>
+                  <thead><tr style={{textAlign: 'left', borderBottom: '1px solid var(--border)'}}>
+                    <th style={{padding: 6}}>Address</th><th style={{padding: 6}}>Owner</th>
+                    <th style={{padding: 6}}>Current Status</th><th style={{padding: 6}}>Matched With</th>
+                  </tr></thead>
+                  <tbody>
+                    {diagData.shouldBeListed.map(pl => (
+                      <tr key={pl.id} style={{borderBottom: '1px solid var(--border)'}}>
+                        <td style={{padding: 6}}>{pl.property_address}</td>
+                        <td style={{padding: 6}}>{pl.owner_name || '-'}</td>
+                        <td style={{padding: 6}}>{pl.status}</td>
+                        <td style={{padding: 6}}>{pl.matched_with.kind} #{pl.matched_with.id}{pl.matched_with.status ? ` (${pl.matched_with.status})` : ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <div>
+              <h3 style={{margin: '0 0 8px'}}>Duplicate Address Groups ({diagData.duplicates.length})</h3>
+              {diagData.duplicates.length === 0 && <div style={{color: 'var(--text-muted)', fontSize: 13}}>None.</div>}
+              {diagData.duplicates.map(g => (
+                <div key={g.normalized} style={{border: '1px solid var(--border)', borderRadius: 4, padding: 8, marginBottom: 8}}>
+                  <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 4}}>{g.normalized}</div>
+                  <table style={{width: '100%', fontSize: 13, borderCollapse: 'collapse'}}>
+                    <tbody>
+                      {g.rows.map((pl, i) => (
+                        <tr key={pl.id} style={{borderBottom: '1px solid var(--border)'}}>
+                          <td style={{padding: 4, width: 80}}>{i === 0 ? <strong style={{color: '#10b981'}}>KEEP</strong> : <span style={{color: '#ef4444'}}>withdraw</span>}</td>
+                          <td style={{padding: 4}}>{pl.property_address}</td>
+                          <td style={{padding: 4}}>{pl.status}</td>
+                          <td style={{padding: 4, fontSize: 11, color: 'var(--text-muted)'}}>updated {pl.updated_at}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
+
+            <div className="form-actions" style={{borderTop: '1px solid var(--border)', paddingTop: 12}}>
+              <button className="btn btn-secondary" onClick={() => setDiagOpen(false)}>Close</button>
+              <button className="btn btn-secondary" disabled={diagData.shouldBeListed.length === 0} onClick={() => runCleanup('flipToListed')}>
+                Flip {diagData.shouldBeListed.length} to Listed
+              </button>
+              <button className="btn btn-secondary" disabled={diagData.duplicates.length === 0} onClick={() => runCleanup('mergeDuplicates')}>
+                Merge {diagData.duplicates.length} duplicate groups
+              </button>
+              <button className="btn btn-primary" disabled={diagData.shouldBeListed.length === 0 && diagData.duplicates.length === 0} onClick={() => runCleanup('both')}>
+                Fix all
+              </button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       <Modal open={emailPreviewOpen} onClose={() => setEmailPreviewOpen(false)} title="Email Preview" wide>

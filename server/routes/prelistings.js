@@ -18,7 +18,9 @@ router.get('/', (req, res) => {
   res.json(db.all(sql, params))
 })
 
-router.get('/:id', (req, res) => {
+// Restrict :id to digits so static-named routes like /diagnostics aren't
+// swallowed by this matcher.
+router.get('/:id(\\d+)', (req, res) => {
   const row = db.get('SELECT * FROM pre_listings WHERE id = ?', [Number(req.params.id)])
   if (!row) return res.status(404).json({ error: 'Not found' })
   res.json(row)
@@ -89,6 +91,137 @@ function normalizeAddress(s) {
     .replace(/\bsouthwest\b/g, 'sw')
     .trim()
 }
+
+// =============================================================
+// DIAGNOSTICS — find pre-listings that should be Listed (matching a live
+// transaction or listing) AND find duplicate pre-listing rows. Read-only;
+// returns groups for review in the UI before any cleanup runs.
+// =============================================================
+router.get('/diagnostics', (_req, res) => {
+  try {
+    const HIDDEN = new Set(['Listed', 'Withdrawn', 'Cancelled'])
+    const LIVE_TX = ['Active', 'Coming Soon', 'Under Contract', 'Pending', 'Clear to Close', 'Closed']
+    const placeholders = LIVE_TX.map(() => '?').join(',')
+
+    const activeTx = db.all(
+      `SELECT id, property_address, property_status FROM transactions WHERE property_status IN (${placeholders})`,
+      LIVE_TX)
+    const allListings = db.all('SELECT id, property_address FROM listings')
+    const pls = db.all('SELECT id, property_address, owner_name, status, updated_at, created_at FROM pre_listings')
+
+    // Map normalized addr -> reason (tx or listing) for the should-be-listed check
+    const liveIndex = new Map()
+    for (const r of activeTx) {
+      const k = normalizeAddress(r.property_address)
+      if (k) liveIndex.set(k, { kind: 'transaction', id: r.id, status: r.property_status })
+    }
+    for (const r of allListings) {
+      const k = normalizeAddress(r.property_address)
+      if (k && !liveIndex.has(k)) liveIndex.set(k, { kind: 'listing', id: r.id })
+    }
+
+    // shouldBeListed: PLs that are still active in the UI but match a live tx/listing
+    const shouldBeListed = []
+    for (const pl of pls) {
+      if (HIDDEN.has(pl.status)) continue
+      const k = normalizeAddress(pl.property_address)
+      const match = liveIndex.get(k)
+      if (match) shouldBeListed.push({ ...pl, matched_with: match })
+    }
+
+    // duplicates: groups of PLs with same normalized addr (only groups of 2+)
+    // Includes hidden rows too, since "Listed" + active duplicate is still confusing.
+    const byAddr = new Map()
+    for (const pl of pls) {
+      const k = normalizeAddress(pl.property_address)
+      if (!k) continue
+      if (!byAddr.has(k)) byAddr.set(k, [])
+      byAddr.get(k).push(pl)
+    }
+    const duplicates = []
+    for (const [k, group] of byAddr) {
+      if (group.length < 2) continue
+      group.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+      duplicates.push({ normalized: k, rows: group })
+    }
+
+    res.json({ shouldBeListed, duplicates, summary: {
+      shouldBeListedCount: shouldBeListed.length,
+      duplicateGroups: duplicates.length,
+      duplicateRows: duplicates.reduce((s, g) => s + g.rows.length, 0),
+    }})
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
+// =============================================================
+// CLEANUP — body { action: 'flipToListed' | 'mergeDuplicates' | 'both' }
+// flipToListed:    sets status='Listed' for every PL matching a live tx/listing
+// mergeDuplicates: in each duplicate group, keeps the newest row; marks the
+//                  rest 'Withdrawn' (NOT deleted, so nothing is lost forever)
+// =============================================================
+router.post('/cleanup', (req, res) => {
+  try {
+    const action = (req.body && req.body.action) || 'both'
+    const wantFlip = action === 'flipToListed' || action === 'both'
+    const wantMerge = action === 'mergeDuplicates' || action === 'both'
+
+    let flippedCount = 0
+    let mergedCount = 0
+    const flippedIds = []
+    const mergedIds = []
+
+    if (wantFlip) {
+      const LIVE_TX = ['Active', 'Coming Soon', 'Under Contract', 'Pending', 'Clear to Close', 'Closed']
+      const placeholders = LIVE_TX.map(() => '?').join(',')
+      const liveAddrs = new Set()
+      for (const r of db.all(
+        `SELECT property_address FROM transactions WHERE property_status IN (${placeholders})`,
+        LIVE_TX)) {
+        liveAddrs.add(normalizeAddress(r.property_address))
+      }
+      for (const r of db.all('SELECT property_address FROM listings')) {
+        liveAddrs.add(normalizeAddress(r.property_address))
+      }
+      const HIDDEN = new Set(['Listed', 'Withdrawn', 'Cancelled'])
+      for (const pl of db.all('SELECT id, property_address, status FROM pre_listings')) {
+        if (HIDDEN.has(pl.status)) continue
+        if (liveAddrs.has(normalizeAddress(pl.property_address))) {
+          db.run("UPDATE pre_listings SET status = 'Listed', updated_at = datetime('now') WHERE id = ?", [pl.id])
+          flippedCount++
+          flippedIds.push(pl.id)
+        }
+      }
+    }
+
+    if (wantMerge) {
+      const byAddr = new Map()
+      for (const pl of db.all('SELECT id, property_address, status, updated_at FROM pre_listings')) {
+        const k = normalizeAddress(pl.property_address)
+        if (!k) continue
+        if (!byAddr.has(k)) byAddr.set(k, [])
+        byAddr.get(k).push(pl)
+      }
+      for (const [, group] of byAddr) {
+        if (group.length < 2) continue
+        group.sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))
+        const [, ...rest] = group
+        for (const pl of rest) {
+          db.run("UPDATE pre_listings SET status = 'Withdrawn', updated_at = datetime('now') WHERE id = ?", [pl.id])
+          mergedCount++
+          mergedIds.push(pl.id)
+        }
+      }
+    }
+
+    logActivity('cleanup', 'pre_listing', null,
+      `Cleanup: flipped ${flippedCount} to Listed, merged ${mergedCount} duplicates to Withdrawn`)
+    res.json({ flippedCount, mergedCount, flippedIds, mergedIds })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
 
 // DISABLED 2026-05-14. The hub is the master file for pre-listings; we do
 // not pull from the Google Sheet anymore. Per user direction (and yes, the

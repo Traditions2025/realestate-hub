@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-15T16:29:50.590Z",
-  "count": 145,
+  "generated_at": "2026-05-15T16:52:28.724Z",
+  "count": 146,
   "entries": [
+    {
+      "hash": "ba76bc1",
+      "date": "2026-05-15T11:30:12-05:00",
+      "subject": "Wrap client status tabs so all fit without horizontal scroll",
+      "title": "Wrap client status tabs so all fit without horizontal scroll",
+      "body": "Status tabs row (Prime/Active/New/Qualify/Pending/Watch/Closed/FSBO/\nCancelled-Expired/All) was overflowing horizontally - last tab hidden\nbehind the scroller. Added flex-wrap + tightened tab padding/font so\nall tabs fit on the visible row (and wrap to a second row on narrower\nviewports instead of scrolling).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e0488cd",
       "date": "2026-05-15T11:04:56-05:00",
