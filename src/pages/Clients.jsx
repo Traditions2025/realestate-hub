@@ -908,32 +908,20 @@ export default function Clients() {
           </button>
         ))}
 
-        {/* Other dropdown */}
-        <div className="other-tab-wrap" onClick={e => e.stopPropagation()}>
+        {/* Saved-list shortcut tabs (replaces the old 'Other' dropdown).
+            Pulls names from the savedLists state — click loads the saved filter. */}
+        {savedLists.filter(l => /^(FSBO|Cancelled\/Expired|Cancelled|Expired)/i.test(l.name)).map(l => (
           <button
-            className={`client-tab ${isOtherTab ? 'active' : ''}`}
-            onClick={() => setOtherMenuOpen(!otherMenuOpen)}
+            key={`sl-${l.id}`}
+            className={`client-tab ${activeListId === l.id ? 'active' : ''}`}
+            onClick={() => loadSavedList(l.id)}
+            title={l.description || l.name}
           >
-            <span className="tab-dot" style={{ background: '#6b7280' }}></span>
-            {isOtherTab ? formatStatus(tab) : 'Other'} <span className="tab-count">{isOtherTab ? (countsMap[tab] || 0) : otherTotal}</span>
-            <span style={{marginLeft: 4, fontSize: 10}}>▾</span>
+            <span className="tab-dot" style={{ background: '#a855f7' }}></span>
+            {l.name}
+            <span className="tab-count">{l.count || 0}</span>
           </button>
-          {otherMenuOpen && (
-            <div className="other-menu">
-              {otherTabs.map(s => (
-                <button
-                  key={s.status}
-                  className={`other-menu-item ${tab === s.status ? 'active' : ''}`}
-                  onClick={() => { setTab(s.status); setOtherMenuOpen(false) }}
-                >
-                  <span className="tab-dot" style={{ background: statusColors[s.status] || '#6b7280' }}></span>
-                  <span style={{flex: 1}}>{formatStatus(s.status)}</span>
-                  <span className="tab-count">{s.count}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        ))}
 
         <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
           All

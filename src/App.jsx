@@ -54,6 +54,15 @@ export default function App() {
   // Optimistically authed if we have a token - skip the verify roundtrip on page load
   const [authed, setAuthed] = useState(() => !!localStorage.getItem('mst_token'))
 
+  // Theme: 'dark' (default) or 'light'. Persisted in localStorage. Applied via
+  // data-theme attribute on <body> — CSS variables in app.css handle the rest.
+  const [theme, setTheme] = useState(() => localStorage.getItem('mst_theme') || 'dark')
+  useEffect(() => {
+    document.body.setAttribute('data-theme', theme)
+    localStorage.setItem('mst_theme', theme)
+  }, [theme])
+  const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
+
   useEffect(() => {
     const token = localStorage.getItem('mst_token')
     if (!token) return
@@ -113,6 +122,14 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-footer">
+          <button
+            className="theme-toggle"
+            onClick={toggleTheme}
+            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-label="Toggle theme"
+          >
+            {theme === 'dark' ? '☀ Light Mode' : '🌙 Dark Mode'}
+          </button>
           <div className="team-sub">RE/MAX Concepts &middot; Cedar Rapids IA</div>
         </div>
       </aside>

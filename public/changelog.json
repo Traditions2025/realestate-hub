@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-14T14:58:13.686Z",
-  "count": 143,
+  "generated_at": "2026-05-15T16:04:49.034Z",
+  "count": 144,
   "entries": [
+    {
+      "hash": "3131eb1",
+      "date": "2026-05-14T09:58:18-05:00",
+      "subject": "Remove ALL remaining Google Sheet sync UI (Transactions + PreListings)",
+      "title": "ALL remaining Google Sheet sync UI (Transactions + PreListings)",
+      "body": "Caught in user screenshot: the Transactions page had two sync buttons\n('Clear & Re-sync' and 'Sync from Google Sheet') in its header that I\nmissed yesterday — only Dashboard's buttons were removed.\n\nThis pass nukes every remaining trigger:\n  - Transactions page: 'Clear & Re-sync' button GONE\n  - Transactions page: 'Sync from Google Sheet' button GONE\n  - Transactions page: subtitle updated, empty-state messages updated\n  - PreListings page: 'Sync from Google Sheet' button GONE\n  - PreListings page: empty-state message updated\n  - syncSheet() / clearAndResync() handlers deleted from both pages\n  - Orphan syncing/setSyncing state removed where no longer referenced\n  - POST /api/transactions/clear-all → 410 Gone (was a foot-gun;\n    only caller was the now-deleted Clear & Re-sync button)\n\nTogether with yesterday's commit (280de32) that disabled the\nsync-sheet endpoints + Dashboard buttons, there is now NO path —\nbutton, handler, or API call — that pulls from the Google Sheet.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "removal"
+    },
     {
       "hash": "280de32",
       "date": "2026-05-14T09:47:06-05:00",

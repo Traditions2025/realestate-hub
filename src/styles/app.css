@@ -24,6 +24,41 @@
   --sidebar-collapsed: 64px;
 }
 
+/* ---- Light theme overrides ---- */
+/* Applied when <body data-theme="light">. Toggle in the sidebar persists
+   the choice to localStorage. Same accent so brand colors stay consistent. */
+body[data-theme="light"] {
+  --bg-primary: #f8fafc;
+  --bg-secondary: #ffffff;
+  --bg-card: #ffffff;
+  --bg-elevated: #f1f5f9;
+  --bg-hover: #e2e8f0;
+  --border: #cbd5e1;
+  --border-light: #94a3b8;
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+  color-scheme: light;
+}
+body[data-theme="light"] input,
+body[data-theme="light"] select,
+body[data-theme="light"] textarea {
+  background: #ffffff;
+  color: #0f172a;
+  border-color: #cbd5e1;
+}
+body[data-theme="light"] .sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+}
+body[data-theme="light"] .nav-section-label {
+  color: #94a3b8;
+}
+body[data-theme="light"] .empty-state-full,
+body[data-theme="light"] .empty-state {
+  color: #64748b;
+}
+
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 body {
@@ -149,6 +184,26 @@ body {
 .team-sub {
   font-size: 11px;
   color: var(--text-muted);
+}
+.theme-toggle {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+.theme-toggle:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent);
 }
 
 /* ---- Main Content ---- */
