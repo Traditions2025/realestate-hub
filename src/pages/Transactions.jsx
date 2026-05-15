@@ -509,6 +509,18 @@ export default function Transactions() {
   // Pipeline groups - Pending merged into Under Contract
   const pipelineStatuses = ['Active', 'Under Contract', 'Clear to Close', 'Closed']
 
+  // Compute upcoming action items for Under Contract transactions
+  const today = new Date()
+  today.setHours(0,0,0,0)
+  const parseDate = (s) => {
+    if (!s) return null
+    const parts = s.split(/[\/\-]/)
+    let d
+    if (parts[0].length === 4) d = new Date(s)
+    else d = new Date(`${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`)
+    return isNaN(d) ? null : d
+  }
+
   // Global sort: Under Contract / Pending first (soonest closing on top, no-date
   // rows at the bottom of that group), then everything else in original order.
   const sortedItems = (() => {
@@ -525,18 +537,6 @@ export default function Transactions() {
     })
     return [...uc, ...rest]
   })()
-
-  // Compute upcoming action items for Under Contract transactions
-  const today = new Date()
-  today.setHours(0,0,0,0)
-  const parseDate = (s) => {
-    if (!s) return null
-    const parts = s.split(/[\/\-]/)
-    let d
-    if (parts[0].length === 4) d = new Date(s)
-    else d = new Date(`${parts[2]}-${parts[0].padStart(2,'0')}-${parts[1].padStart(2,'0')}`)
-    return isNaN(d) ? null : d
-  }
   const daysUntil = (date) => {
     const d = parseDate(date)
     if (!d) return null

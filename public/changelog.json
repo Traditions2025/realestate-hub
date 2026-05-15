@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-15T17:28:01.115Z",
-  "count": 148,
+  "generated_at": "2026-05-15T17:51:48.705Z",
+  "count": 149,
   "entries": [
+    {
+      "hash": "cb1db5d",
+      "date": "2026-05-15T12:28:11-05:00",
+      "subject": "Sort Under Contract by nearest closing date in table + mobile views",
+      "title": "Sort Under Contract by nearest closing date in table + mobile views",
+      "body": "Kanban Under Contract column was already sorted closing-date-ascending,\nbut the desktop full table and mobile card list were iterating items raw.\nAdded a computed sortedItems that puts Under Contract / Pending rows at\nthe top, sorted by closing date soonest-first (rows w/o a date at the\nbottom of that group), with the remaining statuses preserved in their\noriginal order after.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4ba2d46",
       "date": "2026-05-15T11:55:37-05:00",
