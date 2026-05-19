@@ -50,33 +50,43 @@ async function syncSierraIncremental() {
     const sinceFormatted = sinceDate
 
     let added = 0, updated = 0, total = 0
-    let page = 1
-    let hasMore = true
 
-    while (hasMore) {
-      const result = await sierraGet('/leads/find', {
-        leadUpdateDateFrom: sinceFormatted,
-        includeSavedSearches: 'true',
-        includeTags: 'true',
-        pageSize: 100,
-        pageNumber: page,
-      })
+    // Two passes: by updateDate (catches edits) AND by creationDate (catches
+    // imports/new leads where Sierra preserved the source data's old updateDate).
+    // processLead is idempotent — a lead seen in both passes just UPDATEs once.
+    const passes = [
+      { name: 'updated', filter: 'leadUpdateDateFrom' },
+      { name: 'created', filter: 'leadCreationDateFrom' },
+    ]
 
-      const responseData = result.data || result
-      const leads = responseData.leads || []
-      if (!leads.length) break
+    for (const pass of passes) {
+      let page = 1
+      let hasMore = true
+      while (hasMore) {
+        const result = await sierraGet('/leads/find', {
+          [pass.filter]: sinceFormatted,
+          includeSavedSearches: 'true',
+          includeTags: 'true',
+          pageSize: 100,
+          pageNumber: page,
+        })
 
-      for (const lead of leads) {
-        const r = processLead(lead)
-        if (r === 'added') added++
-        else if (r === 'updated') updated++
-        if (r) total++
+        const responseData = result.data || result
+        const leads = responseData.leads || []
+        if (!leads.length) break
+
+        for (const lead of leads) {
+          const r = processLead(lead)
+          if (r === 'added') added++
+          else if (r === 'updated') updated++
+          if (r) total++
+        }
+
+        const totalPages = responseData.totalPages || 1
+        if (page >= totalPages) hasMore = false
+        else page++
+        if (page > 50) break
       }
-
-      const totalPages = responseData.totalPages || 1
-      if (page >= totalPages) hasMore = false
-      else page++
-      if (page > 50) break
     }
 
     db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)',
