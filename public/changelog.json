@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-19T14:27:13.749Z",
-  "count": 152,
+  "generated_at": "2026-05-19T14:47:27.414Z",
+  "count": 153,
   "entries": [
+    {
+      "hash": "88d4fa8",
+      "date": "2026-05-19T09:27:22-05:00",
+      "subject": "Tasks: add assignee quick-filter (Matt / Leo / Unassigned)",
+      "title": "Tasks: add assignee quick-filter (Matt / Leo / Unassigned)",
+      "body": "New dropdown in the Tasks toolbar next to Priority and Status filters.\nSelecting Matt shows only Matt's tasks; Leo shows only Leo's; Unassigned\nshows tasks with no assigned_to value. Applies to both kanban and table\nviews. Case-insensitive match.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7b4029b",
       "date": "2026-05-19T09:16:00-05:00",

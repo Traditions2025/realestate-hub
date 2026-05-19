@@ -19,6 +19,7 @@ export default function Clients() {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  const [editingOriginal, setEditingOriginal] = useState(null)
   const [form, setForm] = useState(emptyClient)
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState(null)
@@ -298,9 +299,10 @@ export default function Clients() {
     }
   }
 
-  const openNew = () => { setEditing(null); setForm(emptyClient); setModalOpen(true) }
+  const openNew = () => { setEditing(null); setEditingOriginal(null); setForm(emptyClient); setModalOpen(true) }
   const openEdit = (item) => {
     setEditing(item.id)
+    setEditingOriginal({ status: item.status, sierra_lead_id: item.sierra_lead_id, first_name: item.first_name, last_name: item.last_name })
     setForm({ ...emptyClient, ...Object.fromEntries(Object.entries(item).filter(([k, v]) => v !== null && k in emptyClient)) })
     setModalOpen(true)
   }
@@ -620,8 +622,39 @@ export default function Clients() {
       if (data[k] === '') data[k] = null
       else if (data[k]) data[k] = Number(data[k])
     })
+
+    // Detect status change on an existing Sierra-sourced lead BEFORE the save,
+    // so we can offer to push to Sierra after the local save succeeds.
+    const statusChanged = editing
+      && editingOriginal
+      && editingOriginal.sierra_lead_id
+      && editingOriginal.status !== data.status
+
     if (editing) await api.updateClient(editing, data)
     else await api.createClient(data)
+
+    // Offer to push the status change to Sierra. Always local-first; the Sierra
+    // call is gated on user confirmation so accidental flips don't propagate.
+    if (statusChanged) {
+      const fullName = `${editingOriginal.first_name || ''} ${editingOriginal.last_name || ''}`.trim() || 'this lead'
+      const confirmMsg = `Push status change to Sierra?\n\n${fullName}: ${editingOriginal.status} → ${data.status}\n\n(Local change is already saved either way.)`
+      if (confirm(confirmMsg)) {
+        try {
+          const r = await authFetch('/api/sierra/update-lead-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: editing, status: data.status })
+          })
+          const result = await r.json()
+          if (!result.success) {
+            alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
+          }
+        } catch (err) {
+          alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
+        }
+      }
+    }
+
     setModalOpen(false)
     load()
   }

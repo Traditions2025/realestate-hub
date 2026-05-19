@@ -200,7 +200,25 @@ export async function sierraPost(endpoint, data) {
     headers: { 'Content-Type': 'application/json', 'Sierra-ApiKey': SIERRA_API_KEY },
     body: JSON.stringify(data),
   })
-  if (!resp.ok) throw new Error(`Sierra API ${resp.status}: ${resp.statusText}`)
+  if (!resp.ok) {
+    let bodyText = ''
+    try { bodyText = (await resp.text()).slice(0, 300) } catch {}
+    throw new Error(`Sierra API ${resp.status} ${resp.statusText}${bodyText ? ' — ' + bodyText : ''}`)
+  }
+  return resp.json()
+}
+
+export async function sierraPut(endpoint, data) {
+  const resp = await fetch(`${SIERRA_API_URL}${endpoint}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', 'Sierra-ApiKey': SIERRA_API_KEY },
+    body: JSON.stringify(data),
+  })
+  if (!resp.ok) {
+    let bodyText = ''
+    try { bodyText = (await resp.text()).slice(0, 300) } catch {}
+    throw new Error(`Sierra API ${resp.status} ${resp.statusText}${bodyText ? ' — ' + bodyText : ''}`)
+  }
   return resp.json()
 }
 

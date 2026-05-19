@@ -1,6 +1,21 @@
 import { Router } from 'express'
 import db from '../database.js'
-import { processLead, sierraGet, sierraPost, sierraDelete } from '../sierra-helper.js'
+import { processLead, sierraGet, sierraPost, sierraPut, sierraDelete } from '../sierra-helper.js'
+
+// Map hub status (lowercase_with_underscores) → Sierra status (PascalCase, no spaces)
+const HUB_TO_SIERRA_STATUS = {
+  prime: 'Prime',
+  active: 'Active',
+  new: 'New',
+  qualify: 'Qualify',
+  watch: 'Watch',
+  pending: 'Pending',
+  closed: 'Closed',
+  archived: 'Archived',
+  junk: 'Junk',
+  donotcontact: 'DoNotContact',
+  blocked: 'Blocked',
+}
 
 const router = Router()
 
@@ -349,6 +364,59 @@ router.post('/sync-incremental-now', async (req, res) => {
   } catch (err) {
     res.status(500).json({ success: false, error: err.message })
   }
+})
+
+// =============================================================
+// WRITE-BACK: push hub status change to Sierra. Status-only for now;
+// always behind a confirm dialog in the UI. Body: { client_id, status }
+// where status is the hub's lowercase_with_underscores form.
+// Tries multiple Sierra endpoint shapes since the exact route name varies
+// across Sierra Interactive API versions — surfaces the actual error.
+// =============================================================
+router.post('/update-lead-status', async (req, res) => {
+  const { client_id, status } = req.body || {}
+  if (!client_id || !status) return res.status(400).json({ error: 'client_id and status required' })
+
+  const sierraStatus = HUB_TO_SIERRA_STATUS[String(status).toLowerCase()]
+  if (!sierraStatus) return res.status(400).json({ error: `Unknown status: ${status}` })
+
+  const client = db.get('SELECT id, sierra_lead_id, first_name, last_name, status FROM clients WHERE id = ?', [Number(client_id)])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+  if (!client.sierra_lead_id) return res.status(400).json({ error: 'Client has no sierra_lead_id (not a Sierra-sourced lead)' })
+
+  const leadId = client.sierra_lead_id
+  const attempts = [
+    { method: 'POST', path: `/leads/edit/${leadId}`,  body: { leadStatus: sierraStatus } },
+    { method: 'POST', path: `/leads/update/${leadId}`, body: { leadStatus: sierraStatus } },
+    { method: 'POST', path: `/leads/${leadId}/status`, body: { status: sierraStatus } },
+    { method: 'PUT',  path: `/leads/${leadId}`,        body: { leadStatus: sierraStatus } },
+  ]
+
+  const errors = []
+  for (const a of attempts) {
+    try {
+      const result = a.method === 'PUT'
+        ? await sierraPut(a.path, a.body)
+        : await sierraPost(a.path, a.body)
+      // Success — log to activity_log and return.
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        ['sierra_status_pushed', 'client', client.id,
+         `Pushed status to Sierra: ${client.first_name} ${client.last_name} → ${sierraStatus} (via ${a.method} ${a.path})`])
+      return res.json({ success: true, endpoint_used: `${a.method} ${a.path}`, sierra_status: sierraStatus, sierra_response: result })
+    } catch (err) {
+      errors.push({ endpoint: `${a.method} ${a.path}`, error: err.message })
+      // Only try the next endpoint if this looked like a route mismatch (404).
+      // Anything else (401/403/400) is a real Sierra reply — stop and surface it.
+      if (!/40[045]/.test(err.message)) break
+    }
+  }
+
+  res.status(502).json({
+    success: false,
+    error: 'All Sierra update endpoint attempts failed',
+    attempts: errors,
+    hint: 'Send these error details so we can pin the right Sierra endpoint shape for your account.',
+  })
 })
 
 // Search Sierra by name/email/phone — useful when a lead "should be there but isn't"
