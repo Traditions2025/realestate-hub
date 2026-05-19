@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-19T14:15:49.092Z",
-  "count": 151,
+  "generated_at": "2026-05-19T14:27:13.749Z",
+  "count": 152,
   "entries": [
+    {
+      "hash": "7b4029b",
+      "date": "2026-05-19T09:16:00-05:00",
+      "subject": "Sierra incremental sync: also pull by creationDate (catches imports)",
+      "title": "Sierra incremental sync: also pull by creationDate (catches imports)",
+      "body": "Imported leads in Sierra (Source: Import) often preserve the source\nfile's original updateDate rather than setting it to import time. That\nmeans our incremental sync (filter: leadUpdateDateFrom) misses them\neven when they were brought in yesterday.\n\nAdded a second pass with leadCreationDateFrom so newly created leads\nare pulled regardless of whether their updateDate was bumped. processLead\nis idempotent (UPDATE if exists), so a lead caught by both passes is\nno extra work - just one DB row touch.\n\nConcrete case: Kevin Christensen (imported yesterday, status=Watch,\nsource=Import) wasn't in the hub despite 144 incremental runs - because\nhis updateDate carried over from the source file and was older than the\nsync watermark.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "abb0780",
       "date": "2026-05-19T09:09:26-05:00",

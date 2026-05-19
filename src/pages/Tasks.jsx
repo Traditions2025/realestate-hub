@@ -100,6 +100,7 @@ const CLS_RANK = { overdue: 0, today: 1, urgent: 2, watch: 3, normal: 4 }
 export default function Tasks() {
   const [items, setItems] = useState([])
   const [filter, setFilter] = useState({ status: '', priority: '' })
+  const [assigneeFilter, setAssigneeFilter] = useState('')
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
@@ -360,6 +361,12 @@ export default function Tasks() {
           <option value="in_progress">In Progress</option>
           <option value="done">Done</option>
         </select>
+        <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
+          <option value="">All Assignees</option>
+          <option value="Matt">Matt</option>
+          <option value="Leo">Leo</option>
+          <option value="__unassigned__">Unassigned</option>
+        </select>
         {search && (
           <button className="btn btn-sm btn-secondary" onClick={() => setSearch('')}>Clear</button>
         )}
@@ -380,7 +387,12 @@ export default function Tasks() {
               ].filter(Boolean).join(' ').toLowerCase()
               return hay.includes(q)
             }
-            let statusItems = items.filter(i => i.status === status && matchesSearch(i))
+            const matchesAssignee = (it) => {
+              if (!assigneeFilter) return true
+              if (assigneeFilter === '__unassigned__') return !it.assigned_to
+              return (it.assigned_to || '').toLowerCase() === assigneeFilter.toLowerCase()
+            }
+            let statusItems = items.filter(i => i.status === status && matchesSearch(i) && matchesAssignee(i))
             // Done column: sort by completion timestamp, newest first
             if (status === 'done') {
               statusItems = [...statusItems].sort((a, b) => {
@@ -524,7 +536,14 @@ export default function Tasks() {
             <tbody>
               {(() => {
                 const q = search.trim().toLowerCase()
-                const filtered = !q ? items : items.filter(it => {
+                const matchesAssignee = (it) => {
+                  if (!assigneeFilter) return true
+                  if (assigneeFilter === '__unassigned__') return !it.assigned_to
+                  return (it.assigned_to || '').toLowerCase() === assigneeFilter.toLowerCase()
+                }
+                const filtered = items.filter(it => {
+                  if (!matchesAssignee(it)) return false
+                  if (!q) return true
                   const hay = [it.title, it.description, it.assigned_to, it.related_type, it.notes_log]
                     .filter(Boolean).join(' ').toLowerCase()
                   return hay.includes(q)
