@@ -12,6 +12,44 @@ const emptyClient = {
   budget_min: '', budget_max: '', preapproval_amount: '', preapproval_lender: '', notes: ''
 }
 
+// Column config for the list view. Users toggle visibility + reorder via the
+// "Columns" picker; prefs persist in localStorage. `key` matches sortable
+// indicators and the CSS .cl-{key} class on each cell.
+const LIST_COLUMNS = [
+  { key: 'score',      label: 'Score',      defaultVisible: true,  fr: '0.5fr', sort: { asc: 'lowest_score',  desc: 'highest_score' } },
+  { key: 'name',       label: 'Name',       defaultVisible: true,  fr: '1.4fr', sort: { asc: 'name_az',       desc: 'name_za' } },
+  { key: 'status',     label: 'Status',     defaultVisible: true,  fr: '0.9fr' },
+  { key: 'type',       label: 'Type',       defaultVisible: true,  fr: '0.9fr' },
+  { key: 'phone',      label: 'Phone',      defaultVisible: true,  fr: '1fr' },
+  { key: 'email',      label: 'Email',      defaultVisible: true,  fr: '1.6fr' },
+  { key: 'address',    label: 'Address',    defaultVisible: true,  fr: '1.4fr' },
+  { key: 'budget',     label: 'Budget',     defaultVisible: false, fr: '1.2fr' },
+  { key: 'visits',     label: 'Visits',     defaultVisible: true,  fr: '0.5fr', sort: { asc: 'least_visits',  desc: 'most_visits' } },
+  { key: 'source',     label: 'Source',     defaultVisible: true,  fr: '0.8fr' },
+  { key: 'registered', label: 'Registered', defaultVisible: true,  fr: '0.8fr', sort: { asc: 'oldest_first', desc: 'recent_added' } },
+]
+const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
+
+function loadColumnPrefs() {
+  try {
+    const raw = localStorage.getItem(COLUMN_PREFS_KEY)
+    if (!raw) throw new Error('no prefs')
+    const parsed = JSON.parse(raw)
+    // Validate: keep only known keys; append any new ones at the end
+    const knownKeys = new Set(LIST_COLUMNS.map(c => c.key))
+    const order = (parsed.order || []).filter(k => knownKeys.has(k))
+    for (const c of LIST_COLUMNS) if (!order.includes(c.key)) order.push(c.key)
+    const visible = {}
+    for (const c of LIST_COLUMNS) visible[c.key] = parsed.visible && c.key in parsed.visible ? !!parsed.visible[c.key] : c.defaultVisible
+    return { order, visible }
+  } catch {
+    return {
+      order: LIST_COLUMNS.map(c => c.key),
+      visible: Object.fromEntries(LIST_COLUMNS.map(c => [c.key, c.defaultVisible])),
+    }
+  }
+}
+
 // Sierra-aligned status list: { hubValue (lowercase_underscore), label, sierraValue }
 // hubValue must match what the sync writes via mapStatus() and what the backend's
 // HUB_TO_SIERRA_STATUS map keys on. Order = display order in the quick dropdown.
@@ -38,6 +76,35 @@ export default function Clients() {
   const [editing, setEditing] = useState(null)
   const [editingOriginal, setEditingOriginal] = useState(null)
   const [form, setForm] = useState(emptyClient)
+  const [colPrefs, setColPrefs] = useState(loadColumnPrefs)
+  const [columnsPickerOpen, setColumnsPickerOpen] = useState(false)
+  const [dragColKey, setDragColKey] = useState(null)
+
+  useEffect(() => {
+    try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(colPrefs)) } catch {}
+  }, [colPrefs])
+
+  const visibleColumns = colPrefs.order
+    .map(k => LIST_COLUMNS.find(c => c.key === k))
+    .filter(c => c && colPrefs.visible[c.key])
+
+  const toggleColumn = (key) => setColPrefs(p => ({ ...p, visible: { ...p.visible, [key]: !p.visible[key] } }))
+  const reorderColumn = (fromKey, toKey) => {
+    if (!fromKey || !toKey || fromKey === toKey) return
+    setColPrefs(p => {
+      const order = [...p.order]
+      const fromIdx = order.indexOf(fromKey)
+      const toIdx = order.indexOf(toKey)
+      if (fromIdx < 0 || toIdx < 0) return p
+      order.splice(fromIdx, 1)
+      order.splice(toIdx, 0, fromKey)
+      return { ...p, order }
+    })
+  }
+  const resetColumns = () => setColPrefs({
+    order: LIST_COLUMNS.map(c => c.key),
+    visible: Object.fromEntries(LIST_COLUMNS.map(c => [c.key, c.defaultVisible])),
+  })
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState(null)
   const [sierraStatus, setSierraStatus] = useState(null) // null = not started, 'syncing', { added, updated, total_synced, error }
@@ -815,6 +882,52 @@ export default function Clients() {
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
             <button className={view === 'card' ? 'active' : ''} onClick={() => setView('card')}>Cards</button>
           </div>
+          {view === 'list' && (
+            <div className="columns-picker-wrap">
+              <button className="btn btn-secondary" onClick={() => setColumnsPickerOpen(o => !o)} title="Show/hide and reorder columns">
+                Columns ({visibleColumns.length})
+              </button>
+              {columnsPickerOpen && (
+                <>
+                  <div className="columns-picker-overlay" onClick={() => setColumnsPickerOpen(false)} />
+                  <div className="columns-picker-popover" onClick={e => e.stopPropagation()}>
+                    <div className="columns-picker-header">
+                      <strong>Columns</strong>
+                      <button className="btn-link" onClick={resetColumns} title="Restore default visible columns and order">Reset</button>
+                    </div>
+                    <div className="columns-picker-hint">Drag to reorder. Toggle checkboxes to show/hide.</div>
+                    <ul className="columns-picker-list">
+                      {colPrefs.order.map(key => {
+                        const col = LIST_COLUMNS.find(c => c.key === key)
+                        if (!col) return null
+                        return (
+                          <li
+                            key={key}
+                            className={`columns-picker-item ${dragColKey === key ? 'dragging' : ''}`}
+                            draggable
+                            onDragStart={() => setDragColKey(key)}
+                            onDragOver={e => { e.preventDefault() }}
+                            onDrop={e => { e.preventDefault(); reorderColumn(dragColKey, key); setDragColKey(null) }}
+                            onDragEnd={() => setDragColKey(null)}
+                          >
+                            <span className="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            <label>
+                              <input
+                                type="checkbox"
+                                checked={!!colPrefs.visible[key]}
+                                onChange={() => toggleColumn(key)}
+                              />
+                              {col.label}
+                            </label>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           <button
             className="btn btn-primary"
             onClick={() => syncSierra(false, 'all')}
@@ -1440,70 +1553,39 @@ export default function Clients() {
           {sierraStatus === 'syncing' ? 'Syncing clients from Sierra...' : 'No clients found in this status. Try another tab or sync from Sierra.'}
         </div>
       )}
-      {view === 'list' && items.length > 0 && (
-        <div className="client-list">
-          <div className="client-list-header">
-            <div className="cl-check">
-              <input type="checkbox"
-                checked={items.length > 0 && items.every(i => selectedIds.has(i.id))}
-                onChange={e => {
-                  if (e.target.checked) selectAllVisible()
-                  else clearSelection()
-                }} />
-            </div>
+      {view === 'list' && items.length > 0 && (() => {
+        // Build grid-template-columns dynamically from the user's visible/ordered cols.
+        // First track = checkbox (30px), last = actions (1fr). All middle = minmax(0, Xfr).
+        const gridTemplate = `30px ${visibleColumns.map(c => `minmax(0, ${c.fr})`).join(' ')} 1fr`
+
+        // Cell renderers: one entry per column key. Each returns JSX for one cell.
+        const renderHeaderCell = (col) => {
+          const isSorted = col.sort && (sortBy === col.sort.asc || sortBy === col.sort.desc)
+          const arrow = !col.sort ? '' : (sortBy === col.sort.desc ? '▼' : sortBy === col.sort.asc ? '▲' : '⇅')
+          const onClick = col.sort ? () => setSortBy(sortBy === col.sort.desc ? col.sort.asc : col.sort.desc) : undefined
+          return (
             <div
-              className={`cl-score sortable ${sortBy === 'highest_score' || sortBy === 'lowest_score' ? 'active' : ''}`}
-              onClick={() => setSortBy(sortBy === 'highest_score' ? 'lowest_score' : 'highest_score')}
-              title="Click to sort by score"
+              key={col.key}
+              className={`cl-${col.key} ${col.sort ? 'sortable' : ''} ${isSorted ? 'active' : ''}`}
+              onClick={onClick}
+              title={col.sort ? `Click to sort by ${col.label.toLowerCase()}` : undefined}
             >
-              Score {sortBy === 'highest_score' ? '▼' : sortBy === 'lowest_score' ? '▲' : '⇅'}
+              {col.label} {col.sort ? arrow : ''}
             </div>
-            <div
-              className={`cl-name sortable ${sortBy === 'name_az' || sortBy === 'name_za' ? 'active' : ''}`}
-              onClick={() => setSortBy(sortBy === 'name_az' ? 'name_za' : 'name_az')}
-              title="Click to sort by name"
-            >
-              Name {sortBy === 'name_az' ? '▼' : sortBy === 'name_za' ? '▲' : '⇅'}
-            </div>
-            <div className="cl-status">Status</div>
-            <div className="cl-type">Type</div>
-            <div className="cl-phone">Phone</div>
-            <div className="cl-email">Email</div>
-            <div className="cl-address">Address</div>
-            <div className="cl-budget">Budget</div>
-            <div
-              className={`cl-visits sortable ${sortBy === 'most_visits' || sortBy === 'least_visits' ? 'active' : ''}`}
-              onClick={() => setSortBy(sortBy === 'most_visits' ? 'least_visits' : 'most_visits')}
-              title="Click to sort by website visits"
-            >
-              Visits {sortBy === 'most_visits' ? '▼' : sortBy === 'least_visits' ? '▲' : '⇅'}
-            </div>
-            <div className="cl-source">Source</div>
-            <div
-              className={`cl-registered sortable ${sortBy === 'recent_added' || sortBy === 'oldest_first' ? 'active' : ''}`}
-              onClick={() => setSortBy(sortBy === 'recent_added' ? 'oldest_first' : 'recent_added')}
-              title="Click to sort by date registered in Sierra"
-            >
-              Registered {sortBy === 'recent_added' ? '▼' : sortBy === 'oldest_first' ? '▲' : '⇅'}
-            </div>
-            <div className="cl-actions">Actions</div>
-          </div>
-          {items.map(item => (
-            <div key={item.id} className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`} onClick={() => openDetail(item.id)}>
-              <div className="cl-check" onClick={e => e.stopPropagation()}>
-                <input type="checkbox"
-                  checked={selectedIds.has(item.id)}
-                  onChange={() => toggleSelect(item.id)} />
-              </div>
-              <div className="cl-score">
+          )
+        }
+        const renderCell = (col, item) => {
+          switch (col.key) {
+            case 'score':
+              return <div key="score" className="cl-score">
                 {item.lead_score !== null && item.lead_score !== undefined ? (
                   <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
-                    {item.lead_score}
-                    {item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
+                    {item.lead_score}{item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
                   </span>
                 ) : <span className="lead-score-empty">—</span>}
               </div>
-              <div className="cl-name">
+            case 'name':
+              return <div key="name" className="cl-name">
                 <strong>{item.first_name} {item.last_name}</strong>
                 {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
                 {item.tags && (() => {
@@ -1513,55 +1595,86 @@ export default function Clients() {
                   } catch { return null }
                 })()}
               </div>
-              <div className="cl-status" onClick={e => e.stopPropagation()}>
+            case 'status':
+              return <div key="status" className="cl-status" onClick={e => e.stopPropagation()}>
                 <select
                   className={`status-quick-select status-${item.status}`}
                   value={item.status || ''}
                   onChange={e => quickStatusChange(item, e.target.value, e)}
                   title={item.sierra_lead_id ? 'Changes will optionally push to Sierra' : 'Local hub only'}
                 >
-                  {SIERRA_STATUSES.map(s => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
+                  {SIERRA_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
                 </select>
               </div>
-              <div className="cl-type">
+            case 'type':
+              return <div key="type" className="cl-type">
                 {item.type && (
                   <span className={`type-pill type-${item.type}`}>
                     {item.type === 'buyer' ? '🎯 Buyer' : item.type === 'seller' ? '🏠 Seller' : '🔄 Buyer/Seller'}
                   </span>
                 )}
               </div>
-              <div className="cl-phone">{item.phone || '—'}</div>
-              <div className="cl-email">
+            case 'phone':
+              return <div key="phone" className="cl-phone">{item.phone || '—'}</div>
+            case 'email':
+              return <div key="email" className="cl-email">
                 {item.email || '—'}
                 {item.email_status && item.email_status !== 'Unknown' && <span className="email-status-tag">{item.email_status}</span>}
               </div>
-              <div className="cl-address">
+            case 'address':
+              return <div key="address" className="cl-address">
                 {item.address ? `${item.address}${item.city ? ', ' + item.city : ''}` : item.city || '—'}
               </div>
-              <div className="cl-budget">
+            case 'budget':
+              return <div key="budget" className="cl-budget">
                 {item.budget_min || item.budget_max
                   ? `${formatCurrency(item.budget_min) || '?'} - ${formatCurrency(item.budget_max) || '?'}`
                   : '—'}
               </div>
-              <div className="cl-visits">{item.visits || 0}</div>
-              <div className="cl-source">{item.source || '—'}</div>
-              <div className="cl-registered" title={item.sierra_creation_date || ''}>
+            case 'visits':
+              return <div key="visits" className="cl-visits">{item.visits || 0}</div>
+            case 'source':
+              return <div key="source" className="cl-source">{item.source || '—'}</div>
+            case 'registered':
+              return <div key="registered" className="cl-registered" title={item.sierra_creation_date || ''}>
                 {item.sierra_creation_date
                   ? new Date(item.sierra_creation_date.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
                   : '—'}
               </div>
-              <div className="cl-actions" onClick={e => e.stopPropagation()}>
-                <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
-                <button className="action-btn action-active-listing" title="Active Listing (live on MLS)" onClick={e => addTransaction(item, 'listing', e, 'Active')}>AL</button>
-                <button className="action-btn action-purchase" title="Purchase Under Contract" onClick={e => addTransaction(item, 'purchase', e)}>P</button>
-                <button className="action-btn action-listing" title="Listing Under Contract" onClick={e => addTransaction(item, 'listing', e)}>L</button>
+            default: return null
+          }
+        }
+
+        return (
+          <div className="client-list">
+            <div className="client-list-header" style={{ gridTemplateColumns: gridTemplate }}>
+              <div className="cl-check">
+                <input type="checkbox"
+                  checked={items.length > 0 && items.every(i => selectedIds.has(i.id))}
+                  onChange={e => { if (e.target.checked) selectAllVisible(); else clearSelection() }} />
               </div>
+              {visibleColumns.map(renderHeaderCell)}
+              <div className="cl-actions">Actions</div>
             </div>
-          ))}
-        </div>
-      )}
+            {items.map(item => (
+              <div key={item.id} className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`}
+                style={{ gridTemplateColumns: gridTemplate }}
+                onClick={() => openDetail(item.id)}>
+                <div className="cl-check" onClick={e => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
+                </div>
+                {visibleColumns.map(col => renderCell(col, item))}
+                <div className="cl-actions" onClick={e => e.stopPropagation()}>
+                  <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
+                  <button className="action-btn action-active-listing" title="Active Listing (live on MLS)" onClick={e => addTransaction(item, 'listing', e, 'Active')}>AL</button>
+                  <button className="action-btn action-purchase" title="Purchase Under Contract" onClick={e => addTransaction(item, 'purchase', e)}>P</button>
+                  <button className="action-btn action-listing" title="Listing Under Contract" onClick={e => addTransaction(item, 'listing', e)}>L</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Client Cards */}
       {view === 'card' && (

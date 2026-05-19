@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-19T14:56:08.155Z",
-  "count": 154,
+  "generated_at": "2026-05-19T15:19:42.425Z",
+  "count": 155,
   "entries": [
+    {
+      "hash": "bbc8020",
+      "date": "2026-05-19T09:56:20-05:00",
+      "subject": "Clients: inline status dropdown on cards & list (Sierra-aligned)",
+      "title": "Clients: inline status dropdown on cards & list (Sierra-aligned)",
+      "body": "Status field on each lead card / list row is now a quick-pick dropdown\ninstead of a static badge - no need to open the edit modal to change\nstatus. Same flow as the modal edit: local DB updates first, then if the\nlead has a sierra_lead_id, confirms before pushing to Sierra.\n\nStatus list is now anchored to Sierra's official lead statuses\n(Prime / Active / New / Qualify / Watch / Pending / Closed / Archived /\nJunk / Do Not Contact / Blocked), replacing the old ad-hoc set that\nincluded \"Potential\", \"Under Contract\", \"On Hold\". The edit-modal Status\ndropdown was also updated to use the same source list so cards, rows,\nand modal stay consistent.\n\nPill styling per-status (purple for Prime, red for Junk, etc.) so the\ncurrent status reads at a glance.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9ba7dca",
       "date": "2026-05-19T09:47:41-05:00",

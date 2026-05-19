@@ -858,6 +858,47 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 .client-agent { font-size: 12px; color: var(--text-muted); }
 
+/* ---- Columns picker popover ---- */
+.columns-picker-wrap { position: relative; }
+.columns-picker-overlay {
+  position: fixed; inset: 0; z-index: 50; background: transparent;
+}
+.columns-picker-popover {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 51;
+  background: var(--bg-secondary); border: 1px solid var(--border);
+  border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  padding: 12px; min-width: 240px;
+}
+.columns-picker-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 6px;
+}
+.columns-picker-header .btn-link {
+  background: none; border: none; color: var(--accent);
+  cursor: pointer; font-size: 12px; font-family: inherit; padding: 2px 6px;
+}
+.columns-picker-header .btn-link:hover { text-decoration: underline; }
+.columns-picker-hint {
+  font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
+}
+.columns-picker-list { list-style: none; margin: 0; padding: 0; }
+.columns-picker-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 4px; border-radius: 4px; cursor: grab;
+  transition: background-color 0.1s;
+}
+.columns-picker-item:hover { background: var(--bg-hover); }
+.columns-picker-item.dragging { opacity: 0.4; cursor: grabbing; }
+.columns-picker-item .drag-handle {
+  color: var(--text-muted); font-size: 14px; user-select: none;
+  letter-spacing: -3px; padding-right: 4px;
+}
+.columns-picker-item label {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; cursor: pointer; flex: 1;
+}
+.columns-picker-item input[type="checkbox"] { cursor: pointer; }
+
 /* Inline status dropdown on cards/rows - looks like a pill, acts like a select */
 .status-quick-select {
   appearance: none;
@@ -1970,7 +2011,10 @@ input[type="range"] {
 .client-list-header,
 .client-list-row {
   display: grid;
-  grid-template-columns: 30px 0.5fr 1.4fr 0.7fr 0.9fr 1fr 1.6fr 1.4fr 1.2fr 0.5fr 0.8fr 0.7fr 1fr;
+  /* minmax(0, Xfr) prevents a row with long unbreakable content (e.g. long
+     lead-tag) from expanding its grid column and shifting all downstream
+     columns out of alignment. Overflow stays inside the cell instead. */
+  grid-template-columns: 30px minmax(0, 0.5fr) minmax(0, 1.4fr) minmax(0, 0.7fr) minmax(0, 0.9fr) minmax(0, 1fr) minmax(0, 1.6fr) minmax(0, 1.4fr) minmax(0, 1.2fr) minmax(0, 0.5fr) minmax(0, 0.8fr) minmax(0, 0.7fr) minmax(0, 1fr);
   gap: 12px;
   padding: 10px 14px;
   align-items: center;
