@@ -351,6 +351,47 @@ router.post('/sync-incremental-now', async (req, res) => {
   }
 })
 
+// Search Sierra by name/email/phone — useful when a lead "should be there but isn't"
+// to confirm whether the lead exists in Sierra at all. Returns a compact result.
+router.get('/find-lead', async (req, res) => {
+  const q = (req.query.q || '').trim()
+  if (!q) return res.status(400).json({ error: 'q parameter required (name/email/phone)' })
+  try {
+    // Sierra supports nameLikeFilter / emailFilter / phoneFilter on /leads/find
+    const isEmail = /@/.test(q)
+    const isPhone = /^[\d\-\+\(\)\s]+$/.test(q)
+    const params = { pageSize: 20, pageNumber: 1 }
+    if (isEmail) params.emailFilter = q
+    else if (isPhone) params.phoneFilter = q.replace(/\D/g, '')
+    else params.nameLikeFilter = q
+    const data = await sierraGet('/leads/find', params)
+    const responseData = data.data || data
+    const leads = responseData.leads || []
+    const localBySierraId = {}
+    if (leads.length) {
+      const ids = leads.map(l => String(l.id))
+      const placeholders = ids.map(() => '?').join(',')
+      const rows = db.all(`SELECT id, sierra_lead_id, first_name, last_name, status FROM clients WHERE sierra_lead_id IN (${placeholders})`, ids)
+      for (const r of rows) localBySierraId[r.sierra_lead_id] = r
+    }
+    const results = leads.map(l => ({
+      sierra_id: l.id,
+      name: `${l.firstName || ''} ${l.lastName || ''}`.trim(),
+      email: l.email,
+      phone: l.phone,
+      status: l.leadStatus,
+      creation_date: l.creationDate,
+      update_date: l.updateDate,
+      in_hub: !!localBySierraId[String(l.id)],
+      hub_status: localBySierraId[String(l.id)]?.status,
+      hub_client_id: localBySierraId[String(l.id)]?.id,
+    }))
+    res.json({ query: q, count: results.length, results })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 router.get('/test', async (req, res) => {
   try {
     const data = await sierraGet('/leads/find', { pageSize: 1, leadStatus: 'Active' })

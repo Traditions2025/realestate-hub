@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-15T17:51:48.705Z",
-  "count": 149,
+  "generated_at": "2026-05-19T14:09:12.379Z",
+  "count": 150,
   "entries": [
+    {
+      "hash": "2ce8a2e",
+      "date": "2026-05-15T12:51:57-05:00",
+      "subject": "Fix Transactions page crash: parseDate TDZ in sortedItems",
+      "title": "Transactions page crash: parseDate TDZ in sortedItems",
+      "body": "Previous commit referenced parseDate inside sortedItems before parseDate\nwas declared in the function body. const declarations don't hoist their\nvalue, so the IIFE threw ReferenceError on render and the whole page\nshowed empty. Moved parseDate above sortedItems.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "cb1db5d",
       "date": "2026-05-15T12:28:11-05:00",

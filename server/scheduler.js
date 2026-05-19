@@ -39,6 +39,14 @@ async function syncSierraIncremental() {
     const sevenDaysAgo = toSierraDate(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
     if (sinceDate && sinceDate < sevenDaysAgo) sinceDate = sevenDaysAgo
     if (!sinceDate) sinceDate = sevenDaysAgo
+    // Subtract a 2-min overlap window. Without this, any lead whose updateDate
+    // lands in the same second as our last synced_at can be missed (Sierra's
+    // boundary handling on leadUpdateDateFrom is inclusive-or-exclusive
+    // depending on the second). Re-processing the same lead is a no-op UPDATE.
+    if (sinceDate) {
+      const overlapped = new Date(new Date(sinceDate).getTime() - 2 * 60 * 1000)
+      sinceDate = toSierraDate(overlapped)
+    }
     const sinceFormatted = sinceDate
 
     let added = 0, updated = 0, total = 0
