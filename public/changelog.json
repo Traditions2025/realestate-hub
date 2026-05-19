@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-19T14:47:27.414Z",
-  "count": 153,
+  "generated_at": "2026-05-19T14:56:08.155Z",
+  "count": 154,
   "entries": [
+    {
+      "hash": "9ba7dca",
+      "date": "2026-05-19T09:47:41-05:00",
+      "subject": "Hub-to-Sierra status write-back (status-only, confirm-gated)",
+      "title": "Hub-to-Sierra status write-back (status-only, confirm-gated)",
+      "body": "When you edit a Sierra-sourced client and change the status field, save\nprompts: \"Push status change to Sierra?\". Local hub save always happens\nfirst - the Sierra call is gated on confirmation so accidental flips\ncan't propagate. If Sierra fails, the hub change still persists and an\nalert surfaces the API error.\n\nScope is intentionally narrow: only the status field, only for clients\nwith a sierra_lead_id. Phone/email/notes/tags remain read-only-from-the-\nhub side (still edit those in Sierra).\n\nBackend tries 4 known Sierra endpoint shapes (/leads/edit/:id, /leads/\nupdate/:id, /leads/:id/status, PUT /leads/:id) until one accepts the\nwrite, then logs which shape worked to activity_log. If all fail, the\nresponse includes the full error trail so we can pin the right endpoint.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "88d4fa8",
       "date": "2026-05-19T09:27:22-05:00",

@@ -12,6 +12,23 @@ const emptyClient = {
   budget_min: '', budget_max: '', preapproval_amount: '', preapproval_lender: '', notes: ''
 }
 
+// Sierra-aligned status list: { hubValue (lowercase_underscore), label, sierraValue }
+// hubValue must match what the sync writes via mapStatus() and what the backend's
+// HUB_TO_SIERRA_STATUS map keys on. Order = display order in the quick dropdown.
+const SIERRA_STATUSES = [
+  { value: 'prime',         label: 'Prime' },
+  { value: 'active',        label: 'Active' },
+  { value: 'new',           label: 'New' },
+  { value: 'qualify',       label: 'Qualify' },
+  { value: 'watch',         label: 'Watch' },
+  { value: 'pending',       label: 'Pending' },
+  { value: 'closed',        label: 'Closed' },
+  { value: 'archived',      label: 'Archived' },
+  { value: 'junk',          label: 'Junk' },
+  { value: 'donotcontact',  label: 'Do Not Contact' },
+  { value: 'blocked',       label: 'Blocked' },
+]
+
 export default function Clients() {
   const [items, setItems] = useState([])
   const [tab, setTab] = useState('active') // 'active', 'prime', 'all'
@@ -667,6 +684,39 @@ export default function Clients() {
 
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const formatCurrency = (n) => n ? `$${Number(n).toLocaleString()}` : ''
+
+  // Inline status change from a card/row - no modal. Local save first, then
+  // confirm to push to Sierra (only when there's a sierra_lead_id).
+  const quickStatusChange = async (item, newStatus, e) => {
+    if (e) e.stopPropagation()
+    if (!newStatus || newStatus === item.status) return
+    try {
+      await api.updateClient(item.id, { status: newStatus })
+    } catch (err) {
+      alert('Failed to update status locally: ' + err.message)
+      return
+    }
+    if (item.sierra_lead_id) {
+      const fullName = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'this lead'
+      const ok = confirm(`Push status change to Sierra?\n\n${fullName}: ${item.status} → ${newStatus}\n\n(Local change is already saved either way.)`)
+      if (ok) {
+        try {
+          const r = await authFetch('/api/sierra/update-lead-status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ client_id: item.id, status: newStatus })
+          })
+          const result = await r.json()
+          if (!result.success) {
+            alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
+          }
+        } catch (err) {
+          alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
+        }
+      }
+    }
+    load()
+  }
 
   // Quick actions
   const addToPreListing = async (client, e) => {
@@ -1463,7 +1513,18 @@ export default function Clients() {
                   } catch { return null }
                 })()}
               </div>
-              <div className="cl-status"><StatusBadge status={item.status} /></div>
+              <div className="cl-status" onClick={e => e.stopPropagation()}>
+                <select
+                  className={`status-quick-select status-${item.status}`}
+                  value={item.status || ''}
+                  onChange={e => quickStatusChange(item, e.target.value, e)}
+                  title={item.sierra_lead_id ? 'Changes will optionally push to Sierra' : 'Local hub only'}
+                >
+                  {SIERRA_STATUSES.map(s => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
               <div className="cl-type">
                 {item.type && (
                   <span className={`type-pill type-${item.type}`}>
@@ -1544,8 +1605,17 @@ export default function Clients() {
                 </div>
               )}
             </div>
-            <div className="client-card-footer">
-              <StatusBadge status={item.status} />
+            <div className="client-card-footer" onClick={e => e.stopPropagation()}>
+              <select
+                className={`status-quick-select status-${item.status}`}
+                value={item.status || ''}
+                onChange={e => quickStatusChange(item, e.target.value, e)}
+                title={item.sierra_lead_id ? 'Changes will optionally push to Sierra' : 'Local hub only'}
+              >
+                {SIERRA_STATUSES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
               {item.agent_assigned && <span className="client-agent">{item.agent_assigned}</span>}
             </div>
             <div className="client-actions" onClick={e => e.stopPropagation()}>
@@ -2152,8 +2222,9 @@ export default function Clients() {
                 <option value="buyer">Buyer</option><option value="seller">Seller</option><option value="both">Both</option>
               </select></label>
               <label>Status<select value={form.status} onChange={e => f('status', e.target.value)}>
-                <option value="active">Active</option><option value="prime">Prime</option><option value="potential">Potential</option>
-                <option value="under_contract">Under Contract</option><option value="closed">Closed</option><option value="on_hold">On Hold</option>
+                {SIERRA_STATUSES.map(s => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
               </select></label>
             </div>
           </div>

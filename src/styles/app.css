@@ -858,6 +858,36 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 .client-agent { font-size: 12px; color: var(--text-muted); }
 
+/* Inline status dropdown on cards/rows - looks like a pill, acts like a select */
+.status-quick-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 4px 22px 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+  background: var(--bg-elevated) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'><path d='M2 4l3 3 3-3' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round' stroke-linejoin='round'/></svg>") no-repeat right 7px center;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s, background-color 0.15s;
+}
+.status-quick-select:hover { border-color: var(--accent); }
+.status-quick-select:focus { outline: none; border-color: var(--accent); }
+.status-quick-select.status-prime        { background-color: rgba(168, 85, 247, 0.15); border-color: rgba(168, 85, 247, 0.4); }
+.status-quick-select.status-active       { background-color: rgba(59, 130, 246, 0.15); border-color: rgba(59, 130, 246, 0.4); }
+.status-quick-select.status-new          { background-color: rgba(16, 185, 129, 0.15); border-color: rgba(16, 185, 129, 0.4); }
+.status-quick-select.status-qualify      { background-color: rgba(245, 158, 11, 0.15); border-color: rgba(245, 158, 11, 0.4); }
+.status-quick-select.status-watch        { background-color: rgba(6, 182, 212, 0.15);  border-color: rgba(6, 182, 212, 0.4); }
+.status-quick-select.status-pending      { background-color: rgba(244, 114, 182, 0.15); border-color: rgba(244, 114, 182, 0.4); }
+.status-quick-select.status-closed       { background-color: rgba(34, 197, 94, 0.15);  border-color: rgba(34, 197, 94, 0.4); }
+.status-quick-select.status-archived     { background-color: rgba(148, 163, 184, 0.15); border-color: rgba(148, 163, 184, 0.4); }
+.status-quick-select.status-junk         { background-color: rgba(239, 68, 68, 0.15);  border-color: rgba(239, 68, 68, 0.4); }
+.status-quick-select.status-donotcontact { background-color: rgba(239, 68, 68, 0.18);  border-color: rgba(239, 68, 68, 0.5); }
+.status-quick-select.status-blocked      { background-color: rgba(127, 29, 29, 0.18);  border-color: rgba(127, 29, 29, 0.5); }
+.status-quick-select option { background: var(--bg-secondary); color: var(--text-primary); }
+
 /* ---- Client Quick Actions ---- */
 .client-actions {
   display: flex;
