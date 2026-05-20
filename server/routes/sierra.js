@@ -550,10 +550,34 @@ router.post('/bulk-tag-from-sheet', async (req, res) => {
   }
 
   try {
-    const url = `https://docs.google.com/spreadsheets/d/${sheet_id}/gviz/tq?tqx=out:csv`
-    const r = await fetch(url)
-    if (!r.ok) return res.status(502).json({ error: `Failed to fetch sheet: HTTP ${r.status}` })
-    const csv = await r.text()
+    // Try the direct export URL first (more reliable, single hop), then fall
+    // back to gviz if it fails. Both work for "anyone with the link can view"
+    // sheets without an API key. Surfaces the actual fetch error so we don't
+    // get the generic "fetch failed" black box.
+    const urls = [
+      `https://docs.google.com/spreadsheets/d/${sheet_id}/export?format=csv`,
+      `https://docs.google.com/spreadsheets/d/${sheet_id}/gviz/tq?tqx=out:csv`,
+    ]
+    let csv = null
+    const errors = []
+    for (const url of urls) {
+      try {
+        const r = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'realestate-hub/1.0' } })
+        if (!r.ok) { errors.push(`${url} → HTTP ${r.status}`); continue }
+        csv = await r.text()
+        if (csv && csv.trim().length > 0 && !csv.includes('<HTML>') && !csv.includes('<!DOCTYPE html>')) break
+        errors.push(`${url} → got HTML/empty (sheet may not be public)`)
+        csv = null
+      } catch (fetchErr) {
+        errors.push(`${url} → ${fetchErr.message}${fetchErr.cause ? ` (cause: ${fetchErr.cause.message || fetchErr.cause.code || JSON.stringify(fetchErr.cause)})` : ''}`)
+      }
+    }
+    if (!csv) {
+      return res.status(502).json({
+        error: 'Could not fetch sheet CSV. Make sure the sheet is shared as "Anyone with the link can view".',
+        attempts: errors,
+      })
+    }
     const rows = parseCsv(csv)
     if (rows.length < 2) return res.json({ matched: 0, skipped: 0, report: [], error: 'Sheet has no data rows' })
 

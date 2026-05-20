@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-20T19:35:04.116Z",
-  "count": 162,
+  "generated_at": "2026-05-20T20:09:06.784Z",
+  "count": 163,
   "entries": [
+    {
+      "hash": "c69f020",
+      "date": "2026-05-20T14:35:18-05:00",
+      "subject": "Bulk-tag clients from a Google Sheet (Updates -> Bulk Tools)",
+      "title": "Bulk-tag clients from a Google Sheet (Updates -> Bulk Tools)",
+      "body": "New POST /api/sierra/bulk-tag-from-sheet endpoint that:\n- Fetches a public Google Sheet as CSV\n- Filters rows where a chosen column equals a chosen value\n- Matches each row to a hub client by phone (last 10 digits)\n- Adds a tag to each matched client locally\n- Pushes the tag to Sierra for sierra_lead_id clients (multi-attempt\n  fallback across known Sierra tag endpoint shapes)\n- Returns a per-row report: matched / no-match / already-tagged / Sierra\n  push success or failure\n\nNew UI: Updates page -> Bulk Tools tab, pre-filled for the FSBO Master\n\"Off Market\" batch (sheet 1i0p9...DDaJc, column FSBO Status, value\nOff Market, tag FSBO_Off Market). Dry-run preview button shows what\nwould change before any writes; Run-for-real button has a confirm\ndialog and shows the same report with actual results.\n\nReusable for any future bulk-tag-from-sheet operation - the form\nfields are editable.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d60d13c",
       "date": "2026-05-20T14:10:12-05:00",
