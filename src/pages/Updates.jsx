@@ -465,12 +465,111 @@ function EmailLog() {
 // =====================================================
 // PAGE WITH TABS
 // =====================================================
+function BulkTagFromSheet() {
+  const [form, setForm] = useState({
+    sheet_id: '1i0p9ux3_4pluE24ioBajqTBZ2SqFkM6qtu7pofDDaJc',
+    filter_column: 'FSBO Status',
+    filter_value: 'Off Market',
+    tag: 'FSBO_Off Market',
+  })
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+
+  const run = async (dry_run) => {
+    setRunning(true)
+    setError(null)
+    setResult(null)
+    try {
+      const r = await authFetch('/api/sierra/bulk-tag-from-sheet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, dry_run })
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
+      setResult(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  const f = (k, v) => setForm(p => ({ ...p, [k]: v }))
+
+  return (
+    <div>
+      <div style={{padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16}}>
+        <h3 style={{margin: '0 0 10px'}}>Bulk-tag clients from a Google Sheet</h3>
+        <p style={{margin: '0 0 14px', fontSize: 13, color: 'var(--text-muted)'}}>
+          Pulls a public Google Sheet, filters rows where a column equals a value, matches each row to a hub client by phone (last 10 digits), and adds the tag both locally and to Sierra. Pre-filled for the FSBO Master Off Market batch.
+        </p>
+        <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
+          <label style={{fontSize: 12}}>Sheet ID
+            <input value={form.sheet_id} onChange={e => f('sheet_id', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
+          </label>
+          <label style={{fontSize: 12}}>Tag to apply
+            <input value={form.tag} onChange={e => f('tag', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
+          </label>
+          <label style={{fontSize: 12}}>Filter column
+            <input value={form.filter_column} onChange={e => f('filter_column', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
+          </label>
+          <label style={{fontSize: 12}}>Filter value
+            <input value={form.filter_value} onChange={e => f('filter_value', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
+          </label>
+        </div>
+        <div style={{display: 'flex', gap: 8, marginTop: 14}}>
+          <button className="btn btn-secondary" onClick={() => run(true)} disabled={running}>{running ? 'Running…' : 'Preview (dry run)'}</button>
+          <button className="btn btn-primary" onClick={() => { if (confirm(`Apply tag "${form.tag}" to all matching clients AND push to Sierra?`)) run(false) }} disabled={running}>
+            {running ? 'Running…' : 'Run for real'}
+          </button>
+        </div>
+      </div>
+
+      {error && <div style={{padding: 12, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: 6, marginBottom: 16}}>Error: {error}</div>}
+
+      {result && (
+        <div style={{padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)'}}>
+          <h3 style={{margin: '0 0 10px'}}>{result.dry_run ? 'Preview' : 'Results'}</h3>
+          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 14}}>
+            <span><strong>{result.total_filtered}</strong> rows matched filter</span>
+            <span><strong style={{color: '#10b981'}}>{result.matched}</strong> matched a hub client</span>
+            <span><strong style={{color: '#f59e0b'}}>{result.no_match}</strong> no hub match</span>
+            <span><strong>{result.already_tagged}</strong> already tagged</span>
+            {!result.dry_run && <>
+              <span><strong style={{color: '#3b82f6'}}>{result.pushed_to_sierra}</strong> pushed to Sierra</span>
+              {result.sierra_failed > 0 && <span><strong style={{color: '#ef4444'}}>{result.sierra_failed}</strong> Sierra failed</span>}
+            </>}
+          </div>
+          <table style={{width: '100%', fontSize: 12, borderCollapse: 'collapse'}}>
+            <thead><tr style={{textAlign: 'left', borderBottom: '1px solid var(--border)'}}>
+              <th style={{padding: 6}}>Sheet Name</th><th style={{padding: 6}}>Hub Match</th><th style={{padding: 6}}>Action</th><th style={{padding: 6}}>Sierra</th>
+            </tr></thead>
+            <tbody>
+              {result.report.map((r, i) => (
+                <tr key={i} style={{borderBottom: '1px solid var(--border)'}}>
+                  <td style={{padding: 6}}>{r.sheet_name}</td>
+                  <td style={{padding: 6}}>{r.matched ? `#${r.hub_client_id} ${r.hub_name}` : <span style={{color: '#f59e0b'}}>{r.reason}</span>}</td>
+                  <td style={{padding: 6}}>{r.action || '—'}</td>
+                  <td style={{padding: 6, fontSize: 11}}>{r.sierra || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Updates() {
   const [tab, setTab] = useState('hub')
   const subtitles = {
     hub: 'Hub development history — features added, fixes shipped, improvements over time',
     activity: 'Live activity feed — everything created, updated, synced or sent across the hub',
     email: 'Every email send attempt — successful + failed, with timestamps and error details',
+    bulk: 'Bulk admin tools — apply tags to many clients at once from a source sheet',
   }
   return (
     <div className="page">
@@ -491,11 +590,15 @@ export default function Updates() {
         <button className={`listing-tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>
           ✉ Email Log
         </button>
+        <button className={`listing-tab ${tab === 'bulk' ? 'active' : ''}`} onClick={() => setTab('bulk')}>
+          🏷 Bulk Tools
+        </button>
       </div>
 
       {tab === 'hub' && <HubUpdates />}
       {tab === 'activity' && <ActivityLog />}
       {tab === 'email' && <EmailLog />}
+      {tab === 'bulk' && <BulkTagFromSheet />}
     </div>
   )
 }

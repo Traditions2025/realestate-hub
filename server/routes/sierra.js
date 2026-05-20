@@ -510,6 +510,162 @@ router.post('/update-lead-tag', async (req, res) => {
   })
 })
 
+// =============================================================
+// BULK TAG FROM SHEET: pull a Google Sheet CSV, filter rows by a column
+// value, match each row to a hub client by phone, then add a tag to all
+// matched clients (local + push to Sierra). Returns a per-row report.
+// Body: { sheet_id, filter_column, filter_value, tag, dry_run? }
+// =============================================================
+function parseCsv(csv) {
+  const rows = []
+  let cell = '', row = [], inQ = false
+  for (let i = 0; i < csv.length; i++) {
+    const c = csv[i]
+    if (inQ) {
+      if (c === '"') { if (csv[i+1] === '"') { cell += '"'; i++ } else inQ = false }
+      else cell += c
+    } else {
+      if (c === '"') inQ = true
+      else if (c === ',') { row.push(cell); cell = '' }
+      else if (c === '\n') { row.push(cell); rows.push(row); row = []; cell = '' }
+      else if (c !== '\r') cell += c
+    }
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row) }
+  return rows
+}
+
+// Last-10-digits phone match — strips formatting and gives a stable key.
+function phoneKey(p) {
+  if (!p) return null
+  const digits = String(p).replace(/\D/g, '')
+  if (digits.length < 10) return null
+  return digits.slice(-10)
+}
+
+router.post('/bulk-tag-from-sheet', async (req, res) => {
+  const { sheet_id, filter_column, filter_value, tag, dry_run } = req.body || {}
+  if (!sheet_id || !filter_column || !filter_value || !tag) {
+    return res.status(400).json({ error: 'sheet_id, filter_column, filter_value, and tag are required' })
+  }
+
+  try {
+    const url = `https://docs.google.com/spreadsheets/d/${sheet_id}/gviz/tq?tqx=out:csv`
+    const r = await fetch(url)
+    if (!r.ok) return res.status(502).json({ error: `Failed to fetch sheet: HTTP ${r.status}` })
+    const csv = await r.text()
+    const rows = parseCsv(csv)
+    if (rows.length < 2) return res.json({ matched: 0, skipped: 0, report: [], error: 'Sheet has no data rows' })
+
+    const header = rows[0]
+    const filterIdx = header.indexOf(filter_column)
+    if (filterIdx < 0) return res.status(400).json({ error: `Column "${filter_column}" not found. Available: ${header.join(', ')}` })
+    const nameIdx = header.indexOf('Name')
+    const phoneIdx = header.findIndex(h => /phone/i.test(h))
+    const addrIdx = header.findIndex(h => /street.?address|^address$/i.test(h))
+
+    // Filter rows. Match is case-insensitive trim-tolerant.
+    const target = String(filter_value).trim().toLowerCase()
+    const filtered = rows.slice(1).filter(r => (r[filterIdx] || '').trim().toLowerCase() === target)
+
+    // Pre-load all hub clients keyed by phoneKey for O(1) lookup.
+    const clients = db.all('SELECT id, sierra_lead_id, first_name, last_name, phone, address, tags FROM clients')
+    const byPhone = new Map()
+    for (const c of clients) {
+      const k = phoneKey(c.phone)
+      if (k) byPhone.set(k, c)
+    }
+
+    const report = []
+    let matched = 0, alreadyTagged = 0, pushed = 0, sierraFailed = 0
+
+    for (const r of filtered) {
+      const sheetName = r[nameIdx] || '(unnamed)'
+      const sheetPhone = r[phoneIdx] || ''
+      const sheetAddr = r[addrIdx] || ''
+      const k = phoneKey(sheetPhone)
+      const client = k ? byPhone.get(k) : null
+      if (!client) {
+        report.push({ sheet_name: sheetName, sheet_phone: sheetPhone, sheet_address: sheetAddr, matched: false, reason: k ? 'no hub client with this phone' : 'no usable phone in sheet' })
+        continue
+      }
+      matched++
+
+      // Check if already tagged
+      let existing = []
+      try { existing = client.tags ? JSON.parse(client.tags) : [] } catch {}
+      if (!Array.isArray(existing)) existing = []
+      const hasTag = existing.some(t => String(t).toLowerCase() === tag.toLowerCase())
+      if (hasTag) {
+        alreadyTagged++
+        report.push({ sheet_name: sheetName, hub_client_id: client.id, hub_name: `${client.first_name} ${client.last_name}`, matched: true, action: 'skip', reason: 'already has tag' })
+        continue
+      }
+
+      if (dry_run) {
+        report.push({ sheet_name: sheetName, hub_client_id: client.id, hub_name: `${client.first_name} ${client.last_name}`, matched: true, action: 'would-tag', sierra: !!client.sierra_lead_id })
+        continue
+      }
+
+      // Apply locally
+      const updated = [...existing, tag]
+      db.run("UPDATE clients SET tags = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(updated), client.id])
+      let sierraResult = 'local_only'
+      if (client.sierra_lead_id) {
+        // Try the same set of Sierra tag endpoints used by /update-lead-tag
+        const attempts = [
+          { method: 'POST', path: `/leads/${client.sierra_lead_id}/tags`, body: { tag } },
+          { method: 'POST', path: `/leads/${client.sierra_lead_id}/tag`,  body: { name: tag } },
+          { method: 'POST', path: `/leads/edit/${client.sierra_lead_id}`, body: { addTags: [tag] } },
+          { method: 'PUT',  path: `/leads/${client.sierra_lead_id}/tags/${encodeURIComponent(tag)}`, body: {} },
+          { method: 'POST', path: `/leads/edit/${client.sierra_lead_id}`, body: { tags: updated } },
+        ]
+        let ok = false
+        let lastErr = ''
+        for (const a of attempts) {
+          try {
+            if (a.method === 'PUT') await sierraPut(a.path, a.body)
+            else await sierraPost(a.path, a.body)
+            ok = true
+            sierraResult = `pushed (${a.method} ${a.path})`
+            break
+          } catch (err) {
+            lastErr = err.message
+            if (!/40[045]/.test(err.message)) break
+          }
+        }
+        if (ok) pushed++
+        else { sierraFailed++; sierraResult = `sierra_failed: ${lastErr}` }
+      }
+
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        ['bulk_tag_added', 'client', client.id, `Bulk-tagged "${tag}" from sheet (${sheetName})`])
+
+      report.push({
+        sheet_name: sheetName,
+        hub_client_id: client.id,
+        hub_name: `${client.first_name} ${client.last_name}`,
+        matched: true,
+        action: 'tagged',
+        sierra: sierraResult,
+      })
+    }
+
+    res.json({
+      total_filtered: filtered.length,
+      matched,
+      already_tagged: alreadyTagged,
+      pushed_to_sierra: pushed,
+      sierra_failed: sierraFailed,
+      no_match: filtered.length - matched,
+      dry_run: !!dry_run,
+      report,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // Search Sierra by name/email/phone — useful when a lead "should be there but isn't"
 // to confirm whether the lead exists in Sierra at all. Returns a compact result.
 router.get('/find-lead', async (req, res) => {

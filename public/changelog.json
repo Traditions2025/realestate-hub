@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-20T19:09:59.665Z",
-  "count": 161,
+  "generated_at": "2026-05-20T19:35:04.116Z",
+  "count": 162,
   "entries": [
+    {
+      "hash": "d60d13c",
+      "date": "2026-05-20T14:10:12-05:00",
+      "subject": "Hub-to-Sierra tag write-back (add + remove)",
+      "title": "Hub-to-Sierra tag write-back (add + remove)",
+      "body": "Adds POST /api/sierra/update-lead-tag with body {client_id, tag, action}\nwhere action is 'add' or 'remove'. Local DB updates first so the hub\nstate is always correct; then if the lead has a sierra_lead_id, the\nendpoint tries multiple Sierra route shapes (same multi-attempt pattern\nused by status write-back) and falls back to last-resort full-tag-array\nshapes if needed.\n\nFrontend: detail-modal Tags section is now editable. Each tag chip gets\nan X button to remove; a small add-form below lets you type a new tag\nand submit. For Sierra-linked leads, the section is labeled \"Tags (N) ↔\nSierra\" so you know changes propagate. Remove asks for confirmation;\nadd does not (low risk, easily reversed).\n\nNon-Sierra clients still work — they just update the local DB and skip\nthe Sierra push step.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9799ee0",
       "date": "2026-05-20T13:37:05-05:00",
