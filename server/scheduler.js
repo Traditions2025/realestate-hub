@@ -59,48 +59,38 @@ async function syncSierraIncremental() {
       { name: 'created', filter: 'leadCreationDateFrom' },
     ]
 
-    // Bulk mode: defer the saveDb() (full DB serialize + disk write) until the
-    // sync is complete. Without this, each processLead() triggers a full DB
-    // write — for a 45K-lead DB that's a multi-hundred-ms blocking serialization
-    // per lead, which starves the event loop and makes other API requests
-    // (Partners, Vendors, etc.) queue for 20+ seconds.
-    db.beginBulk?.()
-    try {
-      for (const pass of passes) {
-        let page = 1
-        let hasMore = true
-        while (hasMore) {
-          const result = await sierraGet('/leads/find', {
-            [pass.filter]: sinceFormatted,
-            includeSavedSearches: 'true',
-            includeTags: 'true',
-            pageSize: 100,
-            pageNumber: page,
-          })
+    for (const pass of passes) {
+      let page = 1
+      let hasMore = true
+      while (hasMore) {
+        const result = await sierraGet('/leads/find', {
+          [pass.filter]: sinceFormatted,
+          includeSavedSearches: 'true',
+          includeTags: 'true',
+          pageSize: 100,
+          pageNumber: page,
+        })
 
-          const responseData = result.data || result
-          const leads = responseData.leads || []
-          if (!leads.length) break
+        const responseData = result.data || result
+        const leads = responseData.leads || []
+        if (!leads.length) break
 
-          for (const lead of leads) {
-            const r = processLead(lead)
-            if (r === 'added') added++
-            else if (r === 'updated') updated++
-            if (r) total++
-          }
-
-          const totalPages = responseData.totalPages || 1
-          if (page >= totalPages) hasMore = false
-          else page++
-          if (page > 50) break
+        for (const lead of leads) {
+          const r = processLead(lead)
+          if (r === 'added') added++
+          else if (r === 'updated') updated++
+          if (r) total++
         }
-      }
 
-      db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)',
-        ['incremental', total, added, updated])
-    } finally {
-      db.endBulk?.()  // flush all the writes as one disk save
+        const totalPages = responseData.totalPages || 1
+        if (page >= totalPages) hasMore = false
+        else page++
+        if (page > 50) break
+      }
     }
+
+    db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)',
+      ['incremental', total, added, updated])
 
     if (total > 0) {
       console.log(`[scheduler] Sierra incremental: ${total} leads (${added} new, ${updated} updated)`)
