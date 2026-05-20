@@ -2302,6 +2302,18 @@ input[type="range"] {
   border: 1px solid rgba(139, 92, 246, 0.25);
   white-space: nowrap;
 }
+.tag-remove-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+  margin-left: 2px;
+}
+.tag-remove-btn:hover { opacity: 1; color: #ef4444; }
 
 .lead-tags-list {
   display: flex;

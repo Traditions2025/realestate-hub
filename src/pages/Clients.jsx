@@ -752,6 +752,37 @@ export default function Clients() {
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const formatCurrency = (n) => n ? `$${Number(n).toLocaleString()}` : ''
 
+  // Tag add/remove from the detail modal. Local DB always updates; if it's a
+  // Sierra lead, the backend also pushes to Sierra (no confirm — tags are
+  // low-risk vs status). Always reloads the detail so the chip list refreshes.
+  const tagAction = async (client, tag, action) => {
+    if (!client || !tag) return
+    try {
+      const r = await authFetch('/api/sierra/update-lead-tag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: client.id, tag, action })
+      })
+      const result = await r.json()
+      if (!result.success && !result.local_updated) {
+        alert(`Tag ${action} failed: ${result.error || 'unknown'}`)
+      }
+      // Refresh the detail view + the list
+      if (detail?.id === client.id) {
+        const fresh = await authFetch(`/api/clients/${client.id}`).then(r => r.json())
+        setDetail(fresh)
+      }
+      load()
+    } catch (err) {
+      alert(`Tag ${action} failed: ${err.message}`)
+    }
+  }
+  const addTag = (client, tag) => tagAction(client, tag, 'add')
+  const removeTag = (client, tag) => {
+    if (!confirm(`Remove tag "${tag}"${client.sierra_lead_id ? ' from Sierra and the hub' : ''}?`)) return
+    tagAction(client, tag, 'remove')
+  }
+
   // Inline status change from a card/row - no modal. Local save first, then
   // confirm to push to Sierra (only when there's a sierra_lead_id).
   const quickStatusChange = async (item, newStatus, e) => {
@@ -1900,17 +1931,42 @@ export default function Clients() {
               </div>
             )}
 
-            {/* Tags */}
-            {detail.tags && (() => {
+            {/* Tags - editable, with optional push to Sierra */}
+            {(() => {
               let tagList = []
-              try { tagList = JSON.parse(detail.tags) } catch {}
-              if (!tagList.length) return null
+              try { tagList = detail.tags ? JSON.parse(detail.tags) : [] } catch {}
+              if (!Array.isArray(tagList)) tagList = []
               return (
                 <div className="detail-section">
-                  <h4>Tags ({tagList.length})</h4>
+                  <h4>Tags ({tagList.length}){detail.sierra_lead_id ? <span style={{fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>↔ Sierra</span> : null}</h4>
                   <div className="lead-tags-list">
-                    {tagList.map((t, i) => <span key={i} className="lead-tag">{t}</span>)}
+                    {tagList.map((t, i) => (
+                      <span key={i} className="lead-tag" style={{display: 'inline-flex', alignItems: 'center', gap: 4}}>
+                        {t}
+                        <button
+                          className="tag-remove-btn"
+                          onClick={() => removeTag(detail, t)}
+                          title={`Remove tag "${t}"${detail.sierra_lead_id ? ' (will also remove from Sierra)' : ''}`}
+                          aria-label={`Remove tag ${t}`}
+                        >×</button>
+                      </span>
+                    ))}
                   </div>
+                  <form
+                    onSubmit={(e) => { e.preventDefault(); const v = e.target.elements.tag.value.trim(); if (v) { addTag(detail, v); e.target.reset() } }}
+                    style={{display: 'flex', gap: 6, marginTop: 8}}
+                  >
+                    <input
+                      name="tag"
+                      type="text"
+                      placeholder="Add tag..."
+                      style={{flex: 1, padding: '4px 8px', border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12}}
+                      maxLength={64}
+                    />
+                    <button type="submit" className="btn btn-secondary" style={{fontSize: 12, padding: '4px 10px'}}>
+                      + Add
+                    </button>
+                  </form>
                 </div>
               )
             })()}

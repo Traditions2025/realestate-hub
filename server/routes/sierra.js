@@ -419,6 +419,97 @@ router.post('/update-lead-status', async (req, res) => {
   })
 })
 
+// =============================================================
+// WRITE-BACK: push tag add/remove to Sierra. Local hub DB is updated
+// first (always succeeds, so the change is never lost locally even if
+// Sierra rejects). Then we try multiple Sierra endpoint shapes since
+// the tag route name varies across Sierra Interactive API versions.
+// Body: { client_id, tag, action: 'add' | 'remove' }
+// =============================================================
+function syncTagsLocal(clientId, tag, action) {
+  const c = db.get('SELECT id, tags FROM clients WHERE id = ?', [Number(clientId)])
+  if (!c) return null
+  let list = []
+  try { list = c.tags ? JSON.parse(c.tags) : [] } catch { list = [] }
+  if (!Array.isArray(list)) list = []
+  const trimmed = String(tag).trim()
+  if (!trimmed) return list
+  const idx = list.findIndex(t => String(t).toLowerCase() === trimmed.toLowerCase())
+  if (action === 'add') {
+    if (idx < 0) list.push(trimmed)
+  } else if (action === 'remove') {
+    if (idx >= 0) list.splice(idx, 1)
+  }
+  db.run("UPDATE clients SET tags = ?, updated_at = datetime('now') WHERE id = ?", [JSON.stringify(list), Number(clientId)])
+  return list
+}
+
+router.post('/update-lead-tag', async (req, res) => {
+  const { client_id, tag, action } = req.body || {}
+  if (!client_id || !tag) return res.status(400).json({ error: 'client_id and tag required' })
+  if (!['add', 'remove'].includes(action)) return res.status(400).json({ error: "action must be 'add' or 'remove'" })
+
+  const client = db.get('SELECT id, sierra_lead_id, first_name, last_name FROM clients WHERE id = ?', [Number(client_id)])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+
+  // Always update local first so the hub state is correct regardless of Sierra.
+  const updatedTags = syncTagsLocal(client.id, tag, action)
+
+  if (!client.sierra_lead_id) {
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      [`tag_${action}_local`, 'client', client.id,
+       `${action === 'add' ? 'Added' : 'Removed'} tag "${tag}" on ${client.first_name} ${client.last_name} (local only — not a Sierra lead)`])
+    return res.json({ success: true, local_only: true, tags: updatedTags })
+  }
+
+  const leadId = client.sierra_lead_id
+  // Sierra tag endpoint shapes vary. We try several. Some accept a single tag
+  // string; others expect the FULL updated tags array. The full-list shape is
+  // last-resort because it can clobber tags added in Sierra since our last sync.
+  const attempts = action === 'add'
+    ? [
+        { method: 'POST', path: `/leads/${leadId}/tags`,                body: { tag } },
+        { method: 'POST', path: `/leads/${leadId}/tag`,                 body: { name: tag } },
+        { method: 'POST', path: `/leads/edit/${leadId}`,                body: { addTags: [tag] } },
+        { method: 'PUT',  path: `/leads/${leadId}/tags/${encodeURIComponent(tag)}`, body: {} },
+        { method: 'POST', path: `/leads/edit/${leadId}`,                body: { tags: updatedTags } },
+      ]
+    : [
+        { method: 'DELETE', path: `/leads/${leadId}/tags/${encodeURIComponent(tag)}`, body: null },
+        { method: 'POST',   path: `/leads/${leadId}/tags/remove`, body: { tag } },
+        { method: 'POST',   path: `/leads/edit/${leadId}`,        body: { removeTags: [tag] } },
+        { method: 'POST',   path: `/leads/edit/${leadId}`,        body: { tags: updatedTags } },
+      ]
+
+  const errors = []
+  for (const a of attempts) {
+    try {
+      let result
+      if (a.method === 'PUT') result = await sierraPut(a.path, a.body)
+      else if (a.method === 'DELETE') result = await sierraDelete(a.path)
+      else result = await sierraPost(a.path, a.body)
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        [`tag_${action}_pushed`, 'client', client.id,
+         `Pushed tag ${action} to Sierra: ${client.first_name} ${client.last_name} ${action === 'add' ? '+' : '-'} "${tag}" (via ${a.method} ${a.path})`])
+      return res.json({ success: true, endpoint_used: `${a.method} ${a.path}`, tags: updatedTags, sierra_response: result })
+    } catch (err) {
+      errors.push({ endpoint: `${a.method} ${a.path}`, error: err.message })
+      // Only try the next endpoint if route looks wrong (404/405). Other 4xx = real Sierra reply.
+      if (!/40[045]/.test(err.message)) break
+    }
+  }
+
+  // Sierra all failed but local is already updated. Return partial success.
+  res.status(502).json({
+    success: false,
+    local_updated: true,
+    tags: updatedTags,
+    error: 'Local hub updated, but all Sierra tag endpoint attempts failed',
+    attempts: errors,
+    hint: 'Send these error details to pin the right Sierra tag endpoint shape.',
+  })
+})
+
 // Search Sierra by name/email/phone — useful when a lead "should be there but isn't"
 // to confirm whether the lead exists in Sierra at all. Returns a compact result.
 router.get('/find-lead', async (req, res) => {

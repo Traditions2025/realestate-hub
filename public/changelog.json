@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-20T18:36:52.527Z",
-  "count": 160,
+  "generated_at": "2026-05-20T19:09:59.665Z",
+  "count": 161,
   "entries": [
+    {
+      "hash": "9799ee0",
+      "date": "2026-05-20T13:37:05-05:00",
+      "subject": "Auto-restore: tighten data-preservation guarantee",
+      "title": "Auto-restore: tighten data-preservation guarantee",
+      "body": "Two changes per user request \"make sure 100% no existing data removed\":\n\n1. Copy corrupt file to sidecar FIRST, then overwrite live file. Was\n   rename-then-copy, which left a brief window where the corrupt bytes\n   only existed in the renamed sidecar - if anything went wrong after\n   the rename but before the backup copy completed, the live position\n   would be missing.\n\n2. If the sidecar copy fails (disk full, permission, etc.), ABORT the\n   entire restore. Crash with the original corruption error and leave\n   the live file untouched. Previous code would still try to overwrite\n   the live file with the backup even if it couldn't preserve the\n   corrupt bytes - that's a hidden data-loss path.\n\nNet safety: regardless of failure mode, the original corrupted bytes\nare either at DB_PATH (if abort) or at DB_PATH.corrupt-{ts} (if\nrestore succeeded). They are never deleted, never overwritten without\na copy existing elsewhere first.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "dc8aa53",
       "date": "2026-05-20T13:35:15-05:00",
