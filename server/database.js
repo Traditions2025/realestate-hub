@@ -137,10 +137,95 @@ export async function initDb() {
       console.error('[db] ============================================')
       console.error(`[db] !!! DATABASE FILE FAILED TO LOAD: ${corruptErr.message}`)
       console.error(`[db] !!! File: ${DB_PATH}`)
-      console.error('[db] !!! NOT auto-renaming. NOT creating fresh DB.')
-      console.error('[db] !!! Crashing instead so data is NOT lost.')
+      console.error('[db] !!! Searching for the newest VALID backup to auto-restore...')
       console.error('[db] ============================================')
-      throw corruptErr
+
+      // Build candidate list: all backups + all sidecar files in /data/.
+      // Validate each by loading with sql.js + PRAGMA quick_check. Use the
+      // newest one that loads cleanly. Skip the pre-boot snapshot taken on
+      // THIS boot — that's a copy of the corrupt file.
+      const candidates = []
+      try {
+        if (existsSync(backupDir)) {
+          for (const f of readdirSync(backupDir)) {
+            if (!f.startsWith('realestate-hub.db.')) continue
+            try {
+              const p = join(backupDir, f)
+              const s = statSync(p)
+              candidates.push({ path: p, name: `backups/${f}`, mtime: s.mtime, size: s.size })
+            } catch {}
+          }
+        }
+        for (const f of readdirSync(DB_DIR)) {
+          if (!f.startsWith('realestate-hub.db.')) continue
+          if (f === 'realestate-hub.db') continue
+          // Skip the pre-boot snapshot we JUST made of the corrupt file
+          if (f.startsWith('realestate-hub.db.pre-boot-')) {
+            try {
+              const p = join(DB_DIR, f)
+              const s = statSync(p)
+              // Only skip if the snapshot is suspiciously close in size+time to the corrupt live file
+              const liveStat = statSync(DB_PATH)
+              if (Math.abs(s.size - liveStat.size) < 1024 && Math.abs(s.mtime - liveStat.mtime) < 5 * 60 * 1000) {
+                console.error(`[db] (skipping recent pre-boot snapshot ${f} — likely a copy of the corrupt file)`)
+                continue
+              }
+            } catch {}
+          }
+          try {
+            const p = join(DB_DIR, f)
+            const s = statSync(p)
+            if (!s.isFile()) continue
+            candidates.push({ path: p, name: f, mtime: s.mtime, size: s.size })
+          } catch {}
+        }
+      } catch (listErr) {
+        console.error(`[db] !!! could not list candidates: ${listErr.message}`)
+      }
+
+      // Newest first
+      candidates.sort((a, b) => b.mtime - a.mtime)
+      console.error(`[db] !!! Found ${candidates.length} candidate file(s) to try`)
+
+      let restoredFrom = null
+      for (const c of candidates) {
+        try {
+          const buf = readFileSync(c.path)
+          const testDb = new SQL.Database(buf)
+          testDb.exec('PRAGMA quick_check;')
+          testDb.close()
+          restoredFrom = c
+          console.error(`[db] !!! Candidate VALID: ${c.name} (${(c.size/1024).toFixed(0)} KB, ${c.mtime.toISOString()})`)
+          break
+        } catch (testErr) {
+          console.error(`[db] !!! Candidate INVALID: ${c.name} — ${testErr.message}`)
+        }
+      }
+
+      if (!restoredFrom) {
+        console.error('[db] ============================================')
+        console.error('[db] !!! NO VALID BACKUP FOUND. Crashing instead of wiping data.')
+        console.error('[db] !!! Manual recovery needed — check /data/ for sidecar files.')
+        console.error('[db] ============================================')
+        throw corruptErr
+      }
+
+      // Move corrupt aside, copy backup into place, reload.
+      const corruptAside = `${DB_PATH}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`
+      try {
+        renameSync(DB_PATH, corruptAside)
+        console.error(`[db] !!! Corrupt file preserved at ${corruptAside}`)
+      } catch (mvErr) {
+        console.error(`[db] !!! Could not preserve corrupt file: ${mvErr.message} — copying backup over it`)
+      }
+      copyFileSync(restoredFrom.path, DB_PATH)
+      console.error(`[db] !!! Restored from ${restoredFrom.name}`)
+      const restoredBuffer = readFileSync(DB_PATH)
+      db = new SQL.Database(restoredBuffer)
+      db.exec('PRAGMA quick_check;')
+      console.error('[db] !!! Restored DB loaded successfully. Service continuing.')
+      console.error('[db] !!! NOTE: any data written between the backup time and the corruption is lost.')
+      console.error('[db] !!! Inspect ' + corruptAside + ' for forensics if needed.')
     }
   } else {
     // Truly no DB anywhere — first-ever boot OR Render disk really is empty.

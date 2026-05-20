@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-05-20T18:00:11.503Z",
-  "count": 156,
+  "generated_at": "2026-05-20T18:34:59.626Z",
+  "count": 159,
   "entries": [
+    {
+      "hash": "6676c73",
+      "date": "2026-05-20T13:30:34-05:00",
+      "subject": "Revert \"Sierra incremental sync: wrap in bulk mode to stop blocking API requests\"",
+      "title": "Revert \"Sierra incremental sync: wrap in bulk mode to stop blocking API requests\"",
+      "body": "This reverts commit 4450c8c9cbec8548593d8ae8b8468a840f08b699.",
+      "category": "other"
+    },
+    {
+      "hash": "4450c8c",
+      "date": "2026-05-20T13:16:38-05:00",
+      "subject": "Sierra incremental sync: wrap in bulk mode to stop blocking API requests",
+      "title": "Sierra incremental sync: wrap in bulk mode to stop blocking API requests",
+      "body": "processLead() does INSERTs/UPDATEs, and db.run() saves the entire sql.js\nDB to disk after each write when not in bulk mode. For a 45K-lead DB\nthat's multi-hundred-ms of synchronous blocking per lead. The recently\nadded second pass (creationDate) compounds it. Net result: every 10 min\nthe event loop is starved for 10-30 seconds, and any other API request\n(Partners list, Vendors list, etc.) queues behind it.\n\nWrapped both passes + the sync_log insert in beginBulk/endBulk so we\nserialize the DB to disk ONCE at the end of the sync instead of per\nlead. try/finally guarantees endBulk runs even if Sierra throws.\n\nConcrete symptom this fixes: user reported Vendors/Partners taking\n20+ seconds to load. Probed /api/partners with no-auth and got\n401 in 21.7s -- the auth middleware was waiting for the event loop\nto be free.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "31ba40c",
+      "date": "2026-05-20T13:00:25-05:00",
+      "subject": "HOTFIX: checkDbHealth crashes with 'db.get is not a function'",
+      "title": "HOTFIX: checkDbHealth crashes with 'db.get is not a function'",
+      "body": "Health probe at /api/health was calling db.get() where db is the raw\nsql.js Database instance - that object has .exec() and .prepare() but\nNO .get() method. The wrapper get() function (which uses .prepare/.step\ninternally) is defined further down in the same module, but the health\nfunction was using the wrong reference.\n\nResult: every Render health probe failed, which kept the service in a\ndegraded routing state. The home page was taking 22 seconds to respond\nbecause Render couldn't confirm the instance was healthy. Verified by\ncurling /api/health and getting 503 + \"db.get is not a function\".\n\nFixed by calling the local hoisted get() function directly.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "e387ccd",
       "date": "2026-05-19T10:19:58-05:00",
