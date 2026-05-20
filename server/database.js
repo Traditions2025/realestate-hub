@@ -1013,10 +1013,15 @@ export function runMigration(name, fn, opts = {}) {
 
 // Health: cheap DB liveness check for /api/health. Returns ok=false if the
 // DB can't be queried, so Render's health probe drops the instance.
+// IMPORTANT: must use the wrapper `get()` function below, NOT db.get() - the
+// `db` variable holds the raw sql.js Database instance which has no .get()
+// method. The bug was causing every Render health probe to fail with
+// "db.get is not a function", which kept the service in a degraded routing
+// state and made all requests slow.
 export function checkDbHealth() {
   if (!db) return { ok: false, error: 'db not initialized' }
   try {
-    const c = db.get('SELECT COUNT(*) as c FROM clients').c
+    const c = get('SELECT COUNT(*) as c FROM clients').c
     return { ok: true, clients: c }
   } catch (e) {
     return { ok: false, error: e.message }

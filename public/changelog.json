@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-19T15:19:42.425Z",
-  "count": 155,
+  "generated_at": "2026-05-20T18:00:11.503Z",
+  "count": 156,
   "entries": [
+    {
+      "hash": "e387ccd",
+      "date": "2026-05-19T10:19:58-05:00",
+      "subject": "Clients list: fix column drift + add customizable columns",
+      "title": "Clients list: fix column drift + add customizable columns",
+      "body": "Two fixes for the list view, motivated by Abel Ortiz's row pushing the\nStatus column right of its header on rows with long unbreakable lead\ntags (\"Past Client Unsubscribed to E-Alerts\").\n\n1. Alignment: switched grid tracks from Xfr to minmax(0, Xfr). CSS Grid\n   defaults to min-content as the floor of a flexible track, so any\n   unbreakable cell forces the track wider and shifts downstream columns\n   right for that single row. minmax(0, Xfr) lets overflow happen inside\n   the cell instead of resizing the grid. All rows now line up.\n\n2. Customizable columns: new \"Columns (N)\" button in the list-view\n   toolbar opens a popover with:\n   - Checkbox per column (Score, Name, Status, Type, Phone, Email,\n     Address, Budget, Visits, Source, Registered) to show/hide\n   - Drag handles to reorder columns left-to-right\n   - Reset button to restore defaults\n   Prefs persist to localStorage (mst_clients_columns_v1). Header + rows\n   are now data-driven from the same column config, so adding new\n   columns later only needs a single LIST_COLUMNS entry.\n\n   Checkbox (left) and Actions (right) are pinned and not user-toggleable\n   - those are the row controls, not display data.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bbc8020",
       "date": "2026-05-19T09:56:20-05:00",
