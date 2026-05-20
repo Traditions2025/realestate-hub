@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-20T18:34:59.626Z",
-  "count": 159,
+  "generated_at": "2026-05-20T18:36:52.527Z",
+  "count": 160,
   "entries": [
+    {
+      "hash": "dc8aa53",
+      "date": "2026-05-20T13:35:15-05:00",
+      "subject": "Auto-restore from newest valid backup when live DB is corrupted",
+      "title": "Auto-restore from newest valid backup when live DB is corrupted",
+      "body": "Today's incident: the bulk-mode commit (4450c8c) corrupted\n/data/realestate-hub.db (\"database disk image is malformed\"). Server\ncorrectly refused to boot (per the no-auto-rename policy that prevents\nsilent data wipes), so deploys went into a crash loop and the service\nsat at 502.\n\nAdded a recovery branch: when sql.js fails to load the DB, walk every\nsidecar file in /data/ and every file in /data/backups/, validate each\nby attempting to load it with sql.js + PRAGMA quick_check, and swap in\nthe newest one that loads cleanly.\n\nSafety properties:\n- Corrupt file is renamed to .corrupt-{timestamp} (never deleted)\n- Skips the pre-boot snapshot taken on THIS boot if it matches the\n  corrupt file's size+mtime (it's a copy of the corrupt file)\n- Falls back to the original crash if NO valid candidate exists\n- Logs are loud so the user sees exactly which file was restored\n\nThe recovery window equals the time since the most recent valid backup\n(typically <24h with the daily 2 AM backup). That's an acceptable cost\nvs. the current state of \"service down indefinitely until a human\nshells into Render and swaps files manually\".\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6676c73",
       "date": "2026-05-20T13:30:34-05:00",

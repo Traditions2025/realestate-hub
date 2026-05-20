@@ -210,22 +210,33 @@ export async function initDb() {
         throw corruptErr
       }
 
-      // Move corrupt aside, copy backup into place, reload.
+      // Safety contract: NEVER lose the corrupt bytes. We COPY the corrupt
+      // file to a sidecar FIRST (so the bytes are preserved even if the next
+      // step fails), and only then overwrite the live file with the backup.
+      // If the sidecar copy fails for any reason, ABORT — leave the live file
+      // untouched and crash with the original error. This guarantees the user
+      // never loses access to the original corrupted bytes for recovery.
       const corruptAside = `${DB_PATH}.corrupt-${new Date().toISOString().replace(/[:.]/g, '-')}`
       try {
-        renameSync(DB_PATH, corruptAside)
-        console.error(`[db] !!! Corrupt file preserved at ${corruptAside}`)
-      } catch (mvErr) {
-        console.error(`[db] !!! Could not preserve corrupt file: ${mvErr.message} — copying backup over it`)
+        copyFileSync(DB_PATH, corruptAside)
+        console.error(`[db] !!! Corrupt file copied to ${corruptAside} (original at ${DB_PATH} still intact for now)`)
+      } catch (cpErr) {
+        console.error('[db] ============================================')
+        console.error(`[db] !!! Could NOT preserve corrupt file to sidecar: ${cpErr.message}`)
+        console.error('[db] !!! Aborting auto-restore. Live file is UNTOUCHED.')
+        console.error('[db] !!! Manual recovery needed — file at ' + DB_PATH + ' still has the (corrupt) original bytes.')
+        console.error('[db] ============================================')
+        throw corruptErr
       }
+      // Sidecar is safe. Now overwrite the live file with the chosen backup.
       copyFileSync(restoredFrom.path, DB_PATH)
       console.error(`[db] !!! Restored from ${restoredFrom.name}`)
       const restoredBuffer = readFileSync(DB_PATH)
       db = new SQL.Database(restoredBuffer)
       db.exec('PRAGMA quick_check;')
       console.error('[db] !!! Restored DB loaded successfully. Service continuing.')
-      console.error('[db] !!! NOTE: any data written between the backup time and the corruption is lost.')
-      console.error('[db] !!! Inspect ' + corruptAside + ' for forensics if needed.')
+      console.error('[db] !!! NOTE: any data written between the backup time and the corruption may be in')
+      console.error(`[db] !!!       the sidecar at ${corruptAside}. Original corrupt bytes are preserved there.`)
     }
   } else {
     // Truly no DB anywhere — first-ever boot OR Render disk really is empty.
