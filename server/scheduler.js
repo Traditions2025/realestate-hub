@@ -342,8 +342,14 @@ export function startScheduler() {
     // Google Sheet auto-sync DISABLED - hub is source of truth for transactions
   }, 30000)
 
-  // Sierra incremental - backup polling in case webhooks miss anything
-  setInterval(syncSierraIncremental, 10 * 60 * 1000)
+  // Sierra incremental - backup polling in case webhooks miss anything.
+  // Was 10 min, bumped to 60 min on 2026-05-21 because each sync freezes
+  // the event loop for 14-23s during the per-lead saveDb() storm. Hourly
+  // cadence drops the user-facing slowness probability ~6x. Sierra's own
+  // email/SMS notifications and webhook (if configured) still arrive
+  // instantly for new leads — this loop only catches what webhooks miss.
+  // Real cure is still the atomic-save + bulk-mode refactor (Bug B).
+  setInterval(syncSierraIncremental, 60 * 60 * 1000)
 
   // Google Calendar - every 5 min
   setInterval(syncGoogleCalendar, 5 * 60 * 1000)

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-21T16:31:14.199Z",
-  "count": 164,
+  "generated_at": "2026-05-21T16:51:43.248Z",
+  "count": 165,
   "entries": [
+    {
+      "hash": "1d478db",
+      "date": "2026-05-21T11:31:28-05:00",
+      "subject": "Sierra creationDate pass: format date as MM/dd/yyyy (Sierra's requirement)",
+      "title": "Sierra creationDate pass: format date as MM/dd/yyyy (Sierra's requirement)",
+      "body": "Sierra's API rejects ISO 8601 on leadCreationDateFrom with 400:\n  \"Invalid parameter - leadCreationDateFrom. Please specify date in\n   MM/dd/yyyy format.\"\n\nBut it accepts ISO 8601 on leadUpdateDateFrom (which we've been using\nfor years). Inconsistent formats across filters - had to learn this\nfrom the error reply, not docs.\n\nRender logs confirmed this was failing every 5-13 minutes since at\nleast 4:56 AM 2026-05-21, and probably longer. The creationDate pass\nwas supposed to catch imported leads (Source: Import) whose updateDate\npreserves the source file's old timestamp - meaning Kevin Christensen\nand any other recent import has NOT been syncing despite my prior\n\"fix\". This commit makes the pass actually work.\n\nAdded toSierraDateMMDDYYYY() helper that formats the same UTC instant\nas MM/dd/yyyy (e.g. 05/20/2026). Uses getUTCMonth/Date/FullYear so\nthe date is stable regardless of server timezone.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "03aaac9",
       "date": "2026-05-20T15:09:17-05:00",
