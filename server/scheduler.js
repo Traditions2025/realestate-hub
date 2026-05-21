@@ -23,6 +23,26 @@ function toSierraDate(input) {
   return d.toISOString().replace(/\.\d{3}Z$/, 'Z')
 }
 
+// Sierra's leadCreationDateFrom filter rejects ISO and requires MM/dd/yyyy
+// (verified by the 400 response: "Invalid parameter - leadCreationDateFrom.
+// Please specify date in MM/dd/yyyy format."). Same UTC instant, different
+// format. We use UTC parts so the date is consistent regardless of server tz.
+function toSierraDateMMDDYYYY(input) {
+  if (!input) return null
+  let d
+  if (input instanceof Date) d = input
+  else if (typeof input === 'string') {
+    d = input.includes('T') ? new Date(input) : new Date(input + ' UTC')
+  } else {
+    d = new Date(input)
+  }
+  if (isNaN(d.getTime())) return null
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  const yyyy = d.getUTCFullYear()
+  return `${mm}/${dd}/${yyyy}`
+}
+
 // Incremental Sierra sync - only leads updated since last sync
 async function syncSierraIncremental() {
   try {
@@ -54,9 +74,13 @@ async function syncSierraIncremental() {
     // Two passes: by updateDate (catches edits) AND by creationDate (catches
     // imports/new leads where Sierra preserved the source data's old updateDate).
     // processLead is idempotent — a lead seen in both passes just UPDATEs once.
+    // NOTE: Sierra uses DIFFERENT date formats per filter — ISO 8601 for
+    // leadUpdateDateFrom, MM/dd/yyyy for leadCreationDateFrom. Pass-2 was
+    // returning 400 errors every 10 min for ~24h+ until this was fixed.
+    const sinceFormattedDateOnly = toSierraDateMMDDYYYY(sinceDate)
     const passes = [
-      { name: 'updated', filter: 'leadUpdateDateFrom' },
-      { name: 'created', filter: 'leadCreationDateFrom' },
+      { name: 'updated', filter: 'leadUpdateDateFrom',   value: sinceFormatted },
+      { name: 'created', filter: 'leadCreationDateFrom', value: sinceFormattedDateOnly },
     ]
 
     for (const pass of passes) {
@@ -64,7 +88,7 @@ async function syncSierraIncremental() {
       let hasMore = true
       while (hasMore) {
         const result = await sierraGet('/leads/find', {
-          [pass.filter]: sinceFormatted,
+          [pass.filter]: pass.value,
           includeSavedSearches: 'true',
           includeTags: 'true',
           pageSize: 100,

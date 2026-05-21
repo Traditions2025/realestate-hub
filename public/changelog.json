@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-20T20:09:06.784Z",
-  "count": 163,
+  "generated_at": "2026-05-21T16:31:14.199Z",
+  "count": 164,
   "entries": [
+    {
+      "hash": "03aaac9",
+      "date": "2026-05-20T15:09:17-05:00",
+      "subject": "Bulk-tag sheet fetch: try /export URL first, surface real errors",
+      "title": "Bulk-tag sheet fetch: try /export URL first, surface real errors",
+      "body": "User hit \"Error: fetch failed\" with no detail. Two changes:\n\n1. Try the /export?format=csv URL first - it's a single hop, no 302\n   redirect chain like gviz does. Fall back to gviz if export fails.\n2. On failure, return the actual fetch error messages (including\n   .cause from undici) and which URL attempts failed - so the next\n   time it breaks we see WHY instead of \"fetch failed\".\n3. Detect HTML responses (sheet not public / auth-required) and treat\n   them as failures so we don't try to parse Google's login HTML as\n   CSV.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c69f020",
       "date": "2026-05-20T14:35:18-05:00",
