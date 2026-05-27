@@ -119,6 +119,19 @@ async function start() {
     res.status(503).json({ ok: false, ...h, ts: new Date().toISOString() })
   })
 
+  // Manual trigger: send the per-person daily task/deadline reminder emails
+  // right now. Useful for testing the formatting, or for a "re-send today's"
+  // workflow if SendGrid had a hiccup at 9 AM.
+  app.post('/api/reminders/run-now', async (_req, res) => {
+    try {
+      const { runDailyRemindersNow } = await import('./scheduler.js')
+      const result = await runDailyRemindersNow(true)
+      res.json(result)
+    } catch (err) {
+      res.status(500).json({ success: false, error: err.message })
+    }
+  })
+
   // Manual backup trigger — run the daily backup right now (useful for testing
   // or for a "make a backup before I do something risky" workflow).
   app.post('/api/backup/now', async (_req, res) => {

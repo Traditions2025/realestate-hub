@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-21T16:51:43.248Z",
-  "count": 165,
+  "generated_at": "2026-05-27T21:50:15.682Z",
+  "count": 166,
   "entries": [
+    {
+      "hash": "bb6d88d",
+      "date": "2026-05-21T11:51:45-05:00",
+      "subject": "Sierra incremental sync: bump 10 min -> 60 min interval",
+      "title": "Sierra incremental sync: bump 10 min -> 60 min interval",
+      "body": "Each sync currently freezes the event loop for 14-23 seconds (measured\nby probing /api/vendors which returned 401 in 14.7-23s repeatedly).\nThat's the per-lead saveDb() storm - a 26MB synchronous write per\nupdated lead. Hourly cadence drops the user-facing probability of\nhitting a frozen window ~6x.\n\nTrade-off: max 60-min delay for Sierra-only changes (vs 10-min before).\nSierra's own email/SMS alerts and webhooks (if configured) still\ndeliver new leads in real time - this poll is only a safety net for\nanything those miss.\n\nReal cure for the per-sync freeze is still Bug B (atomic save +\nbulk mode), which I'll do as a separate, careful change.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1d478db",
       "date": "2026-05-21T11:31:28-05:00",

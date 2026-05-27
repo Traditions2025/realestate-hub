@@ -298,6 +298,19 @@ async function checkDigestTick() {
       console.log(`[digest] firing ${slot.period} digest for ${now.date} (${now.hour}:${String(now.minute).padStart(2,'0')} CT)`)
       const r = await sendDigest(slot.period)
       console.log('[digest] result:', r.skipped ? `skipped (${r.reason})` : (r.success ? `sent ${r.transactionCount} tx, ${r.actionCount} actions` : `FAILED: ${r.error}`))
+
+      // Morning slot also triggers per-person daily task reminders.
+      // Separate idempotency table (daily_reminder_log) so they can fire
+      // independently if the digest succeeded but reminders failed (or vice versa).
+      if (slot.period === 'morning') {
+        try {
+          const { sendDailyReminders } = await import('./daily-reminders.js')
+          const rr = await sendDailyReminders()
+          console.log('[reminders] result:', JSON.stringify(rr.results))
+        } catch (rErr) {
+          console.error('[reminders] failed:', rErr.message)
+        }
+      }
     }
   } catch (err) {
     console.error('[digest] tick error:', err.message)
@@ -306,6 +319,11 @@ async function checkDigestTick() {
 
 async function runDigestNow(period = 'morning', force = true) {
   return await sendDigest(period, { force })
+}
+
+async function runDailyRemindersNow(force = true) {
+  const { sendDailyReminders } = await import('./daily-reminders.js')
+  return await sendDailyReminders({ force })
 }
 
 // =============================================================
@@ -330,7 +348,7 @@ async function checkBackupTick() {
   }
 }
 
-export { syncGoogleCalendar, runIncrementalNow, runDigestNow }
+export { syncGoogleCalendar, runIncrementalNow, runDigestNow, runDailyRemindersNow }
 
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
