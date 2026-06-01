@@ -392,6 +392,7 @@ export default function Clients() {
   }
   const [sierraActivity, setSierraActivity] = useState(null)
   const [listingInterest, setListingInterest] = useState(null)
+  const [hubActivity, setHubActivity] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [] })
@@ -412,7 +413,10 @@ export default function Clients() {
     setSierraActivity(null)
     setListingInterest(null)
     setEmailHistory([])
+    setHubActivity(null)
     setDetailOpen(true)
+    // Hub tracking activity (mattsmithteam.com pixel) — always fetch, not gated on Sierra link
+    authFetch(`/api/track/activity/${id}?limit=50`).then(r => r.json()).then(setHubActivity).catch(() => {})
     // Lazy-load Sierra activity + listing interest if it's a Sierra-synced lead
     if (d.sierra_lead_id) {
       authFetch(`/api/sierra/lead-notes/${d.sierra_lead_id}`)
@@ -1209,9 +1213,10 @@ export default function Clients() {
         )}
         <select value={sortBy} onChange={e => setSortBy(e.target.value)} title="Sort by">
           <option value="recent_activity">📅 Most Recent Activity</option>
+          <option value="hub_activity">🔥 Most Active on Site (Tracked)</option>
           <option value="recent_added">🆕 Recently Added</option>
           <option value="oldest_first">⏳ Oldest First</option>
-          <option value="most_visits">👁️ Most Visits</option>
+          <option value="most_visits">👁️ Most Visits (Sierra)</option>
           <option value="least_visits">📉 Fewest Visits</option>
           <option value="highest_score">🔥 Highest Score</option>
           <option value="lowest_score">❄️ Lowest Score</option>
@@ -1970,6 +1975,46 @@ export default function Clients() {
                 </div>
               )
             })()}
+
+            {/* Hub-Tracked Site Activity (mattsmithteam.com pixel) */}
+            {hubActivity && hubActivity.summary && hubActivity.summary.total_events > 0 && (
+              <div className="detail-section">
+                <h4>Site Activity ({hubActivity.summary.total_events} events)</h4>
+                <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 12, fontSize: 12}}>
+                  <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
+                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Page views</div>
+                    <div style={{fontSize: 18, fontWeight: 700}}>{hubActivity.summary.pageviews || 0}</div>
+                  </div>
+                  <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
+                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Listings viewed</div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: '#3b82f6'}}>{hubActivity.summary.listing_views || 0}</div>
+                  </div>
+                  <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
+                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Saves</div>
+                    <div style={{fontSize: 18, fontWeight: 700, color: '#f59e0b'}}>{hubActivity.summary.saves || 0}</div>
+                  </div>
+                  <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
+                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Time on site</div>
+                    <div style={{fontSize: 18, fontWeight: 700}}>{Math.round((hubActivity.summary.total_seconds || 0) / 60)}m</div>
+                  </div>
+                </div>
+                <div style={{maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 4}}>
+                  {hubActivity.events.map(e => {
+                    const eventLabel = { pageview: '👁 page view', listing_view: '🏠 listing view', save: '⭐ saved', pageduration: '⏱ time' }[e.event_type] || e.event_type
+                    return (
+                      <div key={e.id} style={{padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12}}>
+                        <div style={{display: 'flex', justifyContent: 'space-between'}}>
+                          <span style={{fontWeight: 600}}>{eventLabel}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span>
+                          <span style={{color: 'var(--text-muted)', fontSize: 11}}>{new Date(e.created_at).toLocaleString()}</span>
+                        </div>
+                        {e.page_title && <div style={{color: 'var(--text-secondary)', fontSize: 11, marginTop: 2}}>{e.page_title}</div>}
+                        {e.duration_sec && <div style={{color: 'var(--text-muted)', fontSize: 10}}>{e.duration_sec}s on page</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Listing Interest */}
             {detail.sierra_lead_id && listingInterest && (

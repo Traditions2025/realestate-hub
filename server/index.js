@@ -27,9 +27,138 @@ import sierraRouter from './routes/sierra.js'
 import emailRouter from './routes/email.js'
 import listsRouter from './routes/lists.js'
 import templatesRouter from './routes/templates.js'
+import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// =====================================================================
+// PUBLIC TRACKING SNIPPET
+// Returned by GET /track.js. Pasted (via single <script> tag) into Sierra
+// Interactive's tracking-code area. Fires beacons to /api/track/beacon for:
+//   - pageview (every page load on mattsmithteam.com)
+//   - listing_view (when MLS number is detected in URL)
+//   - save (any click on a "save" / "favorite" button)
+//   - pagedurations (sent on tab close via navigator.sendBeacon)
+// Lead identification tried in order: window.siteData/visitor/lead → cookie
+// → URL ?lid= parameter. Email is the most reliable Sierra exposes.
+// =====================================================================
+function getTrackingSnippet(beaconUrl) {
+  return `(function(){
+  'use strict';
+  var BEACON = ${JSON.stringify(beaconUrl)};
+  var SESSION_COOKIE = 'mst_lead_session';
+  var COOKIE_DAYS = 30;
+
+  function setCookie(name, value, days) {
+    var d = new Date(); d.setTime(d.getTime() + days * 86400000);
+    document.cookie = name + '=' + encodeURIComponent(value) + '; expires=' + d.toUTCString() + '; path=/; SameSite=Lax';
+  }
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp('(?:^|; )' + name + '=([^;]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+  function urlParam(name) {
+    var m = window.location.search.match(new RegExp('[?&]' + name + '=([^&]*)'));
+    return m ? decodeURIComponent(m[1]) : null;
+  }
+
+  // Lead identification — try every known shape Sierra Interactive uses.
+  function detectLead() {
+    var lid = null, email = null;
+    try {
+      var s = window.siteData || window.SiteData || window.SIERRA || {};
+      var v = s.visitor || s.currentVisitor || s.user || s.currentUser || s.lead || {};
+      lid = v.leadId || v.id || v.LeadID || null;
+      email = v.email || v.Email || v.emailAddress || null;
+    } catch(e){}
+    try { if (!email && window.SierraSite && window.SierraSite.leadEmail) email = window.SierraSite.leadEmail; } catch(e){}
+    if (!lid)   lid   = urlParam('lid') || urlParam('leadId');
+    if (!email) email = urlParam('em')  || urlParam('email');
+    if (!lid && !email) {
+      var saved = getCookie(SESSION_COOKIE);
+      if (saved) {
+        try { var parsed = JSON.parse(saved); lid = parsed.lid; email = parsed.em; } catch(e){}
+      }
+    } else {
+      setCookie(SESSION_COOKIE, JSON.stringify({ lid: lid, em: email }), COOKIE_DAYS);
+    }
+    return { sierra_lead_id: lid, sierra_email: email };
+  }
+
+  // MLS number detection — Sierra listing pages typically have /listings/{mls}/
+  // or query params. Fallback: data-mls attr, page-title pattern.
+  function detectListingMls() {
+    var path = window.location.pathname;
+    var m = path.match(/\\/listings?\\/([A-Z0-9-]{4,})/i) ||
+            path.match(/\\/mls\\/([A-Z0-9-]{4,})/i) ||
+            path.match(/\\/property\\/([A-Z0-9-]{4,})/i);
+    if (m) return m[1];
+    var qs = urlParam('mls') || urlParam('mlsNumber') || urlParam('listingId');
+    if (qs) return qs;
+    var el = document.querySelector('[data-mls],[data-listing-mls]');
+    if (el) return el.getAttribute('data-mls') || el.getAttribute('data-listing-mls');
+    return null;
+  }
+
+  function send(payload) {
+    try {
+      var lead = detectLead();
+      payload.sierra_lead_id = lead.sierra_lead_id;
+      payload.sierra_email = lead.sierra_email;
+      payload.page_url = window.location.href;
+      payload.page_title = document.title;
+      payload.referrer = document.referrer || null;
+      var data = JSON.stringify(payload);
+      if (navigator.sendBeacon) {
+        // sendBeacon is the only reliable way to send on unload.
+        navigator.sendBeacon(BEACON, new Blob([data], { type: 'application/json' }));
+      } else {
+        var xhr = new XMLHttpRequest();
+        xhr.open('POST', BEACON, true);
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.send(data);
+      }
+    } catch(e){}
+  }
+
+  // ----- Page view (immediately on load) -----
+  var startTime = Date.now();
+  var mls = detectListingMls();
+  send({ event_type: mls ? 'listing_view' : 'pageview', listing_mls: mls });
+
+  // ----- Save / favorite clicks -----
+  // Watches the whole document for clicks on anything with "save" or "favorite"
+  // semantics. Captures common Sierra button patterns.
+  document.addEventListener('click', function(e) {
+    var t = e.target;
+    while (t && t !== document.body) {
+      var txt = (t.textContent || '').toLowerCase();
+      var cls = (t.className || '').toLowerCase();
+      var aria = (t.getAttribute && t.getAttribute('aria-label') || '').toLowerCase();
+      if (
+        /favorite|favourite|^save\\b|save listing|save property|save to favorites/i.test(txt) ||
+        /favorite|favourite|save-btn|btn-save|btn-favorite/i.test(cls) ||
+        /favorite|save listing/i.test(aria)
+      ) {
+        send({ event_type: 'save', listing_mls: detectListingMls() });
+        return;
+      }
+      t = t.parentNode;
+    }
+  }, true);
+
+  // ----- Page duration (on tab close / navigation) -----
+  function fireDuration() {
+    var sec = Math.round((Date.now() - startTime) / 1000);
+    if (sec > 0 && sec < 86400) {
+      send({ event_type: 'pageduration', duration_sec: sec, listing_mls: mls });
+    }
+  }
+  window.addEventListener('beforeunload', fireDuration);
+  window.addEventListener('pagehide', fireDuration);
+})();`
+}
 
 async function start() {
   await initDb()
@@ -70,7 +199,22 @@ async function start() {
   app.use('/api/email', emailRouter)
   app.use('/api/lists', listsRouter)
   app.use('/api/templates', templatesRouter)
+  app.use('/api/track', trackingRouter)
   app.use('/api/seed', seedRouter)
+
+  // Start the in-memory tracking beacon flush timer (writes buffered events
+  // to the DB every 10s in a single batch — see routes/tracking.js).
+  startTrackingFlushTimer()
+
+  // Public tracking snippet — served as JS so Sierra's tracking-code area
+  // can load it with a single <script src="..."> tag. Inline to avoid an
+  // extra file to deploy. Cached for 5 minutes.
+  app.get('/track.js', (req, res) => {
+    const beaconUrl = `${req.protocol}://${req.get('host')}/api/track/beacon`
+    res.set('Content-Type', 'application/javascript; charset=utf-8')
+    res.set('Cache-Control', 'public, max-age=300')
+    res.send(getTrackingSnippet(beaconUrl))
+  })
 
   // Activity log — supports filtering by entity_type, action, since (ISO date), search
   app.get('/api/activity', (req, res) => {

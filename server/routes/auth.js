@@ -67,6 +67,8 @@ export function requireAuth(req, res, next) {
   if (req.path === '/api/db-status') return next() // public diagnostics
   if (req.path === '/api/health') return next() // Render health probe — must be unauth
   if (req.path === '/api/sierra/webhook') return next() // Sierra calls this
+  if (req.path === '/api/track/beacon') return next() // tracking pixel beacons (public)
+  if (req.path === '/track.js') return next() // tracking snippet served to public sites
   if (!req.path.startsWith('/api/')) return next()
   const token = req.headers['x-auth-token']
   if (verifyToken(token)) return next()

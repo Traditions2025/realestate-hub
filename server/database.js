@@ -617,6 +617,32 @@ export async function initDb() {
   `)
 
   // =============================================
+  // LEAD ACTIVITY (tracking pixel beacons from mattsmithteam.com)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lead_activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      sierra_lead_id INTEGER,
+      sierra_email TEXT,
+      event_type TEXT NOT NULL,
+      page_url TEXT,
+      page_title TEXT,
+      referrer TEXT,
+      listing_mls TEXT,
+      duration_sec INTEGER,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (client_id) REFERENCES clients(id)
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_client    ON lead_activity(client_id, created_at DESC)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_sierra    ON lead_activity(sierra_lead_id, created_at DESC)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_created   ON lead_activity(created_at DESC)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_listing   ON lead_activity(listing_mls, created_at DESC)')
+
+  // =============================================
   // SHOWINGS
   // =============================================
   db.run(`

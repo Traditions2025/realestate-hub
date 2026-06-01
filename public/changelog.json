@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-05-27T21:50:15.682Z",
-  "count": 166,
+  "generated_at": "2026-06-01T20:27:36.510Z",
+  "count": 167,
   "entries": [
+    {
+      "hash": "9b34d7c",
+      "date": "2026-05-27T16:50:33-05:00",
+      "subject": "Daily per-person task reminder emails at 9 AM CT",
+      "title": "Daily per-person task reminder emails at 9 AM CT",
+      "body": "New server/daily-reminders.js module that runs alongside the existing\n9 AM TC digest. For each team member (Matt, Leo), sends a personal\nemail with:\n  - Tasks due today assigned to THEM only (priority + category)\n  - Transaction deadlines due today (shared across the team)\n  - Any unassigned tasks (surfaced to BOTH so nothing slips through)\n\nRouting matches user spec:\n  - Tasks assigned to \"Matt\"   -> Matt's email only\n  - Tasks assigned to \"Leo\"    -> Leo's email only\n  - Tasks unassigned           -> BOTH\n  - Transaction deadlines      -> BOTH\n\nIdempotent via daily_reminder_log unique(date, recipient). The morning\nslot in checkDigestTick fires sendDailyReminders() right after the\nTC digest succeeds. Recipients also get logged to email_log so the\nsends are visible on Updates -> Email Log.\n\nSkips the email entirely if a person has zero tasks AND zero shared\ndeadlines today (no noise on quiet days).\n\nNew endpoint POST /api/reminders/run-now to manually re-send today's\nreminders (useful if SendGrid hiccups at 9 AM, or for testing format).\nrunDailyRemindersNow() exported from scheduler.js the same way the\nexisting runDigestNow / runIncrementalNow helpers work.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bb6d88d",
       "date": "2026-05-21T11:51:45-05:00",

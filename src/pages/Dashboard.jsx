@@ -16,6 +16,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false) // never show full-page loader if we have cached data
   const [refreshing, setRefreshing] = useState(false)
   const [syncing, setSyncing] = useState(false)
+  const [leadActivity, setLeadActivity] = useState([])
 
   const load = () => {
     setRefreshing(true)
@@ -27,7 +28,17 @@ export default function Dashboard() {
     }).catch(() => { setLoading(false); setRefreshing(false) })
   }
 
-  useEffect(() => { load() }, [])
+  const loadLeadActivity = () => {
+    authFetch('/api/track/recent?limit=25').then(r => r.json()).then(rows => {
+      if (Array.isArray(rows)) setLeadActivity(rows)
+    }).catch(() => {})
+  }
+
+  useEffect(() => { load(); loadLeadActivity() }, [])
+  useEffect(() => {
+    const t = setInterval(loadLeadActivity, 30_000)
+    return () => clearInterval(t)
+  }, [])
 
   const syncSierra = async () => {
     setSyncing(true)
@@ -247,6 +258,48 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Live Lead Activity — from mattsmithteam.com tracking pixel */}
+        <div className="card">
+          <div className="card-header">
+            <h3>Live Lead Activity</h3>
+            <span style={{fontSize: 11, color: 'var(--text-muted)'}}>auto-refresh 30s · last {leadActivity.length}</span>
+          </div>
+          <div className="card-body">
+            {leadActivity.length === 0 ? (
+              <p className="empty-state">No tracked activity yet. Paste the snippet into Sierra (see Updates → Bulk Tools).</p>
+            ) : (
+              <div className="activity-feed">
+                {leadActivity.map(a => {
+                  const who = a.first_name ? `${a.first_name} ${a.last_name || ''}` : (a.sierra_lead_id ? `Lead #${a.sierra_lead_id}` : 'Anonymous')
+                  const eventLabel = {
+                    pageview: '👁 page view',
+                    listing_view: '🏠 listing view',
+                    save: '⭐ saved',
+                    pageduration: '⏱ time on page',
+                  }[a.event_type] || a.event_type
+                  return (
+                    <div key={a.id} className="activity-item">
+                      <div className="activity-dot" style={{background: a.event_type === 'save' ? '#f59e0b' : a.event_type === 'listing_view' ? '#3b82f6' : '#6b7280'}}></div>
+                      <div className="activity-content">
+                        <span className="activity-action">
+                          {a.client_id ? <Link to="/clients" style={{color: 'inherit', fontWeight: 600}}>{who}</Link> : who}
+                          {' '}{eventLabel}
+                        </span>
+                        <span className="activity-details">
+                          {a.listing_mls ? `MLS ${a.listing_mls} · ` : ''}
+                          {a.page_title || a.page_url}
+                          {a.duration_sec ? ` · ${a.duration_sec}s` : ''}
+                        </span>
+                        <span className="activity-time">{new Date(a.created_at).toLocaleString()}</span>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </div>

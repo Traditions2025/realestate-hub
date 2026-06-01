@@ -309,6 +309,10 @@ const SORT_OPTIONS = {
   newest_built: 'realist_year_built DESC NULLS LAST',
   oldest_built: 'realist_year_built ASC NULLS LAST',
   highest_last_sale: 'realist_last_sale_price DESC NULLS LAST',
+  // Hub-tracked site activity (last 14 days). Uses a correlated subquery
+  // against lead_activity; with the index on (client_id, created_at) this
+  // is acceptable for the typical clients page size.
+  hub_activity: "(SELECT COUNT(*) FROM lead_activity la WHERE la.client_id = clients.id AND la.created_at >= datetime('now','-14 days')) DESC, sierra_update_date DESC NULLS LAST",
 }
 
 router.get('/', (req, res) => {
