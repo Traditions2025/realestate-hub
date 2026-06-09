@@ -1350,6 +1350,20 @@ export default function Transactions() {
             )
           })()}
 
+          {/* Custom checklist — any transaction, any status. Each item is a
+              row in the tasks table with category='Listing' and a related_id
+              pointing to this transaction. They auto-appear on the Tasks tab
+              under TODO and stay in sync from either side. */}
+          {editing && (
+            <div className="form-section form-full">
+              <h4>📋 Custom Checklist</h4>
+              <p className="muted" style={{margin: '0 0 8px', fontSize: 12}}>
+                Any item you add here also appears on the Tasks tab under TODO (category: Listing).
+              </p>
+              <CustomChecklist transactionId={editing} address={form.property_address} />
+            </div>
+          )}
+
           <div className="form-section form-full">
             <label>Notes<textarea value={form.notes} onChange={e => f('notes', e.target.value)} rows={3} /></label>
           </div>
@@ -1543,6 +1557,115 @@ export default function Transactions() {
           </div>
         </div>
       </Modal>
+    </div>
+  )
+}
+
+// =====================================================================
+// Custom checklist sub-component
+// Renders tasks where related_type='transaction' AND related_id=transactionId.
+// Adding an item creates a new task via /api/tasks; toggling sets status
+// to 'done' or back to 'todo'. The Tasks tab is the source of truth — this
+// is just a focused view for one transaction.
+// =====================================================================
+function CustomChecklist({ transactionId, address }) {
+  const [items, setItems] = useState([])
+  const [newTitle, setNewTitle] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const load = async () => {
+    try {
+      const r = await authFetch(`/api/tasks?related_type=transaction&related_id=${transactionId}`)
+      const data = await r.json()
+      setItems(Array.isArray(data) ? data : [])
+    } catch {}
+  }
+
+  useEffect(() => { if (transactionId) load() }, [transactionId])
+
+  const addItem = async (e) => {
+    e.preventDefault()
+    const title = newTitle.trim()
+    if (!title) return
+    setLoading(true)
+    try {
+      await authFetch('/api/tasks', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          status: 'todo',
+          priority: 'medium',
+          category: 'Listing',
+          related_type: 'transaction',
+          related_id: transactionId,
+          description: address ? `Listing: ${address}` : undefined,
+        }),
+      })
+      setNewTitle('')
+      await load()
+    } catch (err) {
+      alert('Failed to add: ' + err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggle = async (item) => {
+    const newStatus = item.status === 'done' ? 'todo' : 'done'
+    try {
+      await authFetch(`/api/tasks/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus }),
+      })
+      await load()
+    } catch (err) {
+      alert('Failed to update: ' + err.message)
+    }
+  }
+
+  const remove = async (item) => {
+    if (!confirm(`Delete "${item.title}"? (Also removes from Tasks tab.)`)) return
+    try {
+      await authFetch(`/api/tasks/${item.id}`, { method: 'DELETE' })
+      await load()
+    } catch (err) {
+      alert('Failed to delete: ' + err.message)
+    }
+  }
+
+  return (
+    <div>
+      {items.length > 0 && (
+        <div style={{display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10}}>
+          {items.map(it => (
+            <div key={it.id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 4}}>
+              <input type="checkbox" checked={it.status === 'done'} onChange={() => toggle(it)} />
+              <span style={{flex: 1, fontSize: 13, textDecoration: it.status === 'done' ? 'line-through' : 'none', color: it.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)'}}>
+                {it.title}
+              </span>
+              {it.assigned_to && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
+              {it.due_date && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>📅 {it.due_date}</span>}
+              <button type="button" className="btn-sm btn-danger" onClick={() => remove(it)} title="Delete this task">×</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <form onSubmit={addItem} style={{display: 'flex', gap: 6}}>
+        <input
+          type="text"
+          value={newTitle}
+          onChange={e => setNewTitle(e.target.value)}
+          placeholder="Add a custom checklist item..."
+          style={{flex: 1, padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13}}
+          maxLength={200}
+          disabled={loading}
+        />
+        <button type="submit" className="btn btn-secondary" disabled={loading || !newTitle.trim()}>
+          + Add
+        </button>
+      </form>
     </div>
   )
 }

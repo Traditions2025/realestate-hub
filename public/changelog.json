@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-06-01T20:27:36.510Z",
-  "count": 167,
+  "generated_at": "2026-06-09T22:37:23.235Z",
+  "count": 168,
   "entries": [
+    {
+      "hash": "d081d05",
+      "date": "2026-06-01T15:27:59-05:00",
+      "subject": "Lead activity tracking pixel for mattsmithteam.com",
+      "title": "Lead activity tracking pixel for mattsmithteam.com",
+      "body": "Lets a tracking-pixel JS snippet pasted into Sierra Interactive's tracking\ncode area beacon back to the hub so we can see lead behavior in real time\nand rank leads by site engagement.\n\nBackend pieces:\n- New lead_activity table (client_id FK, sierra_lead_id, event_type,\n  page_url, page_title, listing_mls, duration_sec, ip, ua) with indexes\n  on (client_id, created_at) and (created_at) for fast queries.\n- POST /api/track/beacon (UNAUTH, open CORS) accepts beacon events.\n  Buffered in-memory and flushed in bulk every 10s so a 26MB saveDb()\n  isn't fired per page view. On failed flush, batch is re-queued (capped).\n- GET /api/track/activity/:client_id - last N events + summary\n  (pageviews / listing_views / saves / total time on site).\n- GET /api/track/recent - cross-client live feed for the Dashboard.\n- GET /api/track/top-leads - ranked client IDs by recent activity.\n- Auth bypass added for /api/track/beacon and /track.js (must be public).\n\nTracking snippet:\n- Served by GET /track.js so changes don't need a rebuild. 5-min cache.\n- Detects lead via window.siteData/visitor/lead/currentUser (tries every\n  Sierra shape I'm aware of), URL ?lid= / ?em= params, or session cookie.\n- Tracks: pageview (every page), listing_view (when MLS detected in URL\n  or data-mls attr), save (click watcher for \"save\"/\"favorite\" buttons),\n  pageduration (sent via navigator.sendBeacon on tab close).\n- All beacons identify the lead by sierra_lead_id OR sierra_email so we\n  can match against either column in clients.\n\nFrontend pieces:\n- New \"Live Lead Activity\" panel on Dashboard. Auto-refreshes every 30s.\n  Shows last 25 events with color-coded type indicators and clickable\n  client names for matched leads.\n- New sort option on Clients page: \"Most Active on Site (Tracked)\" - uses\n  a 14-day window count from lead_activity to rank.\n- New \"Site Activity\" section in the client detail modal: pageview /\n  listing-view / save counts, total time on site, and a scrollable event\n  list. Only shown if the client has any tracked activity.\n\nTo enable, paste this into Sierra's tracking code area:\n  <script src=\"https://realestate-hub-1rzu.onrender.com/track.js\"></script>\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9b34d7c",
       "date": "2026-05-27T16:50:33-05:00",

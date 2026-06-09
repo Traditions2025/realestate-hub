@@ -87,7 +87,7 @@ function logActivity(action, entityType, entityId, details) {
 }
 
 router.get('/', (req, res) => {
-  const { status, priority, assigned_to, category } = req.query
+  const { status, priority, assigned_to, category, related_type, related_id } = req.query
   let sql = 'SELECT * FROM tasks WHERE 1=1'
   const params = []
 
@@ -95,6 +95,10 @@ router.get('/', (req, res) => {
   if (priority) { sql += ' AND priority = ?'; params.push(priority) }
   if (assigned_to) { sql += ' AND assigned_to = ?'; params.push(assigned_to) }
   if (category) { sql += ' AND category = ?'; params.push(category) }
+  // Used by the Transactions modal's Custom Checklist sub-component to pull
+  // tasks tied to one specific transaction. related_id is numeric.
+  if (related_type) { sql += ' AND related_type = ?'; params.push(related_type) }
+  if (related_id) { sql += ' AND related_id = ?'; params.push(Number(related_id)) }
 
   sql += ' ORDER BY CASE priority WHEN "high" THEN 1 WHEN "medium" THEN 2 WHEN "low" THEN 3 END, due_date ASC'
   res.json(db.all(sql, params))

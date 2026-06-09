@@ -25,8 +25,10 @@ const navSections = [
     { path: '/calendar', label: 'Calendar', icon: '\u2630' },
   ]},
   { label: 'PIPELINE', items: [
+    // Pre-Listings hidden from nav 2026-06-01 per user request \u2014 Transactions
+    // is now the one tab for all listing states. /pre-listings route still
+    // mounted for direct-URL access to legacy records until migration runs.
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
-    { path: '/pre-listings', label: 'Pre-Listings', icon: '\u2302' },
     { path: '/listings', label: 'Listings', icon: '\u2605' },
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
   ]},
