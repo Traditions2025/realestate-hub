@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-06-09T22:37:23.235Z",
-  "count": 168,
+  "generated_at": "2026-06-09T23:03:51.318Z",
+  "count": 169,
   "entries": [
+    {
+      "hash": "e05b02d",
+      "date": "2026-06-09T17:38:24-05:00",
+      "subject": "Unify pre-listings into Transactions + custom checklist per transaction",
+      "title": "Unify pre-listings into Transactions + custom checklist per transaction",
+      "body": "UX consolidation per user request: one tab for all listing states.\n\n1. Pre-Listings hidden from the sidebar nav. The /pre-listings route is\n   still mounted so existing data is reachable by direct URL until we\n   ship the migration tool (next commit). No data deleted or moved.\n\n2. New \"Custom Checklist\" section in the transaction edit modal. Works\n   on any transaction in any status. Each item creates a row in the\n   tasks table with category='Listing', status='todo', related_type=\n   'transaction', related_id=<this tx>. Items show on the Tasks tab\n   under TODO automatically (since the kanban already shows todo tasks),\n   filterable by category=Listing.\n\n3. CustomChecklist sub-component handles add / toggle (done <-> todo) /\n   delete. Calls the existing /api/tasks endpoints, single source of\n   truth. Mark an item done in the modal -> it moves to the DONE column\n   on the Tasks board next refresh.\n\n4. Backend GET /api/tasks now accepts related_type and related_id query\n   params so the modal can pull just this transaction's tasks\n   (idempotent, additive - other callers unaffected).\n\nNext commit will be a one-click migration tool to move existing\npre_listings rows into transactions with status='Pre-Listing'.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d081d05",
       "date": "2026-06-01T15:27:59-05:00",

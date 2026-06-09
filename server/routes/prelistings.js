@@ -223,6 +223,138 @@ router.post('/cleanup', (req, res) => {
   }
 })
 
+// =============================================================
+// MIGRATE pre_listings rows -> transactions with status='Pre-Listing'.
+// One-time consolidation per user request 2026-06-01.
+//
+// Body: { dry_run?: boolean }
+//
+// For each pre_listing not already represented as a transaction (matched
+// by normalized address), creates a transaction row with:
+//   - property_address, property_status='Pre-Listing', type='listing'
+//   - seller_name from owner_name, notes from notes
+// Then for each TRUE checkbox in the source pre_listing, creates a task
+// with category='Listing', related_type='transaction', related_id=new tx id.
+//
+// SAFE: source pre_listings rows are NOT deleted. They stay until the user
+// confirms the migration. We just mark them with status='Migrated' so they
+// drop out of the active pre-listings view.
+// =============================================================
+router.post('/migrate-to-transactions', (req, res) => {
+  try {
+    const dryRun = !!(req.body && req.body.dry_run)
+    const CHECKLIST_LABELS = {
+      marketing_materials_sent: 'Marketing Materials Sent',
+      seller_discovery_form:    'Send Google Form "Home Seller Discovery Questions"',
+      cma:                      'CMA',
+      seller_netsheet:          'Seller Netsheet',
+      loop_created:             'Loop Created',
+      listing_contract_signed:  'Listing Contract Signed',
+      getting_home_ready:       'Getting Your Home Ready',
+      schedule_photoshoot:      'Schedule Professional Photoshoot',
+      get_spare_keys:           'Get Spare Keys',
+      install_lockbox:          'Install Lockbox',
+      install_signs:            'Install For Sale Signs',
+      written_description:     'Written Property Description',
+      coming_soon_post:         'Coming Soon Post (24 Hrs Before)',
+      coming_soon_email:        'Coming Soon Email (24 Hrs Before)',
+      listing_submitted_mls:    'Listing Submitted in MLS',
+      posted_social_media:      'Posted on Social Media',
+    }
+
+    // Skip already-migrated, withdrawn, cancelled, or pre-listings that match
+    // an existing active transaction.
+    const SKIP_STATUSES = new Set(['Migrated', 'Withdrawn', 'Cancelled', 'Listed'])
+    const pls = db.all('SELECT * FROM pre_listings WHERE status NOT IN (?,?,?,?)',
+      ['Migrated', 'Withdrawn', 'Cancelled', 'Listed'])
+
+    // Index existing transactions by normalized address so we skip duplicates.
+    const existingTxByAddr = new Map()
+    for (const tx of db.all('SELECT id, property_address, property_status FROM transactions')) {
+      const k = normalizeAddress(tx.property_address)
+      if (k) existingTxByAddr.set(k, tx)
+    }
+
+    const report = []
+    let created = 0, skipped = 0, tasksCreated = 0
+
+    for (const pl of pls) {
+      const norm = normalizeAddress(pl.property_address)
+      const existing = norm ? existingTxByAddr.get(norm) : null
+      if (existing) {
+        report.push({
+          source_id: pl.id,
+          address: pl.property_address,
+          action: 'skip',
+          reason: `address already exists as transaction #${existing.id} (status: ${existing.property_status})`,
+        })
+        skipped++
+        continue
+      }
+
+      if (dryRun) {
+        const checklistItemsToCreate = Object.keys(CHECKLIST_LABELS).filter(k => !pl[k]).map(k => CHECKLIST_LABELS[k])
+        report.push({
+          source_id: pl.id,
+          address: pl.property_address,
+          owner_name: pl.owner_name,
+          action: 'would-create',
+          would_create_tasks: checklistItemsToCreate.length,
+        })
+        created++
+        continue
+      }
+
+      // EXECUTE — create transaction, copy checklist as tasks.
+      const txResult = db.run(
+        `INSERT INTO transactions (property_address, property_status, type, seller_name, notes, created_at)
+         VALUES (?, 'Pre-Listing', 'listing', ?, ?, datetime('now'))`,
+        [pl.property_address, pl.owner_name || null, pl.notes || null])
+      const newTxId = txResult.lastInsertRowid
+      created++
+
+      // For each UNCHECKED checklist item in the source, create a task so
+      // remaining work shows up. CHECKED items represent completed work that
+      // we don't need to re-track.
+      let tasksForThisPL = 0
+      for (const [col, label] of Object.entries(CHECKLIST_LABELS)) {
+        if (pl[col]) continue  // checkbox was already checked — done, skip
+        db.run(
+          `INSERT INTO tasks (title, status, priority, category, related_type, related_id, description, created_at)
+           VALUES (?, 'todo', 'medium', 'Listing', 'transaction', ?, ?, datetime('now'))`,
+          [label, newTxId, `Pre-listing checklist: ${pl.property_address}`])
+        tasksForThisPL++
+        tasksCreated++
+      }
+
+      // Mark source as migrated (NOT deleted)
+      db.run("UPDATE pre_listings SET status = 'Migrated', updated_at = datetime('now') WHERE id = ?", [pl.id])
+      logActivity('migrated_to_transaction', 'pre_listing', pl.id,
+        `Migrated to transaction #${newTxId} (${tasksForThisPL} open tasks created)`)
+
+      report.push({
+        source_id: pl.id,
+        address: pl.property_address,
+        owner_name: pl.owner_name,
+        action: 'migrated',
+        new_transaction_id: newTxId,
+        tasks_created: tasksForThisPL,
+      })
+    }
+
+    res.json({
+      dry_run: dryRun,
+      total_source: pls.length,
+      created,
+      skipped,
+      tasks_created: tasksCreated,
+      report,
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
+})
+
 // DISABLED 2026-05-14. The hub is the master file for pre-listings; we do
 // not pull from the Google Sheet anymore. Per user direction (and yes, the
 // dedup logic was already in place — but the user has stated the hub is the

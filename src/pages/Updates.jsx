@@ -465,6 +465,86 @@ function EmailLog() {
 // =====================================================
 // PAGE WITH TABS
 // =====================================================
+// One-click consolidation: pre_listings rows -> transactions w/ status=Pre-Listing
+function MigratePreListings() {
+  const [running, setRunning] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+
+  const run = async (dry_run) => {
+    setRunning(true); setError(null); setResult(null)
+    try {
+      const r = await authFetch('/api/pre-listings/migrate-to-transactions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dry_run }),
+      })
+      const data = await r.json()
+      if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`)
+      setResult(data)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div style={{padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16}}>
+      <h3 style={{margin: '0 0 10px'}}>Migrate pre-listings into Transactions</h3>
+      <p style={{margin: '0 0 12px', fontSize: 13, color: 'var(--text-muted)'}}>
+        Moves each existing pre-listing into the Transactions tab with status=<strong>Pre-Listing</strong>.
+        Unchecked pre-listing checklist items become open tasks (category: Listing) linked to the new transaction.
+        Source pre_listings rows are marked <strong>Migrated</strong> (not deleted) so nothing is lost.
+        Skips any pre-listing whose address already exists as a transaction.
+      </p>
+      <div style={{display: 'flex', gap: 8}}>
+        <button className="btn btn-secondary" onClick={() => run(true)} disabled={running}>{running ? 'Running…' : 'Preview (dry run)'}</button>
+        <button className="btn btn-primary" onClick={() => { if (confirm('Migrate all pre-listings into Transactions? Source rows will be marked Migrated.')) run(false) }} disabled={running}>
+          {running ? 'Running…' : 'Run migration'}
+        </button>
+      </div>
+
+      {error && <div style={{padding: 12, marginTop: 12, background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', borderRadius: 6}}>Error: {error}</div>}
+
+      {result && (
+        <div style={{marginTop: 14, padding: 12, background: 'var(--bg-elevated)', borderRadius: 6}}>
+          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 10}}>
+            <span>📋 <strong>{result.total_source}</strong> source pre-listings</span>
+            <span style={{color: '#10b981'}}>✅ <strong>{result.created}</strong> {result.dry_run ? 'would migrate' : 'migrated'}</span>
+            <span style={{color: '#f59e0b'}}>⏭ <strong>{result.skipped}</strong> skipped (already in transactions)</span>
+            {!result.dry_run && <span>📌 <strong>{result.tasks_created}</strong> tasks created</span>}
+          </div>
+          <table style={{width: '100%', fontSize: 12, borderCollapse: 'collapse'}}>
+            <thead><tr style={{textAlign: 'left', borderBottom: '1px solid var(--border)'}}>
+              <th style={{padding: 6}}>Address</th>
+              <th style={{padding: 6}}>Owner</th>
+              <th style={{padding: 6}}>Action</th>
+              <th style={{padding: 6}}>Detail</th>
+            </tr></thead>
+            <tbody>
+              {result.report.map((r, i) => (
+                <tr key={i} style={{borderBottom: '1px solid var(--border)'}}>
+                  <td style={{padding: 6}}>{r.address}</td>
+                  <td style={{padding: 6}}>{r.owner_name || '—'}</td>
+                  <td style={{padding: 6}}>
+                    {r.action === 'migrated'    && <span style={{color: '#10b981'}}>migrated → tx #{r.new_transaction_id}</span>}
+                    {r.action === 'would-create'&& <span style={{color: '#3b82f6'}}>would create</span>}
+                    {r.action === 'skip'        && <span style={{color: '#f59e0b'}}>skipped</span>}
+                  </td>
+                  <td style={{padding: 6, color: 'var(--text-muted)', fontSize: 11}}>
+                    {r.tasks_created !== undefined ? `${r.tasks_created} open tasks` : (r.would_create_tasks !== undefined ? `${r.would_create_tasks} tasks would be created` : r.reason)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function BulkTagFromSheet() {
   const [form, setForm] = useState({
     sheet_id: '1i0p9ux3_4pluE24ioBajqTBZ2SqFkM6qtu7pofDDaJc',
@@ -598,7 +678,7 @@ export default function Updates() {
       {tab === 'hub' && <HubUpdates />}
       {tab === 'activity' && <ActivityLog />}
       {tab === 'email' && <EmailLog />}
-      {tab === 'bulk' && <BulkTagFromSheet />}
+      {tab === 'bulk' && <><MigratePreListings /><BulkTagFromSheet /></>}
     </div>
   )
 }

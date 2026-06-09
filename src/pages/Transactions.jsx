@@ -471,6 +471,12 @@ export default function Transactions() {
   }
 
   const openNew = () => { setEditing(null); setForm(emptyTx); setExtractResult(null); setModalOpen(true) }
+  const openNewPreListing = () => {
+    setEditing(null)
+    setForm({ ...emptyTx, type: 'listing', property_status: 'Pre-Listing' })
+    setExtractResult(null)
+    setModalOpen(true)
+  }
   const openEdit = (item) => {
     setExtractResult(null)
     setEditing(item.id)
@@ -566,6 +572,9 @@ export default function Transactions() {
           <p className="page-subtitle">Hub is the source of truth. Edit directly here.</p>
         </div>
         <div className="header-actions">
+          <button className="btn btn-secondary" onClick={openNewPreListing} title="Quick-add a new pre-listing (sets type=listing, status=Pre-Listing)">
+            + New Pre-Listing
+          </button>
           <button className="btn btn-primary" onClick={openNew}>+ New Transaction</button>
         </div>
       </div>
@@ -1571,6 +1580,7 @@ export default function Transactions() {
 function CustomChecklist({ transactionId, address }) {
   const [items, setItems] = useState([])
   const [newTitle, setNewTitle] = useState('')
+  const [newDueDate, setNewDueDate] = useState('')
   const [loading, setLoading] = useState(false)
 
   const load = async () => {
@@ -1599,15 +1609,30 @@ function CustomChecklist({ transactionId, address }) {
           category: 'Listing',
           related_type: 'transaction',
           related_id: transactionId,
+          due_date: newDueDate || undefined,
           description: address ? `Listing: ${address}` : undefined,
         }),
       })
       setNewTitle('')
+      setNewDueDate('')
       await load()
     } catch (err) {
       alert('Failed to add: ' + err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const updateDate = async (item, newDate) => {
+    try {
+      await authFetch(`/api/tasks/${item.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ due_date: newDate || null }),
+      })
+      await load()
+    } catch (err) {
+      alert('Failed to update date: ' + err.message)
     }
   }
 
@@ -1635,21 +1660,38 @@ function CustomChecklist({ transactionId, address }) {
     }
   }
 
+  const today = new Date().toISOString().slice(0, 10)
   return (
     <div>
       {items.length > 0 && (
         <div style={{display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10}}>
-          {items.map(it => (
-            <div key={it.id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 4}}>
-              <input type="checkbox" checked={it.status === 'done'} onChange={() => toggle(it)} />
-              <span style={{flex: 1, fontSize: 13, textDecoration: it.status === 'done' ? 'line-through' : 'none', color: it.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)'}}>
-                {it.title}
-              </span>
-              {it.assigned_to && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
-              {it.due_date && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>📅 {it.due_date}</span>}
-              <button type="button" className="btn-sm btn-danger" onClick={() => remove(it)} title="Delete this task">×</button>
-            </div>
-          ))}
+          {items.map(it => {
+            const overdue = it.due_date && it.due_date < today && it.status !== 'done'
+            return (
+              <div key={it.id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 4}}>
+                <input type="checkbox" checked={it.status === 'done'} onChange={() => toggle(it)} />
+                <span style={{flex: 1, fontSize: 13, textDecoration: it.status === 'done' ? 'line-through' : 'none', color: it.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)'}}>
+                  {it.title}
+                </span>
+                {it.assigned_to && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
+                <input
+                  type="date"
+                  value={it.due_date || ''}
+                  onChange={e => updateDate(it, e.target.value)}
+                  title={overdue ? 'Overdue' : 'Due date'}
+                  style={{
+                    fontSize: 11,
+                    padding: '2px 6px',
+                    border: `1px solid ${overdue ? '#ef4444' : 'var(--border)'}`,
+                    borderRadius: 3,
+                    background: 'var(--bg-secondary)',
+                    color: overdue ? '#ef4444' : 'var(--text-primary)',
+                  }}
+                />
+                <button type="button" className="btn-sm btn-danger" onClick={() => remove(it)} title="Delete this task">×</button>
+              </div>
+            )
+          })}
         </div>
       )}
       <form onSubmit={addItem} style={{display: 'flex', gap: 6}}>
@@ -1660,6 +1702,14 @@ function CustomChecklist({ transactionId, address }) {
           placeholder="Add a custom checklist item..."
           style={{flex: 1, padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13}}
           maxLength={200}
+          disabled={loading}
+        />
+        <input
+          type="date"
+          value={newDueDate}
+          onChange={e => setNewDueDate(e.target.value)}
+          title="Optional due date"
+          style={{padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13}}
           disabled={loading}
         />
         <button type="submit" className="btn btn-secondary" disabled={loading || !newTitle.trim()}>
