@@ -83,36 +83,52 @@ async function syncSierraIncremental() {
       { name: 'created', filter: 'leadCreationDateFrom', value: sinceFormattedDateOnly },
     ]
 
-    for (const pass of passes) {
-      let page = 1
-      let hasMore = true
-      while (hasMore) {
-        const result = await sierraGet('/leads/find', {
-          [pass.filter]: pass.value,
-          includeSavedSearches: 'true',
-          includeTags: 'true',
-          pageSize: 100,
-          pageNumber: page,
-        })
+    // ---- BULK MODE (added 2026-07-07) ----
+    // Each processLead() does one upsert = one db.run(). Without bulk mode
+    // every single lead triggers a full ~40 MB saveDb(), so a sync touching
+    // 100 leads froze the event loop for 14-23s (the "saveDb storm"). Bulk
+    // mode defers the disk write so ALL upserts in this sync flush as ONE
+    // atomic save via endBulk(). Safe now that saveDb() is atomic (temp file
+    // + rename) — the exact pairing that was missing on 2026-05-20.
+    // The try/finally guarantees we ALWAYS exit bulk mode; leaving it on
+    // would silently stop the whole app from persisting any writes.
+    db.beginBulk?.()
+    try {
+      for (const pass of passes) {
+        let page = 1
+        let hasMore = true
+        while (hasMore) {
+          const result = await sierraGet('/leads/find', {
+            [pass.filter]: pass.value,
+            includeSavedSearches: 'true',
+            includeTags: 'true',
+            pageSize: 100,
+            pageNumber: page,
+          })
 
-        const responseData = result.data || result
-        const leads = responseData.leads || []
-        if (!leads.length) break
+          const responseData = result.data || result
+          const leads = responseData.leads || []
+          if (!leads.length) break
 
-        for (const lead of leads) {
-          const r = processLead(lead)
-          if (r === 'added') added++
-          else if (r === 'updated') updated++
-          if (r) total++
+          for (const lead of leads) {
+            const r = processLead(lead)
+            if (r === 'added') added++
+            else if (r === 'updated') updated++
+            if (r) total++
+          }
+
+          const totalPages = responseData.totalPages || 1
+          if (page >= totalPages) hasMore = false
+          else page++
+          if (page > 50) break
         }
-
-        const totalPages = responseData.totalPages || 1
-        if (page >= totalPages) hasMore = false
-        else page++
-        if (page > 50) break
       }
+    } finally {
+      db.endBulk?.()  // single atomic save of every lead upserted this sync
     }
 
+    // Advance the "since" pointer. Runs as its own normal atomic save so the
+    // pointer is always persisted independently of the bulk lead batch.
     db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)',
       ['incremental', total, added, updated])
 

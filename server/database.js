@@ -1,5 +1,5 @@
 import initSqlJs from 'sql.js'
-import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, copyFileSync } from 'fs'
+import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, copyFileSync, openSync, fsyncSync, closeSync, unlinkSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 
@@ -1165,12 +1165,31 @@ export function inBulkMode() { return _bulkMode }
 let saveErrorLogged = false
 export function saveDb() {
   if (!db) return
+  const tmpPath = `${DB_PATH}.tmp`
   try {
     const data = db.export()
     const buffer = Buffer.from(data)
-    writeFileSync(DB_PATH, buffer)
+    // ---- ATOMIC SAVE (added 2026-07-07) ----
+    // Write the full DB to a temp file, force it to physical disk (fsync),
+    // then atomically rename it over the live file. A crash or interruption
+    // mid-write can now only ever leave a stray `.tmp` file — the real
+    // realestate-hub.db is swapped in a single filesystem operation and is
+    // NEVER observed half-written. This is the missing safeguard behind the
+    // 2026-05-20 corruption, where a direct writeFileSync onto the live file
+    // could truncate it if the process died mid-write. This makes it safe to
+    // batch writes with beginBulk()/endBulk() on scheduled syncs.
+    const fd = openSync(tmpPath, 'w')
+    try {
+      writeFileSync(fd, buffer)
+      fsyncSync(fd)            // flush bytes to disk BEFORE the rename
+    } finally {
+      closeSync(fd)
+    }
+    renameSync(tmpPath, DB_PATH)  // atomic on the same filesystem (/data)
     saveErrorLogged = false
   } catch (e) {
+    // Clean up a partial temp file so it can't be mistaken for a real DB.
+    try { if (existsSync(tmpPath)) unlinkSync(tmpPath) } catch {}
     if (!saveErrorLogged) {
       console.error(`[db] CRITICAL: Failed to save DB to ${DB_PATH}: ${e.message}`)
       console.error(`[db] Your data will be lost on restart. Check that DB_DIR=${DB_DIR} is writable.`)
