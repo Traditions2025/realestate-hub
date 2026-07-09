@@ -8,6 +8,28 @@ import EmailToolbar from '../components/EmailToolbar'
 const statusOptions = ['Active', 'Under Contract', 'Pending', 'Clear to Close', 'Closed', 'Pre-Listing', 'Withdrawn', 'Expired', 'Cancelled']
 const financeTypes = ['Conventional', 'FHA', 'VA', 'USDA', 'Cash', 'Other']
 
+// Pre-listing prep/marketing checklist (columns on the pre_listings table).
+// Shown in the pre-listing popup so a pre-listing opens like any other card
+// instead of redirecting to the (now removed) Pre-Listing Pipeline page.
+const preListingChecklist = [
+  ['marketing_materials_sent', 'Marketing Materials Sent'],
+  ['seller_discovery_form', 'Send Google Form "Home Seller Discovery Questions"'],
+  ['cma', 'CMA'],
+  ['seller_netsheet', 'Seller Netsheet'],
+  ['loop_created', 'Loop Created'],
+  ['listing_contract_signed', 'Listing Contract Signed'],
+  ['getting_home_ready', 'Getting Your Home Ready'],
+  ['schedule_photoshoot', 'Schedule Professional Photoshoot'],
+  ['get_spare_keys', 'Get Spare Keys'],
+  ['install_lockbox', 'Install Lockbox'],
+  ['install_signs', 'Install For Sale Signs'],
+  ['written_description', 'Written Property Description'],
+  ['coming_soon_post', 'Coming Soon Post (24 Hrs Before)'],
+  ['coming_soon_email', 'Coming Soon Email (24 Hrs Before)'],
+  ['listing_submitted_mls', 'Listing Submitted in MLS'],
+  ['posted_social_media', 'Posted on Social Media'],
+]
+
 const emptyTx = {
   property_address: '', mls_number: '', type: 'purchase', source: '', buyer_name: '',
   buyers_agent_name: '', seller_name: '', sellers_agent_name: '', agency_type: '',
@@ -121,6 +143,9 @@ export default function Transactions() {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
+  // Pre-listing popup (replaces the old redirect to the Pre-Listing Pipeline page)
+  const [plModalOpen, setPlModalOpen] = useState(false)
+  const [plEditing, setPlEditing] = useState(null)
   const [form, setForm] = useState(emptyTx)
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
@@ -486,6 +511,39 @@ export default function Transactions() {
     setModalOpen(true)
   }
 
+  // Open the pre-listing popup (was: redirect to /pre-listings).
+  const openPreListing = (pl) => {
+    setPlEditing({ ...pl })
+    setPlModalOpen(true)
+  }
+  // Toggle a checklist item and persist it immediately.
+  const togglePlCheck = async (key) => {
+    if (!plEditing) return
+    const next = plEditing[key] ? 0 : 1
+    const updated = { ...plEditing, [key]: next }
+    setPlEditing(updated)
+    setPreListings(prev => prev.map(p => p.id === updated.id ? { ...p, [key]: next } : p))
+    try {
+      await authFetch(`/api/pre-listings/${updated.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: next }),
+      })
+    } catch { /* optimistic; a reload will reconcile */ }
+  }
+  // Persist a plain field (address/owner/walkthrough/notes) on blur.
+  const savePlField = async (key, value) => {
+    if (!plEditing) return
+    const updated = { ...plEditing, [key]: value }
+    setPlEditing(updated)
+    setPreListings(prev => prev.map(p => p.id === updated.id ? { ...p, [key]: value } : p))
+    try {
+      await authFetch(`/api/pre-listings/${updated.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ [key]: value }),
+      })
+    } catch {}
+  }
+
   const save = async (e) => {
     e.preventDefault()
     const data = { ...form }
@@ -621,7 +679,7 @@ export default function Transactions() {
                   draggable
                   onDragStart={e => onDragStart(e, 'pl', pl)}
                   onDragEnd={onDragEnd}
-                  onClick={() => window.location.href = '/pre-listings'}
+                  onClick={() => openPreListing(pl)}
                 >
                   <div className="pipeline-card-type">
                     <StatusBadge status="pre_listing" />
@@ -1431,6 +1489,73 @@ export default function Transactions() {
             <button type="submit" className="btn btn-primary">{editing ? 'Update' : 'Create'} Transaction</button>
           </div>
         </form>
+      </Modal>
+
+      {/* Pre-Listing Popup — opens in place of the removed Pre-Listing Pipeline page */}
+      <Modal open={plModalOpen} onClose={() => setPlModalOpen(false)} title="Pre-Listing" wide>
+        {plEditing && (
+          <div className="prelisting-modal">
+            <div className="form-row">
+              <label>Property Address
+                <input value={plEditing.property_address || ''}
+                  onChange={e => setPlEditing({ ...plEditing, property_address: e.target.value })}
+                  onBlur={e => savePlField('property_address', e.target.value)} />
+              </label>
+            </div>
+            <div className="form-row">
+              <label>Owner
+                <input value={plEditing.owner_name || ''}
+                  onChange={e => setPlEditing({ ...plEditing, owner_name: e.target.value })}
+                  onBlur={e => savePlField('owner_name', e.target.value)} />
+              </label>
+              <label>Walkthrough
+                <input value={plEditing.walkthrough || ''}
+                  onChange={e => setPlEditing({ ...plEditing, walkthrough: e.target.value })}
+                  onBlur={e => savePlField('walkthrough', e.target.value)} />
+              </label>
+            </div>
+
+            {(() => {
+              const done = preListingChecklist.filter(([k]) => plEditing[k]).length
+              const pct = Math.round((done / preListingChecklist.length) * 100)
+              return (
+                <div style={{ margin: '12px 0 4px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
+                    <span>Pre-Listing Checklist</span>
+                    <span style={{ color: pct === 100 ? '#10b981' : '#3b82f6' }}>{done}/{preListingChecklist.length} · {pct}%</span>
+                  </div>
+                  <div className="progress-bar" style={{ height: 5 }}>
+                    <div className="progress-fill" style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : '#3b82f6' }}></div>
+                  </div>
+                </div>
+              )
+            })()}
+            <div className="checklist-grid">
+              {preListingChecklist.map(([key, label]) => (
+                <label key={key} className="checklist-item" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '5px 0', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={!!plEditing[key]} onChange={() => togglePlCheck(key)} />
+                  <span style={{ fontSize: 13 }}>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            <div className="form-row" style={{ marginTop: 10 }}>
+              <label style={{ flex: 1 }}>Notes
+                <textarea rows={3} value={plEditing.notes || ''}
+                  onChange={e => setPlEditing({ ...plEditing, notes: e.target.value })}
+                  onBlur={e => savePlField('notes', e.target.value)} />
+              </label>
+            </div>
+
+            <div className="modal-actions" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+              <button type="button" className="btn btn-secondary"
+                onClick={() => { const pl = plEditing; setPlModalOpen(false); promotePreListingToTransaction(pl, 'Active') }}>
+                Promote to Active
+              </button>
+              <button type="button" className="btn btn-primary" onClick={() => setPlModalOpen(false)}>Done</button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Email Composer Modal */}

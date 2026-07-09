@@ -5,7 +5,6 @@ import LoginScreen from './components/LoginScreen'
 // Lazy load pages so initial bundle is smaller
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
-const PreListings = lazy(() => import('./pages/PreListings'))
 const Listings = lazy(() => import('./pages/Listings'))
 const Clients = lazy(() => import('./pages/Clients'))
 const Tasks = lazy(() => import('./pages/Tasks'))
@@ -141,7 +140,6 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/pre-listings" element={<PreListings />} />
             <Route path="/listings" element={<Listings />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/tasks" element={<Tasks />} />
