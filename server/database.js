@@ -863,6 +863,18 @@ export async function initDb() {
   `)
 
   // =============================================
+  // APP SETTINGS (key-value store for runtime config
+  // like the Slack webhook URL — kept OUT of source control)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
+  // =============================================
   // SIERRA SYNC LOG
   // =============================================
   db.run(`
@@ -1246,4 +1258,17 @@ export function run(sql, params = []) {
   return { lastInsertRowid: lastId, changes }
 }
 
-export default { all, get, run, initDb, saveDb, beginBulk, endBulk, inBulkMode, runMigration, checkDbHealth }
+// --- App settings key-value helpers (runtime config, not in source control) ---
+export function getSetting(key, fallback = null) {
+  try {
+    const row = get('SELECT value FROM app_settings WHERE key = ?', [key])
+    return row ? row.value : fallback
+  } catch { return fallback }
+}
+export function setSetting(key, value) {
+  run(`INSERT INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')`,
+    [key, value])
+}
+
+export default { all, get, run, initDb, saveDb, beginBulk, endBulk, inBulkMode, runMigration, checkDbHealth, getSetting, setSetting }

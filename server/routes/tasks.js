@@ -121,6 +121,8 @@ router.post('/', (req, res) => {
   // Notify team — fire-and-forget so HTTP response isn't blocked on SendGrid
   const created = db.get('SELECT * FROM tasks WHERE id = ?', [result.lastInsertRowid])
   notifyTaskChange('created', created, { silent: !!b.silent }).catch(() => {})
+  // Post to Slack #transaction-tasks-deadlines so nothing gets unnoticed
+  if (!b.silent) import('../slack.js').then(m => m.notifyTaskCreated(created)).catch(() => {})
   res.status(201).json({ id: result.lastInsertRowid })
 })
 

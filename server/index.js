@@ -276,6 +276,37 @@ async function start() {
     }
   })
 
+  // Configure the Slack webhook URL at runtime (stored in app_settings, never
+  // in source control). Body: { webhook_url }. Returns whether it's set.
+  app.post('/api/slack/config', (req, res) => {
+    try {
+      const { webhook_url } = req.body || {}
+      if (!webhook_url || !/^https:\/\/hooks\.slack\.com\//.test(webhook_url)) {
+        return res.status(400).json({ error: 'Provide a valid https://hooks.slack.com/... webhook_url' })
+      }
+      db.setSetting('slack_webhook_url', webhook_url)
+      res.json({ ok: true, configured: true })
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+  app.get('/api/slack/config', (_req, res) => {
+    const url = process.env.SLACK_WEBHOOK_URL || db.getSetting('slack_webhook_url')
+    res.json({ configured: !!url, source: process.env.SLACK_WEBHOOK_URL ? 'env' : (url ? 'db' : 'none') })
+  })
+
+  // Manual trigger: fire the Slack transaction-deadline alert right now.
+  // Useful to preview the 10 AM post's formatting on demand.
+  app.post('/api/slack/deadline-now', async (_req, res) => {
+    try {
+      const { runDeadlineAlert } = await import('./slack.js')
+      const result = await runDeadlineAlert()
+      res.json(result)
+    } catch (err) {
+      res.status(500).json({ error: err.message })
+    }
+  })
+
   // Manual backup trigger — run the daily backup right now (useful for testing
   // or for a "make a backup before I do something risky" workflow).
   app.post('/api/backup/now', async (_req, res) => {

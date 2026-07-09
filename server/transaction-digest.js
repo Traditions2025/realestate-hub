@@ -129,7 +129,7 @@ function isTerminal(statusField, value) {
 //   - On cash purchases (type_of_finance === 'Cash'), mortgage-specific
 //     items are skipped (Mortgage contingency, Financing release) since
 //     there's no buyer financing to track.
-function buildActionItems(tx) {
+export function buildActionItems(tx) {
   const today = todayLocal()
   const items = []
   const isCash = String(tx.type_of_finance || '').toLowerCase() === 'cash'

@@ -299,6 +299,39 @@ function chicagoNow() {
   }
 }
 
+// Daily 10 AM CT Slack deadline alert — posts every buy/list transaction whose
+// deadlines are due today or in exactly 3 days to #transaction-tasks-deadlines.
+// Idempotent via digest_log period='slack_deadline' (reuses the same table +
+// UNIQUE(digest_date, period) guard as the email digest).
+const SLACK_DEADLINE_HOUR = 10
+async function checkSlackDeadlineTick() {
+  try {
+    const now = chicagoNow()
+    const minutesPast = (now.hour - SLACK_DEADLINE_HOUR) * 60 + now.minute
+    if (minutesPast < 0 || minutesPast > 5) return
+    const already = db.get(
+      "SELECT id FROM digest_log WHERE digest_date = ? AND period = 'slack_deadline' AND success = 1",
+      [now.date])
+    if (already) return
+    console.log(`[slack] firing deadline alert for ${now.date}`)
+    const { runDeadlineAlert } = await import('./slack.js')
+    const r = await runDeadlineAlert()
+    console.log('[slack] deadline alert:', JSON.stringify(r))
+    // success=1 means "done for today, don't retry": true when we posted OR when
+    // there was simply nothing due. A real post failure (items existed but the
+    // webhook errored) logs success=0 so the next minute-tick retries.
+    const loggedSuccess = r.posted ? 1 : (r.itemCount === 0 ? 1 : 0)
+    try {
+      db.run(
+        `INSERT INTO digest_log (digest_date, period, recipients, transaction_count, action_count, success, error)
+         VALUES (?, 'slack_deadline', '#transaction-tasks-deadlines', ?, ?, ?, ?)`,
+        [now.date, r.txCount || 0, r.itemCount || 0, loggedSuccess, r.posted ? null : (r.reason || 'post failed')])
+    } catch { /* UNIQUE clash = already logged this date, fine */ }
+  } catch (err) {
+    console.error('[slack] deadline tick error:', err.message)
+  }
+}
+
 async function checkDigestTick() {
   try {
     const now = chicagoNow()
@@ -390,6 +423,10 @@ export function startScheduler() {
 
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
   setInterval(checkDigestTick, 60 * 1000)
+
+  // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
+  setInterval(checkSlackDeadlineTick, 60 * 1000)
+  setTimeout(checkSlackDeadlineTick, 50 * 1000)  // also shortly after boot in case we deployed past 10 AM
   // Also run once shortly after boot in case we just deployed past the scheduled time
   setTimeout(checkDigestTick, 45 * 1000)
 
