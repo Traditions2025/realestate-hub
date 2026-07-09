@@ -1025,6 +1025,19 @@ export async function initDb() {
     console.error('[migration] listings.marketing_tasks failed:', e.message)
   }
 
+  // Migration: add marketing_tasks column to pre_listings — the same unified
+  // marketing checklist (JSON) shown in the pre-listing popup and on Active
+  // transactions.
+  try {
+    const cols = db.exec("PRAGMA table_info(pre_listings)")[0]?.values.map(v => v[1]) || []
+    if (!cols.includes('marketing_tasks')) {
+      db.run('ALTER TABLE pre_listings ADD COLUMN marketing_tasks TEXT')
+      console.log('[migration] Added pre_listings.marketing_tasks')
+    }
+  } catch (e) {
+    console.error('[migration] pre_listings.marketing_tasks failed:', e.message)
+  }
+
   // DISABLED 2026-05-11: this migration was permanently failing because its
   // hardcoded new schema (~55 cols) no longer matches the current transactions
   // table (~80+ cols after later ALTER ADD COLUMN migrations). Every failed

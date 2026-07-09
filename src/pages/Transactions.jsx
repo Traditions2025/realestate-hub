@@ -30,47 +30,105 @@ const preListingChecklist = [
   ['posted_social_media', 'Posted on Social Media'],
 ]
 
-// Full marketing checklist (moved here from the retired Listings tab). Shown on
-// a transaction while it is in Pre-Listing or Active status; auto-cleared by the
-// server when the deal moves to Under Contract. Stored as JSON on
-// transactions.marketing_tasks: { taskKey: { done: bool } }.
+// Unified listing marketing/prep checklist — the SAME list shows on a pre-listing
+// (in the pre-listing popup) and on an Active-status transaction. Stored as JSON
+// on pre_listings.marketing_tasks AND transactions.marketing_tasks:
+// { taskKey: { done: bool } }. The server auto-clears a transaction's copy when
+// it moves to Under Contract.
 const MARKETING_TASK_GROUPS = [
-  { stage: 'Pre-Listing Prep', tasks: [
-    ['photos_scheduled', 'Schedule professional photoshoot'],
-    ['photos_taken', 'Photos taken'],
-    ['drone_photos', 'Drone / aerial photos'],
-    ['walkthrough_video', 'Walkthrough video filmed'],
-    ['description_written', 'Listing description written'],
-    ['mls_ready', 'MLS submission ready'],
+  { stage: '1. Listing Setup & Client Onboarding', tasks: [
+    ['create_dotloop_folder', 'Create Dotloop folder'],
+    ['dotloop_listing_agreement', 'Add to Dotloop: Listing Agreement'],
+    ['dotloop_appointed_agency', 'Add to Dotloop: Seller Appointed Agency Agreement'],
+    ['dotloop_seller_disclosure', 'Add to Dotloop: Seller Property Disclosure'],
+    ['dotloop_lead_paint', 'Add to Dotloop: Lead-Based Paint Disclosure (if built before 1978)'],
+    ['dotloop_additional_disclosures', 'Add to Dotloop: Any additional required disclosures'],
+    ['send_discovery_questionnaire', 'Send Home Seller Discovery Questionnaire (Google Form)'],
+    ['send_premarketing', 'Send pre-marketing materials'],
+    ['schedule_walkthrough', 'Schedule listing walkthrough'],
+    ['prepare_cma', 'Prepare and send CMA'],
   ]},
-  { stage: 'Coming Soon (24-48h before active)', tasks: [
-    ['cs_facebook', 'Coming Soon post — Facebook'],
-    ['cs_instagram', 'Coming Soon post — Instagram feed'],
-    ['cs_instagram_story', 'Coming Soon — Instagram Story'],
-    ['cs_email', 'Coming Soon email to database'],
-    ['cs_notify_hot_buyers', 'Notify hot buyer leads (1-on-1)'],
+  { stage: '2. Property Preparation', tasks: [
+    ['schedule_photography', 'Schedule professional photography'],
+    ['schedule_video', 'Schedule video'],
+    ['schedule_drone', 'Schedule drone photography/video (if applicable)'],
+    ['schedule_floorplan', 'Schedule floor plan (if applicable)'],
+    ['coordinate_staging', 'Coordinate staging (if needed)'],
+    ['install_lockbox', 'Install lockbox'],
+    ['lockbox_location_leo', 'Provide lockbox location to Leo'],
+    ['collect_keys', 'Collect all keys from seller'],
+    ['install_yard_sign', 'Install yard sign'],
+    ['install_booties', 'Install booties/shoe covers inside the home'],
   ]},
-  { stage: 'Just Listed / Going Active', tasks: [
-    ['mls_active', 'MLS submitted / Active'],
-    ['sign_installed', 'For Sale sign installed'],
-    ['lockbox_installed', 'Lockbox installed'],
-    ['jl_facebook', 'Just Listed — Facebook'],
-    ['jl_instagram', 'Just Listed — Instagram feed'],
-    ['jl_instagram_reel', 'Just Listed — Instagram Reel/video'],
-    ['jl_youtube', 'Walkthrough video on YouTube'],
-    ['jl_fb_marketplace', 'Posted to Facebook Marketplace'],
-    ['jl_team_website', 'Live on team website (mattsmithteam.com)'],
-    ['jl_blog_post', 'Blog post published on website'],
-    ['jl_email_blast', 'Email blast sent to database'],
-    ['jl_property_flyer', 'Property flyer printed'],
-    ['jl_agent_email', 'Submitted to local agent network'],
+  { stage: '3. MLS Preparation', tasks: [
+    ['write_mls_remarks', 'Write MLS remarks'],
+    ['mls_data_entry', 'Complete MLS data entry'],
+    ['mls_new_listing_sheet', 'Fill out MLS New Listing Sheet'],
+    ['mls_save_incomplete', 'Save MLS listing as Incomplete'],
+    ['mls_upload_photos', 'Upload photos'],
+    ['mls_upload_disclosures', 'Upload disclosures to MLS attachments'],
+    ['mls_verify_accuracy', 'Verify all listing information for accuracy'],
   ]},
-  { stage: 'While Active', tasks: [
-    ['weekly_seller_update', 'Weekly seller update sent'],
-    ['showing_feedback', 'Showing feedback collected'],
-    ['re_share_post', 'Re-share post (week 2+)'],
-    ['price_adjustment_reviewed', 'Price adjustment reviewed'],
-    ['price_reduction_post', 'Price reduction post (if applicable)'],
+  { stage: '4. Showing Setup', tasks: [
+    ['establish_showing_instructions', 'Establish showing instructions'],
+    ['setup_showingtime', 'Set up ShowingTime'],
+    ['configure_showing_instructions', 'Configure: Showing instructions'],
+    ['configure_access_info', 'Configure: Access information'],
+    ['configure_occupancy', 'Configure: Occupancy status'],
+    ['configure_showing_remarks', 'Configure: Showing remarks'],
+    ['configure_seller_notifications', 'Configure: Seller notifications'],
+    ['showingtime_upload_disclosures', 'Upload disclosures to ShowingTime'],
+  ]},
+  { stage: '5. Marketing Preparation', tasks: [
+    ['create_feature_sheet', 'Create feature sheet'],
+    ['obtain_utility_history', 'Obtain utility history from seller'],
+    ['create_blog_post', 'Create blog post for MattSmithTeam.com'],
+    ['prepare_database_email', 'Prepare database email'],
+    ['prepare_social_content', 'Prepare social media content'],
+    ['prepare_youtube_meta', 'Prepare YouTube description, tags, and thumbnails (if applicable)'],
+  ]},
+  { stage: '6. Launch Day', tasks: [
+    ['mls_go_live', 'Make listing live in MLS'],
+    ['email_home_live_seller', 'Email "Your Home Is Now Live" to seller'],
+    ['email_listing_database', 'Email listing to database'],
+    ['post_remax_first_to_know', 'Post to RE/MAX "First to Know"'],
+    ['post_fb_marketplace', 'Post on Facebook Marketplace'],
+    ['share_fb_groups', 'Share in Facebook Groups'],
+    ['publish_blog', 'Publish blog on MattSmithTeam.com'],
+    ['post_facebook', 'Post on Facebook'],
+    ['post_instagram', 'Post on Instagram'],
+    ['post_tiktok', 'Post on TikTok'],
+    ['post_linkedin', 'Post on LinkedIn'],
+    ['post_youtube', 'Post on YouTube (video)'],
+    ['post_youtube_shorts', 'Post on YouTube Shorts (if applicable)'],
+    ['post_instagram_reels', 'Post on Instagram Reels'],
+    ['post_facebook_reels', 'Post on Facebook Reels'],
+  ]},
+  { stage: '7. High-End Listing Marketing (when applicable)', tasks: [
+    ['zillow_showcase', 'Enroll in Zillow Showcase'],
+    ['premium_lifestyle_video', 'Create premium lifestyle video'],
+    ['cinematic_drone', 'Produce cinematic drone footage'],
+    ['luxury_brochure', 'Create luxury property brochure'],
+    ['relocation_campaign', 'Develop relocation marketing campaign'],
+    ['targeted_social_ads', 'Launch targeted social media advertising'],
+  ]},
+  { stage: '8. Condo Listings (additional items)', tasks: [
+    ['condo_hoa_bylaws', 'Obtain/review: HOA Bylaws'],
+    ['condo_ccrs', 'Obtain/review: Covenants, Conditions & Restrictions (CC&Rs)'],
+    ['condo_hoa_rules', 'Obtain/review: HOA Rules & Regulations'],
+    ['condo_hoa_financials', 'Obtain/review: HOA Financial Documents (if available)'],
+    ['condo_hoa_contact', 'Obtain/review: HOA Contact Information'],
+    ['condo_hoa_transfer_fees', 'Obtain/review: HOA Transfer Fees'],
+    ['condo_hoa_dues', 'Obtain/review: HOA Dues'],
+    ['condo_hoa_resale_cert', 'Obtain/review: HOA Resale Certificate (if required)'],
+    ['condo_pet_restrictions', 'Verify: Pet restrictions'],
+    ['condo_rental_restrictions', 'Verify: Rental restrictions'],
+    ['condo_short_term_rental', 'Verify: Short-term rental policy'],
+    ['condo_parking_rules', 'Verify: Parking rules'],
+    ['condo_storage_info', 'Verify: Storage unit information'],
+    ['condo_movein_requirements', 'Verify: Move-in/move-out requirements'],
+    ['condo_special_assessments', 'Verify: Special assessments'],
+    ['condo_amenities', 'Verify: Amenities'],
   ]},
 ]
 const MARKETING_TOTAL = MARKETING_TASK_GROUPS.reduce((s, g) => s + g.tasks.length, 0)
@@ -538,13 +596,11 @@ export default function Transactions() {
   useEffect(() => { load() }, [filter, search])
 
   // Pre-listing checklist items for progress calculation
-  const plChecklist = ['marketing_materials_sent', 'seller_discovery_form', 'cma', 'seller_netsheet',
-    'loop_created', 'listing_contract_signed', 'getting_home_ready', 'schedule_photoshoot',
-    'get_spare_keys', 'install_lockbox', 'install_signs', 'written_description',
-    'coming_soon_post', 'coming_soon_email', 'listing_submitted_mls', 'posted_social_media']
+  // Pre-listing progress now uses the same unified marketing checklist (JSON)
+  // as Active transactions.
   const getPlProgress = (pl) => {
-    const done = plChecklist.filter(k => pl[k]).length
-    return Math.round((done / plChecklist.length) * 100)
+    const done = countMarketingDone(parseTasks(pl.marketing_tasks))
+    return Math.round((done / MARKETING_TOTAL) * 100)
   }
 
   const openNew = () => { setEditing(null); setForm(emptyTx); setExtractResult(null); setModalOpen(true) }
@@ -566,8 +622,24 @@ export default function Transactions() {
 
   // Open the pre-listing popup (was: redirect to /pre-listings).
   const openPreListing = (pl) => {
-    setPlEditing({ ...pl })
+    setPlEditing({ ...pl, marketing_tasks: parseTasks(pl.marketing_tasks) })
     setPlModalOpen(true)
+  }
+  // Toggle a marketing-checklist item on a pre-listing (JSON, same list as
+  // Active transactions) and persist immediately.
+  const togglePlMarketing = async (key) => {
+    if (!plEditing) return
+    const mt = { ...(plEditing.marketing_tasks || {}) }
+    mt[key] = { done: !(mt[key] && mt[key].done) }
+    const updated = { ...plEditing, marketing_tasks: mt }
+    setPlEditing(updated)
+    setPreListings(prev => prev.map(p => p.id === updated.id ? { ...p, marketing_tasks: mt } : p))
+    try {
+      await authFetch(`/api/pre-listings/${updated.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ marketing_tasks: JSON.stringify(mt) }),
+      })
+    } catch {}
   }
   // Toggle a checklist item and persist it immediately.
   const togglePlCheck = async (key) => {
@@ -1605,13 +1677,13 @@ export default function Transactions() {
             </div>
 
             {(() => {
-              const done = preListingChecklist.filter(([k]) => plEditing[k]).length
-              const pct = Math.round((done / preListingChecklist.length) * 100)
+              const done = countMarketingDone(plEditing.marketing_tasks)
+              const pct = Math.round((done / MARKETING_TOTAL) * 100)
               return (
                 <div style={{ margin: '12px 0 4px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13, fontWeight: 600, marginBottom: 6 }}>
-                    <span>Pre-Listing Checklist</span>
-                    <span style={{ color: pct === 100 ? '#10b981' : '#3b82f6' }}>{done}/{preListingChecklist.length} · {pct}%</span>
+                    <span>Marketing Checklist</span>
+                    <span style={{ color: pct === 100 ? '#10b981' : '#3b82f6' }}>{done}/{MARKETING_TOTAL} · {pct}%</span>
                   </div>
                   <div className="progress-bar" style={{ height: 5 }}>
                     <div className="progress-fill" style={{ width: `${pct}%`, backgroundColor: pct === 100 ? '#10b981' : '#3b82f6' }}></div>
@@ -1619,14 +1691,19 @@ export default function Transactions() {
                 </div>
               )
             })()}
-            <div className="checklist-grid">
-              {preListingChecklist.map(([key, label]) => (
-                <label key={key} className="checklist-item" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '5px 0', cursor: 'pointer' }}>
-                  <input type="checkbox" checked={!!plEditing[key]} onChange={() => togglePlCheck(key)} />
-                  <span style={{ fontSize: 13 }}>{label}</span>
-                </label>
-              ))}
-            </div>
+            {MARKETING_TASK_GROUPS.map(group => (
+              <div key={group.stage} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
+                <div className="checklist-grid">
+                  {group.tasks.map(([key, label]) => (
+                    <label key={key} className="checklist-item" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '4px 0', cursor: 'pointer' }}>
+                      <input type="checkbox" checked={!!(plEditing.marketing_tasks?.[key]?.done)} onChange={() => togglePlMarketing(key)} />
+                      <span style={{ fontSize: 13 }}>{label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            ))}
 
             <div className="form-row" style={{ marginTop: 10 }}>
               <label style={{ flex: 1 }}>Notes
