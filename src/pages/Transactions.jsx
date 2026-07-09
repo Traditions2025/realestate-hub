@@ -30,6 +30,57 @@ const preListingChecklist = [
   ['posted_social_media', 'Posted on Social Media'],
 ]
 
+// Full marketing checklist (moved here from the retired Listings tab). Shown on
+// a transaction while it is in Pre-Listing or Active status; auto-cleared by the
+// server when the deal moves to Under Contract. Stored as JSON on
+// transactions.marketing_tasks: { taskKey: { done: bool } }.
+const MARKETING_TASK_GROUPS = [
+  { stage: 'Pre-Listing Prep', tasks: [
+    ['photos_scheduled', 'Schedule professional photoshoot'],
+    ['photos_taken', 'Photos taken'],
+    ['drone_photos', 'Drone / aerial photos'],
+    ['walkthrough_video', 'Walkthrough video filmed'],
+    ['description_written', 'Listing description written'],
+    ['mls_ready', 'MLS submission ready'],
+  ]},
+  { stage: 'Coming Soon (24-48h before active)', tasks: [
+    ['cs_facebook', 'Coming Soon post — Facebook'],
+    ['cs_instagram', 'Coming Soon post — Instagram feed'],
+    ['cs_instagram_story', 'Coming Soon — Instagram Story'],
+    ['cs_email', 'Coming Soon email to database'],
+    ['cs_notify_hot_buyers', 'Notify hot buyer leads (1-on-1)'],
+  ]},
+  { stage: 'Just Listed / Going Active', tasks: [
+    ['mls_active', 'MLS submitted / Active'],
+    ['sign_installed', 'For Sale sign installed'],
+    ['lockbox_installed', 'Lockbox installed'],
+    ['jl_facebook', 'Just Listed — Facebook'],
+    ['jl_instagram', 'Just Listed — Instagram feed'],
+    ['jl_instagram_reel', 'Just Listed — Instagram Reel/video'],
+    ['jl_youtube', 'Walkthrough video on YouTube'],
+    ['jl_fb_marketplace', 'Posted to Facebook Marketplace'],
+    ['jl_team_website', 'Live on team website (mattsmithteam.com)'],
+    ['jl_blog_post', 'Blog post published on website'],
+    ['jl_email_blast', 'Email blast sent to database'],
+    ['jl_property_flyer', 'Property flyer printed'],
+    ['jl_agent_email', 'Submitted to local agent network'],
+  ]},
+  { stage: 'While Active', tasks: [
+    ['weekly_seller_update', 'Weekly seller update sent'],
+    ['showing_feedback', 'Showing feedback collected'],
+    ['re_share_post', 'Re-share post (week 2+)'],
+    ['price_adjustment_reviewed', 'Price adjustment reviewed'],
+    ['price_reduction_post', 'Price reduction post (if applicable)'],
+  ]},
+]
+const MARKETING_TOTAL = MARKETING_TASK_GROUPS.reduce((s, g) => s + g.tasks.length, 0)
+const parseTasks = (v) => {
+  if (!v) return {}
+  if (typeof v === 'object') return v
+  try { return JSON.parse(v) || {} } catch { return {} }
+}
+const countMarketingDone = (obj) => Object.values(obj || {}).filter(t => t && t.done).length
+
 const emptyTx = {
   property_address: '', mls_number: '', type: 'purchase', source: '', buyer_name: '',
   buyers_agent_name: '', seller_name: '', sellers_agent_name: '', agency_type: '',
@@ -63,6 +114,7 @@ const emptyTx = {
   keys_remotes_collected: 0, sign_lockbox_removed: 0,
   commission_received: 0, referral_followup_30day: 0,
   buyer_payment_method: '', financing_release_followup: 0,
+  marketing_tasks: {},
 }
 
 // Dropdown options for document/status fields
@@ -507,6 +559,7 @@ export default function Transactions() {
     setEditing(item.id)
     const f = { ...emptyTx }
     Object.keys(f).forEach(k => { if (item[k] !== undefined && item[k] !== null) f[k] = item[k] })
+    f.marketing_tasks = parseTasks(item.marketing_tasks)  // stored as JSON text
     setForm(f)
     setModalOpen(true)
   }
@@ -551,6 +604,8 @@ export default function Transactions() {
       if (data[k] === '') data[k] = null
       else if (data[k]) data[k] = Number(data[k])
     })
+    // marketing_tasks is a JSON object in the form — persist it as text
+    data.marketing_tasks = JSON.stringify(data.marketing_tasks || {})
     if (editing) await api.updateTransaction(editing, data)
     else await api.createTransaction(data)
     setModalOpen(false)
@@ -569,6 +624,11 @@ export default function Transactions() {
 
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
+  const toggleMarketing = (key) => setForm(prev => {
+    const mt = { ...(prev.marketing_tasks || {}) }
+    mt[key] = { done: !(mt[key] && mt[key].done) }
+    return { ...prev, marketing_tasks: mt }
+  })
 
   // Pipeline groups - Pending merged into Under Contract
   const pipelineStatuses = ['Active', 'Under Contract', 'Clear to Close', 'Closed']
@@ -1455,6 +1515,35 @@ export default function Transactions() {
                   ✉ Custom Recipient
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Marketing checklist — only while Pre-Listing or Active. The server
+              clears it automatically once the deal reaches Under Contract. */}
+          {['Pre-Listing', 'Active'].includes(form.property_status) && (
+            <div className="marketing-section" style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                <h4 style={{ margin: 0 }}>Marketing Checklist</h4>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  {countMarketingDone(form.marketing_tasks)}/{MARKETING_TOTAL} done
+                </span>
+              </div>
+              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+                Clears automatically when this moves to Under Contract.
+              </p>
+              {MARKETING_TASK_GROUPS.map(group => (
+                <div key={group.stage} style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
+                  <div className="checklist-grid">
+                    {group.tasks.map(([key, label]) => (
+                      <label key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!(form.marketing_tasks?.[key]?.done)} onChange={() => toggleMarketing(key)} />
+                        <span style={{ fontSize: 13 }}>{label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 

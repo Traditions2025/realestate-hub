@@ -5,7 +5,6 @@ import LoginScreen from './components/LoginScreen'
 // Lazy load pages so initial bundle is smaller
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
-const Listings = lazy(() => import('./pages/Listings'))
 const Clients = lazy(() => import('./pages/Clients'))
 const Tasks = lazy(() => import('./pages/Tasks'))
 const Projects = lazy(() => import('./pages/Projects'))
@@ -24,11 +23,10 @@ const navSections = [
     { path: '/calendar', label: 'Calendar', icon: '\u2630' },
   ]},
   { label: 'PIPELINE', items: [
-    // Pre-Listings hidden from nav 2026-06-01 per user request \u2014 Transactions
-    // is now the one tab for all listing states. /pre-listings route still
-    // mounted for direct-URL access to legacy records until migration runs.
+    // Transactions is the single tab for all listing states (pre-listing \u2192
+    // active \u2192 under contract \u2192 closed). Pre-Listings page and Listings tab
+    // were retired 2026-07-09 \u2014 everything lives on the Transactions board.
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
-    { path: '/listings', label: 'Listings', icon: '\u2605' },
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
   ]},
   { label: 'WORK', items: [
@@ -140,7 +138,6 @@ export default function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
-            <Route path="/listings" element={<Listings />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/projects" element={<Projects />} />

@@ -303,6 +303,14 @@ router.put('/:id', (req, res) => {
 
   db.run(`UPDATE transactions SET ${sets} WHERE id = ?`, values)
   const txId = Number(req.params.id)
+  // Once a listing reaches Under Contract (or beyond), the pre-listing/active
+  // marketing push is done — clear its marketing checklist automatically,
+  // unless the caller explicitly set marketing_tasks in this same update.
+  if (fields.property_status &&
+      ['Under Contract', 'Pending', 'Clear to Close', 'Closed'].includes(fields.property_status) &&
+      !('marketing_tasks' in fields)) {
+    db.run("UPDATE transactions SET marketing_tasks = '{}' WHERE id = ?", [txId])
+  }
   logActivity('updated', 'transaction', txId, 'Updated transaction')
   // Mirror the change into Listings tab (creates or updates the linked listing)
   syncListingFromTransaction(txId)

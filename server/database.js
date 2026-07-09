@@ -999,6 +999,10 @@ export async function initDb() {
       ['final_walkthrough_confirmed', 'INTEGER DEFAULT 0'],
       // 2026-05-13 buyer financing approval status (separate from financing_release)
       ['financing_status', 'TEXT'],
+      // 2026-07-09 marketing checklist on the transaction (consolidated from the
+      // retired Listings tab). JSON: { taskKey: { done: bool } }. Auto-cleared
+      // when the transaction moves to Under Contract.
+      ['marketing_tasks', 'TEXT'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {
