@@ -67,6 +67,15 @@ export default function Dashboard() {
 
   const fmt = (n) => n ? `$${Number(n).toLocaleString()}` : '$0'
 
+  // Show the client we actually represent: buyer's name on purchases (we're the
+  // buyer's agent), seller's name on listings (we're the listing agent).
+  const representedClient = (t) => {
+    if (t.type === 'listing') return t.seller_name || t.client_name || t.buyer_name || 'No client'
+    if (t.type === 'purchase') return t.buyer_name || t.client_name || t.seller_name || 'No client'
+    // 'both' or unspecified — show whatever name we have
+    return t.buyer_name || t.seller_name || t.client_name || 'No client'
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -166,7 +175,7 @@ export default function Dashboard() {
                   <div key={t.id} className="mini-row">
                     <div className="mini-row-main">
                       <span className="mini-row-title">{t.property_address}</span>
-                      <span className="mini-row-sub">{t.buyer_name || t.seller_name || 'No client'}</span>
+                      <span className="mini-row-sub">{representedClient(t)}</span>
                     </div>
                     <div className="mini-row-meta">
                       <StatusBadge status={t.property_status?.toLowerCase().replace(/ /g, '_')} />
