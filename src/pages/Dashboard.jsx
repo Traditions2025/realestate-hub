@@ -67,12 +67,21 @@ export default function Dashboard() {
 
   const fmt = (n) => n ? `$${Number(n).toLocaleString()}` : '$0'
 
-  // Show the client we actually represent: buyer's name on purchases (we're the
-  // buyer's agent), seller's name on listings (we're the listing agent).
+  // Show the client we actually represent, driven by the agency_type chosen on
+  // the transaction (Buyer's Agent / Listing Agent / Dual Agent). Whoever we
+  // represent is the name shown. Handles legacy spellings ("Buyers Agent",
+  // "Dual Agency"). Falls back to deal type, then any available name.
   const representedClient = (t) => {
-    if (t.type === 'listing') return t.seller_name || t.client_name || t.buyer_name || 'No client'
-    if (t.type === 'purchase') return t.buyer_name || t.client_name || t.seller_name || 'No client'
-    // 'both' or unspecified — show whatever name we have
+    const a = (t.agency_type || '').toLowerCase()
+    if (a.includes('dual') || a.includes('both')) {
+      const both = [t.seller_name, t.buyer_name].filter(Boolean).join(' / ')
+      return both || t.client_name || 'No client'
+    }
+    if (a.includes('listing') || a.includes('seller')) return t.seller_name || t.client_name || t.buyer_name || 'No client'
+    if (a.includes('buyer')) return t.buyer_name || t.client_name || t.seller_name || 'No client'
+    // agency_type not set yet — fall back to the deal type
+    if (t.type === 'listing') return t.seller_name || t.buyer_name || t.client_name || 'No client'
+    if (t.type === 'purchase') return t.buyer_name || t.seller_name || t.client_name || 'No client'
     return t.buyer_name || t.seller_name || t.client_name || 'No client'
   }
 
