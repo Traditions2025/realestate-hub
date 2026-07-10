@@ -295,6 +295,34 @@ async function start() {
     res.json({ configured: !!url, source: process.env.SLACK_WEBHOOK_URL ? 'env' : (url ? 'db' : 'none') })
   })
 
+  // ---- FOLLOW UP BOSS connection (no lead/contact sync yet) ----
+  // Store the FUB API key (in app_settings, never in git) and report status.
+  app.post('/api/fub/config', async (req, res) => {
+    try {
+      const { api_key } = req.body || {}
+      if (!api_key || typeof api_key !== 'string' || api_key.length < 20) {
+        return res.status(400).json({ error: 'Provide a valid Follow Up Boss API key' })
+      }
+      db.setSetting('fub_api_key', api_key.trim())
+      // Verify it immediately by calling FUB /identity.
+      const { fubIdentity } = await import('./fub-helper.js')
+      const id = await fubIdentity()
+      res.json({ ok: true, connected: true, account: id.account || id.name, accountId: id.accountId, user: id.name })
+    } catch (err) {
+      res.status(502).json({ ok: false, connected: false, error: err.message })
+    }
+  })
+  app.get('/api/fub/status', async (_req, res) => {
+    try {
+      const { fubConfigured, fubIdentity } = await import('./fub-helper.js')
+      if (!fubConfigured()) return res.json({ configured: false, connected: false })
+      const id = await fubIdentity()
+      res.json({ configured: true, connected: true, account: id.account || id.name, accountId: id.accountId, user: id.name })
+    } catch (err) {
+      res.json({ configured: true, connected: false, error: err.message })
+    }
+  })
+
   // Manual trigger: fire the Slack transaction-deadline alert right now.
   // Useful to preview the 10 AM post's formatting on demand.
   app.post('/api/slack/deadline-now', async (_req, res) => {
