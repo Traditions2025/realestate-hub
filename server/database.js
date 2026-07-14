@@ -1003,6 +1003,9 @@ export async function initDb() {
       // retired Listings tab). JSON: { taskKey: { done: bool } }. Auto-cleared
       // when the transaction moves to Under Contract.
       ['marketing_tasks', 'TEXT'],
+      // 2026-07-10 seller prepaids / credit on under-contract deals (Yes/No + amount)
+      ['seller_prepaids', 'TEXT'],
+      ['seller_prepaids_amount', 'TEXT'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {

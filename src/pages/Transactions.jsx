@@ -173,6 +173,7 @@ const emptyTx = {
   commission_received: 0, referral_followup_30day: 0,
   buyer_payment_method: '', financing_release_followup: 0,
   marketing_tasks: {},
+  seller_prepaids: '', seller_prepaids_amount: '',
 }
 
 // Dropdown options for document/status fields
@@ -1055,6 +1056,24 @@ export default function Transactions() {
                 {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
               </select></label>
             </div>
+            {/* Seller prepaids / credit — for under-contract (and later) deals */}
+            {['Under Contract', 'Pending', 'Clear to Close', 'Closed'].includes(form.property_status) && (
+              <div className="form-row">
+                <label>Seller Prepaids / Credit
+                  <select value={form.seller_prepaids} onChange={e => f('seller_prepaids', e.target.value)}>
+                    <option value="">Select...</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                  </select>
+                </label>
+                <label>Amount
+                  <input type="text" inputMode="decimal" placeholder="$"
+                    value={form.seller_prepaids_amount}
+                    onChange={e => f('seller_prepaids_amount', e.target.value)}
+                    disabled={form.seller_prepaids !== 'Yes'} />
+                </label>
+              </div>
+            )}
           </div>
 
           {/* People */}
