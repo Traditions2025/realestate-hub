@@ -1701,9 +1701,13 @@ export default function Transactions() {
                   onBlur={e => savePlField('owner_name', e.target.value)} />
               </label>
               <label>Walkthrough
-                <input value={plEditing.walkthrough || ''}
-                  onChange={e => setPlEditing({ ...plEditing, walkthrough: e.target.value })}
-                  onBlur={e => savePlField('walkthrough', e.target.value)} />
+                <select value={plEditing.walkthrough || 'Not Scheduled'}
+                  onChange={e => savePlField('walkthrough', e.target.value)}>
+                  <option value="Not Scheduled">Not Scheduled</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Not Done">Not Done</option>
+                  <option value="Completed">Completed</option>
+                </select>
               </label>
             </div>
 
