@@ -1639,9 +1639,9 @@ export default function Transactions() {
                   <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
                   <div className="checklist-grid">
                     {group.tasks.map(([key, label]) => (
-                      <label key={key} style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '3px 0', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={!!(form.marketing_tasks?.[key]?.done)} onChange={() => toggleMarketing(key)} />
-                        <span style={{ fontSize: 13 }}>{label}</span>
+                      <label key={key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: '3px 0', margin: 0, cursor: 'pointer', fontSize: 13, fontWeight: 400, textAlign: 'left' }}>
+                        <input type="checkbox" style={{ flexShrink: 0, marginTop: 2, width: 16, height: 16 }} checked={!!(form.marketing_tasks?.[key]?.done)} onChange={() => toggleMarketing(key)} />
+                        <span>{label}</span>
                       </label>
                     ))}
                   </div>
@@ -1725,11 +1725,11 @@ export default function Transactions() {
             {MARKETING_TASK_GROUPS.map(group => (
               <div key={group.stage} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <div className="checklist-grid">
                   {group.tasks.map(([key, label]) => (
-                    <label key={key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', cursor: 'pointer' }}>
-                      <input type="checkbox" style={{ flexShrink: 0, margin: 0 }} checked={!!(plEditing.marketing_tasks?.[key]?.done)} onChange={() => togglePlMarketing(key)} />
-                      <span style={{ fontSize: 13 }}>{label}</span>
+                    <label key={key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: '3px 0', margin: 0, cursor: 'pointer', fontSize: 13, fontWeight: 400, textAlign: 'left' }}>
+                      <input type="checkbox" style={{ flexShrink: 0, marginTop: 2, width: 16, height: 16 }} checked={!!(plEditing.marketing_tasks?.[key]?.done)} onChange={() => togglePlMarketing(key)} />
+                      <span>{label}</span>
                     </label>
                   ))}
                 </div>
