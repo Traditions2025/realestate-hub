@@ -38,10 +38,10 @@ const preListingChecklist = [
 const MARKETING_TASK_GROUPS = [
   { stage: '1. Listing Setup & Client Onboarding', tasks: [
     ['create_dotloop_folder', 'Create Dotloop folder'],
-    ['dotloop_listing_agreement', 'Add to Dotloop: Listing Agreement'],
-    ['dotloop_appointed_agency', 'Add to Dotloop: Seller Appointed Agency Agreement'],
-    ['dotloop_seller_disclosure', 'Add to Dotloop: Seller Property Disclosure'],
-    ['dotloop_lead_paint', 'Add to Dotloop: Lead-Based Paint Disclosure (if built before 1978)'],
+    ['dotloop_listing_agreement', 'Signed: Listing Agreement'],
+    ['dotloop_appointed_agency', 'Signed: Agency Agreement'],
+    ['dotloop_seller_disclosure', 'Signed: Property Disclosure'],
+    ['dotloop_lead_paint', 'Signed: Lead-Based Paint (if built before 1978)'],
     ['dotloop_additional_disclosures', 'Add to Dotloop: Any additional required disclosures'],
     ['send_discovery_questionnaire', 'Send Home Seller Discovery Questionnaire (Google Form)'],
     ['send_premarketing', 'Send pre-marketing materials'],
@@ -257,6 +257,8 @@ export default function Transactions() {
   // Pre-listing popup (replaces the old redirect to the Pre-Listing Pipeline page)
   const [plModalOpen, setPlModalOpen] = useState(false)
   const [plEditing, setPlEditing] = useState(null)
+  const [shareCopied, setShareCopied] = useState(false)
+  const deepLinkRef = useRef(false)
   const [form, setForm] = useState(emptyTx)
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverStage, setDragOverStage] = useState(null)
@@ -578,6 +580,16 @@ export default function Transactions() {
   }
 
   useEffect(() => { load() }, [])
+
+  // Deep-link: /transactions?prelisting=<id> auto-opens that pre-listing popup
+  // so a shared link drops the recipient straight onto the checklist.
+  useEffect(() => {
+    if (deepLinkRef.current || !preListings.length) return
+    const id = new URLSearchParams(window.location.search).get('prelisting')
+    if (!id) { deepLinkRef.current = true; return }
+    const pl = preListings.find(p => String(p.id) === String(id))
+    if (pl) { deepLinkRef.current = true; openPreListing(pl) }
+  }, [preListings])
 
   // Client search-as-you-type (replaces loading all 45K clients into a dropdown)
   const [clientSearch, setClientSearch] = useState('')
@@ -1713,10 +1725,10 @@ export default function Transactions() {
             {MARKETING_TASK_GROUPS.map(group => (
               <div key={group.stage} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
-                <div className="checklist-grid">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                   {group.tasks.map(([key, label]) => (
-                    <label key={key} className="checklist-item" style={{ display: 'flex', gap: 8, alignItems: 'flex-start', padding: '4px 0', cursor: 'pointer' }}>
-                      <input type="checkbox" checked={!!(plEditing.marketing_tasks?.[key]?.done)} onChange={() => togglePlMarketing(key)} />
+                    <label key={key} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '3px 0', cursor: 'pointer' }}>
+                      <input type="checkbox" style={{ flexShrink: 0, margin: 0 }} checked={!!(plEditing.marketing_tasks?.[key]?.done)} onChange={() => togglePlMarketing(key)} />
                       <span style={{ fontSize: 13 }}>{label}</span>
                     </label>
                   ))}
@@ -1733,6 +1745,15 @@ export default function Transactions() {
             </div>
 
             <div className="modal-actions" style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
+              <button type="button" className="btn btn-secondary" style={{ marginRight: 'auto' }}
+                onClick={async () => {
+                  const url = `${window.location.origin}/transactions?prelisting=${plEditing.id}`
+                  try { await navigator.clipboard.writeText(url); setShareCopied(true); setTimeout(() => setShareCopied(false), 2500) }
+                  catch { window.prompt('Copy this link to share:', url) }
+                }}
+                title="Copy a link that opens this checklist — share it with Matt to review">
+                {shareCopied ? '✓ Link copied' : '🔗 Copy share link'}
+              </button>
               <button type="button" className="btn btn-secondary"
                 onClick={() => { const pl = plEditing; setPlModalOpen(false); promotePreListingToTransaction(pl, 'Active') }}>
                 Promote to Active
