@@ -2,6 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { statfsSync } from 'fs'
 import { initDb, getDbStatus } from './database.js'
 import db from './database.js'
 
@@ -250,7 +251,31 @@ async function start() {
       partners: db.get('SELECT COUNT(*) as c FROM partners').c,
       tasks: db.get('SELECT COUNT(*) as c FROM tasks').c,
     }
-    res.json({ ...status, record_counts: counts })
+    // Live disk usage of the persistent volume + process memory
+    let disk = null, memory = null
+    try {
+      const mb = 1024 * 1024
+      const st = statfsSync(process.env.DB_DIR || '.')
+      const total = st.blocks * st.bsize
+      const free = st.bavail * st.bsize
+      disk = {
+        total_mb: Math.round(total / mb),
+        used_mb: Math.round((total - free) / mb),
+        free_mb: Math.round(free / mb),
+        used_pct: total ? Math.round((1 - free / total) * 100) : null,
+      }
+    } catch (e) { disk = { error: e.message } }
+    try {
+      const mb = 1024 * 1024
+      const m = process.memoryUsage()
+      memory = {
+        rss_mb: Math.round(m.rss / mb),
+        heap_used_mb: Math.round(m.heapUsed / mb),
+        heap_total_mb: Math.round(m.heapTotal / mb),
+        external_mb: Math.round(m.external / mb),
+      }
+    } catch (e) { memory = { error: e.message } }
+    res.json({ ...status, record_counts: counts, disk, memory })
   })
 
   // ---- LAYER 5: health check (unauthenticated) ----
