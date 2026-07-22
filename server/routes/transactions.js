@@ -1,6 +1,7 @@
 import express, { Router } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import db from '../database.js'
+import { addBusinessDays } from '../business-days.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
@@ -501,9 +502,12 @@ Extract the following fields and return ONLY a single JSON object — omit any k
   "purchase_price": number (no commas or dollar signs — the agreed-upon price),
   "contract_date": string (YYYY-MM-DD — the date the contract was signed/accepted),
   "closing_date": string (YYYY-MM-DD),
-  "mortgage_contingency_date": string (YYYY-MM-DD — financing contingency deadline),
-  "appraisal_contingency_date": string (YYYY-MM-DD),
-  "inspection_contingency_date": string (YYYY-MM-DD — inspection deadline),
+  "mortgage_contingency_date": string (YYYY-MM-DD — ONLY if the contract gives an explicit calendar date; otherwise leave blank and use financing_business_days),
+  "appraisal_contingency_date": string (YYYY-MM-DD — ONLY if an explicit calendar date; otherwise leave blank and use appraisal_business_days),
+  "inspection_contingency_date": string (YYYY-MM-DD — ONLY if an explicit calendar date; otherwise leave blank and use inspection_business_days),
+  "inspection_business_days": number (the inspection contingency period in BUSINESS days as written, e.g. 10 — null if the contract instead gives an explicit date),
+  "financing_business_days": number (the loan/financing contingency period in business days — null if not written as a period),
+  "appraisal_business_days": number (the appraisal contingency period in business days — null if not written as a period),
   "type_of_finance": string (one of: "Conventional", "FHA", "VA", "USDA", "Cash", "Other"),
   "earnest_money_deposit": string (just the dollar amount as a string, e.g. "$2,500", or "Not Started" if not yet collected),
   "whole_property_inspection": number (1 if mentioned, 0 if not),
@@ -516,6 +520,7 @@ Extract the following fields and return ONLY a single JSON object — omit any k
 }
 
 Rules:
+- Contingency periods: when a contingency is written as a number of days from acceptance (e.g. "within 10 business days of acceptance"), put that NUMBER in the matching *_business_days field and leave the corresponding *_contingency_date blank. Do NOT compute the deadline date yourself — the system computes it (skipping weekends and federal holidays, not counting the acceptance date). Only fill a *_contingency_date when the contract states an explicit calendar date.
 - For dates, if you only see a date like "5/15/2026" convert to "2026-05-15"
 - For prices and earnest money, look in the financial sections of the agreement
 - For inspection checkboxes, set to 1 ONLY if the document explicitly indicates the inspection is being performed/required
@@ -564,6 +569,15 @@ router.post('/:id/extract-pdf', async (req, res) => {
     })
     const text = msg.content?.[0]?.text || ''
     const data = parseJsonFromText(text)
+    // Compute contingency deadlines from the business-day periods the AI read
+    // (deterministic here — skips weekends + federal holidays, acceptance date
+    // not counted). Falls back to the transaction's existing contract date.
+    const acceptance = data.contract_date || db.get('SELECT contract_date FROM transactions WHERE id = ?', [id])?.contract_date
+    if (acceptance) {
+      if (data.inspection_business_days) data.inspection_contingency_date = addBusinessDays(acceptance, data.inspection_business_days)
+      if (data.financing_business_days) data.mortgage_contingency_date = addBusinessDays(acceptance, data.financing_business_days)
+      if (data.appraisal_business_days) data.appraisal_contingency_date = addBusinessDays(acceptance, data.appraisal_business_days)
+    }
     const updatedCount = applyExtractedToTransaction(id, data)
     logActivity('extracted_pdf', 'transaction', id, `Extracted ${updatedCount} fields from purchase agreement${filename ? ': ' + filename : ''}`)
     res.json({ success: true, extracted: data, updated_fields: updatedCount })
