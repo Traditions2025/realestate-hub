@@ -112,9 +112,9 @@ router.get('/:id', (req, res) => {
 
 router.post('/', (req, res) => {
   const b = req.body
-  const result = db.run(`INSERT INTO tasks (title, description, priority, status, due_date,
-    assigned_to, category, related_type, related_id) VALUES (?,?,?,?,?,?,?,?,?)`,
-    [b.title, n(b.description), b.priority || 'medium', b.status || 'todo', n(b.due_date),
+  const result = db.run(`INSERT INTO tasks (title, description, priority, status, due_date, due_time,
+    assigned_to, category, related_type, related_id) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+    [b.title, n(b.description), b.priority || 'medium', b.status || 'todo', n(b.due_date), n(b.due_time),
       n(b.assigned_to), n(b.category), n(b.related_type), n(b.related_id)])
 
   logActivity('created', 'task', result.lastInsertRowid, `New task: ${b.title}`)
@@ -123,6 +123,10 @@ router.post('/', (req, res) => {
   notifyTaskChange('created', created, { silent: !!b.silent }).catch(() => {})
   // Post to Slack #transaction-tasks-deadlines so nothing gets unnoticed
   if (!b.silent) import('../slack.js').then(m => m.notifyTaskCreated(created)).catch(() => {})
+  // If it has a due date+time and an assignee, email a calendar invite
+  if (created.due_date && created.due_time && created.assigned_to) {
+    import('../task-reminders.js').then(m => m.sendTaskCalendarInvite(created)).catch(() => {})
+  }
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
@@ -154,6 +158,15 @@ router.put('/:id', (req, res) => {
 
   db.run(`UPDATE tasks SET ${sets} WHERE id = ?`, values)
   logActivity('updated', 'task', id, fields.status === 'done' ? 'Marked done' : 'Updated task')
+  // If the due date/time changed, reset the timed Slack reminders so they fire
+  // for the new time, and re-send the calendar invite.
+  if ('due_date' in fields || 'due_time' in fields) {
+    db.run('UPDATE tasks SET reminder_30_sent = 0, reminder_5_sent = 0 WHERE id = ?', [id])
+  }
+  const updatedTask = db.get('SELECT * FROM tasks WHERE id = ?', [id])
+  if (updatedTask && updatedTask.due_date && updatedTask.due_time && updatedTask.assigned_to) {
+    import('../task-reminders.js').then(m => m.sendTaskCalendarInvite(updatedTask)).catch(() => {})
+  }
   // Build a short "what changed" summary for the notification email
   const changedKeys = Object.keys(fields).filter(k => k !== 'updated_at' && k !== 'notes_log')
   const changeSummary = changedKeys.length

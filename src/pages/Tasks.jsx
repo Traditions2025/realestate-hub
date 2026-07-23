@@ -10,7 +10,7 @@ function parseNotes(s) {
 
 const emptyTask = {
   title: '', description: '', priority: 'medium', status: 'todo',
-  due_date: '', assigned_to: '', category: ''
+  due_date: '', due_time: '', assigned_to: '', category: ''
 }
 
 // Parse a date string (ISO or M/D/YYYY) into a local Date
@@ -594,11 +594,17 @@ export default function Tasks() {
           </div>
           <div className="form-row">
             <label>Due Date<input type="date" value={form.due_date} onChange={e => f('due_date', e.target.value)} /></label>
+            <label>Due Time<input type="time" value={form.due_time || ''} onChange={e => f('due_time', e.target.value)} /></label>
+          </div>
+          <div className="form-row">
             <label>Assigned To<select value={form.assigned_to || ''} onChange={e => f('assigned_to', e.target.value)}>
               <option value="">Unassigned</option>
               <option value="Matt">Matt</option>
               <option value="Leo">Leo</option>
             </select></label>
+            <label style={{ alignSelf: 'flex-end', fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
+              With a time + assignee, we email a calendar invite and ping Slack 30 &amp; 5 min before it's due.
+            </label>
           </div>
           <label>Category<input value={form.category} onChange={e => f('category', e.target.value)} placeholder="TC, Marketing, Admin..." /></label>
 

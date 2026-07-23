@@ -427,6 +427,15 @@ export function startScheduler() {
   // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
   setInterval(checkSlackDeadlineTick, 60 * 1000)
   setTimeout(checkSlackDeadlineTick, 50 * 1000)  // also shortly after boot in case we deployed past 10 AM
+
+  // Timed task reminders - every minute, fires Slack 30 min + 5 min before a
+  // task's due date+time (idempotent via reminder_30_sent / reminder_5_sent).
+  setInterval(async () => {
+    try {
+      const { checkTaskReminders } = await import('./task-reminders.js')
+      await checkTaskReminders()
+    } catch (e) { console.error('[scheduler] task-reminders error:', e.message) }
+  }, 60 * 1000)
   // Also run once shortly after boot in case we just deployed past the scheduled time
   setTimeout(checkDigestTick, 45 * 1000)
 

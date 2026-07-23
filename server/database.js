@@ -951,6 +951,18 @@ export async function initDb() {
       // Backfill: any task already in 'done' gets stamped with its updated_at as a best-guess completion time
       db.run("UPDATE tasks SET completed_at = updated_at WHERE status = 'done' AND completed_at IS NULL")
     }
+    // 2026-07 due time + timed Slack reminders + calendar invite tracking
+    for (const [name, type] of [
+      ['due_time', 'TEXT'],                       // HH:MM (24h), Central time
+      ['reminder_30_sent', 'INTEGER DEFAULT 0'],  // 30-min Slack reminder fired
+      ['reminder_5_sent', 'INTEGER DEFAULT 0'],   // 5-min Slack reminder fired
+      ['calendar_invited', 'TEXT'],               // stores the datetime we last sent an invite for (re-invite if it changes)
+    ]) {
+      if (!taskCols.includes(name)) {
+        db.run(`ALTER TABLE tasks ADD COLUMN ${name} ${type}`)
+        console.log(`[migration] Added tasks.${name}`)
+      }
+    }
   } catch (e) {
     console.error('[migration] tasks columns failed:', e.message)
   }
