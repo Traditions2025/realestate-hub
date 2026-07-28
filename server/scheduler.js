@@ -436,6 +436,18 @@ export function startScheduler() {
       await checkTaskReminders()
     } catch (e) { console.error('[scheduler] task-reminders error:', e.message) }
   }, 60 * 1000)
+
+  // Transaction deadline tasks - hourly (+ shortly after boot). Surfaces each
+  // deadline as a task only once it's within 3 days, so the list stays uncluttered.
+  const runDeadlineTaskSync = async () => {
+    try {
+      const { syncAllActiveTransactionDeadlineTasks } = await import('./routes/transactions.js')
+      const n = syncAllActiveTransactionDeadlineTasks()
+      console.log(`[scheduler] deadline-task sync ran over ${n} active transactions`)
+    } catch (e) { console.error('[scheduler] deadline-task sync error:', e.message) }
+  }
+  setInterval(runDeadlineTaskSync, 60 * 60 * 1000)
+  setTimeout(runDeadlineTaskSync, 55 * 1000)
   // Also run once shortly after boot in case we just deployed past the scheduled time
   setTimeout(checkDigestTick, 45 * 1000)
 

@@ -306,12 +306,42 @@ export function syncTransactionDeadlineTasks(txId) {
           ? "UPDATE tasks SET completed_at = COALESCE(completed_at, datetime('now')) WHERE id = ?"
           : "UPDATE tasks SET completed_at = NULL WHERE id = ?", [existing.id])
       } else if (!isDone) {
-        db.run("INSERT INTO tasks (title, priority, status, due_date, category, related_type, related_id) VALUES (?,?,?,?,?,?,?)",
-          [title, 'high', 'todo', date, spec.label, 'transaction_deadline', txId])
+        // Only surface the task once the deadline is within 3 days (keeps the
+        // Tasks list uncluttered — a deal has many far-off dates on day one).
+        const du = daysUntilDate(date)
+        if (du !== null && du <= 3) {
+          db.run("INSERT INTO tasks (title, priority, status, due_date, category, related_type, related_id) VALUES (?,?,?,?,?,?,?)",
+            [title, 'high', 'todo', date, spec.label, 'transaction_deadline', txId])
+        }
       }
     }
   } catch (e) {
     console.error('[transactions] syncTransactionDeadlineTasks failed:', e.message)
+  }
+}
+
+// Whole-day count from today to a YYYY-MM-DD date (negative = past).
+function daysUntilDate(dateStr) {
+  if (!dateStr) return null
+  const p = String(dateStr).slice(0, 10).split('-').map(Number)
+  if (p.length !== 3 || p.some(isNaN)) return null
+  const d = new Date(p[0], p[1] - 1, p[2])
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  return Math.round((d - today) / 86400000)
+}
+
+// Run the deadline-task sync across every active transaction. Called on a timer
+// so a task appears the day its deadline enters the 3-day window, even without
+// anyone editing the transaction. Idempotent (dedupes + updates).
+export function syncAllActiveTransactionDeadlineTasks() {
+  try {
+    const rows = db.all("SELECT id FROM transactions WHERE property_status IN ('Under Contract','Pending','Clear to Close')")
+    for (const r of rows) syncTransactionDeadlineTasks(r.id)
+    return rows.length
+  } catch (e) {
+    console.error('[transactions] syncAllActiveTransactionDeadlineTasks failed:', e.message)
+    return 0
   }
 }
 
