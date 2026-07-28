@@ -621,6 +621,13 @@ router.post('/:id/extract-pdf', async (req, res) => {
       if (data.financing_business_days) data.mortgage_contingency_date = addBusinessDays(acceptance, data.financing_business_days)
       if (data.appraisal_business_days) data.appraisal_contingency_date = addBusinessDays(acceptance, data.appraisal_business_days)
     }
+    // A purchase agreement is uploaded for BOTH sides (we upload every PA just to
+    // capture the contract details). The document does NOT tell us who we
+    // represent — that's set by how the deal was created (an active listing that
+    // goes under contract stays a listing / seller side). So never let the
+    // extraction change `type` or `agency_type`; only fill the factual fields.
+    delete data.type
+    delete data.agency_type
     const updatedCount = applyExtractedToTransaction(id, data)
     logActivity('extracted_pdf', 'transaction', id, `Extracted ${updatedCount} fields from purchase agreement${filename ? ': ' + filename : ''}`)
     res.json({ success: true, extracted: data, updated_fields: updatedCount })
