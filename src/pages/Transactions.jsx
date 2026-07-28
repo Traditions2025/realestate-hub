@@ -1227,14 +1227,14 @@ export default function Transactions() {
                     const v = e.target.value
                     setForm(prev => {
                       const next = { ...prev, closing_date: v }
-                      // Final walkthrough = last weekday before closing — auto-fill if blank
-                      if (v && !prev.final_walkthrough) {
+                      // Final walkthrough is ALWAYS the last weekday before closing — keep it in sync
+                      if (v) {
                         next.final_walkthrough = calcFinalWalkthrough(v)
                       }
                       return next
                     })
                   }}
-                  title="Auto-fills Final Walkthrough (1 weekday before) when blank"
+                  title="Final Walkthrough auto-sets to the weekday before closing"
                 />
               </label>
             </div>
@@ -1257,14 +1257,14 @@ export default function Transactions() {
                     const v = e.target.value
                     setForm(prev => {
                       const next = { ...prev, mortgage_contingency_date: v }
-                      // Mortgage and Appraisal contingency typically the same date — sync if appraisal is empty
-                      if (v && !prev.appraisal_contingency_date) {
+                      // Mortgage & Appraisal contingency are always the same date — keep them locked together
+                      if (v) {
                         next.appraisal_contingency_date = v
                       }
                       return next
                     })
                   }}
-                  title="Mortgage & Appraisal contingencies typically share the same date — auto-syncs when appraisal is blank"
+                  title="Mortgage & Appraisal contingencies are always the same date — auto-synced"
                 />
               </label>
               <label>Appraisal Contingency
@@ -1275,14 +1275,14 @@ export default function Transactions() {
                     const v = e.target.value
                     setForm(prev => {
                       const next = { ...prev, appraisal_contingency_date: v }
-                      // Reverse: mirror to mortgage if mortgage is empty
-                      if (v && !prev.mortgage_contingency_date) {
+                      // Always keep Mortgage contingency locked to the same date
+                      if (v) {
                         next.mortgage_contingency_date = v
                       }
                       return next
                     })
                   }}
-                  title="Auto-syncs to Mortgage Contingency when blank"
+                  title="Mortgage & Appraisal contingencies are always the same date — auto-synced"
                 />
               </label>
             </div>
@@ -1352,6 +1352,7 @@ export default function Transactions() {
             </div>
             <label>Appraisal Status<select value={form.appraisal_contingency_status} onChange={e => f('appraisal_contingency_status', e.target.value)}>
               <option value="Not Started">Not Started</option><option value="Ordered">Ordered</option>
+              <option value="Approved">Approved</option>
               <option value="Completed">Completed</option><option value="N/A">N/A</option>
             </select></label>
             <div className="checklist-grid" style={{marginTop: 10}}>
@@ -1442,7 +1443,6 @@ export default function Transactions() {
               { key: 'closing_attendees_notified', label: 'Buyer/Seller Notified of When & Where',    side: 'both' },
               { key: 'closing_disclosure_reviewed',label: 'Closing Disclosure Reviewed (3-day rule)', side: 'both' },
               { key: 'final_walkthrough_confirmed',label: 'Final Walkthrough Time + Location Confirmed', side: 'both' },
-              { key: 'financing_release_followup', label: 'Followed Up on Financing Release',         side: 'both' },
               { key: 'utilities_set',              label: 'Utilities Set to New Owner',               side: 'purchase' },
             ]
             const phase3 = [

@@ -33,7 +33,9 @@ router.get('/', (req, res) => {
       active: db.get("SELECT COUNT(*) as count FROM projects WHERE status = 'active'").count,
     },
     pre_listings: {
-      total: db.get("SELECT COUNT(*) as count FROM pre_listings").count,
+      // Only ACTIVE pre-listings — exclude ones already promoted (Listed) or dropped,
+      // so this matches the Pre-Listing column on the Transactions board.
+      total: db.get("SELECT COUNT(*) as count FROM pre_listings WHERE status NOT IN ('Listed','Withdrawn','Cancelled','Migrated')").count,
       pending: db.get("SELECT COUNT(*) as count FROM pre_listings WHERE walkthrough = 'Pending'").count,
     },
     marketing: {

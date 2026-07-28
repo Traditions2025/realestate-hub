@@ -274,6 +274,47 @@ function syncWalkthroughToCalendar(txId) {
   }
 }
 
+// Auto-create/maintain tracking tasks for a transaction's key deadlines
+// (Earnest, Home Inspection, Financing contingency, Final Walkthrough, Closing).
+// Titled "<Deadline> — <address>", deduped by (related_type, related_id, category),
+// due date kept in sync, auto-marked done when the matching status is terminal.
+const DEADLINE_TASK_SPECS = [
+  { label: 'Earnest Money',               dateField: 'earnest_money_due_date',      statusField: 'earnest_money_deposit', terminal: ['Completed'] },
+  { label: 'Home Inspection',             dateField: 'inspection_contingency_date', statusField: 'home_inspection',       terminal: ['Completed', 'Waived', 'N/A', 'Not Applicable'] },
+  { label: 'Financing Contingency Release', dateField: 'mortgage_contingency_date', statusField: 'financing_status',      terminal: ['Approved'] },
+  { label: 'Final Walkthrough',           dateField: 'final_walkthrough',           statusField: null,                    terminal: [] },
+  { label: 'Closing',                     dateField: 'closing_date',                statusField: null,                    terminal: [] },
+]
+export function syncTransactionDeadlineTasks(txId) {
+  try {
+    const tx = db.get('SELECT * FROM transactions WHERE id = ?', [txId])
+    if (!tx || !tx.property_address) return
+    const isActiveDeal = ['Under Contract', 'Pending', 'Clear to Close'].includes(tx.property_status)
+    for (const spec of DEADLINE_TASK_SPECS) {
+      const date = tx[spec.dateField]
+      const existing = db.get(
+        "SELECT id, status FROM tasks WHERE related_type = 'transaction_deadline' AND related_id = ? AND category = ?",
+        [txId, spec.label])
+      const isDone = spec.statusField && spec.terminal.includes(tx[spec.statusField])
+      if (!isActiveDeal || !date) continue  // only track live deals with a date set
+      const title = `${spec.label} — ${tx.property_address}`
+      if (existing) {
+        const status = isDone ? 'done' : (existing.status === 'done' ? 'todo' : existing.status)
+        db.run("UPDATE tasks SET title = ?, due_date = ?, status = ?, updated_at = datetime('now') WHERE id = ?",
+          [title, date, status, existing.id])
+        db.run(isDone
+          ? "UPDATE tasks SET completed_at = COALESCE(completed_at, datetime('now')) WHERE id = ?"
+          : "UPDATE tasks SET completed_at = NULL WHERE id = ?", [existing.id])
+      } else if (!isDone) {
+        db.run("INSERT INTO tasks (title, priority, status, due_date, category, related_type, related_id) VALUES (?,?,?,?,?,?,?)",
+          [title, 'high', 'todo', date, spec.label, 'transaction_deadline', txId])
+      }
+    }
+  } catch (e) {
+    console.error('[transactions] syncTransactionDeadlineTasks failed:', e.message)
+  }
+}
+
 router.post('/', (req, res) => {
   const b = req.body
   const placeholders = FIELDS.map(() => '?').join(',')
@@ -288,6 +329,7 @@ router.post('/', (req, res) => {
   // Auto-sync closing into the hub calendar
   syncClosingToCalendar(txId)
   syncWalkthroughToCalendar(txId)
+  syncTransactionDeadlineTasks(txId)
   // Auto-send closing invite to TEAM when date + time + location all set (idempotent via signature)
   // Fire-and-forget so the HTTP response isn't blocked on SendGrid latency
   maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
@@ -319,6 +361,7 @@ router.put('/:id', (req, res) => {
   // Sync/update closing event in calendar (handles add, update, AND removal on terminal status)
   syncClosingToCalendar(txId)
   syncWalkthroughToCalendar(txId)
+  syncTransactionDeadlineTasks(txId)
   // Auto-fire team invite if closing time/location just got filled in (or changed)
   maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
   maybeSendTeamWalkthroughInvite(txId).catch(err => console.error('[walkthrough-invite] async error:', err.message))

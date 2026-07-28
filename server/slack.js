@@ -63,42 +63,56 @@ const fmtDate = (s) => {
   return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
 }
 
-// Build the 10 AM deadline message. Only deadlines due in exactly 3 days or
-// today are included (per the alert spec). Returns { text, txCount, itemCount }
-// or null when there's nothing to report.
+// Build the 10 AM deadline message. Includes:
+//  - deadlines due in exactly 3 days or 1 day (tomorrow): Home Inspection,
+//    Earnest, Financing/Inspection contingency, Closing, Final Walkthrough, etc.
+//  - a "1 week to closing" reminder to check with Cherryl that everything is ready.
+// Returns { text, txCount, itemCount, cherrylCount } or null when nothing to report.
 export function buildDeadlineMessage() {
   const txs = fetchActiveTransactions()
   const blocks = []
+  const cherrylBlocks = []
   let itemCount = 0
 
   for (const tx of txs) {
-    const due = buildActionItems(tx).filter(it => it.daysOut === 0 || it.daysOut === 3)
-    if (!due.length) continue
-    itemCount += due.length
-    const lines = due
-      .sort((a, b) => a.daysOut - b.daysOut)
-      .map(it => {
-        const emoji = it.daysOut === 0 ? ':red_circle:' : ':large_orange_circle:'
-        const when = it.daysOut === 0 ? 'TODAY' : 'in 3 days'
-        return `   • ${emoji} *${when}* — ${it.label}${it.date ? ` (${fmtDate(it.date)})` : ''}`
-      })
-    blocks.push(`*${tx.property_address || 'Address TBD'}*  _(${representedLabel(tx)})_\n${lines.join('\n')}`)
+    const items = buildActionItems(tx)
+    const due = items.filter(it => it.daysOut === 3 || it.daysOut === 1)
+    if (due.length) {
+      itemCount += due.length
+      const lines = due
+        .sort((a, b) => a.daysOut - b.daysOut)
+        .map(it => {
+          const emoji = it.daysOut === 1 ? ':red_circle:' : ':large_orange_circle:'
+          const when = it.daysOut === 1 ? 'TOMORROW' : 'in 3 days'
+          return `   • ${emoji} *${when}* — ${it.label}${it.date ? ` (${fmtDate(it.date)})` : ''}`
+        })
+      blocks.push(`*${tx.property_address || 'Address TBD'}*  _(${representedLabel(tx)})_\n${lines.join('\n')}`)
+    }
+    // 1 week before closing — nudge to confirm readiness with Cherryl
+    const closing = items.find(it => it.label === 'Closing')
+    if (closing && closing.daysOut === 7) {
+      cherrylBlocks.push(`   • *${tx.property_address || 'Address TBD'}* closes ${closing.date ? fmtDate(closing.date) : 'in 1 week'} — check with *Cherryl* that everything is ready for closing`)
+    }
   }
 
-  if (!blocks.length) return null
+  const sections = []
+  if (blocks.length) sections.push(`:calendar: *Transaction Deadlines*\n_Due tomorrow or in 3 days_\n\n${blocks.join('\n\n')}`)
+  if (cherrylBlocks.length) sections.push(`:date: *1 Week to Closing*\n${cherrylBlocks.join('\n')}`)
+  if (!sections.length) return null
+
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
-  const text = `:calendar: *Transaction Deadlines — ${today}*\n_Due today or in 3 days_\n\n${blocks.join('\n\n')}`
-  return { text, txCount: blocks.length, itemCount }
+  const text = `*${today}*\n\n${sections.join('\n\n')}`
+  return { text, txCount: blocks.length, itemCount, cherrylCount: cherrylBlocks.length }
 }
 
 // Fire the deadline alert now. Returns a result object for logging.
 export async function runDeadlineAlert() {
   const msg = buildDeadlineMessage()
   if (!msg) {
-    return { posted: false, reason: 'no deadlines due today or in 3 days', txCount: 0, itemCount: 0 }
+    return { posted: false, reason: 'nothing due (3d/1d) or closing in a week', txCount: 0, itemCount: 0 }
   }
   const ok = await postSlack(msg.text)
-  return { posted: ok, txCount: msg.txCount, itemCount: msg.itemCount }
+  return { posted: ok, txCount: msg.txCount, itemCount: msg.itemCount + (msg.cherrylCount || 0) }
 }
 
 // Notify Slack when a new task is created. Fire-and-forget from the route.

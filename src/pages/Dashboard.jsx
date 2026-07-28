@@ -135,26 +135,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Quick Stats Row */}
-      <div className="stats-grid stats-small">
-        <div className="stat-card stat-blue">
-          <div className="stat-number">{calendar.today}</div>
-          <div className="stat-label">Events Today</div>
-        </div>
-        <div className="stat-card stat-purple">
-          <div className="stat-number">{social_media.scheduled}</div>
-          <div className="stat-label">Posts Scheduled</div>
-        </div>
-        <div className="stat-card stat-green">
-          <div className="stat-number">{vendors.preferred}</div>
-          <div className="stat-label">Preferred Vendors</div>
-        </div>
-        <div className="stat-card stat-amber">
-          <div className="stat-number">{marketing.active_campaigns}</div>
-          <div className="stat-label">Active Campaigns</div>
-        </div>
-      </div>
-
       {/* Sierra Sync Status */}
       {data.last_sierra_sync && (
         <div className="card" style={{marginBottom: 20}}>
