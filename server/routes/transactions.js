@@ -279,11 +279,14 @@ function syncWalkthroughToCalendar(txId) {
 // Titled "<Deadline> — <address>", deduped by (related_type, related_id, category),
 // due date kept in sync, auto-marked done when the matching status is terminal.
 const DEADLINE_TASK_SPECS = [
-  { label: 'Earnest Money',               dateField: 'earnest_money_due_date',      statusField: 'earnest_money_deposit', terminal: ['Completed'] },
-  { label: 'Home Inspection',             dateField: 'inspection_contingency_date', statusField: 'home_inspection',       terminal: ['Completed', 'Waived', 'N/A', 'Not Applicable'] },
-  { label: 'Financing Contingency Release', dateField: 'mortgage_contingency_date', statusField: 'financing_status',      terminal: ['Approved'] },
-  { label: 'Final Walkthrough',           dateField: 'final_walkthrough',           statusField: null,                    terminal: [] },
-  { label: 'Closing',                     dateField: 'closing_date',                statusField: null,                    terminal: [] },
+  { label: 'Earnest Money',               dateField: 'earnest_money_due_date',      statusField: 'earnest_money_deposit', terminal: ['Completed'], windowDays: 3 },
+  { label: 'Home Inspection',             dateField: 'inspection_contingency_date', statusField: 'home_inspection',       terminal: ['Completed', 'Waived', 'N/A', 'Not Applicable'], windowDays: 3 },
+  { label: 'Financing Contingency Release', dateField: 'mortgage_contingency_date', statusField: 'financing_status',      terminal: ['Approved'], windowDays: 3 },
+  { label: 'Final Walkthrough',           dateField: 'final_walkthrough',           statusField: null,                    terminal: [], windowDays: 3 },
+  { label: 'Closing',                     dateField: 'closing_date',                statusField: null,                    terminal: [], windowDays: 3 },
+  // Day-of walkthrough sign-off — appears ON the final walkthrough day
+  { label: 'Final Walkthrough Signed',    dateField: 'final_walkthrough',           statusField: null,                    terminal: [], windowDays: 0,
+    title: (addr) => `Final Walkthrough signed by buyers at ${addr}` },
 ]
 export function syncTransactionDeadlineTasks(txId) {
   try {
@@ -297,7 +300,7 @@ export function syncTransactionDeadlineTasks(txId) {
         [txId, spec.label])
       const isDone = spec.statusField && spec.terminal.includes(tx[spec.statusField])
       if (!isActiveDeal || !date) continue  // only track live deals with a date set
-      const title = `${spec.label} — ${tx.property_address}`
+      const title = spec.title ? spec.title(tx.property_address) : `${spec.label} — ${tx.property_address}`
       if (existing) {
         const status = isDone ? 'done' : (existing.status === 'done' ? 'todo' : existing.status)
         db.run("UPDATE tasks SET title = ?, due_date = ?, status = ?, updated_at = datetime('now') WHERE id = ?",
@@ -306,10 +309,11 @@ export function syncTransactionDeadlineTasks(txId) {
           ? "UPDATE tasks SET completed_at = COALESCE(completed_at, datetime('now')) WHERE id = ?"
           : "UPDATE tasks SET completed_at = NULL WHERE id = ?", [existing.id])
       } else if (!isDone) {
-        // Only surface the task once the deadline is within 3 days (keeps the
-        // Tasks list uncluttered — a deal has many far-off dates on day one).
+        // Only surface the task once the deadline is within its window (3 days
+        // for most; 0 = day-of for the walkthrough sign-off). Keeps Tasks clean.
         const du = daysUntilDate(date)
-        if (du !== null && du <= 3) {
+        const windowDays = spec.windowDays ?? 3
+        if (du !== null && du <= windowDays) {
           db.run("INSERT INTO tasks (title, priority, status, due_date, category, related_type, related_id) VALUES (?,?,?,?,?,?,?)",
             [title, 'high', 'todo', date, spec.label, 'transaction_deadline', txId])
         }

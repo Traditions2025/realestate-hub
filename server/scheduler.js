@@ -332,6 +332,33 @@ async function checkSlackDeadlineTick() {
   }
 }
 
+// Final-walkthrough reminder — fires at 5 PM CT on any deal's walkthrough day.
+// Idempotent via digest_log period='slack_walkthrough'.
+const WALKTHROUGH_HOUR = 17
+async function checkWalkthroughReminderTick() {
+  try {
+    const now = chicagoNow()
+    const minutesPast = (now.hour - WALKTHROUGH_HOUR) * 60 + now.minute
+    if (minutesPast < 0 || minutesPast > 5) return
+    const already = db.get(
+      "SELECT id FROM digest_log WHERE digest_date = ? AND period = 'slack_walkthrough' AND success = 1",
+      [now.date])
+    if (already) return
+    const { runFinalWalkthroughReminder } = await import('./slack.js')
+    const r = await runFinalWalkthroughReminder()
+    console.log('[slack] walkthrough reminder:', JSON.stringify(r))
+    const loggedSuccess = r.posted ? 1 : (r.count === 0 ? 1 : 0)
+    try {
+      db.run(
+        `INSERT INTO digest_log (digest_date, period, recipients, transaction_count, success)
+         VALUES (?, 'slack_walkthrough', '#transaction-tasks-deadlines', ?, ?)`,
+        [now.date, r.count || 0, loggedSuccess])
+    } catch { /* UNIQUE clash = already logged, fine */ }
+  } catch (err) {
+    console.error('[slack] walkthrough tick error:', err.message)
+  }
+}
+
 async function checkDigestTick() {
   try {
     const now = chicagoNow()
@@ -427,6 +454,9 @@ export function startScheduler() {
   // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
   setInterval(checkSlackDeadlineTick, 60 * 1000)
   setTimeout(checkSlackDeadlineTick, 50 * 1000)  // also shortly after boot in case we deployed past 10 AM
+
+  // Final-walkthrough reminder - every minute, fires at 5 PM CT on walkthrough day
+  setInterval(checkWalkthroughReminderTick, 60 * 1000)
 
   // Timed task reminders - every minute, fires Slack 30 min + 5 min before a
   // task's due date+time (idempotent via reminder_30_sent / reminder_5_sent).

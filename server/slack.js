@@ -115,6 +115,21 @@ export async function runDeadlineAlert() {
   return { posted: ok, txCount: msg.txCount, itemCount: msg.itemCount + (msg.cherrylCount || 0) }
 }
 
+// Reminder posted at 5 PM CT on any transaction's final walkthrough day.
+export async function runFinalWalkthroughReminder() {
+  const txs = fetchActiveTransactions()
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date())
+  const lines = []
+  for (const tx of txs) {
+    if (tx.final_walkthrough && String(tx.final_walkthrough).slice(0, 10) === today) {
+      lines.push(`   • *${tx.property_address || 'Address TBD'}* — confirm the *Final Walkthrough is signed by the buyers*`)
+    }
+  }
+  if (!lines.length) return { posted: false, count: 0 }
+  const ok = await postSlack(`:walking: *Final Walkthrough Today*\n${lines.join('\n')}`)
+  return { posted: ok, count: lines.length }
+}
+
 // Notify Slack when a new task is created. Fire-and-forget from the route.
 export async function notifyTaskCreated(task) {
   if (!task) return false
