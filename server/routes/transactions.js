@@ -282,8 +282,8 @@ const DEADLINE_TASK_SPECS = [
   { label: 'Earnest Money',               dateField: 'earnest_money_due_date',      statusField: 'earnest_money_deposit', terminal: ['Completed'], windowDays: 3 },
   { label: 'Home Inspection',             dateField: 'inspection_contingency_date', statusField: 'home_inspection',       terminal: ['Completed', 'Waived', 'N/A', 'Not Applicable'], windowDays: 3 },
   { label: 'Financing Contingency Release', dateField: 'mortgage_contingency_date', statusField: 'financing_status',      terminal: ['Approved'], windowDays: 3 },
-  { label: 'Final Walkthrough',           dateField: 'final_walkthrough',           statusField: null,                    terminal: [], windowDays: 3 },
   { label: 'Closing',                     dateField: 'closing_date',                statusField: null,                    terminal: [], windowDays: 3 },
+  // Walkthrough sign-off is a POST-walkthrough form — track it only day-of (not before)
   // Day-of walkthrough sign-off — appears ON the final walkthrough day
   { label: 'Final Walkthrough Signed',    dateField: 'final_walkthrough',           statusField: null,                    terminal: [], windowDays: 0,
     title: (addr) => `Final Walkthrough signed by buyers at ${addr}` },

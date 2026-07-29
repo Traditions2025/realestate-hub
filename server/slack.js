@@ -76,7 +76,9 @@ export function buildDeadlineMessage() {
 
   for (const tx of txs) {
     const items = buildActionItems(tx)
-    const due = items.filter(it => it.daysOut === 3 || it.daysOut === 1)
+    // The final walkthrough form is only needed AFTER the walkthrough, so it's
+    // handled by the day-of task + 5 PM reminder — not the pre-emptive alert.
+    const due = items.filter(it => (it.daysOut === 3 || it.daysOut === 1) && it.label !== 'Final walkthrough')
     if (due.length) {
       itemCount += due.length
       const lines = due
