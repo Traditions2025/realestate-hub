@@ -643,6 +643,115 @@ function BulkTagFromSheet() {
   )
 }
 
+// =====================================================
+// SYSTEMS — data-source sync status (Sierra + Realist)
+// Moved here from the Clients page so Clients stays focused on leads.
+// =====================================================
+function SystemsStatus() {
+  const [syncHealth, setSyncHealth] = useState(null)
+  const [realistStats, setRealistStats] = useState(null)
+  const [runningIncremental, setRunningIncremental] = useState(false)
+  const loadHealth = () => authFetch('/api/sierra/sync-health').then(r => r.json()).then(setSyncHealth).catch(() => {})
+  const loadRealistStats = () => authFetch('/api/realist/stats').then(r => r.json()).then(setRealistStats).catch(() => {})
+  useEffect(() => { loadHealth(); loadRealistStats() }, [])
+
+  const fmtAgo = (ts) => {
+    if (!ts) return 'never'
+    const d = new Date(ts.includes('T') ? ts : ts.replace(' ', 'T') + 'Z')
+    const mins = Math.floor((Date.now() - d.getTime()) / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins} min ago`
+    if (mins < 1440) return `${Math.floor(mins / 60)} hr ago`
+    return `${Math.floor(mins / 1440)} day${Math.floor(mins / 1440) === 1 ? '' : 's'} ago`
+  }
+
+  const lastInc = syncHealth?.last_incremental
+  const lastFull = syncHealth?.last_full
+  const incrementalIsStale = syncHealth && (!lastInc || (Date.now() - new Date(lastInc.synced_at.replace(' ', 'T') + 'Z').getTime()) > 30 * 60 * 1000)
+
+  return (
+    <div style={{ display: 'grid', gap: 14, maxWidth: 900 }}>
+      <h3 style={{ margin: '4px 0' }}>Sierra Interactive</h3>
+      {syncHealth ? (
+        <div className={`sierra-banner ${incrementalIsStale ? 'warning' : 'info'}`} style={{display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center'}}>
+          <div style={{flex: 1, minWidth: 250}}>
+            {lastFull && (
+              <div><strong>Last full sync:</strong> {new Date(lastFull.synced_at.replace(' ', 'T') + 'Z').toLocaleString()} — {lastFull.leads_synced.toLocaleString()} leads</div>
+            )}
+            <div>
+              <strong>Last incremental:</strong>{' '}
+              {lastInc ? (
+                <>{fmtAgo(lastInc.synced_at)} — {lastInc.leads_synced} updated · {syncHealth.incremental_runs_24h} runs in 24hr</>
+              ) : (
+                <span style={{color: '#fbbf24'}}>none on record</span>
+              )}
+            </div>
+            {syncHealth.updates_since_full_sync > 0 && (
+              <div style={{fontSize: 12, opacity: 0.8}}>{syncHealth.updates_since_full_sync.toLocaleString()} lead updates since last full sync</div>
+            )}
+            {incrementalIsStale && (
+              <div style={{color: '#fbbf24', fontSize: 12, marginTop: 4}}>
+                ⚠ Incremental sync hasn't run in 30+ min — scheduler may have stopped. Click "Run Sync Now" to trigger one.
+              </div>
+            )}
+          </div>
+          <button
+            className="btn btn-sm btn-secondary"
+            disabled={runningIncremental}
+            onClick={async () => {
+              setRunningIncremental(true)
+              try {
+                const r = await authFetch('/api/sierra/sync-incremental-now', { method: 'POST' })
+                const d = await r.json()
+                if (d.success) alert(`✓ Incremental sync complete: ${d.total} leads (${d.added} new, ${d.updated} updated)`)
+                else alert('Sync failed: ' + (d.error || 'unknown error'))
+                loadHealth()
+              } catch (e) { alert('Failed: ' + e.message) }
+              finally { setRunningIncremental(false) }
+            }}
+          >
+            {runningIncremental ? 'Syncing...' : '↻ Run Sync Now'}
+          </button>
+        </div>
+      ) : <div className="sierra-banner info">Loading sync status…</div>}
+
+      <h3 style={{ margin: '10px 0 4px' }}>Realist Enrichment</h3>
+      {realistStats && realistStats.total_properties > 0 && (
+        <div className="sierra-banner info" style={{display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center'}}>
+          <div style={{flex: 1, minWidth: 250}}>
+            <strong>🏘 Realist data:</strong>{' '}
+            {realistStats.total_properties.toLocaleString()} properties imported ·{' '}
+            {realistStats.enriched_clients.toLocaleString()} clients enriched
+            {realistStats.last_import && (
+              <span style={{fontSize: 11, marginLeft: 10, opacity: 0.7}}>
+                Last import: {realistStats.last_import.split('.')[0].replace('T', ' ')}
+              </span>
+            )}
+          </div>
+          <button
+            className="btn btn-sm btn-secondary"
+            onClick={async () => {
+              const r = await authFetch('/api/realist/rematch', { method: 'POST' })
+              const d = await r.json()
+              alert(`✓ Re-matched: ${d.client_matches_updated} clients updated from ${d.properties_scanned} properties`)
+              loadRealistStats()
+            }}
+            title="Re-run matching after Sierra adds new leads"
+          >
+            ↻ Re-match
+          </button>
+        </div>
+      )}
+      {realistStats && realistStats.total_properties === 0 && (
+        <div className="sierra-banner warning">
+          🏘 No Realist data imported yet. Click <strong>Import Realist CSV</strong> on the Clients page header to upload.
+        </div>
+      )}
+      {!realistStats && <div className="sierra-banner info">Loading Realist status…</div>}
+    </div>
+  )
+}
+
 export default function Updates() {
   const [tab, setTab] = useState('hub')
   const subtitles = {
@@ -650,6 +759,7 @@ export default function Updates() {
     activity: 'Live activity feed — everything created, updated, synced or sent across the hub',
     email: 'Every email send attempt — successful + failed, with timestamps and error details',
     bulk: 'Bulk admin tools — apply tags to many clients at once from a source sheet',
+    systems: 'Data-source sync status — Sierra Interactive lead sync + Realist enrichment',
   }
   return (
     <div className="page">
@@ -673,12 +783,16 @@ export default function Updates() {
         <button className={`listing-tab ${tab === 'bulk' ? 'active' : ''}`} onClick={() => setTab('bulk')}>
           🏷 Bulk Tools
         </button>
+        <button className={`listing-tab ${tab === 'systems' ? 'active' : ''}`} onClick={() => setTab('systems')}>
+          ⚙ Systems
+        </button>
       </div>
 
       {tab === 'hub' && <HubUpdates />}
       {tab === 'activity' && <ActivityLog />}
       {tab === 'email' && <EmailLog />}
       {tab === 'bulk' && <><MigratePreListings /><BulkTagFromSheet /></>}
+      {tab === 'systems' && <SystemsStatus />}
     </div>
   )
 }
