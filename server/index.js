@@ -350,6 +350,32 @@ async function start() {
     }
   })
 
+  // FUB activity: import (upsert by fub_event_id) + read per client.
+  app.post('/api/fub/activity/import', (req, res) => {
+    const rows = Array.isArray(req.body) ? req.body : (req.body?.activity || [])
+    let added = 0, updated = 0
+    const nn = (v) => (v === undefined || v === '' ? null : v)
+    const COLS = ['fub_event_id', 'client_id', 'fub_person_id', 'type', 'page_title', 'page_url', 'page_duration', 'prop_street', 'prop_city', 'prop_state', 'prop_mls', 'prop_price', 'occurred_at', 'description']
+    db.beginBulk?.()
+    try {
+      for (const r of rows) {
+        if (!r || !r.fub_event_id) continue
+        const existing = db.get('SELECT id FROM fub_activity WHERE fub_event_id = ?', [r.fub_event_id])
+        if (existing) { updated++; continue }  // events are immutable; skip if already stored
+        db.run(`INSERT INTO fub_activity (${COLS.join(',')}) VALUES (${COLS.map(() => '?').join(',')})`, COLS.map(c => nn(r[c])))
+        added++
+        if (r.client_id && r.fub_person_id) db.run('UPDATE clients SET fub_person_id = ? WHERE id = ? AND (fub_person_id IS NULL OR fub_person_id = 0)', [r.fub_person_id, r.client_id])
+      }
+    } finally { db.endBulk?.() }
+    res.json({ added, skipped: updated, total: rows.length })
+  })
+  app.get('/api/fub/activity', (req, res) => {
+    const clientId = Number(req.query.client_id)
+    if (!clientId) return res.status(400).json({ error: 'client_id required' })
+    const rows = db.all('SELECT * FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 200', [clientId])
+    res.json(rows)
+  })
+
   // Manual trigger: fire the Slack transaction-deadline alert right now.
   // Useful to preview the 10 AM post's formatting on demand.
   app.post('/api/slack/deadline-now', async (_req, res) => {

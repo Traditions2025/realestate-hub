@@ -616,6 +616,31 @@ export async function initDb() {
   try { db.run('CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug)') } catch {}
 
   // =============================================
+  // FUB ACTIVITY (web/property activity pulled from Follow Up Boss, matched to a client)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fub_activity (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      fub_event_id INTEGER UNIQUE,
+      client_id INTEGER,
+      fub_person_id INTEGER,
+      type TEXT,
+      page_title TEXT,
+      page_url TEXT,
+      page_duration INTEGER,
+      prop_street TEXT,
+      prop_city TEXT,
+      prop_state TEXT,
+      prop_mls TEXT,
+      prop_price TEXT,
+      occurred_at TEXT,
+      description TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_client ON fub_activity(client_id, occurred_at DESC)') } catch {}
+
+  // =============================================
   // CALENDAR EVENTS
   // =============================================
   db.run(`
@@ -952,6 +977,8 @@ export async function initDb() {
       ['realist_last_sale_date', 'TEXT'],
       ['realist_property_id', 'INTEGER'],
       ['realist_matched_at', 'TEXT'],
+      // Follow Up Boss matched person id (for pulling FUB activity)
+      ['fub_person_id', 'INTEGER'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {
