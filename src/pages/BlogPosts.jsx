@@ -3,11 +3,11 @@ import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 
-const statusOptions = ['posted', 'scheduled', 'draft', 'planned']
-const statusColors = { posted: '#10b981', scheduled: '#3b82f6', draft: '#6b7280', planned: '#f59e0b' }
+const statusOptions = ['posted', 'scheduled']
+const statusColors = { posted: '#10b981', scheduled: '#3b82f6' }
 
 const emptyPost = {
-  title: '', slug: '', category: '', status: 'draft', post_date: '', post_time: '',
+  title: '', slug: '', category: '', status: 'scheduled', post_date: '', post_time: '',
   live_url: '', tags: '', cover_url: '', meta_title: '', meta_description: '', author: 'Matt Smith', notes: ''
 }
 
