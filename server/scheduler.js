@@ -556,6 +556,68 @@ async function syncFubRealistScores() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// FUB budget range — derives each lead's price range from the LIST PRICES of the
+// properties they've actually viewed (more accurate than Sierra's preset budget).
+// Uses a trimmed range (10th-90th percentile) so one stray browse doesn't skew it.
+// Overwrites clients.budget_min/max for linked clients with viewed-property data.
+// Runs weekly via a global events scan (memory-safe: only prices per linked person).
+// ---------------------------------------------------------------------------
+function trimmedRange(prices) {
+  const p = prices.filter(v => v > 10000 && v < 10000000).sort((a, b) => a - b)
+  if (!p.length) return null
+  const round5 = (v) => Math.round(v / 5000) * 5000
+  if (p.length < 5) return { lo: round5(p[0]), hi: round5(p[p.length - 1]) }
+  const q = (t) => p[Math.min(p.length - 1, Math.max(0, Math.round(t * (p.length - 1))))]
+  let lo = round5(q(0.10)), hi = round5(q(0.90))
+  if (hi <= lo) hi = round5(p[p.length - 1])
+  return { lo, hi: hi <= lo ? lo + 5000 : hi }
+}
+
+async function syncFubBudgetRanges() {
+  try {
+    const { fubGet, fubConfigured } = await import('./fub-helper.js')
+    if (!fubConfigured()) return
+    // Map linked person -> client (indexed; in-memory to avoid per-event queries).
+    const personToClient = new Map()
+    for (const c of db.all('SELECT id, fub_person_id FROM clients WHERE fub_person_id IS NOT NULL')) personToClient.set(c.fub_person_id, c.id)
+    if (!personToClient.size) return
+
+    const perPerson = new Map()  // personId -> [prices] (cap 300)
+    let next = '/events?limit=100&sort=-created', pages = 0
+    while (next && pages < 2600) {
+      pages++
+      const path = next.startsWith('http') ? next.replace('https://api.followupboss.com/v1', '') : next
+      const data = await fubGet(path)
+      const events = data?.events || []
+      if (!events.length) break
+      for (const e of events) {
+        const price = e.property?.price
+        if (price == null) continue
+        const pid = e.personId || e.person?.id
+        if (!pid || !personToClient.has(pid)) continue
+        const arr = perPerson.get(pid) || []
+        if (arr.length < 300) { arr.push(Number(price)); perPerson.set(pid, arr) }
+      }
+      next = data?._metadata?.nextLink || data?._metadata?.next || null
+      await new Promise(r => setTimeout(r, 70))
+    }
+    let updated = 0
+    db.beginBulk?.()
+    try {
+      for (const [pid, prices] of perPerson) {
+        const range = trimmedRange(prices)
+        if (!range) continue
+        const info = db.run('UPDATE clients SET budget_min = ?, budget_max = ? WHERE fub_person_id = ?', [range.lo, range.hi, pid])
+        updated += info?.changes || 0
+      }
+    } finally { db.endBulk?.() }
+    console.log(`[scheduler] FUB budget-range sync: ${perPerson.size} leads with viewed prices, ${updated} budgets updated`)
+  } catch (e) {
+    console.error('[scheduler] FUB budget-range sync error:', e.message)
+  }
+}
+
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
 
@@ -622,4 +684,8 @@ export function startScheduler() {
   // FUB Realist Score backfill sync — weekly (+ once ~2 min after boot).
   setInterval(syncFubRealistScores, 7 * 24 * 60 * 60 * 1000)
   setTimeout(syncFubRealistScores, 120 * 1000)
+
+  // FUB budget-range sync (price range from viewed properties) — weekly.
+  setInterval(syncFubBudgetRanges, 7 * 24 * 60 * 60 * 1000)
+  setTimeout(syncFubBudgetRanges, 200 * 1000)
 }

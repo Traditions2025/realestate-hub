@@ -465,6 +465,28 @@ async function start() {
     res.json({ updated, total: rows.length })
   })
 
+  // Overwrite the Hub's price range (clients.budget_min/max) with a FUB-derived
+  // range computed from the actual list prices of properties the lead has viewed.
+  // Rows: [{ fub_person_id, budget_min, budget_max }], keyed by fub_person_id.
+  // This is an OVERWRITE (not backfill) — the FUB range reflects real shopping
+  // behavior and is more accurate than Sierra's preset budget.
+  app.post('/api/fub/budget/bulk', (req, res) => {
+    const rows = Array.isArray(req.body) ? req.body : (req.body?.rows || [])
+    let updated = 0
+    db.beginBulk?.()
+    try {
+      for (const r of rows) {
+        if (!r || !r.fub_person_id) continue
+        const lo = (r.budget_min === undefined || r.budget_min === null || r.budget_min === '') ? null : Math.round(Number(r.budget_min))
+        const hi = (r.budget_max === undefined || r.budget_max === null || r.budget_max === '') ? null : Math.round(Number(r.budget_max))
+        if (lo === null && hi === null) continue
+        const info = db.run('UPDATE clients SET budget_min = ?, budget_max = ? WHERE fub_person_id = ?', [lo, hi, r.fub_person_id])
+        updated += info?.changes || 0
+      }
+    } finally { db.endBulk?.() }
+    res.json({ updated, total: rows.length })
+  })
+
   // Lazy-load a client's full web-activity timeline LIVE from FUB (no bulk storage).
   // Falls back to any stored fub_activity rows if the client isn't linked to a FUB person.
   app.get('/api/fub/activity/live', async (req, res) => {
