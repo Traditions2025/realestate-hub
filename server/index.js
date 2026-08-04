@@ -353,10 +353,12 @@ async function start() {
   // Recompute a client's "last FUB visit" summary from the newest activity row.
   function recomputeClientLastFub(clientId) {
     const last = db.get(
-      'SELECT type, prop_street, page_title, occurred_at FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 1',
+      'SELECT type, prop_street, prop_city, page_title, occurred_at FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 1',
       [clientId])
     if (!last) return
-    const detail = last.prop_street || last.page_title || null
+    const detail = last.prop_street
+      ? (last.prop_street + (last.prop_city ? `, ${last.prop_city}` : ''))
+      : (last.page_title || null)
     db.run('UPDATE clients SET last_fub_activity_at = ?, last_fub_activity_type = ?, last_fub_activity_detail = ? WHERE id = ?',
       [last.occurred_at, last.type, detail, clientId])
   }
