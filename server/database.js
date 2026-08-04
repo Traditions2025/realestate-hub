@@ -687,6 +687,9 @@ export async function initDb() {
       FOREIGN KEY (client_id) REFERENCES clients(id)
     )
   `)
+  // FUB linkage — used by the realist-score/last-visit syncs (UPDATE/SELECT WHERE fub_person_id).
+  // Without this each of ~19k updates full-scans 45k clients, which times out the bulk endpoint.
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_clients_fub_person ON clients(fub_person_id)') } catch {}
   db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_client    ON lead_activity(client_id, created_at DESC)')
   db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_sierra    ON lead_activity(sierra_lead_id, created_at DESC)')
   db.run('CREATE INDEX IF NOT EXISTS idx_lead_activity_created   ON lead_activity(created_at DESC)')
