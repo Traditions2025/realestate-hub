@@ -429,6 +429,41 @@ async function start() {
     res.json({ updated, linked, total: rows.length })
   })
 
+  // Sierra's Realist-score grade bands (derived from live data): A+ >=800,
+  // A 700-799, B 650-699, C 600-649, D 500-599, F <500.
+  function realistGrade(s) {
+    if (s >= 800) return 'A+'
+    if (s >= 700) return 'A'
+    if (s >= 650) return 'B'
+    if (s >= 600) return 'C'
+    if (s >= 500) return 'D'
+    return 'F'
+  }
+
+  // Sync FUB's "Realist Sell Score" custom field (customRealistSellScore, 0-1000)
+  // into the Hub's Realist Score = clients.lead_score (+ A-F grade). Rows:
+  // [{ fub_person_id, score }], keyed by fub_person_id. BACKFILL ONLY — we only
+  // set it where lead_score is empty, so Sierra-sourced scores stay authoritative
+  // (Sierra's hourly sync owns those) and there's no overwrite thrash.
+  app.post('/api/fub/realist-score/bulk', (req, res) => {
+    const rows = Array.isArray(req.body) ? req.body : (req.body?.rows || [])
+    let updated = 0
+    db.beginBulk?.()
+    try {
+      for (const r of rows) {
+        if (!r || !r.fub_person_id) continue
+        const score = (r.score === undefined || r.score === null || r.score === '') ? null : Math.round(Number(r.score))
+        if (score === null || Number.isNaN(score)) continue
+        const grade = realistGrade(score)
+        const info = db.run(
+          "UPDATE clients SET lead_score = ?, lead_grade = ? WHERE fub_person_id = ? AND (lead_score IS NULL OR lead_score = '')",
+          [String(score), grade, r.fub_person_id])
+        updated += info?.changes || 0
+      }
+    } finally { db.endBulk?.() }
+    res.json({ updated, total: rows.length })
+  })
+
   // Lazy-load a client's full web-activity timeline LIVE from FUB (no bulk storage).
   // Falls back to any stored fub_activity rows if the client isn't linked to a FUB person.
   app.get('/api/fub/activity/live', async (req, res) => {

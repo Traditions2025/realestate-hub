@@ -309,6 +309,7 @@ const SORT_OPTIONS = {
   highest_value: 'realist_market_value DESC NULLS LAST',
   lowest_value: 'realist_market_value ASC NULLS LAST',
   highest_sell_score: 'realist_sell_score DESC NULLS LAST',
+  lowest_sell_score: 'realist_sell_score ASC NULLS LAST',
   newest_built: 'realist_year_built DESC NULLS LAST',
   oldest_built: 'realist_year_built ASC NULLS LAST',
   highest_last_sale: 'realist_last_sale_price DESC NULLS LAST',

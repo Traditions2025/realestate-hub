@@ -489,6 +489,58 @@ async function syncFubActivityIncremental() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// FUB "Realist Sell Score" sync — pulls the customRealistSellScore custom field
+// (0-1000) for all FUB people and backfills it into the Hub's Realist Score
+// (clients.lead_score + A-F grade). Runs weekly; the score only refreshes on
+// Realist's cadence. BACKFILL ONLY (lead_score IS NULL/'') so Sierra-sourced
+// scores stay authoritative and Sierra's hourly sync doesn't thrash against it.
+// Bulk-mode is safe: endBulk() does a single ATOMIC saveDb() at the end.
+// ---------------------------------------------------------------------------
+function realistGrade(s) {
+  if (s >= 800) return 'A+'
+  if (s >= 700) return 'A'
+  if (s >= 650) return 'B'
+  if (s >= 600) return 'C'
+  if (s >= 500) return 'D'
+  return 'F'
+}
+async function syncFubRealistScores() {
+  try {
+    const { fubGet, fubConfigured } = await import('./fub-helper.js')
+    if (!fubConfigured()) return
+    let next = '/people?limit=100&sort=created&fields=id,customRealistSellScore', pages = 0
+    const scores = []  // { pid, score }
+    while (next && pages < 1200) {
+      pages++
+      const path = next.startsWith('http') ? next.replace('https://api.followupboss.com/v1', '') : next
+      const data = await fubGet(path)
+      const arr = data?.people || []
+      if (!arr.length) break
+      for (const p of arr) {
+        const s = p.customRealistSellScore
+        if (s !== undefined && s !== null && s !== '') scores.push({ pid: p.id, score: Math.round(Number(s)) })
+      }
+      next = data?._metadata?.nextLink || data?._metadata?.next || null
+      await new Promise(r => setTimeout(r, 80))
+    }
+    let updated = 0
+    db.beginBulk?.()
+    try {
+      for (const { pid, score } of scores) {
+        if (Number.isNaN(score)) continue
+        const info = db.run(
+          "UPDATE clients SET lead_score = ?, lead_grade = ? WHERE fub_person_id = ? AND (lead_score IS NULL OR lead_score = '')",
+          [String(score), realistGrade(score), pid])
+        updated += info?.changes || 0
+      }
+    } finally { db.endBulk?.() }
+    console.log(`[scheduler] FUB realist-score sync: ${scores.length} scored persons, ${updated} clients backfilled`)
+  } catch (e) {
+    console.error('[scheduler] FUB realist-score sync error:', e.message)
+  }
+}
+
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
 
@@ -551,4 +603,8 @@ export function startScheduler() {
   // "Last Visit" column fresh for all linked clients without storing full history.
   setInterval(syncFubActivityIncremental, 60 * 60 * 1000)
   setTimeout(syncFubActivityIncremental, 90 * 1000)
+
+  // FUB Realist Score backfill sync — weekly (+ once ~2 min after boot).
+  setInterval(syncFubRealistScores, 7 * 24 * 60 * 60 * 1000)
+  setTimeout(syncFubRealistScores, 120 * 1000)
 }
