@@ -69,7 +69,7 @@ const SIERRA_STATUSES = [
 
 export default function Clients() {
   const [items, setItems] = useState([])
-  const [tab, setTab] = useState('active') // 'active', 'prime', 'all'
+  const [tab, setTab] = useState('all') // default to All; 'active', 'prime', 'all'
   const [filter, setFilter] = useState({ type: '' })
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
@@ -1127,6 +1127,11 @@ export default function Clients() {
 
       {/* Status Tabs - primary statuses always visible, others in dropdown */}
       <div className="client-tabs">
+        <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
+          <span className="tab-dot" style={{ background: '#6b7280' }}></span>
+          All
+          <span className="tab-count">{allCounts.total}</span>
+        </button>
         {primaryTabs.map(s => (
           <button
             key={s.status}
@@ -1153,11 +1158,6 @@ export default function Clients() {
             <span className="tab-count">{l.count || 0}</span>
           </button>
         ))}
-
-        <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
-          All
-          <span className="tab-count">{allCounts.total}</span>
-        </button>
       </div>
 
       {/* Type filter: All / Buyers / Sellers — combines with Status tabs above */}
