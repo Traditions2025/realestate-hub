@@ -393,6 +393,7 @@ export default function Clients() {
   const [sierraActivity, setSierraActivity] = useState(null)
   const [listingInterest, setListingInterest] = useState(null)
   const [hubActivity, setHubActivity] = useState(null)
+  const [fubActivity, setFubActivity] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [] })
@@ -414,9 +415,12 @@ export default function Clients() {
     setListingInterest(null)
     setEmailHistory([])
     setHubActivity(null)
+    setFubActivity(null)
     setDetailOpen(true)
     // Hub tracking activity (mattsmithteam.com pixel) — always fetch, not gated on Sierra link
     authFetch(`/api/track/activity/${id}?limit=50`).then(r => r.json()).then(setHubActivity).catch(() => {})
+    // Follow Up Boss web activity (property views w/ address, page visits, saved searches)
+    authFetch(`/api/fub/activity?client_id=${id}`).then(r => r.json()).then(d => setFubActivity(Array.isArray(d) ? d : [])).catch(() => setFubActivity([]))
     // Lazy-load Sierra activity + listing interest if it's a Sierra-synced lead
     if (d.sierra_lead_id) {
       authFetch(`/api/sierra/lead-notes/${d.sierra_lead_id}`)
@@ -2009,6 +2013,29 @@ export default function Clients() {
                         </div>
                         {e.page_title && <div style={{color: 'var(--text-secondary)', fontSize: 11, marginTop: 2}}>{e.page_title}</div>}
                         {e.duration_sec && <div style={{color: 'var(--text-muted)', fontSize: 10}}>{e.duration_sec}s on page</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Follow Up Boss web activity — property views w/ address, page visits, saved searches */}
+            {fubActivity && fubActivity.length > 0 && (
+              <div className="detail-section">
+                <h4>Follow Up Boss Activity ({fubActivity.length}{(() => { const pv = fubActivity.filter(a => a.prop_street).length; return pv ? ` · ${pv} property views` : '' })()})</h4>
+                <div style={{ maxHeight: 340, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
+                  {fubActivity.slice(0, 150).map(a => {
+                    const when = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+                    const addr = a.prop_street ? `${a.prop_street}, ${a.prop_city || ''} ${a.prop_state || ''}`.trim() : ''
+                    return (
+                      <div key={a.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontWeight: 600 }}>{a.type}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>{when}</span>
+                        </div>
+                        {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
+                        {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.page_title}</div>}
                       </div>
                     )
                   })}
