@@ -1597,8 +1597,8 @@ export default function Clients() {
       )}
       {view === 'list' && items.length > 0 && (() => {
         // Build grid-template-columns dynamically from the user's visible/ordered cols.
-        // First track = checkbox (30px), last = actions (1fr). All middle = minmax(0, Xfr).
-        const gridTemplate = `30px ${visibleColumns.map(c => `minmax(0, ${c.fr})`).join(' ')} 1fr`
+        // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
+        const gridTemplate = `30px ${visibleColumns.map(c => `minmax(0, ${c.fr})`).join(' ')}`
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
@@ -1711,7 +1711,6 @@ export default function Clients() {
                   onChange={e => { if (e.target.checked) selectAllVisible(); else clearSelection() }} />
               </div>
               {visibleColumns.map(renderHeaderCell)}
-              <div className="cl-actions">Actions</div>
             </div>
             {items.map(item => (
               <div key={item.id} className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`}
@@ -1721,12 +1720,6 @@ export default function Clients() {
                   <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
                 </div>
                 {visibleColumns.map(col => renderCell(col, item))}
-                <div className="cl-actions" onClick={e => e.stopPropagation()}>
-                  <button className="action-btn action-prelisting" title="Add to Pre-Listing" onClick={e => addToPreListing(item, e)}>PL</button>
-                  <button className="action-btn action-active-listing" title="Active Listing (live on MLS)" onClick={e => addTransaction(item, 'listing', e, 'Active')}>AL</button>
-                  <button className="action-btn action-purchase" title="Purchase Under Contract" onClick={e => addTransaction(item, 'purchase', e)}>P</button>
-                  <button className="action-btn action-listing" title="Listing Under Contract" onClick={e => addTransaction(item, 'listing', e)}>L</button>
-                </div>
               </div>
             ))}
           </div>
