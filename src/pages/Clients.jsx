@@ -26,6 +26,7 @@ const LIST_COLUMNS = [
   { key: 'budget',     label: 'Budget',     defaultVisible: false, fr: '1.2fr' },
   { key: 'visits',     label: 'Visits',     defaultVisible: true,  fr: '0.5fr', sort: { asc: 'least_visits',  desc: 'most_visits' } },
   { key: 'source',     label: 'Source',     defaultVisible: true,  fr: '0.8fr' },
+  { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, fr: '1.3fr', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
   { key: 'registered', label: 'Registered', defaultVisible: true,  fr: '0.8fr', sort: { asc: 'oldest_first', desc: 'recent_added' } },
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
@@ -1220,6 +1221,7 @@ export default function Clients() {
           <option value="hub_activity">🔥 Most Active on Site (Tracked)</option>
           <option value="recent_added">🆕 Recently Added</option>
           <option value="oldest_first">⏳ Oldest First</option>
+          <option value="recent_fub_visit">🕒 Most Recent Web Visit (FUB)</option>
           <option value="most_visits">👁️ Most Visits (Sierra)</option>
           <option value="least_visits">📉 Fewest Visits</option>
           <option value="highest_score">🔥 Highest Score</option>
@@ -1675,6 +1677,21 @@ export default function Clients() {
               return <div key="visits" className="cl-visits">{item.visits || 0}</div>
             case 'source':
               return <div key="source" className="cl-source">{item.source || '—'}</div>
+            case 'last_fub_visit':
+              return <div key="last_fub_visit" className="cl-last-visit">
+                {item.last_fub_activity_at ? (
+                  <>
+                    <div style={{ fontWeight: 600 }}>
+                      {new Date(String(item.last_fub_activity_at).replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    {(item.last_fub_activity_type || item.last_fub_activity_detail) && (
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.25, marginTop: 2 }}>
+                        {item.last_fub_activity_type}{item.last_fub_activity_detail ? ` ${item.last_fub_activity_detail}` : ''}
+                      </div>
+                    )}
+                  </>
+                ) : '—'}
+              </div>
             case 'registered':
               return <div key="registered" className="cl-registered" title={item.sierra_creation_date || ''}>
                 {item.sierra_creation_date

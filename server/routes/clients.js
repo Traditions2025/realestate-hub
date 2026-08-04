@@ -302,6 +302,9 @@ const SORT_OPTIONS = {
   name_za: 'last_name DESC, first_name DESC',
   recent_update: 'updated_at DESC',
   oldest_first: 'sierra_creation_date ASC NULLS LAST',
+  // Follow Up Boss last web visit (most/least active)
+  recent_fub_visit: 'last_fub_activity_at DESC NULLS LAST',
+  oldest_fub_visit: 'last_fub_activity_at ASC NULLS LAST',
   // Realist enrichment sorts
   highest_value: 'realist_market_value DESC NULLS LAST',
   lowest_value: 'realist_market_value ASC NULLS LAST',

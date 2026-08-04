@@ -350,24 +350,46 @@ async function start() {
     }
   })
 
+  // Recompute a client's "last FUB visit" summary from the newest activity row.
+  function recomputeClientLastFub(clientId) {
+    const last = db.get(
+      'SELECT type, prop_street, page_title, occurred_at FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 1',
+      [clientId])
+    if (!last) return
+    const detail = last.prop_street || last.page_title || null
+    db.run('UPDATE clients SET last_fub_activity_at = ?, last_fub_activity_type = ?, last_fub_activity_detail = ? WHERE id = ?',
+      [last.occurred_at, last.type, detail, clientId])
+  }
+
   // FUB activity: import (upsert by fub_event_id) + read per client.
   app.post('/api/fub/activity/import', (req, res) => {
     const rows = Array.isArray(req.body) ? req.body : (req.body?.activity || [])
     let added = 0, updated = 0
     const nn = (v) => (v === undefined || v === '' ? null : v)
+    const affected = new Set()
     const COLS = ['fub_event_id', 'client_id', 'fub_person_id', 'type', 'page_title', 'page_url', 'page_duration', 'prop_street', 'prop_city', 'prop_state', 'prop_mls', 'prop_price', 'occurred_at', 'description']
     db.beginBulk?.()
     try {
       for (const r of rows) {
         if (!r || !r.fub_event_id) continue
+        if (r.client_id) affected.add(r.client_id)
         const existing = db.get('SELECT id FROM fub_activity WHERE fub_event_id = ?', [r.fub_event_id])
         if (existing) { updated++; continue }  // events are immutable; skip if already stored
         db.run(`INSERT INTO fub_activity (${COLS.join(',')}) VALUES (${COLS.map(() => '?').join(',')})`, COLS.map(c => nn(r[c])))
         added++
         if (r.client_id && r.fub_person_id) db.run('UPDATE clients SET fub_person_id = ? WHERE id = ? AND (fub_person_id IS NULL OR fub_person_id = 0)', [r.fub_person_id, r.client_id])
       }
+      for (const cid of affected) recomputeClientLastFub(cid)
     } finally { db.endBulk?.() }
     res.json({ added, skipped: updated, total: rows.length })
+  })
+
+  // One-time backfill: recompute last-FUB-visit for every client that has activity.
+  app.post('/api/fub/activity/recompute-all', (_req, res) => {
+    const ids = db.all('SELECT DISTINCT client_id FROM fub_activity WHERE client_id IS NOT NULL')
+    db.beginBulk?.()
+    try { for (const r of ids) recomputeClientLastFub(r.client_id) } finally { db.endBulk?.() }
+    res.json({ recomputed: ids.length })
   })
   app.get('/api/fub/activity', (req, res) => {
     const clientId = Number(req.query.client_id)

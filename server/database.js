@@ -979,6 +979,10 @@ export async function initDb() {
       ['realist_matched_at', 'TEXT'],
       // Follow Up Boss matched person id (for pulling FUB activity)
       ['fub_person_id', 'INTEGER'],
+      // Denormalized "last FUB web visit" for the Clients list column + sorting
+      ['last_fub_activity_at', 'TEXT'],
+      ['last_fub_activity_type', 'TEXT'],
+      ['last_fub_activity_detail', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {
