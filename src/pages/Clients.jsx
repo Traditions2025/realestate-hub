@@ -420,8 +420,11 @@ export default function Clients() {
     setDetailOpen(true)
     // Hub tracking activity (mattsmithteam.com pixel) — always fetch, not gated on Sierra link
     authFetch(`/api/track/activity/${id}?limit=50`).then(r => r.json()).then(setHubActivity).catch(() => {})
-    // Follow Up Boss web activity (property views w/ address, page visits, saved searches)
-    authFetch(`/api/fub/activity?client_id=${id}`).then(r => r.json()).then(d => setFubActivity(Array.isArray(d) ? d : [])).catch(() => setFubActivity([]))
+    // Follow Up Boss web activity — lazy-loaded LIVE from FUB (property views w/ address,
+    // page visits, saved searches). Falls back to any stored rows if not linked.
+    authFetch(`/api/fub/activity/live?client_id=${id}`).then(r => r.json())
+      .then(d => setFubActivity(Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : [])))
+      .catch(() => setFubActivity([]))
     // Lazy-load Sierra activity + listing interest if it's a Sierra-synced lead
     if (d.sierra_lead_id) {
       authFetch(`/api/sierra/lead-notes/${d.sierra_lead_id}`)

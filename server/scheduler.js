@@ -426,6 +426,69 @@ async function checkBackupTick() {
 
 export { syncGoogleCalendar, runIncrementalNow, runDigestNow, runDailyRemindersNow }
 
+// ---------------------------------------------------------------------------
+// FUB web-activity incremental sync — keeps each client's "Last Visit" fresh.
+// We poll FUB's global /events feed newest-first, stop at the last event id we
+// already processed (cursor in app_settings), and for any web event whose
+// personId maps to a linked client we advance that client's last_fub_activity.
+// Only the LAST-VISIT SUMMARY is stored (never the full 300k-event history), so
+// this is memory-safe on the 512MB instance. Full timelines are lazy-loaded
+// live via GET /api/fub/activity/live when a client is opened.
+// ---------------------------------------------------------------------------
+const isFubWebEvent = (e) => !!(e.pageUrl || e.property || e.propertySearch) || /website|visit|view|propert|search|registration|inquir/i.test(e.type || '')
+
+async function syncFubActivityIncremental() {
+  try {
+    const { fubGet, fubConfigured } = await import('./fub-helper.js')
+    const { getSetting, setSetting } = await import('./database.js')
+    if (!fubConfigured()) return
+    const cursor = Number(getSetting('fub_last_event_id', 0)) || 0
+
+    // Page newest-first until we cross the cursor (or hit a safety page cap).
+    let next = '/events?limit=100&sort=-created'
+    let maxSeen = cursor, processed = 0, updated = 0, pages = 0
+    const seenClient = new Set()
+    while (next && pages < 60) {
+      pages++
+      const path = next.startsWith('http') ? next.replace('https://api.followupboss.com/v1', '') : next
+      const data = await fubGet(path)
+      const events = data?.events || []
+      if (!events.length) break
+      let crossed = false
+      for (const e of events) {
+        const eid = Number(e.id) || 0
+        if (eid > maxSeen) maxSeen = eid
+        if (cursor && eid <= cursor) { crossed = true; break }  // reached already-processed territory
+        if (!isFubWebEvent(e)) continue
+        const pid = e.personId || e.person?.id
+        if (!pid) continue
+        const client = db.get('SELECT id, last_fub_activity_at FROM clients WHERE fub_person_id = ?', [pid])
+        if (!client) continue
+        processed++
+        // newest-first: first time we touch a client this run is their latest visit
+        if (seenClient.has(client.id)) continue
+        seenClient.add(client.id)
+        const occurred = e.occurred || e.created
+        if (client.last_fub_activity_at && String(client.last_fub_activity_at) >= String(occurred)) continue
+        const detail = e.property?.street
+          ? (e.property.street + (e.property.city ? `, ${e.property.city}` : ''))
+          : (e.pageTitle || null)
+        db.run('UPDATE clients SET last_fub_activity_at = ?, last_fub_activity_type = ?, last_fub_activity_detail = ? WHERE id = ?',
+          [occurred, e.type || null, detail, client.id])
+        updated++
+      }
+      if (crossed) break
+      next = data?._metadata?.nextLink || data?._metadata?.next || null
+    }
+
+    // First run (no cursor): just set the baseline, backfill handles history.
+    if (maxSeen > cursor) setSetting('fub_last_event_id', String(maxSeen))
+    if (updated) console.log(`[scheduler] FUB activity: ${updated} clients' last-visit updated (scanned ${pages} pages)`)
+  } catch (e) {
+    console.error('[scheduler] FUB activity sync error:', e.message)
+  }
+}
+
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
 
@@ -483,4 +546,9 @@ export function startScheduler() {
 
   // Daily backup tick (2:00 AM CT) — disk rotation + gzipped email attachment
   setInterval(checkBackupTick, 60 * 1000)
+
+  // FUB web-activity incremental sync — hourly (+ shortly after boot). Keeps the
+  // "Last Visit" column fresh for all linked clients without storing full history.
+  setInterval(syncFubActivityIncremental, 60 * 60 * 1000)
+  setTimeout(syncFubActivityIncremental, 90 * 1000)
 }

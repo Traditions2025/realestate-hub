@@ -400,6 +400,61 @@ async function start() {
     res.json(rows)
   })
 
+  // Lightweight "last web visit" writer for the full-base sync (all non-junk clients).
+  // We DO NOT store every event for 30k+ clients (that would bloat the in-memory DB).
+  // Instead we store only the single most-recent web visit summary on the client row,
+  // which powers the "Last Visit" column + sorting. Full timelines are lazy-loaded live
+  // from FUB via /api/fub/activity/live when a client is opened.
+  app.post('/api/fub/last-visit/bulk', (req, res) => {
+    const rows = Array.isArray(req.body) ? req.body : (req.body?.rows || [])
+    const nn = (v) => (v === undefined || v === '' ? null : v)
+    let updated = 0, linked = 0
+    db.beginBulk?.()
+    try {
+      for (const r of rows) {
+        if (!r || !r.client_id) continue
+        if (r.fub_person_id) {
+          const info = db.run('UPDATE clients SET fub_person_id = ? WHERE id = ? AND (fub_person_id IS NULL OR fub_person_id = 0)', [r.fub_person_id, r.client_id])
+          if (info?.changes) linked++
+        }
+        if (!r.occurred_at) continue
+        // Only advance the stored last-visit if the incoming one is newer (idempotent re-runs + incremental).
+        const cur = db.get('SELECT last_fub_activity_at FROM clients WHERE id = ?', [r.client_id])
+        if (cur && cur.last_fub_activity_at && String(cur.last_fub_activity_at) >= String(r.occurred_at)) continue
+        db.run('UPDATE clients SET last_fub_activity_at = ?, last_fub_activity_type = ?, last_fub_activity_detail = ? WHERE id = ?',
+          [nn(r.occurred_at), nn(r.type), nn(r.detail), r.client_id])
+        updated++
+      }
+    } finally { db.endBulk?.() }
+    res.json({ updated, linked, total: rows.length })
+  })
+
+  // Lazy-load a client's full web-activity timeline LIVE from FUB (no bulk storage).
+  // Falls back to any stored fub_activity rows if the client isn't linked to a FUB person.
+  app.get('/api/fub/activity/live', async (req, res) => {
+    const clientId = Number(req.query.client_id)
+    if (!clientId) return res.status(400).json({ error: 'client_id required' })
+    const client = db.get('SELECT id, fub_person_id FROM clients WHERE id = ?', [clientId])
+    const stored = db.all('SELECT * FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 200', [clientId])
+    if (!client?.fub_person_id) return res.json({ source: 'stored', rows: stored })
+    try {
+      const { fubGet, fubConfigured } = await import('./fub-helper.js')
+      if (!fubConfigured()) return res.json({ source: 'stored', rows: stored })
+      const isWeb = (e) => !!(e.pageUrl || e.property || e.propertySearch) || /website|visit|view|propert|search|registration|inquir/i.test(e.type || '')
+      const data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' })
+      const rows = (data?.events || []).filter(isWeb).map(e => ({
+        fub_event_id: e.id, client_id: clientId, fub_person_id: client.fub_person_id, type: e.type,
+        page_title: e.pageTitle || null, page_url: e.pageUrl || null, page_duration: e.pageDuration || null,
+        prop_street: e.property?.street || null, prop_city: e.property?.city || null, prop_state: e.property?.state || null,
+        prop_mls: e.property?.mlsNumber || null, prop_price: e.property?.price || null,
+        occurred_at: e.occurred || e.created, description: e.description || null,
+      }))
+      return res.json({ source: 'live', rows: rows.length ? rows : stored })
+    } catch (e) {
+      return res.json({ source: 'stored', rows: stored, error: String(e.message || e) })
+    }
+  })
+
   // Manual trigger: fire the Slack transaction-deadline alert right now.
   // Useful to preview the 10 AM post's formatting on demand.
   app.post('/api/slack/deadline-now', async (_req, res) => {
