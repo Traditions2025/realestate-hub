@@ -509,8 +509,19 @@ async function syncFubRealistScores() {
   try {
     const { fubGet, fubConfigured } = await import('./fub-helper.js')
     if (!fubConfigured()) return
-    let next = '/people?limit=100&sort=created&fields=id,customRealistSellScore', pages = 0
-    const scores = []  // { pid, score }
+    // Match by EMAIL, not fub_person_id — FUB has duplicate person records and the
+    // Realist score often sits on a different duplicate than the one a client is
+    // linked to. Email is the dup-proof join. Build email -> client_id for the
+    // clients that still need a score (empty, non-junk).
+    const lc = (s) => String(s || '').trim().toLowerCase()
+    const emailToClient = new Map()
+    for (const c of db.all("SELECT id, email FROM clients WHERE (lead_score IS NULL OR lead_score = '') AND email IS NOT NULL AND email != '' AND (status IS NULL OR status NOT IN ('junk','donotcontact','blocked'))")) {
+      const e = lc(c.email); if (e && !emailToClient.has(e)) emailToClient.set(e, c.id)
+    }
+    if (!emailToClient.size) { console.log('[scheduler] FUB realist-score sync: no empty-score clients'); return }
+
+    let next = '/people?limit=100&sort=created&fields=id,emails,customRealistSellScore', pages = 0
+    const toSet = new Map()  // client_id -> score
     while (next && pages < 1200) {
       pages++
       const path = next.startsWith('http') ? next.replace('https://api.followupboss.com/v1', '') : next
@@ -519,7 +530,12 @@ async function syncFubRealistScores() {
       if (!arr.length) break
       for (const p of arr) {
         const s = p.customRealistSellScore
-        if (s !== undefined && s !== null && s !== '') scores.push({ pid: p.id, score: Math.round(Number(s)) })
+        if (s === undefined || s === null || s === '') continue
+        const score = Math.round(Number(s)); if (Number.isNaN(score)) continue
+        for (const em of (p.emails || [])) {
+          const cid = emailToClient.get(lc(em.value || em.email))
+          if (cid && (!toSet.has(cid) || toSet.get(cid) < score)) toSet.set(cid, score)
+        }
       }
       next = data?._metadata?.nextLink || data?._metadata?.next || null
       await new Promise(r => setTimeout(r, 80))
@@ -527,15 +543,14 @@ async function syncFubRealistScores() {
     let updated = 0
     db.beginBulk?.()
     try {
-      for (const { pid, score } of scores) {
-        if (Number.isNaN(score)) continue
+      for (const [cid, score] of toSet) {
         const info = db.run(
-          "UPDATE clients SET lead_score = ?, lead_grade = ? WHERE fub_person_id = ? AND (lead_score IS NULL OR lead_score = '')",
-          [String(score), realistGrade(score), pid])
+          "UPDATE clients SET lead_score = ?, lead_grade = ? WHERE id = ? AND (lead_score IS NULL OR lead_score = '')",
+          [String(score), realistGrade(score), cid])
         updated += info?.changes || 0
       }
     } finally { db.endBulk?.() }
-    console.log(`[scheduler] FUB realist-score sync: ${scores.length} scored persons, ${updated} clients backfilled`)
+    console.log(`[scheduler] FUB realist-score sync: ${emailToClient.size} empty clients, ${updated} backfilled by email`)
   } catch (e) {
     console.error('[scheduler] FUB realist-score sync error:', e.message)
   }
