@@ -451,13 +451,14 @@ async function start() {
     db.beginBulk?.()
     try {
       for (const r of rows) {
-        if (!r || !r.fub_person_id) continue
+        if (!r || (!r.fub_person_id && !r.client_id)) continue
         const score = (r.score === undefined || r.score === null || r.score === '') ? null : Math.round(Number(r.score))
         if (score === null || Number.isNaN(score)) continue
         const grade = realistGrade(score)
-        const info = db.run(
-          "UPDATE clients SET lead_score = ?, lead_grade = ? WHERE fub_person_id = ? AND (lead_score IS NULL OR lead_score = '')",
-          [String(score), grade, r.fub_person_id])
+        // Prefer client_id (email-matched, dup-proof); fall back to fub_person_id. Empty-only.
+        const info = r.client_id
+          ? db.run("UPDATE clients SET lead_score = ?, lead_grade = ? WHERE id = ? AND (lead_score IS NULL OR lead_score = '')", [String(score), grade, r.client_id])
+          : db.run("UPDATE clients SET lead_score = ?, lead_grade = ? WHERE fub_person_id = ? AND (lead_score IS NULL OR lead_score = '')", [String(score), grade, r.fub_person_id])
         updated += info?.changes || 0
       }
     } finally { db.endBulk?.() }
