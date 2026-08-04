@@ -13,6 +13,7 @@ const Marketing = lazy(() => import('./pages/Marketing'))
 const Vendors = lazy(() => import('./pages/Vendors'))
 const Partners = lazy(() => import('./pages/Partners'))
 const SocialMedia = lazy(() => import('./pages/SocialMedia'))
+const BlogPosts = lazy(() => import('./pages/BlogPosts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Updates = lazy(() => import('./pages/Updates'))
 const Templates = lazy(() => import('./pages/Templates'))
@@ -38,6 +39,7 @@ const navSections = [
     { path: '/marketing', label: 'Campaigns', icon: '\u25C8' },
     { path: '/templates', label: 'Templates', icon: '\u2709' },
     { path: '/social-media', label: 'Social Media', icon: '\u2600' },
+    { path: '/blog-posts', label: 'Blog Posts', icon: '\u270E' },
   ]},
   { label: 'DIRECTORY', items: [
     { path: '/vendors', label: 'Vendors', icon: '\u2692' },
@@ -146,6 +148,7 @@ export default function App() {
             <Route path="/vendors" element={<Vendors />} />
             <Route path="/partners" element={<Partners />} />
             <Route path="/social-media" element={<SocialMedia />} />
+            <Route path="/blog-posts" element={<BlogPosts />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/updates" element={<Updates />} />

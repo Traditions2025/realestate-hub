@@ -591,6 +591,31 @@ export async function initDb() {
   `)
 
   // =============================================
+  // BLOG POSTS (mattsmithteam.com blog calendar — mirrors social_posts)
+  // =============================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS blog_posts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      slug TEXT,
+      category TEXT,
+      status TEXT DEFAULT 'draft',      -- draft | scheduled | posted | planned
+      post_date TEXT,                   -- YYYY-MM-DD publish / scheduled date
+      post_time TEXT,
+      live_url TEXT,                    -- direct link to the published post
+      tags TEXT,
+      cover_url TEXT,
+      meta_title TEXT,
+      meta_description TEXT,
+      author TEXT,
+      notes TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_blog_posts_slug ON blog_posts(slug)') } catch {}
+
+  // =============================================
   // CALENDAR EVENTS
   // =============================================
   db.run(`

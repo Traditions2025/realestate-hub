@@ -23,6 +23,7 @@ import realistRouter from './routes/realist.js'
 import vendorsRouter from './routes/vendors.js'
 import partnersRouter from './routes/partners.js'
 import socialmediaRouter from './routes/socialmedia.js'
+import blogPostsRouter from './routes/blog-posts.js'
 import calendarRouter from './routes/calendar.js'
 import sierraRouter from './routes/sierra.js'
 import emailRouter from './routes/email.js'
@@ -195,6 +196,7 @@ async function start() {
   app.use('/api/vendors', vendorsRouter)
   app.use('/api/partners', partnersRouter)
   app.use('/api/social-media', socialmediaRouter)
+  app.use('/api/blog-posts', blogPostsRouter)
   app.use('/api/calendar', calendarRouter)
   app.use('/api/sierra', sierraRouter)
   app.use('/api/email', emailRouter)
