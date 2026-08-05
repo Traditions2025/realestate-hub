@@ -6,6 +6,22 @@ import StatusBadge from '../components/StatusBadge'
 import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
 import EmailToolbar from '../components/EmailToolbar'
 
+// Turn a bare mattsmithteam.com property link (pasted into an email) into a rich
+// listing card — photo + address + MLS — like the listing previews. URLs already
+// inside an href/src (e.g. the generated "Homes They Viewed" cards) are skipped.
+function embedPropertyLinks(html) {
+  if (!html) return html
+  const re = /(?<!["'>])https?:\/\/(?:www\.)?mattsmithteam\.com\/property-search\/detail\/\d+\/(\d+)\/([a-z0-9-]+)\/?/gi
+  return html.replace(re, (url, mls, slug) => {
+    const addr = slug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+    const photo = `https://cdn.listingphotos.sierrastatic.com/large/352/352_${mls}_01.jpg`
+    return `<table cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;margin:8px 0;border:1px solid #e2e8f0;border-radius:8px;"><tr>` +
+      `<td valign="top" style="padding:12px;width:174px;"><a href="${url}"><img src="${photo}" width="150" alt="${addr}" style="width:150px;height:auto;border-radius:6px;display:block;border:0;"/></a></td>` +
+      `<td valign="top" style="padding:12px 12px 12px 0;font-family:Arial,Helvetica,sans-serif;"><a href="${url}" style="color:#2563eb;font-weight:bold;font-size:15px;text-decoration:none;">${addr} | MLS ${mls}</a>` +
+      `<div style="color:#475569;font-size:13px;margin-top:6px;">View this listing &rarr;</div></td></tr></table>`
+  })
+}
+
 const emptyClient = {
   first_name: '', last_name: '', email: '', phone: '', type: 'buyer', status: 'active',
   source: '', agent_assigned: '', address: '', city: '', state: 'IA', zip: '',
@@ -397,12 +413,47 @@ export default function Clients() {
   const [fubActivity, setFubActivity] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
-  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [] })
+  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: '', bcc: '' })
   const singleEmailBodyRef = useRef(null)
   const bulkEmailBodyRef = useRef(null)
   const [singleEmailPreviewOpen, setSingleEmailPreviewOpen] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState([])
   const [sending, setSending] = useState(false)
+  // Detail-panel UI state (collapsible sections, transaction menu, quick note)
+  const [txMenuOpen, setTxMenuOpen] = useState(false)
+  const [tagsExpanded, setTagsExpanded] = useState(false)
+  const [fubExpanded, setFubExpanded] = useState(false)
+  const [listingActExpanded, setListingActExpanded] = useState(false)
+  const [sierraExpanded, setSierraExpanded] = useState(false)
+  const [noteOpen, setNoteOpen] = useState(false)
+  const [noteText, setNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [composerView, setComposerView] = useState('preview') // 'preview' | 'html'
+  const [showCcBcc, setShowCcBcc] = useState(false)
+
+  // Move to the prev/next client in the current list without closing the modal.
+  const gotoAdjacent = (dir) => {
+    if (!detail) return
+    const idx = items.findIndex(i => i.id === detail.id)
+    if (idx === -1) return
+    const next = items[idx + dir]
+    if (next) openDetail(next.id)
+  }
+
+  // Save a quick internal note (appended to the client's notes, newest first).
+  const saveQuickNote = async () => {
+    if (!detail || !noteText.trim()) return
+    setSavingNote(true)
+    try {
+      const stamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+      const entry = `[${stamp}] ${noteText.trim()}`
+      const combined = detail.notes ? `${entry}\n${detail.notes}` : entry
+      await authFetch(`/api/clients/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: combined }) })
+      setDetail(d => ({ ...d, notes: combined }))
+      setNoteText(''); setNoteOpen(false)
+    } catch (e) { alert('Failed to save note: ' + e.message) }
+    finally { setSavingNote(false) }
+  }
 
   // Load email templates on mount
   useEffect(() => {
@@ -417,6 +468,9 @@ export default function Clients() {
     setEmailHistory([])
     setHubActivity(null)
     setFubActivity(null)
+    // reset per-client detail UI state
+    setTagsExpanded(false); setFubExpanded(false); setListingActExpanded(false)
+    setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText('')
     setDetailOpen(true)
     // Hub tracking activity (mattsmithteam.com pixel) — always fetch, not gated on Sierra link
     authFetch(`/api/track/activity/${id}?limit=50`).then(r => r.json()).then(setHubActivity).catch(() => {})
@@ -464,12 +518,13 @@ export default function Clients() {
   }
 
   const openEmailComposer = (templateId = '') => {
+    setComposerView('preview'); setShowCcBcc(false)
     if (templateId && detail) {
       authFetch(`/api/email/preview/${templateId}/${detail.id}`)
         .then(r => r.json())
-        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [] }))
+        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [], cc: '', bcc: '' }))
     } else {
-      setEmailForm({ subject: '', body: '', template: '', attachments: [] })
+      setEmailForm({ subject: '', body: '', template: '', attachments: [], cc: '', bcc: '' })
     }
     setEmailModalOpen(true)
   }
@@ -484,7 +539,8 @@ export default function Clients() {
       const d = await r.json()
       if (d.error) { alert('Could not build email: ' + d.error); return }
       if (!d.count) { alert(d.message || 'No viewed properties found for this client.'); return }
-      setEmailForm({ subject: d.subject, body: d.body, template: '', attachments: [] })
+      setEmailForm(p => ({ subject: d.subject, body: d.body, template: '', attachments: [], cc: p.cc || '', bcc: p.bcc || '' }))
+      setComposerView('preview')
       setEmailModalOpen(true)
     } catch (e) { alert('Failed: ' + e.message) }
     finally { setDraftingPropEmail(false) }
@@ -701,6 +757,8 @@ export default function Clients() {
   const sendEmail = async (e) => {
     e.preventDefault()
     if (!detail.email) { alert('No email address for this client'); return }
+    if (!emailForm.body || !emailForm.body.trim()) { alert('Add an email body first'); return }
+    const parseList = (s) => (s || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => /@/.test(x))
     setSending(true)
     try {
       const r = await authFetch('/api/email/send', {
@@ -708,8 +766,10 @@ export default function Clients() {
         body: JSON.stringify({
           client_id: detail.id,
           subject: emailForm.subject,
-          body: emailForm.body,
+          body: embedPropertyLinks(emailForm.body),
           template: emailForm.template,
+          cc: parseList(emailForm.cc),
+          bcc: parseList(emailForm.bcc),
           attachments: emailForm.attachments || [],
         }),
       })
@@ -1747,7 +1807,19 @@ export default function Clients() {
       <Modal open={detailOpen} onClose={() => setDetailOpen(false)} title={detail ? `${detail.first_name} ${detail.last_name}` : ''} wide>
         {detail && (
           <div className="detail-view">
-            {/* PRIMARY ACTIONS — kept at top for fastest access */}
+            {/* Prev / Next through the current list */}
+            {(() => {
+              const idx = items.findIndex(i => i.id === detail.id)
+              return (
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10}}>
+                  <button className="btn btn-secondary btn-sm" onClick={() => gotoAdjacent(-1)} disabled={idx <= 0}>‹ Prev</button>
+                  <span style={{fontSize: 12, color: 'var(--text-muted)'}}>{idx >= 0 ? `${idx + 1} of ${items.length}` : ''}</span>
+                  <button className="btn btn-secondary btn-sm" onClick={() => gotoAdjacent(1)} disabled={idx < 0 || idx >= items.length - 1}>Next ›</button>
+                </div>
+              )
+            })()}
+
+            {/* Communication + transaction actions */}
             <div className="lead-action-bar">
               <div className="lead-action-bar-row">
                 {detail.email && !detail.marketing_email_opt_out && (
@@ -1757,11 +1829,7 @@ export default function Clients() {
                   </button>
                 )}
                 {detail.phone && !detail.text_opt_out && (
-                  <button
-                    className="lead-action-btn lead-action-text"
-                    title="Twilio SMS coming soon"
-                    onClick={() => alert('Twilio SMS integration is in setup. Coming soon.')}
-                  >
+                  <button className="lead-action-btn lead-action-text" title="Twilio SMS coming soon" onClick={() => alert('Twilio SMS integration is in setup. Coming soon.')}>
                     <span className="lead-action-icon">💬</span>
                     <span>Text</span>
                     <span className="lead-action-soon">soon</span>
@@ -1773,67 +1841,64 @@ export default function Clients() {
                     <span>Call</span>
                   </a>
                 )}
-                <button
-                  className="lead-action-btn lead-action-voicemail"
-                  title="Recorded voicemail drops — coming with Twilio"
-                  onClick={() => alert('Recorded voicemail drops are planned with Twilio. Coming soon.')}
-                >
+                <button className="lead-action-btn lead-action-voicemail" title="Recorded voicemail drops — coming with Twilio" onClick={() => alert('Recorded voicemail drops are planned with Twilio. Coming soon.')}>
                   <span className="lead-action-icon">🎙</span>
                   <span>Voicemail</span>
                   <span className="lead-action-soon">soon</span>
                 </button>
-                <button className="lead-action-btn lead-action-prelisting" onClick={() => addToPreListing(detail)}>
-                  <span className="lead-action-icon">⌂</span>
-                  <span>Pre-List</span>
+                <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}>
+                  <span className="lead-action-icon">📝</span>
+                  <span>Add Note</span>
                 </button>
-                <button className="lead-action-btn lead-action-active" onClick={() => addTransaction(detail, 'listing', null, 'Active')}>
-                  <span className="lead-action-icon">★</span>
-                  <span>Active Listing</span>
-                </button>
-                <button className="lead-action-btn lead-action-purchase" onClick={() => addTransaction(detail, 'purchase')}>
-                  <span className="lead-action-icon">⇄</span>
-                  <span>Purchase</span>
-                </button>
-                <button className="lead-action-btn lead-action-listing" onClick={() => addTransaction(detail, 'listing')}>
-                  <span className="lead-action-icon">◆</span>
-                  <span>Listing UC</span>
-                </button>
+
+                {/* Add Transaction — single button with a dropdown of the 4 transaction types */}
+                <div style={{position: 'relative', display: 'inline-block'}}>
+                  <button className="lead-action-btn lead-action-prelisting" onClick={() => setTxMenuOpen(o => !o)}>
+                    <span className="lead-action-icon">➕</span>
+                    <span>Add Transaction ▾</span>
+                  </button>
+                  {txMenuOpen && (
+                    <div style={{position: 'absolute', top: '100%', left: 0, zIndex: 30, background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.18)', minWidth: 230, marginTop: 4, overflow: 'hidden'}} onMouseLeave={() => setTxMenuOpen(false)}>
+                      {[
+                        { label: '⌂  Pre-Listing', fn: () => addToPreListing(detail) },
+                        { label: '★  Active Listing (live on MLS)', fn: () => addTransaction(detail, 'listing', null, 'Active') },
+                        { label: '⇄  Purchase Under Contract', fn: () => addTransaction(detail, 'purchase') },
+                        { label: '◆  Listing Under Contract', fn: () => addTransaction(detail, 'listing') },
+                      ].map((m, i) => (
+                        <button key={i} onClick={() => { setTxMenuOpen(false); m.fn() }} style={{display: 'block', width: '100%', textAlign: 'left', padding: '10px 14px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', color: 'var(--text-primary)', fontSize: 13, cursor: 'pointer'}}>{m.label}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 {detail.sierra_lead_id && (
-                  <button
-                    className="lead-action-btn lead-action-refresh"
-                    onClick={refreshFromSierra}
-                    disabled={refreshing}
-                    title="Pull this lead's latest data from Sierra"
-                  >
+                  <button className="lead-action-btn lead-action-refresh" onClick={refreshFromSierra} disabled={refreshing} title="Pull this lead's latest data from Sierra">
                     <span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span>
                     <span>{refreshing ? 'Refreshing...' : 'Refresh from Sierra'}</span>
                   </button>
                 )}
               </div>
+              {noteOpen && (
+                <div style={{marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-start'}}>
+                  <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add an internal note…" rows={2} style={{flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical'}} />
+                  <button className="btn btn-primary btn-sm" onClick={saveQuickNote} disabled={savingNote || !noteText.trim()}>{savingNote ? 'Saving…' : 'Save Note'}</button>
+                </div>
+              )}
             </div>
 
-            {/* Type toggle — quick buyer/seller/both classification */}
-            <div className="type-toggle-row">
+            {/* Lead type — dropdown */}
+            <div className="type-toggle-row" style={{display: 'flex', alignItems: 'center', gap: 10}}>
               <span className="type-toggle-label">Type:</span>
-              {['buyer', 'seller', 'both'].map(t => (
-                <button
-                  key={t}
-                  className={`type-toggle-btn type-${t} ${detail.type === t ? 'active' : ''}`}
-                  onClick={async () => {
-                    if (detail.type === t) return
-                    await authFetch(`/api/clients/${detail.id}`, {
-                      method: 'PUT',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ type: t })
-                    })
-                    setDetail(d => ({ ...d, type: t }))
-                    load()
-                  }}
-                  title={`Mark as ${t === 'both' ? 'buyer & seller' : t}`}
-                >
-                  {t === 'buyer' ? '🎯 Buyer' : t === 'seller' ? '🏠 Seller' : '🔄 Buyer/Seller'}
-                </button>
-              ))}
+              <select value={detail.type || 'buyer'} onChange={async (e) => {
+                const t = e.target.value
+                await authFetch(`/api/clients/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: t }) })
+                setDetail(d => ({ ...d, type: t }))
+                load()
+              }} style={{padding: '6px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13}}>
+                <option value="buyer">🎯 Buyer</option>
+                <option value="seller">🏠 Seller</option>
+                <option value="both">🔄 Buyer/Seller</option>
+              </select>
             </div>
 
             <div className="detail-grid">
@@ -1892,7 +1957,7 @@ export default function Clients() {
               return (
                 <div className="detail-section">
                   <h4>Tags ({tagList.length}){detail.sierra_lead_id ? <span style={{fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>↔ Sierra</span> : null}</h4>
-                  <div className="lead-tags-list">
+                  <div className="lead-tags-list" style={!tagsExpanded ? { maxHeight: 30, overflow: 'hidden' } : undefined}>
                     {tagList.map((t, i) => (
                       <span key={i} className="lead-tag" style={{display: 'inline-flex', alignItems: 'center', gap: 4}}>
                         {t}
@@ -1905,6 +1970,11 @@ export default function Clients() {
                       </span>
                     ))}
                   </div>
+                  {tagList.length > 6 && (
+                    <button onClick={() => setTagsExpanded(v => !v)} style={{marginTop: 6, background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: 0}}>
+                      {tagsExpanded ? '− Show less' : `+ Show all ${tagList.length} tags`}
+                    </button>
+                  )}
                   <form
                     onSubmit={(e) => { e.preventDefault(); const v = e.target.elements.tag.value.trim(); if (v) { addTag(detail, v); e.target.reset() } }}
                     style={{display: 'flex', gap: 6, marginTop: 8}}
@@ -1964,28 +2034,6 @@ export default function Clients() {
               </div>
             )}
 
-            {/* Follow Up Boss web activity — property views w/ address, page visits, saved searches */}
-            {fubActivity && fubActivity.length > 0 && (
-              <div className="detail-section">
-                <h4>Follow Up Boss Activity ({fubActivity.length}{(() => { const pv = fubActivity.filter(a => a.prop_street).length; return pv ? ` · ${pv} property views` : '' })()})</h4>
-                <div style={{ maxHeight: 340, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 }}>
-                  {fubActivity.slice(0, 150).map(a => {
-                    const when = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
-                    const addr = a.prop_street ? `${a.prop_street}, ${a.prop_city || ''} ${a.prop_state || ''}`.trim() : ''
-                    return (
-                      <div key={a.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                          <span style={{ fontWeight: 600 }}>{a.type}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>{when}</span>
-                        </div>
-                        {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
-                        {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.page_title}</div>}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* Listing Interest */}
             {detail.sierra_lead_id && listingInterest && (
@@ -2035,11 +2083,11 @@ export default function Clients() {
                   </div>
                 )}
 
-                {/* Listing-related Activity */}
+                {/* Listing-related Activity — show 2, expand for the rest */}
                 {listingInterest.listing_activity?.length > 0 && (
                   <div className="listing-block">
                     <div className="listing-block-title">🏠 Listing Activity ({listingInterest.listing_activity.length})</div>
-                    {listingInterest.listing_activity.slice(0, 10).map(a => (
+                    {listingInterest.listing_activity.slice(0, listingActExpanded ? 50 : 2).map(a => (
                       <div key={a.id} className="listing-activity-item">
                         <div className="la-meta">
                           <span className="la-author">{a.author}</span>
@@ -2054,6 +2102,11 @@ export default function Clients() {
                         )}
                       </div>
                     ))}
+                    {listingInterest.listing_activity.length > 2 && (
+                      <button onClick={() => setListingActExpanded(v => !v)} style={{marginTop: 6, background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: 0}}>
+                        {listingActExpanded ? '− Show less' : `+ See all ${listingInterest.listing_activity.length}`}
+                      </button>
+                    )}
                   </div>
                 )}
 
@@ -2063,7 +2116,36 @@ export default function Clients() {
               </div>
             )}
 
-            {/* Sierra Activity Log */}
+            {/* Follow Up Boss web activity — property views w/ address, page visits, saved searches.
+                Placed BELOW Listing Interest. Shows the last 4, expand for the full scrollable list. */}
+            {fubActivity && fubActivity.length > 0 && (
+              <div className="detail-section">
+                <h4>Follow Up Boss Activity ({fubActivity.length}{(() => { const pv = fubActivity.filter(a => a.prop_street).length; return pv ? ` · ${pv} property views` : '' })()})</h4>
+                <div style={fubExpanded ? { maxHeight: 340, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6 } : { border: '1px solid var(--border)', borderRadius: 6 }}>
+                  {fubActivity.slice(0, fubExpanded ? 150 : 4).map(a => {
+                    const when = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+                    const addr = a.prop_street ? `${a.prop_street}, ${a.prop_city || ''} ${a.prop_state || ''}`.trim() : ''
+                    return (
+                      <div key={a.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                          <span style={{ fontWeight: 600 }}>{a.type}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>{when}</span>
+                        </div>
+                        {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
+                        {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.page_title}</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+                {fubActivity.length > 4 && (
+                  <button onClick={() => setFubExpanded(v => !v)} style={{marginTop: 6, background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: 0}}>
+                    {fubExpanded ? '− Show less' : `+ See all ${fubActivity.length} (scroll)`}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Sierra Activity Log — show 4, expand for the rest */}
             {detail.sierra_lead_id && (
               <div className="detail-section">
                 <h4>Sierra Activity {sierraActivity && `(${sierraActivity.length})`}</h4>
@@ -2072,8 +2154,8 @@ export default function Clients() {
                 ) : sierraActivity.length === 0 ? (
                   <p style={{fontSize: 12, color: 'var(--text-muted)'}}>No activity recorded</p>
                 ) : (
-                  <div className="sierra-activity-feed">
-                    {sierraActivity.slice(0, 20).map(a => (
+                  <div className="sierra-activity-feed" style={sierraExpanded ? { maxHeight: 320, overflowY: 'auto' } : undefined}>
+                    {sierraActivity.slice(0, sierraExpanded ? 50 : 4).map(a => (
                       <div key={a.id} className="sierra-activity-item">
                         <div className="sierra-activity-meta">
                           <span className="sierra-activity-author">{a.author}</span>
@@ -2083,6 +2165,11 @@ export default function Clients() {
                       </div>
                     ))}
                   </div>
+                )}
+                {sierraActivity && sierraActivity.length > 4 && (
+                  <button onClick={() => setSierraExpanded(v => !v)} style={{marginTop: 6, background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: 0}}>
+                    {sierraExpanded ? '− Show less' : `+ See all ${sierraActivity.length} (scroll)`}
+                  </button>
                 )}
               </div>
             )}
@@ -2113,43 +2200,22 @@ export default function Clients() {
 
             {detail.notes && <div className="detail-section"><h4>Notes</h4><p>{detail.notes}</p></div>}
 
-            {/* Email section */}
-            {detail.email && !detail.marketing_email_opt_out && (
+            {/* Email history — composing now happens via the Email button at the top. */}
+            {emailHistory.length > 0 && (
               <div className="detail-section">
-                <h4>Email</h4>
-                <div className="email-templates">
-                  <button className="btn btn-primary btn-sm" onClick={() => openEmailComposer('')}>
-                    Compose Email
-                  </button>
-                  {detail.fub_person_id && (
-                    <button className="btn btn-secondary btn-sm" onClick={draftViewedPropertiesEmail} disabled={draftingPropEmail}
-                      title="Build an email from the homes this lead has viewed in Follow Up Boss">
-                      {draftingPropEmail ? 'Building…' : '🏡 Homes They Viewed'}
-                    </button>
-                  )}
-                  {emailTemplates.map(t => (
-                    <button key={t.id} className="btn btn-secondary btn-sm" onClick={() => openEmailComposer(t.id)}>
-                      {t.name}
-                    </button>
+                <h4>Email History ({emailHistory.length})</h4>
+                <div className="email-history">
+                  {emailHistory.slice(0, 5).map(e => (
+                    <div key={e.id} className="email-history-item">
+                      <div className="email-history-meta">
+                        <span style={{color: e.status === 'sent' ? '#10b981' : '#ef4444'}}>{e.status === 'sent' ? '✓' : '✗'}</span>
+                        <span>{e.subject}</span>
+                        <span className="email-history-date">{new Date(e.sent_at).toLocaleDateString()}</span>
+                      </div>
+                      {e.error && <div className="email-error">{e.error}</div>}
+                    </div>
                   ))}
                 </div>
-                {emailHistory.length > 0 && (
-                  <div className="email-history">
-                    <div style={{fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 4px'}}>
-                      {emailHistory.length} email{emailHistory.length !== 1 ? 's' : ''} sent
-                    </div>
-                    {emailHistory.slice(0, 5).map(e => (
-                      <div key={e.id} className="email-history-item">
-                        <div className="email-history-meta">
-                          <span style={{color: e.status === 'sent' ? '#10b981' : '#ef4444'}}>{e.status === 'sent' ? '✓' : '✗'}</span>
-                          <span>{e.subject}</span>
-                          <span className="email-history-date">{new Date(e.sent_at).toLocaleDateString()}</span>
-                        </div>
-                        {e.error && <div className="email-error">{e.error}</div>}
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
 
@@ -2267,52 +2333,75 @@ export default function Clients() {
       <Modal open={emailModalOpen} onClose={() => setEmailModalOpen(false)} title={`Email ${detail?.first_name || ''} ${detail?.last_name || ''}`} wide>
         <form onSubmit={sendEmail}>
           <label>To<input value={detail?.email || ''} disabled /></label>
-          <label>Template<select value={emailForm.template} onChange={e => {
-            const t = emailTemplates.find(x => x.id === e.target.value)
-            if (t && detail) {
-              authFetch(`/api/email/preview/${t.id}/${detail.id}`).then(r => r.json()).then(d =>
-                setEmailForm(p => ({ ...p, subject: d.subject, body: d.body, template: t.id })))
-            } else {
-              setEmailForm(p => ({ ...p, template: '' }))
-            }
-          }}>
-            <option value="">Custom (no template)</option>
-            {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select></label>
+          <div style={{display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap'}}>
+            <label style={{flex: 1, minWidth: 200}}>Template<select value={emailForm.template} onChange={e => {
+              const t = emailTemplates.find(x => x.id === e.target.value)
+              if (t && detail) {
+                authFetch(`/api/email/preview/${t.id}/${detail.id}`).then(r => r.json()).then(d =>
+                  setEmailForm(p => ({ ...p, subject: d.subject, body: d.body, template: t.id })))
+                setComposerView('preview')
+              } else {
+                setEmailForm(p => ({ ...p, template: '' }))
+              }
+            }}>
+              <option value="">Custom (no template)</option>
+              {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select></label>
+            {detail?.fub_person_id && (
+              <button type="button" className="btn btn-sm btn-secondary" style={{marginBottom: 2}} onClick={draftViewedPropertiesEmail} disabled={draftingPropEmail}
+                title="Insert the homes this lead has viewed in Follow Up Boss">
+                {draftingPropEmail ? 'Building…' : '🏡 Homes They Viewed'}
+              </button>
+            )}
+          </div>
           <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
 
+          {/* Cc / Bcc */}
+          {!showCcBcc ? (
+            <button type="button" onClick={() => setShowCcBcc(true)} style={{background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: '2px 0', alignSelf: 'flex-start'}}>+ Add Cc / Bcc</button>
+          ) : (
+            <>
+              <label>Cc<input value={emailForm.cc} onChange={e => setEmailForm(p => ({ ...p, cc: e.target.value }))} placeholder="comma-separated emails" /></label>
+              <label>Bcc<input value={emailForm.bcc} onChange={e => setEmailForm(p => ({ ...p, bcc: e.target.value }))} placeholder="comma-separated emails" /></label>
+            </>
+          )}
+
+          {/* Body — rendered Preview by default, toggle to Edit HTML */}
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, marginTop: 8}}>
             <span style={{fontSize: 13, fontWeight: 500}}>Body</span>
             <div style={{display: 'flex', gap: 6}}>
+              <button type="button" className={`btn btn-sm ${composerView === 'preview' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('preview')}>👁 Preview</button>
+              <button type="button" className={`btn btn-sm ${composerView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('html')}>{'</>'} Edit HTML</button>
               <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
-                📁 Load HTML File
-                <input
-                  type="file"
-                  accept=".html,.htm,text/html"
+                📁 Load HTML
+                <input type="file" accept=".html,.htm,text/html"
                   style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const text = await file.text()
-                    setEmailForm(p => ({ ...p, body: text }))
-                    e.target.value = ''
-                  }}
-                />
+                  onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const text = await file.text(); setEmailForm(p => ({ ...p, body: text })); setComposerView('preview'); e.target.value = '' }} />
               </label>
-              <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setSingleEmailPreviewOpen(true)}>👁 Preview</button>
             </div>
           </div>
-          <EmailToolbar
-            textareaRef={singleEmailBodyRef}
-            body={emailForm.body}
-            setBody={(b) => setEmailForm(p => ({ ...p, body: b }))}
-            showPreview={false}
-            compact
-          />
-          <textarea ref={singleEmailBodyRef} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
-          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
-            Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · Plain text auto-formats · 📁 load .html · 📷 inline images so they render in email.
-          </p>
+          {composerView === 'preview' ? (
+            (() => {
+              const c = detail || {}
+              const fill = (s) => (s || '')
+                .replace(/\{\{first_name\}\}/g, c.first_name || 'there')
+                .replace(/\{\{last_name\}\}/g, c.last_name || '')
+                .replace(/\{\{full_name\}\}/g, `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'there')
+                .replace(/\{\{address\}\}/g, c.address || 'your home')
+                .replace(/\{\{city\}\}/g, c.city || 'Cedar Rapids')
+              return emailForm.body
+                ? <iframe title="Email preview" srcDoc={autoEmbedYoutubeLinks(embedPropertyLinks(fill(emailForm.body)))} style={{width: '100%', height: '46vh', border: '1px solid var(--border)', borderRadius: 6, background: 'white'}} />
+                : <div style={{padding: 24, border: '1px dashed var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center'}}>Nothing to preview yet — pick a template, click “🏡 Homes They Viewed”, load an HTML file, or switch to Edit HTML.</div>
+            })()
+          ) : (
+            <>
+              <EmailToolbar textareaRef={singleEmailBodyRef} body={emailForm.body} setBody={(b) => setEmailForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+              <textarea ref={singleEmailBodyRef} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={18} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
+              <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
+                Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · paste a mattsmithteam.com property link, then hit Preview — it renders as a listing card. 📷 inline images so they render in email.
+              </p>
+            </>
+          )}
 
           {/* Attachments */}
           <div style={{marginTop: 8}}>

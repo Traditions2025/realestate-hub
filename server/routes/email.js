@@ -235,7 +235,7 @@ function parseEmails(input) {
 }
 
 // Send a single email via SendGrid (supports multiple To, CC, BCC, attachments)
-export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = []) {
+export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = [], bccList = []) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
   }
@@ -252,6 +252,11 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
     // Dedupe and exclude any primary recipients from CC
     const uniqueCc = [...new Set(ccList.filter(e => e && !toLowerSet.has(e.toLowerCase())))]
     if (uniqueCc.length) personalization.cc = uniqueCc.map(email => ({ email }))
+  }
+  if (bccList && bccList.length) {
+    const ccLowerSet = new Set((personalization.cc || []).map(c => c.email.toLowerCase()))
+    const uniqueBcc = [...new Set(bccList.filter(e => e && !toLowerSet.has(e.toLowerCase()) && !ccLowerSet.has(e.toLowerCase())))]
+    if (uniqueBcc.length) personalization.bcc = uniqueBcc.map(email => ({ email }))
   }
   const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
@@ -298,7 +303,7 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
 
 // Send to a single client
 router.post('/send', async (req, res) => {
-  const { client_id, to_email, subject, body, template, cc, attachments } = req.body
+  const { client_id, to_email, subject, body, template, cc, bcc, attachments } = req.body
   let client = null
   let recipient = to_email
 
@@ -330,7 +335,8 @@ router.post('/send', async (req, res) => {
       filledBody,
       REPLY_TO,
       Array.isArray(cc) ? cc : [],
-      Array.isArray(attachments) ? attachments : []
+      Array.isArray(attachments) ? attachments : [],
+      Array.isArray(bcc) ? bcc : []
     )
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
       template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
