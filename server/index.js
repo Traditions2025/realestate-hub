@@ -31,6 +31,7 @@ import listsRouter from './routes/lists.js'
 import templatesRouter from './routes/templates.js'
 import automationsRouter from './routes/automations.js'
 import reportingRouter from './routes/reporting.js'
+import dripsRouter from './routes/drips.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -208,6 +209,7 @@ async function start() {
   app.use('/api/templates', templatesRouter)
   app.use('/api/automations', automationsRouter)
   app.use('/api/reporting', reportingRouter)
+  app.use('/api/drips', dripsRouter)
   app.use('/api/track', trackingRouter)
   app.use('/api/seed', seedRouter)
 

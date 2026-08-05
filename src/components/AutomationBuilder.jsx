@@ -35,6 +35,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [templates, setTemplates] = useState([])
   const [automations, setAutomations] = useState([])
+  const [drips, setDrips] = useState([])
   const [loading, setLoading] = useState(true)
   const loadedRef = useRef(false)
 
@@ -42,6 +43,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
   useEffect(() => {
     authFetch('/api/email/templates').then(r => r.json()).then(setTemplates).catch(() => {})
     authFetch('/api/automations').then(r => r.json()).then(setAutomations).catch(() => {})
+    authFetch('/api/drips').then(r => r.json()).then(d => setDrips(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
   useEffect(() => {
     setLoading(true)
@@ -256,7 +258,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
           </div>
         )}
         {sel && (
-          <ConfigDrawer node={sel} graph={graph} templates={templates} automations={automations}
+          <ConfigDrawer node={sel} graph={graph} templates={templates} automations={automations} drips={drips}
             onChange={cfg => patchConfig(sel.id, cfg)} onClose={() => setSelId(null)}
             onDelete={delNode} onDuplicate={dupNode} onTest={testAction} />
         )}

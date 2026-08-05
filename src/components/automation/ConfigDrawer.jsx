@@ -10,7 +10,7 @@ const help = { fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }
 
 const asArray = (v) => Array.isArray(v) ? v : (v == null || v === '' ? [] : String(v).split(',').map(s => s.trim()).filter(Boolean))
 
-export default function ConfigDrawer({ node, graph, templates = [], automations = [], onChange, onClose, onDelete, onDuplicate, onTest }) {
+export default function ConfigDrawer({ node, graph, templates = [], automations = [], drips = [], onChange, onClose, onDelete, onDuplicate, onTest }) {
   const def = getDef(node)
   const c = node.config || {}
   const set = (patch) => onChange({ ...c, ...patch })
@@ -42,6 +42,7 @@ export default function ConfigDrawer({ node, graph, templates = [], automations 
       case 'agent': control = <select {...common}><option value="">—</option>{TEAM.map(t => <option key={t} value={t}>{t}</option>)}</select>; break
       case 'template': control = <select {...common}><option value="">— none —</option>{templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}</select>; break
       case 'automation_ref': control = <select {...common}><option value="">—</option>{automations.filter(a => a.id !== node._autoId).map(a => <option key={a.id} value={a.id}>{a.name}</option>)}</select>; break
+      case 'drip_ref': control = drips.length ? <select {...common}><option value="">—</option>{drips.map(d => <option key={d.id} value={d.id}>{d.name} ({(d.steps || []).length} emails)</option>)}</select> : <div style={{ ...help, marginTop: 4 }}>No drip campaigns yet. Create one on the Templates page first.</div>; break
       case 'node_ref': control = <select {...common}><option value="">—</option>{(graph?.nodes || []).filter(n => n.id !== node.id && n.kind !== 'trigger').map(n => <option key={n.id} value={n.id}>{getDef(n)?.label || n.type}</option>)}</select>; break
       case 'tags': case 'multiselect': control = <input style={inp} value={asArray(v).join(', ')} onChange={e => set({ [field.key]: asArray(e.target.value) })} placeholder={field.placeholder || 'comma, separated'} />; break
       case 'richtext': control = <div style={{ marginTop: 4 }}><RichTextEditor value={v || ''} onChange={html => set({ [field.key]: html })} /></div>; break

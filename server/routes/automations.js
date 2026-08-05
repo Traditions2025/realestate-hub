@@ -3,6 +3,7 @@ import db from '../database.js'
 import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
 import { sendViaSendGrid, buildPropertyCardsLive } from './email.js'
+import { enrollInDrip } from './drips.js'
 import { validateGraph, getDef, branchKeysFor, labelFor } from '../../shared/automationRegistry.js'
 
 const router = Router()
@@ -216,6 +217,11 @@ async function runAction(node, client, ctx) {
         await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: `🤖 ${msg}` }) })
       } catch (e) { throw new Error('Slack post failed: ' + e.message) }
       return 'notified team'
+    }
+    case 'send_drip': {
+      if (!cfg.drip_id) throw new Error('no drip campaign selected')
+      const eid = enrollInDrip(Number(cfg.drip_id), client.id, { source: 'automation', automation_id: ctx.automationId })
+      return eid ? `started drip #${cfg.drip_id}` : 'drip skipped (already enrolled / empty)'
     }
     case 'enroll_in_automation': {
       const target = db.get('SELECT * FROM automations WHERE id = ?', [Number(cfg.automation_id)])

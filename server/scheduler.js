@@ -744,6 +744,8 @@ export function startScheduler() {
   setInterval(async () => {
     try { const { runDueAutomations } = await import('./routes/automations.js'); await runDueAutomations() }
     catch (e) { console.error('[scheduler] automations tick error:', e.message) }
+    try { const { dripTick } = await import('./routes/drips.js'); await dripTick() }
+    catch (e) { console.error('[scheduler] drip tick error:', e.message) }
   }, 60 * 1000)
 
   // FUB web-activity incremental sync — hourly (+ shortly after boot). Keeps the

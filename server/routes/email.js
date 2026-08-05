@@ -221,6 +221,31 @@ function fillTemplate(text, client) {
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())
 }
 
+// Shared sender for sequence/drip/automation emails. Resolves a template if given,
+// fills merge fields, injects live property cards where {{properties}} appears (or
+// when include_properties is set), respects opt-outs, and tags a SendGrid category
+// so the send shows up in Reporting. Returns a short status string.
+export async function sendSequenceEmail(client, cfg = {}, category = null) {
+  if (!client || !client.email) return { ok: false, reason: 'no email' }
+  if (client.marketing_email_opt_out) return { ok: false, reason: 'opted out' }
+  if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) return { ok: false, reason: client.email_status }
+  let subject = cfg.subject, body = cfg.body
+  if (cfg.template_id) {
+    const t = db.get('SELECT subject, body FROM templates WHERE id = ?', [Number(cfg.template_id)])
+    if (t) { subject = subject || t.subject; body = body || t.body }
+  }
+  if (!subject || !body) throw new Error('email step missing subject/body/template')
+  subject = fillTemplate(subject, client)
+  body = fillTemplate(body, client)
+  if (cfg.include_properties || /\{\{properties\}\}/.test(body)) {
+    let cards = ''
+    try { cards = await buildPropertyCardsLive(client, Number(cfg.max) || 4) } catch {}
+    body = /\{\{properties\}\}/.test(body) ? body.replace(/\{\{properties\}\}/g, cards) : (body + cards)
+  }
+  await sendViaSendGrid(client.email, `${client.first_name || ''} ${client.last_name || ''}`.trim(), subject, body, cfg.reply_to || null, [], [], [], category)
+  return { ok: true, subject }
+}
+
 // Preview a template filled with client data. Loads from the editable `templates`
 // table (numeric id). Falls back to the built-in constant for any legacy string id.
 router.get('/preview/:templateId/:clientId', (req, res) => {

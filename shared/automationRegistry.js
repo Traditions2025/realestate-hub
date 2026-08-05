@@ -302,6 +302,9 @@ export const ACTIONS = [
   A('send_internal_notification', 'Send Internal Notification', 'Notify the team in Slack', '🔔', 'comm', true, [
     f('message', 'Message', 'textarea', { required: true, placeholder: '{{full_name}} just viewed a listing' }),
   ]),
+  A('send_drip', 'Start Drip Campaign', 'Enroll the contact in a multi-email drip', '💧', 'comm', true, [
+    f('drip_id', 'Drip campaign', 'drip_ref', { required: true, help: 'Build drips on the Templates page. The contact receives each email on its own schedule.' }),
+  ]),
   A('send_push', 'Send Push Notification', 'Send a push notification', '📲', 'comm', false),
   A('create_email_draft', 'Create Email Draft', 'Draft an email for review', '📝', 'comm', false),
   A('send_voicemail', 'Send Voicemail Drop', 'Drop a ringless voicemail', '🎙️', 'comm', false),

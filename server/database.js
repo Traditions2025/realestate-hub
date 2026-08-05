@@ -588,6 +588,50 @@ export async function initDb() {
     )
   `)
 
+  // ---- DRIP CAMPAIGNS: reusable multi-email sequences (email -> wait -> email) ----
+  // steps JSON: [{id, delay_days, send_time 'HH:MM', subject, body, template_id, include_properties}]
+  db.run(`
+    CREATE TABLE IF NOT EXISTS drip_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      description TEXT,
+      steps TEXT DEFAULT '[]',
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  // one row per contact moving through a drip
+  db.run(`
+    CREATE TABLE IF NOT EXISTS drip_enrollments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      drip_id INTEGER,
+      client_id INTEGER,
+      status TEXT DEFAULT 'active',   -- active | completed | removed | failed
+      current_step INTEGER DEFAULT 0, -- next step index to send
+      next_run_at TEXT,
+      entered_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      last_error TEXT,
+      source TEXT,                    -- manual | automation
+      automation_id INTEGER
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_drip_due ON drip_enrollments(status, next_run_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_drip_client ON drip_enrollments(drip_id, client_id)') } catch {}
+  // idempotency: one successful send per (enrollment, step)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS drip_executions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER,
+      drip_id INTEGER,
+      step_index INTEGER,
+      idempotency_key TEXT UNIQUE,
+      status TEXT DEFAULT 'success',  -- success | failed
+      sent_at TEXT DEFAULT (datetime('now')),
+      error TEXT
+    )
+  `)
+
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`
     CREATE TABLE IF NOT EXISTS automation_events (
