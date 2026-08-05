@@ -295,13 +295,23 @@ export default function Clients() {
     const cid = ids[idx]
     if (!cid) { setBulkPreviewData({ error: 'No recipient at that position' }); return }
     setBulkPreviewData({ loading: true })
-    try {
-      const d = await authFetch('/api/email/render-preview', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ client_id: cid, subject: bulkEmailForm.subject, body: bulkEmailForm.body }),
-      }).then(r => r.json())
-      setBulkPreviewData({ ...d, total: ids.length })
-    } catch (e) { setBulkPreviewData({ error: e.message }) }
+    // Retry a couple times — a mid-deploy server returns the HTML page (not JSON).
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const r = await authFetch('/api/email/render-preview', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: cid, subject: bulkEmailForm.subject, body: bulkEmailForm.body }),
+        })
+        const ct = r.headers.get('content-type') || ''
+        if (!r.ok || !ct.includes('json')) throw new Error('not-json')
+        const d = await r.json()
+        setBulkPreviewData({ ...d, total: ids.length })
+        return
+      } catch (e) {
+        if (attempt < 2) { await new Promise(res => setTimeout(res, 1500)); continue }
+        setBulkPreviewData({ error: 'The server was updating for a moment — click "Preview a recipient" again in a few seconds.' })
+      }
+    }
   }
   const [otherMenuOpen, setOtherMenuOpen] = useState(false)
   const [bulkActionsOpen, setBulkActionsOpen] = useState(false)
@@ -2454,7 +2464,7 @@ export default function Clients() {
                   Recipient <strong>{bulkPreviewIdx + 1} of {d.total || selectedIds.size}</strong>: <strong>{d.to}</strong>
                   {bulkEmailForm.body.includes('{{properties}}') && (
                     <span style={{marginLeft: 8, color: d.has_listings ? '#10b981' : '#ef4444'}}>
-                      {d.has_listings ? '✓ has cached listings' : '✗ no cached listings — would be SKIPPED'}
+                      {d.has_listings ? '✓ listings found (live)' : '✗ no listings for this lead — will be skipped'}
                     </span>
                   )}
                 </p>
