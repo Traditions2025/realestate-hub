@@ -476,6 +476,34 @@ export async function initDb() {
   // Visual mind-map canvas (nodes + edges JSON) per project.
   try { db.run('ALTER TABLE projects ADD COLUMN canvas_data TEXT') } catch {}
 
+  // ---- AUTOMATIONS: user-built workflows (trigger + conditions + actions) ----
+  db.run(`
+    CREATE TABLE IF NOT EXISTS automations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      enabled INTEGER DEFAULT 0,
+      trigger_type TEXT DEFAULT 'schedule_daily',
+      run_time TEXT DEFAULT '09:00',
+      audience TEXT,        -- JSON: client filter (conditions + include/exclude)
+      actions TEXT,         -- JSON: ordered [{type, config}]
+      last_run_at TEXT,
+      last_run_summary TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS automation_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      automation_id INTEGER,
+      run_at TEXT DEFAULT (datetime('now')),
+      matched INTEGER DEFAULT 0,
+      actions_done INTEGER DEFAULT 0,
+      errors INTEGER DEFAULT 0,
+      detail TEXT
+    )
+  `)
+
   // =============================================
   // NOTES
   // =============================================

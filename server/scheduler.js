@@ -739,6 +739,13 @@ export function startScheduler() {
   // Daily backup tick (2:00 AM CT) — disk rotation + gzipped email attachment
   setInterval(checkBackupTick, 60 * 1000)
 
+  // User-built automations — check every minute; each schedule_daily automation
+  // fires once/day at its run_time (Chicago), idempotent via last_run_at.
+  setInterval(async () => {
+    try { const { runDueAutomations } = await import('./routes/automations.js'); await runDueAutomations() }
+    catch (e) { console.error('[scheduler] automations tick error:', e.message) }
+  }, 60 * 1000)
+
   // FUB web-activity incremental sync — hourly (+ shortly after boot). Keeps the
   // "Last Visit" column fresh for all linked clients without storing full history.
   setInterval(syncFubActivityIncremental, 60 * 60 * 1000)

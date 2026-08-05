@@ -43,7 +43,7 @@ router.get('/breakdown', (req, res) => {
 })
 
 // Build the WHERE clause + params from query/body filters
-function buildClientFilter(q) {
+export function buildClientFilter(q) {
   let where = ' WHERE 1=1'
   const params = []
 
