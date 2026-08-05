@@ -212,6 +212,7 @@ export default function Clients() {
     created_days: '',
     inactive_days: '',
     has_listing_views: false,
+    properties_viewed_min: '',
     fub_days_min: '',
     fub_days_max: '',
     // Property criteria from saved searches
@@ -260,7 +261,7 @@ export default function Clients() {
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
     (advFilters.activity_days ? 1 : 0) + (advFilters.created_days ? 1 : 0) +
     (advFilters.inactive_days ? 1 : 0) +
-    (advFilters.has_listing_views ? 1 : 0) + (advFilters.fub_days_min ? 1 : 0) + (advFilters.fub_days_max ? 1 : 0) +
+    (advFilters.has_listing_views ? 1 : 0) + (advFilters.properties_viewed_min ? 1 : 0) + (advFilters.fub_days_min ? 1 : 0) + (advFilters.fub_days_max ? 1 : 0) +
     (advFilters.has_saved_search ? 1 : 0) +
     (advFilters.search_max_price_min ? 1 : 0) + (advFilters.search_max_price_max ? 1 : 0) +
     (advFilters.search_beds_min ? 1 : 0) + (advFilters.search_baths_min ? 1 : 0) +
@@ -371,6 +372,7 @@ export default function Clients() {
     if (advFilters.created_days) params.created_days = advFilters.created_days
     if (advFilters.inactive_days) params.inactive_days = advFilters.inactive_days
     if (advFilters.has_listing_views) params.has_listing_views = '1'
+    if (advFilters.properties_viewed_min) params.properties_viewed_min = advFilters.properties_viewed_min
     if (advFilters.fub_days_min) params.fub_days_min = advFilters.fub_days_min
     if (advFilters.fub_days_max) params.fub_days_max = advFilters.fub_days_max
     // Property criteria
@@ -659,7 +661,7 @@ export default function Clients() {
       has_email: false, exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
       activity_days: '', created_days: '', inactive_days: '',
-      has_listing_views: false, fub_days_min: '', fub_days_max: '',
+      has_listing_views: false, properties_viewed_min: '', fub_days_min: '', fub_days_max: '',
       has_saved_search: false,
       search_max_price_min: '', search_max_price_max: '',
       search_beds_min: '', search_baths_min: '', search_sqft_min: '',
@@ -729,6 +731,7 @@ export default function Clients() {
           created_days: f.created_days || '',
           inactive_days: f.inactive_days || '',
           has_listing_views: !!f.has_listing_views,
+          properties_viewed_min: f.properties_viewed_min || '',
           fub_days_min: f.fub_days_min || '',
           fub_days_max: f.fub_days_max || '',
           has_saved_search: !!f.has_saved_search,
@@ -1483,8 +1486,16 @@ export default function Clients() {
             <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 8}}>
               <input type="checkbox" checked={advFilters.has_listing_views}
                 onChange={e => setAdvFilters(p => ({ ...p, has_listing_views: e.target.checked }))} />
-              Only clients with listing views
+              Only clients with website activity
             </label>
+            <div className="filter-other-row" style={{marginBottom: 8}}>
+              <label className="filter-num">
+                Properties viewed (min #)
+                <input type="number" min="1" placeholder="e.g. 1" value={advFilters.properties_viewed_min}
+                  onChange={e => setAdvFilters(p => ({ ...p, properties_viewed_min: e.target.value }))} />
+              </label>
+            </div>
+            <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px'}}>“Properties viewed” = leads who actually viewed that many listings (so the Homes email always has homes to show).</p>
             <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 4}}>Last listing visit (days ago):</div>
             <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8}}>
               {[{ l: '≤ 30', min: '', max: '30' }, { l: '30–60', min: '30', max: '60' }, { l: '60–90', min: '60', max: '90' }, { l: '90+', min: '90', max: '' }].map(r => {

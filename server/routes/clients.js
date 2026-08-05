@@ -202,6 +202,12 @@ export function buildClientFilter(q) {
   if (q.has_listing_views === '1' || q.has_listing_views === 'true') {
     where += " AND last_fub_activity_at IS NOT NULL AND last_fub_activity_at != ''"
   }
+  // Actually viewed properties: N+ distinct listings (from stored FUB property views).
+  // Stricter than has_listing_views — guarantees the lead has homes to show.
+  if (q.properties_viewed_min) {
+    where += " AND (SELECT COUNT(DISTINCT prop_mls) FROM fub_activity fa WHERE fa.client_id = clients.id AND fa.prop_mls IS NOT NULL AND fa.prop_mls != '') >= ?"
+    params.push(Number(q.properties_viewed_min))
+  }
   // Last listing visit at LEAST N days ago (e.g. 90+ => older, cold).
   if (q.fub_days_min) {
     where += " AND last_fub_activity_at IS NOT NULL AND last_fub_activity_at <= datetime('now', ?)"
