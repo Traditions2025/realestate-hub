@@ -17,6 +17,7 @@ const BlogPosts = lazy(() => import('./pages/BlogPosts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Updates = lazy(() => import('./pages/Updates'))
 const Templates = lazy(() => import('./pages/Templates'))
+const Settings = lazy(() => import('./pages/Settings'))
 
 const navSections = [
   { label: 'MAIN', items: [
@@ -47,6 +48,7 @@ const navSections = [
   ]},
   { label: 'SYSTEM', items: [
     { path: '/updates', label: 'Updates', icon: '\u27f3' },
+    { path: '/settings', label: 'Settings', icon: '\u2699' },
   ]},
 ]
 
@@ -152,6 +154,7 @@ export default function App() {
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/templates" element={<Templates />} />
             <Route path="/updates" element={<Updates />} />
+            <Route path="/settings" element={<Settings />} />
           </Routes>
         </Suspense>
       </main>

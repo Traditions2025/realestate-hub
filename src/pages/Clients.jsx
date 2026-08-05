@@ -5,6 +5,7 @@ import MultiSelect from '../components/MultiSelect'
 import StatusBadge from '../components/StatusBadge'
 import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
 import EmailToolbar from '../components/EmailToolbar'
+import RichTextEditor from '../components/RichTextEditor'
 
 // Turn a bare mattsmithteam.com property link (pasted into an email) into a rich
 // listing card — photo + address + MLS — like the listing previews. URLs already
@@ -428,8 +429,10 @@ export default function Clients() {
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
-  const [composerView, setComposerView] = useState('preview') // 'preview' | 'html'
+  const [composerView, setComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
   const [showCcBcc, setShowCcBcc] = useState(false)
+  const [teamSignature, setTeamSignature] = useState('')
+  useEffect(() => { authFetch('/api/settings/profile').then(r => r.json()).then(d => setTeamSignature(d.signature || '')).catch(() => {}) }, [])
 
   // Move to the prev/next client in the current list without closing the modal.
   const gotoAdjacent = (dir) => {
@@ -518,13 +521,15 @@ export default function Clients() {
   }
 
   const openEmailComposer = (templateId = '') => {
-    setComposerView('preview'); setShowCcBcc(false)
+    setComposerView('wysiwyg'); setShowCcBcc(false)
     if (templateId && detail) {
       authFetch(`/api/email/preview/${templateId}/${detail.id}`)
         .then(r => r.json())
         .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [], cc: '', bcc: '' }))
     } else {
-      setEmailForm({ subject: '', body: '', template: '', attachments: [], cc: '', bcc: '' })
+      // New blank email — start with a couple of blank lines above the signature, Gmail-style.
+      const startBody = teamSignature ? `<div><br></div><div><br></div>${teamSignature}` : ''
+      setEmailForm({ subject: '', body: startBody, template: '', attachments: [], cc: '', bcc: '' })
     }
     setEmailModalOpen(true)
   }
@@ -2366,42 +2371,32 @@ export default function Clients() {
             </>
           )}
 
-          {/* Body — rendered Preview by default, toggle to Edit HTML */}
+          {/* Body — Gmail-style WYSIWYG editor by default; toggle to raw HTML source. */}
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, marginTop: 8}}>
             <span style={{fontSize: 13, fontWeight: 500}}>Body</span>
             <div style={{display: 'flex', gap: 6}}>
-              <button type="button" className={`btn btn-sm ${composerView === 'preview' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('preview')}>👁 Preview</button>
-              <button type="button" className={`btn btn-sm ${composerView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('html')}>{'</>'} Edit HTML</button>
+              <button type="button" className={`btn btn-sm ${composerView === 'wysiwyg' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('wysiwyg')}>✎ Edit</button>
+              <button type="button" className={`btn btn-sm ${composerView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('html')}>{'</>'} HTML</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setSingleEmailPreviewOpen(true)}>👁 Preview</button>
               <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
                 📁 Load HTML
                 <input type="file" accept=".html,.htm,text/html"
                   style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-                  onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const text = await file.text(); setEmailForm(p => ({ ...p, body: text })); setComposerView('preview'); e.target.value = '' }} />
+                  onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const text = await file.text(); setEmailForm(p => ({ ...p, body: text })); setComposerView('wysiwyg'); e.target.value = '' }} />
               </label>
             </div>
           </div>
-          {composerView === 'preview' ? (
-            (() => {
-              const c = detail || {}
-              const fill = (s) => (s || '')
-                .replace(/\{\{first_name\}\}/g, c.first_name || 'there')
-                .replace(/\{\{last_name\}\}/g, c.last_name || '')
-                .replace(/\{\{full_name\}\}/g, `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'there')
-                .replace(/\{\{address\}\}/g, c.address || 'your home')
-                .replace(/\{\{city\}\}/g, c.city || 'Cedar Rapids')
-              return emailForm.body
-                ? <iframe title="Email preview" srcDoc={autoEmbedYoutubeLinks(embedPropertyLinks(fill(emailForm.body)))} style={{width: '100%', height: '46vh', border: '1px solid var(--border)', borderRadius: 6, background: 'white'}} />
-                : <div style={{padding: 24, border: '1px dashed var(--border)', borderRadius: 6, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center'}}>Nothing to preview yet — pick a template, click “🏡 Homes They Viewed”, load an HTML file, or switch to Edit HTML.</div>
-            })()
+          {composerView === 'wysiwyg' ? (
+            <RichTextEditor value={emailForm.body} onChange={(b) => setEmailForm(p => ({ ...p, body: b }))} minHeight={240} />
           ) : (
             <>
               <EmailToolbar textareaRef={singleEmailBodyRef} body={emailForm.body} setBody={(b) => setEmailForm(p => ({ ...p, body: b }))} showPreview={false} compact />
               <textarea ref={singleEmailBodyRef} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={18} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
-              <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
-                Variables: {'{{first_name}} {{last_name}} {{full_name}} {{address}} {{city}}'} · paste a mattsmithteam.com property link, then hit Preview — it renders as a listing card. 📷 inline images so they render in email.
-              </p>
             </>
           )}
+          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
+            Type freely like Gmail. Templates load in fully editable. Variables: {'{{first_name}} {{last_name}} {{city}}'} · paste a mattsmithteam.com property link → it becomes a listing card on send/preview.
+          </p>
 
           {/* Attachments */}
           <div style={{marginTop: 8}}>
@@ -2473,7 +2468,7 @@ export default function Clients() {
               </div>
               <iframe
                 title="Email preview"
-                srcDoc={autoEmbedYoutubeLinks(fill(emailForm.body))}
+                srcDoc={autoEmbedYoutubeLinks(embedPropertyLinks(fill(emailForm.body)))}
                 style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
               />
               <div className="form-actions">

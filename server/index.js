@@ -339,6 +339,22 @@ async function start() {
       res.status(502).json({ ok: false, connected: false, error: err.message })
     }
   })
+  // Team profile settings — email signature (HTML) + account info. Stored in
+  // app_settings. The signature is appended to composed/generated emails.
+  app.get('/api/settings/profile', (_req, res) => {
+    let account = {}
+    try { account = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
+    res.json({ signature: db.getSetting('email_signature', '') || '', account })
+  })
+  app.post('/api/settings/profile', (req, res) => {
+    const { signature, account } = req.body || {}
+    if (signature !== undefined) db.setSetting('email_signature', String(signature || ''))
+    if (account !== undefined) db.setSetting('account_info', JSON.stringify(account || {}))
+    let acct = {}
+    try { acct = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
+    res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct })
+  })
+
   app.get('/api/fub/status', async (_req, res) => {
     try {
       const { fubConfigured, fubIdentity } = await import('./fub-helper.js')
@@ -584,10 +600,16 @@ async function start() {
       }).join('\n')
 
       const name = client.first_name || 'there'
-      const body = `<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">${greet} ${name}, would you like any more info or to go and see any of these properties?</p>
+      const savedSig = db.getSetting('email_signature', '') || ''
+      const signature = savedSig
+        ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;margin-top:18px;">${savedSig}</div>`
+        : `<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;margin:18px 0 0;">Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts</p>`
+      const body = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0f172a;">
+<p style="margin:0 0 16px;">${greet} ${name}, would you like any more info or to go and see any of these properties?</p>
 ${cardHtml}
-<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">Just reply and let me know which ones catch your eye and I'll set up the showings.</p>
-<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts</p>`
+<p style="margin:16px 0 0;">Just reply and let me know which ones catch your eye and I'll set up the showings.</p>
+${signature}
+</div>`
 
       res.json({ subject: 'Do you want to see any of these properties?', body, count: cards.length, photos: cards.filter(c => c.photo).length })
     } catch (e) {
