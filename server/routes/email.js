@@ -109,13 +109,25 @@ export function seedEmailTemplates() {
           [t.name, 'email', 'Built-in', t.subject, t.body])
       }
     }
+    // Editable wording for the dynamic "Homes They Viewed" email. The live property
+    // cards get injected where {{properties}} appears. Category 'Dynamic' keeps it
+    // out of the composer dropdown (the composer uses the 🏡 action), but it shows
+    // in the Templates tab so the intro / subject / closing can be edited.
+    if (!db.get("SELECT id FROM templates WHERE type = 'email' AND name = 'Homes They Viewed'")) {
+      db.run("INSERT INTO templates (name, type, category, subject, body, is_html) VALUES (?,?,?,?,?,1)",
+        ['Homes They Viewed', 'email', 'Dynamic',
+          'Do you want to see any of these properties?',
+          `<p style="margin:0 0 16px;">{{greeting}} {{first_name}}, would you like any more info or to go and see any of these properties?</p>\n{{properties}}\n<p style="margin:16px 0 0;">Just reply and let me know which ones catch your eye and I'll set up the showings.</p>`])
+    }
   } catch (e) { console.error('[templates] seed error:', e.message) }
 }
 
 // Email templates for the composer — now sourced from the editable `templates`
 // table (type='email'), so anything created/edited in the Templates tab shows here.
 router.get('/templates', (req, res) => {
-  const rows = db.all("SELECT id, name, subject, body FROM templates WHERE type = 'email' ORDER BY name")
+  // Exclude 'Dynamic' templates (e.g. Homes They Viewed) — the composer triggers
+  // those via a dedicated action, so listing them here would duplicate the option.
+  const rows = db.all("SELECT id, name, subject, body FROM templates WHERE type = 'email' AND (category IS NULL OR category != 'Dynamic') ORDER BY name")
   res.json(rows.map(t => ({ id: String(t.id), name: t.name, subject: t.subject, body: t.body })))
 })
 

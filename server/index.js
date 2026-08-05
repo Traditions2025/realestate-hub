@@ -631,14 +631,23 @@ async function start() {
       const signature = savedSig
         ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;margin-top:18px;">${savedSig}</div>`
         : `<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;margin:18px 0 0;">Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts</p>`
+
+      // The wording is an editable "Homes They Viewed" template in the Templates tab.
+      // Placeholders: {{greeting}} {{first_name}} {{properties}} (the property cards).
+      const tpl = db.get("SELECT subject, body FROM templates WHERE type = 'email' AND name = 'Homes They Viewed' LIMIT 1")
+      const subject = (tpl?.subject || 'Do you want to see any of these properties?')
+        .replace(/\{\{greeting\}\}/g, greet).replace(/\{\{first_name\}\}/g, name)
+      let inner = tpl?.body || `<p style="margin:0 0 16px;">{{greeting}} {{first_name}}, would you like any more info or to go and see any of these properties?</p>
+{{properties}}
+<p style="margin:16px 0 0;">Just reply and let me know which ones catch your eye and I'll set up the showings.</p>`
+      inner = inner.replace(/\{\{greeting\}\}/g, greet).replace(/\{\{first_name\}\}/g, name)
+      inner = inner.includes('{{properties}}') ? inner.replace(/\{\{properties\}\}/g, cardHtml) : (inner + '\n' + cardHtml)
       const body = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.6;color:#0f172a;">
-<p style="margin:0 0 16px;">${greet} ${name}, would you like any more info or to go and see any of these properties?</p>
-${cardHtml}
-<p style="margin:16px 0 0;">Just reply and let me know which ones catch your eye and I'll set up the showings.</p>
+${inner}
 ${signature}
 </div>`
 
-      res.json({ subject: 'Do you want to see any of these properties?', body, count: cards.length, photos: cards.filter(c => c.photo).length, source })
+      res.json({ subject, body, count: cards.length, photos: cards.filter(c => c.photo).length, source })
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) })
     }
