@@ -396,8 +396,11 @@ export default function Clients() {
     return params
   }
 
+  const loadSeq = useRef(0)
   const load = () => {
+    const seq = ++loadSeq.current
     api.getClientsPaged(buildLoadParams()).then(({ rows, total }) => {
+      if (seq !== loadSeq.current) return  // a newer filter change superseded this — ignore stale response
       setItems(rows)
       setTotalCount(total)
       setHasMore(rows.length < total)
