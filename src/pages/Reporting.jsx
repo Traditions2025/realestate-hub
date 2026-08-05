@@ -62,6 +62,8 @@ export default function Reporting() {
             ) : campaigns.length === 0 ? (
               <tr><td style={{ ...td, color: 'var(--text-muted)' }} colSpan={9}>No batch emails sent yet. Send a Bulk Email from the Clients page and it'll show here.</td></tr>
             ) : campaigns.map(c => {
+              const noStats = c.stats == null
+              const dash = <span style={{ color: 'var(--text-muted)' }} title="Engagement not tracked (sent before per-campaign tracking)">—</span>
               const s = c.stats || {}
               const opens = s.unique_opens || 0, clicks = s.unique_clicks || 0
               return (
@@ -70,6 +72,7 @@ export default function Reporting() {
                     <div style={{ fontWeight: 600, color: 'var(--accent, #2563eb)', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                       {c.subject}
                       {c.source === 'sendgrid' && <span style={{ marginLeft: 8, fontSize: 10, background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }}>SendGrid</span>}
+                      {c.source === 'hub-log' && <span style={{ marginLeft: 8, fontSize: 10, background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }} title="Sent from the Hub before per-campaign tracking existed">Hub (log)</span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>From: {c.from_name || 'Matt Smith Team'}</div>
                   </td>
@@ -77,10 +80,10 @@ export default function Reporting() {
                   <td style={td}>{c.status === 'finished' ? <span style={{ color: '#10b981' }}>✓ Finished</span> : <span style={{ color: '#f59e0b' }}>⏳ Sending</span>}</td>
                   <td style={td}>✉ {c.recipients || 0}</td>
                   <td style={td}>➤ {c.sent || 0}</td>
-                  <td style={td}>{stat(opens, c.sent, '#10b981')}</td>
-                  <td style={td}>{stat(clicks, c.sent, '#3b82f6')}</td>
-                  <td style={td}>{stat(s.unsubscribes, c.sent, '#f59e0b')}</td>
-                  <td style={td}>{stat(s.bounces, c.recipients, '#ef4444')}</td>
+                  <td style={td}>{noStats ? dash : stat(opens, c.sent, '#10b981')}</td>
+                  <td style={td}>{noStats ? dash : stat(clicks, c.sent, '#3b82f6')}</td>
+                  <td style={td}>{noStats ? dash : stat(s.unsubscribes, c.sent, '#f59e0b')}</td>
+                  <td style={td}>{noStats ? dash : stat(s.bounces, c.recipients, '#ef4444')}</td>
                 </tr>
               )
             })}

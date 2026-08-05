@@ -62,7 +62,21 @@ router.get('/campaigns', async (_req, res) => {
     hub.push({ ...c, source: 'hub', stats })
   }
   const sg = await sendGridSingleSends()
-  const all = [...hub, ...sg].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+  // Past Hub bulk sends from BEFORE campaign tracking — grouped from the email log
+  // (5+ of the same subject on the same day = a batch). No per-campaign engagement
+  // (they weren't category-tagged), but we surface the send with its recipient count.
+  const logGroups = db.all(`
+    SELECT subject, MAX(from_name) as from_name, MIN(sent_at) as created_at, COUNT(*) as sent
+    FROM email_log
+    WHERE campaign_id IS NULL AND status = 'sent' AND sent_at IS NOT NULL AND subject IS NOT NULL
+    GROUP BY subject, substr(sent_at, 1, 10)
+    HAVING COUNT(*) >= 5
+    ORDER BY created_at DESC LIMIT 50`)
+  const logCampaigns = logGroups.map((g, i) => ({
+    id: 'log_' + i, source: 'hub-log', subject: g.subject, from_name: g.from_name || 'Matt Smith Team',
+    recipients: g.sent, sent: g.sent, failed: 0, skipped: 0, status: 'finished', created_at: g.created_at, stats: null,
+  }))
+  const all = [...hub, ...sg, ...logCampaigns].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
   res.json({ campaigns: all, sendgrid: !!SENDGRID_API_KEY })
 })
 
