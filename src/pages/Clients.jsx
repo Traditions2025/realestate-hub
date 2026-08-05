@@ -815,10 +815,17 @@ export default function Clients() {
     setBulkEmailOpen(true)
   }
 
-  const sendBulkEmail = async (e) => {
-    e.preventDefault()
+  // Step 1: clicking "Review & Send" opens the preview carousel (verify recipients first).
+  const reviewBulkEmail = (e) => {
+    if (e) e.preventDefault()
     if (selectedIds.size === 0) return alert('No clients selected')
-    if (!confirm(`Send this email to ${selectedIds.size} clients?`)) return
+    if (!bulkEmailForm.body || !bulkEmailForm.body.trim()) return alert('Add a message first')
+    setBulkPreviewIdx(0); setBulkEmailPreviewOpen(true); loadBulkPreview(0)
+  }
+  // Step 2: actual send — fired from inside the preview modal after reviewing.
+  const doBulkSend = async () => {
+    if (selectedIds.size === 0) return alert('No clients selected')
+    setBulkEmailPreviewOpen(false)
     setBulkSending(true)
     setBulkProgress({ running: true, done: 0, total: selectedIds.size, sent: 0, skipped: 0, failed: 0 })
     try {
@@ -2359,7 +2366,7 @@ export default function Clients() {
 
       {/* Bulk Email Modal */}
       <Modal open={bulkEmailOpen} onClose={() => setBulkEmailOpen(false)} title={`Bulk Email — ${selectedIds.size} recipients`} wide>
-        <form onSubmit={sendBulkEmail}>
+        <form onSubmit={reviewBulkEmail}>
           <div style={{padding: '10px 14px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 6, fontSize: 13, marginBottom: 12}}>
             ⚠️ This will send to {selectedIds.size} clients. Opt-outs and invalid emails will be skipped automatically.
           </div>
@@ -2418,7 +2425,7 @@ export default function Clients() {
             <button type="submit" className="btn btn-primary" disabled={bulkSending}>
               {bulkSending
                 ? (bulkProgress ? `Sending ${bulkProgress.done}/${bulkProgress.total}…` : 'Starting…')
-                : `Send to ${selectedIds.size} Recipients`}
+                : `👁 Review & Send to ${selectedIds.size}`}
             </button>
           </div>
           {bulkSending && bulkProgress && (
@@ -2465,7 +2472,11 @@ export default function Clients() {
                 style={{width: '100%', height: '58vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
               />
               <div className="form-actions">
-                <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailPreviewOpen(false)}>Close</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailPreviewOpen(false)}>Keep editing</button>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>Reviewed {bulkPreviewIdx + 1}/{selectedIds.size} — use Next › to check more</span>
+                <button type="button" className="btn btn-primary" disabled={bulkSending} onClick={doBulkSend}>
+                  ✉ Send to {selectedIds.size} Recipients
+                </button>
               </div>
             </div>
           )
