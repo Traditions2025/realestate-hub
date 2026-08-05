@@ -387,7 +387,7 @@ async function start() {
     let added = 0, updated = 0
     const nn = (v) => (v === undefined || v === '' ? null : v)
     const affected = new Set()
-    const COLS = ['fub_event_id', 'client_id', 'fub_person_id', 'type', 'page_title', 'page_url', 'page_duration', 'prop_street', 'prop_city', 'prop_state', 'prop_mls', 'prop_price', 'occurred_at', 'description']
+    const COLS = ['fub_event_id', 'client_id', 'fub_person_id', 'type', 'page_title', 'page_url', 'page_duration', 'prop_street', 'prop_city', 'prop_state', 'prop_zip', 'prop_mls', 'prop_price', 'occurred_at', 'description']
     db.beginBulk?.()
     try {
       for (const r of rows) {

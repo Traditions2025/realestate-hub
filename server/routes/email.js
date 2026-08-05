@@ -131,6 +131,41 @@ router.get('/templates', (req, res) => {
   res.json(rows.map(t => ({ id: String(t.id), name: t.name, subject: t.subject, body: t.body })))
 })
 
+function currentGreeting() {
+  const hour = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Chicago' }).format(new Date()))
+  return hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
+}
+function savedSignatureHtml() {
+  return (db.getSetting?.('email_signature', '') || '') || 'Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts'
+}
+
+// Build the "homes they viewed" property cards for a client from the STORED
+// listings in the Hub (fub_activity). No FUB call — safe for bulk sends. Returns
+// '' when the client has no cached listings.
+export function buildPropertyCards(clientId, max = 5) {
+  const rows = db.all("SELECT prop_mls, prop_street, prop_city, prop_state, prop_zip, prop_price FROM fub_activity WHERE client_id = ? AND prop_mls IS NOT NULL AND prop_mls != '' ORDER BY occurred_at DESC, id DESC", [clientId])
+  const seen = new Set(); const cards = []
+  const usd = (v) => { const n = Number(v); return isFinite(n) && n > 0 ? '$' + n.toLocaleString() : '' }
+  for (const v of rows) {
+    if (seen.has(v.prop_mls)) continue
+    seen.add(v.prop_mls)
+    const slug = `${v.prop_street || ''} ${v.prop_city || ''} ${v.prop_state || ''} ${v.prop_zip || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    const url = `https://www.mattsmithteam.com/property-search/detail/352/${v.prop_mls}/${slug}/`
+    const photo = `https://cdn.listingphotos.sierrastatic.com/large/352/352_${v.prop_mls}_01.jpg`
+    const addr = `${v.prop_street || ''} ${v.prop_city || ''}, ${v.prop_state || ''} ${v.prop_zip || ''}`.replace(/\s+/g, ' ').replace(/\s,/g, ',').trim()
+    const price = usd(v.prop_price)
+    cards.push(`<table cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;margin:0 0 14px;border:1px solid #e2e8f0;border-radius:8px;"><tr>
+<td valign="top" style="padding:12px;width:174px;"><a href="${url}"><img src="${photo}" alt="${addr}" width="150" style="width:150px;height:auto;border-radius:6px;display:block;border:0;"/></a></td>
+<td valign="top" style="padding:12px 12px 12px 0;font-family:Arial,Helvetica,sans-serif;">
+<a href="${url}" style="color:#2563eb;font-weight:bold;font-size:15px;text-decoration:none;">${addr} | MLS ${v.prop_mls}</a>
+${price ? `<div style="color:#334155;font-size:13px;margin-top:6px;">${price}</div>` : ''}
+<div style="color:#475569;font-size:13px;margin-top:6px;">Home for sale at ${addr}, with MLS ${v.prop_mls}.</div>
+</td></tr></table>`)
+    if (cards.length >= max) break
+  }
+  return cards.join('\n')
+}
+
 function fillTemplate(text, client) {
   if (!text) return ''
   return text
@@ -142,6 +177,8 @@ function fillTemplate(text, client) {
     .replace(/\{\{address\}\}/g, client.address || 'your home')
     .replace(/\{\{city\}\}/g, client.city || 'Cedar Rapids')
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
+    .replace(/\{\{greeting\}\}/g, currentGreeting())
+    .replace(/\{\{signature\}\}/g, savedSignatureHtml())
 }
 
 // Preview a template filled with client data. Loads from the editable `templates`
@@ -396,8 +433,9 @@ router.post('/bulk', async (req, res) => {
     return res.status(400).json({ error: 'Max 2000 recipients per bulk send. Send in batches.' })
   }
 
-  let sent = 0, failed = 0, skipped = 0
+  let sent = 0, failed = 0, skipped = 0, noListings = 0
   const errors = []
+  const wantsProperties = (body || '').includes('{{properties}}')
 
   for (const id of client_ids) {
     const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(id)])
@@ -405,17 +443,21 @@ router.post('/bulk', async (req, res) => {
     if (client.marketing_email_opt_out) { skipped++; continue }
     if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) { skipped++; continue }
 
+    const filledSubject = fillTemplate(subject, client)
+    let filledBody = fillTemplate(body, client)
+    // Per-recipient viewed-listings injection (stored, no FUB call). If a recipient
+    // has no cached listings, skip them so they don't get an empty homes email.
+    if (wantsProperties) {
+      const cardsHtml = buildPropertyCards(client.id, 5)
+      if (!cardsHtml) { noListings++; skipped++; continue }
+      filledBody = filledBody.replace(/\{\{properties\}\}/g, cardsHtml)
+    }
+
     try {
-      const result = await sendViaSendGrid(
-        client.email,
-        `${client.first_name} ${client.last_name}`,
-        fillTemplate(subject, client),
-        fillTemplate(body, client)
-      )
+      const result = await sendViaSendGrid(client.email, `${client.first_name} ${client.last_name}`, filledSubject, filledBody)
       db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
         template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        [client.id, client.email, FROM_EMAIL, FROM_NAME, fillTemplate(subject, client),
-          fillTemplate(body, client), n(template), 'sent', 'sendgrid', n(result.messageId), 'team'])
+        [client.id, client.email, FROM_EMAIL, FROM_NAME, filledSubject, filledBody, n(template), 'sent', 'sendgrid', n(result.messageId), 'team'])
       sent++
     } catch (err) {
       failed++
@@ -426,7 +468,26 @@ router.post('/bulk', async (req, res) => {
   db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
     ['bulk_email', 'client', `Bulk email sent: ${sent} sent, ${failed} failed, ${skipped} skipped`])
 
-  res.json({ success: true, sent, failed, skipped, errors: errors.slice(0, 10) })
+  res.json({ success: true, sent, failed, skipped, no_listings: noListings, errors: errors.slice(0, 10) })
+})
+
+// Render one recipient's fully-personalized email (fills merge fields + injects
+// their viewed listings) — used to PREVIEW a bulk send before sending.
+router.post('/render-preview', (req, res) => {
+  const { client_id, subject, body } = req.body || {}
+  const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
+  if (!client) return res.status(404).json({ error: 'client not found' })
+  let filledBody = fillTemplate(body || '', client)
+  const cards = buildPropertyCards(client.id, 5)
+  if (filledBody.includes('{{properties}}')) {
+    filledBody = filledBody.replace(/\{\{properties\}\}/g, cards || '<p style="color:#b91c1c;">(no viewed listings cached for this client — they would be skipped)</p>')
+  }
+  res.json({
+    to: `${client.first_name} ${client.last_name} <${client.email || 'no email'}>`,
+    subject: fillTemplate(subject || '', client),
+    body: filledBody,
+    has_listings: !!cards,
+  })
 })
 
 // Email history for a client

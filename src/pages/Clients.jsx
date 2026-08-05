@@ -276,6 +276,22 @@ export default function Clients() {
   const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkEmailPreviewOpen, setBulkEmailPreviewOpen] = useState(false)
+  const [bulkPreviewIdx, setBulkPreviewIdx] = useState(0)
+  const [bulkPreviewData, setBulkPreviewData] = useState(null)
+  // Render a real recipient's personalized email (merge fields + their listings) for verification.
+  const loadBulkPreview = async (idx) => {
+    const ids = [...selectedIds]
+    const cid = ids[idx]
+    if (!cid) { setBulkPreviewData({ error: 'No recipient at that position' }); return }
+    setBulkPreviewData({ loading: true })
+    try {
+      const d = await authFetch('/api/email/render-preview', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ client_id: cid, subject: bulkEmailForm.subject, body: bulkEmailForm.body }),
+      }).then(r => r.json())
+      setBulkPreviewData({ ...d, total: ids.length })
+    } catch (e) { setBulkPreviewData({ error: e.message }) }
+  }
   const [otherMenuOpen, setOtherMenuOpen] = useState(false)
   const [bulkActionsOpen, setBulkActionsOpen] = useState(false)
   const bulkActionsRef = useRef(null)
@@ -2328,15 +2344,26 @@ export default function Clients() {
           <div style={{padding: '10px 14px', background: 'rgba(245, 158, 11, 0.1)', border: '1px solid rgba(245, 158, 11, 0.3)', borderRadius: 6, fontSize: 13, marginBottom: 12}}>
             ⚠️ This will send to {selectedIds.size} clients. Opt-outs and invalid emails will be skipped automatically.
           </div>
-          <label>Template<select value={bulkEmailForm.template} onChange={e => {
-            const t = emailTemplates.find(x => x.id === e.target.value)
-            if (t) {
-              setBulkEmailForm({ subject: t.subject, body: t.body, template: t.id })
-            } else {
-              setBulkEmailForm(p => ({ ...p, template: '' }))
+          <label>Template<select value={bulkEmailForm.template} onChange={async e => {
+            const v = e.target.value
+            if (v === '__homes__') {
+              // Load the editable "Homes They Viewed" wording — each recipient's own
+              // viewed listings get injected where {{properties}} is, at send time.
+              const rows = await authFetch('/api/templates?type=email').then(r => r.json()).catch(() => [])
+              const h = (Array.isArray(rows) ? rows : []).find(t => t.name === 'Homes They Viewed')
+              setBulkEmailForm({
+                template: '__homes__',
+                subject: h?.subject || 'Do you want to see any of these properties?',
+                body: h?.body || `<p>{{greeting}} {{first_name}}, would you like any more info or to go and see any of these properties?</p>\n{{properties}}\n<p>Just reply and let me know which ones catch your eye and I'll set up the showings.</p>\n{{signature}}`,
+              })
+              return
             }
+            const t = emailTemplates.find(x => x.id === v)
+            if (t) setBulkEmailForm({ subject: t.subject, body: t.body, template: t.id })
+            else setBulkEmailForm(p => ({ ...p, template: '' }))
           }}>
             <option value="">Custom (no template)</option>
+            <option value="__homes__">🏡 Homes They Viewed (each recipient's own listings)</option>
             {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select></label>
           <label>Subject<input value={bulkEmailForm.subject} onChange={e => setBulkEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
@@ -2361,9 +2388,9 @@ export default function Clients() {
               <button
                 type="button"
                 className="btn btn-sm btn-secondary"
-                disabled={!bulkEmailForm.body}
-                onClick={() => setBulkEmailPreviewOpen(true)}
-              >👁 Preview</button>
+                disabled={!bulkEmailForm.body || selectedIds.size === 0}
+                onClick={() => { setBulkPreviewIdx(0); setBulkEmailPreviewOpen(true); loadBulkPreview(0) }}
+              >👁 Preview a recipient</button>
             </div>
           </div>
           <EmailToolbar
@@ -2389,32 +2416,35 @@ export default function Clients() {
         </form>
       </Modal>
 
-      {/* Bulk Email Preview Modal */}
-      <Modal open={bulkEmailPreviewOpen} onClose={() => setBulkEmailPreviewOpen(false)} title="Email Preview" wide>
+      {/* Bulk Email Preview Modal — renders a REAL recipient (merge fields + their listings) */}
+      <Modal open={bulkEmailPreviewOpen} onClose={() => setBulkEmailPreviewOpen(false)} title="Preview a recipient" wide>
         {(() => {
-          // Find first selected client to use as sample for merge variables
-          const sampleId = [...selectedIds][0]
-          const sample = sampleId ? items.find(i => i.id === sampleId) : null
-          const fill = (s) => (s || '')
-            .replace(/\{\{first_name\}\}/g, sample?.first_name || 'there')
-            .replace(/\{\{last_name\}\}/g, sample?.last_name || '')
-            .replace(/\{\{address\}\}/g, sample?.address || 'your home')
-            .replace(/\{\{city\}\}/g, sample?.city || 'Cedar Rapids')
-          const renderedSubject = fill(bulkEmailForm.subject)
-          const renderedBody = fill(bulkEmailForm.body)
+          const d = bulkPreviewData
+          if (!d || d.loading) return <p className="muted">Rendering this recipient's email…</p>
+          if (d.error) return <p style={{color: '#ef4444'}}>Preview failed: {d.error}</p>
           return (
             <div>
-              <p className="muted" style={{margin: '0 0 8px'}}>
-                Sample using <strong>{sample ? `${sample.first_name} ${sample.last_name}` : 'first selected recipient'}</strong>
-                {sample?.email ? ` (${sample.email})` : ''}
-              </p>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, margin: '0 0 8px'}}>
+                <p className="muted" style={{margin: 0}}>
+                  Recipient <strong>{bulkPreviewIdx + 1} of {d.total || selectedIds.size}</strong>: <strong>{d.to}</strong>
+                  {bulkEmailForm.body.includes('{{properties}}') && (
+                    <span style={{marginLeft: 8, color: d.has_listings ? '#10b981' : '#ef4444'}}>
+                      {d.has_listings ? '✓ has cached listings' : '✗ no cached listings — would be SKIPPED'}
+                    </span>
+                  )}
+                </p>
+                <div style={{display: 'flex', gap: 6}}>
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={bulkPreviewIdx <= 0} onClick={() => { const i = bulkPreviewIdx - 1; setBulkPreviewIdx(i); loadBulkPreview(i) }}>‹ Prev</button>
+                  <button type="button" className="btn btn-sm btn-secondary" disabled={bulkPreviewIdx >= selectedIds.size - 1} onClick={() => { const i = bulkPreviewIdx + 1; setBulkPreviewIdx(i); loadBulkPreview(i) }}>Next recipient ›</button>
+                </div>
+              </div>
               <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 13}}>
-                <strong>Subject:</strong> {renderedSubject}
+                <strong>Subject:</strong> {d.subject}
               </div>
               <iframe
                 title="Email preview"
-                srcDoc={autoEmbedYoutubeLinks(renderedBody)}
-                style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
+                srcDoc={autoEmbedYoutubeLinks(embedPropertyLinks(d.body))}
+                style={{width: '100%', height: '58vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
               />
               <div className="form-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailPreviewOpen(false)}>Close</button>
