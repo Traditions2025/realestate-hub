@@ -23,6 +23,52 @@ function embedPropertyLinks(html) {
   })
 }
 
+// Cc/Bcc recipient field — chips + type-to-search over clients (adds their email).
+function RecipientPicker({ label, emails, onChange }) {
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState([])
+  const [open, setOpen] = useState(false)
+  useEffect(() => {
+    if (!q || q.trim().length < 2) { setResults([]); return }
+    const t = setTimeout(() => {
+      authFetch(`/api/clients?search=${encodeURIComponent(q.trim())}&limit=8`).then(r => r.json())
+        .then(rows => setResults((Array.isArray(rows) ? rows : []).filter(c => c.email)))
+        .catch(() => {})
+    }, 250)
+    return () => clearTimeout(t)
+  }, [q])
+  const add = (email) => { const e = (email || '').trim(); if (e && !emails.includes(e)) onChange([...emails, e]); setQ(''); setResults([]); setOpen(false) }
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', background: 'var(--bg-secondary)' }}>
+      <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', minWidth: 30 }}>{label}</span>
+      {emails.map(e => (
+        <span key={e} className="lead-tag" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 8px' }}>
+          {e}
+          <button type="button" onClick={() => onChange(emails.filter(x => x !== e))} style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 13 }}>×</button>
+        </span>
+      ))}
+      <div style={{ position: 'relative', flex: 1, minWidth: 170 }}>
+        <input
+          value={q}
+          onChange={e => { setQ(e.target.value); setOpen(true) }}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); if (q.includes('@')) add(q) } }}
+          placeholder="Search clients or type an email…"
+          style={{ width: '100%', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text-primary)', fontSize: 13, padding: '2px 0' }}
+        />
+        {open && results.length > 0 && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: 'var(--bg-elevated, #fff)', border: '1px solid var(--border)', borderRadius: 6, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 22px rgba(0,0,0,0.18)', marginTop: 4 }}>
+            {results.map(c => (
+              <button key={c.id} type="button" onClick={() => add(c.email)} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', fontSize: 12, color: 'var(--text-primary)' }}>
+                <strong>{c.first_name} {c.last_name}</strong> <span style={{ color: 'var(--text-muted)' }}>· {c.email}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 const emptyClient = {
   first_name: '', last_name: '', email: '', phone: '', type: 'buyer', status: 'active',
   source: '', agent_assigned: '', address: '', city: '', state: 'IA', zip: '',
@@ -414,7 +460,7 @@ export default function Clients() {
   const [fubActivity, setFubActivity] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
-  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: '', bcc: '' })
+  const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
   const singleEmailBodyRef = useRef(null)
   const bulkEmailBodyRef = useRef(null)
   const [singleEmailPreviewOpen, setSingleEmailPreviewOpen] = useState(false)
@@ -525,11 +571,11 @@ export default function Clients() {
     if (templateId && detail) {
       authFetch(`/api/email/preview/${templateId}/${detail.id}`)
         .then(r => r.json())
-        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [], cc: '', bcc: '' }))
+        .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [], cc: [], bcc: [] }))
     } else {
       // New blank email — start with a couple of blank lines above the signature, Gmail-style.
       const startBody = teamSignature ? `<div><br></div><div><br></div>${teamSignature}` : ''
-      setEmailForm({ subject: '', body: startBody, template: '', attachments: [], cc: '', bcc: '' })
+      setEmailForm({ subject: '', body: startBody, template: '', attachments: [], cc: [], bcc: [] })
     }
     setEmailModalOpen(true)
   }
@@ -544,8 +590,8 @@ export default function Clients() {
       const d = await r.json()
       if (d.error) { alert('Could not build email: ' + d.error); return }
       if (!d.count) { alert(d.message || 'No viewed properties found for this client.'); return }
-      setEmailForm(p => ({ subject: d.subject, body: d.body, template: '', attachments: [], cc: p.cc || '', bcc: p.bcc || '' }))
-      setComposerView('preview')
+      setEmailForm(p => ({ subject: d.subject, body: d.body, template: '__homes__', attachments: [], cc: p.cc || [], bcc: p.bcc || [] }))
+      setComposerView('wysiwyg')
       setEmailModalOpen(true)
     } catch (e) { alert('Failed: ' + e.message) }
     finally { setDraftingPropEmail(false) }
@@ -763,7 +809,7 @@ export default function Clients() {
     e.preventDefault()
     if (!detail.email) { alert('No email address for this client'); return }
     if (!emailForm.body || !emailForm.body.trim()) { alert('Add an email body first'); return }
-    const parseList = (s) => (s || '').split(/[,;\s]+/).map(x => x.trim()).filter(x => /@/.test(x))
+    const clean = (arr) => (Array.isArray(arr) ? arr : []).map(x => String(x).trim()).filter(x => /@/.test(x))
     setSending(true)
     try {
       const r = await authFetch('/api/email/send', {
@@ -772,9 +818,9 @@ export default function Clients() {
           client_id: detail.id,
           subject: emailForm.subject,
           body: embedPropertyLinks(emailForm.body),
-          template: emailForm.template,
-          cc: parseList(emailForm.cc),
-          bcc: parseList(emailForm.bcc),
+          template: emailForm.template === '__homes__' ? '' : emailForm.template,
+          cc: clean(emailForm.cc),
+          bcc: clean(emailForm.bcc),
           attachments: emailForm.attachments || [],
         }),
       })
@@ -2338,37 +2384,35 @@ export default function Clients() {
       <Modal open={emailModalOpen} onClose={() => setEmailModalOpen(false)} title={`Email ${detail?.first_name || ''} ${detail?.last_name || ''}`} wide>
         <form onSubmit={sendEmail}>
           <label>To<input value={detail?.email || ''} disabled /></label>
-          <div style={{display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap'}}>
-            <label style={{flex: 1, minWidth: 200}}>Template<select value={emailForm.template} onChange={e => {
-              const t = emailTemplates.find(x => x.id === e.target.value)
-              if (t && detail) {
-                authFetch(`/api/email/preview/${t.id}/${detail.id}`).then(r => r.json()).then(d =>
-                  setEmailForm(p => ({ ...p, subject: d.subject, body: d.body, template: t.id })))
-                setComposerView('preview')
-              } else {
-                setEmailForm(p => ({ ...p, template: '' }))
-              }
-            }}>
-              <option value="">Custom (no template)</option>
-              {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select></label>
-            {detail?.fub_person_id && (
-              <button type="button" className="btn btn-sm btn-secondary" style={{marginBottom: 2}} onClick={draftViewedPropertiesEmail} disabled={draftingPropEmail}
-                title="Insert the homes this lead has viewed in Follow Up Boss">
-                {draftingPropEmail ? 'Building…' : '🏡 Homes They Viewed'}
-              </button>
-            )}
-          </div>
+          <label>Template<select value={emailForm.template} disabled={draftingPropEmail} onChange={e => {
+            const v = e.target.value
+            if (v === '__homes__') { draftViewedPropertiesEmail(); return }
+            const t = emailTemplates.find(x => x.id === v)
+            if (t && detail) {
+              authFetch(`/api/email/preview/${t.id}/${detail.id}`).then(r => r.json()).then(d =>
+                setEmailForm(p => ({ ...p, subject: d.subject, body: d.body, template: t.id })))
+              setComposerView('wysiwyg')
+            } else {
+              setEmailForm(p => ({ ...p, template: '' }))
+            }
+          }}>
+            <option value="">Custom (no template)</option>
+            {detail?.fub_person_id && <option value="__homes__">🏡 Homes They Viewed</option>}
+            {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select></label>
+          {draftingPropEmail && <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '2px 0'}}>Building “Homes They Viewed”…</p>}
           <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
 
-          {/* Cc / Bcc */}
-          {!showCcBcc ? (
-            <button type="button" onClick={() => setShowCcBcc(true)} style={{background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: '2px 0', alignSelf: 'flex-start'}}>+ Add Cc / Bcc</button>
+          {/* Cc — always ready, with client search. Bcc behind a toggle. */}
+          <div style={{marginTop: 4}}>
+            <RecipientPicker label="Cc" emails={emailForm.cc} onChange={(arr) => setEmailForm(p => ({ ...p, cc: arr }))} />
+          </div>
+          {showCcBcc ? (
+            <div style={{marginTop: 4}}>
+              <RecipientPicker label="Bcc" emails={emailForm.bcc} onChange={(arr) => setEmailForm(p => ({ ...p, bcc: arr }))} />
+            </div>
           ) : (
-            <>
-              <label>Cc<input value={emailForm.cc} onChange={e => setEmailForm(p => ({ ...p, cc: e.target.value }))} placeholder="comma-separated emails" /></label>
-              <label>Bcc<input value={emailForm.bcc} onChange={e => setEmailForm(p => ({ ...p, bcc: e.target.value }))} placeholder="comma-separated emails" /></label>
-            </>
+            <button type="button" onClick={() => setShowCcBcc(true)} style={{background: 'none', border: 'none', color: 'var(--accent, #2563eb)', fontSize: 12, cursor: 'pointer', padding: '2px 0', alignSelf: 'flex-start'}}>+ Add Bcc</button>
           )}
 
           {/* Body — Gmail-style WYSIWYG editor by default; toggle to raw HTML source. */}
