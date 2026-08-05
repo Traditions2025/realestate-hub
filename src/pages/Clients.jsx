@@ -474,6 +474,22 @@ export default function Clients() {
     setEmailModalOpen(true)
   }
 
+  // Draft a "see these homes?" email from the properties this client viewed in FUB.
+  const [draftingPropEmail, setDraftingPropEmail] = useState(false)
+  const draftViewedPropertiesEmail = async () => {
+    if (!detail) return
+    setDraftingPropEmail(true)
+    try {
+      const r = await authFetch(`/api/fub/property-email?client_id=${detail.id}`)
+      const d = await r.json()
+      if (d.error) { alert('Could not build email: ' + d.error); return }
+      if (!d.count) { alert(d.message || 'No viewed properties found for this client.'); return }
+      setEmailForm({ subject: d.subject, body: d.body, template: '', attachments: [] })
+      setEmailModalOpen(true)
+    } catch (e) { alert('Failed: ' + e.message) }
+    finally { setDraftingPropEmail(false) }
+  }
+
   // Toggle a value in an array filter
   const toggleArrayFilter = (key, value) => {
     setAdvFilters(prev => {
@@ -2105,6 +2121,12 @@ export default function Clients() {
                   <button className="btn btn-primary btn-sm" onClick={() => openEmailComposer('')}>
                     Compose Email
                   </button>
+                  {detail.fub_person_id && (
+                    <button className="btn btn-secondary btn-sm" onClick={draftViewedPropertiesEmail} disabled={draftingPropEmail}
+                      title="Build an email from the homes this lead has viewed in Follow Up Boss">
+                      {draftingPropEmail ? 'Building…' : '🏡 Homes They Viewed'}
+                    </button>
+                  )}
                   {emailTemplates.map(t => (
                     <button key={t.id} className="btn btn-secondary btn-sm" onClick={() => openEmailComposer(t.id)}>
                       {t.name}

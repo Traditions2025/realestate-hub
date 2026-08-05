@@ -531,6 +531,74 @@ async function start() {
     }
   })
 
+  // Draft a "Do you want to see these properties?" email for a client, built from
+  // the homes they've actually viewed in FUB. Pulls their recent property-view
+  // events, dedupes by MLS, reconstructs the mattsmithteam.com listing links, and
+  // grabs each listing's photo (og:image) so the email matches the FUB template.
+  app.get('/api/fub/property-email', async (req, res) => {
+    const clientId = Number(req.query.client_id)
+    if (!clientId) return res.status(400).json({ error: 'client_id required' })
+    const client = db.get('SELECT id, first_name, fub_person_id FROM clients WHERE id = ?', [clientId])
+    if (!client) return res.status(404).json({ error: 'client not found' })
+    if (!client.fub_person_id) return res.json({ count: 0, message: 'This client is not linked to a Follow Up Boss record.' })
+    try {
+      const { fubGet, fubConfigured } = await import('./fub-helper.js')
+      if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
+      const max = Math.min(Number(req.query.max) || 6, 10)
+      const data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' })
+      const seen = new Set(); const props = []
+      for (const e of (data?.events || [])) {
+        const p = e.property
+        if (!p || !p.mlsNumber || p.forRent) continue
+        if (seen.has(p.mlsNumber)) continue
+        seen.add(p.mlsNumber); props.push(p)
+        if (props.length >= max) break
+      }
+      if (!props.length) return res.json({ count: 0, message: 'No viewed properties found for this client in FUB.' })
+
+      const slugify = (p) => `${p.street} ${p.city} ${p.state} ${p.code || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+      const cards = await Promise.all(props.map(async (p) => {
+        const url = `https://www.mattsmithteam.com/property-search/detail/352/${p.mlsNumber}/${slugify(p)}/`
+        let photo = null
+        try {
+          const r = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'Mozilla/5.0' } })
+          const html = await r.text()
+          const m = html.match(/property=["']og:image["'][^>]*content=["']([^"']+)["']/i) || html.match(/content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
+          if (m) photo = m[1]
+        } catch {}
+        return { ...p, url, photo }
+      }))
+
+      const usd = (v) => { const n = Number(v); return isFinite(n) && n > 0 ? '$' + n.toLocaleString() : '' }
+      const hourCT = Number(new Intl.DateTimeFormat('en-US', { hour: 'numeric', hour12: false, timeZone: 'America/Chicago' }).format(new Date()))
+      const greet = hourCT < 12 ? 'Morning' : hourCT < 17 ? 'Afternoon' : 'Evening'
+      const cardHtml = cards.map(c => {
+        const addr = `${c.street} ${c.city}, ${c.state} ${c.code || ''}`.trim()
+        const specs = [c.bedrooms && `${c.bedrooms} bd`, c.bathrooms && `${c.bathrooms} ba`, c.area && `${Number(c.area).toLocaleString()} sqft`, usd(c.price)].filter(Boolean).join(' &middot; ')
+        const img = c.photo
+          ? `<a href="${c.url}"><img src="${c.photo}" alt="${addr}" width="150" style="width:150px;height:auto;border-radius:6px;display:block;border:0;" /></a>`
+          : `<a href="${c.url}" style="display:block;width:150px;height:110px;background:#eef1f5;border-radius:6px;text-align:center;line-height:110px;color:#64748b;font-size:12px;text-decoration:none;">View photo &rarr;</a>`
+        return `<table cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;margin:0 0 14px;border:1px solid #e2e8f0;border-radius:8px;"><tr>
+<td valign="top" style="padding:12px;width:174px;">${img}</td>
+<td valign="top" style="padding:12px 12px 12px 0;font-family:Arial,Helvetica,sans-serif;">
+<a href="${c.url}" style="color:#2563eb;font-weight:bold;font-size:15px;text-decoration:none;">${addr} | MLS ${c.mlsNumber}</a>
+<div style="color:#334155;font-size:13px;margin-top:6px;">${specs}</div>
+<div style="color:#475569;font-size:13px;margin-top:6px;">Home for sale at ${addr}, with MLS ${c.mlsNumber}.</div>
+</td></tr></table>`
+      }).join('\n')
+
+      const name = client.first_name || 'there'
+      const body = `<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">${greet} ${name}, would you like any more info or to go and see any of these properties?</p>
+${cardHtml}
+<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">Just reply and let me know which ones catch your eye and I'll set up the showings.</p>
+<p style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;">Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts</p>`
+
+      res.json({ subject: 'Do you want to see any of these properties?', body, count: cards.length, photos: cards.filter(c => c.photo).length })
+    } catch (e) {
+      res.status(500).json({ error: String(e.message || e) })
+    }
+  })
+
   // Manual trigger: fire the Slack transaction-deadline alert right now.
   // Useful to preview the 10 AM post's formatting on demand.
   app.post('/api/slack/deadline-now', async (_req, res) => {
