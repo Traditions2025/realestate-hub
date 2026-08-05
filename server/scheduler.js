@@ -607,8 +607,19 @@ async function syncFubBudgetRanges() {
       next = data?._metadata?.nextLink || data?._metadata?.next || null
       await new Promise(r => setTimeout(r, 70))
     }
-    // Freq-ordered, de-duped city list per person (cap 12).
-    const cityList = (m) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([c]) => c).join(', ')
+    // Freq-ordered, normalized + de-duped city list per person (cap 12).
+    // FUB city values sometimes carry trailing commas / casing variants, so fold them.
+    const cityList = (m) => {
+      const norm = {}
+      for (const [raw, ct] of Object.entries(m)) {
+        const c = String(raw).replace(/^[,\s]+|[,\s]+$/g, '').trim()
+        if (!c) continue
+        const key = c.toLowerCase()
+        if (!norm[key]) norm[key] = { name: c, count: 0 }
+        norm[key].count += ct
+      }
+      return Object.values(norm).sort((a, b) => b.count - a.count).slice(0, 12).map(x => x.name).join(', ')
+    }
     let updated = 0, citiesSet = 0
     db.beginBulk?.()
     try {
