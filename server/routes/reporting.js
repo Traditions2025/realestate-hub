@@ -22,16 +22,48 @@ async function categoryStats(category, startDate) {
   } catch { return null }
 }
 
+// Pull EXISTING batch emails sent through SendGrid Marketing Campaigns (Single
+// Sends) — e.g. anything sent before the Hub, like "Deal of the Week" — with stats.
+async function sendGridSingleSends() {
+  if (!SENDGRID_API_KEY) return []
+  const H = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
+  try {
+    const listR = await fetch('https://api.sendgrid.com/v3/marketing/singlesends?page_size=100', { headers: H })
+    if (!listR.ok) return []
+    const list = (await listR.json()).result || []
+    if (!list.length) return []
+    const ids = list.map(s => s.id).slice(0, 50)
+    // stats endpoint is paginated by singlesend_ids
+    let statsById = {}
+    try {
+      const stR = await fetch(`https://api.sendgrid.com/v3/marketing/stats/singlesends?singlesend_ids=${ids.join('&singlesend_ids=')}&page_size=50`, { headers: H })
+      if (stR.ok) for (const r of ((await stR.json()).results || [])) statsById[r.id] = r.stats || {}
+    } catch {}
+    return list.map(s => {
+      const st = statsById[s.id] || {}
+      return {
+        id: 'sg_' + s.id, source: 'sendgrid', subject: s.name, from_name: 'SendGrid Campaign',
+        recipients: st.requests || st.delivered_count || 0, sent: st.delivered_count || 0,
+        status: (s.status || 'finished') === 'triggered' ? 'finished' : (s.status || 'finished'),
+        created_at: s.send_at || s.created_at,
+        stats: { delivered: st.delivered_count || 0, unique_opens: st.unique_open_count || 0, unique_clicks: st.unique_click_count || 0, bounces: st.bounce_count || 0, unsubscribes: st.unsubscribe_count || 0 },
+      }
+    })
+  } catch { return [] }
+}
+
 // Campaign list + live SendGrid engagement stats.
 router.get('/campaigns', async (_req, res) => {
   const rows = db.all('SELECT * FROM email_campaigns ORDER BY created_at DESC LIMIT 100')
-  const out = []
+  const hub = []
   for (const c of rows) {
     const startDate = String(c.created_at || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
     const stats = await categoryStats(c.category, startDate)
-    out.push({ ...c, stats })
+    hub.push({ ...c, source: 'hub', stats })
   }
-  res.json({ campaigns: out, sendgrid: !!SENDGRID_API_KEY })
+  const sg = await sendGridSingleSends()
+  const all = [...hub, ...sg].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+  res.json({ campaigns: all, sendgrid: !!SENDGRID_API_KEY })
 })
 
 // Per-campaign recipient log (for the Details view).

@@ -67,7 +67,10 @@ export default function Reporting() {
               return (
                 <tr key={c.id}>
                   <td style={td}>
-                    <div style={{ fontWeight: 600, color: 'var(--accent, #2563eb)', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.subject}</div>
+                    <div style={{ fontWeight: 600, color: 'var(--accent, #2563eb)', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {c.subject}
+                      {c.source === 'sendgrid' && <span style={{ marginLeft: 8, fontSize: 10, background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }}>SendGrid</span>}
+                    </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>From: {c.from_name || 'Matt Smith Team'}</div>
                   </td>
                   <td style={{ ...td, color: 'var(--text-muted)' }}>🕒 {ago(c.created_at)}</td>
