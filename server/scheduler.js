@@ -509,6 +509,10 @@ async function syncFubRealistScores() {
   try {
     const { fubGet, fubConfigured } = await import('./fub-helper.js')
     if (!fubConfigured()) return
+    // Cadence guard: heavy ~600-page FUB /people scan. Skip if it ran in the last
+    // 6 days so frequent reboots don't hammer FUB's rate limit.
+    const lastRun = Number(db.getSetting?.('fub_realist_last_run', 0)) || 0
+    if (lastRun && Date.now() - lastRun < 6 * 24 * 60 * 60 * 1000) { console.log('[scheduler] FUB realist-score sync skipped (ran recently)'); return }
     // Match by EMAIL, not fub_person_id — FUB has duplicate person records and the
     // Realist score often sits on a different duplicate than the one a client is
     // linked to. Email is the dup-proof join. Build email -> client_id for the
@@ -550,6 +554,7 @@ async function syncFubRealistScores() {
         updated += info?.changes || 0
       }
     } finally { db.endBulk?.() }
+    db.setSetting?.('fub_realist_last_run', String(Date.now()))
     console.log(`[scheduler] FUB realist-score sync: ${emailToClient.size} empty clients, ${updated} backfilled by email`)
   } catch (e) {
     console.error('[scheduler] FUB realist-score sync error:', e.message)
@@ -578,6 +583,10 @@ async function syncFubBudgetRanges() {
   try {
     const { fubGet, fubConfigured } = await import('./fub-helper.js')
     if (!fubConfigured()) return
+    // Cadence guard: this is a heavy ~2,600-page FUB scan. Skip if it ran in the
+    // last 6 days so frequent reboots don't hammer FUB's rate limit.
+    const last = Number(db.getSetting?.('fub_budget_last_run', 0)) || 0
+    if (last && Date.now() - last < 6 * 24 * 60 * 60 * 1000) { console.log('[scheduler] FUB budget-range sync skipped (ran recently)'); return }
     // Map linked person -> client (indexed; in-memory to avoid per-event queries).
     const personToClient = new Map()
     for (const c of db.all('SELECT id, fub_person_id FROM clients WHERE fub_person_id IS NOT NULL')) personToClient.set(c.fub_person_id, c.id)
@@ -636,6 +645,7 @@ async function syncFubBudgetRanges() {
         citiesSet += info?.changes || 0
       }
     } finally { db.endBulk?.() }
+    db.setSetting?.('fub_budget_last_run', String(Date.now()))
     console.log(`[scheduler] FUB budget-range sync: ${perPerson.size} leads priced (${updated} budgets), ${perPersonCity.size} with cities (${citiesSet} set)`)
   } catch (e) {
     console.error('[scheduler] FUB budget-range sync error:', e.message)
@@ -644,6 +654,14 @@ async function syncFubBudgetRanges() {
 
 export function startScheduler() {
   console.log('[scheduler] Starting auto-sync schedule...')
+
+  // Seed the heavy-scan cadence stamps on first boot (data was already backfilled),
+  // so the ~2,600-page budget scan + ~600-page realist scan don't re-run on every
+  // reboot and burn FUB's rate limit. They'll next run ~6 days out.
+  try {
+    if (!Number(db.getSetting?.('fub_budget_last_run', 0))) db.setSetting?.('fub_budget_last_run', String(Date.now()))
+    if (!Number(db.getSetting?.('fub_realist_last_run', 0))) db.setSetting?.('fub_realist_last_run', String(Date.now()))
+  } catch {}
 
   setTimeout(() => {
     console.log('[scheduler] Initial boot sync...')

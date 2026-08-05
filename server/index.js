@@ -561,7 +561,15 @@ async function start() {
       const { fubGet, fubConfigured } = await import('./fub-helper.js')
       if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
       const max = Math.min(Number(req.query.max) || 6, 10)
-      const data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' })
+      // Retry on FUB 429 (rate limit) with backoff so a busy window doesn't fail the draft.
+      let data = null
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try { data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' }); break }
+        catch (err) {
+          if (err && err.status === 429 && attempt < 3) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); continue }
+          throw err
+        }
+      }
       const seen = new Set(); const props = []
       for (const e of (data?.events || [])) {
         const p = e.property
