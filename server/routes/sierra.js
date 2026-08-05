@@ -22,6 +22,7 @@ const router = Router()
 // In-memory sync state
 let syncState = {
   running: false,
+  cancelRequested: false,
   startedAt: null,
   progress: { synced: 0, added: 0, updated: 0, currentStatus: null },
   lastResult: null,
@@ -31,6 +32,7 @@ let syncState = {
 async function runSyncBackground(statuses, statusParam) {
   syncState = {
     running: true,
+    cancelRequested: false,
     startedAt: new Date().toISOString(),
     progress: { synced: 0, added: 0, updated: 0, currentStatus: null },
     lastResult: null,
@@ -39,11 +41,13 @@ async function runSyncBackground(statuses, statusParam) {
 
   try {
     for (const status of statuses) {
+      if (syncState.cancelRequested) break
       syncState.progress.currentStatus = status
       let page = 1
       let hasMore = true
 
       while (hasMore) {
+        if (syncState.cancelRequested) { hasMore = false; break }
         const result = await sierraGet('/leads/find', {
           leadStatus: status,
           includeSavedSearches: 'true',
@@ -77,6 +81,7 @@ async function runSyncBackground(statuses, statusParam) {
 
     syncState.lastResult = {
       success: true,
+      cancelled: syncState.cancelRequested,
       total_synced: syncState.progress.synced,
       added: syncState.progress.added,
       updated: syncState.progress.updated,
@@ -131,11 +136,19 @@ router.get('/counts', async (req, res) => {
 router.get('/sync-status', (req, res) => {
   res.json({
     running: syncState.running,
+    cancelRequested: syncState.cancelRequested,
     startedAt: syncState.startedAt,
     progress: syncState.progress,
     lastResult: syncState.lastResult,
     error: syncState.error,
   })
+})
+
+// Cancel an in-progress full sync — the background loop checks this flag between pages.
+router.post('/sync-cancel', (req, res) => {
+  if (!syncState.running) return res.json({ success: true, running: false, message: 'No sync running.' })
+  syncState.cancelRequested = true
+  res.json({ success: true, cancelRequested: true, progress: syncState.progress })
 })
 
 // Batch refresh: pull a specific set of leads from Sierra (by client_id or sierra_lead_id)
