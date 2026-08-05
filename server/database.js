@@ -473,6 +473,8 @@ export async function initDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // Visual mind-map canvas (nodes + edges JSON) per project.
+  try { db.run('ALTER TABLE projects ADD COLUMN canvas_data TEXT') } catch {}
 
   // =============================================
   // NOTES

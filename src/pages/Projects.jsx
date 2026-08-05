@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { api } from '../api'
+import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
+import MindMap from '../components/MindMap'
 
 const emptyProject = {
   name: '', description: '', status: 'active', category: 'other',
@@ -16,6 +17,17 @@ export default function Projects() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyProject)
+  const [mindMap, setMindMap] = useState(null)
+
+  const openMindMap = async (item, e) => {
+    if (e) e.stopPropagation()
+    try {
+      const p = await authFetch(`/api/projects/${item.id}`).then(r => r.json())
+      let initial = { nodes: [], edges: [] }
+      try { if (p.canvas_data) initial = JSON.parse(p.canvas_data) } catch {}
+      setMindMap({ projectId: item.id, projectName: item.name, initial })
+    } catch (err) { alert('Failed to open mind map: ' + err.message) }
+  }
 
   const load = () => {
     const params = {}
@@ -101,6 +113,7 @@ export default function Projects() {
               </div>
             )}
             <div className="project-card-actions" onClick={e => e.stopPropagation()}>
+              <button className="btn-sm btn-secondary" onClick={(e) => openMindMap(item, e)}>🧠 Mind Map</button>
               <button className="btn-sm btn-danger" onClick={() => remove(item.id)}>Delete</button>
             </div>
           </div>
@@ -136,6 +149,15 @@ export default function Projects() {
           </div>
         </form>
       </Modal>
+
+      {mindMap && (
+        <MindMap
+          projectId={mindMap.projectId}
+          projectName={mindMap.projectName}
+          initial={mindMap.initial}
+          onClose={() => setMindMap(null)}
+        />
+      )}
     </div>
   )
 }
