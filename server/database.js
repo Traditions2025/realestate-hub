@@ -524,6 +524,84 @@ export async function initDb() {
     )
   `)
 
+  // ---- AUTOMATIONS v2: graph model, versioning, per-contact runtime ----
+  // status: draft | active | paused | error   (legacy `enabled` still mirrored)
+  try { db.run("ALTER TABLE automations ADD COLUMN status TEXT DEFAULT 'draft'") } catch {}
+  try { db.run('ALTER TABLE automations ADD COLUMN draft_graph TEXT') } catch {}   // {nodes,edges} being edited
+  try { db.run('ALTER TABLE automations ADD COLUMN active_graph TEXT') } catch {}  // {nodes,edges} the runtime executes
+  try { db.run('ALTER TABLE automations ADD COLUMN owner TEXT') } catch {}
+  try { db.run('ALTER TABLE automations ADD COLUMN settings TEXT') } catch {}      // JSON: enrollment/limits/quiet-hours
+  try { db.run('ALTER TABLE automations ADD COLUMN activated_at TEXT') } catch {}
+  try { db.run('ALTER TABLE automations ADD COLUMN description TEXT') } catch {}
+  try { db.run('ALTER TABLE automations ADD COLUMN active_version INTEGER DEFAULT 0') } catch {}
+
+  // published/draft snapshots for version history + restore
+  db.run(`
+    CREATE TABLE IF NOT EXISTS automation_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      automation_id INTEGER,
+      version_number INTEGER,
+      graph TEXT,
+      settings TEXT,
+      status TEXT DEFAULT 'published',   -- published | draft
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      published_at TEXT
+    )
+  `)
+
+  // one row per contact currently/previously in an automation
+  db.run(`
+    CREATE TABLE IF NOT EXISTS automation_enrollments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      automation_id INTEGER,
+      version_number INTEGER,
+      client_id INTEGER,
+      status TEXT DEFAULT 'active',      -- active | waiting | completed | failed | removed
+      current_node_id TEXT,
+      next_run_at TEXT,                  -- when the stepper should next touch this row (ISO UTC)
+      entered_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      exit_reason TEXT,
+      last_error TEXT,
+      context TEXT                       -- JSON: trigger payload (e.g. the viewed listing)
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_enroll_due ON automation_enrollments(status, next_run_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_enroll_auto ON automation_enrollments(automation_id, client_id)') } catch {}
+
+  // one row per action attempt — idempotency + activity/troubleshooting
+  db.run(`
+    CREATE TABLE IF NOT EXISTS automation_executions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enrollment_id INTEGER,
+      automation_id INTEGER,
+      node_id TEXT,
+      node_type TEXT,
+      status TEXT DEFAULT 'success',     -- success | failed | skipped
+      attempt INTEGER DEFAULT 1,
+      idempotency_key TEXT UNIQUE,
+      started_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT,
+      output TEXT,
+      error TEXT
+    )
+  `)
+
+  // inbound event queue (property_viewed, contact_created, tag_added, ...)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS automation_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      event_type TEXT,
+      client_id INTEGER,
+      dedupe_key TEXT UNIQUE,            -- prevents the same real-world event enrolling twice
+      payload TEXT,
+      occurred_at TEXT DEFAULT (datetime('now')),
+      processed_at TEXT
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_autoevents_unprocessed ON automation_events(processed_at)') } catch {}
+
   // =============================================
   // NOTES
   // =============================================
