@@ -202,6 +202,9 @@ export default function Clients() {
     activity_days: '',
     created_days: '',
     inactive_days: '',
+    has_listing_views: false,
+    fub_days_min: '',
+    fub_days_max: '',
     // Property criteria from saved searches
     has_saved_search: false,
     search_max_price_min: '',
@@ -248,6 +251,7 @@ export default function Clients() {
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
     (advFilters.activity_days ? 1 : 0) + (advFilters.created_days ? 1 : 0) +
     (advFilters.inactive_days ? 1 : 0) +
+    (advFilters.has_listing_views ? 1 : 0) + (advFilters.fub_days_min ? 1 : 0) + (advFilters.fub_days_max ? 1 : 0) +
     (advFilters.has_saved_search ? 1 : 0) +
     (advFilters.search_max_price_min ? 1 : 0) + (advFilters.search_max_price_max ? 1 : 0) +
     (advFilters.search_beds_min ? 1 : 0) + (advFilters.search_baths_min ? 1 : 0) +
@@ -329,6 +333,9 @@ export default function Clients() {
     if (advFilters.activity_days) params.activity_days = advFilters.activity_days
     if (advFilters.created_days) params.created_days = advFilters.created_days
     if (advFilters.inactive_days) params.inactive_days = advFilters.inactive_days
+    if (advFilters.has_listing_views) params.has_listing_views = '1'
+    if (advFilters.fub_days_min) params.fub_days_min = advFilters.fub_days_min
+    if (advFilters.fub_days_max) params.fub_days_max = advFilters.fub_days_max
     // Property criteria
     if (advFilters.has_saved_search) params.has_saved_search = '1'
     if (advFilters.search_max_price_min) params.search_max_price_min = advFilters.search_max_price_min
@@ -615,6 +622,7 @@ export default function Clients() {
       has_email: false, exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
       activity_days: '', created_days: '', inactive_days: '',
+      has_listing_views: false, fub_days_min: '', fub_days_max: '',
       has_saved_search: false,
       search_max_price_min: '', search_max_price_max: '',
       search_beds_min: '', search_baths_min: '', search_sqft_min: '',
@@ -683,6 +691,9 @@ export default function Clients() {
           activity_days: f.activity_days || '',
           created_days: f.created_days || '',
           inactive_days: f.inactive_days || '',
+          has_listing_views: !!f.has_listing_views,
+          fub_days_min: f.fub_days_min || '',
+          fub_days_max: f.fub_days_max || '',
           has_saved_search: !!f.has_saved_search,
           search_max_price_min: f.search_max_price_min || '',
           search_max_price_max: f.search_max_price_max || '',
@@ -1411,6 +1422,39 @@ export default function Clients() {
               <label className="filter-num">
                 Max visits
                 <input type="number" value={advFilters.visits_max} onChange={e => setAdvFilters(p => ({ ...p, visits_max: e.target.value }))} />
+              </label>
+            </div>
+          </div>
+
+          <div className="filter-section">
+            <h5>Listing Views (Follow Up Boss)</h5>
+            <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 8}}>
+              <input type="checkbox" checked={advFilters.has_listing_views}
+                onChange={e => setAdvFilters(p => ({ ...p, has_listing_views: e.target.checked }))} />
+              Only clients with listing views
+            </label>
+            <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 4}}>Last listing visit (days ago):</div>
+            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8}}>
+              {[{ l: '≤ 30', min: '', max: '30' }, { l: '30–60', min: '30', max: '60' }, { l: '60–90', min: '60', max: '90' }, { l: '90+', min: '90', max: '' }].map(r => {
+                const active = advFilters.fub_days_min === r.min && advFilters.fub_days_max === r.max && (r.min || r.max)
+                return (
+                  <button key={r.l} type="button" className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setAdvFilters(p => active
+                      ? ({ ...p, fub_days_min: '', fub_days_max: '' })
+                      : ({ ...p, fub_days_min: r.min, fub_days_max: r.max, has_listing_views: true }))}>
+                    {r.l}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="filter-other-row">
+              <label className="filter-num">
+                Min days ago
+                <input type="number" min="0" placeholder="e.g. 30" value={advFilters.fub_days_min} onChange={e => setAdvFilters(p => ({ ...p, fub_days_min: e.target.value }))} />
+              </label>
+              <label className="filter-num">
+                Max days ago
+                <input type="number" min="0" placeholder="e.g. 60" value={advFilters.fub_days_max} onChange={e => setAdvFilters(p => ({ ...p, fub_days_max: e.target.value }))} />
               </label>
             </div>
           </div>

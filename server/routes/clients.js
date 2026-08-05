@@ -197,6 +197,22 @@ function buildClientFilter(q) {
     params.push(`-${Number(q.inactive_days)} days`)
   }
 
+  // FUB listing-activity filters (property/listing views from Follow Up Boss).
+  // Only clients who have viewed listings.
+  if (q.has_listing_views === '1' || q.has_listing_views === 'true') {
+    where += " AND last_fub_activity_at IS NOT NULL AND last_fub_activity_at != ''"
+  }
+  // Last listing visit at LEAST N days ago (e.g. 90+ => older, cold).
+  if (q.fub_days_min) {
+    where += " AND last_fub_activity_at IS NOT NULL AND last_fub_activity_at <= datetime('now', ?)"
+    params.push(`-${Number(q.fub_days_min)} days`)
+  }
+  // Last listing visit at MOST N days ago (e.g. within 30 => recent, hot).
+  if (q.fub_days_max) {
+    where += " AND last_fub_activity_at IS NOT NULL AND last_fub_activity_at >= datetime('now', ?)"
+    params.push(`-${Number(q.fub_days_max)} days`)
+  }
+
   // ---- Property criteria filters (from saved search) ----
   // "Looking for price ≥ X" — the lead's price ceiling has to allow X
   if (q.search_price_at_least) {
