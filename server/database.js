@@ -492,6 +492,8 @@ export async function initDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // Visual flow: { trigger: {type, config}, steps: [{id, kind, ...}] }
+  try { db.run('ALTER TABLE automations ADD COLUMN flow_data TEXT') } catch {}
   db.run(`
     CREATE TABLE IF NOT EXISTS automation_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

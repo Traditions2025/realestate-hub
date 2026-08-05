@@ -80,10 +80,48 @@ async function runAction(act, client) {
   }
 }
 
+// Map the visual flow's Condition steps into a Clients-filter audience.
+function audienceFromSteps(steps) {
+  const a = {}
+  for (const s of steps) {
+    if (s.kind !== 'condition') continue
+    const c = s.config || {}
+    switch (c.field) {
+      case 'status':
+        if (c.op === 'is_not') { a.statuses_exclude = [...(a.statuses_exclude || []), c.value] }
+        else { a.statuses_include = [...(a.statuses_include || []), c.value] }
+        break
+      case 'tag':
+        if (c.op === 'not') { a.tags_exclude = [...(a.tags_exclude || []), c.value] }
+        else { a.tags_include = [...(a.tags_include || []), c.value] }
+        break
+      case 'has_listing_views': a.has_listing_views = '1'; break
+      case 'has_email': a.has_email = '1'; break
+      case 'last_visit_days':
+        if (c.op === 'over') a.fub_days_min = c.value; else a.fub_days_max = c.value
+        break
+      case 'inactive_days': a.inactive_days = c.value; break
+      case 'city': a.cities_include = [...(a.cities_include || []), c.value]; break
+    }
+  }
+  return a
+}
+function actionsFromSteps(steps) {
+  return steps.filter(s => s.kind === 'action').map(s => ({ type: s.actionType, config: s.config || {} }))
+}
+
 // Run one automation over its audience. Returns a summary.
 export async function runAutomation(auto, { dryRun = false } = {}) {
-  const audience = (() => { try { return JSON.parse(auto.audience || '{}') } catch { return {} } })()
-  const actions = (() => { try { return JSON.parse(auto.actions || '[]') } catch { return [] } })()
+  let audience, actions
+  if (auto.flow_data) {
+    const flow = (() => { try { return JSON.parse(auto.flow_data || '{}') } catch { return {} } })()
+    const steps = flow.steps || []
+    audience = audienceFromSteps(steps)
+    actions = actionsFromSteps(steps)
+  } else {
+    audience = (() => { try { return JSON.parse(auto.audience || '{}') } catch { return {} } })()
+    actions = (() => { try { return JSON.parse(auto.actions || '[]') } catch { return [] } })()
+  }
   const clients = resolveAudience(audience)
   let done = 0, errors = 0
   const errSamples = []
@@ -134,16 +172,18 @@ router.get('/:id', (req, res) => {
 })
 router.post('/', (req, res) => {
   const b = req.body || {}
-  const r = db.run('INSERT INTO automations (name, enabled, trigger_type, run_time, audience, actions) VALUES (?,?,?,?,?,?)',
-    [b.name || 'Untitled automation', b.enabled ? 1 : 0, b.trigger_type || 'schedule_daily', b.run_time || '09:00',
-      JSON.stringify(b.audience || {}), JSON.stringify(b.actions || [])])
+  const flow = b.flow || null
+  const r = db.run('INSERT INTO automations (name, enabled, trigger_type, run_time, audience, actions, flow_data) VALUES (?,?,?,?,?,?,?)',
+    [b.name || 'Untitled automation', b.enabled ? 1 : 0, flow?.trigger?.type || b.trigger_type || 'schedule_daily', b.run_time || '09:00',
+      JSON.stringify(b.audience || {}), JSON.stringify(b.actions || []), flow ? JSON.stringify(flow) : null])
   res.status(201).json({ id: r.lastInsertRowid })
 })
 router.put('/:id', (req, res) => {
   const b = req.body || {}
-  db.run(`UPDATE automations SET name=?, enabled=?, trigger_type=?, run_time=?, audience=?, actions=?, updated_at=datetime('now') WHERE id=?`,
-    [b.name || 'Untitled automation', b.enabled ? 1 : 0, b.trigger_type || 'schedule_daily', b.run_time || '09:00',
-      JSON.stringify(b.audience || {}), JSON.stringify(b.actions || []), Number(req.params.id)])
+  const flow = b.flow || null
+  db.run(`UPDATE automations SET name=?, enabled=?, trigger_type=?, run_time=?, audience=?, actions=?, flow_data=?, updated_at=datetime('now') WHERE id=?`,
+    [b.name || 'Untitled automation', b.enabled ? 1 : 0, flow?.trigger?.type || b.trigger_type || 'schedule_daily', b.run_time || '09:00',
+      JSON.stringify(b.audience || {}), JSON.stringify(b.actions || []), flow ? JSON.stringify(flow) : (b.flow_data || null), Number(req.params.id)])
   res.json({ success: true })
 })
 router.delete('/:id', (req, res) => {
@@ -154,7 +194,10 @@ router.delete('/:id', (req, res) => {
 // Preview the audience (count + a few samples) without running.
 router.post('/preview-audience', (req, res) => {
   try {
-    const { where, params } = buildClientFilter(req.body?.audience || {})
+    let audience = req.body?.audience || {}
+    if (Array.isArray(req.body?.steps)) audience = audienceFromSteps(req.body.steps)
+    else if (Array.isArray(req.body?.flow?.steps)) audience = audienceFromSteps(req.body.flow.steps)
+    const { where, params } = buildClientFilter(audience)
     const count = db.get(`SELECT COUNT(*) as c FROM clients${where}`, params).c
     const sample = db.all(`SELECT id, first_name, last_name, email, status FROM clients${where} LIMIT 6`, params)
     res.json({ count, sample })
