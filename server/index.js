@@ -557,16 +557,12 @@ async function start() {
       if (!props.length) return res.json({ count: 0, message: 'No viewed properties found for this client in FUB.' })
 
       const slugify = (p) => `${p.street} ${p.city} ${p.state} ${p.code || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-      const cards = await Promise.all(props.map(async (p) => {
-        const url = `https://www.mattsmithteam.com/property-search/detail/352/${p.mlsNumber}/${slugify(p)}/`
-        let photo = null
-        try {
-          const r = await fetch(url, { signal: AbortSignal.timeout(6000), headers: { 'User-Agent': 'Mozilla/5.0' } })
-          const html = await r.text()
-          const m = html.match(/property=["']og:image["'][^>]*content=["']([^"']+)["']/i) || html.match(/content=["']([^"']+)["'][^>]*property=["']og:image["']/i)
-          if (m) photo = m[1]
-        } catch {}
-        return { ...p, url, photo }
+      // Photo + link are built directly from the MLS number — no server-side fetch.
+      // The image loads in the recipient's email client from Sierra's listing CDN.
+      const cards = props.map((p) => ({
+        ...p,
+        url: `https://www.mattsmithteam.com/property-search/detail/352/${p.mlsNumber}/${slugify(p)}/`,
+        photo: `https://cdn.listingphotos.sierrastatic.com/large/352/352_${p.mlsNumber}_01.jpg`,
       }))
 
       const usd = (v) => { const n = Number(v); return isFinite(n) && n > 0 ? '$' + n.toLocaleString() : '' }
