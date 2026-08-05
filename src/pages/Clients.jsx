@@ -285,6 +285,7 @@ export default function Clients() {
   const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
   const [bulkComposerView, setBulkComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
   const [bulkSending, setBulkSending] = useState(false)
+  const [bulkProgress, setBulkProgress] = useState(null)
   const [bulkEmailPreviewOpen, setBulkEmailPreviewOpen] = useState(false)
   const [bulkPreviewIdx, setBulkPreviewIdx] = useState(0)
   const [bulkPreviewData, setBulkPreviewData] = useState(null)
@@ -819,6 +820,7 @@ export default function Clients() {
     if (selectedIds.size === 0) return alert('No clients selected')
     if (!confirm(`Send this email to ${selectedIds.size} clients?`)) return
     setBulkSending(true)
+    setBulkProgress({ running: true, done: 0, total: selectedIds.size, sent: 0, skipped: 0, failed: 0 })
     try {
       const r = await authFetch('/api/email/bulk', {
         method: 'POST',
@@ -830,17 +832,23 @@ export default function Clients() {
         }),
       })
       const d = await r.json()
-      if (d.error) {
-        alert('Bulk send error: ' + d.error)
-      } else {
-        alert(`Bulk send complete: ${d.sent} sent, ${d.failed} failed, ${d.skipped} skipped`)
+      if (d.error) { alert('Bulk send error: ' + d.error); setBulkSending(false); setBulkProgress(null); return }
+      // Poll progress until the background send finishes.
+      const poll = async () => {
+        const s = await authFetch('/api/email/bulk-status').then(x => x.json()).catch(() => null)
+        if (s) setBulkProgress(s)
+        if (!s || s.running) { setTimeout(poll, 1500); return }
+        setBulkSending(false)
+        setBulkProgress(null)
+        alert(`✓ Bulk send complete: ${s.sent} sent · ${s.skipped} skipped${s.noListings ? ` (${s.noListings} had no listings)` : ''} · ${s.failed} failed`)
         setBulkEmailOpen(false)
         setSelectedIds(new Set())
       }
+      poll()
     } catch (err) {
       alert('Send failed: ' + err.message)
+      setBulkSending(false); setBulkProgress(null)
     }
-    setBulkSending(false)
   }
 
   const sendEmail = async (e) => {
@@ -2406,11 +2414,23 @@ export default function Clients() {
             Auto-fills per recipient: {'{{first_name}} {{last_name}} {{city}}'} · {'{{properties}}'} = their viewed listings · {'{{signature}}'} = your saved signature. Use <strong>👁 Preview a recipient</strong> to verify before sending.
           </p>
           <div className="form-actions">
-            <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailOpen(false)}>Cancel</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailOpen(false)} disabled={bulkSending}>Cancel</button>
             <button type="submit" className="btn btn-primary" disabled={bulkSending}>
-              {bulkSending ? 'Sending...' : `Send to ${selectedIds.size} Recipients`}
+              {bulkSending
+                ? (bulkProgress ? `Sending ${bulkProgress.done}/${bulkProgress.total}…` : 'Starting…')
+                : `Send to ${selectedIds.size} Recipients`}
             </button>
           </div>
+          {bulkSending && bulkProgress && (
+            <div style={{marginTop: 8}}>
+              <div style={{height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden'}}>
+                <div style={{height: '100%', width: `${Math.round(100 * (bulkProgress.done || 0) / Math.max(1, bulkProgress.total || 1))}%`, background: 'var(--accent, #2563eb)', transition: 'width .3s'}} />
+              </div>
+              <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0'}}>
+                {bulkProgress.sent || 0} sent · {bulkProgress.skipped || 0} skipped · {bulkProgress.failed || 0} failed — pulling each recipient's live listings, keep this open.
+              </p>
+            </div>
+          )}
         </form>
       </Modal>
 

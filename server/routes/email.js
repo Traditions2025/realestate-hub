@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { fubGet, fubConfigured } from '../fub-helper.js'
 import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
 import { buildDigest, sendDigest } from '../transaction-digest.js'
 
@@ -142,28 +143,67 @@ function savedSignatureHtml() {
 // Build the "homes they viewed" property cards for a client from the STORED
 // listings in the Hub (fub_activity). No FUB call — safe for bulk sends. Returns
 // '' when the client has no cached listings.
-export function buildPropertyCards(clientId, max = 5) {
-  const rows = db.all("SELECT prop_mls, prop_street, prop_city, prop_state, prop_zip, prop_price FROM fub_activity WHERE client_id = ? AND prop_mls IS NOT NULL AND prop_mls != '' ORDER BY occurred_at DESC, id DESC", [clientId])
+// Render cards from normalized rows: [{ mls, street, city, state, zip, price }]
+function cardHtmlFromRows(rows, max = 5) {
   const seen = new Set(); const cards = []
   const usd = (v) => { const n = Number(v); return isFinite(n) && n > 0 ? '$' + n.toLocaleString() : '' }
   for (const v of rows) {
-    if (seen.has(v.prop_mls)) continue
-    seen.add(v.prop_mls)
-    const slug = `${v.prop_street || ''} ${v.prop_city || ''} ${v.prop_state || ''} ${v.prop_zip || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
-    const url = `https://www.mattsmithteam.com/property-search/detail/352/${v.prop_mls}/${slug}/`
-    const photo = `https://cdn.listingphotos.sierrastatic.com/large/352/352_${v.prop_mls}_01.jpg`
-    const addr = `${v.prop_street || ''} ${v.prop_city || ''}, ${v.prop_state || ''} ${v.prop_zip || ''}`.replace(/\s+/g, ' ').replace(/\s,/g, ',').trim()
-    const price = usd(v.prop_price)
+    if (!v.mls || seen.has(v.mls)) continue
+    seen.add(v.mls)
+    const slug = `${v.street || ''} ${v.city || ''} ${v.state || ''} ${v.zip || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+    const url = `https://www.mattsmithteam.com/property-search/detail/352/${v.mls}/${slug}/`
+    const photo = `https://cdn.listingphotos.sierrastatic.com/large/352/352_${v.mls}_01.jpg`
+    const addr = `${v.street || ''} ${v.city || ''}, ${v.state || ''} ${v.zip || ''}`.replace(/\s+/g, ' ').replace(/\s,/g, ',').trim()
+    const price = usd(v.price)
     cards.push(`<table cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;margin:0 0 14px;border:1px solid #e2e8f0;border-radius:8px;"><tr>
 <td valign="top" style="padding:12px;width:174px;"><a href="${url}"><img src="${photo}" alt="${addr}" width="150" style="width:150px;height:auto;border-radius:6px;display:block;border:0;"/></a></td>
 <td valign="top" style="padding:12px 12px 12px 0;font-family:Arial,Helvetica,sans-serif;">
-<a href="${url}" style="color:#2563eb;font-weight:bold;font-size:15px;text-decoration:none;">${addr} | MLS ${v.prop_mls}</a>
+<a href="${url}" style="color:#2563eb;font-weight:bold;font-size:15px;text-decoration:none;">${addr} | MLS ${v.mls}</a>
 ${price ? `<div style="color:#334155;font-size:13px;margin-top:6px;">${price}</div>` : ''}
-<div style="color:#475569;font-size:13px;margin-top:6px;">Home for sale at ${addr}, with MLS ${v.prop_mls}.</div>
+<div style="color:#475569;font-size:13px;margin-top:6px;">Home for sale at ${addr}, with MLS ${v.mls}.</div>
 </td></tr></table>`)
     if (cards.length >= max) break
   }
   return cards.join('\n')
+}
+
+// Cards from the Hub's STORED listings (fub_activity) — no FUB call.
+export function buildPropertyCards(clientId, max = 5) {
+  const rows = db.all("SELECT prop_mls, prop_street, prop_city, prop_state, prop_zip, prop_price FROM fub_activity WHERE client_id = ? AND prop_mls IS NOT NULL AND prop_mls != '' ORDER BY occurred_at DESC, id DESC", [clientId])
+  return cardHtmlFromRows(rows.map(v => ({ mls: v.prop_mls, street: v.prop_street, city: v.prop_city, state: v.prop_state, zip: v.prop_zip, price: v.prop_price })), max)
+}
+
+// Cards from a LIVE FUB pull (real-time). Warms the cache with what it fetches,
+// and falls back to the stored cache if FUB errors / rate-limits / returns nothing.
+export async function buildPropertyCardsLive(client, max = 5) {
+  if (!client?.fub_person_id || !fubConfigured()) return buildPropertyCards(client?.id, max)
+  try {
+    let data = null
+    for (let i = 0; i < 3; i++) {
+      try { data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' }); break }
+      catch (err) { if (err && err.status === 429 && i < 2) { await new Promise(r => setTimeout(r, 1200 * (i + 1))); continue } throw err }
+    }
+    const seen = new Set(); const rows = []
+    for (const e of (data?.events || [])) {
+      const p = e.property
+      if (!p || !p.mlsNumber || p.forRent || seen.has(p.mlsNumber)) continue
+      seen.add(p.mlsNumber)
+      rows.push({ mls: p.mlsNumber, street: p.street, city: p.city, state: p.state, zip: p.code, price: p.price, occurred: e.occurred || e.created, eventId: e.id })
+      if (rows.length >= max) break
+    }
+    if (!rows.length) return buildPropertyCards(client.id, max)
+    // Warm the cache with the freshly-fetched views (dedup by event id).
+    try {
+      db.beginBulk?.()
+      for (const r of rows) {
+        if (!db.get('SELECT id FROM fub_activity WHERE fub_event_id = ?', [r.eventId])) {
+          db.run("INSERT INTO fub_activity (fub_event_id, client_id, fub_person_id, type, prop_street, prop_city, prop_state, prop_zip, prop_mls, prop_price, occurred_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            [r.eventId, client.id, client.fub_person_id, 'Viewed Property', r.street || null, r.city || null, r.state || null, r.zip || null, r.mls || null, (r.price != null ? String(r.price) : null), r.occurred])
+        }
+      }
+    } finally { db.endBulk?.() }
+    return cardHtmlFromRows(rows, max)
+  } catch { return buildPropertyCards(client.id, max) }
 }
 
 function fillTemplate(text, client) {
@@ -423,64 +463,72 @@ router.post('/send', async (req, res) => {
   }
 })
 
-// Bulk send to filtered group of clients
-router.post('/bulk', async (req, res) => {
-  const { client_ids, subject, body, template } = req.body
-  if (!Array.isArray(client_ids) || client_ids.length === 0) {
-    return res.status(400).json({ error: 'client_ids required' })
-  }
-  if (client_ids.length > 2000) {
-    return res.status(400).json({ error: 'Max 2000 recipients per bulk send. Send in batches.' })
-  }
+// Bulk send runs in the BACKGROUND (each recipient does a live FUB pull for their
+// listings, so 100s of recipients take a minute+). The client kicks it off and
+// polls /bulk-status for progress.
+let _bulkState = { running: false, total: 0, done: 0, sent: 0, failed: 0, skipped: 0, noListings: 0, startedAt: null, finishedAt: null, errors: [] }
 
-  let sent = 0, failed = 0, skipped = 0, noListings = 0
-  const errors = []
+async function runBulkSend(client_ids, subject, body, template) {
+  _bulkState = { running: true, total: client_ids.length, done: 0, sent: 0, failed: 0, skipped: 0, noListings: 0, startedAt: new Date().toISOString(), finishedAt: null, errors: [] }
   const wantsProperties = (body || '').includes('{{properties}}')
+  try {
+    for (const id of client_ids) {
+      const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(id)])
+      if (!client || !client.email) { _bulkState.skipped++; _bulkState.done++; continue }
+      if (client.marketing_email_opt_out) { _bulkState.skipped++; _bulkState.done++; continue }
+      if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) { _bulkState.skipped++; _bulkState.done++; continue }
 
-  for (const id of client_ids) {
-    const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(id)])
-    if (!client || !client.email) { skipped++; continue }
-    if (client.marketing_email_opt_out) { skipped++; continue }
-    if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) { skipped++; continue }
-
-    const filledSubject = fillTemplate(subject, client)
-    let filledBody = fillTemplate(body, client)
-    // Per-recipient viewed-listings injection (stored, no FUB call). If a recipient
-    // has no cached listings, skip them so they don't get an empty homes email.
-    if (wantsProperties) {
-      const cardsHtml = buildPropertyCards(client.id, 5)
-      if (!cardsHtml) { noListings++; skipped++; continue }
-      filledBody = filledBody.replace(/\{\{properties\}\}/g, cardsHtml)
+      const filledSubject = fillTemplate(subject, client)
+      let filledBody = fillTemplate(body, client)
+      if (wantsProperties) {
+        const cardsHtml = await buildPropertyCardsLive(client, 5)  // real-time, cache fallback
+        if (!cardsHtml) { _bulkState.noListings++; _bulkState.skipped++; _bulkState.done++; continue }
+        filledBody = filledBody.replace(/\{\{properties\}\}/g, cardsHtml)
+      }
+      try {
+        const result = await sendViaSendGrid(client.email, `${client.first_name} ${client.last_name}`, filledSubject, filledBody)
+        db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
+          template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+          [client.id, client.email, FROM_EMAIL, FROM_NAME, filledSubject, filledBody, n(template), 'sent', 'sendgrid', n(result.messageId), 'team'])
+        _bulkState.sent++
+      } catch (err) {
+        _bulkState.failed++
+        if (_bulkState.errors.length < 10) _bulkState.errors.push({ client_id: id, error: err.message })
+      }
+      _bulkState.done++
     }
-
-    try {
-      const result = await sendViaSendGrid(client.email, `${client.first_name} ${client.last_name}`, filledSubject, filledBody)
-      db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
-        template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-        [client.id, client.email, FROM_EMAIL, FROM_NAME, filledSubject, filledBody, n(template), 'sent', 'sendgrid', n(result.messageId), 'team'])
-      sent++
-    } catch (err) {
-      failed++
-      errors.push({ client_id: id, error: err.message })
-    }
+    db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
+      ['bulk_email', 'client', `Bulk email: ${_bulkState.sent} sent, ${_bulkState.failed} failed, ${_bulkState.skipped} skipped`])
+  } catch (e) {
+    if (_bulkState.errors.length < 10) _bulkState.errors.push({ error: e.message })
+  } finally {
+    _bulkState.running = false
+    _bulkState.finishedAt = new Date().toISOString()
   }
+}
 
-  db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
-    ['bulk_email', 'client', `Bulk email sent: ${sent} sent, ${failed} failed, ${skipped} skipped`])
-
-  res.json({ success: true, sent, failed, skipped, no_listings: noListings, errors: errors.slice(0, 10) })
+router.post('/bulk', (req, res) => {
+  const { client_ids, subject, body, template } = req.body
+  if (!Array.isArray(client_ids) || client_ids.length === 0) return res.status(400).json({ error: 'client_ids required' })
+  if (client_ids.length > 2000) return res.status(400).json({ error: 'Max 2000 recipients per bulk send. Send in batches.' })
+  if (_bulkState.running) return res.json({ success: true, alreadyRunning: true, progress: _bulkState })
+  runBulkSend(client_ids, subject, body, template).catch(() => { _bulkState.running = false; _bulkState.finishedAt = new Date().toISOString() })
+  res.json({ success: true, started: true, total: client_ids.length })
 })
+
+router.get('/bulk-status', (_req, res) => res.json(_bulkState))
 
 // Render one recipient's fully-personalized email (fills merge fields + injects
 // their viewed listings) — used to PREVIEW a bulk send before sending.
-router.post('/render-preview', (req, res) => {
+router.post('/render-preview', async (req, res) => {
   const { client_id, subject, body } = req.body || {}
   const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
   if (!client) return res.status(404).json({ error: 'client not found' })
   let filledBody = fillTemplate(body || '', client)
-  const cards = buildPropertyCards(client.id, 5)
-  if (filledBody.includes('{{properties}}')) {
-    filledBody = filledBody.replace(/\{\{properties\}\}/g, cards || '<p style="color:#b91c1c;">(no viewed listings cached for this client — they would be skipped)</p>')
+  const needsProps = filledBody.includes('{{properties}}')
+  const cards = needsProps ? await buildPropertyCardsLive(client, 5) : ''  // real-time pull
+  if (needsProps) {
+    filledBody = filledBody.replace(/\{\{properties\}\}/g, cards || '<p style="color:#b91c1c;">(no listings found for this client — they would be skipped)</p>')
   }
   res.json({
     to: `${client.first_name} ${client.last_name} <${client.email || 'no email'}>`,

@@ -562,38 +562,52 @@ async function start() {
     try {
       const max = Math.min(Number(req.query.max) || 5, 10)
       const seen = new Set(); const props = []
-      let source = 'stored'
+      let source = 'live'
 
-      // 1) Prefer the property views already stored in the Hub (fub_activity) — no FUB call.
-      const stored = db.all(
-        "SELECT prop_mls, prop_street, prop_city, prop_state, prop_zip, prop_price FROM fub_activity " +
-        "WHERE client_id = ? AND prop_mls IS NOT NULL AND prop_mls != '' ORDER BY occurred_at DESC, id DESC",
-        [clientId])
-      for (const v of stored) {
-        if (seen.has(v.prop_mls)) continue
-        seen.add(v.prop_mls)
-        props.push({ mlsNumber: v.prop_mls, street: v.prop_street, city: v.prop_city, state: v.prop_state, code: v.prop_zip, price: v.prop_price })
+      // 1) Pull the lead's CURRENT viewed listings LIVE from FUB (real-time).
+      const { fubGet, fubConfigured } = await import('./fub-helper.js')
+      let data = null
+      if (fubConfigured()) {
+        try {
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try { data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' }); break }
+            catch (err) {
+              if (err && err.status === 429 && attempt < 2) { await new Promise(r => setTimeout(r, 1200 * (attempt + 1))); continue }
+              throw err
+            }
+          }
+        } catch { data = null }  // fall through to cache
+      }
+      for (const e of (data?.events || [])) {
+        const p = e.property
+        if (!p || !p.mlsNumber || p.forRent || seen.has(p.mlsNumber)) continue
+        seen.add(p.mlsNumber); props.push({ mlsNumber: p.mlsNumber, street: p.street, city: p.city, state: p.state, code: p.code, price: p.price, occurred: e.occurred || e.created, eventId: e.id })
         if (props.length >= max) break
       }
-
-      // 2) Only if we have nothing stored, fall back to a LIVE FUB pull (with 429 retry).
-      if (!props.length) {
-        source = 'live'
-        const { fubGet, fubConfigured } = await import('./fub-helper.js')
-        if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
-        let data = null
-        for (let attempt = 0; attempt < 4; attempt++) {
-          try { data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' }); break }
-          catch (err) {
-            if (err && err.status === 429 && attempt < 3) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); continue }
-            throw err
+      // Warm the cache with what we just pulled (dedup by event id).
+      if (props.length) {
+        try {
+          db.beginBulk?.()
+          for (const p of props) {
+            if (p.eventId && !db.get('SELECT id FROM fub_activity WHERE fub_event_id = ?', [p.eventId])) {
+              db.run("INSERT INTO fub_activity (fub_event_id, client_id, fub_person_id, type, prop_street, prop_city, prop_state, prop_zip, prop_mls, prop_price, occurred_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                [p.eventId, clientId, client.fub_person_id, 'Viewed Property', p.street || null, p.city || null, p.state || null, p.code || null, p.mlsNumber || null, (p.price != null ? String(p.price) : null), p.occurred])
+            }
           }
-        }
-        for (const e of (data?.events || [])) {
-          const p = e.property
-          if (!p || !p.mlsNumber || p.forRent) continue
-          if (seen.has(p.mlsNumber)) continue
-          seen.add(p.mlsNumber); props.push({ mlsNumber: p.mlsNumber, street: p.street, city: p.city, state: p.state, code: p.code, price: p.price })
+        } finally { db.endBulk?.() }
+      }
+
+      // 2) Fall back to the Hub's stored listings if FUB is unavailable / returned nothing.
+      if (!props.length) {
+        source = 'cache'
+        const stored = db.all(
+          "SELECT prop_mls, prop_street, prop_city, prop_state, prop_zip, prop_price FROM fub_activity " +
+          "WHERE client_id = ? AND prop_mls IS NOT NULL AND prop_mls != '' ORDER BY occurred_at DESC, id DESC",
+          [clientId])
+        for (const v of stored) {
+          if (seen.has(v.prop_mls)) continue
+          seen.add(v.prop_mls)
+          props.push({ mlsNumber: v.prop_mls, street: v.prop_street, city: v.prop_city, state: v.prop_state, code: v.prop_zip, price: v.prop_price })
           if (props.length >= max) break
         }
       }
