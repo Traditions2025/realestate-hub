@@ -560,27 +560,44 @@ async function start() {
     if (!client) return res.status(404).json({ error: 'client not found' })
     if (!client.fub_person_id) return res.json({ count: 0, message: 'This client is not linked to a Follow Up Boss record.' })
     try {
-      const { fubGet, fubConfigured } = await import('./fub-helper.js')
-      if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
       const max = Math.min(Number(req.query.max) || 5, 10)
-      // Retry on FUB 429 (rate limit) with backoff so a busy window doesn't fail the draft.
-      let data = null
-      for (let attempt = 0; attempt < 4; attempt++) {
-        try { data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' }); break }
-        catch (err) {
-          if (err && err.status === 429 && attempt < 3) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); continue }
-          throw err
-        }
-      }
       const seen = new Set(); const props = []
-      for (const e of (data?.events || [])) {
-        const p = e.property
-        if (!p || !p.mlsNumber || p.forRent) continue
-        if (seen.has(p.mlsNumber)) continue
-        seen.add(p.mlsNumber); props.push(p)
+      let source = 'stored'
+
+      // 1) Prefer the property views already stored in the Hub (fub_activity) — no FUB call.
+      const stored = db.all(
+        "SELECT prop_mls, prop_street, prop_city, prop_state, prop_zip, prop_price FROM fub_activity " +
+        "WHERE client_id = ? AND prop_mls IS NOT NULL AND prop_mls != '' ORDER BY occurred_at DESC, id DESC",
+        [clientId])
+      for (const v of stored) {
+        if (seen.has(v.prop_mls)) continue
+        seen.add(v.prop_mls)
+        props.push({ mlsNumber: v.prop_mls, street: v.prop_street, city: v.prop_city, state: v.prop_state, code: v.prop_zip, price: v.prop_price })
         if (props.length >= max) break
       }
-      if (!props.length) return res.json({ count: 0, message: 'No viewed properties found for this client in FUB.' })
+
+      // 2) Only if we have nothing stored, fall back to a LIVE FUB pull (with 429 retry).
+      if (!props.length) {
+        source = 'live'
+        const { fubGet, fubConfigured } = await import('./fub-helper.js')
+        if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
+        let data = null
+        for (let attempt = 0; attempt < 4; attempt++) {
+          try { data = await fubGet('/events', { personId: client.fub_person_id, limit: 100, sort: '-created' }); break }
+          catch (err) {
+            if (err && err.status === 429 && attempt < 3) { await new Promise(r => setTimeout(r, 1500 * (attempt + 1))); continue }
+            throw err
+          }
+        }
+        for (const e of (data?.events || [])) {
+          const p = e.property
+          if (!p || !p.mlsNumber || p.forRent) continue
+          if (seen.has(p.mlsNumber)) continue
+          seen.add(p.mlsNumber); props.push({ mlsNumber: p.mlsNumber, street: p.street, city: p.city, state: p.state, code: p.code, price: p.price })
+          if (props.length >= max) break
+        }
+      }
+      if (!props.length) return res.json({ count: 0, message: 'No viewed properties found for this client.' })
 
       const slugify = (p) => `${p.street} ${p.city} ${p.state} ${p.code || ''}`.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
       // Photo + link are built directly from the MLS number — no server-side fetch.
@@ -621,7 +638,7 @@ ${cardHtml}
 ${signature}
 </div>`
 
-      res.json({ subject: 'Do you want to see any of these properties?', body, count: cards.length, photos: cards.filter(c => c.photo).length })
+      res.json({ subject: 'Do you want to see any of these properties?', body, count: cards.length, photos: cards.filter(c => c.photo).length, source })
     } catch (e) {
       res.status(500).json({ error: String(e.message || e) })
     }

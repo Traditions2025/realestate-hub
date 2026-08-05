@@ -446,44 +446,65 @@ async function syncFubActivityIncremental() {
 
     // Page newest-first until we cross the cursor (or hit a safety page cap).
     let next = '/events?limit=100&sort=-created'
-    let maxSeen = cursor, processed = 0, updated = 0, pages = 0
+    let maxSeen = cursor, processed = 0, updated = 0, stored = 0, pages = 0
     const seenClient = new Set()
-    while (next && pages < 60) {
-      pages++
-      const path = next.startsWith('http') ? next.replace('https://api.followupboss.com/v1', '') : next
-      const data = await fubGet(path)
-      const events = data?.events || []
-      if (!events.length) break
-      let crossed = false
-      for (const e of events) {
-        const eid = Number(e.id) || 0
-        if (eid > maxSeen) maxSeen = eid
-        if (cursor && eid <= cursor) { crossed = true; break }  // reached already-processed territory
-        if (!isFubWebEvent(e)) continue
-        const pid = e.personId || e.person?.id
-        if (!pid) continue
-        const client = db.get('SELECT id, last_fub_activity_at FROM clients WHERE fub_person_id = ?', [pid])
-        if (!client) continue
-        processed++
-        // newest-first: first time we touch a client this run is their latest visit
-        if (seenClient.has(client.id)) continue
-        seenClient.add(client.id)
-        const occurred = e.occurred || e.created
-        if (client.last_fub_activity_at && String(client.last_fub_activity_at) >= String(occurred)) continue
-        const detail = e.property?.street
-          ? (e.property.street + (e.property.city ? `, ${e.property.city}` : ''))
-          : (e.pageTitle || null)
-        db.run('UPDATE clients SET last_fub_activity_at = ?, last_fub_activity_type = ?, last_fub_activity_detail = ? WHERE id = ?',
-          [occurred, e.type || null, detail, client.id])
-        updated++
+    const prunePending = new Set()
+    db.beginBulk?.()
+    try {
+      while (next && pages < 60) {
+        pages++
+        const path = next.startsWith('http') ? next.replace('https://api.followupboss.com/v1', '') : next
+        const data = await fubGet(path)
+        const events = data?.events || []
+        if (!events.length) break
+        let crossed = false
+        for (const e of events) {
+          const eid = Number(e.id) || 0
+          if (eid > maxSeen) maxSeen = eid
+          if (cursor && eid <= cursor) { crossed = true; break }  // reached already-processed territory
+          if (!isFubWebEvent(e)) continue
+          const pid = e.personId || e.person?.id
+          if (!pid) continue
+          const client = db.get('SELECT id, last_fub_activity_at FROM clients WHERE fub_person_id = ?', [pid])
+          if (!client) continue
+          processed++
+          const occurred = e.occurred || e.created
+
+          // Cache property-view events in the Hub so Homes They Viewed / the detail
+          // panel read them locally instead of hitting FUB live. Dedup by event id.
+          const prop = e.property
+          if (prop && prop.mlsNumber) {
+            const exists = db.get('SELECT id FROM fub_activity WHERE fub_event_id = ?', [e.id])
+            if (!exists) {
+              db.run(`INSERT INTO fub_activity (fub_event_id, client_id, fub_person_id, type, page_title, page_url, prop_street, prop_city, prop_state, prop_zip, prop_mls, prop_price, occurred_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+                [e.id, client.id, pid, e.type || null, e.pageTitle || null, e.pageUrl || null, prop.street || null, prop.city || null, prop.state || null, prop.code || null, prop.mlsNumber || null, (prop.price != null ? String(prop.price) : null), occurred])
+              prunePending.add(client.id)
+              stored++
+            }
+          }
+
+          // newest-first: first time we touch a client this run is their latest visit
+          if (seenClient.has(client.id)) continue
+          seenClient.add(client.id)
+          if (client.last_fub_activity_at && String(client.last_fub_activity_at) >= String(occurred)) continue
+          const detail = prop?.street ? (prop.street + (prop.city ? `, ${prop.city}` : '')) : (e.pageTitle || null)
+          db.run('UPDATE clients SET last_fub_activity_at = ?, last_fub_activity_type = ?, last_fub_activity_detail = ? WHERE id = ?',
+            [occurred, e.type || null, detail, client.id])
+          updated++
+        }
+        if (crossed) break
+        next = data?._metadata?.nextLink || data?._metadata?.next || null
       }
-      if (crossed) break
-      next = data?._metadata?.nextLink || data?._metadata?.next || null
-    }
+
+      // Keep fub_activity lean: retain only the newest 40 rows per client we touched.
+      for (const cid of prunePending) {
+        db.run('DELETE FROM fub_activity WHERE client_id = ? AND id NOT IN (SELECT id FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 40)', [cid, cid])
+      }
+    } finally { db.endBulk?.() }
 
     // First run (no cursor): just set the baseline, backfill handles history.
     if (maxSeen > cursor) setSetting('fub_last_event_id', String(maxSeen))
-    if (updated) console.log(`[scheduler] FUB activity: ${updated} clients' last-visit updated (scanned ${pages} pages)`)
+    if (updated || stored) console.log(`[scheduler] FUB activity: ${updated} last-visit updated, ${stored} property views cached (scanned ${pages} pages)`)
   } catch (e) {
     console.error('[scheduler] FUB activity sync error:', e.message)
   }

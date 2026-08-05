@@ -639,6 +639,7 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_client ON fub_activity(client_id, occurred_at DESC)') } catch {}
+  try { db.run('ALTER TABLE fub_activity ADD COLUMN prop_zip TEXT') } catch {}
 
   // =============================================
   // CALENDAR EVENTS
