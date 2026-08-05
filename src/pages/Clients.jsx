@@ -127,6 +127,7 @@ export default function Clients() {
     tags_exclude: [],
     zips_include: [],
     cities_include: [],
+    viewed_cities_include: [],
     sources_include: [],
     email_statuses: [],
     has_email: false,
@@ -159,7 +160,7 @@ export default function Clients() {
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
-  const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [] })
+  const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [], viewed_cities: [] })
   const [savedLists, setSavedLists] = useState([])
   const [activeListId, setActiveListId] = useState(null)
   const [saveListOpen, setSaveListOpen] = useState(false)
@@ -177,6 +178,7 @@ export default function Clients() {
     len(advFilters.statuses_include) + len(advFilters.statuses_exclude) +
     len(advFilters.tags_include) + len(advFilters.tags_exclude) +
     len(advFilters.zips_include) + len(advFilters.cities_include) +
+    len(advFilters.viewed_cities_include) +
     len(advFilters.sources_include) + len(advFilters.email_statuses) +
     (advFilters.has_email ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
@@ -252,6 +254,7 @@ export default function Clients() {
     if (advFilters.tags_exclude.length) params.tags_exclude = advFilters.tags_exclude.join(',')
     if (advFilters.zips_include.length) params.zips_include = advFilters.zips_include.join(',')
     if (advFilters.cities_include.length) params.cities_include = advFilters.cities_include.join(',')
+    if (advFilters.viewed_cities_include.length) params.viewed_cities_include = advFilters.viewed_cities_include.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
     if (advFilters.email_statuses.length) params.email_statuses = advFilters.email_statuses.join(',')
     if (advFilters.has_email) params.has_email = '1'
@@ -484,7 +487,7 @@ export default function Clients() {
     setAdvFilters({
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
-      zips_include: [], cities_include: [], sources_include: [],
+      zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [],
       email_statuses: [],
       has_email: false, exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
@@ -545,6 +548,7 @@ export default function Clients() {
           tags_exclude: f.tags_exclude || [],
           zips_include: f.zips_include || [],
           cities_include: f.cities_include || [],
+          viewed_cities_include: f.viewed_cities_include || [],
           sources_include: f.sources_include || [],
           email_statuses: f.email_statuses || [],
           has_email: !!f.has_email,
@@ -1192,12 +1196,21 @@ export default function Clients() {
               />
             </div>
             <div className="filter-section">
-              <h5>Cities</h5>
+              <h5>Cities (lead's home city)</h5>
               <MultiSelect
                 placeholder={`Search ${filterOptions.cities.length} cities...`}
                 options={filterOptions.cities}
                 selected={advFilters.cities_include}
                 onChange={v => setAdvFilters(p => ({ ...p, cities_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Looking In (cities they're viewing)</h5>
+              <MultiSelect
+                placeholder={`Search ${(filterOptions.viewed_cities || []).length} cities they've viewed...`}
+                options={filterOptions.viewed_cities || []}
+                selected={advFilters.viewed_cities_include}
+                onChange={v => setAdvFilters(p => ({ ...p, viewed_cities_include: v }))}
               />
             </div>
             <div className="filter-section">

@@ -986,6 +986,8 @@ export async function initDb() {
       ['last_fub_activity_at', 'TEXT'],
       ['last_fub_activity_type', 'TEXT'],
       ['last_fub_activity_detail', 'TEXT'],
+      // Cities of the properties this lead has viewed in FUB ("where they're looking")
+      ['fub_viewed_cities', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {

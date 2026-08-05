@@ -119,6 +119,16 @@ function buildClientFilter(q) {
     }
   }
 
+  // Viewed-cities include ("where they're looking" — from FUB property views).
+  // fub_viewed_cities is a comma-joined string, so match ANY requested city as a substring.
+  if (q.viewed_cities_include) {
+    const arr = Array.isArray(q.viewed_cities_include) ? q.viewed_cities_include : q.viewed_cities_include.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND (' + arr.map(() => 'fub_viewed_cities LIKE ?').join(' OR ') + ')'
+      arr.forEach(c => params.push(`%${c}%`))
+    }
+  }
+
   // Source include/exclude
   if (q.sources_include) {
     const arr = Array.isArray(q.sources_include) ? q.sources_include : q.sources_include.split(',').map(s => s.trim()).filter(Boolean)
@@ -353,7 +363,15 @@ router.get('/filter-options', (req, res) => {
   }
   // Return ALL tags so user can search/filter accurately
   const tags = Object.entries(tagCounts).sort((a, b) => b[1] - a[1]).map(([t, c]) => ({ tag: t, count: c }))
-  res.json({ zips, cities, sources, tags })
+  // Distinct "viewed cities" (where leads are looking, from FUB) — split the comma-joined field
+  const viewedCounts = {}
+  for (const row of db.all("SELECT fub_viewed_cities FROM clients WHERE fub_viewed_cities IS NOT NULL AND fub_viewed_cities != ''")) {
+    for (const c of String(row.fub_viewed_cities).split(',').map(s => s.trim()).filter(Boolean)) {
+      viewedCounts[c] = (viewedCounts[c] || 0) + 1
+    }
+  }
+  const viewed_cities = Object.entries(viewedCounts).sort((a, b) => b[1] - a[1]).map(([c]) => c)
+  res.json({ zips, cities, sources, tags, viewed_cities })
 })
 
 router.get('/:id', (req, res) => {

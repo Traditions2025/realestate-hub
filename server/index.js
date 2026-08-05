@@ -487,6 +487,24 @@ async function start() {
     res.json({ updated, total: rows.length })
   })
 
+  // Store the cities of properties a lead has viewed in FUB ("where they're looking").
+  // Rows: [{ fub_person_id, cities }] where cities is a comma-joined string (freq-ordered).
+  app.post('/api/fub/viewed-cities/bulk', (req, res) => {
+    const rows = Array.isArray(req.body) ? req.body : (req.body?.rows || [])
+    let updated = 0
+    db.beginBulk?.()
+    try {
+      for (const r of rows) {
+        if (!r || !r.fub_person_id) continue
+        const cities = (r.cities === undefined || r.cities === null) ? null : String(r.cities).trim()
+        if (!cities) continue
+        const info = db.run('UPDATE clients SET fub_viewed_cities = ? WHERE fub_person_id = ?', [cities, r.fub_person_id])
+        updated += info?.changes || 0
+      }
+    } finally { db.endBulk?.() }
+    res.json({ updated, total: rows.length })
+  })
+
   // Lazy-load a client's full web-activity timeline LIVE from FUB (no bulk storage).
   // Falls back to any stored fub_activity rows if the client isn't linked to a FUB person.
   app.get('/api/fub/activity/live', async (req, res) => {

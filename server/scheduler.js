@@ -583,7 +583,8 @@ async function syncFubBudgetRanges() {
     for (const c of db.all('SELECT id, fub_person_id FROM clients WHERE fub_person_id IS NOT NULL')) personToClient.set(c.fub_person_id, c.id)
     if (!personToClient.size) return
 
-    const perPerson = new Map()  // personId -> [prices] (cap 300)
+    const perPerson = new Map()      // personId -> [prices] (cap 300)
+    const perPersonCity = new Map()  // personId -> { city: count }
     let next = '/events?limit=100&sort=-created', pages = 0
     while (next && pages < 2600) {
       pages++
@@ -592,17 +593,23 @@ async function syncFubBudgetRanges() {
       const events = data?.events || []
       if (!events.length) break
       for (const e of events) {
-        const price = e.property?.price
-        if (price == null) continue
+        const prop = e.property
+        if (!prop) continue
         const pid = e.personId || e.person?.id
         if (!pid || !personToClient.has(pid)) continue
-        const arr = perPerson.get(pid) || []
-        if (arr.length < 300) { arr.push(Number(price)); perPerson.set(pid, arr) }
+        if (prop.price != null) {
+          const arr = perPerson.get(pid) || []
+          if (arr.length < 300) { arr.push(Number(prop.price)); perPerson.set(pid, arr) }
+        }
+        const city = (prop.city || '').trim()
+        if (city) { const m = perPersonCity.get(pid) || {}; m[city] = (m[city] || 0) + 1; perPersonCity.set(pid, m) }
       }
       next = data?._metadata?.nextLink || data?._metadata?.next || null
       await new Promise(r => setTimeout(r, 70))
     }
-    let updated = 0
+    // Freq-ordered, de-duped city list per person (cap 12).
+    const cityList = (m) => Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([c]) => c).join(', ')
+    let updated = 0, citiesSet = 0
     db.beginBulk?.()
     try {
       for (const [pid, prices] of perPerson) {
@@ -611,8 +618,14 @@ async function syncFubBudgetRanges() {
         const info = db.run('UPDATE clients SET budget_min = ?, budget_max = ? WHERE fub_person_id = ?', [range.lo, range.hi, pid])
         updated += info?.changes || 0
       }
+      for (const [pid, cities] of perPersonCity) {
+        const list = cityList(cities)
+        if (!list) continue
+        const info = db.run('UPDATE clients SET fub_viewed_cities = ? WHERE fub_person_id = ?', [list, pid])
+        citiesSet += info?.changes || 0
+      }
     } finally { db.endBulk?.() }
-    console.log(`[scheduler] FUB budget-range sync: ${perPerson.size} leads with viewed prices, ${updated} budgets updated`)
+    console.log(`[scheduler] FUB budget-range sync: ${perPerson.size} leads priced (${updated} budgets), ${perPersonCity.size} with cities (${citiesSet} set)`)
   } catch (e) {
     console.error('[scheduler] FUB budget-range sync error:', e.message)
   }
