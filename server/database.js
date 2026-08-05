@@ -494,6 +494,24 @@ export async function initDb() {
   `)
   // Visual flow: { trigger: {type, config}, steps: [{id, kind, ...}] }
   try { db.run('ALTER TABLE automations ADD COLUMN flow_data TEXT') } catch {}
+
+  // ---- EMAIL CAMPAIGNS: one row per batch send, for the Reporting tab ----
+  db.run(`
+    CREATE TABLE IF NOT EXISTS email_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      subject TEXT,
+      from_name TEXT,
+      category TEXT,          -- SendGrid category tag used to pull stats
+      recipients INTEGER DEFAULT 0,
+      sent INTEGER DEFAULT 0,
+      failed INTEGER DEFAULT 0,
+      skipped INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'sending',
+      created_at TEXT DEFAULT (datetime('now')),
+      finished_at TEXT
+    )
+  `)
+  try { db.run('ALTER TABLE email_log ADD COLUMN campaign_id INTEGER') } catch {}
   db.run(`
     CREATE TABLE IF NOT EXISTS automation_runs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

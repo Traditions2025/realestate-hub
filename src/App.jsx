@@ -19,6 +19,7 @@ const Updates = lazy(() => import('./pages/Updates'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Automations = lazy(() => import('./pages/Automations'))
+const Reporting = lazy(() => import('./pages/Reporting'))
 
 const navSections = [
   { label: 'MAIN', items: [
@@ -49,6 +50,7 @@ const navSections = [
     { path: '/partners', label: 'Partners', icon: '\u2694' },
   ]},
   { label: 'SYSTEM', items: [
+    { path: '/reporting', label: 'Reporting', icon: '\ud83d\udcca' },
     { path: '/updates', label: 'Updates', icon: '\u27f3' },
     { path: '/settings', label: 'Settings', icon: '\u2699' },
   ]},
@@ -158,6 +160,7 @@ export default function App() {
             <Route path="/updates" element={<Updates />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/automations" element={<Automations />} />
+            <Route path="/reporting" element={<Reporting />} />
           </Routes>
         </Suspense>
       </main>

@@ -345,7 +345,7 @@ function parseEmails(input) {
 }
 
 // Send a single email via SendGrid (supports multiple To, CC, BCC, attachments)
-export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = [], bccList = []) {
+export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = [], bccList = [], category = null) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
   }
@@ -378,6 +378,7 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       personalizations: [personalization],
       from: { email: FROM_EMAIL, name: FROM_NAME },
       reply_to: { email: replyTo || REPLY_TO, name: FROM_NAME },
+      ...(category ? { categories: [String(category)].slice(0, 1) } : {}),
       subject,
       content: (() => {
         // Two paths:
@@ -471,6 +472,12 @@ let _bulkState = { running: false, total: 0, done: 0, sent: 0, failed: 0, skippe
 async function runBulkSend(client_ids, subject, body, template) {
   _bulkState = { running: true, total: client_ids.length, done: 0, sent: 0, failed: 0, skipped: 0, noListings: 0, startedAt: new Date().toISOString(), finishedAt: null, errors: [] }
   const wantsProperties = (body || '').includes('{{properties}}')
+  // Create a campaign row for the Reporting tab; tag every send with its category
+  // so SendGrid stats (opens/clicks/bounces) can be pulled per campaign.
+  const camp = db.run('INSERT INTO email_campaigns (subject, from_name, recipients, status) VALUES (?,?,?,?)', [subject || '(no subject)', FROM_NAME, client_ids.length, 'sending'])
+  const campaignId = camp.lastInsertRowid
+  const category = 'camp_' + campaignId
+  db.run('UPDATE email_campaigns SET category = ? WHERE id = ?', [category, campaignId])
   try {
     for (const id of client_ids) {
       const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(id)])
@@ -486,10 +493,10 @@ async function runBulkSend(client_ids, subject, body, template) {
         filledBody = filledBody.replace(/\{\{properties\}\}/g, cardsHtml)
       }
       try {
-        const result = await sendViaSendGrid(client.email, `${client.first_name} ${client.last_name}`, filledSubject, filledBody)
+        const result = await sendViaSendGrid(client.email, `${client.first_name} ${client.last_name}`, filledSubject, filledBody, undefined, [], [], [], category)
         db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
-          template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-          [client.id, client.email, FROM_EMAIL, FROM_NAME, filledSubject, filledBody, n(template), 'sent', 'sendgrid', n(result.messageId), 'team'])
+          template, status, provider, provider_message_id, sent_by, campaign_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [client.id, client.email, FROM_EMAIL, FROM_NAME, filledSubject, filledBody, n(template), 'sent', 'sendgrid', n(result.messageId), 'team', campaignId])
         _bulkState.sent++
       } catch (err) {
         _bulkState.failed++
@@ -504,6 +511,8 @@ async function runBulkSend(client_ids, subject, body, template) {
   } finally {
     _bulkState.running = false
     _bulkState.finishedAt = new Date().toISOString()
+    db.run("UPDATE email_campaigns SET sent=?, failed=?, skipped=?, status='finished', finished_at=datetime('now') WHERE id=?",
+      [_bulkState.sent, _bulkState.failed, _bulkState.skipped, campaignId])
   }
 }
 
