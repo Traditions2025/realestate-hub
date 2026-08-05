@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import EmailToolbar from '../components/EmailToolbar'
+import RichTextEditor from '../components/RichTextEditor'
 import { autoEmbedYoutubeLinks } from '../components/inlineImages'
 
 const TYPE_OPTIONS = [
@@ -36,6 +37,7 @@ export default function Templates() {
   const [form, setForm] = useState(emptyTemplate)
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [tplView, setTplView] = useState('wysiwyg') // email body editor: 'wysiwyg' | 'html'
   const fileInputRef = useRef(null)
   const tplBodyRef = useRef(null)
 
@@ -55,17 +57,26 @@ export default function Templates() {
   const openNew = (type = 'email') => {
     setEditing(null)
     setForm({ ...emptyTemplate, type })
+    setTplView('wysiwyg')
     setModalOpen(true)
   }
   const openEdit = (item) => {
     setEditing(item.id)
+    setTplView('wysiwyg')
+    const type = item.type || 'email'
+    let body = item.body || ''
+    // Plain-text email templates → convert to HTML so paragraphs render in the WYSIWYG editor.
+    const isEmail = type === 'email'
+    if (isEmail && !item.is_html && !looksLikeHtml(body) && body.trim()) {
+      body = '<p>' + body.trim().replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>'
+    }
     setForm({
       name: item.name || '',
-      type: item.type || 'email',
+      type,
       category: item.category || '',
       subject: item.subject || '',
-      body: item.body || '',
-      is_html: !!item.is_html,
+      body,
+      is_html: isEmail ? true : !!item.is_html,
       tags: item.tags || '',
     })
     setModalOpen(true)
@@ -249,57 +260,43 @@ export default function Templates() {
             <label>Subject<input value={form.subject} onChange={e => setForm(p => ({ ...p, subject: e.target.value }))} placeholder="Email subject — supports {{merge_vars}}" /></label>
           )}
 
-          <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '6px 0 -4px'}}>
-            <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, margin: 0}}>
-              <input
-                type="checkbox"
-                checked={form.is_html}
-                onChange={e => setForm(p => ({ ...p, is_html: e.target.checked }))}
-                disabled={form.type !== 'email'}
-              />
-              Body is HTML
-              {form.type === 'email' && !form.is_html && looksLikeHtml(form.body) && (
-                <span style={{color: '#fbbf24', fontSize: 11}}>(HTML detected — will auto-flag on save)</span>
-              )}
-            </label>
-            {form.type === 'email' && (
-              <div style={{display: 'flex', gap: 6}}>
-                <input ref={fileInputRef} type="file" accept=".html,.htm" style={{display: 'none'}} onChange={onUploadHtmlFile} />
-                <button type="button" className="btn btn-sm btn-secondary" onClick={() => fileInputRef.current?.click()}>
-                  Upload .html file
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-sm btn-secondary"
-                  onClick={() => setPreviewOpen(true)}
-                  disabled={!form.body}
-                >
-                  Preview
-                </button>
+          {form.type === 'email' ? (
+            <div>
+              <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '6px 0 4px'}}>
+                <span style={{fontSize: 13, fontWeight: 500}}>Message</span>
+                <div style={{display: 'flex', gap: 6}}>
+                  <button type="button" className={`btn btn-sm ${tplView === 'wysiwyg' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTplView('wysiwyg')}>✎ Edit</button>
+                  <button type="button" className={`btn btn-sm ${tplView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTplView('html')}>{'</>'} HTML</button>
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => setPreviewOpen(true)} disabled={!form.body}>👁 Preview</button>
+                  <input ref={fileInputRef} type="file" accept=".html,.htm" style={{display: 'none'}} onChange={onUploadHtmlFile} />
+                  <button type="button" className="btn btn-sm btn-secondary" onClick={() => fileInputRef.current?.click()}>📁 Load HTML</button>
+                </div>
               </div>
-            )}
-          </div>
-
-          {form.type === 'email' && (
-            <EmailToolbar
-              textareaRef={tplBodyRef}
-              body={form.body}
-              setBody={(b) => setForm(p => ({ ...p, body: b }))}
-              showPreview={false}
-              compact
-            />
+              {tplView === 'wysiwyg' ? (
+                <RichTextEditor value={form.body} onChange={(b) => setForm(p => ({ ...p, body: b, is_html: true }))} minHeight={240} />
+              ) : (
+                <>
+                  <EmailToolbar textareaRef={tplBodyRef} body={form.body} setBody={(b) => setForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+                  <textarea ref={tplBodyRef} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={16} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
+                </>
+              )}
+              <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
+                Write it like a normal email. Merge fields: {'{{first_name}} {{last_name}} {{city}} {{address}}'}.
+              </p>
+            </div>
+          ) : (
+            <label>Body
+              <textarea
+                ref={tplBodyRef}
+                value={form.body}
+                onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
+                rows={8}
+                required
+                placeholder={form.type === 'text' ? 'Hey {{first_name}}, quick note...' : 'Template body — supports {{first_name}}, {{address}}, etc.'}
+                style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}}
+              />
+            </label>
           )}
-          <label>Body
-            <textarea
-              ref={tplBodyRef}
-              value={form.body}
-              onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
-              rows={form.type === 'email' ? 18 : 8}
-              required
-              placeholder={form.type === 'text' ? 'Hey {{first_name}}, quick note...' : 'Template body — supports {{first_name}}, {{address}}, etc.'}
-              style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}}
-            />
-          </label>
 
           <div className="form-actions">
             {editing && (
