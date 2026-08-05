@@ -26,7 +26,7 @@ import socialmediaRouter from './routes/socialmedia.js'
 import blogPostsRouter from './routes/blog-posts.js'
 import calendarRouter from './routes/calendar.js'
 import sierraRouter from './routes/sierra.js'
-import emailRouter from './routes/email.js'
+import emailRouter, { seedEmailTemplates } from './routes/email.js'
 import listsRouter from './routes/lists.js'
 import templatesRouter from './routes/templates.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
@@ -167,6 +167,8 @@ async function start() {
 
   // Auto-seed vendors and partners on first boot (skipped if already exist)
   autoSeedOnBoot()
+  // Migrate built-in email templates into the editable templates table (idempotent)
+  seedEmailTemplates()
 
   const app = express()
   const PORT = process.env.PORT || 3001
@@ -560,7 +562,7 @@ async function start() {
     try {
       const { fubGet, fubConfigured } = await import('./fub-helper.js')
       if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
-      const max = Math.min(Number(req.query.max) || 6, 10)
+      const max = Math.min(Number(req.query.max) || 5, 10)
       // Retry on FUB 429 (rate limit) with backoff so a busy window doesn't fail the draft.
       let data = null
       for (let attempt = 0; attempt < 4; attempt++) {

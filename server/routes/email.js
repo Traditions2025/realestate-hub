@@ -97,8 +97,26 @@ Anything specific that stood out (good or bad)? I'm happy to schedule another lo
   },
 }
 
+// One-time: migrate the built-in email templates into the editable `templates`
+// table so they appear in the Templates tab and can be edited / added to.
+// Called at boot after initDb. Idempotent (skips names already present).
+export function seedEmailTemplates() {
+  try {
+    for (const t of Object.values(TEMPLATES)) {
+      const exists = db.get("SELECT id FROM templates WHERE type = 'email' AND name = ?", [t.name])
+      if (!exists) {
+        db.run("INSERT INTO templates (name, type, category, subject, body, is_html) VALUES (?,?,?,?,?,0)",
+          [t.name, 'email', 'Built-in', t.subject, t.body])
+      }
+    }
+  } catch (e) { console.error('[templates] seed error:', e.message) }
+}
+
+// Email templates for the composer — now sourced from the editable `templates`
+// table (type='email'), so anything created/edited in the Templates tab shows here.
 router.get('/templates', (req, res) => {
-  res.json(Object.entries(TEMPLATES).map(([id, t]) => ({ id, ...t })))
+  const rows = db.all("SELECT id, name, subject, body FROM templates WHERE type = 'email' ORDER BY name")
+  res.json(rows.map(t => ({ id: String(t.id), name: t.name, subject: t.subject, body: t.body })))
 })
 
 function fillTemplate(text, client) {
@@ -114,9 +132,12 @@ function fillTemplate(text, client) {
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
 }
 
-// Preview a template filled with client data
+// Preview a template filled with client data. Loads from the editable `templates`
+// table (numeric id). Falls back to the built-in constant for any legacy string id.
 router.get('/preview/:templateId/:clientId', (req, res) => {
-  const tpl = TEMPLATES[req.params.templateId]
+  const idNum = Number(req.params.templateId)
+  let tpl = idNum ? db.get('SELECT name, subject, body FROM templates WHERE id = ?', [idNum]) : null
+  if (!tpl) tpl = TEMPLATES[req.params.templateId]
   if (!tpl) return res.status(404).json({ error: 'Template not found' })
   const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(req.params.clientId)])
   if (!client) return res.status(404).json({ error: 'Client not found' })
