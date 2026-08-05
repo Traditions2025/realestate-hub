@@ -366,6 +366,57 @@ router.post('/sync-incremental-now', async (req, res) => {
   }
 })
 
+// Date-scoped backfill: import every Sierra lead created OR updated since a given
+// date, with FULL pagination (no 50-page cap). Recovers a new-lead import gap
+// (e.g. leads created after the last successful add) WITHOUT a full 45k resync.
+// A newly-created lead has updateDate == creationDate, so the updated pass alone
+// captures the gap; the created pass is belt-and-suspenders. Body: { since: 'YYYY-MM-DD' }.
+router.post('/sync-since', async (req, res) => {
+  const sinceInput = String(req.body?.since || '').trim()
+  if (!sinceInput) return res.status(400).json({ error: 'since (YYYY-MM-DD) required' })
+  const d = new Date(sinceInput.includes('T') ? sinceInput : sinceInput + 'T00:00:00Z')
+  if (isNaN(d.getTime())) return res.status(400).json({ error: 'invalid date' })
+  const iso = d.toISOString().replace(/\.\d{3}Z$/, 'Z')
+  const mmddyyyy = `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}`
+  // updated pass = ISO 8601 ; created pass = MM/dd/yyyy (Sierra's per-filter formats)
+  const passes = [
+    { name: 'updated', filter: 'leadUpdateDateFrom', value: iso },
+    { name: 'created', filter: 'leadCreationDateFrom', value: mmddyyyy },
+  ]
+  let added = 0, updated = 0
+  const perPass = {}
+  const seen = new Set()
+  db.beginBulk?.()
+  try {
+    for (const pass of passes) {
+      let page = 1, hasMore = true, passCount = 0
+      while (hasMore) {
+        const result = await sierraGet('/leads/find', {
+          [pass.filter]: pass.value, includeSavedSearches: 'true', includeTags: 'true',
+          pageSize: 100, pageNumber: page,
+        })
+        const rd = result.data || result
+        const leads = rd.leads || []
+        if (!leads.length) break
+        for (const lead of leads) {
+          const r = processLead(lead)
+          if (r === 'added') added++
+          else if (r === 'updated') updated++
+          if (r) { seen.add(String(lead.id)); passCount++ }
+        }
+        const totalPages = rd.totalPages || 1
+        if (page >= totalPages) hasMore = false
+        else page++
+        if (page > 500) break  // safety cap: 50k leads/pass
+      }
+      perPass[pass.name] = passCount
+    }
+  } finally { db.endBulk?.() }
+  db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)',
+    ['backfill_since', seen.size, added, updated])
+  res.json({ success: true, since: sinceInput, added, updated, unique_leads: seen.size, perPass })
+})
+
 // =============================================================
 // WRITE-BACK: push hub status change to Sierra. Status-only for now;
 // always behind a confirm dialog in the UI. Body: { client_id, status }
