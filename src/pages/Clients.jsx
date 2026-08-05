@@ -69,6 +69,15 @@ function RecipientPicker({ label, emails, onChange }) {
   )
 }
 
+// A body that has no HTML tags is plain text — convert to HTML so it renders
+// (and keeps its line breaks) in the WYSIWYG editor.
+function ensureHtmlBody(s) {
+  const body = s || ''
+  const hasTags = /<\/?(p|div|br|a|h[1-6]|ul|ol|li|strong|em|b|i|table|tr|td|img|span)\b/i.test(body)
+  if (hasTags || !body.trim()) return body
+  return '<p>' + body.trim().replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>') + '</p>'
+}
+
 const emptyClient = {
   first_name: '', last_name: '', email: '', phone: '', type: 'buyer', status: 'active',
   source: '', agent_assigned: '', address: '', city: '', state: 'IA', zip: '',
@@ -274,6 +283,7 @@ export default function Clients() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
   const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
+  const [bulkComposerView, setBulkComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkEmailPreviewOpen, setBulkEmailPreviewOpen] = useState(false)
   const [bulkPreviewIdx, setBulkPreviewIdx] = useState(0)
@@ -792,10 +802,11 @@ export default function Clients() {
   }
 
   const openBulkEmail = (templateId = '') => {
+    setBulkComposerView('wysiwyg')
     if (templateId) {
       const t = emailTemplates.find(x => x.id === templateId)
       if (t) {
-        setBulkEmailForm({ subject: t.subject, body: t.body, template: templateId })
+        setBulkEmailForm({ subject: t.subject, body: ensureHtmlBody(t.body), template: templateId })
       }
     } else {
       setBulkEmailForm({ subject: '', body: '', template: '' })
@@ -2346,6 +2357,7 @@ export default function Clients() {
           </div>
           <label>Template<select value={bulkEmailForm.template} onChange={async e => {
             const v = e.target.value
+            setBulkComposerView('wysiwyg')
             if (v === '__homes__') {
               // Load the editable "Homes They Viewed" wording — each recipient's own
               // viewed listings get injected where {{properties}} is, at send time.
@@ -2354,12 +2366,12 @@ export default function Clients() {
               setBulkEmailForm({
                 template: '__homes__',
                 subject: h?.subject || 'Do you want to see any of these properties?',
-                body: h?.body || `<p>{{greeting}} {{first_name}}, would you like any more info or to go and see any of these properties?</p>\n{{properties}}\n<p>Just reply and let me know which ones catch your eye and I'll set up the showings.</p>\n{{signature}}`,
+                body: ensureHtmlBody(h?.body || `<p>{{greeting}} {{first_name}}, would you like any more info or to go and see any of these properties?</p>\n{{properties}}\n<p>Just reply and let me know which ones catch your eye and I'll set up the showings.</p>\n{{signature}}`),
               })
               return
             }
             const t = emailTemplates.find(x => x.id === v)
-            if (t) setBulkEmailForm({ subject: t.subject, body: t.body, template: t.id })
+            if (t) setBulkEmailForm({ subject: t.subject, body: ensureHtmlBody(t.body), template: t.id })
             else setBulkEmailForm(p => ({ ...p, template: '' }))
           }}>
             <option value="">Custom (no template)</option>
@@ -2368,44 +2380,30 @@ export default function Clients() {
           </select></label>
           <label>Subject<input value={bulkEmailForm.subject} onChange={e => setBulkEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
           <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4}}>
-            <span style={{fontSize: 13, fontWeight: 500}}>Body</span>
+            <span style={{fontSize: 13, fontWeight: 500}}>Message</span>
             <div style={{display: 'flex', gap: 6}}>
+              <button type="button" className={`btn btn-sm ${bulkComposerView === 'wysiwyg' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setBulkComposerView('wysiwyg')}>✎ Edit</button>
+              <button type="button" className={`btn btn-sm ${bulkComposerView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setBulkComposerView('html')}>{'</>'} HTML</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={!bulkEmailForm.body || selectedIds.size === 0}
+                onClick={() => { setBulkPreviewIdx(0); setBulkEmailPreviewOpen(true); loadBulkPreview(0) }}>👁 Preview a recipient</button>
               <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}} title="Load an HTML file (.html) into the body">
-                📁 Load HTML File
-                <input
-                  type="file"
-                  accept=".html,.htm,text/html"
+                📁 Load HTML
+                <input type="file" accept=".html,.htm,text/html"
                   style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-                  onChange={async (e) => {
-                    const file = e.target.files?.[0]
-                    if (!file) return
-                    const text = await file.text()
-                    setBulkEmailForm(p => ({ ...p, body: text }))
-                    e.target.value = ''
-                  }}
-                />
+                  onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; const text = await file.text(); setBulkEmailForm(p => ({ ...p, body: text })); setBulkComposerView('wysiwyg'); e.target.value = '' }} />
               </label>
-              <button
-                type="button"
-                className="btn btn-sm btn-secondary"
-                disabled={!bulkEmailForm.body || selectedIds.size === 0}
-                onClick={() => { setBulkPreviewIdx(0); setBulkEmailPreviewOpen(true); loadBulkPreview(0) }}
-              >👁 Preview a recipient</button>
             </div>
           </div>
-          <EmailToolbar
-            textareaRef={bulkEmailBodyRef}
-            body={bulkEmailForm.body}
-            setBody={(b) => setBulkEmailForm(p => ({ ...p, body: b }))}
-            showPreview={false}
-            compact
-          />
-          <textarea ref={bulkEmailBodyRef} value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={20} required style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
-          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
-            Variables auto-fill per recipient: {'{{first_name}} {{last_name}} {{address}} {{city}}'}
-          </p>
-          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px'}}>
-            <strong>Plain text auto-formats</strong> — blank lines become paragraph breaks; URLs, emails, and phone numbers become clickable links. <strong>For designed HTML emails</strong>, click <em>Load HTML File</em> above or paste the markup directly — it renders as-is.
+          {bulkComposerView === 'wysiwyg' ? (
+            <RichTextEditor value={bulkEmailForm.body} onChange={(b) => setBulkEmailForm(p => ({ ...p, body: b }))} minHeight={260} />
+          ) : (
+            <>
+              <EmailToolbar textareaRef={bulkEmailBodyRef} body={bulkEmailForm.body} setBody={(b) => setBulkEmailForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+              <textarea ref={bulkEmailBodyRef} value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={18} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
+            </>
+          )}
+          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 8px'}}>
+            Auto-fills per recipient: {'{{first_name}} {{last_name}} {{city}}'} · {'{{properties}}'} = their viewed listings · {'{{signature}}'} = your saved signature. Use <strong>👁 Preview a recipient</strong> to verify before sending.
           </p>
           <div className="form-actions">
             <button type="button" className="btn btn-secondary" onClick={() => setBulkEmailOpen(false)}>Cancel</button>
