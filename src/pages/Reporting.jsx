@@ -20,8 +20,16 @@ export default function Reporting() {
   const [sendgrid, setSendgrid] = useState(true)
   const [preview, setPreview] = useState(null)      // { subject, campaign_id }
   const [people, setPeople] = useState(null)        // { subject, date, metric, label }
+  const [statsReady, setStatsReady] = useState(false)
 
-  const load = () => authFetch('/api/reporting/campaigns').then(r => r.json()).then(d => { setCampaigns(d.campaigns || []); setSendgrid(d.sendgrid !== false) }).catch(() => setCampaigns([]))
+  // Two-phase: render rows instantly from our DB, then fill engagement from
+  // SendGrid (slow — cached server-side for 10 min so repeat loads are instant).
+  const load = (refresh) => {
+    setStatsReady(false)
+    let full = false
+    authFetch('/api/reporting/campaigns?stats=0').then(r => r.json()).then(d => { if (!full) { setCampaigns(d.campaigns || []); setSendgrid(d.sendgrid !== false) } }).catch(() => {})
+    authFetch('/api/reporting/campaigns' + (refresh ? '?refresh=1' : '')).then(r => r.json()).then(d => { full = true; setCampaigns(d.campaigns || []); setSendgrid(d.sendgrid !== false); setStatsReady(true) }).catch(() => { full = true; setStatsReady(true) })
+  }
   useEffect(() => { load() }, [])
 
   // A metric number becomes a button when there's a count to drill into.
@@ -38,7 +46,7 @@ export default function Reporting() {
           <h1>Reporting</h1>
           <p className="page-subtitle">Communication performance — batch email opens, clicks, bounces (live from SendGrid).</p>
         </div>
-        <button className="btn btn-secondary" onClick={() => { setCampaigns(null); load() }}>↻ Refresh</button>
+        <button className="btn btn-secondary" onClick={() => load(true)}>↻ Refresh</button>
       </div>
 
       <div className="listing-tabs" style={{ marginBottom: 16 }}>
@@ -70,8 +78,10 @@ export default function Reporting() {
             ) : campaigns.length === 0 ? (
               <tr><td style={{ ...td, color: 'var(--text-muted)' }} colSpan={9}>No batch emails sent yet. Send a Bulk Email from the Clients page and it'll show here.</td></tr>
             ) : campaigns.map(c => {
+              const pending = !statsReady
+              const wait = <span style={{ color: 'var(--text-muted)' }} title="Loading engagement from SendGrid…">…</span>
               const noStats = c.stats == null
-              const dash = <span style={{ color: 'var(--text-muted)' }} title="Engagement not tracked (sent before per-campaign tracking)">—</span>
+              const dash = <span style={{ color: 'var(--text-muted)' }} title="Engagement not available for this send">—</span>
               const s = c.stats || {}
               const opens = s.unique_opens || 0, clicks = s.unique_clicks || 0
               const campaignId = /^\d+$/.test(String(c.id)) ? c.id : null
@@ -93,10 +103,10 @@ export default function Reporting() {
                   <td style={td}>{c.status === 'finished' ? <span style={{ color: '#10b981' }}>✓ Finished</span> : <span style={{ color: '#f59e0b' }}>Sending…</span>}</td>
                   <td style={td}>{c.recipients || 0}</td>
                   <td style={td}>{c.sent || 0}</td>
-                  <td style={td}>{noStats ? dash : stat(opens, c.sent, '#10b981', () => openPeople('opens', 'Opened'))}</td>
-                  <td style={td}>{noStats ? dash : stat(clicks, c.sent, '#3b82f6', () => openPeople('clicks', 'Clicked'))}</td>
-                  <td style={td}>{noStats ? dash : stat(s.unsubscribes, c.sent, '#f59e0b', () => openPeople('unsubscribes', 'Unsubscribed'))}</td>
-                  <td style={td}>{noStats ? dash : stat(s.bounces, c.recipients, '#ef4444', () => openPeople('bounces', 'Bounced'))}</td>
+                  <td style={td}>{pending ? wait : noStats ? dash : stat(opens, c.sent, '#10b981', () => openPeople('opens', 'Opened'))}</td>
+                  <td style={td}>{pending ? wait : noStats ? dash : stat(clicks, c.sent, '#3b82f6', () => openPeople('clicks', 'Clicked'))}</td>
+                  <td style={td}>{pending ? wait : noStats ? dash : stat(s.unsubscribes, c.sent, '#f59e0b', () => openPeople('unsubscribes', 'Unsubscribed'))}</td>
+                  <td style={td}>{pending ? wait : noStats ? dash : stat(s.bounces, c.recipients, '#ef4444', () => openPeople('bounces', 'Bounced'))}</td>
                 </tr>
               )
             })}

@@ -148,19 +148,10 @@ router.get('/_diag', async (req, res) => {
   res.json(out)
 })
 
-// Campaign list + live SendGrid engagement stats.
-router.get('/campaigns', async (_req, res) => {
+// The rows themselves, straight from our DB — instant, no SendGrid.
+function baseCampaignRows() {
   const rows = db.all('SELECT * FROM email_campaigns ORDER BY created_at DESC LIMIT 100')
-  const hub = []
-  for (const c of rows) {
-    const startDate = String(c.created_at || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
-    const stats = await categoryStats(c.category, startDate)
-    hub.push({ ...c, source: 'hub', stats })
-  }
-  const sg = await sendGridSingleSends()
-  // Past Hub bulk sends from BEFORE campaign tracking — grouped from the email log
-  // (5+ of the same subject on the same day = a batch). No per-campaign engagement
-  // (they weren't category-tagged), but we surface the send with its recipient count.
+  const hub = rows.map(c => ({ ...c, source: 'hub' }))
   const logGroups = db.all(`
     SELECT subject, MAX(from_name) as from_name, MIN(sent_at) as created_at, COUNT(*) as sent
     FROM email_log
@@ -168,16 +159,42 @@ router.get('/campaigns', async (_req, res) => {
     GROUP BY subject, substr(sent_at, 1, 10)
     HAVING COUNT(*) >= 5
     ORDER BY created_at DESC LIMIT 50`)
-  // Try to recover real opens/clicks for these older sends via the Email Activity API.
-  const logCampaigns = await Promise.all(logGroups.map(async (g, i) => ({
+  const logCampaigns = logGroups.map((g, i) => ({
     id: 'log_' + i, source: 'hub-log', subject: g.subject, from_name: g.from_name || 'Matt Smith Team',
     recipients: g.sent, sent: g.sent, failed: 0, skipped: 0, status: 'finished', created_at: g.created_at,
-    stats: await messageActivityStats(g.subject, g.created_at),
-  })))
-  // Drop empty SendGrid drafts (0 recipients / untitled single sends) — they're noise.
-  const sgClean = sg.filter(s => (s.recipients || 0) > 0 || (s.sent || 0) > 0)
-  const all = [...hub, ...sgClean, ...logCampaigns].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
-  res.json({ campaigns: all, sendgrid: !!SENDGRID_API_KEY })
+    _statKey: { kind: 'activity', subject: g.subject, date: g.created_at },
+  }))
+  return { hub, logCampaigns }
+}
+
+// Attach SendGrid engagement to the base rows (the slow part — several ~6s API calls).
+async function withEngagement() {
+  const { hub, logCampaigns } = baseCampaignRows()
+  const hubStatted = await Promise.all(hub.map(async c => {
+    const startDate = String(c.created_at || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
+    return { ...c, stats: await categoryStats(c.category, startDate) }
+  }))
+  const logStatted = await Promise.all(logCampaigns.map(async c => ({ ...c, stats: await messageActivityStats(c._statKey.subject, c._statKey.date) })))
+  const sg = (await sendGridSingleSends()).filter(s => (s.recipients || 0) > 0 || (s.sent || 0) > 0)
+  return [...hubStatted, ...sg, ...logStatted].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+}
+
+// 10-min cache so repeat loads are instant (engagement numbers don't move by the second).
+let campaignsCache = { at: 0, data: null }
+const CACHE_MS = 10 * 60 * 1000
+
+router.get('/campaigns', async (req, res) => {
+  // Fast path: DB rows only, no SendGrid. The UI renders these immediately.
+  if (req.query.stats === '0') {
+    const { hub, logCampaigns } = baseCampaignRows()
+    const all = [...hub, ...logCampaigns].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    return res.json({ campaigns: all, sendgrid: !!SENDGRID_API_KEY, pending: true })
+  }
+  const fresh = campaignsCache.data && (Date.now() - campaignsCache.at < CACHE_MS) && req.query.refresh !== '1'
+  if (fresh) return res.json({ campaigns: campaignsCache.data, sendgrid: !!SENDGRID_API_KEY, cached: true })
+  const data = await withEngagement()
+  campaignsCache = { at: Date.now(), data }
+  res.json({ campaigns: data, sendgrid: !!SENDGRID_API_KEY })
 })
 
 // Per-campaign recipient log (for the Details view).
