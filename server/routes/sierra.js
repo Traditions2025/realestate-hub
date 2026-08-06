@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { processLead, sierraGet, sierraPost, sierraPut, sierraDelete } from '../sierra-helper.js'
+import { buildClientFilter } from './clients.js'
 
 // Map hub status (lowercase_with_underscores) → Sierra status (PascalCase, no spaces)
 const HUB_TO_SIERRA_STATUS = {
@@ -894,6 +895,38 @@ router.post('/webhook', async (req, res) => {
     console.error('[webhook] error:', err.message)
     res.status(500).json({ error: err.message })
   }
+})
+
+// TEMP: extract MLS #s from a saved list's members' FULL Sierra notes (paginated
+// to avoid timeouts). Reads untruncated /notes/{id}, matches MLS / MLS# / MLS#:.
+router.get('/_list-mls', async (req, res) => {
+  const listId = Number(req.query.listId)
+  const offset = Number(req.query.offset) || 0
+  const limit = Math.min(Number(req.query.limit) || 30, 50)
+  const list = db.get('SELECT * FROM client_lists WHERE id = ?', [listId])
+  if (!list) return res.status(404).json({ error: 'list not found' })
+  let crit = {}; try { crit = list.filter_criteria ? JSON.parse(list.filter_criteria) : {} } catch {}
+  const { where, params } = buildClientFilter(crit)
+  const rows = db.all(`SELECT id, first_name, last_name, address, city, zip, sierra_lead_id, tags FROM clients${where} ORDER BY id LIMIT ? OFFSET ?`, [...params, limit, offset])
+  const total = db.get(`SELECT COUNT(*) c FROM clients${where}`, params).c
+  const MLS_RE = /MLS\s*#?\s*:?\s*(\d{6,9})/gi
+  const out = []
+  for (const r of rows) {
+    let mls = [], status = 'ok'
+    if (!r.sierra_lead_id) { status = 'no_sierra_id' }
+    else {
+      try {
+        const data = await sierraGet(`/notes/${r.sierra_lead_id}`, { pageSize: 50, pageNumber: 1 })
+        const recs = data.data?.records || []
+        const text = recs.map(n => n.contents || '').join(' \n ')
+        mls = [...new Set([...text.matchAll(MLS_RE)].map(m => m[1]))]
+      } catch (e) { status = 'error'; mls = null }
+    }
+    let tags = []; try { tags = JSON.parse(r.tags || '[]') } catch {}
+    const st = tags.some(t => /Expired/i.test(t)) && tags.some(t => /Cancelled/i.test(t)) ? 'Exp/Canc' : tags.some(t => /Expired/i.test(t)) ? 'Expired' : tags.some(t => /Cancelled/i.test(t)) ? 'Cancelled' : ''
+    out.push({ name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), address: r.address, city: r.city, zip: r.zip, status: st, mls, fetch: status })
+  }
+  res.json({ total, offset, returned: rows.length, results: out })
 })
 
 export default router
