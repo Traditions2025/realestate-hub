@@ -702,6 +702,24 @@ export default function Clients() {
     }
   }
 
+  // Overwrite the active saved list with whatever filters are currently set —
+  // so you can tweak a filter and update the list without recreating it.
+  const updateSavedList = async () => {
+    if (!activeListId) return
+    const filter_criteria = { ...advFilters }
+    if (tab !== 'all') filter_criteria.statuses_include = [...(filter_criteria.statuses_include || []), tab]
+    if (search) filter_criteria.search = search
+    const r = await authFetch(`/api/lists/${activeListId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ filter_criteria, description: `Filter-based list (${totalCount.toLocaleString()} matches)` }),
+    })
+    if (r.ok) {
+      const name = savedLists.find(l => l.id === activeListId)?.name || 'List'
+      alert(`Updated "${name}" — it now uses the current filters (${totalCount.toLocaleString()} matches).`)
+      authFetch('/api/lists').then(r => r.json()).then(setSavedLists)
+    } else alert('Could not update the list.')
+  }
+
   const loadSavedList = async (listId) => {
     if (!listId) {
       clearAllFilters()
@@ -1662,7 +1680,9 @@ export default function Clients() {
           </div>
 
           {activeListId && (
-            <div style={{textAlign: 'right', paddingTop: 8}}>
+            <div style={{display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center', paddingTop: 8}}>
+              <span style={{fontSize: 12, color: 'var(--text-muted)', marginRight: 'auto'}}>Editing “{savedLists.find(l => l.id === activeListId)?.name || 'list'}”</span>
+              <button className="btn-sm btn-primary" onClick={updateSavedList} title="Save the current filters into this list">↻ Update this list</button>
               <button className="btn-sm btn-danger" onClick={() => deleteSavedList(activeListId)}>Delete this list</button>
             </div>
           )}
