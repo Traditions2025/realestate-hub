@@ -896,4 +896,30 @@ router.post('/webhook', async (req, res) => {
   }
 })
 
+// TEMP diagnostic: find a lead's system notes (which hold secondary email/phone)
+router.get('/_lead-notes', async (req, res) => {
+  const q = (req.query.q || '').trim()
+  let sierraId = req.query.sierra_id
+  if (!sierraId && q) {
+    const c = db.get("SELECT sierra_lead_id FROM clients WHERE (first_name || ' ' || last_name) LIKE ? AND sierra_lead_id IS NOT NULL LIMIT 1", [`%${q}%`])
+    sierraId = c?.sierra_lead_id
+  }
+  if (!sierraId) return res.json({ error: 'no sierra_lead_id found for ' + q })
+  const candidates = [
+    `/leads/${sierraId}/notes`, `/notes?leadId=${sierraId}`, `/notes/find?leadId=${sierraId}`,
+    `/leads/${sierraId}/timeline`, `/leads/${sierraId}/activities`, `/activities?leadId=${sierraId}`,
+    `/leads/${sierraId}/history`, `/leads/${sierraId}/activity`,
+  ]
+  const tried = []
+  for (const ep of candidates) {
+    try {
+      const d = await sierraGet(ep)
+      const str = JSON.stringify(d)
+      const emails = [...new Set((str.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).map(e => e.toLowerCase()).filter(e => !/notvalidemail|sierra|remax|mattsmith/.test(e)))]
+      tried.push({ ep, ok: true, bytes: str.length, emails_found: emails, sample: str.slice(0, 250) })
+    } catch (e) { tried.push({ ep, ok: false, err: (e.message || '').slice(0, 70) }) }
+  }
+  res.json({ sierra_id: sierraId, tried })
+})
+
 export default router
