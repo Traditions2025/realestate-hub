@@ -52,6 +52,53 @@ async function sendGridSingleSends() {
   } catch { return [] }
 }
 
+// Retroactively pull opens/clicks for a specific subject from SendGrid's Email
+// Activity API (works even for sends that were NOT category-tagged, like the
+// pre-tracking Hub batches). Requires the Email Activity add-on on the account;
+// returns null if it isn't available.
+async function messageActivityStats(subject, dayIso) {
+  if (!SENDGRID_API_KEY || !subject) return null
+  try {
+    const day = String(dayIso || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
+    const from = `${day}T00:00:00Z`
+    const to = new Date(new Date(from).getTime() + 7 * 86400000).toISOString().slice(0, 19) + 'Z' // 7-day window for late opens
+    const safe = String(subject).replace(/"/g, '\\"')
+    const q = `subject="${safe}" AND last_event_time BETWEEN TIMESTAMP "${from}" AND TIMESTAMP "${to}"`
+    const url = `https://api.sendgrid.com/v3/messages?limit=1000&query=${encodeURIComponent(q)}`
+    const r = await fetch(url, { headers: { Authorization: `Bearer ${SENDGRID_API_KEY}` } })
+    if (!r.ok) return null
+    const msgs = (await r.json()).messages || []
+    if (!msgs.length) return { delivered: 0, unique_opens: 0, unique_clicks: 0, bounces: 0, unsubscribes: 0, _source: 'activity' }
+    return {
+      delivered: msgs.filter(m => m.status === 'delivered').length || msgs.length,
+      unique_opens: msgs.filter(m => (m.opens_count || 0) > 0).length,
+      unique_clicks: msgs.filter(m => (m.clicks_count || 0) > 0).length,
+      bounces: msgs.filter(m => m.status === 'bounce' || m.status === 'not_delivered').length,
+      unsubscribes: 0,
+      _source: 'activity',
+    }
+  } catch { return null }
+}
+
+// Diagnostic: is open/click tracking on, and is the Email Activity API reachable?
+router.get('/_diag', async (req, res) => {
+  const H = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
+  const out = { sendgrid_key: !!SENDGRID_API_KEY }
+  try {
+    const t = await fetch('https://api.sendgrid.com/v3/tracking_settings', { headers: H })
+    out.tracking_status = t.status
+    if (t.ok) { const d = await t.json(); out.tracking = (d.result || []).map(s => `${s.name}:${s.enabled}`) }
+  } catch (e) { out.tracking_error = e.message }
+  try {
+    const m = await fetch('https://api.sendgrid.com/v3/messages?limit=1', { headers: H })
+    out.activity_api_status = m.status
+    out.activity_api_available = m.ok
+    if (!m.ok) out.activity_api_body = (await m.text()).slice(0, 200)
+  } catch (e) { out.activity_error = e.message }
+  if (req.query.subject) out.subject_stats = await messageActivityStats(req.query.subject, req.query.date)
+  res.json(out)
+})
+
 // Campaign list + live SendGrid engagement stats.
 router.get('/campaigns', async (_req, res) => {
   const rows = db.all('SELECT * FROM email_campaigns ORDER BY created_at DESC LIMIT 100')
@@ -72,11 +119,15 @@ router.get('/campaigns', async (_req, res) => {
     GROUP BY subject, substr(sent_at, 1, 10)
     HAVING COUNT(*) >= 5
     ORDER BY created_at DESC LIMIT 50`)
-  const logCampaigns = logGroups.map((g, i) => ({
+  // Try to recover real opens/clicks for these older sends via the Email Activity API.
+  const logCampaigns = await Promise.all(logGroups.map(async (g, i) => ({
     id: 'log_' + i, source: 'hub-log', subject: g.subject, from_name: g.from_name || 'Matt Smith Team',
-    recipients: g.sent, sent: g.sent, failed: 0, skipped: 0, status: 'finished', created_at: g.created_at, stats: null,
-  }))
-  const all = [...hub, ...sg, ...logCampaigns].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
+    recipients: g.sent, sent: g.sent, failed: 0, skipped: 0, status: 'finished', created_at: g.created_at,
+    stats: await messageActivityStats(g.subject, g.created_at),
+  })))
+  // Drop empty SendGrid drafts (0 recipients / untitled single sends) — they're noise.
+  const sgClean = sg.filter(s => (s.recipients || 0) > 0 || (s.sent || 0) > 0)
+  const all = [...hub, ...sgClean, ...logCampaigns].sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')))
   res.json({ campaigns: all, sendgrid: !!SENDGRID_API_KEY })
 })
 
