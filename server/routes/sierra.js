@@ -910,17 +910,24 @@ router.get('/_list-mls', async (req, res) => {
   const rows = db.all(`SELECT id, first_name, last_name, address, city, zip, sierra_lead_id, tags FROM clients${where} ORDER BY id LIMIT ? OFFSET ?`, [...params, limit, offset])
   const total = db.get(`SELECT COUNT(*) c FROM clients${where}`, params).c
   const MLS_RE = /MLS\s*#?\s*:?\s*(\d{6,9})/gi
+  const sleep = ms => new Promise(r => setTimeout(r, ms))
+  const notesFor = async (sid) => {
+    for (let a = 0; a < 4; a++) {
+      try { const data = await sierraGet(`/notes/${sid}`, { pageSize: 50, pageNumber: 1 }); return data.data?.records || [] }
+      catch (e) { if (a < 3) await sleep(2000 * (a + 1)); else throw e }
+    }
+  }
   const out = []
   for (const r of rows) {
     let mls = [], status = 'ok'
     if (!r.sierra_lead_id) { status = 'no_sierra_id' }
     else {
       try {
-        const data = await sierraGet(`/notes/${r.sierra_lead_id}`, { pageSize: 50, pageNumber: 1 })
-        const recs = data.data?.records || []
+        const recs = await notesFor(r.sierra_lead_id)
         const text = recs.map(n => n.contents || '').join(' \n ')
         mls = [...new Set([...text.matchAll(MLS_RE)].map(m => m[1]))]
       } catch (e) { status = 'error'; mls = null }
+      await sleep(150) // gentle pace between Sierra calls
     }
     let tags = []; try { tags = JSON.parse(r.tags || '[]') } catch {}
     const st = tags.some(t => /Expired/i.test(t)) && tags.some(t => /Cancelled/i.test(t)) ? 'Exp/Canc' : tags.some(t => /Expired/i.test(t)) ? 'Expired' : tags.some(t => /Cancelled/i.test(t)) ? 'Cancelled' : ''
