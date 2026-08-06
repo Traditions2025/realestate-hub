@@ -791,7 +791,7 @@ export default function Updates() {
       {tab === 'hub' && <HubUpdates />}
       {tab === 'activity' && <ActivityLog />}
       {tab === 'email' && <EmailLog />}
-      {tab === 'bulk' && <><MigratePreListings /><BulkTagFromSheet /></>}
+      {tab === 'bulk' && <MigratePreListings />}{/* BulkTagFromSheet removed 2026-08-06 — hub no longer connects to any Google Sheet */}
       {tab === 'systems' && <SystemsStatus />}
     </div>
   )

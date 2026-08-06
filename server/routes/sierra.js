@@ -607,7 +607,15 @@ function phoneKey(p) {
   return digits.slice(-10)
 }
 
+// DISABLED 2026-08-06. The hub is the master file and no longer connects to ANY
+// Google Sheet. This endpoint used to fetch a shared sheet's CSV and bulk-tag hub
+// clients from it. Short-circuited so no request ever reaches docs.google.com.
 router.post('/bulk-tag-from-sheet', async (req, res) => {
+  return res.status(410).json({
+    error: 'Google Sheet import is disabled. The hub is the master file and no longer connects to any sheet.',
+    disabled_at: '2026-08-06',
+  })
+  /* eslint-disable no-unreachable -- legacy body retained (unreachable) in case this is ever intentionally revived */
   const { sheet_id, filter_column, filter_value, tag, dry_run } = req.body || {}
   if (!sheet_id || !filter_column || !filter_value || !tag) {
     return res.status(400).json({ error: 'sheet_id, filter_column, filter_value, and tag are required' })
