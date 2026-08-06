@@ -144,13 +144,29 @@ export default function Inbox() {
                 {thread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : thread.map(m => {
                   const meta = chMeta(m.channel)
                   const out = m.direction === 'outgoing'
+                  // Emails: render the HTML in a sandboxed frame (like a real mail client).
+                  if (m.channel === 'email') {
+                    const html = m.body || ''
+                    const isHtml = /<[a-z!][\s\S]*>/i.test(html)
+                    return (
+                      <div key={m.id} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
+                        <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
+                          <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {out ? `You → ${m.contact_name}` : `${m.contact_name} → You`} · {fmtDate(m.occurred_at)}
+                          {m.subject && <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginLeft: 8 }}>{m.subject}</span>}
+                        </div>
+                        {isHtml
+                          ? <iframe title={`email-${m.id}`} srcDoc={html} sandbox="allow-same-origin" onLoad={autoSizeFrame} style={{ width: '100%', border: 0, background: '#fff', minHeight: 120 }} />
+                          : <div style={{ padding: 14, whiteSpace: 'pre-wrap', fontSize: 14, background: '#fff', color: '#0f172a' }}>{html || m.preview}</div>}
+                      </div>
+                    )
+                  }
+                  // Texts / calls / voicemails: chat bubble.
                   return (
                     <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                         <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : m.contact_name} · {fmtDate(m.occurred_at)}
                       </div>
                       <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
-                        {m.subject && <div style={{ fontWeight: 700, marginBottom: 4 }}>{m.subject}</div>}
                         <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
                       </div>
                     </div>
@@ -254,6 +270,15 @@ function Composer({ onClose, onSent }) {
       </div>
     </Modal>
   )
+}
+
+// size an email iframe to its rendered content (sandbox allow-same-origin lets us
+// read the height; scripts inside the email still don't run)
+function autoSizeFrame(e) {
+  try {
+    const doc = e.target.contentDocument
+    if (doc && doc.body) e.target.style.height = Math.min(doc.body.scrollHeight + 28, 900) + 'px'
+  } catch { e.target.style.height = '400px' }
 }
 
 const folderBtn = (active) => ({ display: 'flex', alignItems: 'center', width: '100%', padding: '8px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13.5, marginBottom: 2, background: active ? 'var(--accent, #2563eb)' : 'transparent', color: active ? '#fff' : 'var(--text-primary)' })
