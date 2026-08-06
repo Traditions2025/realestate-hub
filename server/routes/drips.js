@@ -28,15 +28,31 @@ function pickSendMinutes(start, end) {
   if (e <= s) return s
   return s + Math.floor(Math.random() * (e - s + 1))
 }
-// target = enrollment/prev-send time + delay_days, then clamp clock to send window (Chicago)
+const _chParts = (ms) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+  .formatToParts(new Date(ms)).reduce((a, x) => (a[x.type] = x.value, a), {})
+// Next send instant: on the target day (enroll/prev-send + delay_days), at a RANDOM
+// minute in [send_time, send_time_end] (Chicago). If that day.s window already passed
+// (e.g. enrolled after 11am for a Day-0 step), roll to the NEXT day.s window so a send
+// never fires outside the window. Holidays skipped too.
 function nextSendIso(fromMs, step) {
-  const base = new Date(fromMs + (Number(step.delay_days) || 0) * 86400000)
-  const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(base).reduce((a, x) => (a[x.type] = x.value, a), {})
-  const mins = pickSendMinutes(step.send_time, step.send_time_end)
-  const guess = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Math.floor(mins / 60), mins % 60))
-  const off = tzOffsetMs('America/Chicago', guess)
-  // never schedule a send on a US federal holiday — push to the next non-holiday day
-  return bumpPastHolidays(new Date(guess.getTime() - off).toISOString())
+  const toMin = (t, def) => { const [hh, mm] = String(t || def).split(":").map(Number); return (hh || 0) * 60 + (mm || 0) }
+  const startM = toMin(step.send_time, "09:00")
+  const endM = Math.max(toMin(step.send_time_end, step.send_time), startM)
+  const now = _chParts(Date.now())
+  const todayYMD = `${now.year}-${now.month}-${now.day}`
+  const nowMin = Number(now.hour === "24" ? 0 : now.hour) * 60 + Number(now.minute)
+  let dayMs = fromMs + (Number(step.delay_days) || 0) * 86400000
+  for (let i = 0; i < 45; i++) {
+    const p = _chParts(dayMs)
+    const isToday = `${p.year}-${p.month}-${p.day}` === todayYMD
+    const lo = isToday ? Math.max(startM, nowMin + 1) : startM
+    if (lo > endM) { dayMs += 86400000; continue }
+    const mins = endM > lo ? lo + Math.floor(Math.random() * (endM - lo + 1)) : lo
+    const guess = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Math.floor(mins / 60), mins % 60))
+    const off = tzOffsetMs("America/Chicago", guess)
+    return bumpPastHolidays(new Date(guess.getTime() - off).toISOString())
+  }
+  return bumpPastHolidays(new Date(fromMs + 86400000).toISOString())
 }
 
 // ---------------------------------------------------------------------------
