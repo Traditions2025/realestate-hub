@@ -355,17 +355,18 @@ async function start() {
     let account = {}, business = {}
     try { account = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
     try { business = JSON.parse(db.getSetting('business_registration', '{}') || '{}') } catch {}
-    res.json({ signature: db.getSetting('email_signature', '') || '', account, business })
+    res.json({ signature: db.getSetting('email_signature', '') || '', account, business, from_name: db.getSetting('email_from_name', '') || '' })
   })
   app.post('/api/settings/profile', (req, res) => {
-    const { signature, account, business } = req.body || {}
+    const { signature, account, business, from_name } = req.body || {}
     if (signature !== undefined) db.setSetting('email_signature', String(signature || ''))
     if (account !== undefined) db.setSetting('account_info', JSON.stringify(account || {}))
     if (business !== undefined) db.setSetting('business_registration', JSON.stringify(business || {}))
+    if (from_name !== undefined) db.setSetting('email_from_name', String(from_name || '').trim())
     let acct = {}, biz = {}
     try { acct = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
     try { biz = JSON.parse(db.getSetting('business_registration', '{}') || '{}') } catch {}
-    res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct, business: biz })
+    res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct, business: biz, from_name: db.getSetting('email_from_name', '') || '' })
   })
 
   // Inbox mailboxes (App Password over IMAP). Multiple mailboxes supported; each

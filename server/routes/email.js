@@ -401,8 +401,8 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
     },
     body: JSON.stringify({
       personalizations: [personalization],
-      from: { email: FROM_EMAIL, name: FROM_NAME },
-      reply_to: { email: replyTo || REPLY_TO, name: FROM_NAME },
+      from: { email: FROM_EMAIL, name: (db.getSetting && db.getSetting('email_from_name', '')) || FROM_NAME },
+      reply_to: { email: replyTo || REPLY_TO, name: (db.getSetting && db.getSetting('email_from_name', '')) || FROM_NAME },
       ...(category ? { categories: [String(category)].slice(0, 1) } : {}),
       subject,
       content: (() => {

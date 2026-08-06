@@ -27,6 +27,7 @@ const DEFAULT_BUSINESS = {
 export default function Settings() {
   const [signature, setSignature] = useState('')
   const [account, setAccount] = useState(EMPTY_ACCOUNT)
+  const [fromName, setFromName] = useState('')
   const [business, setBusiness] = useState(DEFAULT_BUSINESS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -43,6 +44,7 @@ export default function Settings() {
     authFetch('/api/settings/profile').then(r => r.json()).then(d => {
       setSignature(d.signature || '')
       setAccount({ ...EMPTY_ACCOUNT, ...(d.account || {}) })
+      setFromName(d.from_name || '')
       const b = d.business || {}
       setBusiness(Object.keys(b).length ? { ...DEFAULT_BUSINESS, ...b } : DEFAULT_BUSINESS)
     }).catch(() => {}).finally(() => setLoading(false))
@@ -69,7 +71,7 @@ export default function Settings() {
       await authFetch('/api/settings/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature, account, business }),
+        body: JSON.stringify({ signature, account, business, from_name: fromName }),
       })
       setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (e) { alert('Save failed: ' + e.message) }
@@ -123,8 +125,12 @@ export default function Settings() {
               <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Email
                 <input style={fld} value={account.email} onChange={e => setAccount(a => ({ ...a, email: e.target.value }))} placeholder="matt@mattsmithteam.com" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)', gridColumn: '1 / -1' }}>Brokerage
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Brokerage
                 <input style={fld} value={account.brokerage} onChange={e => setAccount(a => ({ ...a, brokerage: e.target.value }))} placeholder="RE/MAX Real Estate Concepts" />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Email “From” name
+                <input style={fld} value={fromName} onChange={e => setFromName(e.target.value)} placeholder="Matt Smith" />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>The sender name recipients see (e.g. “Matt Smith”). From address stays matt@mattsmithteam.com.</span>
               </label>
             </div>
           </section>
