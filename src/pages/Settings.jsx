@@ -31,12 +31,14 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [gmail, setGmail] = useState({ configured: false, connected: false, user: '', last_poll: null, last_error: '', imported: 0 })
-  const [gmailUser, setGmailUser] = useState('')
-  const [gmailPw, setGmailPw] = useState('')
-  const [gmailBusy, setGmailBusy] = useState(false)
+  const [mailboxes, setMailboxes] = useState([])
+  const [mbUser, setMbUser] = useState('')
+  const [mbPw, setMbPw] = useState('')
+  const [mbHost, setMbHost] = useState('imap.gmail.com')
+  const [mbAdvanced, setMbAdvanced] = useState(false)
+  const [mbBusy, setMbBusy] = useState(false)
 
-  const loadGmail = () => authFetch('/api/settings/gmail').then(r => r.json()).then(g => { setGmail(g); setGmailUser(g.user || 'mattsmithremax@gmail.com') }).catch(() => {})
+  const loadMailboxes = () => authFetch('/api/settings/mailboxes').then(r => r.json()).then(d => setMailboxes(Array.isArray(d) ? d : [])).catch(() => {})
   useEffect(() => {
     authFetch('/api/settings/profile').then(r => r.json()).then(d => {
       setSignature(d.signature || '')
@@ -44,25 +46,22 @@ export default function Settings() {
       const b = d.business || {}
       setBusiness(Object.keys(b).length ? { ...DEFAULT_BUSINESS, ...b } : DEFAULT_BUSINESS)
     }).catch(() => {}).finally(() => setLoading(false))
-    loadGmail()
+    loadMailboxes()
   }, [])
 
-  const connectGmail = async () => {
-    if (!gmailUser.trim() || !gmailPw.trim()) { alert('Enter the Gmail address and the 16-character App Password.'); return }
-    setGmailBusy(true)
+  const addMailbox = async () => {
+    if (!mbUser.trim() || !mbPw.trim()) { alert('Enter the email address and the 16-character App Password.'); return }
+    setMbBusy(true)
     try {
-      await authFetch('/api/settings/gmail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: gmailUser.trim(), app_password: gmailPw }) })
-      const r = await authFetch('/api/settings/gmail/test', { method: 'POST' }).then(x => x.json())
-      setGmailPw('')
-      if (r.status?.connected) alert('✓ Connected to Gmail. New client emails will appear in the Inbox within a minute.')
-      else alert('Saved, but connection test failed: ' + (r.status?.last_error || 'unknown') + '\n\nDouble-check the App Password (not the normal password) and that 2-Step Verification is on.')
-      loadGmail()
-    } catch (e) { alert('Failed: ' + e.message) } finally { setGmailBusy(false) }
+      const r = await authFetch('/api/settings/mailboxes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: mbUser.trim(), app_password: mbPw, host: (mbHost.trim() || 'imap.gmail.com') }) }).then(x => x.json())
+      setMbPw(''); setMbUser('')
+      if (r.connected) alert('✓ Connected. New client emails from this inbox will appear within a minute.')
+      else alert('Saved, but connection failed: ' + (r.last_error || r.error || 'unknown') + '\n\nCheck: App Password (not the normal password), 2-Step Verification on, and (for a non-Gmail address) the IMAP host under Advanced.')
+      loadMailboxes()
+    } catch (e) { alert('Failed: ' + e.message) } finally { setMbBusy(false) }
   }
-  const disconnectGmail = async () => {
-    if (!confirm('Disconnect Gmail? Incoming emails will stop syncing to the Inbox.')) return
-    await authFetch('/api/settings/gmail/disconnect', { method: 'POST' }); setGmailPw(''); loadGmail()
-  }
+  const testMb = async (id) => { setMbBusy(true); try { await authFetch(`/api/settings/mailboxes/${id}/test`, { method: 'POST' }) } finally { setMbBusy(false); loadMailboxes() } }
+  const removeMb = async (id, user) => { if (!confirm(`Disconnect ${user}? Incoming emails from it will stop syncing to the Inbox.`)) return; await authFetch(`/api/settings/mailboxes/${id}`, { method: 'DELETE' }); loadMailboxes() }
 
   const save = async () => {
     setSaving(true); setSaved(false)
@@ -140,34 +139,51 @@ export default function Settings() {
             <RichTextEditor value={signature} onChange={setSignature} minHeight={160} />
           </section>
 
-          {/* Gmail Inbox connection */}
+          {/* Inbox email connections (multiple mailboxes) */}
           <section className="detail-section">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <h4 style={{ margin: 0 }}>Inbox Email Connection</h4>
-              {gmail.connected
-                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981', background: 'rgba(16,185,129,0.15)', padding: '2px 8px', borderRadius: 10 }}>● Connected</span>
-                : gmail.configured
-                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 10 }}>⚠ Error</span>
-                  : <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 8px', borderRadius: 10 }}>Not connected</span>}
-            </div>
+            <h4 style={{ margin: 0 }}>Inbox Email Connections</h4>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
-              Connect a Gmail inbox so incoming emails from your clients appear in the Inbox tab (checked every minute — no DNS needed). Uses a Google <strong>App Password</strong>, not the real password.
-              <br />To make one: Google Account → <em>Security</em> → turn on <em>2-Step Verification</em> → <em>App passwords</em> → generate one for “Mail”. Paste the 16-character code below.
+              Connect one or more inboxes so incoming client emails appear in the Inbox tab (checked every minute, no DNS). Each inbox is read <strong>directly</strong> — no forwarding — and <strong>only client-matched emails</strong> are shown, so promotional mail never clutters the Hub. Uses a Google <strong>App Password</strong> (Security → 2-Step Verification → App passwords → “Mail”), not the real password.
             </p>
+
+            {mailboxes.length > 0 && (
+              <div style={{ display: 'grid', gap: 8, marginBottom: 14 }}>
+                {mailboxes.map(mb => (
+                  <div key={mb.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{mb.user}</div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                        {mb.host !== 'imap.gmail.com' ? `${mb.host} · ` : ''}
+                        {mb.connected ? `last checked ${mb.last_poll ? new Date(mb.last_poll).toLocaleTimeString() : '—'} · ${mb.imported} imported` : (mb.last_error ? `Error: ${mb.last_error}` : 'not checked yet')}
+                      </div>
+                    </div>
+                    {mb.connected
+                      ? <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981', background: 'rgba(16,185,129,0.15)', padding: '2px 8px', borderRadius: 10 }}>● Connected</span>
+                      : <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 10 }}>⚠ Error</span>}
+                    <button className="btn btn-sm btn-secondary" onClick={() => testMb(mb.id)} disabled={mbBusy}>Test</button>
+                    <button className="btn btn-sm btn-danger" onClick={() => removeMb(mb.id, mb.user)}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, margin: '4px 0 8px' }}>Add a mailbox</div>
             <div style={grid}>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Gmail address
-                <input style={fld} value={gmailUser} onChange={e => setGmailUser(e.target.value)} placeholder="mattsmithremax@gmail.com" />
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Email address
+                <input style={fld} value={mbUser} onChange={e => setMbUser(e.target.value)} placeholder="matt@mattsmithteam.com" />
               </label>
               <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>App Password
-                <input style={fld} type="password" value={gmailPw} onChange={e => setGmailPw(e.target.value)} placeholder={gmail.configured ? '•••••••• (saved — re-enter to change)' : 'xxxx xxxx xxxx xxxx'} />
+                <input style={fld} type="password" value={mbPw} onChange={e => setMbPw(e.target.value)} placeholder="xxxx xxxx xxxx xxxx" />
               </label>
             </div>
+            {mbAdvanced && (
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>IMAP host (only if not Gmail/Workspace)
+                <input style={fld} value={mbHost} onChange={e => setMbHost(e.target.value)} placeholder="imap.gmail.com" />
+              </label>
+            )}
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
-              <button className="btn btn-sm btn-primary" onClick={connectGmail} disabled={gmailBusy}>{gmailBusy ? 'Connecting…' : gmail.connected ? 'Reconnect' : 'Connect'}</button>
-              {gmail.configured && <button className="btn btn-sm btn-secondary" onClick={disconnectGmail} disabled={gmailBusy}>Disconnect</button>}
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                {gmail.connected ? `Last checked ${gmail.last_poll ? new Date(gmail.last_poll).toLocaleTimeString() : '—'} · ${gmail.imported} imported` : gmail.last_error ? `Error: ${gmail.last_error}` : ''}
-              </span>
+              <button className="btn btn-sm btn-primary" onClick={addMailbox} disabled={mbBusy}>{mbBusy ? 'Connecting…' : '+ Connect mailbox'}</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => setMbAdvanced(a => !a)}>{mbAdvanced ? 'Hide advanced' : 'Advanced'}</button>
             </div>
           </section>
 

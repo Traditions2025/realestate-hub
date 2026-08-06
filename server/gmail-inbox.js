@@ -1,90 +1,131 @@
-// Direct Gmail connection (no DNS) — reads new mail over IMAP with an App
-// Password and drops client-matched incoming emails into the Inbox. Inert until
-// credentials are saved in Settings. Cursor-based so it never re-reads old mail.
+// Direct inbox connections (no DNS). Reads new mail over IMAP with App Passwords
+// and drops client-matched incoming emails into the Inbox. Supports MULTIPLE
+// mailboxes (e.g. mattsmithremax@gmail.com + matt@mattsmithteam.com), each read
+// directly so neither inbox has to forward the other's promo/spam. Cursor-based
+// per mailbox so old mail is never re-read. Inert until a mailbox is added.
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import db, { getSetting, setSetting } from './database.js'
 
 const nowIso = () => new Date().toISOString()
+const parse = (s, d) => { try { return s ? JSON.parse(s) : d } catch { return d } }
+const mkId = () => 'mb' + Math.random().toString(36).slice(2, 8)
 
-export function gmailConfigured() {
-  return !!(getSetting('gmail_user', null) && getSetting('gmail_app_password', null))
-}
-export function gmailStatus() {
-  return {
-    configured: gmailConfigured(),
-    user: getSetting('gmail_user', '') || '',
-    connected: getSetting('gmail_connected', '0') === '1',
-    last_poll: getSetting('gmail_last_poll', null),
-    last_error: getSetting('gmail_last_error', '') || '',
-    imported: Number(getSetting('gmail_imported_count', '0')) || 0,
+// Mailbox list lives in app_settings (never in git). One-time migration folds the
+// old single-mailbox keys into the list so the existing connection carries over.
+function getMailboxes() {
+  let list = parse(getSetting('inbox_mailboxes', null), null)
+  if (!list) {
+    const u = getSetting('gmail_user', ''), p = getSetting('gmail_app_password', '')
+    list = (u && p) ? [{
+      id: mkId(), user: u, host: 'imap.gmail.com', port: 993, app_password: p, enabled: true,
+      cursor: Number(getSetting('gmail_last_uid', '0')) || 0, connected: getSetting('gmail_connected', '0') === '1',
+      last_error: getSetting('gmail_last_error', '') || '', last_poll: getSetting('gmail_last_poll', null),
+      imported: Number(getSetting('gmail_imported_count', '0')) || 0,
+    }] : []
+    setSetting('inbox_mailboxes', JSON.stringify(list))
   }
+  return list
 }
+function saveMailboxes(list) { setSetting('inbox_mailboxes', JSON.stringify(list)) }
+
+export function mailboxesPublic() {
+  return getMailboxes().map(m => ({
+    id: m.id, user: m.user, host: m.host, enabled: m.enabled !== false, connected: !!m.connected,
+    last_poll: m.last_poll || null, last_error: m.last_error || '', imported: m.imported || 0, has_password: !!m.app_password,
+  }))
+}
+export function addMailbox({ user, app_password, host }) {
+  const list = getMailboxes()
+  const pw = String(app_password || '').replace(/\s+/g, '')
+  const existing = list.find(m => m.user.toLowerCase() === String(user).trim().toLowerCase())
+  if (existing) {
+    if (pw) existing.app_password = pw
+    if (host) existing.host = host
+    existing.enabled = true; existing.cursor = 0; existing.connected = false; existing.last_error = ''
+  } else {
+    list.push({ id: mkId(), user: String(user).trim(), host: host || 'imap.gmail.com', port: 993, app_password: pw, enabled: true, cursor: 0, connected: false, last_error: '', last_poll: null, imported: 0 })
+  }
+  saveMailboxes(list)
+  return list.find(m => m.user.toLowerCase() === String(user).trim().toLowerCase())?.id
+}
+export function removeMailbox(id) { saveMailboxes(getMailboxes().filter(m => m.id !== id)) }
+
 function matchClientByEmail(email) {
   if (!email) return null
   return db.get('SELECT id, first_name, last_name FROM clients WHERE lower(email) = lower(?) LIMIT 1', [String(email).trim()])
 }
 
-let _polling = false
-export async function pollGmail() {
-  if (_polling || !gmailConfigured()) return { skipped: true }
-  _polling = true
-  const user = getSetting('gmail_user')
-  const pass = String(getSetting('gmail_app_password') || '').replace(/\s+/g, '') // Google shows app pw with spaces
-  const client = new ImapFlow({
-    host: 'imap.gmail.com', port: 993, secure: true,
-    auth: { user, pass }, logger: false,
-    greetingTimeout: 10000, socketTimeout: 45000,
-  })
-  let imported = 0
+// Poll one mailbox, mutating its runtime fields (cursor/connected/last_error…).
+async function pollOne(m) {
+  const pass = String(m.app_password || '').replace(/\s+/g, '')
+  const client = new ImapFlow({ host: m.host || 'imap.gmail.com', port: m.port || 993, secure: true, auth: { user: m.user, pass }, logger: false, greetingTimeout: 10000, socketTimeout: 45000 })
   try {
     await client.connect()
     const lock = await client.getMailboxLock('INBOX')
     try {
       const status = await client.status('INBOX', { uidNext: true })
       const uidNext = status.uidNext || 1
-      let cursor = Number(getSetting('gmail_last_uid', '0'))
-      // First connect (or after reconnecting creds): seed to "now" so we only
-      // capture mail that arrives AFTER connecting — never backfill the inbox.
-      if (!cursor) {
-        setSetting('gmail_last_uid', String(uidNext - 1))
-        setSetting('gmail_connected', '1'); setSetting('gmail_last_error', ''); setSetting('gmail_last_poll', nowIso())
-        return { seeded: true, from_uid: uidNext - 1 }
-      }
-      let maxUid = cursor, count = 0
-      if (uidNext - 1 > cursor) {
-        for await (const msg of client.fetch(`${cursor + 1}:*`, { uid: true, source: true, internalDate: true }, { uid: true })) {
-          if (!msg.uid || msg.uid <= cursor) continue
+      if (!m.cursor) {
+        m.cursor = uidNext - 1                       // first connect: start from "now"
+      } else if (uidNext - 1 > m.cursor) {
+        let maxUid = m.cursor, count = 0
+        for await (const msg of client.fetch(`${m.cursor + 1}:*`, { uid: true, source: true, internalDate: true }, { uid: true })) {
+          if (!msg.uid || msg.uid <= m.cursor) continue
           maxUid = Math.max(maxUid, msg.uid)
-          if (++count > 200) break // storm guard
-          let parsed
-          try { parsed = await simpleParser(msg.source) } catch { continue }
+          if (++count > 200) break
+          let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
           const fromEmail = (parsed.from?.value?.[0]?.address || '').toLowerCase()
           const c = matchClientByEmail(fromEmail)
-          if (!c) continue // only store client-matched mail
-          const extId = 'gmail_' + (parsed.messageId || `${user}_${msg.uid}`)
+          if (!c) continue
+          const extId = 'gmail_' + (parsed.messageId || `${m.user}_${msg.uid}`)
           if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) continue
           const text = String(parsed.text || parsed.html || '').replace(/<[^>]+>/g, ' ')
           const preview = text.replace(/\s+/g, ' ').trim().slice(0, 160)
           const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
           db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, occurred_at)
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            ['email', 'incoming', c.id, name, fromEmail, user, parsed.subject || '(no subject)', preview,
+            ['email', 'incoming', c.id, name, fromEmail, m.user, parsed.subject || '(no subject)', preview,
               String(parsed.html || parsed.text || ''), extId, `c${c.id}_email`, 'unread',
-              (parsed.attachments && parsed.attachments.length) ? 1 : 0,
-              (msg.internalDate || parsed.date || new Date()).toISOString()])
-          imported++
+              (parsed.attachments && parsed.attachments.length) ? 1 : 0, (msg.internalDate || parsed.date || new Date()).toISOString()])
+          m.imported = (m.imported || 0) + 1
         }
+        m.cursor = maxUid
       }
-      setSetting('gmail_last_uid', String(maxUid))
-      setSetting('gmail_connected', '1'); setSetting('gmail_last_error', ''); setSetting('gmail_last_poll', nowIso())
-      if (imported) setSetting('gmail_imported_count', String((Number(getSetting('gmail_imported_count', '0')) || 0) + imported))
+      m.connected = true; m.last_error = ''; m.last_poll = nowIso()
     } finally { lock.release() }
     await client.logout()
   } catch (e) {
-    setSetting('gmail_connected', '0'); setSetting('gmail_last_error', e.message || String(e))
+    m.connected = false; m.last_error = e.message || String(e)
     try { await client.logout() } catch {}
-    return { error: e.message }
+  }
+}
+
+let _polling = false
+export async function pollAllMailboxes() {
+  if (_polling) return
+  _polling = true
+  try {
+    const all = getMailboxes()
+    const active = all.filter(m => m.enabled !== false && m.app_password)
+    if (!active.length) return
+    for (const m of active) await pollOne(m)   // mutates objects in `all`
+    saveMailboxes(all)
   } finally { _polling = false }
-  return { imported }
+}
+export const pollGmail = pollAllMailboxes   // scheduler compatibility
+
+export async function testMailbox(id) {
+  const all = getMailboxes()
+  const m = all.find(x => x.id === id)
+  if (!m) return { error: 'mailbox not found' }
+  await pollOne(m)
+  saveMailboxes(all)
+  return { connected: m.connected, last_error: m.last_error || '' }
+}
+
+// legacy status helper (kept so any old caller keeps working)
+export function gmailStatus() {
+  const boxes = mailboxesPublic()
+  return { configured: boxes.length > 0, mailboxes: boxes }
 }

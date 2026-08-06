@@ -368,27 +368,27 @@ async function start() {
     res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct, business: biz })
   })
 
-  // Gmail Inbox connection (App Password over IMAP). Creds live in app_settings.
-  app.get('/api/settings/gmail', async (_req, res) => {
-    const { gmailStatus } = await import('./gmail-inbox.js')
-    res.json(gmailStatus())
+  // Inbox mailboxes (App Password over IMAP). Multiple mailboxes supported; each
+  // read directly (no forwarding). Creds live in app_settings, never in git.
+  app.get('/api/settings/mailboxes', async (_req, res) => {
+    const { mailboxesPublic } = await import('./gmail-inbox.js')
+    res.json(mailboxesPublic())
   })
-  app.post('/api/settings/gmail', (req, res) => {
-    const { user, app_password } = req.body || {}
-    if (user !== undefined) db.setSetting('gmail_user', String(user || '').trim())
-    if (app_password) db.setSetting('gmail_app_password', String(app_password).replace(/\s+/g, ''))
-    db.setSetting('gmail_last_uid', '0')   // reseed cursor -> only NEW mail after connecting
-    db.setSetting('gmail_connected', '0'); db.setSetting('gmail_last_error', '')
-    res.json({ success: true })
+  app.post('/api/settings/mailboxes', async (req, res) => {
+    const { user, app_password, host } = req.body || {}
+    if (!user || !app_password) return res.status(400).json({ error: 'Email and App Password are required.' })
+    const { addMailbox, testMailbox } = await import('./gmail-inbox.js')
+    const id = addMailbox({ user, app_password, host })
+    const status = await testMailbox(id)   // connect + seed immediately
+    res.json({ id, ...status })
   })
-  app.post('/api/settings/gmail/test', async (_req, res) => {
-    const { pollGmail, gmailStatus } = await import('./gmail-inbox.js')
-    const r = await pollGmail()
-    res.json({ result: r, status: gmailStatus() })
+  app.post('/api/settings/mailboxes/:id/test', async (req, res) => {
+    const { testMailbox } = await import('./gmail-inbox.js')
+    res.json(await testMailbox(req.params.id))
   })
-  app.post('/api/settings/gmail/disconnect', (_req, res) => {
-    db.setSetting('gmail_user', ''); db.setSetting('gmail_app_password', '')
-    db.setSetting('gmail_connected', '0'); db.setSetting('gmail_last_error', '')
+  app.delete('/api/settings/mailboxes/:id', async (req, res) => {
+    const { removeMailbox } = await import('./gmail-inbox.js')
+    removeMailbox(req.params.id)
     res.json({ success: true })
   })
 
