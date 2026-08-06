@@ -905,21 +905,23 @@ router.get('/_lead-notes', async (req, res) => {
     sierraId = c?.sierra_lead_id
   }
   if (!sierraId) return res.json({ error: 'no sierra_lead_id found for ' + q })
+  const emailsIn = (str) => [...new Set((str.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).map(e => e.toLowerCase()).filter(e => !/notvalidemail|@sierra|remax|mattsmith/.test(e)))]
+  // 1) full lead detail — is the 2nd email nested anywhere?
+  let detailEmails = [], detailKeys = []
+  try { const d = await sierraGet(`/leads/get/${sierraId}`); const dl = d.data || d; detailKeys = Object.keys(dl); detailEmails = emailsIn(JSON.stringify(dl)) } catch {}
+  // 2) probe timeline/notes endpoint forms
   const candidates = [
-    `/leads/${sierraId}/notes`, `/notes?leadId=${sierraId}`, `/notes/find?leadId=${sierraId}`,
-    `/leads/${sierraId}/timeline`, `/leads/${sierraId}/activities`, `/activities?leadId=${sierraId}`,
-    `/leads/${sierraId}/history`, `/leads/${sierraId}/activity`,
+    `/leads/get/${sierraId}?includeTimeline=true`, `/leads/get/${sierraId}?includeNotes=true`, `/leads/get/${sierraId}?include=timeline`,
+    `/timeline?leadId=${sierraId}`, `/timeline/find?leadId=${sierraId}`, `/timelineitems?leadId=${sierraId}`,
+    `/leadTimeline?leadId=${sierraId}`, `/leads/timeline?leadId=${sierraId}`, `/leads/notes?leadId=${sierraId}`,
+    `/leadnotes?leadId=${sierraId}`, `/notes/find?leadIds=${sierraId}`, `/leads/${sierraId}/timeline-items`,
   ]
-  const tried = []
+  const hits = []
   for (const ep of candidates) {
-    try {
-      const d = await sierraGet(ep)
-      const str = JSON.stringify(d)
-      const emails = [...new Set((str.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).map(e => e.toLowerCase()).filter(e => !/notvalidemail|sierra|remax|mattsmith/.test(e)))]
-      tried.push({ ep, ok: true, bytes: str.length, emails_found: emails, sample: str.slice(0, 250) })
-    } catch (e) { tried.push({ ep, ok: false, err: (e.message || '').slice(0, 70) }) }
+    try { const d = await sierraGet(ep); const str = JSON.stringify(d); hits.push({ ep, ok: true, bytes: str.length, emails: emailsIn(str) }) }
+    catch (e) { /* skip 404s */ }
   }
-  res.json({ sierra_id: sierraId, tried })
+  res.json({ sierra_id: sierraId, detail_keys: detailKeys, detail_emails: detailEmails, working_endpoints: hits })
 })
 
 export default router
