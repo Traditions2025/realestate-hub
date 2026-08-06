@@ -58,7 +58,7 @@ export default function Inbox() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', minHeight: 520 }}>
+      <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
         {/* left: folders + filters */}
         <aside style={{ width: 210, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 14, flexShrink: 0 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
@@ -71,7 +71,7 @@ export default function Inbox() {
           <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Channels</div>
           {CHANNELS.map(c => (
-            <label key={c.key} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 13 }}>
+            <label key={c.key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 13, fontWeight: 400 }}>
               <input type="checkbox" checked={channels.includes(c.key)} onChange={() => toggleChannel(c.key)} />
               <span style={{ color: c.color, fontVariantEmoji: 'text' }}>{c.icon}</span> {c.label}
               {(counts.by_channel?.[c.key] || 0) > 0 && <span style={{ ...badge, marginLeft: 'auto' }}>{counts.by_channel[c.key]}</span>}
