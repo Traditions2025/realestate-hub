@@ -896,39 +896,4 @@ router.post('/webhook', async (req, res) => {
   }
 })
 
-// DIAGNOSTIC (read-only): deep-scan lead detail for a SECOND email anywhere in
-// the object (incl. nested co-borrower/partner contacts), and report where it lives.
-router.get('/_email-fields', async (_req, res) => {
-  const findEmails = (obj, path, out) => {
-    if (obj == null) return out
-    if (typeof obj === 'string') { if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(obj) && !/notvalidemail/i.test(obj)) out.push({ path, email: obj.toLowerCase() }); return out }
-    if (Array.isArray(obj)) { obj.forEach((v, i) => findEmails(v, `${path}[${i}]`, out)); return out }
-    if (typeof obj === 'object') { for (const k of Object.keys(obj)) findEmails(obj[k], path ? `${path}.${k}` : k, out); return out }
-    return out
-  }
-  try {
-    const data = await sierraGet('/leads/find', { pageSize: 40, pageNumber: 1 })
-    const leads = (data.data || data).leads || []
-    let sampleDetailKeys = null, scanned = 0
-    const multiEmailLeads = []
-    for (const l of leads.slice(0, 15)) {   // full detail for the first 15
-      let dl = null
-      for (const ep of [`/leads/get/${l.id}`, `/leads/${l.id}`]) { try { const dd = await sierraGet(ep); dl = dd.data || dd; break } catch {} }
-      if (!dl) continue
-      scanned++
-      if (!sampleDetailKeys) sampleDetailKeys = Object.keys(dl)
-      const emails = findEmails(dl, '', [])
-      const distinct = [...new Map(emails.map(e => [e.email, e])).values()]
-      if (distinct.length > 1) multiEmailLeads.push({ id: l.id, name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), emails_found: distinct })
-      if (multiEmailLeads.length >= 3) break
-    }
-    res.json({
-      details_scanned: scanned,
-      leads_with_2plus_emails: multiEmailLeads.length,
-      examples: multiEmailLeads,
-      sample_lead_top_level_keys: sampleDetailKeys,
-    })
-  } catch (e) { res.status(500).json({ error: e.message }) }
-})
-
 export default router
