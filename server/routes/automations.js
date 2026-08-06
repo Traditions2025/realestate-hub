@@ -4,6 +4,7 @@ import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
 import { sendViaSendGrid, buildPropertyCardsLive } from './email.js'
 import { enrollInDrip } from './drips.js'
+import { isUsHoliday, bumpPastHolidays } from '../holidays.js'
 import { validateGraph, getDef, branchKeysFor, labelFor } from '../../shared/automationRegistry.js'
 
 const router = Router()
@@ -270,8 +271,9 @@ function applyDelay(cfg) {
   let when = new Date(Date.now() + computeDelayMs(cfg))
   if (cfg.skip_weekends) { while (when.getDay() === 0 || when.getDay() === 6) when = new Date(when.getTime() + 86400000) }
   if (cfg.business_hours) { const h = when.getHours(); if (h < 8) when.setHours(8, 0, 0, 0); else if (h >= 18) { when.setDate(when.getDate() + 1); when.setHours(8, 0, 0, 0) } }
-  return when.toISOString()
+  return bumpPastHolidays(when.toISOString())  // never resume onto a US federal holiday
 }
+const MESSAGING_ACTIONS = ['send_email', 'send_text', 'send_drip', 'send_property_recommendation']
 
 // ---------------------------------------------------------------------------
 // enrollment
@@ -377,6 +379,12 @@ async function advanceEnrollment(enr) {
 
     // ---- stop ----
     if (node.type === 'stop' || node.type === 'end_automation') return completeEnrollment(enr, 'completed', 'stopped')
+
+    // ---- no client email/text on US federal holidays: defer the send ----
+    if (MESSAGING_ACTIONS.includes(node.type) && isUsHoliday(new Date())) {
+      db.run('UPDATE automation_enrollments SET status=?, current_node_id=?, next_run_at=? WHERE id=?', ['active', node.id, bumpPastHolidays(nowIso()), enr.id])
+      return
+    }
 
     // ---- action nodes: idempotent execute, then follow default edge ----
     const key = execKey(enr.id, node.id)

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { sendSequenceEmail } from './email.js'
+import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
 
 const router = Router()
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d } catch { return d } }
@@ -24,7 +25,8 @@ function nextSendIso(fromMs, delayDays, sendTime) {
   const [h, m] = String(sendTime || '09:00').split(':').map(Number)
   const guess = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), h || 9, m || 0))
   const off = tzOffsetMs('America/Chicago', guess)
-  return new Date(guess.getTime() - off).toISOString()
+  // never schedule a send on a US federal holiday — push to the next non-holiday day
+  return bumpPastHolidays(new Date(guess.getTime() - off).toISOString())
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +66,9 @@ async function advanceDrip(enr) {
   const step = steps[idx]
   const client = db.get('SELECT * FROM clients WHERE id = ?', [enr.client_id])
   if (!client) return db.run("UPDATE drip_enrollments SET status='removed', completed_at=? WHERE id=?", [nowIso(), enr.id])
+
+  // no sends on US federal holidays — defer to the next non-holiday day
+  if (isUsHoliday(new Date())) return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [bumpPastHolidays(nowIso()), enr.id])
 
   // idempotency: one successful send per (enrollment, step)
   const key = `drip${enr.id}_step${idx}`

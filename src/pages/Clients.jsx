@@ -282,6 +282,7 @@ export default function Clients() {
   const [hasMore, setHasMore] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkApply, setBulkApply] = useState(null) // 'automation' | 'drip'
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
   const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
   const [bulkComposerView, setBulkComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
@@ -1689,6 +1690,12 @@ export default function Clients() {
         </div>
       )}
 
+      {/* Bulk apply automation / drip */}
+      {bulkApply && (
+        <BulkApplyModal kind={bulkApply} clientIds={[...selectedIds]} onClose={() => setBulkApply(null)}
+          onDone={() => { setBulkApply(null); clearSelection() }} />
+      )}
+
       {/* Save as List Modal */}
       {saveListOpen && (
         <Modal open={saveListOpen} onClose={() => setSaveListOpen(false)} title="Save as List">
@@ -1748,6 +1755,10 @@ export default function Clients() {
                   <button onClick={() => { setBulkActionsOpen(false); openBulkEmail() }}>
                     ✉ Email Selected
                   </button>
+                  <div className="bulk-actions-divider" />
+                  <div className="bulk-actions-section-label">Enroll</div>
+                  <button onClick={() => { setBulkActionsOpen(false); setBulkApply('drip') }}>💧 Apply Drip Campaign</button>
+                  <button onClick={() => { setBulkActionsOpen(false); setBulkApply('automation') }}>⚡ Apply Automation</button>
                   <div className="bulk-actions-divider" />
                   <div className="bulk-actions-section-label">Set Type</div>
                   <button onClick={() => setBulkType('buyer')}>🎯 Mark as Buyer</button>
@@ -2726,5 +2737,55 @@ export default function Clients() {
         </form>
       </Modal>
     </div>
+  )
+}
+
+// Bulk-enroll the selected clients into an automation or a drip campaign.
+function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
+  const [items, setItems] = useState(null)
+  const [selId, setSelId] = useState('')
+  const [busy, setBusy] = useState(false)
+  useEffect(() => {
+    const url = kind === 'automation' ? '/api/automations' : '/api/drips'
+    authFetch(url).then(r => r.json()).then(d => {
+      let list = Array.isArray(d) ? d : []
+      if (kind === 'automation') list = list.filter(a => a.status === 'active') // only active automations can enroll
+      setItems(list)
+    }).catch(() => setItems([]))
+  }, [kind])
+  const apply = async () => {
+    if (!selId) return
+    setBusy(true)
+    const url = kind === 'automation' ? `/api/automations/${selId}/enroll` : `/api/drips/${selId}/enroll`
+    const r = await authFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds }) }).then(x => x.json()).catch(e => ({ error: e.message }))
+    setBusy(false)
+    if (r.error) return alert(r.error)
+    const name = (items || []).find(i => i.id === Number(selId))?.name || (kind === 'automation' ? 'automation' : 'drip')
+    alert(`Enrolled ${r.enrolled} of ${clientIds.length} selected into “${name}”.` + (r.enrolled < clientIds.length ? '\n(Contacts already enrolled or without an email are skipped.)' : ''))
+    onDone()
+  }
+  const title = kind === 'automation' ? 'Apply Automation' : 'Apply Drip Campaign'
+  return (
+    <Modal open onClose={onClose} title={title}>
+      <div className="form">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+          Enroll the <strong>{clientIds.length.toLocaleString()}</strong> selected client{clientIds.length === 1 ? '' : 's'} into a {kind === 'automation' ? 'workflow' : 'drip campaign'}. Emails and texts are automatically held on US federal holidays.
+        </p>
+        {items === null ? <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
+          : items.length === 0 ? <p style={{ color: 'var(--text-muted)' }}>{kind === 'automation' ? 'No active automations. Activate one first on the Automations page.' : 'No drip campaigns yet. Create one on the Templates → Drip Campaigns tab.'}</p>
+            : (
+              <label>Choose {kind === 'automation' ? 'automation' : 'drip campaign'}
+                <select value={selId} onChange={e => setSelId(e.target.value)} autoFocus>
+                  <option value="">— pick one —</option>
+                  {items.map(i => <option key={i.id} value={i.id}>{i.name}{kind === 'automation' ? ` (${i.enrolled || 0} enrolled)` : ` · ${(i.steps || []).length} emails`}</option>)}
+                </select>
+              </label>
+            )}
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={apply} disabled={busy || !selId}>{busy ? 'Enrolling…' : `Enroll ${clientIds.length.toLocaleString()}`}</button>
+        </div>
+      </div>
+    </Modal>
   )
 }
