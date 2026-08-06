@@ -1,8 +1,19 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { buildClientFilter } from './clients.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
+
+// TEMP: resolve a dynamic list's members and return their notes (to pull MLS #s)
+router.get('/:id/notes', (req, res) => {
+  const list = db.get('SELECT * FROM client_lists WHERE id = ?', [Number(req.params.id)])
+  if (!list) return res.status(404).json({ error: 'not found' })
+  let crit = {}; try { crit = list.filter_criteria ? JSON.parse(list.filter_criteria) : {} } catch {}
+  const { where, params } = buildClientFilter(crit)
+  const rows = db.all(`SELECT id, first_name, last_name, notes FROM clients${where}`, params)
+  res.json({ list: list.name, count: rows.length, results: rows.map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), notes: r.notes || '' })) })
+})
 
 // List all saved client lists
 router.get('/', (req, res) => {
