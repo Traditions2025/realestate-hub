@@ -1,5 +1,7 @@
 import { Router } from 'express'
+import Busboy from 'busboy'
 import db from '../database.js'
+import { sendViaSendGrid } from './email.js'
 
 const router = Router()
 const nowIso = () => new Date().toISOString()
@@ -117,5 +119,83 @@ router.post('/:id/unread', (req, res) => { db.run("UPDATE communications SET sta
 router.post('/thread/:clientId/read', (req, res) => { db.run("UPDATE communications SET status='read' WHERE client_id=? AND status='unread'", [Number(req.params.clientId)]); res.json({ success: true }) })
 router.post('/thread/:clientId/close', (req, res) => { db.run("UPDATE communications SET status='closed' WHERE client_id=?", [Number(req.params.clientId)]); res.json({ success: true }) })
 router.delete('/:id', (req, res) => { db.run('DELETE FROM communications WHERE id=?', [Number(req.params.id)]); res.json({ success: true }) })
+
+// ---- contact search for the composer (name / email / phone) ----
+router.get('/contacts', (req, res) => {
+  const q = (req.query.q || '').trim()
+  if (q.length < 2) return res.json([])
+  const like = `%${q}%`
+  const rows = db.all(
+    `SELECT id, first_name, last_name, email, phone FROM clients
+     WHERE (first_name || ' ' || last_name LIKE ? OR email LIKE ? OR phone LIKE ?)
+     AND status NOT IN ('archived','junk') ORDER BY first_name LIMIT 12`, [like, like, like])
+  res.json(rows)
+})
+
+// ---- compose + send (Email now; Text arrives with Twilio) ----
+router.post('/send', async (req, res) => {
+  const { channel, client_ids, subject, body } = req.body || {}
+  if (channel === 'text') return res.status(400).json({ error: 'Texting turns on once Twilio is connected.' })
+  if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Add at least one recipient.' })
+  if (!subject || !body) return res.status(400).json({ error: 'Subject and message are required.' })
+  const results = []
+  for (const cid of client_ids) {
+    const c = db.get('SELECT * FROM clients WHERE id = ?', [Number(cid)])
+    if (!c || !c.email) { results.push({ client_id: cid, ok: false, error: 'no email on file' }); continue }
+    if (c.marketing_email_opt_out) { results.push({ client_id: cid, ok: false, error: 'opted out' }); continue }
+    const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+    try {
+      await sendViaSendGrid(c.email, name, subject, body, null, [], [], [], 'inbox_compose')
+      const preview = String(body).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['email', 'outgoing', c.id, name, 'matt@mattsmithteam.com', c.email, subject, preview, body, `out_${Date.now()}_${c.id}`, `c${c.id}_email`, 'read', nowIso()])
+      results.push({ client_id: cid, ok: true })
+    } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
+  }
+  res.json({ sent: results.filter(r => r.ok).length, results })
+})
+
+// ---- REAL-TIME inbound receiver (SendGrid Inbound Parse posts here) ----
+// Public route (SendGrid can't send an auth token). Only stores the message if
+// the sender matches a hub client. Always 200 so SendGrid doesn't retry.
+function parseMultipart(req, res, next) {
+  if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return next()
+  try {
+    const bb = Busboy({ headers: req.headers, limits: { fileSize: 1 } })
+    req.body = {}
+    bb.on('field', (name, val) => { req.body[name] = val })
+    bb.on('file', (_n, stream) => { req.body._hasAttachment = true; stream.resume() }) // discard attachment bytes
+    bb.on('close', () => next())
+    bb.on('error', () => next())
+    req.pipe(bb)
+  } catch { next() }
+}
+router.post('/parse-inbound', parseMultipart, (req, res) => {
+  const b = req.body || {}
+  // sender email: from "Name <email>" header, else the SMTP envelope
+  let fromEmail = b.from || ''
+  const m = String(fromEmail).match(/<([^>]+)>/)
+  if (m) fromEmail = m[1]
+  else if (!/@/.test(fromEmail)) { try { const env = JSON.parse(b.envelope || '{}'); if (env.from) fromEmail = env.from } catch {} }
+  fromEmail = String(fromEmail).trim().toLowerCase()
+
+  const client = matchClient('email', fromEmail)
+  if (!client) return res.status(200).json({ matched: false })
+
+  const text = String(b.text || b.html || '').replace(/<[^>]+>/g, ' ')
+  const preview = text.replace(/\s+/g, ' ').trim().slice(0, 160)
+  const midMatch = String(b.headers || '').match(/Message-ID:\s*<([^>]+)>/i)
+  const externalId = midMatch ? `sg_${midMatch[1]}` : `sgparse_${fromEmail}_${Date.now()}`
+  const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
+  if (dup) return res.status(200).json({ matched: true, duplicate: true })
+
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+  const r = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, occurred_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    ['email', 'incoming', client.id, name, fromEmail, b.to || '', b.subject || '(no subject)', preview,
+      String(b.html || b.text || ''), externalId, `c${client.id}_email`, 'unread', b._hasAttachment ? 1 : 0, nowIso()])
+  res.status(200).json({ matched: true, id: r.lastInsertRowid })
+})
 
 export default router

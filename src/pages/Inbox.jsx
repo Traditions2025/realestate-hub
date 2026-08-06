@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../api'
+import Modal from '../components/Modal'
+import RichTextEditor from '../components/RichTextEditor'
 
 const CHANNELS = [
   { key: 'email', label: 'Emails', icon: '✉', color: '#2563eb' },
@@ -30,6 +32,7 @@ export default function Inbox() {
   const [counts, setCounts] = useState({ by_channel: {} })
   const [sel, setSel] = useState(null)
   const [thread, setThread] = useState([])
+  const [compose, setCompose] = useState(false)
 
   const load = useCallback(() => {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
@@ -56,6 +59,7 @@ export default function Inbox() {
           <h1>Inbox</h1>
           <p className="page-subtitle">All client calls, texts, and emails in one place. Only messages that match one of your clients appear here.</p>
         </div>
+        <button className="btn btn-primary" onClick={() => setCompose(true)}>✎ New Message</button>
       </div>
 
       <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
@@ -160,7 +164,95 @@ export default function Inbox() {
           )}
         </div>
       </div>
+
+      {compose && <Composer onClose={() => setCompose(false)} onSent={() => { setCompose(false); load() }} />}
     </div>
+  )
+}
+
+function Composer({ onClose, onSent }) {
+  const [channel, setChannel] = useState('email')
+  const [recips, setRecips] = useState([])
+  const [q, setQ] = useState('')
+  const [results, setResults] = useState([])
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [sending, setSending] = useState(false)
+
+  useEffect(() => {
+    if (q.trim().length < 2) { setResults([]); return }
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
+    return () => clearTimeout(t)
+  }, [q])
+
+  const add = (c) => { if (!recips.find(r => r.id === c.id)) setRecips([...recips, c]); setQ(''); setResults([]) }
+  const remove = (id) => setRecips(recips.filter(r => r.id !== id))
+
+  const send = async () => {
+    if (channel === 'text') { alert('Texting turns on once Twilio is connected.'); return }
+    if (!recips.length) { alert('Add at least one recipient.'); return }
+    if (!subject.trim() || !body.trim()) { alert('Add a subject and a message.'); return }
+    setSending(true)
+    const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel, client_ids: recips.map(x => x.id), subject, body }) }).then(x => x.json()).catch(e => ({ error: e.message }))
+    setSending(false)
+    if (r.error) { alert(r.error); return }
+    const failed = (r.results || []).filter(x => !x.ok)
+    alert(`Sent to ${r.sent} recipient(s).` + (failed.length ? ` ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).` : ''))
+    onSent()
+  }
+  const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
+
+  return (
+    <Modal open onClose={onClose} title="New Message" wide>
+      <div style={{ display: 'grid', gap: 12 }}>
+        {/* channel toggle */}
+        <div style={{ display: 'flex', gap: 6 }}>
+          {[{ k: 'email', label: '✉ Email' }, { k: 'text', label: '💬 Text' }].map(c => (
+            <button key={c.k} onClick={() => setChannel(c.k)} className={`btn btn-sm ${channel === c.k ? 'btn-primary' : 'btn-secondary'}`}>{c.label}</button>
+          ))}
+          {channel === 'text' && <span style={{ fontSize: 12, color: '#f59e0b', alignSelf: 'center', marginLeft: 6 }}>Texting turns on with Twilio — email works now.</span>}
+        </div>
+
+        {/* recipients */}
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>To ({channel === 'email' ? 'client emails' : 'client phones'})</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+            {recips.map(r => (
+              <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 12 }}>
+                {`${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email}
+                <button onClick={() => remove(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
+              </span>
+            ))}
+          </div>
+          <div style={{ position: 'relative' }}>
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a client by name, email, or phone…" style={fld} />
+            {results.length > 0 && (
+              <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+                {results.map(c => (
+                  <div key={c.id} onClick={() => add(c)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{channel === 'email' ? (c.email || 'no email') : (c.phone || 'no phone')}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {channel === 'email' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={fld} />}
+        <div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Message</div>
+          {channel === 'email'
+            ? <RichTextEditor value={body} onChange={setBody} minHeight={200} />
+            : <textarea value={body} onChange={e => setBody(e.target.value)} rows={5} style={{ ...fld, resize: 'vertical' }} placeholder="Message" />}
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary" onClick={send} disabled={sending || channel === 'text'}>{sending ? 'Sending…' : channel === 'text' ? 'Text (needs Twilio)' : `Send to ${recips.length || ''}`.trim()}</button>
+        </div>
+      </div>
+    </Modal>
   )
 }
 
