@@ -896,32 +896,4 @@ router.post('/webhook', async (req, res) => {
   }
 })
 
-// TEMP diagnostic: find a lead's system notes (which hold secondary email/phone)
-router.get('/_lead-notes', async (req, res) => {
-  const q = (req.query.q || '').trim()
-  let sierraId = req.query.sierra_id
-  if (!sierraId && q) {
-    const c = db.get("SELECT sierra_lead_id FROM clients WHERE (first_name || ' ' || last_name) LIKE ? AND sierra_lead_id IS NOT NULL LIMIT 1", [`%${q}%`])
-    sierraId = c?.sierra_lead_id
-  }
-  if (!sierraId) return res.json({ error: 'no sierra_lead_id found for ' + q })
-  const emailsIn = (str) => [...new Set((str.match(/[\w.+-]+@[\w-]+\.[\w.-]+/g) || []).map(e => e.toLowerCase()).filter(e => !/notvalidemail|@sierra|remax|mattsmith/.test(e)))]
-  // 1) full lead detail — is the 2nd email nested anywhere?
-  let detailEmails = [], detailKeys = []
-  try { const d = await sierraGet(`/leads/get/${sierraId}`); const dl = d.data || d; detailKeys = Object.keys(dl); detailEmails = emailsIn(JSON.stringify(dl)) } catch {}
-  // 2) probe timeline/notes endpoint forms
-  const candidates = [
-    `/leads/get/${sierraId}?includeTimeline=true`, `/leads/get/${sierraId}?includeNotes=true`, `/leads/get/${sierraId}?include=timeline`,
-    `/timeline?leadId=${sierraId}`, `/timeline/find?leadId=${sierraId}`, `/timelineitems?leadId=${sierraId}`,
-    `/leadTimeline?leadId=${sierraId}`, `/leads/timeline?leadId=${sierraId}`, `/leads/notes?leadId=${sierraId}`,
-    `/leadnotes?leadId=${sierraId}`, `/notes/find?leadIds=${sierraId}`, `/leads/${sierraId}/timeline-items`,
-  ]
-  const hits = []
-  for (const ep of candidates) {
-    try { const d = await sierraGet(ep); const str = JSON.stringify(d); hits.push({ ep, ok: true, bytes: str.length, emails: emailsIn(str) }) }
-    catch (e) { /* skip 404s */ }
-  }
-  res.json({ sierra_id: sierraId, detail_keys: detailKeys, detail_emails: detailEmails, working_endpoints: hits })
-})
-
 export default router
