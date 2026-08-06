@@ -4,7 +4,7 @@ import Modal from './Modal'
 import RichTextEditor from './RichTextEditor'
 
 const uid = () => 's' + Math.random().toString(36).slice(2, 8)
-const newStep = () => ({ id: uid(), delay_days: 0, send_time: '09:00', subject: '', body: '', template_id: '', include_properties: false })
+const newStep = () => ({ id: uid(), delay_days: 0, send_time: '09:00', send_time_end: '11:00', subject: '', body: '', template_id: '', include_properties: false })
 
 export default function DripCampaigns() {
   const [items, setItems] = useState([])
@@ -106,8 +106,10 @@ function DripEditor({ drip, templates, onClose, onSaved }) {
                 <span style={{ width: 26, height: 26, borderRadius: '50%', background: '#8b5cf6', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700 }}>{i + 1}</span>
                 <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{i === 0 ? 'Send' : 'Then, after the previous email, wait'}</span>
                 <input type="number" min="0" value={s.delay_days} onChange={e => setStep(i, { delay_days: e.target.value })} style={{ width: 64 }} />
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>day{Number(s.delay_days) === 1 ? '' : 's'} at</span>
-                <input type="time" value={s.send_time} onChange={e => setStep(i, { send_time: e.target.value })} style={{ width: 110 }} />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>day{Number(s.delay_days) === 1 ? '' : 's'} between</span>
+                <input type="time" value={s.send_time} onChange={e => setStep(i, { send_time: e.target.value })} style={{ width: 108 }} />
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>and</span>
+                <input type="time" value={s.send_time_end || ''} onChange={e => setStep(i, { send_time_end: e.target.value })} style={{ width: 108 }} title="Leave equal to the start for a fixed time; a later time sends at a random moment in the window" />
                 <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
                   <button className="btn-sm" onClick={() => move(i, -1)} disabled={i === 0}>↑</button>
                   <button className="btn-sm" onClick={() => move(i, 1)} disabled={i === steps.length - 1}>↓</button>

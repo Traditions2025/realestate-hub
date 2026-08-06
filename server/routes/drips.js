@@ -17,13 +17,23 @@ function tzOffsetMs(tz, date) {
   const asUTC = Date.UTC(p.year, p.month - 1, p.day, p.hour === '24' ? 0 : p.hour, p.minute, p.second)
   return asUTC - date.getTime()
 }
-// target = enrollment/prev-send time + delay_days, then clamp clock to send_time (Chicago)
-function nextSendIso(fromMs, delayDays, sendTime) {
-  const base = new Date(fromMs + (Number(delayDays) || 0) * 86400000)
-  // read the Chicago calendar date of `base`
+// pick the send minute-of-day: fixed at send_time, or a RANDOM minute in
+// [send_time, send_time_end] when a window is set (e.g. 9:00–11:00 → each email
+// goes at a different, natural-looking time inside that window).
+function pickSendMinutes(start, end) {
+  const toMin = (t, def) => { const [hh, mm] = String(t || def).split(':').map(Number); return (hh || 0) * 60 + (mm || 0) }
+  const s = toMin(start, '09:00')
+  if (!end) return s
+  const e = toMin(end, start)
+  if (e <= s) return s
+  return s + Math.floor(Math.random() * (e - s + 1))
+}
+// target = enrollment/prev-send time + delay_days, then clamp clock to send window (Chicago)
+function nextSendIso(fromMs, step) {
+  const base = new Date(fromMs + (Number(step.delay_days) || 0) * 86400000)
   const p = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(base).reduce((a, x) => (a[x.type] = x.value, a), {})
-  const [h, m] = String(sendTime || '09:00').split(':').map(Number)
-  const guess = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), h || 9, m || 0))
+  const mins = pickSendMinutes(step.send_time, step.send_time_end)
+  const guess = new Date(Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Math.floor(mins / 60), mins % 60))
   const off = tzOffsetMs('America/Chicago', guess)
   // never schedule a send on a US federal holiday — push to the next non-holiday day
   return bumpPastHolidays(new Date(guess.getTime() - off).toISOString())
@@ -40,7 +50,7 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   // don't double-enroll an active contact
   const active = db.get("SELECT id FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [dripId, clientId])
   if (active) return active.id
-  const next = nextSendIso(Date.now(), steps[0].delay_days, steps[0].send_time)
+  const next = nextSendIso(Date.now(), steps[0])
   const r = db.run('INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, next_run_at, source, automation_id) VALUES (?,?,?,?,?,?,?)',
     [dripId, clientId, 'active', 0, next, opts.source || 'manual', opts.automation_id || null])
   return r.lastInsertRowid
@@ -96,7 +106,7 @@ async function advanceDrip(enr) {
   if (nextIdx >= steps.length) {
     db.run("UPDATE drip_enrollments SET status='completed', current_step=?, completed_at=?, next_run_at=NULL WHERE id=?", [nextIdx, nowIso(), enr.id])
   } else {
-    const next = nextSendIso(Date.now(), steps[nextIdx].delay_days, steps[nextIdx].send_time)
+    const next = nextSendIso(Date.now(), steps[nextIdx])
     db.run('UPDATE drip_enrollments SET current_step=?, next_run_at=? WHERE id=?', [nextIdx, next, enr.id])
   }
 }
