@@ -748,6 +748,13 @@ export function startScheduler() {
     catch (e) { console.error('[scheduler] drip tick error:', e.message) }
   }, 60 * 1000)
 
+  // Gmail Inbox poll — every 60s, inert unless an App Password is connected.
+  setInterval(async () => {
+    try { const { pollGmail } = await import('./gmail-inbox.js'); await pollGmail() }
+    catch (e) { console.error('[scheduler] gmail poll error:', e.message) }
+  }, 60 * 1000)
+  setTimeout(async () => { try { const { pollGmail } = await import('./gmail-inbox.js'); await pollGmail() } catch {} }, 25 * 1000)
+
   // FUB web-activity incremental sync — hourly (+ shortly after boot). Keeps the
   // "Last Visit" column fresh for all linked clients without storing full history.
   setInterval(syncFubActivityIncremental, 60 * 60 * 1000)

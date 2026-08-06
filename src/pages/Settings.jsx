@@ -31,7 +31,12 @@ export default function Settings() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [gmail, setGmail] = useState({ configured: false, connected: false, user: '', last_poll: null, last_error: '', imported: 0 })
+  const [gmailUser, setGmailUser] = useState('')
+  const [gmailPw, setGmailPw] = useState('')
+  const [gmailBusy, setGmailBusy] = useState(false)
 
+  const loadGmail = () => authFetch('/api/settings/gmail').then(r => r.json()).then(g => { setGmail(g); setGmailUser(g.user || 'mattsmithremax@gmail.com') }).catch(() => {})
   useEffect(() => {
     authFetch('/api/settings/profile').then(r => r.json()).then(d => {
       setSignature(d.signature || '')
@@ -39,7 +44,25 @@ export default function Settings() {
       const b = d.business || {}
       setBusiness(Object.keys(b).length ? { ...DEFAULT_BUSINESS, ...b } : DEFAULT_BUSINESS)
     }).catch(() => {}).finally(() => setLoading(false))
+    loadGmail()
   }, [])
+
+  const connectGmail = async () => {
+    if (!gmailUser.trim() || !gmailPw.trim()) { alert('Enter the Gmail address and the 16-character App Password.'); return }
+    setGmailBusy(true)
+    try {
+      await authFetch('/api/settings/gmail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: gmailUser.trim(), app_password: gmailPw }) })
+      const r = await authFetch('/api/settings/gmail/test', { method: 'POST' }).then(x => x.json())
+      setGmailPw('')
+      if (r.status?.connected) alert('✓ Connected to Gmail. New client emails will appear in the Inbox within a minute.')
+      else alert('Saved, but connection test failed: ' + (r.status?.last_error || 'unknown') + '\n\nDouble-check the App Password (not the normal password) and that 2-Step Verification is on.')
+      loadGmail()
+    } catch (e) { alert('Failed: ' + e.message) } finally { setGmailBusy(false) }
+  }
+  const disconnectGmail = async () => {
+    if (!confirm('Disconnect Gmail? Incoming emails will stop syncing to the Inbox.')) return
+    await authFetch('/api/settings/gmail/disconnect', { method: 'POST' }); setGmailPw(''); loadGmail()
+  }
 
   const save = async () => {
     setSaving(true); setSaved(false)
@@ -115,6 +138,37 @@ export default function Settings() {
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>This is added to the bottom of emails you compose and generate (e.g. “Homes They Viewed”).</p>
             <RichTextEditor value={signature} onChange={setSignature} minHeight={160} />
+          </section>
+
+          {/* Gmail Inbox connection */}
+          <section className="detail-section">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h4 style={{ margin: 0 }}>Inbox Email Connection</h4>
+              {gmail.connected
+                ? <span style={{ fontSize: 11, fontWeight: 700, color: '#10b981', background: 'rgba(16,185,129,0.15)', padding: '2px 8px', borderRadius: 10 }}>● Connected</span>
+                : gmail.configured
+                  ? <span style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 10 }}>⚠ Error</span>
+                  : <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', background: 'var(--border)', padding: '2px 8px', borderRadius: 10 }}>Not connected</span>}
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+              Connect a Gmail inbox so incoming emails from your clients appear in the Inbox tab (checked every minute — no DNS needed). Uses a Google <strong>App Password</strong>, not the real password.
+              <br />To make one: Google Account → <em>Security</em> → turn on <em>2-Step Verification</em> → <em>App passwords</em> → generate one for “Mail”. Paste the 16-character code below.
+            </p>
+            <div style={grid}>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Gmail address
+                <input style={fld} value={gmailUser} onChange={e => setGmailUser(e.target.value)} placeholder="mattsmithremax@gmail.com" />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>App Password
+                <input style={fld} type="password" value={gmailPw} onChange={e => setGmailPw(e.target.value)} placeholder={gmail.configured ? '•••••••• (saved — re-enter to change)' : 'xxxx xxxx xxxx xxxx'} />
+              </label>
+            </div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
+              <button className="btn btn-sm btn-primary" onClick={connectGmail} disabled={gmailBusy}>{gmailBusy ? 'Connecting…' : gmail.connected ? 'Reconnect' : 'Connect'}</button>
+              {gmail.configured && <button className="btn btn-sm btn-secondary" onClick={disconnectGmail} disabled={gmailBusy}>Disconnect</button>}
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                {gmail.connected ? `Last checked ${gmail.last_poll ? new Date(gmail.last_poll).toLocaleTimeString() : '—'} · ${gmail.imported} imported` : gmail.last_error ? `Error: ${gmail.last_error}` : ''}
+              </span>
+            </div>
           </section>
 
           {/* Business Registration (Twilio A2P) */}
