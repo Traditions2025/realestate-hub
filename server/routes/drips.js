@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
-import { sendSequenceEmail } from './email.js'
+import { sendSequenceEmail, previewSequenceEmail } from './email.js'
 import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
 
 const router = Router()
@@ -190,6 +190,20 @@ router.get('/:id/activity', (req, res) => {
     FROM drip_enrollments e LEFT JOIN clients c ON c.id = e.client_id
     WHERE e.drip_id = ? ORDER BY e.entered_at DESC LIMIT 500`, [Number(req.params.id)])
   res.json(rows)
+})
+
+
+// ---- preview a step exactly as it will send (merge fields + signature + property cards) ----
+router.get('/:id/preview/:step/:clientId', (req, res) => {
+  const d = db.get('SELECT * FROM drip_campaigns WHERE id=?', [Number(req.params.id)])
+  if (!d) return res.status(404).json({ error: 'Drip not found' })
+  const steps = parse(d.steps, [])
+  const step = steps[Number(req.params.step) || 0]
+  if (!step) return res.status(404).json({ error: 'Step not found' })
+  const client = db.get('SELECT * FROM clients WHERE id=?', [Number(req.params.clientId)])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+  const out = previewSequenceEmail(client, step)
+  res.json({ ...out, drip: d.name, step_index: Number(req.params.step) || 0, client_name: `${client.first_name||''} ${client.last_name||''}`.trim(), client_email: client.email })
 })
 
 export default router

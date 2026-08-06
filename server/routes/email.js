@@ -246,6 +246,25 @@ export async function sendSequenceEmail(client, cfg = {}, category = null) {
   return { ok: true, subject }
 }
 
+// Render a sequence/drip step exactly as sendSequenceEmail would build it, but
+// WITHOUT sending — uses STORED property cards (no live FUB call), safe & instant
+// for previews. Returns { subject, body }.
+export function previewSequenceEmail(client, cfg = {}) {
+  let subject = cfg.subject, body = cfg.body
+  if (cfg.template_id) {
+    const t = db.get('SELECT subject, body FROM templates WHERE id = ?', [Number(cfg.template_id)])
+    if (t) { subject = subject || t.subject; body = body || t.body }
+  }
+  subject = fillTemplate(subject || '', client)
+  body = fillTemplate(body || '', client)
+  if (cfg.include_properties || /\{\{properties\}\}/.test(body)) {
+    let cards = ''
+    try { cards = buildPropertyCards(client.id, Number(cfg.max) || 4) } catch {}
+    body = /\{\{properties\}\}/.test(body) ? body.replace(/\{\{properties\}\}/g, cards) : (body + cards)
+  }
+  return { subject, body }
+}
+
 // Preview a template filled with client data. Loads from the editable `templates`
 // table (numeric id). Falls back to the built-in constant for any legacy string id.
 router.get('/preview/:templateId/:clientId', (req, res) => {
