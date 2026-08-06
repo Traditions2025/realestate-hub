@@ -896,30 +896,4 @@ router.post('/webhook', async (req, res) => {
   }
 })
 
-// TEMP diagnostic: pull the full raw Sierra record(s) for a name and deep-scan
-// for any email anywhere in the object.
-router.get('/_lead-raw', async (req, res) => {
-  const q = (req.query.q || '').trim()
-  const findEmails = (obj, path, out) => {
-    if (obj == null) return out
-    if (typeof obj === 'string') { if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(obj) && !/notvalidemail/i.test(obj)) out.push({ path, email: obj.toLowerCase() }); return out }
-    if (Array.isArray(obj)) { obj.forEach((v, i) => findEmails(v, `${path}[${i}]`, out)); return out }
-    if (typeof obj === 'object') { for (const k of Object.keys(obj)) findEmails(obj[k], path ? `${path}.${k}` : k, out); return out }
-    return out
-  }
-  try {
-    const data = await sierraGet('/leads/find', { nameLikeFilter: q, pageSize: 10, pageNumber: 1 })
-    const leads = (data.data || data).leads || []
-    const out = []
-    for (const l of leads.slice(0, 6)) {
-      let dl = null
-      for (const ep of [`/leads/get/${l.id}`, `/leads/${l.id}`]) { try { const dd = await sierraGet(ep); dl = dd.data || dd; break } catch {} }
-      const raw = dl || l
-      const emails = [...new Map(findEmails(raw, '', []).map(e => [e.email, e])).values()]
-      out.push({ id: l.id, name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), email: l.email, phone: l.phone, all_keys: Object.keys(raw), emails_found: emails })
-    }
-    res.json({ query: q, matches: leads.length, leads: out })
-  } catch (e) { res.status(500).json({ error: e.message }) }
-})
-
 export default router
