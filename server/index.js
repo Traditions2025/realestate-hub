@@ -32,6 +32,7 @@ import templatesRouter from './routes/templates.js'
 import automationsRouter from './routes/automations.js'
 import reportingRouter from './routes/reporting.js'
 import dripsRouter from './routes/drips.js'
+import inboxRouter from './routes/inbox.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -210,6 +211,7 @@ async function start() {
   app.use('/api/automations', automationsRouter)
   app.use('/api/reporting', reportingRouter)
   app.use('/api/drips', dripsRouter)
+  app.use('/api/inbox', inboxRouter)
   app.use('/api/track', trackingRouter)
   app.use('/api/seed', seedRouter)
 
@@ -350,17 +352,20 @@ async function start() {
   // Team profile settings — email signature (HTML) + account info. Stored in
   // app_settings. The signature is appended to composed/generated emails.
   app.get('/api/settings/profile', (_req, res) => {
-    let account = {}
+    let account = {}, business = {}
     try { account = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
-    res.json({ signature: db.getSetting('email_signature', '') || '', account })
+    try { business = JSON.parse(db.getSetting('business_registration', '{}') || '{}') } catch {}
+    res.json({ signature: db.getSetting('email_signature', '') || '', account, business })
   })
   app.post('/api/settings/profile', (req, res) => {
-    const { signature, account } = req.body || {}
+    const { signature, account, business } = req.body || {}
     if (signature !== undefined) db.setSetting('email_signature', String(signature || ''))
     if (account !== undefined) db.setSetting('account_info', JSON.stringify(account || {}))
-    let acct = {}
+    if (business !== undefined) db.setSetting('business_registration', JSON.stringify(business || {}))
+    let acct = {}, biz = {}
     try { acct = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
-    res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct })
+    try { biz = JSON.parse(db.getSetting('business_registration', '{}') || '{}') } catch {}
+    res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct, business: biz })
   })
 
   app.get('/api/fub/status', async (_req, res) => {

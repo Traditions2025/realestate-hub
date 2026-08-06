@@ -4,9 +4,30 @@ import RichTextEditor from '../components/RichTextEditor'
 
 const EMPTY_ACCOUNT = { name: '', title: '', phone: '', email: '', brokerage: '' }
 
+// one labeled input for the Business Registration grid
+function bfield(label, key, business, bf, fld, span) {
+  return (
+    <label key={key} style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)', ...(span ? { gridColumn: span } : {}) }}>{label}
+      <input style={fld} value={business[key] || ''} onChange={e => bf(key, e.target.value)} />
+    </label>
+  )
+}
+
+// Prefill from the Twilio A2P Business Information screen (editable, first-load only).
+// NOTE: the source screen showed phone "(131) 943-1585" — (131) is not a valid US
+// area code; prefilled as (319), Cedar Rapids. Verify before submitting to Twilio.
+const DEFAULT_BUSINESS = {
+  business_name: 'Traditions Real Estate Inc', business_type: 'Corporation', website: 'http://mattsmithteam.com',
+  address1: '5235 Buffalo Ridge Dr', address2: '', city: 'Cedar Rapids', state: 'IA', zip: '52411', country: 'United States',
+  company_status: '', ein: '20-3977636',
+  poc_name: 'Matt Smith', poc_title: 'Broker Associate', poc_job_position: 'Other',
+  poc_email: 'mattsmithremax@gmail.com', poc_phone: '(319) 943-1585',
+}
+
 export default function Settings() {
   const [signature, setSignature] = useState('')
   const [account, setAccount] = useState(EMPTY_ACCOUNT)
+  const [business, setBusiness] = useState(DEFAULT_BUSINESS)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -15,6 +36,8 @@ export default function Settings() {
     authFetch('/api/settings/profile').then(r => r.json()).then(d => {
       setSignature(d.signature || '')
       setAccount({ ...EMPTY_ACCOUNT, ...(d.account || {}) })
+      const b = d.business || {}
+      setBusiness(Object.keys(b).length ? { ...DEFAULT_BUSINESS, ...b } : DEFAULT_BUSINESS)
     }).catch(() => {}).finally(() => setLoading(false))
   }, [])
 
@@ -24,12 +47,13 @@ export default function Settings() {
       await authFetch('/api/settings/profile', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ signature, account }),
+        body: JSON.stringify({ signature, account, business }),
       })
       setSaved(true); setTimeout(() => setSaved(false), 2500)
     } catch (e) { alert('Save failed: ' + e.message) }
     finally { setSaving(false) }
   }
+  const bf = (k, v) => setBusiness(b => ({ ...b, [k]: v }))
 
   const buildFromAccount = () => {
     const a = account
@@ -45,6 +69,7 @@ export default function Settings() {
   }
 
   const fld = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, width: '100%' }
+  const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
 
   return (
     <div className="page">
@@ -90,6 +115,42 @@ export default function Settings() {
             </div>
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>This is added to the bottom of emails you compose and generate (e.g. “Homes They Viewed”).</p>
             <RichTextEditor value={signature} onChange={setSignature} minHeight={160} />
+          </section>
+
+          {/* Business Registration (Twilio A2P) */}
+          <section className="detail-section">
+            <h4 style={{ margin: 0 }}>Business Registration</h4>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+              Required by major cell carriers and Twilio (our dialer/texting provider) to verify the business and keep text messages deliverable. This is stored here so it's ready when we turn on texting.
+            </p>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '4px 0 8px', fontWeight: 700 }}>General</div>
+            <div style={grid}>
+              {bfield('Business Name', 'business_name', business, bf, fld)}
+              {bfield('Business Type', 'business_type', business, bf, fld)}
+              {bfield('Website', 'website', business, bf, fld, '1 / -1')}
+            </div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Physical Address</div>
+            <div style={grid}>
+              {bfield('Address Line 1', 'address1', business, bf, fld, '1 / -1')}
+              {bfield('Address Line 2', 'address2', business, bf, fld, '1 / -1')}
+              {bfield('City', 'city', business, bf, fld)}
+              {bfield('State', 'state', business, bf, fld)}
+              {bfield('Zip Code', 'zip', business, bf, fld)}
+              {bfield('Country', 'country', business, bf, fld)}
+            </div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Registration & Status</div>
+            <div style={grid}>
+              {bfield('Company Status', 'company_status', business, bf, fld)}
+              {bfield('Business Registration # (EIN)', 'ein', business, bf, fld)}
+            </div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Points of Contact</div>
+            <div style={grid}>
+              {bfield('Name', 'poc_name', business, bf, fld)}
+              {bfield('Email', 'poc_email', business, bf, fld)}
+              {bfield('Title', 'poc_title', business, bf, fld)}
+              {bfield('Phone Number', 'poc_phone', business, bf, fld)}
+              {bfield('Job Position', 'poc_job_position', business, bf, fld)}
+            </div>
           </section>
 
           <div>

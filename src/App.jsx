@@ -16,6 +16,7 @@ const SocialMedia = lazy(() => import('./pages/SocialMedia'))
 const BlogPosts = lazy(() => import('./pages/BlogPosts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Updates = lazy(() => import('./pages/Updates'))
+const Inbox = lazy(() => import('./pages/Inbox'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Automations = lazy(() => import('./pages/Automations'))
@@ -32,6 +33,7 @@ const navSections = [
     // were retired 2026-07-09 \u2014 everything lives on the Transactions board.
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
+    { path: '/inbox', label: 'Inbox', icon: '\u2709' },
   ]},
   { label: 'WORK', items: [
     { path: '/tasks', label: 'Tasks', icon: '\u2610' },
@@ -147,6 +149,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/clients" element={<Clients />} />
+            <Route path="/inbox" element={<Inbox />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/notes" element={<Notes />} />

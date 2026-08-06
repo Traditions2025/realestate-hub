@@ -632,6 +632,32 @@ export async function initDb() {
     )
   `)
 
+  // ---- INBOX / COMMUNICATIONS: unified feed of calls, texts, emails, voicemails ----
+  // Lean by design: store a short preview + provider id; full bodies stay light
+  // (only client-matched incoming items are ever stored). Populated going forward.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS communications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      channel TEXT,             -- email | text | call | voicemail
+      direction TEXT,           -- incoming | outgoing
+      client_id INTEGER,        -- matched hub client (rows only stored when matched)
+      contact_name TEXT,        -- denormalized for display
+      from_addr TEXT,
+      to_addr TEXT,
+      subject TEXT,
+      preview TEXT,             -- short snippet for the list
+      body TEXT,                -- optional fuller content (texts/short msgs); may be null
+      external_id TEXT UNIQUE,  -- provider message id (dedupe)
+      thread_key TEXT,          -- conversation grouping key
+      status TEXT DEFAULT 'unread',  -- unread | read | closed
+      has_attachment INTEGER DEFAULT 0,
+      occurred_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_status ON communications(status, occurred_at DESC)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_client ON communications(client_id, occurred_at DESC)') } catch {}
+
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`
     CREATE TABLE IF NOT EXISTS automation_events (
