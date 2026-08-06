@@ -896,42 +896,37 @@ router.post('/webhook', async (req, res) => {
   }
 })
 
-// DIAGNOSTIC (read-only): what email fields does Sierra actually return? Checks
-// both the /leads/find payload (what the sync sees) and the full lead detail.
+// DIAGNOSTIC (read-only): deep-scan lead detail for a SECOND email anywhere in
+// the object (incl. nested co-borrower/partner contacts), and report where it lives.
 router.get('/_email-fields', async (_req, res) => {
+  const findEmails = (obj, path, out) => {
+    if (obj == null) return out
+    if (typeof obj === 'string') { if (/^[\w.+-]+@[\w-]+\.[\w.-]+$/.test(obj) && !/notvalidemail/i.test(obj)) out.push({ path, email: obj.toLowerCase() }); return out }
+    if (Array.isArray(obj)) { obj.forEach((v, i) => findEmails(v, `${path}[${i}]`, out)); return out }
+    if (typeof obj === 'object') { for (const k of Object.keys(obj)) findEmails(obj[k], path ? `${path}.${k}` : k, out); return out }
+    return out
+  }
   try {
-    const data = await sierraGet('/leads/find', { pageSize: 50, pageNumber: 1 })
-    const rd = data.data || data
-    const leads = rd.leads || []
-    const emailFieldNames = new Set()
-    let multiExample = null
-    for (const l of leads) {
-      for (const k of Object.keys(l)) if (/email/i.test(k)) emailFieldNames.add(k)
-      if (!multiExample) {
-        if (Array.isArray(l.emails) && l.emails.length > 1) multiExample = { id: l.id, via: 'emails[]', emails: l.emails }
-        else if (l.secondaryEmail || l.email2 || l.additionalEmails || l.alternateEmail) multiExample = { id: l.id, via: 'field', secondaryEmail: l.secondaryEmail, email2: l.email2, additionalEmails: l.additionalEmails, alternateEmail: l.alternateEmail }
-      }
-    }
-    const first = leads[0] || {}
-    const findEmailFields = {}; for (const k of emailFieldNames) findEmailFields[k] = first[k]
-
-    // full lead detail — may carry more than the list
-    let detailEmailFields = null, detailAllKeys = null, detailErr = null
-    for (const ep of [`/leads/get/${first.id}`, `/leads/${first.id}`]) {
-      try {
-        const dd = await sierraGet(ep); const dl = dd.data || dd
-        detailAllKeys = Object.keys(dl)
-        detailEmailFields = {}; for (const k of Object.keys(dl)) if (/email/i.test(k)) detailEmailFields[k] = dl[k]
-        detailErr = `ok via ${ep}`; break
-      } catch (e) { detailErr = (detailErr ? detailErr + ' | ' : '') + `${ep}: ${e.message}` }
+    const data = await sierraGet('/leads/find', { pageSize: 40, pageNumber: 1 })
+    const leads = (data.data || data).leads || []
+    let sampleDetailKeys = null, scanned = 0
+    const multiEmailLeads = []
+    for (const l of leads.slice(0, 15)) {   // full detail for the first 15
+      let dl = null
+      for (const ep of [`/leads/get/${l.id}`, `/leads/${l.id}`]) { try { const dd = await sierraGet(ep); dl = dd.data || dd; break } catch {} }
+      if (!dl) continue
+      scanned++
+      if (!sampleDetailKeys) sampleDetailKeys = Object.keys(dl)
+      const emails = findEmails(dl, '', [])
+      const distinct = [...new Map(emails.map(e => [e.email, e])).values()]
+      if (distinct.length > 1) multiEmailLeads.push({ id: l.id, name: `${l.firstName || ''} ${l.lastName || ''}`.trim(), emails_found: distinct })
+      if (multiEmailLeads.length >= 3) break
     }
     res.json({
-      leads_scanned: leads.length,
-      find_email_field_names: [...emailFieldNames],
-      find_first_lead_email_fields: findEmailFields,
-      multi_email_example: multiExample,
-      detail_endpoint: detailErr,
-      detail_email_fields: detailEmailFields,
+      details_scanned: scanned,
+      leads_with_2plus_emails: multiEmailLeads.length,
+      examples: multiEmailLeads,
+      sample_lead_top_level_keys: sampleDetailKeys,
     })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
