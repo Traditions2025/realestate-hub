@@ -116,5 +116,6 @@ router.post('/:id/read', (req, res) => { db.run("UPDATE communications SET statu
 router.post('/:id/unread', (req, res) => { db.run("UPDATE communications SET status='unread' WHERE id=?", [Number(req.params.id)]); res.json({ success: true }) })
 router.post('/thread/:clientId/read', (req, res) => { db.run("UPDATE communications SET status='read' WHERE client_id=? AND status='unread'", [Number(req.params.clientId)]); res.json({ success: true }) })
 router.post('/thread/:clientId/close', (req, res) => { db.run("UPDATE communications SET status='closed' WHERE client_id=?", [Number(req.params.clientId)]); res.json({ success: true }) })
+router.delete('/:id', (req, res) => { db.run('DELETE FROM communications WHERE id=?', [Number(req.params.id)]); res.json({ success: true }) })
 
 export default router
