@@ -56,7 +56,7 @@ async function sendGridSingleSends() {
 // Activity API (works even for sends that were NOT category-tagged, like the
 // pre-tracking Hub batches). Requires the Email Activity add-on on the account;
 // returns null if it isn't available.
-async function messageActivityStats(subject, dayIso) {
+async function fetchActivityMessages(subject, dayIso) {
   if (!SENDGRID_API_KEY || !subject) return null
   try {
     const day = String(dayIso || '').slice(0, 10) || new Date().toISOString().slice(0, 10)
@@ -67,18 +67,67 @@ async function messageActivityStats(subject, dayIso) {
     const url = `https://api.sendgrid.com/v3/messages?limit=1000&query=${encodeURIComponent(q)}`
     const r = await fetch(url, { headers: { Authorization: `Bearer ${SENDGRID_API_KEY}` } })
     if (!r.ok) return null
-    const msgs = (await r.json()).messages || []
-    if (!msgs.length) return { delivered: 0, unique_opens: 0, unique_clicks: 0, bounces: 0, unsubscribes: 0, _source: 'activity' }
-    return {
-      delivered: msgs.filter(m => m.status === 'delivered').length || msgs.length,
-      unique_opens: msgs.filter(m => (m.opens_count || 0) > 0).length,
-      unique_clicks: msgs.filter(m => (m.clicks_count || 0) > 0).length,
-      bounces: msgs.filter(m => m.status === 'bounce' || m.status === 'not_delivered').length,
-      unsubscribes: 0,
-      _source: 'activity',
-    }
+    return (await r.json()).messages || []
   } catch { return null }
 }
+async function messageActivityStats(subject, dayIso) {
+  const msgs = await fetchActivityMessages(subject, dayIso)
+  if (msgs == null) return null
+  if (!msgs.length) return { delivered: 0, unique_opens: 0, unique_clicks: 0, bounces: 0, unsubscribes: 0, _source: 'activity' }
+  return {
+    delivered: msgs.filter(m => m.status === 'delivered').length || msgs.length,
+    unique_opens: msgs.filter(m => (m.opens_count || 0) > 0).length,
+    unique_clicks: msgs.filter(m => (m.clicks_count || 0) > 0).length,
+    bounces: msgs.filter(m => m.status === 'bounce' || m.status === 'not_delivered').length,
+    unsubscribes: 0,
+    _source: 'activity',
+  }
+}
+
+// The actual sent email (subject/from/body) — pulled from our own email_log so we
+// show exactly what went out. Match by campaign_id first, else by subject.
+router.get('/email-content', (req, res) => {
+  const { subject, campaign_id } = req.query
+  let row
+  if (campaign_id && /^\d+$/.test(campaign_id)) row = db.get('SELECT subject, from_name, from_email, body, sent_at FROM email_log WHERE campaign_id=? AND body IS NOT NULL ORDER BY sent_at DESC LIMIT 1', [Number(campaign_id)])
+  if (!row && subject) row = db.get('SELECT subject, from_name, from_email, body, sent_at FROM email_log WHERE subject=? AND body IS NOT NULL ORDER BY sent_at DESC LIMIT 1', [subject])
+  if (!row) return res.status(404).json({ error: 'No stored copy of this email was found. (Emails sent outside the Hub don’t keep a body copy here.)' })
+  res.json(row)
+})
+
+// Who opened / clicked / bounced / unsubscribed — the recipient list behind a number.
+router.get('/recipients', async (req, res) => {
+  const { subject, date, metric = 'opens' } = req.query
+  const msgs = await fetchActivityMessages(subject, date)
+  if (msgs == null) return res.status(200).json({ metric, count: 0, recipients: [], note: 'SendGrid activity feed unavailable.' })
+  let rows
+  if (metric === 'opens') rows = msgs.filter(m => (m.opens_count || 0) > 0)
+  else if (metric === 'clicks') rows = msgs.filter(m => (m.clicks_count || 0) > 0)
+  else if (metric === 'bounces') rows = msgs.filter(m => m.status === 'bounce' || m.status === 'not_delivered')
+  else if (metric === 'delivered' || metric === 'sent') rows = msgs.filter(m => m.status === 'delivered')
+  else rows = msgs
+  let recipients = rows.map(m => ({ email: m.to_email, status: m.status, opens: m.opens_count || 0, clicks: m.clicks_count || 0, last_event_time: m.last_event_time }))
+
+  // unsubscribes aren't on the message object — intersect this send's recipients
+  // with SendGrid's global unsubscribe suppression list.
+  if (metric === 'unsubscribes') {
+    let unsub = []
+    try {
+      const r = await fetch('https://api.sendgrid.com/v3/suppression/unsubscribes?limit=500', { headers: { Authorization: `Bearer ${SENDGRID_API_KEY}` } })
+      if (r.ok) unsub = (await r.json()).map(u => String(u.email).toLowerCase())
+    } catch {}
+    const set = new Set(unsub)
+    recipients = msgs.map(m => m.to_email).filter(e => set.has(String(e).toLowerCase())).map(email => ({ email, status: 'unsubscribed' }))
+  }
+
+  // attach the contact's name from our CRM
+  for (const r of recipients) {
+    const c = db.get('SELECT id, first_name, last_name FROM clients WHERE lower(email) = lower(?) LIMIT 1', [r.email])
+    r.name = c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : ''
+    r.client_id = c ? c.id : null
+  }
+  res.json({ metric, count: recipients.length, recipients })
+})
 
 // Diagnostic: is open/click tracking on, and is the Email Activity API reachable?
 router.get('/_diag', async (req, res) => {

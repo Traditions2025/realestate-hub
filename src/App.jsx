@@ -50,7 +50,7 @@ const navSections = [
     { path: '/partners', label: 'Partners', icon: '\u2694' },
   ]},
   { label: 'SYSTEM', items: [
-    { path: '/reporting', label: 'Reporting', icon: '\ud83d\udcca' },
+    { path: '/reporting', label: 'Reporting', icon: '\u25a4' },
     { path: '/updates', label: 'Updates', icon: '\u27f3' },
     { path: '/settings', label: 'Settings', icon: '\u2699' },
   ]},
@@ -121,7 +121,7 @@ export default function App() {
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                   onClick={closeSidebar}
                 >
-                  <span className="nav-icon">{item.icon}</span>
+                  <span className="nav-icon" style={{ fontVariantEmoji: 'text' }}>{item.icon + String.fromCharCode(0xFE0E)}</span>
                   <span className="nav-label">{item.label}</span>
                 </NavLink>
               ))}
@@ -135,7 +135,7 @@ export default function App() {
             title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
             aria-label="Toggle theme"
           >
-            {theme === 'dark' ? '☀ Light Mode' : '🌙 Dark Mode'}
+            <span style={{ fontVariantEmoji: 'text' }}>{theme === 'dark' ? '☼ Light Mode' : '☾ Dark Mode'}</span>
           </button>
           <div className="team-sub">RE/MAX Concepts &middot; Cedar Rapids IA</div>
         </div>

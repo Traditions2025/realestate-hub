@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
+import Modal from '../components/Modal'
 
 const ago = (ts) => {
   if (!ts) return ''
@@ -17,11 +18,18 @@ export default function Reporting() {
   const [tab, setTab] = useState('email')
   const [campaigns, setCampaigns] = useState(null)
   const [sendgrid, setSendgrid] = useState(true)
+  const [preview, setPreview] = useState(null)      // { subject, campaign_id }
+  const [people, setPeople] = useState(null)        // { subject, date, metric, label }
 
   const load = () => authFetch('/api/reporting/campaigns').then(r => r.json()).then(d => { setCampaigns(d.campaigns || []); setSendgrid(d.sendgrid !== false) }).catch(() => setCampaigns([]))
   useEffect(() => { load() }, [])
 
-  const stat = (n, den, color) => <span style={{ color }}>{n || 0} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({pct(n, den)})</span></span>
+  // A metric number becomes a button when there's a count to drill into.
+  const stat = (n, den, color, onClick) => {
+    const inner = <>{n || 0} <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>({pct(n, den)})</span></>
+    if (!onClick || !(n > 0)) return <span style={{ color }}>{inner}</span>
+    return <button onClick={onClick} title="See who" style={{ color, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>{inner}</button>
+  }
 
   return (
     <div className="page">
@@ -66,24 +74,29 @@ export default function Reporting() {
               const dash = <span style={{ color: 'var(--text-muted)' }} title="Engagement not tracked (sent before per-campaign tracking)">—</span>
               const s = c.stats || {}
               const opens = s.unique_opens || 0, clicks = s.unique_clicks || 0
+              const campaignId = /^\d+$/.test(String(c.id)) ? c.id : null
+              const openPeople = (metric, label) => setPeople({ subject: c.subject, date: c.created_at, metric, label })
               return (
                 <tr key={c.id}>
                   <td style={td}>
-                    <div style={{ fontWeight: 600, color: 'var(--accent, #2563eb)', maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {c.subject}
+                    <div style={{ maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      <button onClick={() => setPreview({ subject: c.subject, campaign_id: campaignId })} title="Open the email that was sent"
+                        style={{ fontWeight: 600, color: 'var(--accent, #2563eb)', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
+                        {c.subject}
+                      </button>
                       {c.source === 'sendgrid' && <span style={{ marginLeft: 8, fontSize: 10, background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }}>SendGrid</span>}
                       {c.source === 'hub-log' && <span style={{ marginLeft: 8, fontSize: 10, background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }} title="Sent from the Hub before per-campaign tracking existed">Hub (log)</span>}
                     </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>From: {c.from_name || 'Matt Smith Team'}</div>
                   </td>
-                  <td style={{ ...td, color: 'var(--text-muted)' }}>🕒 {ago(c.created_at)}</td>
-                  <td style={td}>{c.status === 'finished' ? <span style={{ color: '#10b981' }}>✓ Finished</span> : <span style={{ color: '#f59e0b' }}>⏳ Sending</span>}</td>
-                  <td style={td}>✉ {c.recipients || 0}</td>
-                  <td style={td}>➤ {c.sent || 0}</td>
-                  <td style={td}>{noStats ? dash : stat(opens, c.sent, '#10b981')}</td>
-                  <td style={td}>{noStats ? dash : stat(clicks, c.sent, '#3b82f6')}</td>
-                  <td style={td}>{noStats ? dash : stat(s.unsubscribes, c.sent, '#f59e0b')}</td>
-                  <td style={td}>{noStats ? dash : stat(s.bounces, c.recipients, '#ef4444')}</td>
+                  <td style={{ ...td, color: 'var(--text-muted)' }}>{ago(c.created_at)}</td>
+                  <td style={td}>{c.status === 'finished' ? <span style={{ color: '#10b981' }}>✓ Finished</span> : <span style={{ color: '#f59e0b' }}>Sending…</span>}</td>
+                  <td style={td}>{c.recipients || 0}</td>
+                  <td style={td}>{c.sent || 0}</td>
+                  <td style={td}>{noStats ? dash : stat(opens, c.sent, '#10b981', () => openPeople('opens', 'Opened'))}</td>
+                  <td style={td}>{noStats ? dash : stat(clicks, c.sent, '#3b82f6', () => openPeople('clicks', 'Clicked'))}</td>
+                  <td style={td}>{noStats ? dash : stat(s.unsubscribes, c.sent, '#f59e0b', () => openPeople('unsubscribes', 'Unsubscribed'))}</td>
+                  <td style={td}>{noStats ? dash : stat(s.bounces, c.recipients, '#ef4444', () => openPeople('bounces', 'Bounced'))}</td>
                 </tr>
               )
             })}
@@ -92,8 +105,67 @@ export default function Reporting() {
       </div>
 
       <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
-        Opens/clicks require open- &amp; click-tracking enabled in SendGrid (Settings → Tracking) and can take a few hours to populate after a send. % is of Sent (bounces are of Recipients).
+        Click a subject to view the email that went out. Click any opens/clicks/unsubscribes/bounces number to see exactly who. Opens/clicks can take a few hours to populate after a send. % is of Sent (bounces are of Recipients).
       </p>
+
+      {preview && <EmailPreview {...preview} onClose={() => setPreview(null)} />}
+      {people && <PeopleList {...people} onClose={() => setPeople(null)} />}
     </div>
+  )
+}
+
+function EmailPreview({ subject, campaign_id, onClose }) {
+  const [data, setData] = useState(undefined) // undefined=loading, null=not found
+  useEffect(() => {
+    const p = new URLSearchParams()
+    if (subject) p.set('subject', subject)
+    if (campaign_id) p.set('campaign_id', campaign_id)
+    authFetch('/api/reporting/email-content?' + p).then(r => r.ok ? r.json() : null).then(setData).catch(() => setData(null))
+  }, [subject, campaign_id])
+  return (
+    <Modal open onClose={onClose} title="Email sent" wide>
+      {data === undefined ? <div style={{ padding: 20, color: 'var(--text-muted)' }}>Loading email…</div>
+        : data === null ? <div style={{ padding: 20, color: 'var(--text-muted)' }}>No stored copy of this email is available. (Emails sent outside the Hub don’t keep a body copy here.)</div>
+          : (
+            <div>
+              <div style={{ padding: '8px 12px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <div><strong>Subject:</strong> {data.subject}</div>
+                <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>From: {data.from_name || 'Matt Smith Team'}{data.from_email ? ` <${data.from_email}>` : ''} · {data.sent_at ? String(data.sent_at).replace('T', ' ').slice(0, 16) : ''}</div>
+              </div>
+              <iframe title="email" srcDoc={data.body || ''} style={{ width: '100%', height: 520, border: 0, background: '#fff' }} />
+            </div>
+          )}
+    </Modal>
+  )
+}
+
+function PeopleList({ subject, date, metric, label, onClose }) {
+  const [data, setData] = useState(undefined)
+  useEffect(() => {
+    const p = new URLSearchParams({ subject: subject || '', date: (date || '').slice(0, 10), metric })
+    authFetch('/api/reporting/recipients?' + p).then(r => r.json()).then(setData).catch(() => setData({ recipients: [] }))
+  }, [subject, date, metric])
+  const rows = data?.recipients || []
+  return (
+    <Modal open onClose={onClose} title={`${label} — ${rows.length} ${rows.length === 1 ? 'contact' : 'contacts'}`} wide>
+      {data === undefined ? <div style={{ padding: 20, color: 'var(--text-muted)' }}>Loading…</div>
+        : rows.length === 0 ? <div style={{ padding: 20, color: 'var(--text-muted)', textAlign: 'center' }}>No contacts to show for “{label.toLowerCase()}”.</div>
+          : (
+            <table className="data-table">
+              <thead><tr><th>Contact</th><th>Email</th>{metric === 'opens' && <th>Opens</th>}{metric === 'clicks' && <th>Clicks</th>}<th>When</th></tr></thead>
+              <tbody>
+                {rows.map((r, i) => (
+                  <tr key={i}>
+                    <td>{r.name || <span className="muted">—</span>}</td>
+                    <td>{r.email}</td>
+                    {metric === 'opens' && <td>{r.opens}</td>}
+                    {metric === 'clicks' && <td>{r.clicks}</td>}
+                    <td className="muted" style={{ fontSize: 12 }}>{r.last_event_time ? String(r.last_event_time).replace('T', ' ').slice(0, 16) : ''}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+    </Modal>
   )
 }
