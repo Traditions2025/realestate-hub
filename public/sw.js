@@ -1,6 +1,6 @@
 // MST Hub service worker — instant-load caching for slow mobile networks
-const CACHE_NAME = 'mst-hub-v5'
-const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/logo.png', '/logo-dark.png']
+const CACHE_NAME = 'mst-hub-v6'
+const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {

@@ -72,6 +72,26 @@ export default function App() {
   }, [theme])
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
 
+  // PWA install: Chrome/Android fire beforeinstallprompt; iOS Safari needs a
+  // manual "Add to Home Screen", so we show a short how-to there instead.
+  const [installPrompt, setInstallPrompt] = useState(null)
+  const [isStandalone, setIsStandalone] = useState(false)
+  const [isIos, setIsIos] = useState(false)
+  useEffect(() => {
+    setIsStandalone(window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true)
+    setIsIos(/iphone|ipad|ipod/i.test(window.navigator.userAgent) && !window.MSStream)
+    const onPrompt = (e) => { e.preventDefault(); setInstallPrompt(e) }
+    const onInstalled = () => { setInstallPrompt(null); setIsStandalone(true) }
+    window.addEventListener('beforeinstallprompt', onPrompt)
+    window.addEventListener('appinstalled', onInstalled)
+    return () => { window.removeEventListener('beforeinstallprompt', onPrompt); window.removeEventListener('appinstalled', onInstalled) }
+  }, [])
+  const installApp = async () => {
+    if (installPrompt) { installPrompt.prompt(); try { await installPrompt.userChoice } catch {} setInstallPrompt(null); return }
+    if (isIos) alert('Install the Hub on your iPhone or iPad:\n\n1. Tap the Share button in Safari (the square with an up arrow)\n2. Scroll down and tap "Add to Home Screen"\n3. Tap "Add"\n\nIt will appear as an app icon on your home screen.')
+  }
+  const canInstall = !isStandalone && (!!installPrompt || isIos)
+
   useEffect(() => {
     const token = localStorage.getItem('mst_token')
     if (!token) return
@@ -131,6 +151,11 @@ export default function App() {
           ))}
         </nav>
         <div className="sidebar-footer">
+          {canInstall && (
+            <button className="theme-toggle" onClick={installApp} title="Install the Hub as an app on your device" style={{ marginBottom: 8 }}>
+              <span style={{ fontVariantEmoji: 'text' }}>⤓ Install App</span>
+            </button>
+          )}
           <button
             className="theme-toggle"
             onClick={toggleTheme}
