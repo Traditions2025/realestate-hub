@@ -1,12 +1,41 @@
 const BASE = '/api'
 
+// ---- Platform + API origin (Capacitor-ready) -------------------------------
+// The SAME frontend bundle runs on the web/PWA (served from the Render origin,
+// so relative "/api/..." is same-origin and works) AND inside the native
+// Capacitor shell (served from capacitor://localhost or http://localhost, where
+// "/api/..." would hit the local shell instead of the backend). We detect the
+// native shell at RUNTIME via the Capacitor global and, only then, resolve API
+// calls against the absolute backend URL. Web behavior is completely unchanged.
+export const isNativeApp = typeof window !== 'undefined' && !!(window.Capacitor && (
+  typeof window.Capacitor.isNativePlatform === 'function' ? window.Capacitor.isNativePlatform() : (window.Capacitor.platform && window.Capacitor.platform !== 'web')
+))
+export const platform = isNativeApp
+  ? ((window.Capacitor && window.Capacitor.getPlatform && window.Capacitor.getPlatform()) || 'native')
+  : (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(display-mode: standalone)').matches ? 'pwa' : 'web')
+
+export const API_ORIGIN = (() => {
+  if (!isNativeApp) return ''   // web / PWA: same-origin, no change
+  try {
+    const o = (typeof window !== 'undefined' && (window.__HUB_API_ORIGIN || localStorage.getItem('hub_api_origin')))
+    if (o) return String(o).replace(/\/$/, '')     // dev override for pointing native at a local/staging backend
+  } catch {}
+  return 'https://realestate-hub-1rzu.onrender.com' // native default: production backend
+})()
+
+// Resolve any app URL (relative "/api/..." or already-absolute) to a fetchable URL.
+export function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) return path
+  return API_ORIGIN + (String(path).startsWith('/') ? path : '/' + path)
+}
+
 function getToken() {
   return localStorage.getItem('mst_token') || ''
 }
 
 async function request(path, options = {}) {
   const token = getToken()
-  const res = await fetch(`${BASE}${path}`, {
+  const res = await fetch(apiUrl(`${BASE}${path}`), {
     headers: {
       'Content-Type': 'application/json',
       'x-auth-token': token,
@@ -39,7 +68,7 @@ export const api = {
   getClients: (params) => request('/clients?' + new URLSearchParams(params || {})),
   getClientsPaged: async (params) => {
     const token = getToken()
-    const url = `${BASE}/clients?` + new URLSearchParams(params || {})
+    const url = apiUrl(`${BASE}/clients?` + new URLSearchParams(params || {}))
     const res = await fetch(url, { headers: { 'Content-Type': 'application/json', 'x-auth-token': token } })
     if (res.status === 401) { localStorage.removeItem('mst_token'); window.location.reload(); throw new Error('Unauthorized') }
     if (!res.ok) throw new Error(`API error: ${res.status}`)
@@ -97,7 +126,7 @@ export const api = {
 // Export for pages that use fetch() directly
 export function authFetch(url, options = {}) {
   const token = getToken()
-  return fetch(url, {
+  return fetch(apiUrl(url), {
     ...options,
     headers: {
       'Content-Type': 'application/json',

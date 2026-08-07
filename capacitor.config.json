@@ -1,0 +1,19 @@
+{
+  "appId": "com.mattsmithteam.hub",
+  "appName": "HUB",
+  "webDir": "dist",
+  "backgroundColor": "#0f172a",
+  "server": {
+    "androidScheme": "https"
+  },
+  "ios": {
+    "contentInset": "always"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 800,
+      "backgroundColor": "#0f172a",
+      "showSpinner": false
+    }
+  }
+}
