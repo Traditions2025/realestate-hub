@@ -580,13 +580,18 @@ export default function Clients() {
     // Follow Up Boss web activity — lazy-loaded LIVE from FUB (property views w/ address,
     // page visits, saved searches). Falls back to any stored rows if not linked.
     authFetch(`/api/fub/activity/live?client_id=${id}`).then(r => r.json())
-      .then(d => setFubActivity(Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : [])))
+      .then(d => {
+        const arr = Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : [])
+        // newest first
+        setFubActivity(arr.slice().sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0)))
+      })
       .catch(() => setFubActivity([]))
     // Lazy-load Sierra activity + listing interest if it's a Sierra-synced lead
     if (d.sierra_lead_id) {
       authFetch(`/api/sierra/lead-notes/${d.sierra_lead_id}`)
         .then(r => r.json())
-        .then(setSierraActivity)
+        // newest first
+        .then(a => setSierraActivity(Array.isArray(a) ? a.slice().sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0)) : []))
         .catch(() => setSierraActivity([]))
       authFetch(`/api/sierra/lead-listings/${d.sierra_lead_id}`)
         .then(r => r.json())
