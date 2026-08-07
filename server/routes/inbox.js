@@ -2,9 +2,12 @@ import { Router } from 'express'
 import Busboy from 'busboy'
 import db from '../database.js'
 import { sendViaSendGrid } from './email.js'
+import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
 
 const router = Router()
 const nowIso = () => new Date().toISOString()
+const stripHtml = (s) => String(s == null ? '' : s).replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
+const clip = (s, n) => { const t = String(s == null ? '' : s); return t.length > n ? t.slice(0, n) + '…' : t }
 
 // last-10-digit phone key (same rule the Sierra matcher uses)
 function phoneKey(p) {
@@ -62,7 +65,10 @@ router.get('/', (req, res) => {
     t.channels.add(r.channel)
     // rows are newest-first, so the first seen is the latest
   }
-  const list = [...threads.values()].map(t => ({ ...t, channels: [...t.channels] }))
+  // lightweight AI intent hint per conversation (from the last analysis)
+  const intents = {}
+  try { for (const r of db.all('SELECT client_id, intent FROM inbox_ai WHERE intent IS NOT NULL')) intents[r.client_id] = r.intent } catch {}
+  const list = [...threads.values()].map(t => ({ ...t, channels: [...t.channels], ai_intent: t.client_id ? (intents[t.client_id] || null) : null }))
   const totalUnread = db.get("SELECT COUNT(*) c FROM communications WHERE direction='incoming' AND status='unread'").c
   res.json({ conversations: list, total_unread: totalUnread })
 })
@@ -196,6 +202,130 @@ router.post('/parse-inbound', parseMultipart, (req, res) => {
     ['email', 'incoming', client.id, name, fromEmail, b.to || '', b.subject || '(no subject)', preview,
       String(b.html || b.text || ''), externalId, `c${client.id}_email`, 'unread', b._hasAttachment ? 1 : 0, nowIso()])
   res.status(200).json({ matched: true, id: r.lastInsertRowid })
+})
+
+// =====================================================================
+// AI SUGGESTED REPLY — analyze the incoming email + the full thread + the
+// client's HUB/FUB context, then draft a warm, on-point reply. Cached per
+// conversation (inbox_ai), keyed to the latest incoming message so it isn't
+// regenerated on every open. Reuses the follow-up AI stack.
+// =====================================================================
+const INTENTS = ['Needs Response', 'Question', 'Scheduling Request', 'Property Interest', 'High Intent', 'Information Request', 'No Response Needed']
+
+const REPLY_SYSTEM = `You are drafting a REPLY as Matt Smith (Matt Smith Team, RE/MAX Concepts, Cedar Rapids / Marion, Iowa) to a client's email. Use ONLY the client records and the email thread provided.
+
+First identify what the client is actually asking or telling you (their intent), then write a reply that directly addresses THAT, not a generic acknowledgement.
+
+HARD RULES
+- Never use em dashes or en dashes. Use commas, periods, or the word "to".
+- Never invent facts, promises, prices, dates, or availability. Use only what is in the records and thread. If you don't know something, say you'll find out.
+- Warm, approachable, conversational, personal, friendly, natural, confident, helpful. Like a real person replying to someone they already know. Not formal, corporate, stiff, or salesy.
+- Do NOT use filler like "Thank you for reaching out", "I hope this email finds you well", "Please do not hesitate to contact me", "I wanted to follow up", or "Checking in". Just reply naturally.
+- Address their real intent. Add a natural next step ONLY when it fits (answer the question, offer info, suggest a call or appointment, ask one simple clarifying question, send a property, or just continue the conversation with no ask). Do not force a call or appointment into every reply. It is fine to let them know there is no urgency.
+- No signature (the app adds it).
+
+Return ONLY this JSON:
+{
+  "intent": one of ${JSON.stringify(INTENTS)},
+  "summary": "1-2 sentence plain summary of what they're asking and where the relationship stands, or ''",
+  "reply": { "subject": "Re: ...", "body": "the reply text" }
+}`
+
+function parseJson(text) {
+  let t = (text || '').trim()
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) t = fence[1].trim()
+  const s = t.indexOf('{'), e = t.lastIndexOf('}'); if (s >= 0 && e > s) t = t.slice(s, e + 1)
+  return JSON.parse(t)
+}
+const latestIncomingEmail = (rows) => [...rows].reverse().find(m => m.direction === 'incoming' && m.channel === 'email')
+function threadTranscript(rows) {
+  return rows.slice(-12).map(m => {
+    const who = m.direction === 'outgoing' ? 'Matt (agent)' : (m.contact_name || 'Client')
+    const when = String(m.occurred_at || '').slice(0, 16).replace('T', ' ')
+    const text = m.channel === 'email' ? stripHtml(m.body || m.preview) : (m.body || m.preview || '')
+    return `[${when}] ${who}${m.subject ? ' — ' + m.subject : ''}:\n${clip(text, 900)}`
+  }).join('\n\n')
+}
+async function generateReply(client, rows, adjustInstruction, context, current) {
+  const ai = getAiClient()
+  if (!ai) return { error: 'AI is not configured (ANTHROPIC_API_KEY missing).' }
+  let dossier = {}
+  try { dossier = buildDossier(client, await gatherFub(client.fub_person_id)) } catch {}
+  const transcript = threadTranscript(rows)
+  const extra = (adjustInstruction || context)
+    ? `\nADJUST THE REPLY: ${adjustInstruction || ''}${context ? ` Extra context from the agent, treat as true and important: "${String(context).slice(0, 600)}".` : ''}\n`
+      + (current && current.body ? `CURRENT DRAFT to revise:\nSubject: ${current.subject || ''}\n${current.body}\n` : '')
+    : ''
+  const userMsg = `CLIENT CONTEXT (JSON):\n${JSON.stringify(dossier)}\n\nEMAIL THREAD (oldest to newest):\n${transcript}\n${extra}\nReturn the JSON now.`
+  let msg
+  try { msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 1200, system: REPLY_SYSTEM, messages: [{ role: 'user', content: userMsg }] }) }
+  catch (e) { return { error: e.message } }
+  let out; try { out = parseJson(msg.content?.[0]?.text || '') } catch { return { error: 'AI returned an unreadable response.' } }
+  if (out.summary) out.summary = noDash(out.summary)
+  if (out.reply) { out.reply.subject = noDash(out.reply.subject || ''); out.reply.body = noDash(out.reply.body || '') }
+  return out
+}
+
+// cached suggestion + intent + draft (no model call)
+router.get('/thread/:clientId/ai', (req, res) => {
+  const cid = Number(req.params.clientId)
+  const client = db.get('SELECT id FROM clients WHERE id = ?', [cid])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+  const rows = db.all('SELECT id, direction, channel, occurred_at FROM communications WHERE client_id = ? ORDER BY occurred_at ASC', [cid])
+  const inc = latestIncomingEmail(rows)
+  const row = db.get('SELECT * FROM inbox_ai WHERE client_id = ?', [cid])
+  const parse = (s) => { try { return JSON.parse(s || 'null') } catch { return null } }
+  res.json({
+    ai_available: !!process.env.ANTHROPIC_API_KEY,
+    has_incoming: !!inc,
+    intent: row ? row.intent : null,
+    summary: row ? row.summary : null,
+    suggestion: parse(row && row.suggestion),
+    draft: parse(row && row.draft),
+    stale: inc ? (!row || row.based_on_msg_id !== inc.id) : false,
+  })
+})
+
+// generate / regenerate the suggestion (model call), cache it, keep any draft
+router.post('/thread/:clientId/ai/suggest', async (req, res) => {
+  const cid = Number(req.params.clientId)
+  const client = db.get('SELECT * FROM clients WHERE id = ?', [cid])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+  const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC', [cid])
+  const inc = latestIncomingEmail(rows)
+  if (!inc) return res.json({ has_incoming: false })
+  const out = await generateReply(client, rows)
+  if (out.error) return res.status(502).json({ error: out.error })
+  const suggestion = out.reply ? JSON.stringify(out.reply) : null
+  const existing = db.get('SELECT draft FROM inbox_ai WHERE client_id = ?', [cid])
+  db.run(`INSERT INTO inbox_ai (client_id, based_on_msg_id, intent, summary, suggestion, draft, updated_at) VALUES (?,?,?,?,?,?,?)
+          ON CONFLICT(client_id) DO UPDATE SET based_on_msg_id=excluded.based_on_msg_id, intent=excluded.intent, summary=excluded.summary, suggestion=excluded.suggestion, updated_at=excluded.updated_at`,
+    [cid, inc.id, out.intent || null, out.summary || null, suggestion, existing ? existing.draft : null, nowIso()])
+  res.json({ has_incoming: true, intent: out.intent || null, summary: out.summary || null, suggestion: out.reply || null, stale: false })
+})
+
+// adjust the reply (shorter/casual/direct/warmer/regenerate/free-text context)
+router.post('/thread/:clientId/ai/adjust', async (req, res) => {
+  const cid = Number(req.params.clientId)
+  const client = db.get('SELECT * FROM clients WHERE id = ?', [cid])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+  const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC', [cid])
+  const { instruction, context, current } = req.body || {}
+  const MAP = { shorter: 'Make it noticeably shorter and tighter while keeping the personal hook.', casual: 'Make it warmer and more casual, like texting a friend, still professional enough to send.', direct: 'Make it more direct and to the point, without losing warmth.', warmer: 'Make it warmer and more personal.', regenerate: 'Rewrite it fresh, same intent, new wording and a new natural opening.' }
+  const out = await generateReply(client, rows, MAP[instruction] || (instruction ? '' : 'Rewrite the reply.'), context, current)
+  if (out.error) return res.status(502).json({ error: out.error })
+  res.json({ reply: out.reply || null, intent: out.intent || null, summary: out.summary || null })
+})
+
+// persist the user's edited draft so it survives leaving/returning to the thread
+router.post('/thread/:clientId/draft', (req, res) => {
+  const cid = Number(req.params.clientId)
+  const { subject, body } = req.body || {}
+  const draft = (subject || body) ? JSON.stringify({ subject: subject || '', body: body || '' }) : null
+  const existing = db.get('SELECT client_id FROM inbox_ai WHERE client_id = ?', [cid])
+  if (existing) db.run('UPDATE inbox_ai SET draft = ?, updated_at = ? WHERE client_id = ?', [draft, nowIso(), cid])
+  else db.run('INSERT INTO inbox_ai (client_id, draft, updated_at) VALUES (?,?,?)', [cid, draft, nowIso()])
+  res.json({ success: true })
 })
 
 export default router

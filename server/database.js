@@ -628,6 +628,20 @@ export async function initDb() {
       analyzed_at TEXT
     )
   `)
+  // Inbox AI — one cached suggested reply + intent + user draft per conversation.
+  // based_on_msg_id = the latest incoming message the suggestion was built for
+  // (a newer incoming makes it stale). draft = the user's edited reply, preserved.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS inbox_ai (
+      client_id INTEGER PRIMARY KEY,
+      based_on_msg_id INTEGER,
+      intent TEXT,
+      summary TEXT,
+      suggestion TEXT,
+      draft TEXT,
+      updated_at TEXT
+    )
+  `)
   // idempotency: one successful send per (enrollment, step)
   db.run(`
     CREATE TABLE IF NOT EXISTS drip_executions (

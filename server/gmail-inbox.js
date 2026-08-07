@@ -6,6 +6,27 @@
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import db, { getSetting, setSetting } from './database.js'
+import { sendViaSendGrid } from './routes/email.js'
+
+const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
+
+// Email a heads-up when a client emails the inbox. Recipient is configurable in
+// app_settings (inbox_notify_email); defaults to the team's ops inbox. Fire and
+// forget so it never blocks or breaks the poll loop.
+async function notifyNewInbound(client, subject, preview, fromEmail) {
+  const to = getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
+  if (!to) return
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromEmail
+  const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
+    <p style="margin:0 0 10px;"><strong>${esc(name)}</strong> just emailed the inbox.</p>
+    <p style="margin:0 0 4px;"><strong>From:</strong> ${esc(fromEmail)}</p>
+    <p style="margin:0 0 4px;"><strong>Subject:</strong> ${esc(subject || '(no subject)')}</p>
+    <p style="margin:0 0 14px;color:#475569;">${esc(preview || '')}</p>
+    <p style="margin:0;"><a href="${hub}/inbox" style="color:#2563eb;font-weight:600;">Open it in the Hub Inbox</a></p>
+  </div>`
+  await sendViaSendGrid(to, 'Matt Smith Team', `New inbox email from ${name}`, html, null, [], [], [], 'inbox_notify')
+}
 
 const nowIso = () => new Date().toISOString()
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d } catch { return d } }
@@ -89,6 +110,7 @@ async function pollOne(m) {
               String(parsed.html || parsed.text || ''), extId, `c${c.id}_email`, 'unread',
               (parsed.attachments && parsed.attachments.length) ? 1 : 0, (msg.internalDate || parsed.date || new Date()).toISOString()])
           m.imported = (m.imported || 0) + 1
+          notifyNewInbound(c, parsed.subject, preview, fromEmail).catch(() => {})
         }
         m.cursor = maxUid
       }

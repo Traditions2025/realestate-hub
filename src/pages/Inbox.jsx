@@ -10,6 +10,8 @@ const CHANNELS = [
   { key: 'voicemail', label: 'Voicemails', icon: '🎙', color: '#f59e0b' },
 ]
 const chMeta = (k) => CHANNELS.find(c => c.key === k) || CHANNELS[0]
+const INTENT_COLORS = { 'Needs Response': '#2563eb', 'Question': '#0ea5e9', 'Scheduling Request': '#8b5cf6', 'Property Interest': '#10b981', 'High Intent': '#ef4444', 'Information Request': '#f59e0b', 'No Response Needed': '#64748b' }
+const intentBadgeStyle = (intent) => ({ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
 const FOLDERS = [{ key: 'inbox', label: 'Inbox' }, { key: 'sent', label: 'Sent' }, { key: 'closed', label: 'Closed' }]
 
 const fmtDate = (iso) => {
@@ -33,6 +35,12 @@ export default function Inbox() {
   const [sel, setSel] = useState(null)
   const [thread, setThread] = useState([])
   const [compose, setCompose] = useState(false)
+  // AI suggested reply + editable draft
+  const [ai, setAi] = useState(null)                       // { intent, summary, suggestion, stale, has_incoming, ai_available, error }
+  const [reply, setReply] = useState({ subject: '', body: '' })
+  const [aiBusy, setAiBusy] = useState('')
+  const [aiCtx, setAiCtx] = useState('')
+  const [sending, setSending] = useState(false)
 
   const load = useCallback(() => {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
@@ -44,10 +52,75 @@ export default function Inbox() {
   const openThread = (clientId) => {
     if (!clientId) return
     setSel(clientId)
+    setAi(null); setReply({ subject: '', body: '' }); setAiCtx('')
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
+    // AI: restore a saved draft, else the suggestion; generate on first open / when a newer email arrived
+    authFetch(`/api/inbox/thread/${clientId}/ai`).then(r => r.json()).then(a => {
+      setAi(a)
+      const hasDraft = a.draft && (a.draft.subject || a.draft.body)
+      if (hasDraft) setReply({ subject: a.draft.subject || '', body: a.draft.body || '' })
+      else if (a.suggestion && !a.stale) setReply({ subject: a.suggestion.subject || '', body: a.suggestion.body || '' })
+      else if (a.ai_available && a.has_incoming) generateSuggestion(clientId, true)
+      else if (a.suggestion) setReply({ subject: a.suggestion.subject || '', body: a.suggestion.body || '' })
+    }).catch(() => {})
   }
   const closeThread = (clientId) => authFetch(`/api/inbox/thread/${clientId}/close`, { method: 'POST' }).then(() => { setSel(null); load() })
+
+  // Generate/regenerate the AI suggestion. force=true overwrites the editor
+  // (Regenerate / first open); otherwise it only fills an empty editor.
+  const generateSuggestion = async (cid, force) => {
+    cid = cid || sel; if (!cid) return
+    setAiBusy('suggest')
+    try {
+      const r = await authFetch(`/api/inbox/thread/${cid}/ai/suggest`, { method: 'POST' })
+      const d = await r.json()
+      if (d.error) setAi(a => ({ ...(a || {}), error: d.error }))
+      else {
+        setAi(a => ({ ...(a || {}), intent: d.intent, summary: d.summary, suggestion: d.suggestion, stale: false, has_incoming: d.has_incoming !== false, error: null }))
+        setReply(prev => (force || !(prev.body && prev.body.trim())) ? { subject: d.suggestion?.subject || '', body: d.suggestion?.body || '' } : prev)
+      }
+    } catch (e) { setAi(a => ({ ...(a || {}), error: e.message })) }
+    finally { setAiBusy('') }
+  }
+  const adjustReply = async (instruction, context) => {
+    if (!sel) return
+    setAiBusy(context ? 'context' : instruction)
+    try {
+      const r = await authFetch(`/api/inbox/thread/${sel}/ai/adjust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction, context, current: reply }) })
+      const d = await r.json()
+      if (d.error) alert(d.error)
+      else if (d.reply) { setReply({ subject: d.reply.subject || reply.subject, body: d.reply.body || '' }); if (context) setAiCtx('') }
+    } catch (e) { alert(e.message) }
+    finally { setAiBusy('') }
+  }
+  const useSuggested = () => { if (ai?.suggestion) setReply({ subject: ai.suggestion.subject || '', body: ai.suggestion.body || '' }) }
+  const clearDraft = () => setReply({ subject: '', body: '' })
+  const sendReply = async () => {
+    if (!sel) return
+    if (!reply.body.trim()) { alert('Write a reply first.'); return }
+    const subject = reply.subject.trim() || 'Re: your message'
+    // convert plain text to simple HTML paragraphs
+    const html = reply.body.split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
+    setSending(true)
+    try {
+      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'email', client_ids: [sel], subject, body: html }) })
+      const d = await r.json()
+      if (d.error || !(d.sent > 0)) { alert(d.error || 'Send failed: ' + ((d.results || [])[0]?.error || 'unknown')); return }
+      // clear the draft, refresh the thread + list
+      await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {})
+      setReply({ subject: '', body: '' })
+      authFetch(`/api/inbox/thread/${sel}`).then(x => x.json()).then(setThread).catch(() => {})
+      load()
+    } catch (e) { alert(e.message) }
+    finally { setSending(false) }
+  }
+  // persist the editor as a draft so it survives leaving/returning to the thread
+  useEffect(() => {
+    if (!sel) return
+    const t = setTimeout(() => { authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply) }).catch(() => {}) }, 900)
+    return () => clearTimeout(t)
+  }, [reply, sel])
 
   const toggleChannel = (k) => setChannels(cs => cs.includes(k) ? cs.filter(x => x !== k) : [...cs, k])
   const selConvo = convos && convos.find(c => c.client_id === sel)
@@ -112,6 +185,7 @@ export default function Inbox() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: c.unread_count ? 700 : 600, fontSize: 14 }}>{c.contact_name}</span>
                         {c.msg_count > 1 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
+                        {c.ai_intent && c.ai_intent !== 'No Response Needed' && <span style={intentBadgeStyle(c.ai_intent)}>{c.ai_intent}</span>}
                         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
@@ -173,8 +247,37 @@ export default function Inbox() {
                   )
                 })}
               </div>
-              <div style={{ padding: 12, borderTop: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', textAlign: 'center' }}>
-                Replying from the Hub turns on with the texting feature (Twilio).
+              {/* ===== Reply + AI Suggested Response ===== */}
+              <div style={{ borderTop: '1px solid var(--border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-primary)' }}>
+                {ai && ai.has_incoming && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 Suggested Response</span>
+                    {ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
+                    {ai.stale && <span style={{ fontSize: 11, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
+                    <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={!!aiBusy} onClick={() => generateSuggestion(sel, true)}>{aiBusy === 'suggest' ? '…' : '↻ Regenerate'}</button>
+                  </div>
+                )}
+                {ai && ai.ai_available === false && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>AI is not configured on the server.</div>}
+                {ai && ai.error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{ai.error}</div>}
+                {ai && ai.summary && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 8 }}>{ai.summary}</div>}
+                {aiBusy === 'suggest' && !(ai && ai.summary) && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
+
+                <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={5} placeholder="Write your reply…" style={{ padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={aiCtx} onChange={e => setAiCtx(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustReply(null, aiCtx.trim()) }} placeholder="Add context for the AI (e.g. tell them we can meet Saturday)…" style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                  <button className="btn btn-sm" disabled={!!aiBusy || !aiCtx.trim()} onClick={() => adjustReply(null, aiCtx.trim())}>{aiBusy === 'context' ? '…' : 'Apply'}</button>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {ai && ai.suggestion && <button className="btn btn-sm" disabled={!!aiBusy} onClick={useSuggested}>Use suggested</button>}
+                  {[['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['warmer', 'Warmer']].map(([k, l]) => (
+                    <button key={k} className="btn btn-sm" disabled={!!aiBusy || !reply.body.trim()} onClick={() => adjustReply(k)}>{aiBusy === k ? '…' : l}</button>
+                  ))}
+                  <button className="btn btn-sm" disabled={!reply.body.trim()} onClick={clearDraft}>Clear</button>
+                  <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || !reply.body.trim()} onClick={sendReply}>{sending ? 'Sending…' : '✉ Send reply'}</button>
+                </div>
               </div>
             </>
           )}

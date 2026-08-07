@@ -286,4 +286,8 @@ router.post('/:clientId/email', async (req, res) => {
   }
 })
 
+// Reusable AI + context building blocks for other features (e.g. the Inbox
+// suggested-reply). Same Claude client, FUB pull, dossier, and dash scrubbing.
+export { MODEL as AI_MODEL, getClient as getAiClient, gatherFub, buildDossier, noDash }
+
 export default router
