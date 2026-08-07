@@ -788,6 +788,21 @@ ${signature}
   })
 }
 
+// ---- Global safety net ----------------------------------------------------
+// Node 15+ terminates the process on an UNHANDLED promise rejection by default
+// (this surfaces as Render's "Exited with status 1"). A single stray rejection
+// in one request or scheduled job should not take the whole Hub offline — log
+// it loudly and stay up. A truly uncaught synchronous exception may leave the
+// process in an unknown state, so we log and exit for a clean restart (Render
+// restarts automatically; the DB has atomic saves + multi-layer backups).
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection] kept the Hub alive:', reason && reason.stack ? reason.stack : reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[uncaughtException] exiting for a clean restart:', err && err.stack ? err.stack : err)
+  process.exit(1)
+})
+
 start().catch(err => {
   console.error('Failed to start server:', err)
   process.exit(1)
