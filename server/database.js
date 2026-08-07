@@ -618,6 +618,16 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_drip_due ON drip_enrollments(status, next_run_at)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_drip_client ON drip_enrollments(drip_id, client_id)') } catch {}
+  // AI Suggested Follow-Up — one cached recommendation + FUB dossier per client
+  db.run(`
+    CREATE TABLE IF NOT EXISTS followup_recommendations (
+      client_id INTEGER PRIMARY KEY,
+      data TEXT,
+      fub_data TEXT,
+      fingerprint TEXT,
+      analyzed_at TEXT
+    )
+  `)
   // idempotency: one successful send per (enrollment, step)
   db.run(`
     CREATE TABLE IF NOT EXISTS drip_executions (
