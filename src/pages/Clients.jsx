@@ -509,6 +509,12 @@ export default function Clients() {
   const [hubActivity, setHubActivity] = useState(null)
   const [fubActivity, setFubActivity] = useState(null)
   const [sequences, setSequences] = useState(null)
+  // AI Suggested Follow-Up
+  const [followup, setFollowup] = useState(null)        // { exists, enough_data, recommendation, why, known, summary, email, analyzed_at, stale, ai_available }
+  const [followupLoading, setFollowupLoading] = useState(false)
+  const [followupErr, setFollowupErr] = useState('')
+  const [fuEmail, setFuEmail] = useState(null)          // editable { subject, body }
+  const [fuEmailBusy, setFuEmailBusy] = useState('')
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
@@ -571,6 +577,14 @@ export default function Clients() {
     setSequences(null)
     // Currently-running plans (drips + automations) for this lead
     authFetch(`/api/clients/${id}/sequences`).then(r => r.json()).then(setSequences).catch(() => setSequences({ drips: [], automations: [] }))
+    // AI Suggested Follow-Up — load the cached analysis; auto-generate the first
+    // time this lead is opened (never re-runs the model on later opens).
+    setFollowup(null); setFollowupErr(''); setFuEmail(null)
+    authFetch(`/api/followup/${id}`).then(r => r.json()).then(fu => {
+      setFollowup(fu)
+      if (fu && fu.email) setFuEmail({ subject: fu.email.subject || '', body: fu.email.body || '' })
+      if (fu && fu.exists === false && fu.ai_available) analyzeFollowup(id)
+    }).catch(() => {})
     // reset per-client detail UI state
     setTagsExpanded(false); setFubExpanded(false); setListingActExpanded(false)
     setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText('')
@@ -613,6 +627,44 @@ export default function Clients() {
   const fmtWhen = (iso) => {
     if (!iso) return '—'
     try { return new Date(iso).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT' } catch { return iso }
+  }
+
+  // ---- AI Suggested Follow-Up ----
+  const analyzeFollowup = async (idArg) => {
+    const cid = idArg || detail?.id
+    if (!cid) return
+    setFollowupLoading(true); setFollowupErr('')
+    try {
+      const r = await authFetch(`/api/followup/${cid}/analyze`, { method: 'POST' })
+      const d = await r.json()
+      if (d.error) setFollowupErr(d.error)
+      else { setFollowup(d); setFuEmail(d.email ? { subject: d.email.subject || '', body: d.email.body || '' } : null) }
+    } catch (e) { setFollowupErr(e.message) }
+    finally { setFollowupLoading(false) }
+  }
+  const adjustFollowupEmail = async (instruction) => {
+    if (!detail?.id || !fuEmail) return
+    setFuEmailBusy(instruction); setFollowupErr('')
+    try {
+      const r = await authFetch(`/api/followup/${detail.id}/email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction, current: fuEmail }) })
+      const d = await r.json()
+      if (d.error) setFollowupErr(d.error)
+      else if (d.email) setFuEmail({ subject: d.email.subject || '', body: d.email.body || '' })
+    } catch (e) { setFollowupErr(e.message) }
+    finally { setFuEmailBusy('') }
+  }
+  const useFollowupEmail = () => {
+    if (!fuEmail) return
+    const html = (fuEmail.body || '').split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
+    const body = teamSignature ? `${html}<div><br></div><div><br></div>${teamSignature}` : html
+    setComposerView('wysiwyg'); setShowCcBcc(false)
+    setEmailForm({ subject: fuEmail.subject || '', body, template: '__followup__', attachments: [], cc: [], bcc: [] })
+    setEmailModalOpen(true)
+  }
+  const copyFollowupEmail = () => {
+    if (!fuEmail) return
+    const text = `Subject: ${fuEmail.subject || ''}\n\n${fuEmail.body || ''}`
+    try { navigator.clipboard.writeText(text) } catch {}
   }
 
   const [refreshing, setRefreshing] = useState(false)
@@ -2140,6 +2192,74 @@ export default function Clients() {
                 <option value="seller">🏠 Seller</option>
                 <option value="both">🔄 Buyer/Seller</option>
               </select>
+            </div>
+
+            {/* ===== AI Suggested Follow-Up ===== */}
+            <div className="detail-section followup-card" style={{ border: '1px solid rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.06)', borderRadius: 10, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <h4 style={{ color: '#a78bfa', margin: 0, flex: 1 }}>🧭 Suggested Follow-Up</h4>
+                {followup && followup.analyzed_at && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last analyzed {fmtWhen(followup.analyzed_at)}</span>}
+                <button className="btn btn-sm" onClick={() => analyzeFollowup()} disabled={followupLoading} title="Re-analyze this client's history and generate a fresh recommendation">
+                  {followupLoading ? '…' : '↻ Refresh'}
+                </button>
+              </div>
+
+              {followupErr && <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>{followupErr}</div>}
+
+              {followupLoading ? (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 10 }}>Analyzing the full relationship…</div>
+              ) : !followup ? (
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 10 }}>Loading…</div>
+              ) : followup.ai_available === false ? (
+                <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 10 }}>AI is not configured on the server.</div>
+              ) : followup.exists === false ? (
+                <div style={{ marginTop: 10 }}><button className="btn btn-primary btn-sm" onClick={() => analyzeFollowup()}>✨ Generate recommendation</button></div>
+              ) : followup.enough_data === false ? (
+                <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 10 }}>Not enough client history to make a confident follow-up recommendation yet.</div>
+              ) : (
+                <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {followup.stale && (
+                    <div style={{ fontSize: 11.5, color: 'var(--warning)' }}>● New activity since this was analyzed — <button onClick={() => analyzeFollowup()} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontSize: 11.5 }}>refresh</button></div>
+                  )}
+                  {followup.recommendation && (
+                    <div>
+                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700 }}>Recommended next step</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>{followup.recommendation.label}</div>
+                      {followup.recommendation.rationale && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{followup.recommendation.rationale}</div>}
+                    </div>
+                  )}
+                  {Array.isArray(followup.why) && followup.why.length > 0 && (
+                    <div>
+                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 4 }}>Why this is recommended</div>
+                      <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{followup.why.map((w, i) => <li key={i}>{w}</li>)}</ul>
+                    </div>
+                  )}
+                  {Array.isArray(followup.known) && followup.known.length > 0 && (
+                    <details>
+                      <summary style={{ fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer' }}>Known client context</summary>
+                      <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{followup.known.map((k, i) => <li key={i}>{k}</li>)}</ul>
+                    </details>
+                  )}
+                  {followup.summary && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 10 }}>{followup.summary}</div>}
+
+                  {fuEmail ? (
+                    <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 6 }}>Suggested email</div>
+                      <input value={fuEmail.subject} onChange={e => setFuEmail(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ width: '100%', marginBottom: 6, padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                      <textarea value={fuEmail.body} onChange={e => setFuEmail(v => ({ ...v, body: e.target.value }))} rows={7} style={{ width: '100%', padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                        {[['regenerate', '↻ Regenerate'], ['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['add_context', 'Add context']].map(([ins, label]) => (
+                          <button key={ins} className="btn btn-sm" disabled={!!fuEmailBusy} onClick={() => adjustFollowupEmail(ins)}>{fuEmailBusy === ins ? '…' : label}</button>
+                        ))}
+                        <button className="btn btn-sm" onClick={copyFollowupEmail}>Copy</button>
+                        <button className="btn btn-primary btn-sm" onClick={useFollowupEmail} style={{ marginLeft: 'auto' }}>✉ Use in composer</button>
+                      </div>
+                    </div>
+                  ) : (followup.recommendation && followup.recommendation.action !== 'none' && !detail.marketing_email_opt_out && (
+                    <div><button className="btn btn-sm" disabled={!!fuEmailBusy} onClick={() => adjustFollowupEmail('regenerate')}>{fuEmailBusy ? '…' : '✍ Draft a follow-up email'}</button></div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="detail-grid">
