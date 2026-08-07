@@ -3749,3 +3749,99 @@ input[type="range"] {
   white-space: nowrap;
   font-style: italic;
 }
+
+/* ============================================================
+   SITE-WIDE RESPONSIVE LAYER  (added 2026-08-07)
+   Reusable patterns applied across the whole Hub. Desktop is
+   unchanged; everything here is either safe-area-aware (env()
+   is 0 on non-notch devices) or gated to small screens.
+   ============================================================ */
+
+/* ---- Media never overflows its container ---- */
+img, video, canvas, svg { max-width: 100%; height: auto; }
+img[width], img[height] { height: auto; }
+
+/* ---- Reusable horizontal-scroll box for wide content (tables, chip rows) ---- */
+.scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.scroll-x > table { min-width: max-content; }
+
+/* ---- Safe areas: keep fixed chrome clear of notches / home indicator ---- */
+.mobile-topbar {
+  padding-top: env(safe-area-inset-top);
+  height: calc(56px + env(safe-area-inset-top));
+  padding-left: max(12px, env(safe-area-inset-left));
+  padding-right: max(12px, env(safe-area-inset-right));
+}
+.sidebar {
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@media (max-width: 768px) {
+  /* main content clears the taller (safe-area) topbar */
+  .main-content { padding-top: calc(56px + env(safe-area-inset-top)); }
+  .page {
+    padding-left: max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
+    padding-bottom: max(24px, env(safe-area-inset-bottom));
+  }
+
+  /* Bottom-sheet modals sit above the home indicator and can't exceed the screen */
+  .modal-overlay { padding-bottom: 0; }
+  .modal {
+    max-height: calc(100dvh - env(safe-area-inset-top) - 12px);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .modal-body { -webkit-overflow-scrolling: touch; }
+
+  /* Comfortable touch targets — primary controls at least ~40px tall */
+  .btn, .view-toggle button, select, .tab, .client-tab, .listing-tab {
+    min-height: 40px;
+  }
+  input, select, textarea { font-size: 16px; } /* prevents iOS zoom-on-focus */
+  .btn-sm { min-height: 32px; }
+
+  /* Any header action bar wraps instead of overflowing */
+  .header-actions, .toolbar, .page-actions { flex-wrap: wrap; }
+  .header-actions > *, .toolbar > * { min-width: 0; }
+
+  /* Chip / tag rows wrap rather than run off the edge */
+  .tag-row, .chip-row, .badge-row { flex-wrap: wrap; }
+}
+
+/* ---- Extra-small phones (≤400px): tighten spacing, allow 1-col stat grids ---- */
+@media (max-width: 400px) {
+  .page { padding-left: max(10px, env(safe-area-inset-left)); padding-right: max(10px, env(safe-area-inset-right)); }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+  .page-header h1 { font-size: 20px; }
+}
+
+/* ---- Inbox: 3-pane desktop layout stacks vertically on mobile ---- */
+@media (max-width: 768px) {
+  .inbox-panes { flex-direction: column; height: auto !important; min-height: 0 !important; }
+  .inbox-folders {
+    width: 100% !important; border-right: none !important;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px !important;
+  }
+  .inbox-folders > div { width: 100%; margin: 6px 0 !important; } /* section labels + divider full width */
+  .inbox-folders button { width: auto !important; margin: 0 !important; }
+  .inbox-folders label { padding: 2px 4px !important; }
+  .inbox-list { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--border); }
+  .inbox-list > div:last-child { max-height: 48vh; }       /* conversation list scrolls internally */
+  .inbox-reading { min-height: 58vh; }
+}
+
+/* ---- Tab bars scroll horizontally instead of overflowing on mobile ---- */
+@media (max-width: 768px) {
+  .listing-tabs, .client-tabs, .sub-tabs, .tabs-row {
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap; scrollbar-width: none;
+  }
+  .listing-tabs::-webkit-scrollbar, .client-tabs::-webkit-scrollbar { display: none; }
+  .listing-tab, .client-tab, .sub-tab { white-space: nowrap; flex-shrink: 0; }
+
+  /* Status tag / chip cells wrap inside stacked rows */
+  .client-list-row { row-gap: 4px; }
+  .email-status-tag { white-space: nowrap; }
+}

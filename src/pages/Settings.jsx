@@ -93,7 +93,7 @@ export default function Settings() {
   }
 
   const fld = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, width: '100%' }
-  const grid = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }
+  const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12 }
 
   return (
     <div className="page">
@@ -112,7 +112,7 @@ export default function Settings() {
           {/* Account info */}
           <section className="detail-section">
             <h4>Account Info</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12, marginTop: 8 }}>
               <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Name
                 <input style={fld} value={account.name} onChange={e => setAccount(a => ({ ...a, name: e.target.value }))} placeholder="Matt Smith" />
               </label>
@@ -137,7 +137,7 @@ export default function Settings() {
 
           {/* Email signature */}
           <section className="detail-section">
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <h4 style={{ margin: 0 }}>Email Signature</h4>
               <button className="btn btn-sm btn-secondary" onClick={buildFromAccount} title="Generate a signature from the account info above">✨ Build from Account Info</button>
             </div>

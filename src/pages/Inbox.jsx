@@ -62,9 +62,9 @@ export default function Inbox() {
         <button className="btn btn-primary" onClick={() => setCompose(true)}>✎ New Message</button>
       </div>
 
-      <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
+      <div className="inbox-panes" style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
         {/* left: folders + filters */}
-        <aside style={{ width: 210, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 14, flexShrink: 0 }}>
+        <aside className="inbox-folders" style={{ width: 210, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 14, flexShrink: 0 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
           {FOLDERS.map(f => (
             <button key={f.key} onClick={() => { setFolder(f.key); setSel(null) }} style={folderBtn(folder === f.key)}>
@@ -84,7 +84,7 @@ export default function Inbox() {
         </aside>
 
         {/* middle: conversation list */}
-        <div style={{ width: 380, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div className="inbox-list" style={{ width: 380, borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
           <div style={{ padding: 10, borderBottom: '1px solid var(--border)', display: 'flex', gap: 8, alignItems: 'center' }}>
             <div style={{ display: 'flex', border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               <button onClick={() => setUnreadOnly(false)} style={toggleBtn(!unreadOnly)}>All</button>
@@ -128,7 +128,7 @@ export default function Inbox() {
         </div>
 
         {/* right: reading pane */}
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="inbox-reading" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
           {!sel ? (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>
               <div style={{ fontSize: 34 }}>💬</div>
