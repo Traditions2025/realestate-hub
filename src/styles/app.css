@@ -3801,9 +3801,16 @@ img[width], img[height] { height: auto; }
   input, select, textarea { font-size: 16px; } /* prevents iOS zoom-on-focus */
   .btn-sm { min-height: 32px; }
 
-  /* Any header action bar wraps instead of overflowing */
+  /* Header action bars WRAP (2-per-row) instead of shrinking into one cramped,
+     cut-off row. Overrides the older `.btn{flex:1;min-width:0}` that squished them. */
   .header-actions, .toolbar, .page-actions { flex-wrap: wrap; }
-  .header-actions > *, .toolbar > * { min-width: 0; }
+  .header-actions > * { flex: 1 1 140px; min-width: 140px; }
+  .header-actions .btn,
+  .header-actions label.btn { flex: 1 1 140px; min-width: 140px; width: auto; white-space: normal; }
+  .header-actions .view-toggle { min-width: 120px; }
+  .columns-picker-wrap { display: flex; }
+  .columns-picker-wrap > .btn { width: 100%; }
+  .toolbar > * { min-width: 0; }
 
   /* Chip / tag rows wrap rather than run off the edge */
   .tag-row, .chip-row, .badge-row { flex-wrap: wrap; }
