@@ -107,7 +107,7 @@ function buildDossier(client, fub) {
     lead_score: client.lead_score || null,
     tags: (() => { try { return JSON.parse(client.tags || '[]') } catch { return [] } })(),
     created: dt(client.sierra_creation_date),
-    last_web_activity: client.last_fub_activity_at ? `${dt(client.last_fub_activity_at)} — ${client.last_fub_activity_type || ''} ${client.last_fub_activity_detail || ''}`.trim() : null,
+    last_web_activity: client.last_fub_activity_at ? `${dt(client.last_fub_activity_at)}: ${client.last_fub_activity_type || ''} ${client.last_fub_activity_detail || ''}`.trim() : null,
     marketing_opt_out: !!client.marketing_email_opt_out,
     short_summary: clip(client.short_summary, 300) || null,
     hub_notes: clip(client.notes, 1500) || null,
@@ -150,10 +150,16 @@ HARD RULES
 - Keep any "why" bullets strictly factual (dates, stated intentions, concerns) drawn from the records.
 - Output MUST be a single valid JSON object and nothing else. No markdown, no commentary.
 
+CHOOSING THE ANGLE (important)
+- Properties the client viewed are ONE possible signal, not the default topic. Do NOT assume the follow-up should be about a listing or a home they browsed.
+- Very often the strongest and most natural reason to reach out has nothing to do with a property: where their head is at, whether their timing has changed, a life update in the notes (job, family, move), an unanswered question, a promise someone made, a concern to address, a past client worth reconnecting with, or a simple relationship check-in.
+- Only center a property when repeated, recent, specific behavior genuinely makes it the strongest signal. When the record is thin or mostly old browsing, prefer a relationship, timing, or life-context reason instead. Match the angle to what the whole record actually supports.
+
 EMAIL (only when action is "send_email")
-- Warm, approachable, conversational, personal, confident, helpful. Like a real person writing to someone they already know — not a corporate template.
+- Warm, approachable, conversational, personal, confident, helpful. Like a real person writing to someone they already know, not a corporate template.
+- Do not force a property or listing into the email. If the strongest reason to reach out is timing, a life update, an open question, or just reconnecting, write about that instead.
 - NEVER open with "Just following up", "Checking in", "I wanted to touch base", "Circling back", or "Hope this email finds you well". Open with the client's actual context instead.
-- The goal is not always to book an appointment — match the relationship stage (reopen the conversation, ask if timing changed, answer an open question, share a relevant property/market note, reconnect, offer help).
+- The goal is not always to book an appointment. Match the relationship stage (reopen the conversation, ask if timing changed, answer an open question, share a relevant property or market note, reconnect, offer help).
 - No fake scarcity or pressure. No placeholders like [Name]. Do not include a signature (the app adds it).
 
 JSON SHAPE
@@ -166,7 +172,7 @@ JSON SHAPE
     "rationale": string                  // 1-2 sentences, plain language, what to do and the tone to strike
   },
   "why": [string],                       // 2-5 short FACTUAL context bullets ("Last meaningful conversation: June 12")
-  "known": [string],                     // optional: notable known facts (motivation, timeline, concerns) — supported by records only
+  "known": [string],                     // optional: notable known facts (motivation, timeline, concerns), supported by records only
   "email": { "subject": string, "body": string } | null   // present only when action is send_email
 }
 If there is not enough history to be confident, set enough_data=false and leave recommendation.action="none".`
