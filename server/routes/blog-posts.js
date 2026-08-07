@@ -5,15 +5,25 @@ const router = Router()
 const n = (v) => (v === undefined || v === '' ? null : v)
 const FIELDS = ['title', 'slug', 'category', 'status', 'post_date', 'post_time', 'live_url', 'tags', 'cover_url', 'meta_title', 'meta_description', 'author', 'notes']
 
+// A scheduled post whose post_date has arrived (today or earlier, Central) is
+// live — surface it as 'posted' so the tracker matches reality. Derived on read
+// only (the stored value is left untouched so nothing that publishes off
+// status='scheduled' is affected). The status filter runs on the derived value.
+const effectiveStatus = (row, today) =>
+  (row.status === 'scheduled' && row.post_date && String(row.post_date).slice(0, 10) <= today)
+    ? 'posted' : row.status
+
 router.get('/', (req, res) => {
   let sql = 'SELECT * FROM blog_posts WHERE 1=1'
   const p = []
   if (req.query.category) { sql += ' AND category = ?'; p.push(req.query.category) }
-  if (req.query.status) { sql += ' AND status = ?'; p.push(req.query.status) }
   if (req.query.month) { sql += ' AND post_date LIKE ?'; p.push(req.query.month + '%') }
   if (req.query.search) { sql += ' AND (title LIKE ? OR tags LIKE ? OR category LIKE ?)'; const t = `%${req.query.search}%`; p.push(t, t, t) }
   sql += ' ORDER BY (post_date IS NULL), post_date DESC, id DESC'
-  res.json(db.all(sql, p))
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date())
+  let rows = db.all(sql, p).map(r => ({ ...r, status: effectiveStatus(r, today) }))
+  if (req.query.status) rows = rows.filter(r => r.status === req.query.status)
+  res.json(rows)
 })
 
 router.get('/categories', (_req, res) => {
