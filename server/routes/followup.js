@@ -41,6 +41,19 @@ const nowIso = () => new Date().toISOString()
 const centralToday = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago' }).format(new Date())
 
 // ---- helpers ------------------------------------------------------------
+// Team rule: never em/en dashes in any generated writing. Belt-and-suspenders
+// with the prompt rule — a spaced dash becomes a comma, a bare one a comma too.
+const noDash = (s) => String(s == null ? '' : s).replace(/\s*[—–]\s*/g, ', ').replace(/ ,/g, ',').replace(/,\s*,/g, ',')
+function scrubDashes(data) {
+  if (!data || typeof data !== 'object') return data
+  if (data.summary) data.summary = noDash(data.summary)
+  if (data.recommendation) { data.recommendation.label = noDash(data.recommendation.label); data.recommendation.rationale = noDash(data.recommendation.rationale) }
+  if (Array.isArray(data.why)) data.why = data.why.map(noDash)
+  if (Array.isArray(data.known)) data.known = data.known.map(noDash)
+  if (data.email) { data.email.subject = noDash(data.email.subject); data.email.body = noDash(data.email.body) }
+  return data
+}
+
 const firstArray = (o) => (o && typeof o === 'object' && !o.__error) ? (Object.values(o).find(Array.isArray) || []) : []
 const clip = (s, n = 600) => { const t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); return t.length > n ? t.slice(0, n) + '…' : t }
 const dt = (s) => s ? String(s).slice(0, 10) : ''
@@ -130,6 +143,7 @@ function hasSignal(dossier) {
 const SYSTEM = `You are the relationship-intelligence layer inside a real estate CRM for the Matt Smith Team (Cedar Rapids / Marion, Iowa; RE/MAX Concepts). You help the agent decide the single best next step with one client, using ONLY the client records provided.
 
 HARD RULES
+- Never use em dashes or en dashes anywhere in ANY text you produce (recommendation, why, summary, or email). Use commas, periods, or the word "to" instead.
 - Never invent facts, dates, conversations, promises, or preferences. Use only what is in the data. If unsure, leave it out.
 - Not every client needs outreach right now. If timing says wait, recommend waiting or no action.
 - Base the read on the WHOLE relationship, not just the latest ping.
@@ -205,6 +219,7 @@ router.post('/:clientId/analyze', async (req, res) => {
     let data
     try { data = parseJson(msg.content?.[0]?.text || '') }
     catch { return res.status(502).json({ error: 'AI returned an unreadable response. Try refreshing.' }) }
+    scrubDashes(data)
     // never email an opted-out contact
     if (client.marketing_email_opt_out && data.email) data.email = null
 
@@ -223,11 +238,10 @@ router.post('/:clientId/analyze', async (req, res) => {
 // Rewrite / (re)generate the suggested email. Reuses the cached dossier so it
 // stays grounded in the same client history without re-pulling FUB.
 const EMAIL_INSTRUCTIONS = {
-  regenerate: 'Write a fresh version — same intent, different wording and a new natural opening.',
+  regenerate: 'Write a fresh version, same intent, different wording and a new natural opening.',
   shorter: 'Make it noticeably shorter and tighter while keeping the personal hook.',
   casual: 'Make it warmer and more casual, like texting a friend, still professional enough to send.',
   direct: 'Make it more direct and to the point about the next step, without losing warmth.',
-  add_context: 'Weave in a bit more specific context from the client history to make it feel more personal.',
 }
 router.post('/:clientId/email', async (req, res) => {
   const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(req.params.clientId)])
@@ -239,16 +253,23 @@ router.post('/:clientId/email', async (req, res) => {
   if (!row) return res.status(400).json({ error: 'Run the analysis first.' })
   let dossier = {}; try { dossier = JSON.parse(row.fub_data || '{}') } catch {}
 
-  const instruction = EMAIL_INSTRUCTIONS[req.body?.instruction] || 'Write the follow-up email.'
+  // Free-text context/insight the agent typed (e.g. "the property is now pending").
+  // Treated as a true, authoritative fact and allowed to change the email's purpose.
+  const ctx = String(req.body?.context || '').trim().slice(0, 800)
+  const preset = EMAIL_INSTRUCTIONS[req.body?.instruction]
+  const instruction = ctx
+    ? `The agent added this real, up-to-the-minute context or insight. Treat it as TRUE and important, and rework the email so it genuinely fits it (even if it changes the purpose of the message, e.g. a property being pending or sold, a timing change, a new concern): "${ctx}".`
+    : (preset || 'Write the follow-up email.')
   const current = req.body?.current
   const extra = `TASK: Draft a follow-up EMAIL to this client. ${instruction}\n`
     + (current?.body ? `\nCURRENT DRAFT (revise this):\nSubject: ${current.subject || ''}\n${current.body}\n` : '')
-    + `\nReturn ONLY JSON: {"email":{"subject":string,"body":string}}. Follow the email tone rules from the system prompt (warm, specific, no generic openers, no signature).\n`
+    + `\nReturn ONLY JSON: {"email":{"subject":string,"body":string}}. Follow the tone + no-em-dash rules from the system prompt (warm, specific, no generic openers, no signature).\n`
   try {
     const msg = await ai.messages.create({ model: MODEL, max_tokens: 900, system: SYSTEM, messages: [{ role: 'user', content: promptFor(dossier, extra) }] })
     let out; try { out = parseJson(msg.content?.[0]?.text || '') } catch { return res.status(502).json({ error: 'AI returned an unreadable email.' }) }
     const email = out.email || out
     if (!email || !email.body) return res.status(502).json({ error: 'No email produced.' })
+    email.subject = noDash(email.subject); email.body = noDash(email.body)
     // persist the latest email back into the cached recommendation
     try { const data = JSON.parse(row.data || '{}'); data.email = email; db.run('UPDATE followup_recommendations SET data = ? WHERE client_id = ?', [JSON.stringify(data), client.id]) } catch {}
     res.json({ email })

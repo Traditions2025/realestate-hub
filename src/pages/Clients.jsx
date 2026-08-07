@@ -515,6 +515,7 @@ export default function Clients() {
   const [followupErr, setFollowupErr] = useState('')
   const [fuEmail, setFuEmail] = useState(null)          // editable { subject, body }
   const [fuEmailBusy, setFuEmailBusy] = useState('')
+  const [fuContext, setFuContext] = useState('')        // agent-typed context to refine the email
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
@@ -579,7 +580,7 @@ export default function Clients() {
     authFetch(`/api/clients/${id}/sequences`).then(r => r.json()).then(setSequences).catch(() => setSequences({ drips: [], automations: [] }))
     // AI Suggested Follow-Up — load the cached analysis; auto-generate the first
     // time this lead is opened (never re-runs the model on later opens).
-    setFollowup(null); setFollowupErr(''); setFuEmail(null)
+    setFollowup(null); setFollowupErr(''); setFuEmail(null); setFuContext('')
     authFetch(`/api/followup/${id}`).then(r => r.json()).then(fu => {
       setFollowup(fu)
       if (fu && fu.email) setFuEmail({ subject: fu.email.subject || '', body: fu.email.body || '' })
@@ -642,14 +643,14 @@ export default function Clients() {
     } catch (e) { setFollowupErr(e.message) }
     finally { setFollowupLoading(false) }
   }
-  const adjustFollowupEmail = async (instruction) => {
+  const adjustFollowupEmail = async (instruction, context) => {
     if (!detail?.id || !fuEmail) return
-    setFuEmailBusy(instruction); setFollowupErr('')
+    setFuEmailBusy(context ? 'context' : instruction); setFollowupErr('')
     try {
-      const r = await authFetch(`/api/followup/${detail.id}/email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction, current: fuEmail }) })
+      const r = await authFetch(`/api/followup/${detail.id}/email`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction, context, current: fuEmail }) })
       const d = await r.json()
       if (d.error) setFollowupErr(d.error)
-      else if (d.email) setFuEmail({ subject: d.email.subject || '', body: d.email.body || '' })
+      else if (d.email) { setFuEmail({ subject: d.email.subject || '', body: d.email.body || '' }); if (context) setFuContext('') }
     } catch (e) { setFollowupErr(e.message) }
     finally { setFuEmailBusy('') }
   }
@@ -2247,8 +2248,18 @@ export default function Clients() {
                       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 6 }}>Suggested email</div>
                       <input value={fuEmail.subject} onChange={e => setFuEmail(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ width: '100%', marginBottom: 6, padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
                       <textarea value={fuEmail.body} onChange={e => setFuEmail(v => ({ ...v, body: e.target.value }))} rows={7} style={{ width: '100%', padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
+                      {/* Agent-typed context: an insight the AI folds into the email (e.g. "this property is now pending") */}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                        <input value={fuContext} onChange={e => setFuContext(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter' && fuContext.trim() && !fuEmailBusy) adjustFollowupEmail(null, fuContext.trim()) }}
+                          placeholder="Add context for the AI (e.g. this property is now pending, they just had a baby, push showings)…"
+                          style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                        <button className="btn btn-primary btn-sm" disabled={!!fuEmailBusy || !fuContext.trim()} onClick={() => adjustFollowupEmail(null, fuContext.trim())} title="Rewrite the email using this context">
+                          {fuEmailBusy === 'context' ? '…' : 'Apply context'}
+                        </button>
+                      </div>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                        {[['regenerate', '↻ Regenerate'], ['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['add_context', 'Add context']].map(([ins, label]) => (
+                        {[['regenerate', '↻ Regenerate'], ['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct']].map(([ins, label]) => (
                           <button key={ins} className="btn btn-sm" disabled={!!fuEmailBusy} onClick={() => adjustFollowupEmail(ins)}>{fuEmailBusy === ins ? '…' : label}</button>
                         ))}
                         <button className="btn btn-sm" onClick={copyFollowupEmail}>Copy</button>
