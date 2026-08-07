@@ -4,6 +4,7 @@ import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
 import { sendViaSendGrid, buildPropertyCardsLive } from './email.js'
 import { enrollInDrip } from './drips.js'
+import { stopSequencesForClient, isStopStatus } from '../lead-sequences.js'
 import { isUsHoliday, bumpPastHolidays } from '../holidays.js'
 import { validateGraph, getDef, branchKeysFor, labelFor } from '../../shared/automationRegistry.js'
 
@@ -169,7 +170,10 @@ async function runAction(node, client, ctx) {
       return 'note added'
     }
     case 'change_status': case 'change_stage': {
-      if (cfg.status) db.run('UPDATE clients SET status = ? WHERE id = ?', [cfg.status, client.id])
+      if (cfg.status) {
+        db.run('UPDATE clients SET status = ? WHERE id = ?', [cfg.status, client.id])
+        if (isStopStatus(cfg.status)) stopSequencesForClient(client.id, `lead marked ${cfg.status}`)
+      }
       return `status → ${cfg.status}`
     }
     case 'assign_agent': case 'reassign_agent': {

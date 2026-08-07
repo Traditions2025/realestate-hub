@@ -1,0 +1,59 @@
+// Lead sequence lifecycle helpers — shared by the clients route, the Sierra
+// sync, and the automation engine. Two jobs:
+//   1. When a lead is moved to a "stop" status (Junk), pull it out of every
+//      active drip + automation so no further emails/texts fire.
+//   2. Surface a lead's currently-running plans for the lead profile.
+import db from './database.js'
+
+const nowIso = () => new Date().toISOString()
+
+// Statuses that mean "stop contacting this lead". Moving a lead into any of
+// these removes it from all active sequences. Kept as a Set so it is trivial
+// to extend to DoNotContact / Blocked later if desired.
+export const STOP_STATUSES = new Set(['junk'])
+
+export function isStopStatus(status) {
+  return STOP_STATUSES.has(String(status || '').toLowerCase())
+}
+
+// Remove a lead from every active drip + automation enrollment. Idempotent:
+// if the lead has no active enrollments it is a cheap no-op. Returns the
+// number of drip and automation enrollments that were actually stopped.
+export function stopSequencesForClient(clientId, reason = 'lead marked junk') {
+  const id = Number(clientId)
+  if (!id) return { drips: 0, automations: 0 }
+  const d = db.run(
+    "UPDATE drip_enrollments SET status='removed', completed_at=? WHERE client_id=? AND status='active'",
+    [nowIso(), id])
+  const a = db.run(
+    "UPDATE automation_enrollments SET status='removed', exit_reason=?, completed_at=?, next_run_at=NULL WHERE client_id=? AND status IN ('active','waiting')",
+    [reason, nowIso(), id])
+  return { drips: d.changes || 0, automations: a.changes || 0 }
+}
+
+// The lead's currently-running plans (for the lead profile). Drips are joined
+// to their campaign for a name + total step count; automations to their name.
+export function activeSequencesForClient(clientId) {
+  const id = Number(clientId)
+  if (!id) return { drips: [], automations: [] }
+  const drips = db.all(
+    `SELECT e.id AS enrollment_id, e.drip_id, e.current_step, e.next_run_at, e.entered_at, e.source,
+       d.name AS drip_name, d.steps AS steps
+     FROM drip_enrollments e JOIN drip_campaigns d ON d.id = e.drip_id
+     WHERE e.client_id=? AND e.status='active'
+     ORDER BY e.entered_at DESC`, [id]
+  ).map(r => {
+    let total = 0
+    try { total = JSON.parse(r.steps || '[]').length } catch { total = 0 }
+    const { steps, ...rest } = r
+    return { ...rest, total_steps: total }
+  })
+  const automations = db.all(
+    `SELECT e.id AS enrollment_id, e.automation_id, e.status, e.next_run_at, e.entered_at,
+       a.name AS automation_name
+     FROM automation_enrollments e JOIN automations a ON a.id = e.automation_id
+     WHERE e.client_id=? AND e.status IN ('active','waiting')
+     ORDER BY e.entered_at DESC`, [id]
+  )
+  return { drips, automations }
+}

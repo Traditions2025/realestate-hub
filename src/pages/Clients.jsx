@@ -508,6 +508,7 @@ export default function Clients() {
   const [listingInterest, setListingInterest] = useState(null)
   const [hubActivity, setHubActivity] = useState(null)
   const [fubActivity, setFubActivity] = useState(null)
+  const [sequences, setSequences] = useState(null)
   const [emailHistory, setEmailHistory] = useState([])
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
@@ -567,6 +568,9 @@ export default function Clients() {
     setEmailHistory([])
     setHubActivity(null)
     setFubActivity(null)
+    setSequences(null)
+    // Currently-running plans (drips + automations) for this lead
+    authFetch(`/api/clients/${id}/sequences`).then(r => r.json()).then(setSequences).catch(() => setSequences({ drips: [], automations: [] }))
     // reset per-client detail UI state
     setTagsExpanded(false); setFubExpanded(false); setListingActExpanded(false)
     setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText('')
@@ -591,6 +595,19 @@ export default function Clients() {
     }
     // Load email history
     authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
+  }
+
+  // Remove a lead from a running plan (drip or automation) from the profile.
+  const removePlan = async (kind, enrollmentId) => {
+    const url = kind === 'drip'
+      ? `/api/drips/enrollments/${enrollmentId}/remove`
+      : `/api/automations/enrollments/${enrollmentId}/remove`
+    await authFetch(url, { method: 'POST' })
+    if (detail?.id) authFetch(`/api/clients/${detail.id}/sequences`).then(r => r.json()).then(setSequences).catch(() => {})
+  }
+  const fmtWhen = (iso) => {
+    if (!iso) return '—'
+    try { return new Date(iso).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT' } catch { return iso }
   }
 
   const [refreshing, setRefreshing] = useState(false)
@@ -2118,6 +2135,33 @@ export default function Clients() {
                 {detail.sierra_update_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Last Update: {detail.sierra_update_date.split('T')[0]}</p>}
               </div>
             </div>
+
+            {/* Active Plans — drips + automations currently running for this lead */}
+            {sequences && ((sequences.drips && sequences.drips.length) || (sequences.automations && sequences.automations.length)) ? (
+              <div className="detail-section" style={{background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.22)', borderRadius: 8, padding: '12px 16px'}}>
+                <h4 style={{color: 'var(--accent)'}}>💧 Active Plans ({(sequences.drips ? sequences.drips.length : 0) + (sequences.automations ? sequences.automations.length : 0)})</h4>
+                {(sequences.drips || []).map(d => (
+                  <div key={'d' + d.enrollment_id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)'}}>
+                    <span style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#2563eb', background: 'rgba(37,99,235,0.12)', padding: '2px 7px', borderRadius: 4}}>Drip</span>
+                    <div style={{flex: 1, minWidth: 0}}>
+                      <div style={{fontWeight: 600, fontSize: 13}}>{d.drip_name}</div>
+                      <div style={{fontSize: 11.5, color: 'var(--text-muted)'}}>Email {(d.current_step || 0) + 1} of {d.total_steps} · next {fmtWhen(d.next_run_at)}</div>
+                    </div>
+                    <button className="btn btn-sm" onClick={() => removePlan('drip', d.enrollment_id)} style={{fontSize: 11, padding: '4px 8px'}}>Remove</button>
+                  </div>
+                ))}
+                {(sequences.automations || []).map(a => (
+                  <div key={'a' + a.enrollment_id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)'}}>
+                    <span style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#7c3aed', background: 'rgba(124,58,237,0.12)', padding: '2px 7px', borderRadius: 4}}>Automation</span>
+                    <div style={{flex: 1, minWidth: 0}}>
+                      <div style={{fontWeight: 600, fontSize: 13}}>{a.automation_name}</div>
+                      <div style={{fontSize: 11.5, color: 'var(--text-muted)'}}>{a.status === 'waiting' ? 'Waiting' : 'Active'}{a.next_run_at ? ` · next ${fmtWhen(a.next_run_at)}` : ''}</div>
+                    </div>
+                    <button className="btn btn-sm" onClick={() => removePlan('automation', a.enrollment_id)} style={{fontSize: 11, padding: '4px 8px'}}>Remove</button>
+                  </div>
+                ))}
+              </div>
+            ) : null}
 
             {/* Realist Property Data — only shows if matched */}
             {detail.realist_property_id && (

@@ -221,12 +221,23 @@ function fillTemplate(text, client) {
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())
 }
 
+// Placeholder / known-bad email domains we must never send to. Sierra assigns
+// leads with no real email an address at @notvalidemail.com — sending there
+// bounces and hurts sender reputation, so every send path is gated on this.
+const BLOCKED_EMAIL_DOMAINS = ['@notvalidemail.com']
+export function isBlockedEmail(email) {
+  const e = String(email || '').toLowerCase().trim()
+  if (!e) return true
+  return BLOCKED_EMAIL_DOMAINS.some(d => e.endsWith(d))
+}
+
 // Shared sender for sequence/drip/automation emails. Resolves a template if given,
 // fills merge fields, injects live property cards where {{properties}} appears (or
 // when include_properties is set), respects opt-outs, and tags a SendGrid category
 // so the send shows up in Reporting. Returns a short status string.
 export async function sendSequenceEmail(client, cfg = {}, category = null) {
   if (!client || !client.email) return { ok: false, reason: 'no email' }
+  if (isBlockedEmail(client.email)) return { ok: false, reason: 'blocked email domain' }
   if (client.marketing_email_opt_out) return { ok: false, reason: 'opted out' }
   if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) return { ok: false, reason: client.email_status }
   let subject = cfg.subject, body = cfg.body
@@ -393,8 +404,8 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
   }
-  const toEmails = parseEmails(to)
-  if (!toEmails.length) throw new Error('No valid recipient email')
+  const toEmails = parseEmails(to).filter(e => !isBlockedEmail(e))
+  if (!toEmails.length) throw new Error('No valid recipient email (placeholder/blocked domain)')
   const personalization = {
     to: toEmails.map((email, i) => ({
       email,
@@ -404,12 +415,12 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
   const toLowerSet = new Set(toEmails.map(e => e.toLowerCase()))
   if (ccList && ccList.length) {
     // Dedupe and exclude any primary recipients from CC
-    const uniqueCc = [...new Set(ccList.filter(e => e && !toLowerSet.has(e.toLowerCase())))]
+    const uniqueCc = [...new Set(ccList.filter(e => e && !toLowerSet.has(e.toLowerCase()) && !isBlockedEmail(e)))]
     if (uniqueCc.length) personalization.cc = uniqueCc.map(email => ({ email }))
   }
   if (bccList && bccList.length) {
     const ccLowerSet = new Set((personalization.cc || []).map(c => c.email.toLowerCase()))
-    const uniqueBcc = [...new Set(bccList.filter(e => e && !toLowerSet.has(e.toLowerCase()) && !ccLowerSet.has(e.toLowerCase())))]
+    const uniqueBcc = [...new Set(bccList.filter(e => e && !toLowerSet.has(e.toLowerCase()) && !ccLowerSet.has(e.toLowerCase()) && !isBlockedEmail(e)))]
     if (uniqueBcc.length) personalization.bcc = uniqueBcc.map(email => ({ email }))
   }
   const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {

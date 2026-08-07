@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '../lead-sequences.js'
 
 const router = Router()
 
@@ -431,7 +432,23 @@ router.put('/:id', (req, res) => {
 
   db.run(`UPDATE clients SET ${sets} WHERE id = ?`, values)
   logActivity('updated', 'client', Number(req.params.id), 'Updated client')
+
+  // Moving a lead to a stop status (Junk) pulls it out of every active drip
+  // + automation so no further emails/texts fire.
+  if (fields.status && isStopStatus(fields.status)) {
+    const r = stopSequencesForClient(Number(req.params.id), `lead marked ${fields.status}`)
+    if (r.drips || r.automations) {
+      logActivity('sequences_stopped', 'client', Number(req.params.id),
+        `Removed from ${r.drips} drip(s) + ${r.automations} automation(s) — status ${fields.status}`)
+    }
+  }
   res.json({ success: true })
+})
+
+// Active plans (drips + automations) currently running for this lead — powers
+// the "Active Plans" section on the lead profile.
+router.get('/:id/sequences', (req, res) => {
+  res.json(activeSequencesForClient(Number(req.params.id)))
 })
 
 router.delete('/:id', (req, res) => {

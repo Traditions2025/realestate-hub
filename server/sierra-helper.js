@@ -1,5 +1,6 @@
 // Shared helpers for processing Sierra leads (used by sync, scheduler, webhooks)
 import db from './database.js'
+import { stopSequencesForClient, isStopStatus } from './lead-sequences.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
@@ -130,7 +131,7 @@ export function processLead(lead, sierraStatusOverride) {
   const lenderStatus = n(lead.lenderStatus)
   const listingAgentStatus = n(lead.listingAgentStatus)
 
-  const existing = db.get('SELECT id FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  const existing = db.get('SELECT id, status FROM clients WHERE sierra_lead_id = ?', [sierraId])
   if (existing) {
     db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
       source=?, address=?, city=?, state=?, zip=?, type=?,
@@ -151,6 +152,10 @@ export function processLead(lead, sierraStatusOverride) {
         searchPriceMin, searchPriceMax, searchBedsMin, searchBathsMin,
         searchSqftMin, searchRegions, searchPropertyTypes, hasSavedSearch,
         existing.id])
+    // Junked in Sierra since we last saw it → pull out of active sequences.
+    if (isStopStatus(clientStatus) && !isStopStatus(existing.status)) {
+      stopSequencesForClient(existing.id, 'lead marked junk in Sierra')
+    }
     return 'updated'
   } else {
     db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status,
