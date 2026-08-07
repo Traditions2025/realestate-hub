@@ -962,25 +962,22 @@ export default function Clients() {
     if (editing) await api.updateClient(editing, data)
     else await api.createClient(data)
 
-    // Offer to push the status change to Sierra. Always local-first; the Sierra
-    // call is gated on user confirmation so accidental flips don't propagate.
+    // Local-first, then always push the status change to Sierra automatically
+    // (no confirm — a status change always belongs in Sierra too). Only a real
+    // Sierra failure surfaces an alert.
     if (statusChanged) {
-      const fullName = `${editingOriginal.first_name || ''} ${editingOriginal.last_name || ''}`.trim() || 'this lead'
-      const confirmMsg = `Push status change to Sierra?\n\n${fullName}: ${editingOriginal.status} → ${data.status}\n\n(Local change is already saved either way.)`
-      if (confirm(confirmMsg)) {
-        try {
-          const r = await authFetch('/api/sierra/update-lead-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client_id: editing, status: data.status })
-          })
-          const result = await r.json()
-          if (!result.success) {
-            alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
-          }
-        } catch (err) {
-          alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
+      try {
+        const r = await authFetch('/api/sierra/update-lead-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: editing, status: data.status })
+        })
+        const result = await r.json()
+        if (!result.success) {
+          alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
         }
+      } catch (err) {
+        alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
       }
     }
 
@@ -1029,7 +1026,7 @@ export default function Clients() {
   }
 
   // Inline status change from a card/row - no modal. Local save first, then
-  // confirm to push to Sierra (only when there's a sierra_lead_id).
+  // always push to Sierra automatically (no confirm) when there's a sierra_lead_id.
   const quickStatusChange = async (item, newStatus, e) => {
     if (e) e.stopPropagation()
     if (!newStatus || newStatus === item.status) return
@@ -1040,22 +1037,18 @@ export default function Clients() {
       return
     }
     if (item.sierra_lead_id) {
-      const fullName = `${item.first_name || ''} ${item.last_name || ''}`.trim() || 'this lead'
-      const ok = confirm(`Push status change to Sierra?\n\n${fullName}: ${item.status} → ${newStatus}\n\n(Local change is already saved either way.)`)
-      if (ok) {
-        try {
-          const r = await authFetch('/api/sierra/update-lead-status', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ client_id: item.id, status: newStatus })
-          })
-          const result = await r.json()
-          if (!result.success) {
-            alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
-          }
-        } catch (err) {
-          alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
+      try {
+        const r = await authFetch('/api/sierra/update-lead-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ client_id: item.id, status: newStatus })
+        })
+        const result = await r.json()
+        if (!result.success) {
+          alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
         }
+      } catch (err) {
+        alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
       }
     }
     load()
