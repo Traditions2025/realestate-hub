@@ -236,29 +236,6 @@ router.post('/refresh-lead/:sierraId', async (req, res) => {
   }
 })
 
-// TEMP diagnostic: probe whether Sierra's API exposes text/SMS messages.
-router.get('/_probe-texts/:sierraId', async (req, res) => {
-  const id = req.params.sierraId
-  const candidates = [
-    '/textMessages', '/texts', '/sms', '/messages', '/communications', '/conversations',
-    `/leads/${id}/textMessages`, `/leads/${id}/texts`, `/leads/${id}/messages`, `/leads/${id}/sms`, `/leads/${id}/communications`,
-    `/textMessages/${id}`, `/messages/${id}`, `/leads/${id}/activities`, `/leads/${id}/timeline`,
-  ]
-  const out = {}
-  for (const path of candidates) {
-    try { const d = await sierraGet(path, { pageSize: 5 }); out[path] = { ok: true, sample: JSON.stringify(d).slice(0, 220) } }
-    catch (e) { out[path] = { ok: false, err: (e.message || '').slice(0, 90) } }
-  }
-  // also inspect the lead detail for any text-related fields
-  try {
-    const lead = await sierraGet(`/leads/get/${id}`, { includeTags: 'true' })
-    const l = lead.data || lead
-    out['_lead_top_keys'] = Object.keys(l || {})
-    out['_lead_text_fields'] = Object.keys(l || {}).filter(k => /text|sms|message|communicat|convers/i.test(k))
-  } catch (e) { out['_lead'] = { err: e.message } }
-  res.json(out)
-})
-
 router.get('/lead-notes/:sierraId', async (req, res) => {
   try {
     const data = await sierraGet(`/notes/${req.params.sierraId}`, { pageSize: 50, pageNumber: 1 })
