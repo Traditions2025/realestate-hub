@@ -3852,3 +3852,44 @@ img[width], img[height] { height: auto; }
   .client-list-row { row-gap: 4px; }
   .email-status-tag { white-space: nowrap; }
 }
+
+/* ---- Clients LIST view: condensed mobile card (name · status · last activity) ---- */
+.client-card-m { display: none; }
+@media (max-width: 768px) {
+  .client-list-header { display: none !important; }
+  .client-list-row { display: none !important; }
+  .client-card-m {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "check name     status"
+      "check activity activity";
+    column-gap: 10px;
+    row-gap: 3px;
+    align-items: center;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 8px;
+    background: var(--bg-card);
+    cursor: pointer;
+  }
+  .client-card-m.selected { border-color: var(--accent); background: var(--bg-elevated); }
+  .ccm-check { grid-area: check; align-self: start; padding-top: 2px; }
+  .ccm-check input { width: 18px; height: 18px; }
+  .ccm-name {
+    grid-area: name; min-width: 0;
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    font-size: 14.5px; color: var(--text-primary);
+  }
+  .ccm-name strong { font-weight: 600; }
+  .ccm-status { grid-area: status; justify-self: end; }
+  .ccm-status select { font-size: 13px; padding: 6px 8px; min-height: 36px; max-width: 130px; }
+  .ccm-activity {
+    grid-area: activity; min-width: 0;
+    font-size: 12px; color: var(--text-secondary);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .ccm-date { font-weight: 600; color: var(--text-primary); }
+  .ccm-muted { color: var(--text-muted); }
+}

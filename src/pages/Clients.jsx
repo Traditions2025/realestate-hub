@@ -1909,14 +1909,48 @@ export default function Clients() {
               {visibleColumns.map(renderHeaderCell)}
             </div>
             {items.map(item => (
-              <div key={item.id} className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`}
-                style={{ gridTemplateColumns: gridTemplate }}
-                onClick={() => openDetail(item.id)}>
-                <div className="cl-check" onClick={e => e.stopPropagation()}>
-                  <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
+              <React.Fragment key={item.id}>
+                {/* Desktop / tablet: full configurable row */}
+                <div className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`}
+                  style={{ gridTemplateColumns: gridTemplate }}
+                  onClick={() => openDetail(item.id)}>
+                  <div className="cl-check" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
+                  </div>
+                  {visibleColumns.map(col => renderCell(col, item))}
                 </div>
-                {visibleColumns.map(col => renderCell(col, item))}
-              </div>
+                {/* Mobile: condensed card — name, status, last activity only */}
+                <div className={`client-card-m ${selectedIds.has(item.id) ? 'selected' : ''}`}
+                  onClick={() => openDetail(item.id)}>
+                  <div className="ccm-check" onClick={e => e.stopPropagation()}>
+                    <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
+                  </div>
+                  <div className="ccm-name">
+                    <strong>{item.first_name} {item.last_name}</strong>
+                    {item.lead_score !== null && item.lead_score !== undefined && (
+                      <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+', 'plus').toLowerCase()}`}>
+                        {item.lead_score}{item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
+                      </span>
+                    )}
+                  </div>
+                  <div className="ccm-status" onClick={e => e.stopPropagation()}>
+                    <select className={`status-quick-select status-${item.status}`} value={item.status || ''}
+                      onChange={e => quickStatusChange(item, e.target.value, e)}>
+                      {SIERRA_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+                    </select>
+                  </div>
+                  <div className="ccm-activity">
+                    {item.last_fub_activity_at ? (
+                      <>
+                        <span className="ccm-date">{new Date(String(item.last_fub_activity_at).replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        {(item.last_fub_activity_type || item.last_fub_activity_detail) && (
+                          <span className="ccm-muted"> · {item.last_fub_activity_type}{item.last_fub_activity_detail ? ` ${item.last_fub_activity_detail}` : ''}</span>
+                        )}
+                      </>
+                    ) : <span className="ccm-muted">No recent activity</span>}
+                  </div>
+                </div>
+              </React.Fragment>
             ))}
           </div>
         )
