@@ -193,6 +193,7 @@ router.get('/:clientId', (req, res) => {
   const row = db.get('SELECT * FROM followup_recommendations WHERE client_id = ?', [client.id])
   if (!row) return res.json({ exists: false, ai_available: !!process.env.ANTHROPIC_API_KEY, fub_available: fubConfigured() })
   let data = {}; try { data = JSON.parse(row.data || '{}') } catch {}
+  scrubDashes(data)   // display dash-free even for analyses cached before the no-em-dash rule
   res.json({ exists: true, analyzed_at: row.analyzed_at, stale: row.fingerprint !== activityFingerprint(client),
     ai_available: !!process.env.ANTHROPIC_API_KEY, fub_available: fubConfigured(), ...data })
 })
