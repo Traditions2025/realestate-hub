@@ -108,7 +108,7 @@ export default function Settings() {
       </div>
 
       {loading ? <p style={{ color: 'var(--text-muted)' }}>Loading…</p> : (
-        <div style={{ display: 'grid', gap: 24, maxWidth: 760 }}>
+        <div style={{ display: 'grid', gap: 24, maxWidth: 760, width: '100%', gridTemplateColumns: 'minmax(0, 1fr)' }}>
           {/* Account info */}
           <section className="detail-section">
             <h4>Account Info</h4>
