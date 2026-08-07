@@ -235,6 +235,22 @@ export function isBlockedEmail(email) {
 // fills merge fields, injects live property cards where {{properties}} appears (or
 // when include_properties is set), respects opt-outs, and tags a SendGrid category
 // so the send shows up in Reporting. Returns a short status string.
+// Record an outgoing client email in the Inbox (communications) so EVERY email
+// we send a client, not just Inbox replies, shows up under Sent and threads with
+// that client. Best-effort: never let logging break a send. Skips no-client /
+// no-email sends (team notifications, digests, etc. pass no client).
+export function logSentToInbox(client, subject, body, externalId) {
+  try {
+    if (!client || !client.id || !client.email) return
+    const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+    const preview = String(body || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['email', 'outgoing', client.id, name, FROM_EMAIL, client.email, subject || '', preview, body || '',
+        externalId || `out_${Date.now()}_${client.id}_${Math.floor(Math.random() * 1e6)}`, `c${client.id}_email`, 'read', new Date().toISOString()])
+  } catch { /* logging must never break a send */ }
+}
+
 export async function sendSequenceEmail(client, cfg = {}, category = null) {
   if (!client || !client.email) return { ok: false, reason: 'no email' }
   if (isBlockedEmail(client.email)) return { ok: false, reason: 'blocked email domain' }
@@ -254,6 +270,7 @@ export async function sendSequenceEmail(client, cfg = {}, category = null) {
     body = /\{\{properties\}\}/.test(body) ? body.replace(/\{\{properties\}\}/g, cards) : (body + cards)
   }
   await sendViaSendGrid(client.email, `${client.first_name || ''} ${client.last_name || ''}`.trim(), subject, body, cfg.reply_to || null, [], [], [], category)
+  logSentToInbox(client, subject, body, category ? `${category}_${Date.now()}_${client.id}` : null)
   return { ok: true, subject }
 }
 
@@ -510,6 +527,7 @@ router.post('/send', async (req, res) => {
         n(template), 'sent', 'sendgrid', n(result.messageId), n(req.body.sent_by) || 'team'])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['email_sent', 'client', client_id || null, `Email sent to ${recipient}: ${filledSubject}`])
+    if (client) logSentToInbox(client, filledSubject, filledBody)   // show under Inbox → Sent
     res.json({ success: true, messageId: result.messageId })
   } catch (err) {
     db.run(`INSERT INTO email_log (client_id, to_email, subject, body, template, status, error)
@@ -552,6 +570,7 @@ async function runBulkSend(client_ids, subject, body, template) {
         db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
           template, status, provider, provider_message_id, sent_by, campaign_id) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
           [client.id, client.email, FROM_EMAIL, FROM_NAME, filledSubject, filledBody, n(template), 'sent', 'sendgrid', n(result.messageId), 'team', campaignId])
+        logSentToInbox(client, filledSubject, filledBody, `${category}_${client.id}`)   // show under Inbox → Sent
         _bulkState.sent++
       } catch (err) {
         _bulkState.failed++

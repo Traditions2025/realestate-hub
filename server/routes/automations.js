@@ -2,7 +2,7 @@ import { Router } from 'express'
 import db from '../database.js'
 import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
-import { sendViaSendGrid, buildPropertyCardsLive } from './email.js'
+import { sendViaSendGrid, buildPropertyCardsLive, logSentToInbox } from './email.js'
 import { enrollInDrip } from './drips.js'
 import { stopSequencesForClient, isStopStatus } from '../lead-sequences.js'
 import { isUsHoliday, bumpPastHolidays } from '../holidays.js'
@@ -202,6 +202,7 @@ async function runAction(node, client, ctx) {
       }
       const category = `auto_${ctx.automationId}`   // ties into the Reporting tab (opens/clicks)
       await sendViaSendGrid(client.email, `${client.first_name || ''} ${client.last_name || ''}`.trim(), subject, body, cfg.reply_to || null, [], [], [], category)
+      logSentToInbox(client, subject, body, `${category}_${Date.now()}_${client.id}`)
       return `emailed: ${subject}`
     }
     case 'send_property_recommendation': {
@@ -212,6 +213,7 @@ async function runAction(node, client, ctx) {
       const subj = 'A few homes I thought you should see'
       const body = `<p>Hi ${client.first_name || 'there'},</p><p>Based on what you've been looking at, here are a few homes worth a look:</p>${cards}<p>Want to see any in person? Just reply.</p><p>${account().name || 'Matt Smith'}</p>`
       await sendViaSendGrid(client.email, `${client.first_name || ''} ${client.last_name || ''}`.trim(), subj, body, null, [], [], [], `auto_${ctx.automationId}`)
+      logSentToInbox(client, subj, body, `auto_${ctx.automationId}_${Date.now()}_${client.id}`)
       return 'sent recommendation'
     }
     case 'send_internal_notification': case 'notify_agent_property_activity': {
