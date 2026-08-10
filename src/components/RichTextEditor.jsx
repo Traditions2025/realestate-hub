@@ -1,4 +1,6 @@
-import React, { useRef, useEffect } from 'react'
+import React, { useRef, useEffect, useState } from 'react'
+import { authFetch } from '../api'
+import { buildLinkPreviewHtml } from './inlineImages'
 
 // Lightweight Gmail-style WYSIWYG editor built on a contentEditable div.
 // - value/onChange keep it controlled from the outside (template load, etc.)
@@ -6,6 +8,7 @@ import React, { useRef, useEffect } from 'react'
 //   loses the caret.
 export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
   const ref = useRef(null)
+  const [linkLoading, setLinkLoading] = useState(false)
 
   useEffect(() => {
     if (ref.current && ref.current.innerHTML !== (value || '')) {
@@ -16,6 +19,24 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
   const sync = () => onChange(ref.current ? ref.current.innerHTML : '')
   const exec = (cmd, arg) => { document.execCommand(cmd, false, arg); ref.current && ref.current.focus(); sync() }
   const addLink = () => { const url = prompt('Link URL (https://…):'); if (url) exec('createLink', url.trim()) }
+
+  // Insert a rich preview card (image, title, description) for a pasted link.
+  const insertLinkPreview = async () => {
+    let url = prompt('Paste a link to preview:\n(inserts a rich card with its image, title & description)')
+    if (!url) return
+    url = url.trim(); if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    ref.current && ref.current.focus()
+    setLinkLoading(true)
+    try {
+      const res = await authFetch('/api/link-preview?url=' + encodeURIComponent(url))
+      const data = res.ok ? await res.json() : {}
+      exec('insertHTML', '<br>' + buildLinkPreviewHtml({ url, ...data }) + '<br>')
+    } catch {
+      exec('insertHTML', '<br>' + buildLinkPreviewHtml({ url }) + '<br>')
+    } finally {
+      setLinkLoading(false)
+    }
+  }
 
   const tbBtn = { padding: '4px 9px', background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #d1d5db)', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: 'var(--text-primary, #111)' }
   const B = ({ label, cmd, arg, title }) => (
@@ -31,6 +52,7 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
         <B label="•" cmd="insertUnorderedList" title="Bullet list" />
         <B label="1." cmd="insertOrderedList" title="Numbered list" />
         <button type="button" title="Insert link" onMouseDown={e => e.preventDefault()} onClick={addLink} style={tbBtn}>🔗</button>
+        <button type="button" title="Insert a rich link preview card (image, title, description)" onMouseDown={e => e.preventDefault()} onClick={insertLinkPreview} disabled={linkLoading} style={tbBtn}>{linkLoading ? '⏳' : '🔗+ Preview'}</button>
         <B label="H" cmd="formatBlock" arg="H3" title="Heading" />
         <B label="⟲" cmd="removeFormat" title="Clear formatting" />
       </div>
