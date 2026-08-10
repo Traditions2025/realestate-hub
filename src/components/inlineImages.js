@@ -137,36 +137,61 @@ export async function attachImagesSmart(body, files, textareaEl) {
 
 // Insert text/HTML at the textarea's caret position; returns the new value.
 // Build an email-safe "link preview" card (table-based, inline styles) from unfurled
-// metadata. The whole card is a single clickable link. Falls back gracefully when
-// there's no image/description. Used by EmailToolbar's Link Preview action.
+// metadata. COMPACT layout: a small square thumbnail on the left, domain/title/short
+// description on the right — keeps the card small so it doesn't dominate the email.
+// The whole card is a single clickable link. Degrades gracefully with no image.
 export function buildLinkPreviewHtml({ url, title, description, image, siteName } = {}) {
   const esc = (s) => String(s || '')
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
   let domain = siteName || ''
   if (!domain) { try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { domain = '' } }
   const clamp = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).trim() + '…' : s }
-  // Fall back to the domain (nicer than a raw URL) when a title couldn't be fetched.
-  const safeTitle = esc(clamp(title || domain || url, 120))
-  const safeDesc = description ? esc(clamp(description, 180)) : ''
+  const safeTitle = esc(clamp(title || domain || url, 80))
+  const safeDesc = description ? esc(clamp(description, 100)) : ''
   const imgCell = image
-    ? `<tr><td style="padding:0;"><img src="${esc(image)}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:8px 8px 0 0;" /></td></tr>`
+    ? `<td width="72" style="width:72px;padding:0;vertical-align:middle;"><img src="${esc(image)}" alt="" width="72" height="72" style="display:block;width:72px;height:72px;object-fit:cover;border:0;border-radius:8px 0 0 8px;" /></td>`
     : ''
   return (
-`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;width:100%;max-width:600px;margin:14px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#ffffff;">
-  <tr><td style="padding:0;">
-    <a href="${esc(url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
-        ${imgCell}
-        <tr><td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;">
-          ${domain ? `<div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">${esc(domain)}</div>` : ''}
-          <div style="font-size:16px;font-weight:700;color:#0f172a;line-height:1.3;">${safeTitle}</div>
-          ${safeDesc ? `<div style="font-size:13px;color:#475569;line-height:1.45;margin-top:5px;">${safeDesc}</div>` : ''}
-        </td></tr>
-      </table>
-    </a>
-  </td></tr>
+`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;width:100%;max-width:420px;margin:10px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#ffffff;">
+  <tr>
+    <td style="padding:0;">
+      <a href="${esc(url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;"><tr>
+          ${imgCell}
+          <td style="padding:8px 12px;font-family:Arial,Helvetica,sans-serif;vertical-align:middle;">
+            ${domain ? `<div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.3px;margin-bottom:2px;">${esc(domain)}</div>` : ''}
+            <div style="font-size:14px;font-weight:700;color:#0f172a;line-height:1.3;">${safeTitle}</div>
+            ${safeDesc ? `<div style="font-size:12px;color:#475569;line-height:1.4;margin-top:2px;">${safeDesc}</div>` : ''}
+          </td>
+        </tr></table>
+      </a>
+    </td>
+  </tr>
 </table>`
   )
+}
+
+// URL detection helpers for auto-preview (paste / type a link with a TLD).
+const TLD_RE = 'com|net|org|io|co|us|gov|edu|info|biz|realtor|homes|house|estate|properties|app|dev|me|tv|us'
+// The whole (trimmed) string IS a single URL -> return normalized https URL, else null.
+export function soleUrl(text) {
+  const t = String(text || '').trim()
+  if (!t || /\s/.test(t)) return null
+  if (/^https?:\/\/[^\s]+\.[^\s]+$/i.test(t)) return t
+  if (new RegExp(`^(www\\.)?[a-z0-9-]+(\\.[a-z0-9-]+)*\\.(${TLD_RE})(\\/[^\\s]*)?$`, 'i').test(t)) {
+    return 'https://' + t.replace(/^\/+/, '')
+  }
+  return null
+}
+// A URL sitting at the very end of `before` (used when the user just typed a space/enter
+// after a link). Returns { token, url } or null. `token` is the exact substring to replace.
+export function trailingUrl(before) {
+  const s = String(before || '')
+  let m = s.match(/(https?:\/\/[^\s]+\.[^\s]+?)[.,;)]*$/i)
+  if (m) return { token: m[1], url: m[1] }
+  m = s.match(new RegExp(`(^|\\s)((?:www\\.)?[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.(?:${TLD_RE})(?:\\/[^\\s]*)?)[.,;)]*$`, 'i'))
+  if (m && m[2]) return { token: m[2], url: 'https://' + m[2] }
+  return null
 }
 
 export function insertAtCursor(textareaEl, snippet, currentValue) {

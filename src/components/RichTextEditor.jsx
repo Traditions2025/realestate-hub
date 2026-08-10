@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { authFetch } from '../api'
-import { buildLinkPreviewHtml } from './inlineImages'
+import { buildLinkPreviewHtml, soleUrl } from './inlineImages'
 
 // Lightweight Gmail-style WYSIWYG editor built on a contentEditable div.
 // - value/onChange keep it controlled from the outside (template load, etc.)
@@ -20,22 +20,29 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
   const exec = (cmd, arg) => { document.execCommand(cmd, false, arg); ref.current && ref.current.focus(); sync() }
   const addLink = () => { const url = prompt('Link URL (https://…):'); if (url) exec('createLink', url.trim()) }
 
-  // Insert a rich preview card (image, title, description) for a pasted link.
-  const insertLinkPreview = async () => {
-    let url = prompt('Paste a link to preview:\n(inserts a rich card with its image, title & description)')
-    if (!url) return
-    url = url.trim(); if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+  // Fetch OG metadata and insert a preview card at the caret.
+  const insertCardForUrl = async (rawUrl) => {
+    let url = String(rawUrl).trim(); if (!/^https?:\/\//i.test(url)) url = 'https://' + url
     ref.current && ref.current.focus()
     setLinkLoading(true)
-    try {
-      const res = await authFetch('/api/link-preview?url=' + encodeURIComponent(url))
-      const data = res.ok ? await res.json() : {}
-      exec('insertHTML', '<br>' + buildLinkPreviewHtml({ url, ...data }) + '<br>')
-    } catch {
-      exec('insertHTML', '<br>' + buildLinkPreviewHtml({ url }) + '<br>')
-    } finally {
-      setLinkLoading(false)
-    }
+    let data = {}
+    try { const res = await authFetch('/api/link-preview?url=' + encodeURIComponent(url)); if (res.ok) data = await res.json() } catch {}
+    setLinkLoading(false)
+    exec('insertHTML', '<br>' + buildLinkPreviewHtml({ url, ...data }) + '<br>')
+  }
+
+  const insertLinkPreview = async () => {
+    const url = prompt('Paste a link to preview:\n(inserts a rich card with its image, title & description)')
+    if (url) insertCardForUrl(url)
+  }
+
+  // Auto-preview when a lone link is pasted into the editor.
+  const onPaste = (e) => {
+    const text = (e.clipboardData || window.clipboardData)?.getData('text') || ''
+    const url = soleUrl(text)
+    if (!url) return                 // not a bare link -> let the normal paste happen
+    e.preventDefault()
+    insertCardForUrl(url)
   }
 
   const tbBtn = { padding: '4px 9px', background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #d1d5db)', borderRadius: 4, fontSize: 13, cursor: 'pointer', color: 'var(--text-primary, #111)' }
@@ -62,6 +69,7 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
         suppressContentEditableWarning
         onInput={sync}
         onBlur={sync}
+        onPaste={onPaste}
         style={{ minHeight, maxHeight: '48vh', overflowY: 'auto', padding: '12px 14px', fontSize: 14, lineHeight: 1.6, outline: 'none', fontFamily: 'Arial, Helvetica, sans-serif', background: '#ffffff', color: '#111827' }}
       />
     </div>

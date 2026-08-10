@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react'
+import React, { useRef, useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import {
   attachImagesSmart,
@@ -6,6 +6,8 @@ import {
   buildYoutubeEmbedHtml,
   buildLinkPreviewHtml,
   insertAtCursor,
+  soleUrl,
+  trailingUrl,
 } from './inlineImages'
 
 /**
@@ -23,8 +25,53 @@ import {
 export default function EmailToolbar({ textareaRef, body, setBody, onPreview, showPreview = true, compact = false }) {
   const fileRef = useRef(null)
   const [linkLoading, setLinkLoading] = useState(false)
+  // Latest body + a de-dupe guard so async auto-previews use current text and don't double-fire.
+  const bodyRef = useRef(body); bodyRef.current = body
+  const busyUrlRef = useRef('')
 
   const onPickImage = () => fileRef.current?.click()
+
+  const fetchPreview = async (url) => {
+    try { const res = await authFetch('/api/link-preview?url=' + encodeURIComponent(url)); return res.ok ? await res.json() : {} }
+    catch { return {} }
+  }
+
+  // Auto-preview: replace a bare URL (already in the body) with a card, or append one.
+  const autoPreviewToken = async (token, url) => {
+    if (busyUrlRef.current === url) return
+    busyUrlRef.current = url
+    setLinkLoading(true)
+    const data = await fetchPreview(url)
+    setLinkLoading(false)
+    busyUrlRef.current = ''
+    const card = '\n' + buildLinkPreviewHtml({ url, ...data }) + '\n'
+    const prev = bodyRef.current || ''
+    const idx = token ? prev.lastIndexOf(token) : -1
+    if (idx === -1) { setBody(prev + card); return }
+    setBody(prev.slice(0, idx) + card + prev.slice(idx + token.length))
+  }
+
+  // Attach paste + type detection directly to the body textarea.
+  useEffect(() => {
+    const ta = textareaRef?.current
+    if (!ta) return
+    const onPaste = (e) => {
+      const text = (e.clipboardData || window.clipboardData)?.getData('text') || ''
+      const url = soleUrl(text)
+      if (!url) return                 // not a lone link -> normal paste
+      e.preventDefault()
+      autoPreviewToken('', url)        // nothing typed yet; insert a card
+    }
+    const onKeyUp = (e) => {
+      if (e.key !== ' ' && e.key !== 'Enter') return
+      const before = String(ta.value || '').slice(0, ta.selectionStart).replace(/\s+$/, '')
+      const hit = trailingUrl(before)
+      if (hit) autoPreviewToken(hit.token, hit.url)
+    }
+    ta.addEventListener('paste', onPaste)
+    ta.addEventListener('keyup', onKeyUp)
+    return () => { ta.removeEventListener('paste', onPaste); ta.removeEventListener('keyup', onKeyUp) }
+  }, [textareaRef])
 
   // Insert a rich preview card for a pasted link (fetches its Open Graph metadata).
   const onInsertLinkPreview = async () => {
