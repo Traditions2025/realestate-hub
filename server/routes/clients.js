@@ -235,6 +235,13 @@ export function buildClientFilter(q) {
     where += ')'
   }
 
+  // Address present / absent
+  if (q.has_address === '1') {
+    where += " AND address IS NOT NULL AND TRIM(address) != ''"
+  } else if (q.has_address === '0') {
+    where += " AND (address IS NULL OR TRIM(address) = '')"
+  }
+
   // ---- Property criteria filters (from saved search) ----
   // "Looking for price ≥ X" — the lead's price ceiling has to allow X
   if (q.search_price_at_least) {

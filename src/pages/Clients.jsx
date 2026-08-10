@@ -235,6 +235,7 @@ export default function Clients() {
     // Drip campaign enrollment
     in_drip: '',   // '' (any) | '1' (in a drip) | '0' (not in a drip)
     drip_id: '',   // '' (any campaign) | a specific drip campaign id
+    has_address: '', // '' (any) | '1' (has address) | '0' (no address)
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -278,7 +279,8 @@ export default function Clients() {
     (advFilters.realist_year_built_min ? 1 : 0) + (advFilters.realist_year_built_max ? 1 : 0) +
     (advFilters.realist_sell_score_min ? 1 : 0) +
     (advFilters.realist_owner_occupied ? 1 : 0) +
-    (advFilters.in_drip ? 1 : 0)
+    (advFilters.in_drip ? 1 : 0) +
+    (advFilters.has_address ? 1 : 0)
   )
 
   const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
@@ -405,6 +407,7 @@ export default function Clients() {
       params.in_drip = advFilters.in_drip
       if (advFilters.drip_id) params.drip_id = advFilters.drip_id
     }
+    if (advFilters.has_address) params.has_address = advFilters.has_address
     params.sort = sortBy
     return params
   }
@@ -761,7 +764,7 @@ export default function Clients() {
       realist_value_min: '', realist_value_max: '',
       realist_year_built_min: '', realist_year_built_max: '',
       realist_sell_score_min: '', realist_owner_occupied: '',
-      in_drip: '', drip_id: '',
+      in_drip: '', drip_id: '', has_address: '',
     })
     setTab('all')
     setSearch('')
@@ -854,6 +857,7 @@ export default function Clients() {
           search_regions: f.search_regions || [],
           in_drip: f.in_drip || '',
           drip_id: f.drip_id || '',
+          has_address: f.has_address || '',
         })
         setTab('all')
         if (f.search) setSearch(f.search)
@@ -1678,6 +1682,14 @@ export default function Clients() {
                 Exclude marketing opt-outs
               </label>
               <label className="filter-num">
+                Address
+                <select value={advFilters.has_address} onChange={e => setAdvFilters(p => ({ ...p, has_address: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="1">Has address</option>
+                  <option value="0">No address</option>
+                </select>
+              </label>
+              <label className="filter-num">
                 Score min
                 <input type="number" value={advFilters.score_min} onChange={e => setAdvFilters(p => ({ ...p, score_min: e.target.value }))} />
               </label>
@@ -1717,22 +1729,13 @@ export default function Clients() {
               </label>
             </div>
             <div className="filter-other-row" style={{marginTop: 6}}>
-              <label className="filter-num" style={{flex: 1, minWidth: 220}}>
+              <label className="filter-num" style={{flex: 1, minWidth: 260}}>
                 Property types (comma-separated, e.g. SingleFamily, Condo)
                 <input
                   type="text"
                   placeholder="SingleFamily, Condo, Townhouse"
                   value={advFilters.search_property_types.join(', ')}
                   onChange={e => setAdvFilters(p => ({ ...p, search_property_types: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
-                />
-              </label>
-              <label className="filter-num" style={{flex: 1, minWidth: 220}}>
-                Regions (comma-separated, e.g. CRAAR, Cedar Rapids)
-                <input
-                  type="text"
-                  placeholder="CRAAR, Marion, Hiawatha"
-                  value={advFilters.search_regions.join(', ')}
-                  onChange={e => setAdvFilters(p => ({ ...p, search_regions: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
                 />
               </label>
             </div>
