@@ -247,6 +247,7 @@ export default function Clients() {
   const [saveListOpen, setSaveListOpen] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [editScoreId, setEditScoreId] = useState(null) // client id whose Realist Score is being edited inline
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false) // TYPE column header filter dropdown
 
   // Load filter options + saved lists once
   useEffect(() => {
@@ -1392,38 +1393,6 @@ export default function Clients() {
         ))}
       </div>
 
-      {/* Type filter: All / Buyers / Sellers — combines with Status tabs above */}
-      <div className="type-tabs">
-        <span className="type-tabs-label">Type:</span>
-        <button
-          className={`type-tab ${!filter.type ? 'active' : ''}`}
-          onClick={() => setFilter(p => ({ ...p, type: '' }))}
-        >
-          All Types <span className="tab-count">{allCounts.total}</span>
-        </button>
-        <button
-          className={`type-tab type-buyer ${filter.type === 'buyer' ? 'active' : ''}`}
-          onClick={() => setFilter(p => ({ ...p, type: 'buyer' }))}
-          title="Includes leads tagged as Buyer or Both"
-        >
-          🎯 Buyers {tab === 'active' && <span className="tab-count">Active</span>}
-        </button>
-        <button
-          className={`type-tab type-seller ${filter.type === 'seller' ? 'active' : ''}`}
-          onClick={() => setFilter(p => ({ ...p, type: 'seller' }))}
-          title="Includes leads tagged as Seller or Both"
-        >
-          🏠 Sellers {tab === 'active' && <span className="tab-count">Active</span>}
-        </button>
-        <button
-          className={`type-tab type-both ${filter.type === 'both' ? 'active' : ''}`}
-          onClick={() => setFilter(p => ({ ...p, type: 'both' }))}
-          title="Only leads tagged as Buyer & Seller"
-        >
-          🔄 Buyer/Seller
-        </button>
-      </div>
-
       <div className="toolbar">
         <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
         <select value={activeListId || ''} onChange={e => loadSavedList(e.target.value ? Number(e.target.value) : null)} title="Saved lists">
@@ -1913,6 +1882,38 @@ export default function Clients() {
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
+          // TYPE column header doubles as the Buyer/Seller/Both filter (click to choose).
+          if (col.key === 'type') {
+            const TYPE_OPTS = [['', 'All'], ['buyer', 'Buyer'], ['seller', 'Seller'], ['both', 'Buyer/Seller']]
+            const curLabel = (TYPE_OPTS.find(o => o[0] === (filter.type || ''))?.[1]) || 'All'
+            return (
+              <div
+                key="type"
+                className={`cl-type sortable ${filter.type ? 'active' : ''}`}
+                style={{ position: 'relative', cursor: 'pointer' }}
+                onClick={() => setTypeMenuOpen(o => !o)}
+                title="Filter by type"
+              >
+                Type{filter.type ? `: ${curLabel}` : ''} ▾
+                {typeMenuOpen && (
+                  <>
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setTypeMenuOpen(false) }} />
+                    <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, minWidth: 140, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 4 }} onClick={(e) => e.stopPropagation()}>
+                      {TYPE_OPTS.map(([v, l]) => (
+                        <div
+                          key={v || 'all'}
+                          onClick={() => { setFilter(p => ({ ...p, type: v })); setTypeMenuOpen(false) }}
+                          style={{ padding: '7px 10px', borderRadius: 6, fontSize: 13, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontWeight: (filter.type || '') === v ? 700 : 400, color: 'var(--text-primary)', background: (filter.type || '') === v ? 'var(--bg-elevated)' : 'transparent' }}
+                        >
+                          {l}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )
+          }
           const isSorted = col.sort && (sortBy === col.sort.asc || sortBy === col.sort.desc)
           const arrow = !col.sort ? '' : (sortBy === col.sort.desc ? '▼' : sortBy === col.sort.asc ? '▲' : '⇅')
           const onClick = col.sort ? () => setSortBy(sortBy === col.sort.desc ? col.sort.asc : col.sort.desc) : undefined
