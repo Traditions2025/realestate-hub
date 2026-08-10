@@ -1,4 +1,4 @@
-import initSqlJs from 'sql.js'
+import Database from 'better-sqlite3'
 import { readFileSync, writeFileSync, existsSync, mkdirSync, statSync, renameSync, readdirSync, copyFileSync, openSync, fsyncSync, closeSync, unlinkSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
@@ -9,11 +9,61 @@ const __dirname = dirname(__filename)
 const DB_DIR = process.env.DB_DIR || join(__dirname, '..')
 const DB_PATH = join(DB_DIR, 'realestate-hub.db')
 
-let db
+let db            // sql.js-compatible shim over a live better-sqlite3 connection
+let _bulkDepth = 0
+
+// better-sqlite3 is stricter than sql.js about bind params: it rejects undefined
+// and booleans. Coerce them (undefined->null, boolean->0/1) so all ~200 existing
+// call sites keep working unchanged.
+function sanitizeParams(params) {
+  const a = params || []
+  const out = new Array(a.length)
+  for (let i = 0; i < a.length; i++) {
+    const p = a[i]
+    out[i] = p === undefined ? null : (typeof p === 'boolean' ? (p ? 1 : 0) : p)
+  }
+  return out
+}
+
+// Thin object mimicking the sql.js Database surface the rest of this file uses
+// (run/get/all/exec/export/prepare/close), backed by better-sqlite3. Lets every
+// existing `db.run(...)` schema + migration call work with zero changes.
+function makeDbShim(raw) {
+  return {
+    _raw: raw,
+    run(sql, params = []) {
+      if (params && params.length) {
+        const info = raw.prepare(sql).run(...sanitizeParams(params))
+        return { lastInsertRowid: info.lastInsertRowid, changes: info.changes }
+      }
+      raw.exec(sql)                 // DDL / no-param / multi-statement
+      return { lastInsertRowid: undefined, changes: 0 }
+    },
+    get(sql, params = []) { return raw.prepare(sql).get(...sanitizeParams(params)) || null },
+    all(sql, params = []) { return raw.prepare(sql).all(...sanitizeParams(params)) },
+    exec(sql) { raw.exec(sql) },
+    prepare(sql) { return raw.prepare(sql) },
+    export() { return raw.serialize() },
+    pragma(p, opts) { return raw.pragma(p, opts) },
+    getRowsModified() { return 0 },
+    close() { try { raw.close() } catch {} },
+  }
+}
+
+// Open (or create) the SQLite file with better-sqlite3 and set safe pragmas.
+// Rollback-journal (DELETE) mode + synchronous FULL keeps the single .db file
+// always-current and durable, so the existing file-copy backups + corruption
+// recovery keep working unchanged (no WAL sidecar files). Unlike sql.js, the DB
+// is NOT held whole in memory and is NOT re-serialized on every write.
+function openDbFile(path) {
+  const raw = new Database(path)
+  raw.pragma('journal_mode = DELETE')
+  raw.pragma('synchronous = FULL')
+  raw.pragma('foreign_keys = OFF')
+  return makeDbShim(raw)
+}
 
 export async function initDb() {
-  const SQL = await initSqlJs()
-
   // Ensure DB directory exists
   console.log(`[db] Database path: ${DB_PATH}`)
   console.log(`[db] DB_DIR env var: ${process.env.DB_DIR || '(not set, using local)'}`)
@@ -129,11 +179,13 @@ export async function initDb() {
       console.error(`[db] pre-boot snapshot failed: ${e.message}`)
     }
 
-    const buffer = readFileSync(DB_PATH)
     try {
-      db = new SQL.Database(buffer)
-      db.exec('PRAGMA quick_check;')
+      db = openDbFile(DB_PATH)
+      const qc = db.pragma('quick_check', { simple: true })
+      if (qc !== 'ok') throw new Error(`quick_check reported: ${qc}`)
     } catch (corruptErr) {
+      try { if (db && db.close) db.close() } catch {}
+      db = null
       console.error('[db] ============================================')
       console.error(`[db] !!! DATABASE FILE FAILED TO LOAD: ${corruptErr.message}`)
       console.error(`[db] !!! File: ${DB_PATH}`)
@@ -190,10 +242,10 @@ export async function initDb() {
       let restoredFrom = null
       for (const c of candidates) {
         try {
-          const buf = readFileSync(c.path)
-          const testDb = new SQL.Database(buf)
-          testDb.exec('PRAGMA quick_check;')
+          const testDb = new Database(c.path, { readonly: true, fileMustExist: true })
+          const cqc = testDb.pragma('quick_check', { simple: true })
           testDb.close()
+          if (cqc !== 'ok') throw new Error(`quick_check: ${cqc}`)
           restoredFrom = c
           console.error(`[db] !!! Candidate VALID: ${c.name} (${(c.size/1024).toFixed(0)} KB, ${c.mtime.toISOString()})`)
           break
@@ -231,9 +283,9 @@ export async function initDb() {
       // Sidecar is safe. Now overwrite the live file with the chosen backup.
       copyFileSync(restoredFrom.path, DB_PATH)
       console.error(`[db] !!! Restored from ${restoredFrom.name}`)
-      const restoredBuffer = readFileSync(DB_PATH)
-      db = new SQL.Database(restoredBuffer)
-      db.exec('PRAGMA quick_check;')
+      db = openDbFile(DB_PATH)
+      const rqc = db.pragma('quick_check', { simple: true })
+      if (rqc !== 'ok') throw new Error(`restored DB quick_check: ${rqc}`)
       console.error('[db] !!! Restored DB loaded successfully. Service continuing.')
       console.error('[db] !!! NOTE: any data written between the backup time and the corruption may be in')
       console.error(`[db] !!!       the sidecar at ${corruptAside}. Original corrupt bytes are preserved there.`)
@@ -242,7 +294,7 @@ export async function initDb() {
     // Truly no DB anywhere — first-ever boot OR Render disk really is empty.
     // This is now a rare path because of the retry+auto-restore above.
     console.log(`[db] No existing database AND no usable backup, creating new at ${DB_PATH}`)
-    db = new SQL.Database()
+    db = openDbFile(DB_PATH)
   }
 
   // ---- LAYER 3: migration ledger ----
@@ -1167,7 +1219,7 @@ export async function initDb() {
 
   // Migration: add new client columns if missing (for existing databases)
   try {
-    const cols = db.exec("PRAGMA table_info(clients)")[0]?.values.map(v => v[1]) || []
+    const cols = db.all("PRAGMA table_info(clients)").map(r => r.name)
     const newCols = [
       ['visits', 'INTEGER DEFAULT 0'],
       ['email_status', 'TEXT'],
@@ -1224,7 +1276,7 @@ export async function initDb() {
 
   // Migration: add notes_log + completed_at to tasks
   try {
-    const taskCols = db.exec("PRAGMA table_info(tasks)")[0]?.values.map(v => v[1]) || []
+    const taskCols = db.all("PRAGMA table_info(tasks)").map(r => r.name)
     if (!taskCols.includes('notes_log')) {
       db.run('ALTER TABLE tasks ADD COLUMN notes_log TEXT')
       console.log('[migration] Added tasks.notes_log')
@@ -1253,7 +1305,7 @@ export async function initDb() {
 
   // Migration: add new transaction columns (earnest money due, IPI, lender, dotloop)
   try {
-    const cols = db.exec("PRAGMA table_info(transactions)")[0]?.values.map(v => v[1]) || []
+    const cols = db.all("PRAGMA table_info(transactions)").map(r => r.name)
     const newTxCols = [
       ['earnest_money_due_date', 'TEXT'],
       ['ipi_due_date', 'TEXT'],
@@ -1315,7 +1367,7 @@ export async function initDb() {
 
   // Migration: add marketing_tasks column to listings if missing
   try {
-    const cols = db.exec("PRAGMA table_info(listings)")[0]?.values.map(v => v[1]) || []
+    const cols = db.all("PRAGMA table_info(listings)").map(r => r.name)
     if (!cols.includes('marketing_tasks')) {
       db.run('ALTER TABLE listings ADD COLUMN marketing_tasks TEXT')
       console.log('[migration] Added listings.marketing_tasks')
@@ -1328,7 +1380,7 @@ export async function initDb() {
   // marketing checklist (JSON) shown in the pre-listing popup and on Active
   // transactions.
   try {
-    const cols = db.exec("PRAGMA table_info(pre_listings)")[0]?.values.map(v => v[1]) || []
+    const cols = db.all("PRAGMA table_info(pre_listings)").map(r => r.name)
     if (!cols.includes('marketing_tasks')) {
       db.run('ALTER TABLE pre_listings ADD COLUMN marketing_tasks TEXT')
       console.log('[migration] Added pre_listings.marketing_tasks')
@@ -1427,8 +1479,7 @@ export async function initDb() {
   // loudly but don't crash — Render's health probe (LAYER 5) will refuse
   // to route traffic to a sick instance, preserving the prior good one.
   try {
-    const r = db.exec('PRAGMA integrity_check;')
-    const result = r[0]?.values[0]?.[0]
+    const result = db.pragma('integrity_check', { simple: true })
     if (result && result !== 'ok') {
       console.error(`[db] !!! INTEGRITY CHECK FAILED AFTER MIGRATIONS: ${result}`)
     } else {
@@ -1478,53 +1529,33 @@ export function checkDbHealth() {
   }
 }
 
-// Bulk mode: skip saveDb() inside the run() helper during long-running batch ops
-// (e.g. Realist CSV import). Caller must explicitly saveDb() when done.
-// Without this, a 3000-row import would call saveDb() 6000+ times = entire DB
-// written to disk thousands of times = seconds-to-minutes of blocked event loop.
-let _bulkMode = false
-export function beginBulk() { _bulkMode = true }
-export function endBulk() {
-  _bulkMode = false
-  saveDb()
+// Bulk mode: batch a long-running set of writes (e.g. a Sierra sync or a Realist
+// CSV import) into ONE SQLite transaction. With better-sqlite3 each write already
+// goes straight to the .db file, but wrapping a batch in a single BEGIN/COMMIT is
+// far faster (one fsync at the end instead of one per row) and atomic. Depth-
+// counted so nested begin/end calls don't fight. If the process dies mid-batch,
+// SQLite rolls the uncommitted transaction back on next open — never a partial DB.
+export function beginBulk() {
+  if (_bulkDepth === 0) { try { db._raw.exec('BEGIN') } catch {} }
+  _bulkDepth++
 }
-export function inBulkMode() { return _bulkMode }
-
-let saveErrorLogged = false
-export function saveDb() {
-  if (!db) return
-  const tmpPath = `${DB_PATH}.tmp`
-  try {
-    const data = db.export()
-    const buffer = Buffer.from(data)
-    // ---- ATOMIC SAVE (added 2026-07-07) ----
-    // Write the full DB to a temp file, force it to physical disk (fsync),
-    // then atomically rename it over the live file. A crash or interruption
-    // mid-write can now only ever leave a stray `.tmp` file — the real
-    // realestate-hub.db is swapped in a single filesystem operation and is
-    // NEVER observed half-written. This is the missing safeguard behind the
-    // 2026-05-20 corruption, where a direct writeFileSync onto the live file
-    // could truncate it if the process died mid-write. This makes it safe to
-    // batch writes with beginBulk()/endBulk() on scheduled syncs.
-    const fd = openSync(tmpPath, 'w')
-    try {
-      writeFileSync(fd, buffer)
-      fsyncSync(fd)            // flush bytes to disk BEFORE the rename
-    } finally {
-      closeSync(fd)
-    }
-    renameSync(tmpPath, DB_PATH)  // atomic on the same filesystem (/data)
-    saveErrorLogged = false
-  } catch (e) {
-    // Clean up a partial temp file so it can't be mistaken for a real DB.
-    try { if (existsSync(tmpPath)) unlinkSync(tmpPath) } catch {}
-    if (!saveErrorLogged) {
-      console.error(`[db] CRITICAL: Failed to save DB to ${DB_PATH}: ${e.message}`)
-      console.error(`[db] Your data will be lost on restart. Check that DB_DIR=${DB_DIR} is writable.`)
-      saveErrorLogged = true
+export function endBulk() {
+  if (_bulkDepth > 0) {
+    _bulkDepth--
+    if (_bulkDepth === 0) {
+      try { db._raw.exec('COMMIT') }
+      catch { try { db._raw.exec('ROLLBACK') } catch {} }
     }
   }
 }
+export function inBulkMode() { return _bulkDepth > 0 }
+
+// No-op. better-sqlite3 writes every change straight to the .db file (rollback-
+// journal mode, synchronous FULL) so data is already durable on disk the instant
+// a statement runs. Kept as a function because ~200 call sites + endBulk() call
+// it. The old sql.js path re-serialized the ENTIRE 65 MB database to a temp file
+// on every single write — the root of the memory pressure + event-loop freezes.
+export function saveDb() { /* durable-on-write; nothing to flush */ }
 
 // Save status endpoint helper - reports persistence state
 export function getDbStatus() {
@@ -1550,29 +1581,11 @@ export function getDbStatus() {
   }
 }
 
-export function all(sql, params = []) {
-  const stmt = db.prepare(sql)
-  if (params.length) stmt.bind(params)
-  const rows = []
-  while (stmt.step()) {
-    rows.push(stmt.getAsObject())
-  }
-  stmt.free()
-  return rows
-}
+export function all(sql, params = []) { return db.all(sql, params) }
 
-export function get(sql, params = []) {
-  const rows = all(sql, params)
-  return rows[0] || null
-}
+export function get(sql, params = []) { return db.get(sql, params) }
 
-export function run(sql, params = []) {
-  db.run(sql, params)
-  const lastId = db.exec("SELECT last_insert_rowid() as id")[0]?.values[0]?.[0]
-  const changes = db.getRowsModified()
-  if (!_bulkMode) saveDb()
-  return { lastInsertRowid: lastId, changes }
-}
+export function run(sql, params = []) { return db.run(sql, params) }
 
 // --- App settings key-value helpers (runtime config, not in source control) ---
 export function getSetting(key, fallback = null) {
