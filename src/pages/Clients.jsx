@@ -1918,15 +1918,12 @@ export default function Clients() {
                 ) : <span className="lead-score-empty">—</span>}
               </div>
             case 'name':
+              // List view: name + the small Sierra source badge only. Tags are hidden
+              // here for a cleaner list; they still render in full on each lead's
+              // profile detail drawer (and remain filterable via the Tags filter).
               return <div key="name" className="cl-name">
                 <strong>{item.first_name} {item.last_name}</strong>
                 {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
-                {item.tags && (() => {
-                  try {
-                    const tagList = JSON.parse(item.tags)
-                    return tagList.slice(0, 2).map((t, i) => <span key={i} className="lead-tag">{t}</span>)
-                  } catch { return null }
-                })()}
               </div>
             case 'status':
               return <div key="status" className="cl-status" onClick={e => e.stopPropagation()}>
