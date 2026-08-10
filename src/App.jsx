@@ -58,8 +58,22 @@ const navSections = [
   ]},
 ]
 
+// Clean "toggle sidebar" panel icon (Lucide panel-left style).
+function PanelIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <line x1="9" y1="4" x2="9" y2="20" />
+    </svg>
+  )
+}
+
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Desktop: collapse (fully hide) the sidebar to give the page full width. Persisted.
+  const [collapsed, setCollapsed] = useState(() => localStorage.getItem('mst_sidebar_collapsed') === '1')
+  useEffect(() => { localStorage.setItem('mst_sidebar_collapsed', collapsed ? '1' : '0') }, [collapsed])
+  const toggleCollapsed = () => setCollapsed(c => !c)
   // Optimistically authed if we have a token - skip the verify roundtrip on page load
   const [authed, setAuthed] = useState(() => !!localStorage.getItem('mst_token'))
 
@@ -122,13 +136,20 @@ export default function App() {
       {/* Overlay */}
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
 
-      <aside className={`sidebar ${sidebarOpen ? 'open' : ''}`}>
+      {/* Desktop: floating button to re-open the sidebar when it's collapsed */}
+      {collapsed && (
+        <button className="sidebar-expand desktop-only" onClick={toggleCollapsed} title="Show sidebar" aria-label="Show sidebar">
+          <PanelIcon />
+        </button>
+      )}
+
+      <aside className={`sidebar ${sidebarOpen ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <div className="logo">
             <img src="/logo.png" alt="Matt Smith Team" className="logo-img" />
           </div>
-          <button className="sidebar-toggle desktop-only" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            {sidebarOpen ? '\u2039' : '\u203A'}
+          <button className="sidebar-toggle desktop-only" onClick={toggleCollapsed} title="Hide sidebar" aria-label="Hide sidebar">
+            <PanelIcon />
           </button>
         </div>
         <nav className="sidebar-nav">

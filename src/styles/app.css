@@ -87,12 +87,37 @@ body {
   left: 0;
   bottom: 0;
   z-index: 100;
-  transition: width 0.2s ease;
+  transition: transform 0.2s ease, width 0.2s ease;
 }
 
+/* Desktop: collapse = slide the whole sidebar off-screen (content goes full width) */
 .sidebar.collapsed {
-  width: var(--sidebar-collapsed);
+  transform: translateX(-100%);
 }
+/* Mobile slide-in must always win over a persisted desktop-collapse */
+.sidebar.open {
+  transform: none;
+}
+
+/* Floating button to re-open the sidebar when collapsed (desktop) */
+.sidebar-expand {
+  position: fixed;
+  top: 14px;
+  left: 14px;
+  z-index: 120;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
+}
+.sidebar-expand:hover { background: var(--bg-hover); color: var(--text-primary); }
 
 .sidebar-header {
   display: flex;
@@ -215,7 +240,7 @@ body {
 }
 
 .sidebar.collapsed ~ .main-content {
-  margin-left: var(--sidebar-collapsed);
+  margin-left: 0;
 }
 
 .page {
