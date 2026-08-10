@@ -16,7 +16,7 @@ router.get('/', (req, res) => {
   if (status) { sql += ' AND status = ?'; params.push(status) }
   if (category) { sql += ' AND category = ?'; params.push(category) }
 
-  sql += ' ORDER BY CASE priority WHEN "high" THEN 1 WHEN "medium" THEN 2 WHEN "low" THEN 3 END, updated_at DESC'
+  sql += " ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END, updated_at DESC"
   const projects = db.all(sql, params)
 
   projects.forEach(p => {

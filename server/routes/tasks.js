@@ -100,7 +100,7 @@ router.get('/', (req, res) => {
   if (related_type) { sql += ' AND related_type = ?'; params.push(related_type) }
   if (related_id) { sql += ' AND related_id = ?'; params.push(Number(related_id)) }
 
-  sql += ' ORDER BY CASE priority WHEN "high" THEN 1 WHEN "medium" THEN 2 WHEN "low" THEN 3 END, due_date ASC'
+  sql += " ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END, due_date ASC"
   res.json(db.all(sql, params))
 })
 
