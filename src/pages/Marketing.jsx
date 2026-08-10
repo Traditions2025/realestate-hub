@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { api } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
+import DripCampaigns from '../components/DripCampaigns'
 
 const emptyCampaign = {
   name: '', type: 'social_media', status: 'planned', platform: '',
@@ -17,6 +18,7 @@ export default function Marketing() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyCampaign)
+  const [mode, setMode] = useState('blasts') // 'blasts' (marketing campaigns) | 'drips' (drip campaigns)
 
   const load = () => {
     const params = {}
@@ -63,11 +65,19 @@ export default function Marketing() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Marketing</h1>
-          <p className="page-subtitle">Campaign tracking and performance</p>
+          <h1>Campaigns</h1>
+          <p className="page-subtitle">One-off marketing campaigns and multi-step email drip sequences</p>
         </div>
-        <button className="btn btn-primary" onClick={openNew}>+ New Campaign</button>
+        {mode === 'blasts' && <button className="btn btn-primary" onClick={openNew}>+ New Campaign</button>}
       </div>
+
+      {/* Mode tabs: marketing campaigns vs drip campaigns */}
+      <div className="type-tabs" style={{ marginBottom: 14 }}>
+        <button className={`type-tab ${mode === 'blasts' ? 'active' : ''}`} onClick={() => setMode('blasts')}>&#9672; Marketing Campaigns</button>
+        <button className={`type-tab ${mode === 'drips' ? 'active' : ''}`} onClick={() => setMode('drips')}>&#128167; Drip Campaigns</button>
+      </div>
+
+      {mode === 'drips' ? <DripCampaigns /> : <>
 
       {/* Marketing Stats */}
       <div className="stats-grid stats-small">
@@ -229,6 +239,7 @@ export default function Marketing() {
           </div>
         </form>
       </Modal>
+      </>}
     </div>
   )
 }

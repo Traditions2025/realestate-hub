@@ -3,7 +3,6 @@ import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import EmailToolbar from '../components/EmailToolbar'
 import RichTextEditor from '../components/RichTextEditor'
-import DripCampaigns from '../components/DripCampaigns'
 import { autoEmbedYoutubeLinks } from '../components/inlineImages'
 
 const TYPE_OPTIONS = [
@@ -39,7 +38,6 @@ export default function Templates() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [tplView, setTplView] = useState('wysiwyg') // email body editor: 'wysiwyg' | 'html'
-  const [mode, setMode] = useState('templates') // 'templates' | 'drips'
   const fileInputRef = useRef(null)
   const tplBodyRef = useRef(null)
 
@@ -153,23 +151,13 @@ export default function Templates() {
       <div className="page-header">
         <div>
           <h1>Templates</h1>
-          <p className="page-sub">Reusable email, text, script, and voicemail templates — plus multi-email drip campaigns</p>
+          <p className="page-sub">Reusable email, text, script, and voicemail templates</p>
         </div>
-        {mode === 'templates' && (
-          <div style={{display: 'flex', gap: 8}}>
-            <button className="btn btn-secondary" onClick={() => openNew('text')}>+ New Text</button>
-            <button className="btn btn-primary" onClick={() => openNew('email')}>+ New Email</button>
-          </div>
-        )}
+        <div style={{display: 'flex', gap: 8}}>
+          <button className="btn btn-secondary" onClick={() => openNew('text')}>+ New Text</button>
+          <button className="btn btn-primary" onClick={() => openNew('email')}>+ New Email</button>
+        </div>
       </div>
-
-      {/* Mode tabs: single templates vs drip campaigns */}
-      <div className="type-tabs" style={{ marginBottom: 14 }}>
-        <button className={`type-tab ${mode === 'templates' ? 'active' : ''}`} onClick={() => setMode('templates')}>✉ Templates</button>
-        <button className={`type-tab ${mode === 'drips' ? 'active' : ''}`} onClick={() => setMode('drips')}>💧 Drip Campaigns</button>
-      </div>
-
-      {mode === 'drips' ? <DripCampaigns /> : <>
 
       {/* Type tabs */}
       <div className="type-tabs">
@@ -340,7 +328,6 @@ export default function Templates() {
           )}
         </div>
       </Modal>
-      </>}
     </div>
   )
 }
