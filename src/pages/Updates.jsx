@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { authFetch } from '../api'
+import WhatsNew from './WhatsNew'
 
 // =====================================================
 // HUB UPDATES (development changelog from git history)
@@ -753,8 +754,9 @@ function SystemsStatus() {
 }
 
 export default function Updates() {
-  const [tab, setTab] = useState('hub')
+  const [tab, setTab] = useState('whatsnew')
   const subtitles = {
+    whatsnew: 'What’s new — a plain-English tour of everything added to the Hub, newest first',
     hub: 'Hub development history — features added, fixes shipped, improvements over time',
     activity: 'Live activity feed — everything created, updated, synced or sent across the hub',
     email: 'Every email send attempt — successful + failed, with timestamps and error details',
@@ -771,6 +773,9 @@ export default function Updates() {
       </div>
 
       <div className="listing-tabs" style={{marginBottom: 18}}>
+        <button className={`listing-tab ${tab === 'whatsnew' ? 'active' : ''}`} onClick={() => setTab('whatsnew')}>
+          ✨ What’s New
+        </button>
         <button className={`listing-tab ${tab === 'hub' ? 'active' : ''}`} onClick={() => setTab('hub')}>
           🛠 Hub Updates
         </button>
@@ -788,6 +793,7 @@ export default function Updates() {
         </button>
       </div>
 
+      {tab === 'whatsnew' && <WhatsNew />}
       {tab === 'hub' && <HubUpdates />}
       {tab === 'activity' && <ActivityLog />}
       {tab === 'email' && <EmailLog />}
