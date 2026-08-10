@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { statfsSync } from 'fs'
+import { statfsSync, readFileSync, existsSync } from 'fs'
 import { initDb, getDbStatus } from './database.js'
 import db from './database.js'
 
@@ -187,6 +187,18 @@ async function start() {
   // Auth
   app.use('/api/auth', authRouter)
   app.use(requireAuth)
+
+  // "What's New" walkthrough screenshots. Served ONLY to authenticated users (this
+  // route is behind requireAuth) so client data in the screenshots never goes public.
+  app.get('/api/whatsnew/:name', (req, res) => {
+    const name = String(req.params.name || '')
+    if (!/^[a-z0-9-]+\.png$/i.test(name)) return res.status(400).end()
+    const p = join(__dirname, 'whatsnew', name)
+    if (!existsSync(p)) return res.status(404).end()
+    res.setHeader('Content-Type', 'image/png')
+    res.setHeader('Cache-Control', 'private, max-age=86400')
+    res.end(readFileSync(p))
+  })
 
   // Link preview (unfurl): fetch a URL server-side and parse its Open Graph / meta
   // tags so the email composer can insert a rich preview card. Used by EmailToolbar.
