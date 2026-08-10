@@ -179,6 +179,15 @@ const GROUPS = [
         ],
       },
       {
+        icon: '◧', accent: '#334155', title: 'Collapse the sidebar', date: 'Aug 10', to: null, cta: null,
+        desc: 'Hide the left sidebar to give any page the full width — handy for wide tables like Clients. Click the panel icon at the top of the sidebar to hide it; a small button appears to bring it back, and it remembers your choice.',
+        shot: '21-sidebar.png', caption: 'Any page — sidebar collapsed',
+        annos: [
+          { n: 1, box: { x: 0.6, y: 1.3, w: 3.8, h: 5 }, h: 'Show / hide', t: 'Click the panel icon to toggle the sidebar. It sticks between visits.' },
+          { n: 2, box: { x: 3, y: 43.5, w: 94, h: 5 }, h: 'Full-width pages', t: 'With the sidebar hidden, tables and content use the whole screen.' },
+        ],
+      },
+      {
         icon: '📱', accent: '#2563eb', title: 'Install the Hub as an app', date: 'Aug 7', to: null, cta: null,
         desc: 'The Hub is now installable on your phone and desktop (look for “Install App” in the sidebar) and every page is mobile-friendly — so it works well on a phone in the field.',
         points: [],
