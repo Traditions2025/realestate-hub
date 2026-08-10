@@ -197,19 +197,17 @@ async function start() {
       .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
       .replace(/&#x27;/gi, "'").replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').trim()
     const absolutize = (u) => { try { return new URL(u, target).href } catch { return u } }
-    try {
-      const ctrl = new AbortController()
-      const timer = setTimeout(() => ctrl.abort(), 9000)
-      const r = await fetch(target, {
-        redirect: 'follow', signal: ctrl.signal,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml',
-        },
-      })
-      clearTimeout(timer)
-      const html = (await r.text()).slice(0, 600000)
-      // Build a map of every <meta> tag's (property|name) -> content, order-independent.
+    // Bot-challenge / interstitial / access-denied pages return useless metadata.
+    const challenge = /just a moment|attention required|checking your browser|please wait|enable javascript|cf-browser-verification|access (?:to this page has been )?denied|are you a (?:human|robot)|verify you are human|ddos protection/i
+    // Try user-agents in order. facebookexternalhit is what Facebook/iMessage/Slack use
+    // to unfurl links, so Cloudflare-protected sites (incl. the team's own Sierra site)
+    // almost always allowlist it. Fall back to a normal browser UA for sites that block bots.
+    const UAS = [
+      'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      'Mozilla/5.0 (compatible; Twitterbot/1.0)',
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+    ]
+    const parse = (html) => {
       const meta = {}
       for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
         const key = (tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1]
@@ -217,20 +215,37 @@ async function start() {
         if (key && val != null && !(key.toLowerCase() in meta)) meta[key.toLowerCase()] = val
       }
       const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || ''
-      let title = decode(meta['og:title'] || meta['twitter:title'] || titleTag)
-      let description = decode(meta['og:description'] || meta['twitter:description'] || meta['description'] || '')
+      const title = decode(meta['og:title'] || meta['twitter:title'] || titleTag)
+      const description = decode(meta['og:description'] || meta['twitter:description'] || meta['description'] || '')
       const rawImg = meta['og:image'] || meta['og:image:url'] || meta['twitter:image'] || meta['twitter:image:src'] || ''
-      let image = rawImg ? absolutize(decode(rawImg)) : ''
+      const image = rawImg ? absolutize(decode(rawImg)) : ''
       const siteName = decode(meta['og:site_name'] || '')
-      // Bot-challenge / interstitial pages (e.g. Cloudflare on the team's own site when
-      // fetched from the server IP) return a useless title — drop it so the card falls
-      // back to a clean domain-only preview instead of showing "Just a moment...".
-      const challenge = /just a moment|attention required|checking your browser|please wait|enable javascript|cf-browser-verification|access denied|are you a robot/i
-      if (challenge.test(title) || challenge.test(titleTag)) { title = ''; description = ''; image = '' }
-      res.json({ url: target, title, description, image, siteName })
-    } catch (err) {
-      res.json({ url: target, title: '', description: '', image: '', siteName: '', error: err.message })
+      const blocked = challenge.test(title) || challenge.test(titleTag)
+      return { title, description, image, siteName, blocked }
     }
+    let last = { title: '', description: '', image: '', siteName: '' }
+    for (const ua of UAS) {
+      try {
+        const ctrl = new AbortController()
+        const timer = setTimeout(() => ctrl.abort(), 8000)
+        const r = await fetch(target, {
+          redirect: 'follow', signal: ctrl.signal,
+          headers: { 'User-Agent': ua, 'Accept': 'text/html,application/xhtml+xml' },
+        })
+        clearTimeout(timer)
+        const html = (await r.text()).slice(0, 600000)
+        const p = parse(html)
+        if (!p.blocked && (p.title || p.image)) {
+          return res.json({ url: target, title: p.title, description: p.description, image: p.image, siteName: p.siteName })
+        }
+        if (!p.blocked) last = { title: p.title, description: p.description, image: p.image, siteName: p.siteName }
+      } catch (err) {
+        last = { ...last, error: err.message }
+      }
+    }
+    // No UA produced usable, non-challenge metadata — return whatever we have (often blank),
+    // so the card falls back to a clean domain-only preview.
+    res.json({ url: target, ...last })
   })
 
   // API Routes
