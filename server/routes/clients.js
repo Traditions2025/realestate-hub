@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '../lead-sequences.js'
+import { gradeFromRealistScore } from '../sierra-helper.js'
 
 const router = Router()
 
@@ -439,6 +440,13 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const fields = req.body
+  // Manual Realist Score entry: normalize to digits and derive the A-F grade
+  // whenever lead_score is set (or cleared) so the badge stays consistent.
+  if (Object.prototype.hasOwnProperty.call(fields, 'lead_score')) {
+    const digits = String(fields.lead_score ?? '').replace(/[^0-9]/g, '')
+    fields.lead_score = digits || null
+    fields.lead_grade = fields.lead_score ? gradeFromRealistScore(fields.lead_score) : null
+  }
   fields.updated_at = new Date().toISOString()
   const keys = Object.keys(fields)
   const sets = keys.map(k => `${k} = ?`).join(', ')

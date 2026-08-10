@@ -136,7 +136,7 @@ export function processLead(lead, sierraStatusOverride) {
     db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
       source=?, address=?, city=?, state=?, zip=?, type=?,
       budget_min=?, budget_max=?, agent_assigned=?, status=?,
-      lead_score=?, lead_grade=?, visits=?, email_status=?, phone_status=?,
+      lead_score=COALESCE(?, lead_score), lead_grade=COALESCE(?, lead_grade), visits=?, email_status=?, phone_status=?,
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
       marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,
       tags=?, lender_name=?, lender_status=?, listing_agent_status=?,

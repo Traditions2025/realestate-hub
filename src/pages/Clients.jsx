@@ -245,6 +245,7 @@ export default function Clients() {
   const [activeListId, setActiveListId] = useState(null)
   const [saveListOpen, setSaveListOpen] = useState(false)
   const [newListName, setNewListName] = useState('')
+  const [editScoreId, setEditScoreId] = useState(null) // client id whose Realist Score is being edited inline
 
   // Load filter options + saved lists once
   useEffect(() => {
@@ -1126,6 +1127,22 @@ export default function Clients() {
     load()
   }
 
+  // Inline Realist Score entry from the list. Saves to lead_score; the backend
+  // derives the A-F grade and Sierra sync preserves it (won't overwrite with blank).
+  const saveScore = async (item, value) => {
+    setEditScoreId(null)
+    const digits = String(value ?? '').replace(/[^0-9]/g, '')
+    const nextVal = digits === '' ? null : digits
+    if (String(item.lead_score ?? '') === String(nextVal ?? '')) return
+    try {
+      await api.updateClient(item.id, { lead_score: nextVal })
+    } catch (err) {
+      alert('Failed to save Realist Score: ' + err.message)
+      return
+    }
+    load()
+  }
+
   // Quick actions
   const addToPreListing = async (client, e) => {
     if (e) e.stopPropagation()
@@ -1910,12 +1927,28 @@ export default function Clients() {
         const renderCell = (col, item) => {
           switch (col.key) {
             case 'score':
-              return <div key="score" className="cl-score">
-                {item.lead_score !== null && item.lead_score !== undefined ? (
-                  <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
-                    {item.lead_score}{item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
+              return <div key="score" className="cl-score" onClick={e => e.stopPropagation()}>
+                {editScoreId === item.id ? (
+                  <input
+                    type="number" min="0" max="1000" autoFocus
+                    defaultValue={item.lead_score ?? ''}
+                    onBlur={e => saveScore(item, e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur(); else if (e.key === 'Escape') setEditScoreId(null) }}
+                    style={{ width: 58, padding: '2px 4px', fontSize: 13, textAlign: 'center' }}
+                  />
+                ) : (
+                  <span
+                    onClick={() => setEditScoreId(item.id)}
+                    title="Click to enter the Realist Score"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {item.lead_score !== null && item.lead_score !== undefined && item.lead_score !== '' ? (
+                      <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
+                        {item.lead_score}{item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
+                      </span>
+                    ) : <span className="lead-score-empty">—</span>}
                   </span>
-                ) : <span className="lead-score-empty">—</span>}
+                )}
               </div>
             case 'name':
               // List view: name + the small Sierra source badge only. Tags are hidden
