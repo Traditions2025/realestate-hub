@@ -1954,12 +1954,10 @@ export default function Clients() {
                 )}
               </div>
             case 'name':
-              // List view: name + the small Sierra source badge only. Tags are hidden
-              // here for a cleaner list; they still render in full on each lead's
-              // profile detail drawer (and remain filterable via the Tags filter).
+              // List view: just the name for a clean list. The Sierra source badge and
+              // tags still render on each lead's profile detail drawer.
               return <div key="name" className="cl-name">
                 <strong>{item.first_name} {item.last_name}</strong>
-                {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
               </div>
             case 'status':
               return <div key="status" className="cl-status" onClick={e => e.stopPropagation()}>
@@ -1976,7 +1974,7 @@ export default function Clients() {
               return <div key="type" className="cl-type">
                 {item.type && (
                   <span className={`type-pill type-${item.type}`}>
-                    {item.type === 'buyer' ? '🎯 Buyer' : item.type === 'seller' ? '🏠 Seller' : '🔄 Buyer/Seller'}
+                    {item.type === 'buyer' ? 'Buyer' : item.type === 'seller' ? 'Seller' : 'Buyer/Seller'}
                   </span>
                 )}
               </div>
@@ -2101,7 +2099,6 @@ export default function Clients() {
                 <div className="client-name">{item.first_name} {item.last_name}</div>
                 <div className="client-type">
                   <span className={`client-type-badge type-${item.type}`}>{item.type}</span>
-                  {item.sierra_lead_id && <span className="sierra-tag">Sierra</span>}
                 </div>
               </div>
               {item.lead_score !== null && item.lead_score !== undefined && (
