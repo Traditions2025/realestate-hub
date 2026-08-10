@@ -188,6 +188,46 @@ async function start() {
   app.use('/api/auth', authRouter)
   app.use(requireAuth)
 
+  // Link preview (unfurl): fetch a URL server-side and parse its Open Graph / meta
+  // tags so the email composer can insert a rich preview card. Used by EmailToolbar.
+  app.get('/api/link-preview', async (req, res) => {
+    const target = String(req.query.url || '').trim()
+    if (!/^https?:\/\//i.test(target)) return res.status(400).json({ error: 'A valid http(s) URL is required' })
+    const decode = (s) => String(s || '')
+      .replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#0?39;/g, "'")
+      .replace(/&#x27;/gi, "'").replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ').trim()
+    const absolutize = (u) => { try { return new URL(u, target).href } catch { return u } }
+    try {
+      const ctrl = new AbortController()
+      const timer = setTimeout(() => ctrl.abort(), 9000)
+      const r = await fetch(target, {
+        redirect: 'follow', signal: ctrl.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+      })
+      clearTimeout(timer)
+      const html = (await r.text()).slice(0, 600000)
+      // Build a map of every <meta> tag's (property|name) -> content, order-independent.
+      const meta = {}
+      for (const tag of html.match(/<meta\b[^>]*>/gi) || []) {
+        const key = (tag.match(/(?:property|name)\s*=\s*["']([^"']+)["']/i) || [])[1]
+        const val = (tag.match(/content\s*=\s*["']([^"']*)["']/i) || [])[1]
+        if (key && val != null && !(key.toLowerCase() in meta)) meta[key.toLowerCase()] = val
+      }
+      const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || ''
+      const title = decode(meta['og:title'] || meta['twitter:title'] || titleTag)
+      const description = decode(meta['og:description'] || meta['twitter:description'] || meta['description'] || '')
+      const rawImg = meta['og:image'] || meta['og:image:url'] || meta['twitter:image'] || meta['twitter:image:src'] || ''
+      const image = rawImg ? absolutize(decode(rawImg)) : ''
+      const siteName = decode(meta['og:site_name'] || '')
+      res.json({ url: target, title, description, image, siteName })
+    } catch (err) {
+      res.json({ url: target, title: '', description: '', image: '', siteName: '', error: err.message })
+    }
+  })
+
   // API Routes
   app.use('/api/transactions', transactionsRouter)
   app.use('/api/clients', clientsRouter)

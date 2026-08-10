@@ -136,6 +136,38 @@ export async function attachImagesSmart(body, files, textareaEl) {
 }
 
 // Insert text/HTML at the textarea's caret position; returns the new value.
+// Build an email-safe "link preview" card (table-based, inline styles) from unfurled
+// metadata. The whole card is a single clickable link. Falls back gracefully when
+// there's no image/description. Used by EmailToolbar's Link Preview action.
+export function buildLinkPreviewHtml({ url, title, description, image, siteName } = {}) {
+  const esc = (s) => String(s || '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+  let domain = siteName || ''
+  if (!domain) { try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { domain = '' } }
+  const clamp = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).trim() + '…' : s }
+  const safeTitle = esc(clamp(title || url, 120))
+  const safeDesc = description ? esc(clamp(description, 180)) : ''
+  const imgCell = image
+    ? `<tr><td style="padding:0;"><img src="${esc(image)}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:8px 8px 0 0;" /></td></tr>`
+    : ''
+  return (
+`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;width:100%;max-width:600px;margin:14px 0;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden;background:#ffffff;">
+  <tr><td style="padding:0;">
+    <a href="${esc(url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+        ${imgCell}
+        <tr><td style="padding:12px 14px;font-family:Arial,Helvetica,sans-serif;">
+          ${domain ? `<div style="font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:4px;">${esc(domain)}</div>` : ''}
+          <div style="font-size:16px;font-weight:700;color:#0f172a;line-height:1.3;">${safeTitle}</div>
+          ${safeDesc ? `<div style="font-size:13px;color:#475569;line-height:1.45;margin-top:5px;">${safeDesc}</div>` : ''}
+        </td></tr>
+      </table>
+    </a>
+  </td></tr>
+</table>`
+  )
+}
+
 export function insertAtCursor(textareaEl, snippet, currentValue) {
   if (!textareaEl) return (currentValue || '') + snippet
   const start = textareaEl.selectionStart ?? currentValue.length

@@ -814,25 +814,6 @@ router.get('/test', async (req, res) => {
   }
 })
 
-// TEMP diagnostic: inspect a lead's saved-search structure to see if a link/URL exists.
-router.get('/_probe-savedsearch/:sierraId', async (req, res) => {
-  try {
-    const result = await sierraGet(`/leads/get/${req.params.sierraId}`, { includeSavedSearches: 'true' })
-    const lead = result.data || result
-    const searches = lead.savedSearchesModel?.savedSearches || lead.savedSearches || []
-    res.json({
-      lead: `${lead.firstName || ''} ${lead.lastName || ''}`.trim(),
-      count: searches.length,
-      modelKeys: Object.keys(lead.savedSearchesModel || {}),
-      firstKeys: searches[0] ? Object.keys(searches[0]) : [],
-      first: searches[0] || null,
-      leadUrlKeys: Object.keys(lead).filter(k => /url|link|href/i.test(k)),
-    })
-  } catch (err) {
-    res.status(500).json({ error: err.message })
-  }
-})
-
 // =============================================================
 // REAL-TIME WEBHOOKS
 // =============================================================

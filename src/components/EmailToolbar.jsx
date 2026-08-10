@@ -1,8 +1,10 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
+import { authFetch } from '../api'
 import {
   attachImagesSmart,
   parseYoutubeId,
   buildYoutubeEmbedHtml,
+  buildLinkPreviewHtml,
   insertAtCursor,
 } from './inlineImages'
 
@@ -20,8 +22,31 @@ import {
  */
 export default function EmailToolbar({ textareaRef, body, setBody, onPreview, showPreview = true, compact = false }) {
   const fileRef = useRef(null)
+  const [linkLoading, setLinkLoading] = useState(false)
 
   const onPickImage = () => fileRef.current?.click()
+
+  // Insert a rich preview card for a pasted link (fetches its Open Graph metadata).
+  const onInsertLinkPreview = async () => {
+    let url = window.prompt('Paste a link to preview:\n(the email will show a rich card with its image, title & description)')
+    if (!url) return
+    url = url.trim()
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url
+    const ta = textareaRef?.current
+    setLinkLoading(true)
+    try {
+      const res = await authFetch('/api/link-preview?url=' + encodeURIComponent(url))
+      const data = res.ok ? await res.json() : {}
+      const snippet = '\n' + buildLinkPreviewHtml({ url, ...data }) + '\n'
+      setBody(insertAtCursor(ta, snippet, body || ''))
+    } catch {
+      // Network failure — insert a plain styled card with just the URL so nothing is lost.
+      const snippet = '\n' + buildLinkPreviewHtml({ url }) + '\n'
+      setBody(insertAtCursor(ta, snippet, body || ''))
+    } finally {
+      setLinkLoading(false)
+    }
+  }
 
   const onImageChosen = async (e) => {
     const files = Array.from(e.target.files || [])
@@ -55,6 +80,9 @@ export default function EmailToolbar({ textareaRef, body, setBody, onPreview, sh
       </button>
       <button type="button" className={cls} onClick={onInsertYoutube} title="Insert a YouTube video — renders as a clickable thumbnail in the email">
         ▶ Insert YouTube
+      </button>
+      <button type="button" className={cls} onClick={onInsertLinkPreview} disabled={linkLoading} title="Paste a link and insert a rich preview card (image, title, description) into the email">
+        {linkLoading ? '⏳ Fetching…' : '🔗 Link Preview'}
       </button>
       {showPreview && (
         <button
