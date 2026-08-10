@@ -140,6 +140,45 @@ const SIERRA_STATUSES = [
   { value: 'blocked',       label: 'Blocked' },
 ]
 
+// Clickable column-header filter dropdown (Type / Phone / Email / Address / Source).
+// Self-contained open state so multiple headers don't clash. `value` is the current
+// selection; `options` is [{value,label}]; `onSelect(value)` applies it.
+function ColumnFilterHeader({ className, label, value, options, onSelect }) {
+  const [open, setOpen] = useState(false)
+  const v = value ?? ''
+  const active = !!v
+  const cur = options.find(o => o.value === v)
+  return (
+    <div
+      className={`${className} sortable ${active ? 'active' : ''}`}
+      style={{ position: 'relative', cursor: 'pointer' }}
+      onClick={() => setOpen(o => !o)}
+      title={`Filter by ${label.toLowerCase()}`}
+    >
+      {label}{active && cur ? `: ${cur.label}` : ''} ▾
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
+          <div
+            style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, minWidth: 160, maxHeight: 300, overflowY: 'auto', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 4 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {options.map(o => (
+              <div
+                key={o.value || '__all'}
+                onClick={() => { onSelect(o.value); setOpen(false) }}
+                style={{ padding: '7px 10px', borderRadius: 6, fontSize: 13, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, whiteSpace: 'nowrap', fontWeight: v === o.value ? 700 : 400, color: 'var(--text-primary)', background: v === o.value ? 'var(--bg-elevated)' : 'transparent' }}
+              >
+                {o.label}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Clients() {
   const [items, setItems] = useState([])
   const [tab, setTab] = useState('all') // default to All; 'active', 'prime', 'all'
@@ -202,7 +241,8 @@ export default function Clients() {
     viewed_cities_include: [],
     sources_include: [],
     email_statuses: [],
-    has_email: false,
+    has_email: '', // '' (any) | '1' (with email) | '0' (no email)
+    has_phone: '', // '' (any) | '1' (with phone) | '0' (no phone)
     exclude_optouts: false,
     score_min: '',
     score_max: '',
@@ -247,7 +287,6 @@ export default function Clients() {
   const [saveListOpen, setSaveListOpen] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [editScoreId, setEditScoreId] = useState(null) // client id whose Realist Score is being edited inline
-  const [typeMenuOpen, setTypeMenuOpen] = useState(false) // TYPE column header filter dropdown
 
   // Load filter options + saved lists once
   useEffect(() => {
@@ -264,7 +303,7 @@ export default function Clients() {
     len(advFilters.zips_include) + len(advFilters.cities_include) +
     len(advFilters.viewed_cities_include) +
     len(advFilters.sources_include) + len(advFilters.email_statuses) +
-    (advFilters.has_email ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
+    (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
     (advFilters.activity_days ? 1 : 0) + (advFilters.created_days ? 1 : 0) +
@@ -373,7 +412,8 @@ export default function Clients() {
     if (advFilters.viewed_cities_include.length) params.viewed_cities_include = advFilters.viewed_cities_include.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
     if (advFilters.email_statuses.length) params.email_statuses = advFilters.email_statuses.join(',')
-    if (advFilters.has_email) params.has_email = '1'
+    if (advFilters.has_email) params.has_email = advFilters.has_email === true ? '1' : advFilters.has_email
+    if (advFilters.has_phone) params.has_phone = advFilters.has_phone === true ? '1' : advFilters.has_phone
     if (advFilters.exclude_optouts) params.exclude_optouts = '1'
     if (advFilters.score_min) params.score_min = advFilters.score_min
     if (advFilters.score_max) params.score_max = advFilters.score_max
@@ -753,7 +793,7 @@ export default function Clients() {
       tags_include: [], tags_exclude: [],
       zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [],
       email_statuses: [],
-      has_email: false, exclude_optouts: false,
+      has_email: '', has_phone: '', exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
       activity_days: '', created_days: '', inactive_days: '',
       has_listing_views: false, properties_viewed_min: '', fub_days_min: '', fub_days_max: '',
@@ -835,7 +875,8 @@ export default function Clients() {
           viewed_cities_include: f.viewed_cities_include || [],
           sources_include: f.sources_include || [],
           email_statuses: f.email_statuses || [],
-          has_email: !!f.has_email,
+          has_email: (f.has_email === true || f.has_email === '1') ? '1' : (f.has_email === '0' ? '0' : ''),
+          has_phone: (f.has_phone === true || f.has_phone === '1') ? '1' : (f.has_phone === '0' ? '0' : ''),
           exclude_optouts: !!f.exclude_optouts,
           score_min: f.score_min || '',
           score_max: f.score_max || '',
@@ -1642,13 +1683,21 @@ export default function Clients() {
           <div className="filter-section">
             <h5>Other</h5>
             <div className="filter-other-row">
-              <label className="filter-check">
-                <input type="checkbox" checked={advFilters.has_email} onChange={e => setAdvFilters(p => ({ ...p, has_email: e.target.checked }))} />
-                Has email
+              <label className="filter-num">
+                Email
+                <select value={advFilters.has_email === true ? '1' : (advFilters.has_email || '')} onChange={e => setAdvFilters(p => ({ ...p, has_email: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="1">With email</option>
+                  <option value="0">No email</option>
+                </select>
               </label>
-              <label className="filter-check">
-                <input type="checkbox" checked={advFilters.exclude_optouts} onChange={e => setAdvFilters(p => ({ ...p, exclude_optouts: e.target.checked }))} />
-                Exclude marketing opt-outs
+              <label className="filter-num">
+                Phone
+                <select value={advFilters.has_phone === true ? '1' : (advFilters.has_phone || '')} onChange={e => setAdvFilters(p => ({ ...p, has_phone: e.target.value }))}>
+                  <option value="">Any</option>
+                  <option value="1">With phone</option>
+                  <option value="0">No phone</option>
+                </select>
               </label>
               <label className="filter-num">
                 Address
@@ -1657,6 +1706,10 @@ export default function Clients() {
                   <option value="1">Has address</option>
                   <option value="0">No address</option>
                 </select>
+              </label>
+              <label className="filter-check">
+                <input type="checkbox" checked={advFilters.exclude_optouts} onChange={e => setAdvFilters(p => ({ ...p, exclude_optouts: e.target.checked }))} />
+                Exclude marketing opt-outs
               </label>
               <label className="filter-num">
                 Score min
@@ -1747,30 +1800,30 @@ export default function Clients() {
           <div className="filter-quick-presets">
             <span style={{fontSize: 11, color: 'var(--text-muted)', marginRight: 8}}>Quick presets:</span>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
-              ...p, has_email: true, exclude_optouts: true,
+              ...p, has_email: '1', exclude_optouts: true,
               email_statuses: ['ValidAddress', 'TwoWayEmailing'],
             }))}>Email-ready</button>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
-              ...p, has_email: true, exclude_optouts: true,
+              ...p, has_email: '1', exclude_optouts: true,
               statuses_include: ['prime', 'active'],
               email_statuses: ['ValidAddress', 'TwoWayEmailing'],
             }))}>Hot Leads (Prime+Active)</button>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
               ...p, statuses_exclude: ['junk', 'donotcontact', 'blocked', 'archived', 'closed'],
-              has_email: true, exclude_optouts: true,
+              has_email: '1', exclude_optouts: true,
             }))}>Active Pipeline</button>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
-              ...p, activity_days: '7', has_email: true, exclude_optouts: true,
+              ...p, activity_days: '7', has_email: '1', exclude_optouts: true,
             }))}>🔥 Active This Week</button>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
-              ...p, created_days: '7', has_email: true, exclude_optouts: true,
+              ...p, created_days: '7', has_email: '1', exclude_optouts: true,
             }))}>🆕 New This Week</button>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
-              ...p, inactive_days: '90', has_email: true, exclude_optouts: true,
+              ...p, inactive_days: '90', has_email: '1', exclude_optouts: true,
               statuses_exclude: ['junk', 'donotcontact', 'blocked', 'archived', 'closed'],
             }))}>💤 Re-engagement (90d+)</button>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
-              ...p, visits_min: '5', has_email: true, exclude_optouts: true,
+              ...p, visits_min: '5', has_email: '1', exclude_optouts: true,
             }))}>👁️ High Engagement (5+ visits)</button>
           </div>
 
@@ -1882,37 +1935,38 @@ export default function Clients() {
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
-          // TYPE column header doubles as the Buyer/Seller/Both filter (click to choose).
+          // These column headers double as click-to-filter dropdowns.
           if (col.key === 'type') {
-            const TYPE_OPTS = [['', 'All'], ['buyer', 'Buyer'], ['seller', 'Seller'], ['both', 'Buyer/Seller']]
-            const curLabel = (TYPE_OPTS.find(o => o[0] === (filter.type || ''))?.[1]) || 'All'
-            return (
-              <div
-                key="type"
-                className={`cl-type sortable ${filter.type ? 'active' : ''}`}
-                style={{ position: 'relative', cursor: 'pointer' }}
-                onClick={() => setTypeMenuOpen(o => !o)}
-                title="Filter by type"
-              >
-                Type{filter.type ? `: ${curLabel}` : ''} ▾
-                {typeMenuOpen && (
-                  <>
-                    <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setTypeMenuOpen(false) }} />
-                    <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, minWidth: 140, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 4 }} onClick={(e) => e.stopPropagation()}>
-                      {TYPE_OPTS.map(([v, l]) => (
-                        <div
-                          key={v || 'all'}
-                          onClick={() => { setFilter(p => ({ ...p, type: v })); setTypeMenuOpen(false) }}
-                          style={{ padding: '7px 10px', borderRadius: 6, fontSize: 13, cursor: 'pointer', textTransform: 'none', letterSpacing: 0, fontWeight: (filter.type || '') === v ? 700 : 400, color: 'var(--text-primary)', background: (filter.type || '') === v ? 'var(--bg-elevated)' : 'transparent' }}
-                        >
-                          {l}
-                        </div>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            )
+            return <ColumnFilterHeader key="type" className="cl-type" label="Type" value={filter.type}
+              options={[{ value: '', label: 'All' }, { value: 'buyer', label: 'Buyer' }, { value: 'seller', label: 'Seller' }, { value: 'both', label: 'Buyer/Seller' }]}
+              onSelect={v => setFilter(p => ({ ...p, type: v }))} />
+          }
+          if (col.key === 'phone') {
+            return <ColumnFilterHeader key="phone" className="cl-phone" label="Phone" value={advFilters.has_phone === true ? '1' : (advFilters.has_phone || '')}
+              options={[{ value: '', label: 'All' }, { value: '1', label: 'With phone' }, { value: '0', label: 'No phone' }]}
+              onSelect={v => setAdvFilters(p => ({ ...p, has_phone: v }))} />
+          }
+          if (col.key === 'email') {
+            return <ColumnFilterHeader key="email" className="cl-email" label="Email" value={advFilters.has_email === true ? '1' : (advFilters.has_email || '')}
+              options={[{ value: '', label: 'All' }, { value: '1', label: 'With email' }, { value: '0', label: 'No email' }]}
+              onSelect={v => setAdvFilters(p => ({ ...p, has_email: v }))} />
+          }
+          if (col.key === 'address') {
+            return <ColumnFilterHeader key="address" className="cl-address" label="Address" value={advFilters.has_address || ''}
+              options={[{ value: '', label: 'All' }, { value: '1', label: 'With address' }, { value: '0', label: 'No address' }]}
+              onSelect={v => setAdvFilters(p => ({ ...p, has_address: v }))} />
+          }
+          if (col.key === 'source') {
+            const srcVal = advFilters.sources_include.length === 1 ? advFilters.sources_include[0] : ''
+            const srcOptions = [{ value: '', label: advFilters.sources_include.length > 1 ? `Multiple (${advFilters.sources_include.length})` : 'All sources' }]
+            for (const s of (filterOptions.sources || [])) {
+              const val = typeof s === 'string' ? s : (s.value ?? s.label)
+              const lbl = typeof s === 'string' ? s : (s.label ?? s.value)
+              if (val) srcOptions.push({ value: val, label: lbl })
+            }
+            return <ColumnFilterHeader key="source" className="cl-source" label="Source" value={srcVal}
+              options={srcOptions}
+              onSelect={v => setAdvFilters(p => ({ ...p, sources_include: v ? [v] : [] }))} />
           }
           const isSorted = col.sort && (sortBy === col.sort.asc || sortBy === col.sort.desc)
           const arrow = !col.sort ? '' : (sortBy === col.sort.desc ? '▼' : sortBy === col.sort.asc ? '▲' : '⇅')

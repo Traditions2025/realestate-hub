@@ -147,9 +147,11 @@ export function buildClientFilter(q) {
     }
   }
 
-  // Has email / has phone
-  if (q.has_email === '1' || q.has_email === 'true') where += " AND email IS NOT NULL AND email != ''"
-  if (q.has_phone === '1' || q.has_phone === 'true') where += " AND phone IS NOT NULL AND phone != ''"
+  // Has email / has phone (with / without)
+  if (q.has_email === '1' || q.has_email === 'true') where += " AND email IS NOT NULL AND TRIM(email) != ''"
+  else if (q.has_email === '0') where += " AND (email IS NULL OR TRIM(email) = '')"
+  if (q.has_phone === '1' || q.has_phone === 'true') where += " AND phone IS NOT NULL AND TRIM(phone) != ''"
+  else if (q.has_phone === '0') where += " AND (phone IS NULL OR TRIM(phone) = '')"
   if (q.exclude_optouts === '1' || q.exclude_optouts === 'true') {
     where += ' AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)'
   }
