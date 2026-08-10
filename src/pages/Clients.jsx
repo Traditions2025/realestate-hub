@@ -232,11 +232,15 @@ export default function Clients() {
     realist_year_built_max: '',
     realist_sell_score_min: '',
     realist_owner_occupied: '', // '' | '1' | '0'
+    // Drip campaign enrollment
+    in_drip: '',   // '' (any) | '1' (in a drip) | '0' (not in a drip)
+    drip_id: '',   // '' (any campaign) | a specific drip campaign id
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [], viewed_cities: [] })
+  const [dripCampaigns, setDripCampaigns] = useState([])
   const [savedLists, setSavedLists] = useState([])
   const [activeListId, setActiveListId] = useState(null)
   const [saveListOpen, setSaveListOpen] = useState(false)
@@ -246,6 +250,7 @@ export default function Clients() {
   useEffect(() => {
     authFetch('/api/clients/filter-options').then(r => r.json()).then(setFilterOptions).catch(() => {})
     authFetch('/api/lists').then(r => r.json()).then(setSavedLists).catch(() => {})
+    authFetch('/api/drips').then(r => r.json()).then(d => setDripCampaigns(Array.isArray(d) ? d : (d.drips || d.rows || []))).catch(() => {})
   }, [])
 
   // Defensive — if any field is undefined (e.g. from a stale saved list), treat as empty
@@ -271,7 +276,8 @@ export default function Clients() {
     (advFilters.realist_value_min ? 1 : 0) + (advFilters.realist_value_max ? 1 : 0) +
     (advFilters.realist_year_built_min ? 1 : 0) + (advFilters.realist_year_built_max ? 1 : 0) +
     (advFilters.realist_sell_score_min ? 1 : 0) +
-    (advFilters.realist_owner_occupied ? 1 : 0)
+    (advFilters.realist_owner_occupied ? 1 : 0) +
+    (advFilters.in_drip ? 1 : 0)
   )
 
   const hasActiveFilters = advFilterCount > 0 || tab !== 'all'
@@ -393,6 +399,11 @@ export default function Clients() {
     if (advFilters.realist_year_built_max) params.realist_year_built_max = advFilters.realist_year_built_max
     if (advFilters.realist_sell_score_min) params.realist_sell_score_min = advFilters.realist_sell_score_min
     if (advFilters.realist_owner_occupied) params.realist_owner_occupied = advFilters.realist_owner_occupied
+    // Drip campaign enrollment
+    if (advFilters.in_drip) {
+      params.in_drip = advFilters.in_drip
+      if (advFilters.drip_id) params.drip_id = advFilters.drip_id
+    }
     params.sort = sortBy
     return params
   }
@@ -749,6 +760,7 @@ export default function Clients() {
       realist_value_min: '', realist_value_max: '',
       realist_year_built_min: '', realist_year_built_max: '',
       realist_sell_score_min: '', realist_owner_occupied: '',
+      in_drip: '', drip_id: '',
     })
     setTab('all')
     setSearch('')
@@ -839,6 +851,8 @@ export default function Clients() {
           search_sqft_min: f.search_sqft_min || '',
           search_property_types: f.search_property_types || [],
           search_regions: f.search_regions || [],
+          in_drip: f.in_drip || '',
+          drip_id: f.drip_id || '',
         })
         setTab('all')
         if (f.search) setSearch(f.search)
@@ -1610,6 +1624,29 @@ export default function Clients() {
                 <input type="number" min="0" placeholder="e.g. 60" value={advFilters.fub_days_max} onChange={e => setAdvFilters(p => ({ ...p, fub_days_max: e.target.value }))} />
               </label>
             </div>
+          </div>
+
+          <div className="filter-section">
+            <h5>Drip Campaigns</h5>
+            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8}}>
+              {[{ v: '', l: 'Any' }, { v: '1', l: 'In a drip' }, { v: '0', l: 'Not in a drip' }].map(o => (
+                <button key={o.l} type="button"
+                  className={`btn btn-sm ${advFilters.in_drip === o.v ? 'btn-primary' : 'btn-secondary'}`}
+                  onClick={() => setAdvFilters(p => ({ ...p, in_drip: o.v, drip_id: o.v ? p.drip_id : '' }))}>
+                  {o.l}
+                </button>
+              ))}
+            </div>
+            {advFilters.in_drip && (
+              <label className="filter-num" style={{display: 'block'}}>
+                {advFilters.in_drip === '0' ? 'Not enrolled in campaign' : 'Enrolled in campaign'}
+                <select value={advFilters.drip_id} onChange={e => setAdvFilters(p => ({ ...p, drip_id: e.target.value }))}>
+                  <option value="">Any drip campaign</option>
+                  {dripCampaigns.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+              </label>
+            )}
+            <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0'}}>“In a drip” = currently enrolled (active) in a drip sequence. Pick a campaign to scope it, or leave as Any campaign.</p>
           </div>
 
           <div className="filter-section">

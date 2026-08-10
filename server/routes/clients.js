@@ -220,6 +220,20 @@ export function buildClientFilter(q) {
     params.push(`-${Number(q.fub_days_max)} days`)
   }
 
+  // ---- Drip campaign enrollment filters ----
+  // in_drip = '1' -> only leads currently enrolled in an ACTIVE drip
+  // in_drip = '0' -> only leads NOT in any active drip
+  // drip_id (optional) -> scope the include/exclude to one specific campaign
+  if (q.in_drip === '1' || q.in_drip === 'true') {
+    where += " AND EXISTS (SELECT 1 FROM drip_enrollments de WHERE de.client_id = clients.id AND de.status = 'active'"
+    if (q.drip_id) { where += ' AND de.drip_id = ?'; params.push(Number(q.drip_id)) }
+    where += ')'
+  } else if (q.in_drip === '0' || q.in_drip === 'false') {
+    where += " AND NOT EXISTS (SELECT 1 FROM drip_enrollments de WHERE de.client_id = clients.id AND de.status = 'active'"
+    if (q.drip_id) { where += ' AND de.drip_id = ?'; params.push(Number(q.drip_id)) }
+    where += ')'
+  }
+
   // ---- Property criteria filters (from saved search) ----
   // "Looking for price ≥ X" — the lead's price ceiling has to allow X
   if (q.search_price_at_least) {
