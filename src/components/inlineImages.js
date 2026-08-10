@@ -145,7 +145,8 @@ export function buildLinkPreviewHtml({ url, title, description, image, siteName 
   let domain = siteName || ''
   if (!domain) { try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { domain = '' } }
   const clamp = (s, n) => { s = String(s || ''); return s.length > n ? s.slice(0, n - 1).trim() + '…' : s }
-  const safeTitle = esc(clamp(title || url, 120))
+  // Fall back to the domain (nicer than a raw URL) when a title couldn't be fetched.
+  const safeTitle = esc(clamp(title || domain || url, 120))
   const safeDesc = description ? esc(clamp(description, 180)) : ''
   const imgCell = image
     ? `<tr><td style="padding:0;"><img src="${esc(image)}" alt="" width="600" style="display:block;width:100%;max-width:600px;height:auto;border:0;border-radius:8px 8px 0 0;" /></td></tr>`

@@ -217,11 +217,16 @@ async function start() {
         if (key && val != null && !(key.toLowerCase() in meta)) meta[key.toLowerCase()] = val
       }
       const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || ''
-      const title = decode(meta['og:title'] || meta['twitter:title'] || titleTag)
-      const description = decode(meta['og:description'] || meta['twitter:description'] || meta['description'] || '')
+      let title = decode(meta['og:title'] || meta['twitter:title'] || titleTag)
+      let description = decode(meta['og:description'] || meta['twitter:description'] || meta['description'] || '')
       const rawImg = meta['og:image'] || meta['og:image:url'] || meta['twitter:image'] || meta['twitter:image:src'] || ''
-      const image = rawImg ? absolutize(decode(rawImg)) : ''
+      let image = rawImg ? absolutize(decode(rawImg)) : ''
       const siteName = decode(meta['og:site_name'] || '')
+      // Bot-challenge / interstitial pages (e.g. Cloudflare on the team's own site when
+      // fetched from the server IP) return a useless title — drop it so the card falls
+      // back to a clean domain-only preview instead of showing "Just a moment...".
+      const challenge = /just a moment|attention required|checking your browser|please wait|enable javascript|cf-browser-verification|access denied|are you a robot/i
+      if (challenge.test(title) || challenge.test(titleTag)) { title = ''; description = ''; image = '' }
       res.json({ url: target, title, description, image, siteName })
     } catch (err) {
       res.json({ url: target, title: '', description: '', image: '', siteName: '', error: err.message })
