@@ -38,6 +38,28 @@ export default function Settings() {
   const [mbHost, setMbHost] = useState('imap.gmail.com')
   const [mbAdvanced, setMbAdvanced] = useState(false)
   const [mbBusy, setMbBusy] = useState(false)
+  // Twilio texting
+  const [tw, setTw] = useState({ account_sid: '', auth_token_set: false, auth_token_last4: '', from_number: '', messaging_service_sid: '', enabled: false, inbound_webhook: '' })
+  const [twToken, setTwToken] = useState('')
+  const [twBusy, setTwBusy] = useState(false)
+  const [twStatus, setTwStatus] = useState(null)
+  const loadTwilio = () => authFetch('/api/settings/twilio').then(r => r.json()).then(d => setTw(d || {})).catch(() => {})
+  const saveTwilio = async () => {
+    setTwBusy(true); setTwStatus(null)
+    try {
+      const payload = { account_sid: tw.account_sid, from_number: tw.from_number, messaging_service_sid: tw.messaging_service_sid, enabled: tw.enabled }
+      if (twToken.trim()) payload.auth_token = twToken.trim()
+      await authFetch('/api/settings/twilio', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+      setTwToken(''); await loadTwilio()
+      // auto-test after saving
+      const d = await authFetch('/api/settings/twilio/verify', { method: 'POST' }).then(r => r.json()); setTwStatus(d)
+    } catch (e) { alert('Save failed: ' + e.message) } finally { setTwBusy(false) }
+  }
+  const testTwilio = async () => {
+    setTwBusy(true); setTwStatus(null)
+    try { setTwStatus(await authFetch('/api/settings/twilio/verify', { method: 'POST' }).then(r => r.json())) }
+    catch (e) { setTwStatus({ ok: false, error: e.message }) } finally { setTwBusy(false) }
+  }
 
   const loadMailboxes = () => authFetch('/api/settings/mailboxes').then(r => r.json()).then(d => setMailboxes(Array.isArray(d) ? d : [])).catch(() => {})
   useEffect(() => {
@@ -49,6 +71,7 @@ export default function Settings() {
       setBusiness(Object.keys(b).length ? { ...DEFAULT_BUSINESS, ...b } : DEFAULT_BUSINESS)
     }).catch(() => {}).finally(() => setLoading(false))
     loadMailboxes()
+    loadTwilio()
   }, [])
 
   const addMailbox = async () => {
@@ -190,6 +213,44 @@ export default function Settings() {
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10 }}>
               <button className="btn btn-sm btn-primary" onClick={addMailbox} disabled={mbBusy}>{mbBusy ? 'Connecting…' : '+ Connect mailbox'}</button>
               <button className="btn btn-sm btn-secondary" onClick={() => setMbAdvanced(a => !a)}>{mbAdvanced ? 'Hide advanced' : 'Advanced'}</button>
+            </div>
+          </section>
+
+          {/* Text Messaging (Twilio) */}
+          <section className="detail-section">
+            <h4 style={{ margin: 0 }}>Text Messaging (Twilio)</h4>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+              Connect Twilio to text clients from the Hub and get their replies in the Inbox. Your <strong>Account SID</strong> + <strong>Auth Token</strong> come from the Twilio Console; the <strong>From number</strong> is your Twilio phone number (or set a Messaging Service SID instead). Credentials are stored securely here, never in code.
+            </p>
+            <div style={grid}>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Account SID
+                <input style={fld} value={tw.account_sid || ''} onChange={e => setTw(t => ({ ...t, account_sid: e.target.value }))} placeholder="AC…" />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Auth Token
+                <input style={fld} type="password" value={twToken} onChange={e => setTwToken(e.target.value)} placeholder={tw.auth_token_set ? `•••• saved (…${tw.auth_token_last4})` : 'your 32-char auth token'} />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>From number
+                <input style={fld} value={tw.from_number || ''} onChange={e => setTw(t => ({ ...t, from_number: e.target.value }))} placeholder="+13194088407" />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Messaging Service SID (optional)
+                <input style={fld} value={tw.messaging_service_sid || ''} onChange={e => setTw(t => ({ ...t, messaging_service_sid: e.target.value }))} placeholder="MG… (use instead of From)" />
+              </label>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--text-primary)' }}>
+              <input type="checkbox" checked={!!tw.enabled} onChange={e => setTw(t => ({ ...t, enabled: e.target.checked }))} />
+              Texting enabled
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+              <button className="btn btn-sm btn-primary" onClick={saveTwilio} disabled={twBusy}>{twBusy ? 'Saving…' : 'Save & Test'}</button>
+              <button className="btn btn-sm btn-secondary" onClick={testTwilio} disabled={twBusy}>Test connection</button>
+              {twStatus && (twStatus.ok
+                ? <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>● Connected ({twStatus.status}){twStatus.name ? ' · ' + twStatus.name : ''}</span>
+                : <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⚠ {twStatus.error || ('code ' + twStatus.code)}</span>)}
+            </div>
+            <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+              <div><strong>Inbound webhook</strong> — in Twilio, open your number → Messaging → “A message comes in” → set to <em>Webhook (HTTP POST)</em> and paste:</div>
+              <code style={{ display: 'inline-block', marginTop: 4, padding: '5px 9px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, wordBreak: 'break-all', color: 'var(--text-primary)' }}>{tw.inbound_webhook}</code>
+              <div style={{ marginTop: 6 }}>That routes replies (and STOP/START opt-outs) into the Inbox automatically.</div>
             </div>
           </section>
 

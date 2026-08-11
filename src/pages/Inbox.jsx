@@ -99,12 +99,19 @@ export default function Inbox() {
   const sendReply = async () => {
     if (!sel) return
     if (!reply.body.trim()) { alert('Write a reply first.'); return }
-    const subject = reply.subject.trim() || 'Re: your message'
-    // convert plain text to simple HTML paragraphs
-    const html = reply.body.split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
+    // Reply in the same channel as the conversation (text thread → text, else email).
+    const threadChannel = (thread && thread.length) ? (thread[thread.length - 1].channel || 'email') : 'email'
     setSending(true)
     try {
-      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'email', client_ids: [sel], subject, body: html }) })
+      let payload
+      if (threadChannel === 'text') {
+        payload = { channel: 'text', client_ids: [sel], body: reply.body.trim() }
+      } else {
+        const subject = reply.subject.trim() || 'Re: your message'
+        const html = reply.body.split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
+        payload = { channel: 'email', client_ids: [sel], subject, body: html }
+      }
+      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json()
       if (d.error || !(d.sent > 0)) { alert(d.error || 'Send failed: ' + ((d.results || [])[0]?.error || 'unknown')); return }
       // clear the draft, refresh the thread + list
@@ -308,7 +315,6 @@ function Composer({ onClose, onSent }) {
   const remove = (id) => setRecips(recips.filter(r => r.id !== id))
 
   const send = async () => {
-    if (channel === 'text') { alert('Texting turns on once Twilio is connected.'); return }
     if (!recips.length) { alert('Add at least one recipient.'); return }
     if (!subject.trim() || !body.trim()) { alert('Add a subject and a message.'); return }
     setSending(true)
@@ -329,7 +335,7 @@ function Composer({ onClose, onSent }) {
           {[{ k: 'email', label: '✉ Email' }, { k: 'text', label: '💬 Text' }].map(c => (
             <button key={c.k} onClick={() => setChannel(c.k)} className={`btn btn-sm ${channel === c.k ? 'btn-primary' : 'btn-secondary'}`}>{c.label}</button>
           ))}
-          {channel === 'text' && <span style={{ fontSize: 12, color: '#f59e0b', alignSelf: 'center', marginLeft: 6 }}>Texting turns on with Twilio — email works now.</span>}
+          {channel === 'text' && <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 6 }}>Texts send via Twilio (set it up in Settings).</span>}
         </div>
 
         {/* recipients */}

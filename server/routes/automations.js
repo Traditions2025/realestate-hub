@@ -241,8 +241,27 @@ async function runAction(node, client, ctx) {
     }
     case 'end_automation': case 'stop':
       return '__END__'
-    case 'send_text': case 'send_voicemail':
-      throw new Error('Texting/voicemail needs Twilio (not connected yet)')
+    case 'send_text': {
+      if (!client.phone) throw new Error('contact has no phone')
+      if (client.text_opt_out) return 'skipped (opted out of texts)'
+      let body = cfg.body
+      if (cfg.template_id) { const t = db.get('SELECT body FROM templates WHERE id = ?', [Number(cfg.template_id)]); if (t) body = body || t.body }
+      if (!body) throw new Error('text missing body/template')
+      body = fillMerge(body, client)
+      const { sendSms, twilioConfigured } = await import('../twilio.js')
+      if (!twilioConfigured()) throw new Error('Texting is not connected — add Twilio in Settings')
+      const r = await sendSms(client.phone, body)
+      const preview = String(body).replace(/\s+/g, ' ').trim().slice(0, 160)
+      const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+      try {
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', client.id, name, '', client.phone, null, preview, body, 'twilio_' + r.sid, `c${client.id}_text`, 'read', nowIso()])
+      } catch {}
+      return `texted: ${preview.slice(0, 40)}`
+    }
+    case 'send_voicemail':
+      throw new Error('Ringless voicemail is not connected yet')
     default:
       throw new Error(`action "${node.type}" is not available yet`)
   }

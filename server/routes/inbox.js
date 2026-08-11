@@ -29,6 +29,23 @@ function matchClient(channel, fromAddr) {
   return null
 }
 
+const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+
+// Email John (or whoever inbox_notify_email is) when a client texts the Hub.
+async function notifyInboundText(client, body, fromPhone) {
+  try {
+    const to = db.getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
+    if (!to) return
+    const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromPhone
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
+      <p style="margin:0 0 10px;"><strong>${escHtml(name)}</strong> just texted the Hub.</p>
+      <p style="margin:0 0 4px;"><strong>From:</strong> ${escHtml(fromPhone)}</p>
+      <p style="margin:8px 0;background:#f1f5f9;padding:10px 12px;border-radius:8px;">${escHtml(body).slice(0, 600)}</p>
+      <p style="margin:6px 0 0;color:#64748b;font-size:12px;">Reply from the Hub Inbox.</p></div>`
+    await sendViaSendGrid(to, 'Matt Smith Team', `New text from ${name}`, html, null, [], [], [], 'inbox_notify')
+  } catch {}
+}
+
 const CHANNELS = ['email', 'text', 'call', 'voicemail']
 
 // ---- list: grouped into conversations by contact (like the FUB inbox) ----
@@ -119,6 +136,49 @@ router.post('/incoming', (req, res) => {
   res.status(201).json({ matched: true, id: r.lastInsertRowid, client_id: client.id })
 })
 
+// ---- Twilio inbound texts (PUBLIC — whitelisted in requireAuth; Twilio posts here) ----
+// Twilio sends application/x-www-form-urlencoded: From, To, Body, MessageSid, ...
+router.post('/twilio-inbound', async (req, res) => {
+  try {
+    const b = req.body || {}
+    const from = b.From || b.from || ''
+    const to = b.To || b.to || ''
+    const body = b.Body || b.body || ''
+    const sid = b.MessageSid || b.SmsSid || ''
+    const client = matchClient('text', from)
+    // STOP / START compliance — always honor it for a matched client.
+    const { optKeyword } = await import('../twilio.js')
+    const kw = optKeyword(body)
+    if (kw && client) db.run('UPDATE clients SET text_opt_out = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, client.id])
+    if (client) {
+      const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)
+      const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
+      if (!dup) {
+        const preview = String(body).replace(/\s+/g, ' ').trim().slice(0, 160)
+        const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'incoming', client.id, name, from, to, null, preview, body, externalId, `c${client.id}_text`, 'unread', nowIso()])
+        notifyInboundText(client, body, from).catch(() => {})
+      }
+    }
+  } catch (e) { console.error('[twilio-inbound] error:', e.message) }
+  // Always 200 with empty TwiML so Twilio doesn't retry or auto-reply.
+  res.set('Content-Type', 'text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>')
+})
+
+// ---- Twilio delivery status (PUBLIC — whitelisted). Marks failed sends visibly. ----
+router.post('/twilio-status', (req, res) => {
+  try {
+    const sid = req.body?.MessageSid || req.body?.SmsSid
+    const status = req.body?.MessageStatus || req.body?.SmsStatus
+    if (sid && (status === 'failed' || status === 'undelivered')) {
+      db.run("UPDATE communications SET preview = '⚠ Not delivered — ' || preview WHERE external_id = ? AND direction='outgoing' AND preview NOT LIKE '⚠%'", ['twilio_' + sid])
+    }
+  } catch {}
+  res.sendStatus(204)
+})
+
 // ---- status changes ----
 router.post('/:id/read', (req, res) => { db.run("UPDATE communications SET status='read' WHERE id=?", [Number(req.params.id)]); res.json({ success: true }) })
 router.post('/:id/unread', (req, res) => { db.run("UPDATE communications SET status='unread' WHERE id=?", [Number(req.params.id)]); res.json({ success: true }) })
@@ -141,9 +201,34 @@ router.get('/contacts', (req, res) => {
 // ---- compose + send (Email now; Text arrives with Twilio) ----
 router.post('/send', async (req, res) => {
   const { channel, client_ids, subject, body } = req.body || {}
-  if (channel === 'text') return res.status(400).json({ error: 'Texting turns on once Twilio is connected.' })
   if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Add at least one recipient.' })
-  if (!subject || !body) return res.status(400).json({ error: 'Subject and message are required.' })
+  if (!body) return res.status(400).json({ error: 'A message is required.' })
+
+  // ---- TEXT (Twilio) ----
+  if (channel === 'text') {
+    const { sendSms, twilioConfigured } = await import('../twilio.js')
+    if (!twilioConfigured()) return res.status(400).json({ error: 'Texting isn’t connected yet — add your Twilio details in Settings and turn it on.' })
+    const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    const results = []
+    for (const cid of client_ids) {
+      const c = db.get('SELECT * FROM clients WHERE id = ?', [Number(cid)])
+      if (!c || !c.phone) { results.push({ client_id: cid, ok: false, error: 'no phone on file' }); continue }
+      if (c.text_opt_out) { results.push({ client_id: cid, ok: false, error: 'opted out of texts' }); continue }
+      const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+      try {
+        const r = await sendSms(c.phone, body, { statusCallback: hub + '/api/inbox/twilio-status' })
+        const preview = String(body).replace(/\s+/g, ' ').trim().slice(0, 160)
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', nowIso()])
+        results.push({ client_id: cid, ok: true })
+      } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
+    }
+    return res.json({ sent: results.filter(r => r.ok).length, results })
+  }
+
+  // ---- EMAIL (SendGrid) ----
+  if (!subject) return res.status(400).json({ error: 'Subject and message are required.' })
   const results = []
   for (const cid of client_ids) {
     const c = db.get('SELECT * FROM clients WHERE id = ?', [Number(cid)])

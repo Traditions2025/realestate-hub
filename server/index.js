@@ -197,6 +197,7 @@ async function start() {
 
   app.use(cors())
   app.use(express.json({ limit: '25mb' }))
+  app.use(express.urlencoded({ extended: false, limit: '2mb' })) // Twilio webhooks post form-urlencoded
 
   // Serve static files in production
   app.use(express.static(join(__dirname, '..', 'dist')))
@@ -468,6 +469,35 @@ async function start() {
     try { acct = JSON.parse(db.getSetting('account_info', '{}') || '{}') } catch {}
     try { biz = JSON.parse(db.getSetting('business_registration', '{}') || '{}') } catch {}
     res.json({ success: true, signature: db.getSetting('email_signature', '') || '', account: acct, business: biz, from_name: db.getSetting('email_from_name', '') || '' })
+  })
+
+  // Twilio texting config. The Auth Token is write-only from the UI's side — we never
+  // send it back, only whether it's set + the last 4 chars, so it can't leak via the API.
+  app.get('/api/settings/twilio', async (_req, res) => {
+    const { twilioConfig } = await import('./twilio.js')
+    const c = twilioConfig()
+    res.json({
+      account_sid: c.sid,
+      auth_token_set: !!c.token,
+      auth_token_last4: c.token ? c.token.slice(-4) : '',
+      from_number: c.from,
+      messaging_service_sid: c.messagingServiceSid,
+      enabled: c.enabled,
+      inbound_webhook: (process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com') + '/api/inbox/twilio-inbound',
+    })
+  })
+  app.post('/api/settings/twilio', (req, res) => {
+    const { account_sid, auth_token, from_number, messaging_service_sid, enabled } = req.body || {}
+    if (account_sid !== undefined) db.setSetting('twilio_account_sid', String(account_sid || '').trim())
+    if (auth_token) db.setSetting('twilio_auth_token', String(auth_token).trim()) // only overwrite if a new value is provided
+    if (from_number !== undefined) db.setSetting('twilio_from_number', String(from_number || '').trim())
+    if (messaging_service_sid !== undefined) db.setSetting('twilio_messaging_service_sid', String(messaging_service_sid || '').trim())
+    if (enabled !== undefined) db.setSetting('twilio_enabled', enabled ? '1' : '0')
+    res.json({ success: true })
+  })
+  app.post('/api/settings/twilio/verify', async (_req, res) => {
+    const { twilioVerify } = await import('./twilio.js')
+    res.json(await twilioVerify())
   })
 
   // Inbox mailboxes (App Password over IMAP). Multiple mailboxes supported; each
