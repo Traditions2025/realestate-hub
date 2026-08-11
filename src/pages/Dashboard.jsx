@@ -15,7 +15,6 @@ export default function Dashboard() {
   })
   const [loading, setLoading] = useState(false) // never show full-page loader if we have cached data
   const [refreshing, setRefreshing] = useState(false)
-  const [syncing, setSyncing] = useState(false)
   const [leadActivity, setLeadActivity] = useState([])
 
   const load = () => {
@@ -39,18 +38,6 @@ export default function Dashboard() {
     const t = setInterval(loadLeadActivity, 30_000)
     return () => clearInterval(t)
   }, [])
-
-  const syncSierra = async () => {
-    setSyncing(true)
-    try {
-      const r = await authFetch('/api/sierra/sync', { method: 'POST' })
-      const d = await r.json()
-      if (d.error) alert('Sierra sync error: ' + d.error)
-      else alert(`Sierra sync complete: ${d.total_synced} leads (${d.added} new, ${d.updated} updated)`)
-      load()
-    } catch (e) { alert('Sync failed: ' + e.message) }
-    setSyncing(false)
-  }
 
   // Google Sheet sync REMOVED 2026-05-14 — the hub is the master file for
   // transactions and pre-listings. The 'Sync Google Sheet' and 'Sync
@@ -91,11 +78,6 @@ export default function Dashboard() {
         <div>
           <h1>Dashboard {refreshing && <span style={{fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>· refreshing...</span>}</h1>
           <p className="page-subtitle">Matt Smith Team Command Center</p>
-        </div>
-        <div className="header-actions">
-          <button className="btn btn-secondary" onClick={syncSierra} disabled={syncing}>
-            {syncing ? 'Syncing...' : 'Pull Sierra Leads'}
-          </button>
         </div>
       </div>
 
