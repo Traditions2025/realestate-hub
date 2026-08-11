@@ -136,19 +136,12 @@ export default function App() {
       {/* Overlay */}
       {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)}></div>}
 
-      {/* Desktop: floating button to re-open the sidebar when it's collapsed */}
-      {collapsed && (
-        <button className="sidebar-expand desktop-only" onClick={toggleCollapsed} title="Show sidebar" aria-label="Show sidebar">
-          <PanelIcon />
-        </button>
-      )}
-
       <aside className={`sidebar ${sidebarOpen ? 'open' : ''} ${collapsed ? 'collapsed' : ''}`}>
         <div className="sidebar-header">
           <div className="logo">
             <img src="/logo.png" alt="Matt Smith Team" className="logo-img" />
           </div>
-          <button className="sidebar-toggle desktop-only" onClick={toggleCollapsed} title="Hide sidebar" aria-label="Hide sidebar">
+          <button className="sidebar-toggle desktop-only" onClick={toggleCollapsed} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}>
             <PanelIcon />
           </button>
         </div>
@@ -161,6 +154,7 @@ export default function App() {
                   key={item.path}
                   to={item.path}
                   end={item.path === '/'}
+                  title={item.label}
                   className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
                   onClick={closeSidebar}
                 >
