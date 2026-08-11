@@ -41,6 +41,8 @@ export default function Inbox() {
   const [aiBusy, setAiBusy] = useState('')
   const [aiCtx, setAiCtx] = useState('')
   const [sending, setSending] = useState(false)
+  const [replyOpen, setReplyOpen] = useState(false)   // AI/reply composer minimized by default (saves space)
+  const [openMsgs, setOpenMsgs] = useState({})        // per-message expand overrides (Gmail-style thread collapse)
 
   const load = useCallback(() => {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
@@ -52,7 +54,7 @@ export default function Inbox() {
   const openThread = (clientId) => {
     if (!clientId) return
     setSel(clientId)
-    setAi(null); setReply({ subject: '', body: '' }); setAiCtx('')
+    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(false); setOpenMsgs({})
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
     // AI: restore a saved draft, else the suggestion; generate on first open / when a newer email arrived
@@ -222,21 +224,35 @@ export default function Inbox() {
                 <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => closeThread(sel)}>Close</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {thread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : thread.map(m => {
+                {thread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : thread.map((m, idx) => {
                   const meta = chMeta(m.channel)
                   const out = m.direction === 'outgoing'
+                  const total = thread.length
+                  // Gmail-style: only the latest (and any unread incoming) message is expanded;
+                  // older read messages collapse to a one-line summary. Click to toggle.
+                  const expanded = (m.id in openMsgs) ? openMsgs[m.id] : (idx === total - 1 || (m.status === 'unread' && m.direction === 'incoming'))
+                  const toggle = () => setOpenMsgs(o => ({ ...o, [m.id]: !expanded }))
+                  if (!expanded) {
+                    return (
+                      <div key={m.id} onClick={toggle} title="Click to expand" style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', background: 'var(--bg-secondary)', display: 'flex', gap: 8, alignItems: 'baseline' }}>
+                        <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{out ? 'You' : (m.contact_name || 'Them')}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{m.subject ? m.subject + ' — ' : ''}{m.preview || ''}</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(m.occurred_at)}</span>
+                      </div>
+                    )
+                  }
                   // Emails: render the HTML in a sandboxed frame (like a real mail client).
                   if (m.channel === 'email') {
                     const html = m.body || ''
                     const isHtml = /<[a-z!][\s\S]*>/i.test(html)
                     return (
                       <div key={m.id} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                        <div style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)' }}>
+                        <div onClick={total > 1 ? toggle : undefined} title={total > 1 ? 'Click to collapse' : undefined} style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', cursor: total > 1 ? 'pointer' : 'default' }}>
                           <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {out ? `You → ${m.contact_name}` : `${m.contact_name} → You`} · {fmtDate(m.occurred_at)}
                           {m.subject && <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginLeft: 8 }}>{m.subject}</span>}
                         </div>
                         {isHtml
-                          ? <iframe title={`email-${m.id}`} srcDoc={html} sandbox="allow-same-origin" onLoad={autoSizeFrame} style={{ width: '100%', border: 0, background: '#fff', minHeight: 120 }} />
+                          ? <iframe title={`email-${m.id}`} srcDoc={html} sandbox="allow-same-origin" onLoad={autoSizeFrame} style={{ width: '100%', border: 0, background: '#fff', minHeight: 220 }} />
                           : <div style={{ padding: 14, whiteSpace: 'pre-wrap', fontSize: 14, background: '#fff', color: '#0f172a' }}>{html || m.preview}</div>}
                       </div>
                     )
@@ -254,38 +270,46 @@ export default function Inbox() {
                   )
                 })}
               </div>
-              {/* ===== Reply + AI Suggested Response ===== */}
-              <div style={{ borderTop: '1px solid var(--border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-primary)' }}>
-                {ai && ai.has_incoming && (
+              {/* ===== Reply + AI Suggested Response (minimized by default to keep the email view large) ===== */}
+              {!replyOpen ? (
+                <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-primary)' }}>
+                  <button className="btn btn-primary btn-sm" onClick={() => setReplyOpen(true)}>✍ Reply</button>
+                  {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
+                  {ai && ai.summary && <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{ai.summary}</span>}
+                  {aiBusy === 'suggest' && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading…</span>}
+                </div>
+              ) : (
+                <div style={{ borderTop: '1px solid var(--border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-primary)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 Suggested Response</span>
-                    {ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
-                    {ai.stale && <span style={{ fontSize: 11, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
+                    {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
+                    {ai && ai.stale && <span style={{ fontSize: 11, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
                     <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={!!aiBusy} onClick={() => generateSuggestion(sel, true)}>{aiBusy === 'suggest' ? '…' : '↻ Regenerate'}</button>
+                    <button className="btn btn-sm btn-secondary" onClick={() => setReplyOpen(false)} title="Minimize">▾ Minimize</button>
                   </div>
-                )}
-                {ai && ai.ai_available === false && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>AI is not configured on the server.</div>}
-                {ai && ai.error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{ai.error}</div>}
-                {ai && ai.summary && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 8 }}>{ai.summary}</div>}
-                {aiBusy === 'suggest' && !(ai && ai.summary) && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
+                  {ai && ai.ai_available === false && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>AI is not configured on the server.</div>}
+                  {ai && ai.error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{ai.error}</div>}
+                  {ai && ai.summary && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 8 }}>{ai.summary}</div>}
+                  {aiBusy === 'suggest' && !(ai && ai.summary) && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
 
-                <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
-                <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={5} placeholder="Write your reply…" style={{ padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
+                  <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                  <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={5} placeholder="Write your reply…" style={{ padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
 
-                <div style={{ display: 'flex', gap: 6 }}>
-                  <input value={aiCtx} onChange={e => setAiCtx(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustReply(null, aiCtx.trim()) }} placeholder="Add context for the AI (e.g. tell them we can meet Saturday)…" style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
-                  <button className="btn btn-sm" disabled={!!aiBusy || !aiCtx.trim()} onClick={() => adjustReply(null, aiCtx.trim())}>{aiBusy === 'context' ? '…' : 'Apply'}</button>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input value={aiCtx} onChange={e => setAiCtx(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustReply(null, aiCtx.trim()) }} placeholder="Add context for the AI (e.g. tell them we can meet Saturday)…" style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                    <button className="btn btn-sm" disabled={!!aiBusy || !aiCtx.trim()} onClick={() => adjustReply(null, aiCtx.trim())}>{aiBusy === 'context' ? '…' : 'Apply'}</button>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {ai && ai.suggestion && <button className="btn btn-sm" disabled={!!aiBusy} onClick={useSuggested}>Use suggested</button>}
+                    {[['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['warmer', 'Warmer']].map(([k, l]) => (
+                      <button key={k} className="btn btn-sm" disabled={!!aiBusy || !reply.body.trim()} onClick={() => adjustReply(k)}>{aiBusy === k ? '…' : l}</button>
+                    ))}
+                    <button className="btn btn-sm" disabled={!reply.body.trim()} onClick={clearDraft}>Clear</button>
+                    <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || !reply.body.trim()} onClick={sendReply}>{sending ? 'Sending…' : '✉ Send reply'}</button>
+                  </div>
                 </div>
-
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                  {ai && ai.suggestion && <button className="btn btn-sm" disabled={!!aiBusy} onClick={useSuggested}>Use suggested</button>}
-                  {[['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['warmer', 'Warmer']].map(([k, l]) => (
-                    <button key={k} className="btn btn-sm" disabled={!!aiBusy || !reply.body.trim()} onClick={() => adjustReply(k)}>{aiBusy === k ? '…' : l}</button>
-                  ))}
-                  <button className="btn btn-sm" disabled={!reply.body.trim()} onClick={clearDraft}>Clear</button>
-                  <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || !reply.body.trim()} onClick={sendReply}>{sending ? 'Sending…' : '✉ Send reply'}</button>
-                </div>
-              </div>
+              )}
             </>
           )}
         </div>
