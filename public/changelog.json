@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-11T21:47:48.479Z",
-  "count": 315,
+  "generated_at": "2026-08-11T22:34:50.346Z",
+  "count": 317,
   "entries": [
+    {
+      "hash": "649bc8e",
+      "date": "2026-08-11T17:14:41-05:00",
+      "subject": "PWA: app shell network-first (was stale-while-revalidate) so deploys load on next visit, not after 2 refreshes; cache bump v7",
+      "title": "PWA: app shell network-first (was stale-while-revalidate) so deploys load on next visit, not after 2 refreshes; cache bump v7",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "767e66b",
+      "date": "2026-08-11T16:47:52-05:00",
+      "subject": "Inbox: stop horizontal scroll — fit HTML emails to the reading pane width (inject max-width CSS into iframe), overflowX hidden on pane + message list",
+      "title": "Inbox: stop horizontal scroll — fit HTML emails to the reading pane width (inject max-width CSS into iframe), overflowX hidden on pane + message list",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "554d349",
       "date": "2026-08-11T14:01:19-05:00",

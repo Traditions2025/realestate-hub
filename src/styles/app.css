@@ -219,6 +219,12 @@ body {
 /* ---- Main Content ---- */
 .main-content {
   flex: 1;
+  /* min-width:0 is REQUIRED on a flex child: without it the default min-width
+     is `auto` (= content min-content), so any page with wide content (e.g. the
+     Inbox message list) makes .main-content grow past the viewport and the
+     whole page scrolls horizontally. This lets it shrink so inner
+     overflow-x:hidden / ellipsis containers actually clip instead. */
+  min-width: 0;
   margin-left: var(--sidebar-width);
   min-height: 100vh;
   transition: margin-left 0.2s ease;
