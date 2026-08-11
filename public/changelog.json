@@ -1,7 +1,1151 @@
 {
-  "generated_at": "2026-06-09T23:03:51.318Z",
-  "count": 169,
+  "generated_at": "2026-08-11T18:49:19.355Z",
+  "count": 312,
   "entries": [
+    {
+      "hash": "92130ed",
+      "date": "2026-08-11T12:46:44-05:00",
+      "subject": "Inbox: minimize the AI reply by default, bigger email view, Gmail-style thread collapse",
+      "title": "Inbox: minimize the AI reply by default, bigger email view, Gmail-style thread collapse",
+      "body": "- The AI/reply composer is now minimized by default — a slim bar showing the AI\n  intent badge + one-line summary and a \"Reply\" button; click to expand the full\n  composer, Minimize to collapse. Frees a lot of vertical space.\n- Email frame default height raised (120 -> 220), and with the composer minimized\n  the reading pane is much taller, so emails read bigger.\n- Gmail-style conversation collapse: in a multi-message thread, only the latest\n  (and any unread incoming) message is expanded; older read messages collapse to a\n  one-line summary (sender · subject — snippet · date). Click a header to toggle.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "242f7f7",
+      "date": "2026-08-11T12:28:36-05:00",
+      "subject": "Dashboard: remove the \"Pull Sierra Leads\" button",
+      "title": "Dashboard: remove the \"Pull Sierra Leads\" button",
+      "body": "Redundant — Sierra auto-syncs incrementally every 10 min, and a manual sync is\nstill available in Updates → Systems (\"Run Sync Now\"). Removed the button, its\nsyncSierra handler, and the syncing state. The \"Last Sierra sync\" status line stays.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "220ffa2",
+      "date": "2026-08-11T12:19:28-05:00",
+      "subject": "Tasks: remove the one-time \"Import Matt's Task List\" seed button",
+      "title": "Tasks: remove the one-time \"Import Matt's Task List\" seed button",
+      "body": "That button seeded a hardcoded ~59-task backlog into the Tasks table when the Hub\nfirst launched — a one-time migration, long since done. It connects to nothing\nexternal; tasks are created natively in the Hub now. Removed the button plus the\ndead /api/tasks/seed-matts-list endpoint and the hardcoded MATTS_TASK_LIST array.\nExisting tasks are untouched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0644bb0",
+      "date": "2026-08-11T11:54:01-05:00",
+      "subject": "Sidebar collapse: icon rail (keep icons) instead of fully hiding",
+      "title": "Sidebar collapse: icon rail (keep icons) instead of fully hiding",
+      "body": "When collapsed on desktop, the sidebar now shrinks to a 64px icon rail — nav icons\nstay visible (labels hidden, hover shows the name via title), with the collapse\ntoggle still in the header. Removed the floating expand button (no longer needed).\nScoped to >768px so the mobile slide-out drawer is unaffected.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e17cc7d",
+      "date": "2026-08-11T10:21:09-05:00",
+      "subject": "Texting: build the full Twilio SMS engine (send + receive + Inbox + automations)",
+      "title": "Texting: build the full Twilio SMS engine (send + receive + Inbox + automations)",
+      "body": "Ready to flip on the moment the Twilio account is funded. Credentials live in\nSettings (app_settings), never in code.\n\n- server/twilio.js: config from settings, twilioConfigured(), sendSms() (direct REST,\n  E.164 normalize, statusCallback), twilioVerify() (read-only creds check), and\n  STOP/START keyword detection.\n- Inbox: /api/inbox/send now actually sends texts via Twilio (per-recipient, honors\n  text_opt_out, logs to Sent). Public /twilio-inbound webhook matches the sender to a\n  client, stores the text in the Inbox thread, emails John, and applies STOP/START\n  opt-outs. Public /twilio-status marks failed deliveries. Both whitelisted in auth.\n- Composer + reply UI: text sending unblocked; replies go out in the thread's channel.\n- Automations: send_text action now sends (merge fields, opt-out, logs to Inbox).\n- Settings: \"Text Messaging (Twilio)\" section — Account SID / Auth Token (write-only) /\n  From number / Messaging Service SID / enable toggle, Save & Test, and the inbound\n  webhook URL to paste into Twilio.\n- Added express.urlencoded so Twilio's form-encoded webhooks parse.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3838403",
+      "date": "2026-08-11T08:56:48-05:00",
+      "subject": "Stability: stop crashing on stray errors (IMAP socket + resilient handler + crash log)",
+      "title": "Stability: stop crashing on stray errors (IMAP socket + resilient handler + crash log)",
+      "body": "Root cause of the recurring \"Exited with status 1\" emails: the Gmail IMAP client\n(polled every 60s) had no 'error' listener, so a dropped socket emitted an\nunhandled 'error' event that crashed the whole process. Node treats an unhandled\nEventEmitter 'error' as fatal.\n\n- gmail-inbox.js: add client.on('error', ...) so a dropped IMAP socket is absorbed.\n- index.js: uncaughtException now LOGS + keeps the Hub running instead of exit(1).\n  A single background/socket error no longer takes the service down or pages the\n  team. State is disk-backed (better-sqlite3 transactions), so surviving is safe.\n- Crashes are recorded to /data/crash-log.jsonl and readable at GET /api/crash-log,\n  so the next incident leaves a stack trace we can actually diagnose.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9f27b4f",
+      "date": "2026-08-10T18:26:06-05:00",
+      "subject": "What's New: document the new collapse-sidebar feature (annotated card)",
+      "title": "What's New: document the new collapse-sidebar feature (annotated card)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e720564",
+      "date": "2026-08-10T18:21:39-05:00",
+      "subject": "Sidebar: clean collapse/expand toggle (hide the sidebar for full-width pages)",
+      "title": "Sidebar: clean collapse/expand toggle (hide the sidebar for full-width pages)",
+      "body": "The header toggle now uses a clean panel-left icon and actually collapses the\ndesktop sidebar (slides it off-screen; the page goes full width). A small floating\npanel button appears to bring it back. State persists in localStorage; the mobile\nhamburger/slide-in still wins over a persisted collapse.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "56e722a",
+      "date": "2026-08-10T18:12:57-05:00",
+      "subject": "What's New: embed annotated screenshots inline (no click-through) + Blog Posts",
+      "title": "What's New: embed annotated screenshots inline (no click-through) + Blog Posts",
+      "body": "- Auth-gated GET /api/whatsnew/:name streams the walkthrough screenshots (behind\n  requireAuth, so client data never goes public; the React img fetches them as a\n  blob with the auth header).\n- WhatsNew now shows each feature's real screenshot with outline-box annotations\n  (numbered boxes that FRAME each feature without covering it) and a hover-synced\n  numbered legend beneath. Covers AI Follow-Up, Inbox, Drips, Automations,\n  Reporting, Blog Posts, cleaner Clients list, header filters, smart filters,\n  and link previews. \"Show me ->\" still deep-links to each live feature.\n- Added a Blog Posts card (198 posts published to mattsmithteam.com).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f53e141",
+      "date": "2026-08-10T17:59:44-05:00",
+      "subject": "Updates: add an in-app \"What's New\" tab (feature guide since Aug 3)",
+      "title": "Updates: add an in-app \"What's New\" tab (feature guide since Aug 3)",
+      "body": "A plain-English, theme-aware guide to everything shipped since Aug 3 — AI\nSuggested Follow-Up, unified Inbox, Drip Campaigns, Automations, Reporting,\nthe cleaner Clients list + column-header filters, inline Realist score, link\npreviews, PWA install, and the stability rebuild. Each card has a \"Show me ->\"\nbutton that navigates straight to the live feature (no screenshot overlays).\nSet as the default tab on the Updates page.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "improvement"
+    },
+    {
+      "hash": "3e29afc",
+      "date": "2026-08-10T17:29:11-05:00",
+      "subject": "Link preview: compact card + auto-preview on paste/type",
+      "title": "Link preview: compact card + auto-preview on paste/type",
+      "body": "- Card is now a compact horizontal layout (72px square thumbnail on the left,\n  domain/title/short description on the right, max-width 420px) so it takes far\n  less room in the email than the old full-width image card.\n- Auto-preview: pasting a lone link OR typing a link (with a real TLD like .com)\n  followed by space/Enter now auto-inserts the preview card.\n  - EmailToolbar (textarea composers): paste + type detection on the body field.\n  - RichTextEditor (Drip / Templates rich): auto-preview on paste.\n- soleUrl()/trailingUrl() helpers detect/normalize URLs (emails are ignored).\n  The manual \"Link Preview\" button stays as a fallback.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4e58a4a",
+      "date": "2026-08-10T17:18:37-05:00",
+      "subject": "Link preview: add to RichTextEditor toolbar (Drip campaign + Templates rich mode)",
+      "title": "Link preview: add to RichTextEditor toolbar (Drip campaign + Templates rich mode)",
+      "body": "The rich WYSIWYG editor now has a \"Link Preview\" toolbar button that fetches a URL's\nOpen Graph card and inserts it at the cursor via insertHTML — so the Drip Campaign\nstep editor and Templates rich editor get the same rich link cards as the other\ncomposers.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "865667c",
+      "date": "2026-08-10T17:14:04-05:00",
+      "subject": "Link preview: fetch as facebookexternalhit first so Cloudflare-protected sites (incl. mattsmithteam.com) unfurl",
+      "title": "Link preview: fetch as facebookexternalhit first so Cloudflare-protected sites (incl. mattsmithteam.com) unfurl",
+      "body": "The team's own Sierra site is behind Cloudflare, which intermittently bot-challenges\nthe server with a normal browser UA. Now the endpoint tries facebookexternalhit and\nTwitterbot (the social unfurlers Cloudflare allowlists) before the browser UA, taking\nthe first non-challenge result with a title or image. Also broadened the challenge\ndetection (\"access to this page has been denied\", \"verify you are human\", etc.).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "09017df",
+      "date": "2026-08-10T16:54:54-05:00",
+      "subject": "Clients: click-to-filter dropdowns on Phone, Email, Address & Source column headers",
+      "title": "Clients: click-to-filter dropdowns on Phone, Email, Address & Source column headers",
+      "body": "Reusable ColumnFilterHeader powers the header dropdowns:\n- Phone  -> All / With phone / No phone   (has_phone '1'|'0')\n- Email  -> All / With email / No email   (has_email now tri-state '1'|'0')\n- Address-> All / With address / No address\n- Source -> All sources + each known source (single-select via sources_include)\n- Type   -> (already) All / Buyer / Seller / Buyer/Seller\n\nBackend: added has_email='0' and has_phone='0' (no email / no phone) branches.\nPanel \"Other\" section now uses Email/Phone/Address selects (kept in sync with the\nheader controls); presets updated to has_email:'1'. Active choice shows in the header.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "607a8b7",
+      "date": "2026-08-10T16:45:14-05:00",
+      "subject": "Clients: move the Buyer/Seller type filter into the TYPE column header",
+      "title": "Clients: move the Buyer/Seller type filter into the TYPE column header",
+      "body": "Removed the separate top \"Type: All / Buyers / Sellers / Buyer-Seller\" tab row.\nThe TYPE column header is now a click-to-filter dropdown (All / Buyer / Seller /\nBuyer/Seller, no emojis); the active choice shows in the header (e.g. \"Type: Buyer\").\nUses the same filter.type state, so filtering behavior is unchanged.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "843f802",
+      "date": "2026-08-10T16:33:47-05:00",
+      "subject": "Clients list: remove SIERRA badge and type-pill emojis for a cleaner list",
+      "title": "Clients list: remove SIERRA badge and type-pill emojis for a cleaner list",
+      "body": "- Dropped the \"Sierra\" source badge from the list rows (desktop name cell + mobile\n  card). Source is still shown on each lead's profile.\n- Type pills now read plain Buyer / Seller / Buyer/Seller (removed the emoji icons).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a8f6045",
+      "date": "2026-08-10T16:25:01-05:00",
+      "subject": "Link preview: handle bot-challenge pages (Cloudflare) and cleaner fallback",
+      "title": "Link preview: handle bot-challenge pages (Cloudflare) and cleaner fallback",
+      "body": "- Server drops the title/description/image when a fetch returns a bot-challenge\n  interstitial (e.g. Cloudflare \"Just a moment...\" on the team's own site from the\n  server IP), so the card doesn't show a garbage title.\n- Card title falls back to the domain (not the raw URL) when no title was fetched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0bc2d93",
+      "date": "2026-08-10T16:21:53-05:00",
+      "subject": "Email composers: insert rich link previews; remove temp Sierra probe",
+      "title": "Email composers: insert rich link previews; remove temp Sierra probe",
+      "body": "- New GET /api/link-preview unfurls a URL server-side (follows redirects, parses\n  Open Graph / Twitter / <title> + meta description + og:image, absolutizes the\n  image URL, 9s timeout, never throws — returns blanks on failure).\n- inlineImages.buildLinkPreviewHtml(): email-safe, table-based, fully inline-styled\n  preview card (image + domain + bold title + description), the whole card is one\n  clickable link. Degrades gracefully with no image/description.\n- EmailToolbar: new \"Link Preview\" button (paste a URL -> inserts the card at the\n  cursor). Since every composer shares EmailToolbar, this lands in the Clients,\n  Templates, Listings, Pre-Listings, Transactions, and Recommend composers at once.\n- Removed the temporary Sierra saved-search probe endpoint.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "88ceba0",
+      "date": "2026-08-10T16:17:09-05:00",
+      "subject": "TEMP: sierra saved-search probe endpoint (to be removed)",
+      "title": "TEMP: sierra saved-search probe endpoint (to be removed)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "f8bb1c9",
+      "date": "2026-08-10T16:14:51-05:00",
+      "subject": "Clients filters: cleaner layout, remove Regions, add Address (has/none) filter",
+      "title": "Clients filters: cleaner layout, remove Regions, add Address (has/none) filter",
+      "body": "- Filter panel: controls in each row now bottom-align on one line (checkboxes,\n  selects, number inputs share a 30px height); full-width sections get clean\n  top-border separators; selects styled to match inputs.\n- Removed the \"Regions (comma-separated)\" saved-search filter (not needed).\n- Added an Address filter (Any / Has address / No address) in the Other section;\n  backend has_address = '1'|'0' -> address present / blank.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8ca1b4e",
+      "date": "2026-08-10T15:48:06-05:00",
+      "subject": "Clients: manually enter a Realist Score per lead (inline on the list)",
+      "title": "Clients: manually enter a Realist Score per lead (inline on the list)",
+      "body": "- Clients list SCORE cell is now click-to-edit: click the score (or the \"—\") to\n  type a Realist Score; Enter/blur saves, Esc cancels. Clearing it resets to \"—\".\n- PUT /api/clients/:id normalizes lead_score to digits and derives the A-F grade\n  (gradeFromRealistScore) so the colored badge stays consistent.\n- Sierra sync no longer nulls the score when Sierra itself has none: lead_score/\n  lead_grade now use COALESCE(?, existing), so a manually entered (or FUB-backfilled)\n  score survives every sync. Sierra still overrides when it actually has a score.\n\nVerified: manual 720->A persists through a no-score Sierra sync, and a real Sierra\nscore (640->C) still takes over.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "83bcfb1",
+      "date": "2026-08-10T15:26:22-05:00",
+      "subject": "Clients list: hide tag chips from rows for a cleaner list view",
+      "title": "Clients list: hide tag chips from rows for a cleaner list view",
+      "body": "The name cell in the desktop list no longer renders the first-2 tag chips\n(e.g. \"FUB Stage: Past Client\", \"NO_TEXT\", ZIP tags, campaign tags). Tags are\nunchanged on the data and still show in full on each lead's profile detail\ndrawer, and remain filterable via the Tags filter. Kept the small \"Sierra\"\nsource badge (also shown on the mobile card).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7a6bde7",
+      "date": "2026-08-10T13:15:26-05:00",
+      "subject": "Clients filters: add drip-campaign enrollment filter (include/exclude + choose campaign)",
+      "title": "Clients filters: add drip-campaign enrollment filter (include/exclude + choose campaign)",
+      "body": "New \"Drip Campaigns\" filter section on the Clients tab:\n- Any / In a drip / Not in a drip (tri-state)\n- optional campaign dropdown to scope the include/exclude to one specific drip\n\nBackend buildClientFilter() gains in_drip ('1'|'0') + optional drip_id, implemented\nas EXISTS / NOT EXISTS against drip_enrollments where status='active'. SQL uses\nsingle-quoted literals (DQS-safe). Wired through advFilters state, active-filter\ncount, params builder, reset, and saved-list load; campaign list loaded from /api/drips.\nVerified SQL: include, campaign-scoped, and exclude all return the right sets.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "79b6a50",
+      "date": "2026-08-10T13:00:43-05:00",
+      "subject": "Move Drip Campaigns from Templates into the Campaigns (Marketing) tab",
+      "title": "Move Drip Campaigns from Templates into the Campaigns (Marketing) tab",
+      "body": "Per request: Drip Campaigns now live under the existing \"Campaigns\" nav item\n(the Marketing page) as a sub-tab alongside one-off marketing campaigns, instead\nof being buried inside Templates.\n\n- Marketing.jsx: added a mode toggle [Marketing Campaigns | Drip Campaigns];\n  renders the shared DripCampaigns component in drips mode. Page relabeled\n  \"Campaigns\". \"+ New Campaign\" button only shows in the blasts mode.\n- Templates.jsx: removed the drips mode toggle, the DripCampaigns import, and the\n  wrapper conditional. Templates is now templates-only again.\n- Same DripCampaigns component and backend endpoints reused; no data changes.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "196f873",
+      "date": "2026-08-10T12:12:13-05:00",
+      "subject": "Fix Tasks/Projects 500 after DB migration: double-quoted SQL string literals",
+      "title": "Tasks/Projects 500 after DB migration: double-quoted SQL string literals",
+      "body": "better-sqlite3 compiles SQLite with double-quoted-string literals DISABLED\n(the safe default), so ORDER BY CASE priority WHEN \"high\"... treated \"high\" as a\ncolumn name and threw \"no such column: high\", 500ing the tasks and projects lists.\nsql.js had the legacy DQS quirk enabled, which had masked this. Converted the\nCASE literals to single quotes (proper SQL). Full-codebase audit found only these\ntwo occurrences; all other SQL already uses single-quoted literals.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "122dcdd",
+      "date": "2026-08-10T11:38:32-05:00",
+      "subject": "DB engine: migrate sql.js (WASM, whole-DB-in-RAM) to better-sqlite3 (native, reads/writes file directly)",
+      "title": "DB engine: migrate sql.js (WASM, whole-DB-in-RAM) to better-sqlite3 (native, reads/writes file directly)",
+      "body": "Root-cause fix for the 512MB OOM crashes: the old sql.js layer held the entire\n66MB DB in RAM and serialized a fresh copy on every save. better-sqlite3 reads and\nwrites the SQLite file on disk directly, so steady-state memory is a small fraction.\n\n- import better-sqlite3; openDbFile() sets journal_mode=DELETE (file-copy backups\n  stay valid), synchronous=FULL (durable), foreign_keys=OFF (matches prior behavior)\n- makeDbShim() keeps the exact sql.js-compatible surface (run/get/all/exec/prepare/\n  export/pragma/close) so ~200 call sites + schema DDL are unchanged\n- sanitizeParams(): undefined -> NULL, boolean -> 0/1 (better-sqlite3 rejects both)\n- beginBulk/endBulk are now real BEGIN/COMMIT transactions (depth-counted, ROLLBACK\n  on failure); saveDb() is a NO-OP (writes already hit disk). This removes the\n  serialize-on-save path that caused the 2026-05-20 corruption.\n- boot: quick_check on load; candidate/restore validate with a readonly quick_check\n- migration column reads use db.all(\"PRAGMA table_info(x)\").map(r=>r.name) and\n  integrity check uses db.pragma('integrity_check',{simple:true})\n\nVerified locally end-to-end: insert/get/all, undefined->NULL, boolean->int, bulk\ntransactions, update, settings round-trip, health, on-disk persistence (a separate\nconnection sees writes immediately), integrity ok.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "schema"
+    },
+    {
+      "hash": "1108714",
+      "date": "2026-08-07T18:03:36-05:00",
+      "subject": "Native foundation: Capacitor-ready API layer + config (web/PWA unchanged)",
+      "title": "Native foundation: Capacitor-ready API layer + config (web/PWA unchanged)",
+      "body": "- api.js: runtime platform detection (isNativeApp/platform) + centralized API origin. Web/PWA stay same-origin (/api/...); inside a native Capacitor shell, all 200 authFetch/api calls resolve to the absolute Render backend. Dev override via window.__HUB_API_ORIGIN / localStorage hub_api_origin. Zero changes to web behavior.\n- Added @capacitor/core (dep) + cli/ios/android (devDeps) v8.5\n- capacitor.config.json: appId com.mattsmithteam.hub, appName HUB, webDir dist, brand splash/bg\n- Capacitor is NOT bundled into the web build (detected via window.Capacitor global), so web/PWA are untouched\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a2bfe32",
+      "date": "2026-08-07T17:40:44-05:00",
+      "subject": "PWA: proper install support so the Hub can be installed as an app",
+      "title": "PWA: proper install support so the Hub can be installed as an app",
+      "body": "- Generated real SQUARE icons (192/512 + maskable + apple-touch 180) from the logo on the brand background — the old manifest declared a 1920x1080 image as 512x512, which broke installability\n- manifest.json: id, scope, categories, correct icons + purposes\n- index.html: square apple-touch-icon + 192 favicon\n- sw.js: bump cache to v6, precache new icons\n- App.jsx: 'Install App' button in the sidebar (native beforeinstallprompt on Android/Chrome; iOS shows Add-to-Home-Screen steps); hidden once installed/standalone\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "34ad720",
+      "date": "2026-08-07T17:08:17-05:00",
+      "subject": "Inbox: every client-facing email we send now logs to Sent, not just Inbox replies",
+      "title": "Inbox: every client-facing email we send now logs to Sent, not just Inbox replies",
+      "body": "Shared logSentToInbox() inserts an outgoing communications row (threaded per client) from: sendSequenceEmail (drips/automations-drip/follow-up), /api/email/send (composer + follow-up 'use in composer'), bulk campaign sends, and automation send_email + property-recommendation. Team notifications/digests (no client) are skipped. Best-effort, never breaks a send.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e22aacb",
+      "date": "2026-08-07T16:49:26-05:00",
+      "subject": "Remove temp Sierra text-probe diagnostic (confirmed: Sierra API has no text/SMS endpoints)",
+      "title": "temp Sierra text-probe diagnostic (confirmed: Sierra API has no text/SMS endpoints)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "removal"
+    },
+    {
+      "hash": "a906fcf",
+      "date": "2026-08-07T16:47:30-05:00",
+      "subject": "temp: probe Sierra API for text/SMS endpoints",
+      "title": "temp: probe Sierra API for text/SMS endpoints",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "50753a1",
+      "date": "2026-08-07T16:16:18-05:00",
+      "subject": "Inbox: reply from the Hub with AI Suggested Response + email notification on incoming",
+      "title": "Inbox: reply from the Hub with AI Suggested Response + email notification on incoming",
+      "body": "- inbox.js: /thread/:id/ai (cached), /ai/suggest (generate), /ai/adjust (shorter/casual/direct/warmer/regenerate/free-text context), /draft (persistence). Reuses follow-up AI stack (Claude + HUB/FUB dossier). Classifies intent (Needs Response/Question/Scheduling/Property Interest/High Intent/Info/No Response) + context summary; warm no-em-dash reply tone; never fabricates. Intent hint added to conversation list.\n- Inbox.jsx: reply editor in the reading pane with AI Suggested Response, editable draft, actions (Use suggested/Regenerate/Shorter/Casual/Direct/Warmer/Add context/Clear/Send). Draft persists across leaving the thread; auto-generates on first open / when a newer email arrives; does not overwrite an edited draft unless Regenerate. Sends via existing /api/inbox/send (threads + logs). Intent badges in the list.\n- gmail-inbox.js: emails johnwithmattsmithteam@gmail.com (configurable via inbox_notify_email) when a client emails the inbox.\n- inbox_ai cache table in database.js init.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "34c04fc",
+      "date": "2026-08-07T14:13:20-05:00",
+      "subject": "Follow-up: stop defaulting recommendations to viewed properties — property views are one signal, prefer relationship/timing/life-context angle when the record supports it; clean stray em dashes in prompt",
+      "title": "Follow-up: stop defaulting recommendations to viewed properties — property views are one signal, prefer relationship/timing/life-context angle when the record supports it; clean stray em dashes in prompt",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b782ac3",
+      "date": "2026-08-07T13:48:38-05:00",
+      "subject": "Follow-up: scrub em/en dashes on read too, so cached recommendations display dash-free without re-analysis",
+      "title": "Follow-up: scrub em/en dashes on read too, so cached recommendations display dash-free without re-analysis",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "96d3272",
+      "date": "2026-08-07T13:43:19-05:00",
+      "subject": "Follow-up email: never use em/en dashes (prompt rule + strip safety net on all AI text); replace auto 'Add context' with a free-text context box the agent types to refine the email (e.g. property now pending)",
+      "title": "Follow-up email: never use em/en dashes (prompt rule + strip safety net on all AI text); replace auto 'Add context' with a free-text context box the agent types to refine the email (e.g. property now pending)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "12d0169",
+      "date": "2026-08-07T13:30:01-05:00",
+      "subject": "Resilience: global unhandledRejection handler keeps the Hub up instead of exiting (Node 15+ crashes on unhandled rejection by default = Render 'Exited with status 1'); log uncaughtException before clean restart",
+      "title": "Resilience: global unhandledRejection handler keeps the Hub up instead of exiting (Node 15+ crashes on unhandled rejection by default = Render 'Exited with status 1'); log uncaughtException before clean restart",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1aec2dc",
+      "date": "2026-08-07T13:07:36-05:00",
+      "subject": "Fix: create followup_recommendations table in database.js init (WASM-ready), not at route module load",
+      "title": "Fix: create followup_recommendations table in database.js init (WASM-ready), not at route module load",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "d345891",
+      "date": "2026-08-07T12:58:54-05:00",
+      "subject": "Add AI Suggested Follow-Up to client dashboard (HUB + FUB → Claude)",
+      "title": "AI Suggested Follow-Up to client dashboard (HUB + FUB → Claude)",
+      "body": "- server/routes/followup.js: gathers HUB client data + FUB comms (notes, calls, emails, texts, tasks, appointments, stage, tags, source, timeline via fub-helper), asks Claude for a recommended next action + factual why + relationship summary + a warm, specific follow-up email. Cached per client (followup_recommendations); GET is instant + flags stale when new activity lands; analyze runs only on first open / manual refresh. Email rewrite endpoint (regenerate/shorter/casual/direct/add-context) reuses cached dossier. Opt-out + no-fabrication + not-enough-history guards.\n- Clients.jsx detail drawer: 'Suggested Follow-Up' section — recommendation, why bullets, known context, summary, editable suggested email with controls (regenerate/shorter/casual/direct/add context/copy/use-in-composer), Refresh + last-analyzed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "be59502",
+      "date": "2026-08-07T12:04:47-05:00",
+      "subject": "Blog posts: a scheduled post whose date has arrived shows as Posted (derived on read, status filter honors it; stored value untouched)",
+      "title": "Blog posts: a scheduled post whose date has arrived shows as Posted (derived on read, status filter honors it; stored value untouched)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "23cd34d",
+      "date": "2026-08-07T11:57:03-05:00",
+      "subject": "Clients profile: sort Sierra notes + FUB activity newest-first (notes already prepend newest)",
+      "title": "Clients profile: sort Sierra notes + FUB activity newest-first (notes already prepend newest)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7cf7613",
+      "date": "2026-08-07T11:47:04-05:00",
+      "subject": "Responsive: Clients list view uses a condensed mobile card (name, status, last activity) instead of the crammed multi-column row",
+      "title": "Responsive: Clients list view uses a condensed mobile card (name, status, last activity) instead of the crammed multi-column row",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6c21b27",
+      "date": "2026-08-07T11:29:14-05:00",
+      "subject": "Responsive: header action buttons wrap 2-per-row on mobile instead of shrinking into a cramped cut-off row",
+      "title": "Responsive: header action buttons wrap 2-per-row on mobile instead of shrinking into a cramped cut-off row",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fac2519",
+      "date": "2026-08-07T11:23:00-05:00",
+      "subject": "Responsive: constrain Settings content grid so nested auto-fit grid collapses to 1 col on mobile (minmax(0,1fr) + width:100%)",
+      "title": "Responsive: constrain Settings content grid so nested auto-fit grid collapses to 1 col on mobile (minmax(0,1fr) + width:100%)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0327575",
+      "date": "2026-08-07T11:15:10-05:00",
+      "subject": "Responsive: site-wide mobile layer (safe areas, media, touch targets), stack Inbox panes, collapse Settings grids, scrollable tab bars",
+      "title": "Responsive: site-wide mobile layer (safe areas, media, touch targets), stack Inbox panes, collapse Settings grids, scrollable tab bars",
+      "body": "- index.html: viewport-fit=cover for notch/safe-area support\n- app.css: reusable responsive layer — env() safe-area insets on topbar/sidebar/modals, img/media max-width, 40px touch targets, 16px inputs (no iOS zoom), header/toolbar/tab wrapping + horizontal-scroll tab bars, extra-small phone tuning\n- Inbox: 3-pane desktop layout stacks vertically on mobile (folders wrap, list + reading full-width)\n- Settings: 2-col account grids auto-collapse via auto-fit minmax; signature header wraps\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a0c77d3",
+      "date": "2026-08-07T10:53:42-05:00",
+      "subject": "Clients: status change always pushes to Sierra automatically (remove confirm prompt)",
+      "title": "Clients: status change always pushes to Sierra automatically (remove confirm prompt)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c029dc7",
+      "date": "2026-08-07T10:46:54-05:00",
+      "subject": "Leads: junk removes active drips/automations; block @notvalidemail.com sends; show Active Plans on lead profile",
+      "title": "Leads: junk removes active drips/automations; block @notvalidemail.com sends; show Active Plans on lead profile",
+      "body": "- lead-sequences.js: stopSequencesForClient (drip+automation) + activeSequencesForClient\n- Junk transition wired into PUT /clients/:id, Sierra sync upsert, and automation change_status action\n- email.js: isBlockedEmail gate in sendSequenceEmail + sendViaSendGrid (to/cc/bcc); @notvalidemail.com never sent\n- clients.js: GET /:id/sequences endpoint\n- Clients.jsx: Active Plans section (drips+automations, next-send, Remove) on lead profile\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7f7572a",
+      "date": "2026-08-06T18:22:40-05:00",
+      "subject": "Drips: add step preview endpoint (renders merge fields + signature + property cards without sending)",
+      "title": "Drips: add step preview endpoint (renders merge fields + signature + property cards without sending)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cd9c013",
+      "date": "2026-08-06T17:55:52-05:00",
+      "subject": "Drips: enrolling after the send window rolls Day-0 to the next day's window",
+      "title": "Drips: enrolling after the send window rolls Day-0 to the next day's window",
+      "body": "nextSendIso now picks a random time in [send_time, send_time_end] on the target\nday, and if that day's window has already passed (enrolled after 11am), rolls to\nthe next day — so a send never fires outside the configured window.",
+      "category": "other"
+    },
+    {
+      "hash": "7a32708",
+      "date": "2026-08-06T17:42:46-05:00",
+      "subject": "Drips: random send time within a window (send_time..send_time_end); Homes template signature",
+      "title": "Drips: random send time within a window (send_time..send_time_end); Homes template signature",
+      "body": "- nextSendIso picks a random minute in [send_time, send_time_end] when a window\n  is set (e.g. 9:00-11:00), else fixed. Drip editor now has a 'between X and Y'\n  time window per step (default 9:00-11:00).\n- Homes They Viewed template got {{signature}} (was the only drip email missing it).",
+      "category": "other"
+    },
+    {
+      "hash": "2b09046",
+      "date": "2026-08-06T17:29:07-05:00",
+      "subject": "Holidays: no automated email/text on US federal holidays + bulk apply automation/drip",
+      "title": "Holidays: no automated email/text on US federal holidays + bulk apply automation/drip",
+      "body": "- server/holidays.js: US federal holidays (Chicago calendar, weekend-observed).\n- Drip engine (nextSendIso) + automation delays (applyDelay) never schedule onto\n  a holiday; messaging actions/drip sends are also gated at send time and deferred\n  to the next non-holiday day.\n- Clients bulk actions: 'Apply Drip Campaign' + 'Apply Automation' -> pick one,\n  enrolls the selected clients (uses existing enroll endpoints; active automations\n  only).",
+      "category": "other"
+    },
+    {
+      "hash": "bd7bd41",
+      "date": "2026-08-06T17:05:44-05:00",
+      "subject": "Email: configurable 'From' name (email_from_name setting) + Settings field",
+      "title": "Email: configurable 'From' name (email_from_name setting) + Settings field",
+      "body": "Sender name now reads from app_settings email_from_name (falls back to\nSENDGRID_FROM_NAME env / default), so it can be set to 'Matt Smith' instead of\n'Matt Smith Team'. Added a From-name field in Settings > Account Info.",
+      "category": "other"
+    },
+    {
+      "hash": "fc28fc4",
+      "date": "2026-08-06T15:52:04-05:00",
+      "subject": "Remove temp list-MLS extraction endpoint (data captured)",
+      "title": "temp list-MLS extraction endpoint (data captured)",
+      "body": "",
+      "category": "removal"
+    },
+    {
+      "hash": "380b779",
+      "date": "2026-08-06T15:44:48-05:00",
+      "subject": "TEMP list-mls: retry+backoff on Sierra rate limits + pacing",
+      "title": "TEMP list-mls: retry+backoff on Sierra rate limits + pacing",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "1dfe4e6",
+      "date": "2026-08-06T15:42:22-05:00",
+      "subject": "TEMP: paginated list-MLS extractor (full notes, fixed MLS regex)",
+      "title": "TEMP: paginated list-MLS extractor (full notes, fixed MLS regex)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "6eef35e",
+      "date": "2026-08-06T15:28:06-05:00",
+      "subject": "Remove temp list-notes endpoint",
+      "title": "temp list-notes endpoint",
+      "body": "",
+      "category": "removal"
+    },
+    {
+      "hash": "feaf7e1",
+      "date": "2026-08-06T15:24:16-05:00",
+      "subject": "TEMP: expand list-notes endpoint fields to locate MLS",
+      "title": "TEMP: expand list-notes endpoint fields to locate MLS",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "2fe4399",
+      "date": "2026-08-06T15:21:21-05:00",
+      "subject": "TEMP: list members notes endpoint (to extract MLS # from Cancelled/Expired)",
+      "title": "TEMP: list members notes endpoint (to extract MLS # from Cancelled/Expired)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "c178753",
+      "date": "2026-08-06T15:11:15-05:00",
+      "subject": "Clients: 'Update this list' button — overwrite the active saved list with the current filters",
+      "title": "Clients: 'Update this list' button — overwrite the active saved list with the current filters",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "f21a05b",
+      "date": "2026-08-06T14:12:52-05:00",
+      "subject": "Remove temp Sierra notes probe (confirmed: notes/secondary email not exposed by API)",
+      "title": "temp Sierra notes probe (confirmed: notes/secondary email not exposed by API)",
+      "body": "",
+      "category": "removal"
+    },
+    {
+      "hash": "17ad0f9",
+      "date": "2026-08-06T14:10:26-05:00",
+      "subject": "TEMP: wider probe of Sierra timeline/notes endpoints + full detail email scan",
+      "title": "TEMP: wider probe of Sierra timeline/notes endpoints + full detail email scan",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "d441b1d",
+      "date": "2026-08-06T14:05:18-05:00",
+      "subject": "TEMP: probe Sierra note/activity endpoints for secondary email in system notes",
+      "title": "TEMP: probe Sierra note/activity endpoints for secondary email in system notes",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "2b16653",
+      "date": "2026-08-06T13:57:29-05:00",
+      "subject": "Remove temp Sierra raw-lookup diagnostic",
+      "title": "temp Sierra raw-lookup diagnostic",
+      "body": "",
+      "category": "removal"
+    },
+    {
+      "hash": "3fec3ad",
+      "date": "2026-08-06T13:54:12-05:00",
+      "subject": "TEMP: raw Sierra lead lookup by name for secondary-email check",
+      "title": "TEMP: raw Sierra lead lookup by name for secondary-email check",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "85c63f3",
+      "date": "2026-08-06T13:52:57-05:00",
+      "subject": "Remove temporary Sierra email-fields diagnostic (verified: API/export expose only the primary email)",
+      "title": "temporary Sierra email-fields diagnostic (verified: API/export expose only the primary email)",
+      "body": "",
+      "category": "removal"
+    },
+    {
+      "hash": "16c8863",
+      "date": "2026-08-06T13:44:13-05:00",
+      "subject": "Sierra diagnostic: deep-scan lead detail for a 2nd email + report location",
+      "title": "Sierra diagnostic: deep-scan lead detail for a 2nd email + report location",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "991840c",
+      "date": "2026-08-06T13:41:50-05:00",
+      "subject": "Sierra: read-only diagnostic to inspect lead email fields (find vs full detail)",
+      "title": "Sierra: read-only diagnostic to inspect lead email fields (find vs full detail)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "b58fc53",
+      "date": "2026-08-06T13:18:01-05:00",
+      "subject": "Inbox: multi-mailbox support (connect matt@mattsmithteam.com directly, no forwarding)",
+      "title": "Inbox: multi-mailbox support (connect matt@mattsmithteam.com directly, no forwarding)",
+      "body": "- gmail-inbox.js: mailbox LIST in app_settings (inbox_mailboxes), each polled\n  directly over IMAP with its own App Password + host (default imap.gmail.com,\n  overridable for non-Gmail). Per-mailbox cursor/status. One-time migration folds\n  the existing single-mailbox creds into the list so the current connection\n  carries over. Only client-matched mail stored -> promo/spam ignored.\n- Endpoints: GET/POST /api/settings/mailboxes, POST /:id/test, DELETE /:id.\n- Settings UI: multi-mailbox manager (list w/ status + Test/Remove, add form w/\n  Advanced IMAP host). Scheduler already calls pollGmail=pollAllMailboxes.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "04b96b1",
+      "date": "2026-08-06T13:05:33-05:00",
+      "subject": "Inbox: render email bodies as formatted HTML (sandboxed iframe) instead of raw markup; texts stay as chat bubbles",
+      "title": "Inbox: render email bodies as formatted HTML (sandboxed iframe) instead of raw markup; texts stay as chat bubbles",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "453404f",
+      "date": "2026-08-06T12:50:10-05:00",
+      "subject": "Inbox: direct Gmail connection via App Password (no DNS)",
+      "title": "Inbox: direct Gmail connection via App Password (no DNS)",
+      "body": "- server/gmail-inbox.js: IMAP poller (imapflow + mailparser). Reads new mail\n  every 60s, matches sender->client, stores client-matched incoming emails in\n  the Inbox. Cursor-based (seeds to now on connect -> never backfills), deduped\n  by Message-ID, storm-guarded, resilient (errors recorded, never crash tick).\n  Inert until an App Password is saved.\n- Settings endpoints: GET/POST /api/settings/gmail, /gmail/test, /gmail/disconnect\n  (creds in app_settings, never in git).\n- Settings UI: Inbox Email Connection card (address + App Password, Connect/Test/\n  Disconnect, live status) with instructions to generate a Google App Password.\n- Scheduler: 60s gmail poll tick (guarded).\n- Adds imapflow + mailparser deps.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5ab0db9",
+      "date": "2026-08-06T12:37:11-05:00",
+      "subject": "Inbox: compose (Email/Text, multi-recipient) + real-time inbound receiver",
+      "title": "Inbox: compose (Email/Text, multi-recipient) + real-time inbound receiver",
+      "body": "- Composer: 'New Message' -> pick Email/Text, search + add multiple client\n  recipients (chips), subject + rich-text body, send. Email sends via SendGrid\n  and logs to the Sent folder; Text is gated until Twilio.\n- /api/inbox/contacts (recipient search), /api/inbox/send (compose send).\n- REAL-TIME inbound: /api/inbox/parse-inbound receives SendGrid Inbound Parse\n  POSTs (busboy multipart), matches sender->client, stores as incoming. Public\n  route (no token). This is push, not polling. Requires DNS+Parse+Gmail-forward\n  setup to go live.\n- Added busboy dep (scoped to the parse route).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b01c97f",
+      "date": "2026-08-06T12:22:59-05:00",
+      "subject": "Inbox UI: fill viewport height + fix channel filter stacking (global label flex-direction override)",
+      "title": "Inbox UI: fill viewport height + fix channel filter stacking (global label flex-direction override)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "c8fccc6",
+      "date": "2026-08-06T12:06:53-05:00",
+      "subject": "Inbox: add DELETE /:id (remove a message)",
+      "title": "Inbox: add DELETE /:id (remove a message)",
+      "body": "",
+      "category": "other"
+    },
+    {
+      "hash": "b595c00",
+      "date": "2026-08-06T12:06:07-05:00",
+      "subject": "Inbox tab + Business Registration settings (foundation for texting)",
+      "title": "Inbox tab + Business Registration settings (foundation for texting)",
+      "body": "- communications table (lean: preview + provider id, indexed), stores only\n  client-matched items. routes/inbox.js: threaded list (folders inbox/sent/\n  closed, All/Unread, channel filter, search), per-contact thread, counts,\n  POST /incoming webhook receiver that matches sender->client (email exact or\n  last-10-digit phone) and dedupes by external_id, read/unread/close.\n- Inbox page (FUB-style: folders + Emails/Texts/Calls filter + conversation\n  list + reading pane) + nav item + route. Ready to receive texts when Twilio\n  is connected; empty-state explains it.\n- Settings: Business Registration section (Twilio A2P) prefilled from the A2P\n  screen, saved to app_settings key business_registration. (POC phone shown as\n  (131) in source -> prefilled (319), flagged to verify.)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8467c19",
+      "date": "2026-08-06T10:16:47-04:00",
+      "subject": "Disable Google Sheet import in Hub (sierra bulk-tag-from-sheet)",
+      "title": "Disable Google Sheet import in Hub (sierra bulk-tag-from-sheet)",
+      "body": "Hub is the master file; nothing connects to any Google Sheet anymore.\n- /api/sierra/bulk-tag-from-sheet now returns 410 (short-circuits before any\n  docs.google.com fetch); legacy body retained but unreachable.\n- Removed the 'Bulk-tag from a Google Sheet' UI panel from Updates > Bulk Tools.\n- Verified the other sheet references (prelistings sync-sheet, transactions\n  sheet sync) were already disabled 410 dead code.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3b2bfbb",
+      "date": "2026-08-06T08:46:51-05:00",
+      "subject": "Reporting: fast two-phase load + 10-min stats cache",
+      "title": "Reporting: fast two-phase load + 10-min stats cache",
+      "body": "Reporting took 8-13s because SendGrid's Email Activity API is ~6-7s per call\nand several run per load. Now: render rows instantly from our DB (?stats=0),\nthen fill engagement from SendGrid; cache the SendGrid results 10 min so repeat\nloads are instant; Refresh busts the cache. Parallelized the category-stats\ncalls too.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "36eb7db",
+      "date": "2026-08-06T08:26:17-05:00",
+      "subject": "Reporting: open the sent email + drill into who opened/clicked; monochrome sidebar icons",
+      "title": "Reporting: open the sent email + drill into who opened/clicked; monochrome sidebar icons",
+      "body": "- Click a subject -> modal renders the actual email that went out (from\n  email_log body via /api/reporting/email-content).\n- Click any opens/clicks/unsubscribes/bounces number -> modal lists the exact\n  contacts (from SendGrid Email Activity API; unsubscribes intersected with the\n  global suppression list), matched to CRM names.\n- Sidebar icons forced to monochrome (font-variant-emoji: text + VS15); replaced\n  the chart emoji and sun/moon toggle glyphs with text-presentation symbols.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bf66dbe",
+      "date": "2026-08-06T09:10:31-04:00",
+      "subject": "Reporting: recover opens/clicks for older sends + drop empty drafts",
+      "title": "Reporting: recover opens/clicks for older sends + drop empty drafts",
+      "body": "- messageActivityStats(): pull real opens/clicks/bounces for a subject from\n  SendGrid's Email Activity API, so pre-tracking Hub batches (e.g. 'What was it\n  about these homes...') can show engagement even without a category tag.\n- hub-log campaigns now enriched with that data instead of showing a dash.\n- Filter out empty SendGrid single-send drafts (0 recipients / Untitled).\n- Add /api/reporting/_diag to confirm open/click tracking + activity API access.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "87d0515",
+      "date": "2026-08-05T18:57:20-05:00",
+      "subject": "Email Drip campaigns: multi-step sequences + automation integration",
+      "title": "Email Drip campaigns: multi-step sequences + automation integration",
+      "body": "- drip_campaigns/drip_enrollments/drip_executions tables.\n- routes/drips.js: CRUD + manual enroll + activity + a lightweight engine\n  (dripTick, wired into the 1-min scheduler). Each step sends after N days at a\n  set time (America/Chicago, DST-correct via double tz-offset), idempotent per\n  (enrollment, step), 3-retry on hard failure, opt-out aware.\n- email.js: shared sendSequenceEmail (template resolve + merge + {{properties}}\n  injection + SendGrid category drip_<id> for Reporting), reused by drips.\n- Automations: new live 'Start Drip Campaign' action (send_drip) + drip_ref\n  field; runAction enrolls the contact into the drip. Builder fetches drips.\n- Templates page: new 'Drip Campaigns' sub-tab with a multi-email step editor\n  (delay days + send time per email, subject/body or template, property cards),\n  card list with stats, and per-drip activity view.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "146dc42",
+      "date": "2026-08-05T18:45:51-05:00",
+      "subject": "Automations: production visual workflow builder + execution engine",
+      "title": "Automations: production visual workflow builder + execution engine",
+      "body": "Phase 2-5 of the automation rebuild:\n- shared/automationRegistry.js: isomorphic single source of truth for the full\n  trigger/control/action library (live subset flagged), condition fields,\n  operators, per-node + whole-graph validation, node summaries.\n- DB: graph model (draft_graph/active_graph), versioning, per-contact\n  enrollments, idempotent executions, event queue.\n- routes/automations.js: registry-driven CRUD, draft/publish/activate/pause/\n  resume/duplicate/validate, versions/restore, activity/metrics, manual enroll,\n  retry, test-action. Graph execution engine: event ingestion (property_viewed\n  + contact_created cursors), enrollment with re-entry rules, condition/branch/\n  goal/split routing, delays, wait-until, idempotent action execution with\n  retries. Send Email tags SendGrid category auto_<id> for Reporting.\n- Builder UI: AutomationBuilder (header w/ status+save+activate+pause+menu+\n  unsaved guard+validation summary), searchable categorized sidebar with\n  coming-soon badges, zoom/pan branching canvas, schema-driven ConfigDrawer,\n  step picker, graphOps. Automations list: filters, cards/table, row actions,\n  activity+metrics modal, starter template gallery.\n- Backward compatible: legacy linear flow_data upgraded to graph on read.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b982079",
+      "date": "2026-08-05T18:07:52-05:00",
+      "subject": "Reporting: surface pre-tracking Hub bulk sends from the email log",
+      "title": "Reporting: surface pre-tracking Hub bulk sends from the email log",
+      "body": "Group email_log rows (5+ same subject same day, no campaign_id) into\nHub (log) campaigns so past batches like 'What was it about these homes\nthat caught your attention?' appear in Reporting with recipient counts.\nEngagement shows as not-tracked since they predate category tagging.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c860e95",
+      "date": "2026-08-05T17:56:30-05:00",
+      "subject": "Reporting: also pull existing SendGrid Marketing Single Sends + stats (surfaces pre-Hub batches like 'Deal of the Week')",
+      "title": "Reporting: also pull existing SendGrid Marketing Single Sends + stats (surfaces pre-Hub batches like 'Deal of the Week')",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "be79d70",
+      "date": "2026-08-05T17:49:18-05:00",
+      "subject": "Reporting tab: batch-email campaigns with live SendGrid stats (opens/clicks/unsubscribes/bounces). Bulk sends now create a campaign + tag SendGrid category for per-campaign metrics",
+      "title": "Reporting tab: batch-email campaigns with live SendGrid stats (opens/clicks/unsubscribes/bounces). Bulk sends now create a campaign + tag SendGrid category for per-campaign metrics",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2465ee2",
+      "date": "2026-08-05T17:40:05-05:00",
+      "subject": "Clients filters: sequence load() responses so a stale earlier request can't overwrite the latest filter (fixes custom day-range not applying while typing)",
+      "title": "Clients filters: sequence load() responses so a stale earlier request can't overwrite the latest filter (fixes custom day-range not applying while typing)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "671a603",
+      "date": "2026-08-05T17:22:55-05:00",
+      "subject": "Clients filter: 'Properties viewed (min #)' — leads who actually viewed N+ distinct listings (stricter than website-activity)",
+      "title": "Clients filter: 'Properties viewed (min #)' — leads who actually viewed N+ distinct listings (stricter than website-activity)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2554bb3",
+      "date": "2026-08-05T17:16:54-05:00",
+      "subject": "Bulk preview: graceful retry on mid-deploy (no raw JSON error); clarify listings label (live, not cached)",
+      "title": "Bulk preview: graceful retry on mid-deploy (no raw JSON error); clarify listings label (live, not cached)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9b90c24",
+      "date": "2026-08-05T17:11:55-05:00",
+      "subject": "Bulk email: 'Send' now opens the recipient preview (Next/Prev to verify) with the real Send button inside — review before it actually sends",
+      "title": "Bulk email: 'Send' now opens the recipient preview (Next/Prev to verify) with the real Send button inside — review before it actually sends",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "df8f4eb",
+      "date": "2026-08-05T17:07:22-05:00",
+      "subject": "Automations: visual flow builder (trigger -> steps canvas like Sierra/Zapier): sidebar Triggers/Steps, vertical flow with connectors, click-to-configure nodes, conditions/delays/actions; engine executes flow (conditions->audience, actions per lead)",
+      "title": "Automations: visual flow builder (trigger -> steps canvas like Sierra/Zapier): sidebar Triggers/Steps, vertical flow with connectors, click-to-configure nodes, conditions/delays/actions; engine executes flow (conditions->audience, actions per lead)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a5c8621",
+      "date": "2026-08-05T16:51:53-05:00",
+      "subject": "Automations tab v1: trigger(daily+9AM default) + audience(conditions/include/exclude) + ordered multi-action builder (email/tag/note/status/assign/task); engine + scheduler + run-now + audience preview",
+      "title": "Automations tab v1: trigger(daily+9AM default) + audience(conditions/include/exclude) + ordered multi-action builder (email/tag/note/status/assign/task); engine + scheduler + run-now + audience preview",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d7ae7a7",
+      "date": "2026-08-05T16:46:45-05:00",
+      "subject": "Projects: Miro-style Mind Map workspace (draggable cards, connectors, colors, due dates, assignees, links; auto-saved per project via canvas_data)",
+      "title": "Projects: Miro-style Mind Map workspace (draggable cards, connectors, colors, due dates, assignees, links; auto-saved per project via canvas_data)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fb1df7a",
+      "date": "2026-08-05T16:40:22-05:00",
+      "subject": "Real-time listings: single + bulk + preview pull live from FUB (cache fallback + warms cache); bulk send is now async with live progress",
+      "title": "Real-time listings: single + bulk + preview pull live from FUB (cache fallback + warms cache); bulk send is now async with live progress",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "78c95f1",
+      "date": "2026-08-05T16:22:38-05:00",
+      "subject": "Bulk email composer: same WYSIWYG editor as everywhere (edit the message, not HTML); templates load editable; plain-text auto-converts",
+      "title": "Bulk email composer: same WYSIWYG editor as everywhere (edit the message, not HTML); templates load editable; plain-text auto-converts",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d7b4099",
+      "date": "2026-08-05T16:13:32-05:00",
+      "subject": "Bulk email: per-recipient viewed listings via {{properties}} + Homes option + {{greeting}}/{{signature}}; per-recipient preview (render-preview) to verify before send; prop_zip in import",
+      "title": "Bulk email: per-recipient viewed listings via {{properties}} + Homes option + {{greeting}}/{{signature}}; per-recipient preview (render-preview) to verify before send; prop_zip in import",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f5368a6",
+      "date": "2026-08-05T15:58:45-05:00",
+      "subject": "Clients filters: 'Only clients with listing views' + last-listing-visit day range (preset chips 30/30-60/60-90/90+ or custom min/max days)",
+      "title": "Clients filters: 'Only clients with listing views' + last-listing-visit day range (preset chips 30/30-60/60-90/90+ or custom min/max days)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0b234d7",
+      "date": "2026-08-05T15:44:52-05:00",
+      "subject": "Templates: email body uses same WYSIWYG editor as the Clients composer (edit the message, not HTML); plain-text templates convert on edit; HTML-source toggle retained",
+      "title": "Templates: email body uses same WYSIWYG editor as the Clients composer (edit the message, not HTML); plain-text templates convert on edit; HTML-source toggle retained",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "67fd391",
+      "date": "2026-08-05T15:36:58-05:00",
+      "subject": "Homes They Viewed now an editable template in Templates tab (Dynamic): generator reads its wording + injects live property cards; excluded from composer dropdown to avoid dup",
+      "title": "Homes They Viewed now an editable template in Templates tab (Dynamic): generator reads its wording + injects live property cards; excluded from composer dropdown to avoid dup",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d16987b",
+      "date": "2026-08-05T15:26:04-05:00",
+      "subject": "Cache viewed listings in Hub: Homes They Viewed reads stored fub_activity first (no live FUB); hourly sync caches property views (bounded, pruned to 40/client); prop_zip column",
+      "title": "Cache viewed listings in Hub: Homes They Viewed reads stored fub_activity first (no live FUB); hourly sync caches property views (bounded, pruned to 40/client); prop_zip column",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3bab6eb",
+      "date": "2026-08-05T14:56:07-05:00",
+      "subject": "Homes They Viewed pulls 5; email templates now sourced from editable Templates tab (seed built-ins into templates table, repoint composer endpoints)",
+      "title": "Homes They Viewed pulls 5; email templates now sourced from editable Templates tab (seed built-ins into templates table, repoint composer endpoints)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5e9af93",
+      "date": "2026-08-05T14:46:13-05:00",
+      "subject": "FUB rate-limit hardening: retry property-email on 429; gate heavy budget/realist scans to 6-day cadence (stop re-running on every reboot)",
+      "title": "FUB rate-limit hardening: retry property-email on 429; gate heavy budget/realist scans to 6-day cadence (stop re-running on every reboot)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ff296b3",
+      "date": "2026-08-05T14:38:48-05:00",
+      "subject": "Email composer: Homes They Viewed moved into Template dropdown (lands in Edit view); Cc always-ready with client-search picker (chips); Bcc behind toggle",
+      "title": "Email composer: Homes They Viewed moved into Template dropdown (lands in Edit view); Cc always-ready with client-search picker (chips); Bcc behind toggle",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "abcd57e",
+      "date": "2026-08-05T14:25:33-05:00",
+      "subject": "Add Settings tab (email signature + account info); Gmail-style WYSIWYG email composer (editable templates, source toggle); signature reflected on emails; cleaner email spacing",
+      "title": "Settings tab (email signature + account info); Gmail-style WYSIWYG email composer (editable templates, source toggle); signature reflected on emails; cleaner email spacing",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "00ecbc0",
+      "date": "2026-08-05T14:02:45-05:00",
+      "subject": "Client detail redesign: prev/next nav, Add Note, transaction dropdown, type dropdown, collapsible tags/activity sections, reorder; email composer preview+CC/BCC+property link cards",
+      "title": "Client detail redesign: prev/next nav, Add Note, transaction dropdown, type dropdown, collapsible tags/activity sections, reorder; email composer preview+CC/BCC+property link cards",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "15d2de6",
+      "date": "2026-08-05T13:11:37-05:00",
+      "subject": "Property email: build listing photo URL directly from MLS (loads in recipient client, no server fetch)",
+      "title": "Property email: build listing photo URL directly from MLS (loads in recipient client, no server fetch)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c6bc82f",
+      "date": "2026-08-05T12:58:48-05:00",
+      "subject": "Add /api/sierra/sync-cancel (cooperative cancel flag checked between pages)",
+      "title": "/api/sierra/sync-cancel (cooperative cancel flag checked between pages)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "50ca344",
+      "date": "2026-08-05T12:41:00-05:00",
+      "subject": "Add 'Homes They Viewed' email generator: pulls FUB viewed properties -> cards w/ photo, link, MLS, price",
+      "title": "'Homes They Viewed' email generator: pulls FUB viewed properties -> cards w/ photo, link, MLS, price",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "5ec2a0d",
+      "date": "2026-08-05T12:16:25-05:00",
+      "subject": "Add /api/sierra/sync-since date-scoped backfill (recover new-lead import gap, full pagination)",
+      "title": "/api/sierra/sync-since date-scoped backfill (recover new-lead import gap, full pagination)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "f1a3127",
+      "date": "2026-08-05T11:22:19-05:00",
+      "subject": "Normalize/dedupe viewed-city names (strip trailing commas, fold casing)",
+      "title": "Normalize/dedupe viewed-city names (strip trailing commas, fold casing)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1709179",
+      "date": "2026-08-05T11:17:26-05:00",
+      "subject": "Add 'Looking In' viewed-cities filter (FUB property-view cities) + fold city capture into weekly budget sync",
+      "title": "'Looking In' viewed-cities filter (FUB property-view cities) + fold city capture into weekly budget sync",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "cf8a62f",
+      "date": "2026-08-04T18:24:53-05:00",
+      "subject": "FUB budget range from viewed-property prices: overwrite budget_min/max + weekly sync",
+      "title": "FUB budget range from viewed-property prices: overwrite budget_min/max + weekly sync",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d9f6125",
+      "date": "2026-08-04T18:14:34-05:00",
+      "subject": "Move Sierra sync + Realist status from Clients to Updates > Systems tab",
+      "title": "Move Sierra sync + Realist status from Clients to Updates > Systems tab",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7d86b03",
+      "date": "2026-08-04T17:46:05-05:00",
+      "subject": "Weekly FUB realist-score sync: match by email (dup-proof) instead of fub_person_id",
+      "title": "Weekly FUB realist-score sync: match by email (dup-proof) instead of fub_person_id",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bdfc222",
+      "date": "2026-08-04T17:36:38-05:00",
+      "subject": "realist-score/bulk: accept client_id (dup-proof email match) not just fub_person_id",
+      "title": "realist-score/bulk: accept client_id (dup-proof email match) not just fub_person_id",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4bfbd1c",
+      "date": "2026-08-04T17:17:08-05:00",
+      "subject": "Add index on clients.fub_person_id (speeds FUB realist-score + last-visit syncs)",
+      "title": "index on clients.fub_person_id (speeds FUB realist-score + last-visit syncs)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "490f59f",
+      "date": "2026-08-04T17:04:14-05:00",
+      "subject": "FUB Realist Score backfill into lead_score (+A-F grade, empty-only) + weekly sync",
+      "title": "FUB Realist Score backfill into lead_score (+A-F grade, empty-only) + weekly sync",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a8eb5a9",
+      "date": "2026-08-04T16:02:26-05:00",
+      "subject": "FUB: full-base web-activity sync (all non-junk clients) via lightweight last-visit + lazy live timeline + hourly incremental",
+      "title": "FUB: full-base web-activity sync (all non-junk clients) via lightweight last-visit + lazy live timeline + hourly incremental",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f7d2fef",
+      "date": "2026-08-04T15:42:18-05:00",
+      "subject": "Clients list: remove the Actions column from the table",
+      "title": "Clients list: remove the Actions column from the table",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "70d1428",
+      "date": "2026-08-04T15:17:47-05:00",
+      "subject": "Last Visit: include city in the last-viewed detail",
+      "title": "Last Visit: include city in the last-viewed detail",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c073f68",
+      "date": "2026-08-04T15:07:34-05:00",
+      "subject": "Clients: Last Visit column (FUB last web activity date + what they viewed) + sort",
+      "title": "Clients: Last Visit column (FUB last web activity date + what they viewed) + sort",
+      "body": "New clients columns last_fub_activity_at/type/detail (maintained on activity import + backfill endpoint). Clients list gets a Last Visit column showing the date with the last viewed property/page below it, sortable via 'Most Recent Web Visit (FUB)'.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fbbc051",
+      "date": "2026-08-04T14:55:46-05:00",
+      "subject": "Clients: show Follow Up Boss web activity panel on client detail",
+      "title": "Clients: show Follow Up Boss web activity panel on client detail",
+      "body": "Adds a 'Follow Up Boss Activity' section to the client detail modal -- property views with address/MLS/price, page visits, saved searches, pulled from the fub_activity table matched by email.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0392109",
+      "date": "2026-08-04T14:41:55-05:00",
+      "subject": "FUB activity: fub_activity table + clients.fub_person_id + import/read endpoints",
+      "title": "FUB activity: fub_activity table + clients.fub_person_id + import/read endpoints",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "834d264",
+      "date": "2026-08-04T14:14:21-05:00",
+      "subject": "Clients: move All tab to first position + default to All list",
+      "title": "Clients: move All tab to first position + default to All list",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "32d1487",
+      "date": "2026-08-04T12:17:56-05:00",
+      "subject": "Blog calendar: keep only posted + scheduled statuses (drop planned/draft)",
+      "title": "Blog calendar: keep only posted + scheduled statuses (drop planned/draft)",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e23c847",
+      "date": "2026-08-04T11:23:23-05:00",
+      "subject": "Add Blog Post Calendar under Marketing (mirrors Social Media)",
+      "title": "Blog Post Calendar under Marketing (mirrors Social Media)",
+      "body": "New blog_posts table + /api/blog-posts CRUD + bulk /import (upsert by slug/title). New Blog Posts page: list + calendar views, filter by status/category, direct 'View post' links to the live mattsmithteam.com URL, full edit modal (title, category, status, post date/time, live URL, slug, tags, meta, cover, notes). Nav added under Marketing.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "f963bd7",
+      "date": "2026-07-29T18:11:19-05:00",
+      "subject": "Final walkthrough: track only day-of/after (form is post-walkthrough)",
+      "title": "Final walkthrough: track only day-of/after (form is post-walkthrough)",
+      "body": "Removed the 3-days-before 'Final Walkthrough' prep task and dropped 'Final walkthrough' from the 3-day/1-day Slack deadline alert. The walkthrough sign-off form is only needed after the buyers walk the house, so it's tracked solely by the day-of 'Final Walkthrough signed by buyers' task and the 5 PM walkthrough-day Slack reminder.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c4d9d94",
+      "date": "2026-07-29T17:23:54-05:00",
+      "subject": "Final walkthrough: day-of signed-by-buyers task + 5PM Slack reminder",
+      "title": "Final walkthrough: day-of signed-by-buyers task + 5PM Slack reminder",
+      "body": "Adds a day-of tracking task 'Final Walkthrough signed by buyers at <address>' (appears on the walkthrough day, window 0). Adds a scheduler tick that posts to #transaction-tasks-deadlines at 5 PM CT on any deal's final walkthrough day, prompting to confirm the buyers signed (idempotent via digest_log period slack_walkthrough). Deadline specs now support per-item windowDays and custom titles.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ffa21e9",
+      "date": "2026-07-28T10:07:40-05:00",
+      "subject": "Transaction deadline tasks: only surface within 3 days of due (declutter)",
+      "title": "Transaction deadline tasks: only surface within 3 days of due (declutter)",
+      "body": "Deadline tracking tasks (Earnest, Home Inspection, Financing, Final Walkthrough, Closing) now appear only once the deadline is within 3 days, instead of all at once when the deal goes under contract. Added an hourly scheduler sweep so a task shows up the day its deadline enters the 3-day window without needing a transaction edit. Idempotent.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4d5fb98",
+      "date": "2026-07-28T09:54:12-05:00",
+      "subject": "PDF extraction must not change who we represent (type/agency_type)",
+      "title": "PDF extraction must not change who we represent (type/agency_type)",
+      "body": "We upload a purchase agreement for BOTH sides just to capture contract details. The document does not determine representation -- an active listing that goes under contract stays a listing (seller side). Extraction now preserves the transaction's existing type + agency_type and only fills factual fields. Fixes deals like Deer View being flipped from listing to purchase on PA upload.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b2694f0",
+      "date": "2026-07-28T09:40:59-05:00",
+      "subject": "Transaction + dashboard + Slack/task updates",
+      "title": "Transaction + dashboard + Slack/task updates",
+      "body": "Transactions modal: remove 'Followed Up on Financing Release'; add Appraisal status 'Approved'; final walkthrough always auto-sets to the weekday before closing; mortgage & appraisal contingency dates are always kept in sync. Slack #transaction-tasks-deadlines: alert window changed to 3-day + 1-day (tomorrow) and added a 1-week-before-closing 'check with Cherryl' reminder. Transaction deadlines (Earnest, Home Inspection, Financing contingency, Final Walkthrough, Closing) now auto-create/maintain tracking tasks titled 'Deadline -- address', deduped and auto-completed when the status is terminal. Dashboard: removed Events/Posts Scheduled/Preferred Vendors/Active Campaigns cards and fixed the pre-listing count to only count active pre-listings (matches the Transactions board).\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a3f97dc",
+      "date": "2026-07-23T09:02:51-05:00",
+      "subject": "Tasks: due time, 30/5-min Slack reminders, and calendar invite to assignee",
+      "title": "Tasks: due time, 30/5-min Slack reminders, and calendar invite to assignee",
+      "body": "Tasks now take a due time. When a task has a due date+time and an assignee (Matt/Leo), the hub emails that person an .ics calendar invite (lands on their Google Calendar, with 30 and 5 min alarms). A per-minute scheduler tick posts Slack reminders to #transaction-tasks-deadlines 30 min and 5 min before due (idempotent via reminder_30_sent/reminder_5_sent; reset when the time changes). All times are America/Chicago, DST-correct. New server/task-reminders.js + tasks columns due_time/reminder_30_sent/reminder_5_sent/calendar_invited.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9b7c374",
+      "date": "2026-07-22T10:37:04-05:00",
+      "subject": "db-status: report live disk usage (persistent volume) + process memory",
+      "title": "db-status: report live disk usage (persistent volume) + process memory",
+      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8cc7725",
+      "date": "2026-07-22T10:23:19-05:00",
+      "subject": "Inspection contingency: compute as business days from the purchase agreement",
+      "title": "Inspection contingency: compute as business days from the purchase agreement",
+      "body": "The purchase-agreement extraction now reads the contingency PERIOD (number of business days) for inspection, financing, and appraisal, and the server computes the deadline deterministically via addBusinessDays() -- skipping weekends AND all US federal holidays (observed), and NOT counting the acceptance date. The AI supplies the number; the code does the date math (LLMs are unreliable at business-day counting). New server/business-days.js holds the holiday + business-day engine.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b501c4a",
+      "date": "2026-07-16T15:47:37-05:00",
+      "subject": "Pre-listing walkthrough: text field -> dropdown",
+      "title": "Pre-listing walkthrough: text field -> dropdown",
+      "body": "Walkthrough is now a select: Not Scheduled / Scheduled / Not Done / Completed\n(saves on change). Keeps \"Not Scheduled\" so existing records display correctly.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "20eaab8",
+      "date": "2026-07-16T11:52:41-05:00",
+      "subject": "Fix checklist layout: checkbox left of text, 2-column grid",
+      "title": "checklist layout: checkbox left of text, 2-column grid",
+      "body": "Global `label { flex-direction: column }` was stacking the checkbox above the\ntask text. Force row direction + left align on each item, and use the\n2-column checklist-grid (single column on mobile) to maximize space. Applied\nto both the pre-listing popup and the transaction marketing checklist.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "64356d2",
+      "date": "2026-07-16T11:32:15-05:00",
+      "subject": "Pre-listing checklist: inline checkboxes, relabeled docs, shareable link",
+      "title": "Pre-listing checklist: inline checkboxes, relabeled docs, shareable link",
+      "body": "- Checklist items now single-column with the checkbox inline beside each task\n- Section 1 doc items relabeled \"Add to Dotloop:\" -> \"Signed:\" (Listing\n  Agreement, Agency Agreement, Property Disclosure, Lead-Based Paint if <1978)\n- New \"Copy share link\" button in the pre-listing popup; the link\n  /transactions?prelisting=<id> auto-opens that listing's checklist so it can\n  be shared (e.g. with Matt) for review\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "afb01bc",
+      "date": "2026-07-14T09:42:38-05:00",
+      "subject": "Add Seller Prepaids / Credit field to under-contract transactions",
+      "title": "Seller Prepaids / Credit field to under-contract transactions",
+      "body": "Yes/No selector + amount input, shown in the transaction popup when status is\nUnder Contract / Pending / Clear to Close / Closed. Amount input is disabled\nunless Yes is selected. Backed by two new transactions columns\n(seller_prepaids, seller_prepaids_amount) via idempotent add-if-missing.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "49bb450",
+      "date": "2026-07-10T12:05:08-05:00",
+      "subject": "Follow Up Boss: establish API connection (no lead/contact sync yet)",
+      "title": "Follow Up Boss: establish API connection (no lead/contact sync yet)",
+      "body": "Adds server/fub-helper.js (Basic-auth client for api.followupboss.com/v1,\nkey read from FUB_API_KEY env or app_settings, never in git) and two\nendpoints: POST /api/fub/config to store+verify the key, GET /api/fub/status\nto report connection state. Connection layer only — no syncing of people or\ncommunications yet, per request.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "029fa9a",
+      "date": "2026-07-09T03:15:55-05:00",
+      "subject": "Unified full marketing checklist on pre-listings AND active transactions",
+      "title": "Unified full marketing checklist on pre-listings AND active transactions",
+      "body": "Replaced the marketing checklist with the full 8-section list (Listing Setup,\nProperty Prep, MLS, Showing Setup, Marketing Prep, Launch Day, High-End,\nCondo) and show the SAME list in two places:\n- the pre-listing popup (stored as JSON on the new pre_listings.marketing_tasks)\n- the transaction popup while Pre-Listing/Active (transactions.marketing_tasks)\n\nPre-listing card progress now reflects the unified checklist. Added the\npre_listings.marketing_tasks column (idempotent add-if-missing migration).\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4885372",
+      "date": "2026-07-09T03:02:28-05:00",
+      "subject": "Consolidate listings into Transactions: marketing checklist + remove Listings tab",
+      "title": "Consolidate listings into Transactions: marketing checklist + remove Listings tab",
+      "body": "- transactions gains a marketing_tasks column (JSON checklist), shown in the\n  transaction popup while status is Pre-Listing or Active. Ported the full\n  marketing checklist from the retired Listings tab.\n- Server auto-clears marketing_tasks when a transaction moves to Under\n  Contract (or beyond) — the pre-listing/active marketing push is done.\n- Removed the Listings tab (nav + route + lazy import). Transactions is now\n  the single place to track a listing through every stage.\n\nThe (empty, already-backed-up) listings table is left dormant in the DB\nrather than dropped, because it's still referenced by 15+ code paths\n(syncListingFromTransaction, pre-listing dedup, the listings route); dropping\nit would risk runtime errors for zero data benefit. Can fully retire later.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "af59714",
+      "date": "2026-07-09T02:50:26-05:00",
+      "subject": "Pre-listing opens its own popup; remove Pre-Listing Pipeline page",
+      "title": "Pre-listing opens its own popup; remove Pre-Listing Pipeline page",
+      "body": "Clicking a pre-listing card in the Transactions board now opens an in-place\npopup (address/owner/walkthrough, the 16-item pre-listing checklist with\nlive progress, notes, and a Promote-to-Active action) instead of redirecting\nto the separate /pre-listings page. That page (the \"Pre-Listing Pipeline\")\nis removed from routing — the Transactions tab is the single place to work a\nlisting through every stage. The Pre-Listing column itself stays.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "44eab7d",
+      "date": "2026-07-09T02:33:15-05:00",
+      "subject": "Slack alerts: 10 AM transaction deadlines + new-task notices",
+      "title": "Slack alerts: 10 AM transaction deadlines + new-task notices",
+      "body": "Posts to a Slack Incoming Webhook (#transaction-tasks-deadlines):\n- Daily 10 AM CT deadline alert covering every active/under-contract\n  transaction (buy + list) whose deadlines are due TODAY or in exactly 3\n  days. Reuses the email digest's buildActionItems() so logic matches.\n  Idempotent via digest_log period='slack_deadline'.\n- New-task notice fired when a task is created (respects the silent flag).\n\nWebhook URL is read from SLACK_WEBHOOK_URL env or the app_settings table\n(set live via POST /api/slack/config) — never committed to git. Added a\nsmall app_settings key-value table + get/setSetting helpers. Manual preview\nvia POST /api/slack/deadline-now. Verified formatting on a DB copy.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "aa07053",
+      "date": "2026-07-09T02:06:47-05:00",
+      "subject": "Dashboard: drive represented-client name off agency_type",
+      "title": "Dashboard: drive represented-client name off agency_type",
+      "body": "The transaction's agency_type (Buyer's Agent / Listing Agent / Dual Agent,\nset on the Under Contract card) is the source of truth for who we represent.\nShow the seller's name when we're the Listing Agent, the buyer's name when\nwe're the Buyer's Agent, and both on Dual Agency. Case-insensitive so legacy\nspellings (\"Buyers Agent\", \"Dual Agency\") still map correctly. Falls back to\ndeal type when agency_type is blank.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0824834",
+      "date": "2026-07-09T01:59:46-05:00",
+      "subject": "Dashboard: show represented client by deal side",
+      "title": "Dashboard: show represented client by deal side",
+      "body": "Active Transactions now shows the buyer's name on purchases (we're the\nbuyer's agent) and the seller's name on listings (we're the listing agent),\ninstead of always falling back to buyer_name first.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "229e95e",
+      "date": "2026-07-07T15:08:21-05:00",
+      "subject": "Fix Sierra-sync slowdown: atomic saveDb + bulk-mode batching",
+      "title": "Sierra-sync slowdown: atomic saveDb + bulk-mode batching",
+      "body": "saveDb() now writes to a temp file, fsyncs, and atomically renames over\nthe live DB — a crash mid-write can no longer truncate/corrupt the file\n(this was the missing safeguard behind the 2026-05-20 corruption).\n\nWith that in place, the Sierra incremental sync wraps its per-lead upsert\nloop in beginBulk()/endBulk() so every lead flushes as ONE atomic save\ninstead of a full ~40 MB write per lead. Eliminates the 14-23s event-loop\nfreeze (\"saveDb storm\") that made the hub periodically slow. try/finally\nguarantees bulk mode always exits even on sync error.\n\nVerified on a copy of real data: 1743 existing rows preserved, 250 bulk\nupserts persisted, integrity_check ok, no partial .tmp left behind.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "48deb48",
+      "date": "2026-06-09T18:03:54-05:00",
+      "subject": "Pre-listing migration + custom checklist date + New Pre-Listing button",
+      "title": "Pre-listing migration + custom checklist date + New Pre-Listing button",
+      "body": "Three pieces enabling full unification of pre-listings into Transactions.\n\n1. POST /api/pre-listings/migrate-to-transactions endpoint:\n   - dry_run: true returns a preview report (no writes)\n   - dry_run: false creates one transaction per source pre_listing with\n     status='Pre-Listing' type='listing'. Each UNCHECKED checklist item\n     becomes a task (category='Listing', related_type='transaction',\n     related_id=new tx id) so remaining work shows up in the kanban.\n   - CHECKED checklist items are NOT recreated as tasks (they represent\n     completed work).\n   - Source pre_listings rows are marked status='Migrated' (NOT deleted)\n     so the data is recoverable until you confirm everything looks right.\n   - Skips pre-listings whose normalized address already exists as a\n     transaction (idempotent - safe to re-run).\n\n2. Updates -> Bulk Tools tab now has a \"Migrate pre-listings into\n   Transactions\" section with Preview (dry-run) and Run buttons + a\n   per-row report (address, owner, action, detail).\n\n3. + New Pre-Listing button in the Transactions header. Opens the new-tx\n   modal pre-filled with status='Pre-Listing' and type='listing' so the\n   user can quick-add a pre-listing without thinking about field values.\n\n4. Custom checklist (from prior commit) now has a date picker:\n   - New rows can include a due_date when added\n   - Existing rows show an inline date editor; click the date to change\n   - Overdue items (due_date < today AND status != done) get a red border\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e05b02d",
       "date": "2026-06-09T17:38:24-05:00",

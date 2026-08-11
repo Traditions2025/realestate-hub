@@ -864,6 +864,32 @@ export async function initDb() {
     )
   `)
 
+  // Social publishing columns (n8n connector). Additive migration.
+  //  - image_file:      filename of an uploaded image on the persistent disk,
+  //                     served publicly at /api/social-media/img/<file> so
+  //                     Meta/LinkedIn/etc. can fetch it by URL.
+  //  - targets:         JSON array of the pages/platforms to publish to.
+  //  - publish_status:  idle | queued | posting | posted | failed  (the n8n
+  //                     pipeline state, separate from the calendar `status`).
+  //  - published_at:    ISO timestamp the publish completed.
+  //  - publish_results: JSON [{platform, ok, post_id, url, error}] from n8n.
+  try {
+    const spCols = db.all('PRAGMA table_info(social_posts)').map(r => r.name)
+    const spNew = [
+      ['image_file', 'TEXT'],
+      ['targets', 'TEXT'],
+      ['publish_status', "TEXT DEFAULT 'idle'"],
+      ['published_at', 'TEXT'],
+      ['publish_results', 'TEXT'],
+    ]
+    for (const [col, def] of spNew) {
+      if (!spCols.includes(col)) {
+        db.run(`ALTER TABLE social_posts ADD COLUMN ${col} ${def}`)
+        console.log(`[migration] Added social_posts.${col}`)
+      }
+    }
+  } catch (e) { console.error('[migration] social_posts columns failed:', e.message) }
+
   // =============================================
   // BLOG POSTS (mattsmithteam.com blog calendar — mirrors social_posts)
   // =============================================
