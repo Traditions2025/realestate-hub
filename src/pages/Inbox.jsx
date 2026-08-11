@@ -211,7 +211,7 @@ export default function Inbox() {
         </div>
 
         {/* right: reading pane */}
-        <div className="inbox-reading" style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+        <div className="inbox-reading" style={{ flex: 1, minWidth: 0, overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
           {!sel ? (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>
               <div style={{ fontSize: 34 }}>💬</div>
@@ -223,7 +223,7 @@ export default function Inbox() {
                 <div style={{ fontWeight: 700 }}>{selConvo?.contact_name || 'Conversation'}</div>
                 <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => closeThread(sel)}>Close</button>
               </div>
-              <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {thread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : thread.map((m, idx) => {
                   const meta = chMeta(m.channel)
                   const out = m.direction === 'outgoing'
@@ -245,6 +245,11 @@ export default function Inbox() {
                   if (m.channel === 'email') {
                     const html = m.body || ''
                     const isHtml = /<[a-z!][\s\S]*>/i.test(html)
+                    // Force the email to fit the frame width — many marketing/listing
+                    // emails (e.g. Sierra) use a fixed ~600px table that would otherwise
+                    // overflow the reading pane on smaller windows and create a
+                    // horizontal scrollbar. This caps everything to the frame width.
+                    const frameHtml = isHtml ? EMAIL_FIT_CSS + html : html
                     return (
                       <div key={m.id} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
                         <div onClick={total > 1 ? toggle : undefined} title={total > 1 ? 'Click to collapse' : undefined} style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', cursor: total > 1 ? 'pointer' : 'default' }}>
@@ -252,8 +257,8 @@ export default function Inbox() {
                           {m.subject && <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginLeft: 8 }}>{m.subject}</span>}
                         </div>
                         {isHtml
-                          ? <iframe title={`email-${m.id}`} srcDoc={html} sandbox="allow-same-origin" onLoad={autoSizeFrame} style={{ width: '100%', border: 0, background: '#fff', minHeight: 220 }} />
-                          : <div style={{ padding: 14, whiteSpace: 'pre-wrap', fontSize: 14, background: '#fff', color: '#0f172a' }}>{html || m.preview}</div>}
+                          ? <iframe title={`email-${m.id}`} srcDoc={frameHtml} sandbox="allow-same-origin" onLoad={autoSizeFrame} style={{ width: '100%', maxWidth: '100%', border: 0, background: '#fff', minHeight: 220, display: 'block' }} />
+                          : <div style={{ padding: 14, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere', fontSize: 14, background: '#fff', color: '#0f172a' }}>{html || m.preview}</div>}
                       </div>
                     )
                   }
@@ -405,12 +410,29 @@ function Composer({ onClose, onSent }) {
   )
 }
 
+// Injected into every HTML email so it fits the reading pane width instead of
+// forcing a horizontal scrollbar. Caps images/tables/elements to 100% width.
+const EMAIL_FIT_CSS = `<style>
+  html,body{margin:0;padding:10px;box-sizing:border-box;overflow-x:hidden;}
+  body{word-wrap:break-word;overflow-wrap:anywhere;}
+  img{max-width:100%!important;height:auto!important;}
+  table{max-width:100%!important;}
+  *{max-width:100%!important;box-sizing:border-box;}
+</style>`
+
 // size an email iframe to its rendered content (sandbox allow-same-origin lets us
-// read the height; scripts inside the email still don't run)
+// read the height; scripts inside the email still don't run). Also belt-and-
+// suspenders: kill any residual horizontal scroll inside the frame.
 function autoSizeFrame(e) {
   try {
     const doc = e.target.contentDocument
-    if (doc && doc.body) e.target.style.height = Math.min(doc.body.scrollHeight + 28, 900) + 'px'
+    if (doc) {
+      if (doc.documentElement) doc.documentElement.style.overflowX = 'hidden'
+      if (doc.body) {
+        doc.body.style.overflowX = 'hidden'
+        e.target.style.height = Math.min(doc.body.scrollHeight + 28, 900) + 'px'
+      }
+    }
   } catch { e.target.style.height = '400px' }
 }
 
