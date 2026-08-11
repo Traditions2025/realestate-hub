@@ -1,5 +1,5 @@
 // MST Hub service worker — instant-load caching for slow mobile networks
-const CACHE_NAME = 'mst-hub-v6'
+const CACHE_NAME = 'mst-hub-v7'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {
@@ -62,16 +62,20 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
-  // HTML and everything else: stale-while-revalidate
-  // Serve cached version IMMEDIATELY (instant paint), then update cache in the background.
-  // Next visit gets the freshly fetched version. Massive speed boost on slow mobile.
+  // HTML / navigation (the app shell): NETWORK-FIRST so a new deploy loads on
+  // the very next visit. index.html is tiny; fetching it fresh costs almost
+  // nothing but guarantees the newest /assets/*.js hashes are referenced. Falls
+  // back to cache only when offline. (Was stale-while-revalidate, which needed
+  // TWO refreshes to pick up a deploy — the first served the stale shell.)
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME)
-    const cached = await cache.match(event.request)
-    const fetchPromise = fetch(event.request).then(fresh => {
+    try {
+      const fresh = await fetch(event.request)
       if (fresh && fresh.status === 200) cache.put(event.request, fresh.clone())
       return fresh
-    }).catch(() => null)
-    return cached || (await fetchPromise) || new Response('Offline', { status: 503 })
+    } catch (e) {
+      const cached = await cache.match(event.request)
+      return cached || (await cache.match('/index.html')) || new Response('Offline', { status: 503 })
+    }
   })())
 })
