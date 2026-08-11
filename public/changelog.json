@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-11T18:49:19.355Z",
-  "count": 312,
+  "generated_at": "2026-08-11T18:51:49.710Z",
+  "count": 313,
   "entries": [
+    {
+      "hash": "8a7b852",
+      "date": "2026-08-11T13:49:40-05:00",
+      "subject": "Social media auto-publishing via n8n: image upload + public serving, queue/result API, target pages, calendar UI",
+      "title": "Social media auto-publishing via n8n: image upload + public serving, queue/result API, target pages, calendar UI",
+      "body": "- social_posts: add image_file, targets, publish_status, published_at, publish_results\n- POST /api/social-media/upload (busboy, 25MB) stores images on the persistent disk\n- GET /api/social-media/img/:name serves images publicly (whitelisted) so Meta/LinkedIn can fetch them\n- GET /queue (n8n polls, shared-secret) returns due queued posts, claims them as 'posting'\n- POST /result (n8n callback) records per-target results, marks posted/failed\n- POST /:id/queue + /:id/unqueue user actions\n- GET/POST /config exposes the n8n key + endpoint URLs + editable public base URL\n- SocialMedia.jsx: image upload+preview, publish-to checkboxes, Save & Queue, publish status, n8n setup modal\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "92130ed",
       "date": "2026-08-11T12:46:44-05:00",

@@ -138,11 +138,19 @@ router.post('/result', (req, res) => {
   if (!checkKey(req, res)) return
   const { id, ok, results, error } = req.body || {}
   if (!id) return res.status(400).json({ error: 'Missing id' })
-  const row = db.get('SELECT id FROM social_posts WHERE id = ?', [Number(id)])
+  const row = db.get('SELECT id, image_file FROM social_posts WHERE id = ?', [Number(id)])
   if (!row) return res.status(404).json({ error: 'Post not found' })
   const success = ok !== false && !error
+  // Once a post is live everywhere, drop the uploaded image from disk to save
+  // space — the copy is already on the social platforms. Keep it on failure so
+  // it can be retried. Clear image_file so the UI doesn't show a broken thumb.
+  let clearImage = false
+  if (success && row.image_file) {
+    try { fs.unlinkSync(join(UPLOAD_DIR, basename(row.image_file))) } catch {}
+    clearImage = true
+  }
   db.run(`UPDATE social_posts SET publish_status = ?, status = ?, published_at = ?,
-    publish_results = ?, updated_at = ? WHERE id = ?`,
+    publish_results = ?, ${clearImage ? 'image_file = NULL, ' : ''}updated_at = ? WHERE id = ?`,
     [success ? 'posted' : 'failed', success ? 'posted' : 'scheduled',
      success ? new Date().toISOString() : null,
      JSON.stringify(results || (error ? [{ error }] : [])), new Date().toISOString(), Number(id)])

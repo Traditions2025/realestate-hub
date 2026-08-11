@@ -414,6 +414,9 @@ export default function SocialMedia() {
                 <li>For each returned post, post <code>image_url</code> + <code>caption</code> to each name in <code>targets</code> (Facebook / Instagram / LinkedIn / Google Business nodes).</li>
                 <li>HTTP POST the Result callback with <code>{'{ id, ok, results:[{platform, ok, post_id, url, error}] }'}</code>.</li>
               </ol>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
+                Once the result comes back successful, the Hub deletes the uploaded image from disk automatically (it already lives on the platforms) to keep storage small. Failed posts keep their image so you can retry.
+              </div>
             </div>
           </div>
         )}
