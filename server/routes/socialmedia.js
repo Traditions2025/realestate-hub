@@ -79,17 +79,24 @@ router.post('/upload', (req, res) => {
   }
   const bb = Busboy({ headers: req.headers, limits: { fileSize: 25 * 1024 * 1024, files: 1 } })
   let saved = null, tooBig = false, hadFile = false
+  // Track the file write so we don't respond before the bytes are flushed to
+  // disk — busboy's 'close' can fire before the write stream 'finish'.
+  let filePromise = Promise.resolve()
   bb.on('file', (_field, stream, info) => {
     hadFile = true
     const ext = (extname(info.filename || '') || '.jpg').toLowerCase()
     const file = `${Date.now()}_${crypto.randomBytes(4).toString('hex')}${ext}`
     const dest = join(UPLOAD_DIR, file)
     const out = fs.createWriteStream(dest)
-    stream.on('limit', () => { tooBig = true; out.destroy(); try { fs.unlinkSync(dest) } catch {} })
-    stream.pipe(out)
-    out.on('finish', () => { if (!tooBig) saved = file })
+    filePromise = new Promise((resolve) => {
+      stream.on('limit', () => { tooBig = true; out.destroy(); try { fs.unlinkSync(dest) } catch {}; resolve() })
+      out.on('finish', () => { if (!tooBig) saved = file; resolve() })
+      out.on('error', () => { try { fs.unlinkSync(dest) } catch {}; resolve() })
+      stream.pipe(out)
+    })
   })
-  bb.on('close', () => {
+  bb.on('close', async () => {
+    await filePromise
     if (tooBig) return res.status(413).json({ error: 'File too large (max 25MB)' })
     if (!hadFile || !saved) return res.status(400).json({ error: 'No file uploaded' })
     res.json({ file: saved, url: imgUrl(saved) })
