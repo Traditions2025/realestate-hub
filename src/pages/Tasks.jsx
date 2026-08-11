@@ -321,21 +321,6 @@ export default function Tasks() {
             <button className={view === 'board' ? 'active' : ''} onClick={() => setView('board')}>Board</button>
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
           </div>
-          <button
-            className="btn btn-secondary"
-            onClick={async () => {
-              if (!confirm("Import Matt's full task list (active transactions, pre-listings, outreach, marketing)?\n\nSafe to click — won't duplicate tasks that already exist.")) return
-              try {
-                const r = await authFetch('/api/tasks/seed-matts-list', { method: 'POST' })
-                const d = await r.json()
-                alert(`✓ Imported: ${d.added} new tasks added · ${d.skipped} already existed · ${d.total} total`)
-                load()
-              } catch (e) { alert('Import failed: ' + e.message) }
-            }}
-            title="One-time import of Matt's organized task backlog"
-          >
-            📥 Import Matt's Task List
-          </button>
           <button className="btn btn-primary" onClick={() => openNew()}>+ New Task</button>
         </div>
       </div>
