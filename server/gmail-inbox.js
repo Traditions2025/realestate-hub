@@ -81,6 +81,9 @@ function matchClientByEmail(email) {
 async function pollOne(m) {
   const pass = String(m.app_password || '').replace(/\s+/g, '')
   const client = new ImapFlow({ host: m.host || 'imap.gmail.com', port: m.port || 993, secure: true, auth: { user: m.user, pass }, logger: false, greetingTimeout: 10000, socketTimeout: 45000 })
+  // ImapFlow is an EventEmitter — an unhandled 'error' event (e.g. the Gmail socket
+  // dropping mid-idle overnight) would otherwise crash the whole process. Absorb it.
+  client.on('error', (e) => { console.error('[gmail-inbox] imap socket error:', e && e.message ? e.message : e) })
   try {
     await client.connect()
     const lock = await client.getMailboxLock('INBOX')

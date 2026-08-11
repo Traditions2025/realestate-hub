@@ -2,7 +2,7 @@ import express from 'express'
 import cors from 'cors'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
-import { statfsSync, readFileSync, existsSync } from 'fs'
+import { statfsSync, readFileSync, existsSync, appendFileSync, writeFileSync } from 'fs'
 import { initDb, getDbStatus } from './database.js'
 import db from './database.js'
 
@@ -38,6 +38,23 @@ import followupRouter from './routes/followup.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
+
+// Persistent crash log on the data disk, so an "Exited with status 1" leaves a
+// stack trace we can actually read (via GET /api/crash-log) instead of it only
+// living in Render's ephemeral log stream.
+const CRASH_LOG = join(process.env.DB_DIR || '/data', 'crash-log.jsonl')
+function recordCrash(kind, err) {
+  try {
+    const line = JSON.stringify({
+      t: new Date().toISOString(), kind,
+      msg: err && err.message ? err.message : String(err),
+      stack: err && err.stack ? String(err.stack).split('\n').slice(0, 10).join('\n') : null,
+    }) + '\n'
+    appendFileSync(CRASH_LOG, line)
+    const raw = readFileSync(CRASH_LOG, 'utf8')
+    if (raw.length > 200000) writeFileSync(CRASH_LOG, raw.trim().split('\n').slice(-150).join('\n') + '\n')
+  } catch {}
+}
 
 // =====================================================================
 // PUBLIC TRACKING SNIPPET
@@ -187,6 +204,16 @@ async function start() {
   // Auth
   app.use('/api/auth', authRouter)
   app.use(requireAuth)
+
+  // Recent crashes captured by the process handlers (most recent first).
+  app.get('/api/crash-log', (_req, res) => {
+    try {
+      if (!existsSync(CRASH_LOG)) return res.json({ count: 0, crashes: [] })
+      const lines = readFileSync(CRASH_LOG, 'utf8').trim().split('\n').filter(Boolean)
+      const crashes = lines.slice(-50).map(l => { try { return JSON.parse(l) } catch { return { raw: l } } }).reverse()
+      res.json({ count: lines.length, crashes })
+    } catch (e) { res.json({ count: 0, crashes: [], error: e.message }) }
+  })
 
   // "What's New" walkthrough screenshots. Served ONLY to authenticated users (this
   // route is behind requireAuth) so client data in the screenshots never goes public.
@@ -869,10 +896,16 @@ ${signature}
 // restarts automatically; the DB has atomic saves + multi-layer backups).
 process.on('unhandledRejection', (reason) => {
   console.error('[unhandledRejection] kept the Hub alive:', reason && reason.stack ? reason.stack : reason)
+  recordCrash('unhandledRejection', reason)
 })
 process.on('uncaughtException', (err) => {
-  console.error('[uncaughtException] exiting for a clean restart:', err && err.stack ? err.stack : err)
-  process.exit(1)
+  // Keep the Hub UP. A single stray error (a dropped socket, a background job) should
+  // not take the whole service down and page the team via Render. All real state is
+  // disk-backed (better-sqlite3 transactions), so surviving is safe; the error is
+  // recorded to /api/crash-log so we can find and fix the root cause. True fatal
+  // conditions (OOM) can't be caught here anyway.
+  console.error('[uncaughtException] logged; keeping the Hub alive:', err && err.stack ? err.stack : err)
+  recordCrash('uncaughtException', err)
 })
 
 start().catch(err => {
