@@ -18,6 +18,7 @@ export const MERGE_FIELDS = [
   ['{{state}}', 'State'],
   ['{{zip}}', 'Zip code'],
   ['{{city_of_interest}}', 'City of interest (FUB)'],
+  ['{{listing_interest}}', 'Listing Interest — areas (FUB)'],
   ['{{last_viewed_address}}', 'Last viewed address (FUB)'],
   ['{{search_price_range}}', 'Saved-search budget'],
   ['{{lender_name}}', 'Lender name'],

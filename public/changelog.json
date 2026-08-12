@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-12T23:35:00.036Z",
-  "count": 327,
+  "generated_at": "2026-08-12T23:42:58.576Z",
+  "count": 328,
   "entries": [
+    {
+      "hash": "34223d5",
+      "date": "2026-08-12T18:35:26-05:00",
+      "subject": "Email merge fields: add {{state}} {{zip}} {{city_of_interest}} (FUB) {{last_viewed_address}} (FUB) {{search_price_range}} {{lender_name}} {{lender_company}} — lender falls back to the client's transaction; added to composer + automations merge + Field menu",
+      "title": "Email merge fields: add {{state}} {{zip}} {{city_of_interest}} (FUB) {{last_viewed_address}} (FUB) {{search_price_range}} {{lender_name}} {{lender_company}} — lender falls back to the client's transaction; added to composer + automations merge + Field menu",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9913972",
       "date": "2026-08-12T18:18:36-05:00",

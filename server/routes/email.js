@@ -241,6 +241,7 @@ function fillTemplate(text, client) {
     .replace(/\{\{state\}\}/g, client.state || '')
     .replace(/\{\{zip\}\}/g, client.zip || '')
     .replace(/\{\{city_of_interest\}\}/g, primaryCity(client))
+    .replace(/\{\{listing_interest\}\}/g, client.fub_viewed_cities || primaryCity(client))
     .replace(/\{\{last_viewed_address\}\}/g, client.last_fub_activity_detail || '')
     .replace(/\{\{search_price_range\}\}/g, priceRangeStr(client.search_price_min, client.search_price_max))
     .replace(/\{\{lender_name\}\}/g, lenderName)

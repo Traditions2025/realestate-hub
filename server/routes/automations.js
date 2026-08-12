@@ -37,6 +37,7 @@ function fillMerge(text, c) {
     .replace(/\{\{state\}\}/g, c.state || '')
     .replace(/\{\{zip\}\}/g, c.zip || '')
     .replace(/\{\{city_of_interest\}\}/g, cityOfInterest)
+    .replace(/\{\{listing_interest\}\}/g, c.fub_viewed_cities || cityOfInterest)
     .replace(/\{\{last_viewed_address\}\}/g, c.last_fub_activity_detail || '')
     .replace(/\{\{search_price_range\}\}/g, priceRange)
     .replace(/\{\{lender_name\}\}/g, c.lender_name || '')
