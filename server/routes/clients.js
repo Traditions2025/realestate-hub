@@ -3,6 +3,7 @@ import crypto from 'crypto'
 import db from '../database.js'
 import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '../lead-sequences.js'
 import { gradeFromRealistScore } from '../sierra-helper.js'
+import { fubGet, fubConfigured } from '../fub-helper.js'
 
 const router = Router()
 
@@ -483,42 +484,76 @@ router.get('/:id/sequences', (req, res) => {
   res.json(activeSequencesForClient(Number(req.params.id)))
 })
 
-// FREE social enrichment via Gravatar (no API key, no scraping). Hashes the
-// lead's email and asks Gravatar for a public profile; if the person set one up
-// it can include an avatar and linked accounts (LinkedIn / Facebook / etc.).
-// Coverage is low for consumers, but it's genuinely free and safe. Anything it
-// can't find, the agent locates with the prefilled search links in the UI and
-// pastes the URL. Only fills fields that are still blank; always stamps that we
-// checked so we don't re-hit it needlessly.
+// FREE social enrichment (no paid API, no scraping). Two sources:
+//   1) Follow Up Boss — most leads are FUB-linked and FUB carries a `socialData`
+//      array (LinkedIn/Facebook/etc.) plus a profile `picture`. This is the best
+//      free source we have.
+//   2) Gravatar fallback — hash the email, pull any public profile/avatar/linked
+//      accounts for whatever FUB didn't provide.
+// Only fills blank fields; always stamps that we checked. Pass ?debug=1 to see
+// the raw FUB socialData/picture payload.
+const pickSocial = (found, c, type, val) => {
+  if (!val || typeof val !== 'string') return
+  const t = String(type || '').toLowerCase()
+  if (!c.linkedin_url && !found.linkedin_url && (t.includes('linkedin') || /linkedin\.com/i.test(val))) found.linkedin_url = val.trim()
+  if (!c.facebook_url && !found.facebook_url && (t.includes('facebook') || /facebook\.com/i.test(val))) found.facebook_url = val.trim()
+}
+
 router.post('/:id/enrich-free', async (req, res) => {
   const id = Number(req.params.id)
   const c = db.get('SELECT * FROM clients WHERE id = ?', [id])
   if (!c) return res.status(404).json({ error: 'Client not found' })
   const found = {}
-  let profile = null
-  if (c.email) {
+  const sources = []
+  const debug = {}
+
+  // 1) Follow Up Boss socialData + picture
+  if (c.fub_person_id && fubConfigured()) {
+    try {
+      const person = await fubGet(`/people/${c.fub_person_id}`, { fields: 'name,picture,socialData' })
+      debug.fub_socialData = person.socialData
+      debug.fub_picture = person.picture
+      const sd = person.socialData
+      const entries = Array.isArray(sd)
+        ? sd
+        : (sd && typeof sd === 'object' ? Object.entries(sd).map(([k, v]) => ({ type: k, value: v })) : [])
+      for (const e of entries) {
+        if (typeof e === 'string') { pickSocial(found, c, '', e); continue }
+        pickSocial(found, c, e.type || e.label || e.name || e.network, e.value || e.url || e.link)
+      }
+      const p = person.picture
+      const pic = typeof p === 'string' ? p : (p && (p.original || p.large || p.url || p.small)) || null
+      if (pic && !c.avatar_url && !found.avatar_url) found.avatar_url = pic
+      if (found.linkedin_url || found.facebook_url || found.avatar_url) sources.push('fub')
+    } catch (e) { debug.fub_error = String(e.message || e) }
+  }
+
+  // 2) Gravatar fallback for anything still missing
+  let gravatarProfile = null
+  if (c.email && (!(c.linkedin_url || found.linkedin_url) || !(c.facebook_url || found.facebook_url) || !(c.avatar_url || found.avatar_url))) {
     const hash = crypto.createHash('md5').update(String(c.email).trim().toLowerCase()).digest('hex')
     try {
       const r = await fetch(`https://www.gravatar.com/${hash}.json`, { headers: { 'User-Agent': 'MattSmithTeamHub/1.0 (+https://mattsmithteam.com)' } })
-      if (r.ok) { const j = await r.json(); profile = (j && j.entry && j.entry[0]) || null }
-    } catch { /* gravatar down / 404 — treat as no match */ }
-  }
-  if (profile) {
-    const avatar = profile.thumbnailUrl || (profile.photos && profile.photos[0] && profile.photos[0].value) || null
-    if (avatar && !c.avatar_url) found.avatar_url = avatar
-    for (const a of (Array.isArray(profile.accounts) ? profile.accounts : [])) {
-      const url = a.url || ''
-      const dom = String(a.domain || a.shortname || '').toLowerCase()
-      if (!c.linkedin_url && !found.linkedin_url && (/linkedin\.com/i.test(url) || dom.includes('linkedin'))) found.linkedin_url = url
-      if (!c.facebook_url && !found.facebook_url && (/facebook\.com/i.test(url) || dom.includes('facebook'))) found.facebook_url = url
+      if (r.ok) { const j = await r.json(); gravatarProfile = (j && j.entry && j.entry[0]) || null }
+    } catch { /* gravatar down / 404 — no match */ }
+    if (gravatarProfile) {
+      const avatar = gravatarProfile.thumbnailUrl || (gravatarProfile.photos && gravatarProfile.photos[0] && gravatarProfile.photos[0].value) || null
+      if (avatar && !c.avatar_url && !found.avatar_url) found.avatar_url = avatar
+      for (const a of (Array.isArray(gravatarProfile.accounts) ? gravatarProfile.accounts : [])) {
+        pickSocial(found, c, a.domain || a.shortname, a.url)
+      }
+      if (found.linkedin_url || found.facebook_url || found.avatar_url) { if (!sources.includes('gravatar')) sources.push('gravatar') }
     }
   }
-  const foundAny = Object.keys(found).length > 0
+
+  const foundAny = !!(found.linkedin_url || found.facebook_url || found.avatar_url)
   found.enriched_at = new Date().toISOString()
-  found.enrichment_source = profile ? 'gravatar' : 'gravatar:none'
+  found.enrichment_source = sources.length ? sources.join('+') : 'none'
   const keys = Object.keys(found)
   db.run(`UPDATE clients SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ?`, [...keys.map(k => found[k]), id])
-  res.json({ found_any: foundAny, gravatar_profile: !!profile, ...found })
+  const out = { found_any: foundAny, sources, ...found }
+  if (req.query.debug) out._debug = debug
+  res.json(out)
 })
 
 router.delete('/:id', (req, res) => {
