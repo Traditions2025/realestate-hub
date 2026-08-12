@@ -499,61 +499,103 @@ const pickSocial = (found, c, type, val) => {
   if (!c.facebook_url && !found.facebook_url && (t.includes('facebook') || /facebook\.com/i.test(val))) found.facebook_url = val.trim()
 }
 
-router.post('/:id/enrich-free', async (req, res) => {
-  const id = Number(req.params.id)
-  const c = db.get('SELECT * FROM clients WHERE id = ?', [id])
-  if (!c) return res.status(404).json({ error: 'Client not found' })
+// Pull social profiles + picture + job/company from a client's linked FUB person.
+// FUB's `socialData` is a flat object: { linkedIn, facebook, twitter, company,
+// title, bio, ... }. Returns a `found` object of only the blank fields we filled.
+async function fubEnrich(c, debug) {
   const found = {}
-  const sources = []
-  const debug = {}
-
-  // 1) Follow Up Boss socialData + picture
-  if (c.fub_person_id && fubConfigured()) {
-    try {
-      const person = await fubGet(`/people/${c.fub_person_id}`, { fields: 'name,picture,socialData' })
-      debug.fub_socialData = person.socialData
-      debug.fub_picture = person.picture
-      const sd = person.socialData
-      const entries = Array.isArray(sd)
-        ? sd
-        : (sd && typeof sd === 'object' ? Object.entries(sd).map(([k, v]) => ({ type: k, value: v })) : [])
-      for (const e of entries) {
-        if (typeof e === 'string') { pickSocial(found, c, '', e); continue }
-        pickSocial(found, c, e.type || e.label || e.name || e.network, e.value || e.url || e.link)
-      }
-      const p = person.picture
-      const pic = typeof p === 'string' ? p : (p && (p.original || p.large || p.url || p.small)) || null
-      if (pic && !c.avatar_url && !found.avatar_url) found.avatar_url = pic
-      if (found.linkedin_url || found.facebook_url || found.avatar_url) sources.push('fub')
-    } catch (e) { debug.fub_error = String(e.message || e) }
+  if (!c.fub_person_id || !fubConfigured()) return found
+  const person = await fubGet(`/people/${c.fub_person_id}`, { fields: 'name,picture,socialData' })
+  if (debug) { debug.fub_socialData = person.socialData; debug.fub_picture = person.picture }
+  const sd = person.socialData
+  const entries = Array.isArray(sd)
+    ? sd
+    : (sd && typeof sd === 'object' ? Object.entries(sd).map(([k, v]) => ({ type: k, value: v })) : [])
+  for (const e of entries) {
+    if (typeof e === 'string') { pickSocial(found, c, '', e); continue }
+    pickSocial(found, c, e.type || e.label || e.name || e.network, e.value || e.url || e.link)
   }
+  // Rich fields FUB gives for free (only fill blanks).
+  const sdo = (sd && typeof sd === 'object' && !Array.isArray(sd)) ? sd : {}
+  if (!c.job_title && sdo.title && typeof sdo.title === 'string') found.job_title = sdo.title.trim()
+  if (!c.employer && sdo.company && typeof sdo.company === 'string') found.employer = sdo.company.trim()
+  const p = person.picture
+  const pic = typeof p === 'string' ? p : (p && (p.original || p.large || p.url || p.small)) || null
+  if (pic && !c.avatar_url && !found.avatar_url) found.avatar_url = pic
+  return found
+}
 
-  // 2) Gravatar fallback for anything still missing
-  let gravatarProfile = null
-  if (c.email && (!(c.linkedin_url || found.linkedin_url) || !(c.facebook_url || found.facebook_url) || !(c.avatar_url || found.avatar_url))) {
-    const hash = crypto.createHash('md5').update(String(c.email).trim().toLowerCase()).digest('hex')
-    try {
-      const r = await fetch(`https://www.gravatar.com/${hash}.json`, { headers: { 'User-Agent': 'MattSmithTeamHub/1.0 (+https://mattsmithteam.com)' } })
-      if (r.ok) { const j = await r.json(); gravatarProfile = (j && j.entry && j.entry[0]) || null }
-    } catch { /* gravatar down / 404 — no match */ }
-    if (gravatarProfile) {
-      const avatar = gravatarProfile.thumbnailUrl || (gravatarProfile.photos && gravatarProfile.photos[0] && gravatarProfile.photos[0].value) || null
-      if (avatar && !c.avatar_url && !found.avatar_url) found.avatar_url = avatar
-      for (const a of (Array.isArray(gravatarProfile.accounts) ? gravatarProfile.accounts : [])) {
-        pickSocial(found, c, a.domain || a.shortname, a.url)
-      }
-      if (found.linkedin_url || found.facebook_url || found.avatar_url) { if (!sources.includes('gravatar')) sources.push('gravatar') }
-    }
-  }
-
-  const foundAny = !!(found.linkedin_url || found.facebook_url || found.avatar_url)
+function saveEnrichment(id, found, sources) {
   found.enriched_at = new Date().toISOString()
   found.enrichment_source = sources.length ? sources.join('+') : 'none'
   const keys = Object.keys(found)
   db.run(`UPDATE clients SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ?`, [...keys.map(k => found[k]), id])
+}
+
+router.post('/:id/enrich-free', async (req, res) => {
+  const id = Number(req.params.id)
+  const c = db.get('SELECT * FROM clients WHERE id = ?', [id])
+  if (!c) return res.status(404).json({ error: 'Client not found' })
+  let found = {}
+  const sources = []
+  const debug = {}
+
+  // 1) Follow Up Boss (best free source)
+  try {
+    found = await fubEnrich(c, debug)
+    if (Object.keys(found).length) sources.push('fub')
+  } catch (e) { debug.fub_error = String(e.message || e) }
+
+  // 2) Gravatar fallback for social/avatar still missing
+  if (c.email && (!(c.linkedin_url || found.linkedin_url) || !(c.facebook_url || found.facebook_url) || !(c.avatar_url || found.avatar_url))) {
+    const hash = crypto.createHash('md5').update(String(c.email).trim().toLowerCase()).digest('hex')
+    let gp = null
+    try {
+      const r = await fetch(`https://www.gravatar.com/${hash}.json`, { headers: { 'User-Agent': 'MattSmithTeamHub/1.0 (+https://mattsmithteam.com)' } })
+      if (r.ok) { const j = await r.json(); gp = (j && j.entry && j.entry[0]) || null }
+    } catch { /* no match */ }
+    if (gp) {
+      const avatar = gp.thumbnailUrl || (gp.photos && gp.photos[0] && gp.photos[0].value) || null
+      if (avatar && !c.avatar_url && !found.avatar_url) found.avatar_url = avatar
+      for (const a of (Array.isArray(gp.accounts) ? gp.accounts : [])) pickSocial(found, c, a.domain || a.shortname, a.url)
+      if (found.linkedin_url || found.facebook_url || found.avatar_url) sources.push('gravatar')
+    }
+  }
+
+  const foundAny = !!(found.linkedin_url || found.facebook_url || found.avatar_url || found.job_title || found.employer)
+  saveEnrichment(id, found, sources)
   const out = { found_any: foundAny, sources, ...found }
   if (req.query.debug) out._debug = debug
   res.json(out)
+})
+
+// ---- Bulk FUB enrichment (free) ----
+// Pulls FUB social profiles for every FUB-linked lead and saves them. FUB API
+// only, rate-limited, resumable (skips already-enriched). Runs in the background.
+let _fubBulk = { running: false, total: 0, done: 0, found: 0, started: null, finished: null, error: null }
+router.get('/enrich-fub-bulk/status', (_req, res) => res.json(_fubBulk))
+router.post('/enrich-fub-bulk', (req, res) => {
+  if (_fubBulk.running) return res.json({ already_running: true, ..._fubBulk })
+  if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss is not connected' })
+  const redo = req.body && req.body.redo   // redo=true re-checks even already-enriched leads
+  const rows = db.all(
+    `SELECT id, fub_person_id, linkedin_url, facebook_url, avatar_url, job_title, employer
+     FROM clients WHERE fub_person_id IS NOT NULL ${redo ? '' : 'AND enriched_at IS NULL'} ORDER BY id`)
+  _fubBulk = { running: true, total: rows.length, done: 0, found: 0, started: new Date().toISOString(), finished: null, error: null }
+  res.json({ started: true, total: rows.length })
+  ;(async () => {
+    for (const row of rows) {
+      try {
+        const found = await fubEnrich(row, null)
+        if (Object.keys(found).length) { saveEnrichment(row.id, found, ['fub']); _fubBulk.found++ }
+        else saveEnrichment(row.id, {}, [])   // stamp enriched_at so we skip next time
+      } catch (e) { _fubBulk.error = String(e.message || e) }
+      _fubBulk.done++
+      await new Promise(r => setTimeout(r, 160))   // ~6/sec — well under FUB's rate limit
+    }
+    _fubBulk.running = false
+    _fubBulk.finished = new Date().toISOString()
+  })()
 })
 
 router.delete('/:id', (req, res) => {

@@ -180,6 +180,31 @@ function ColumnFilterHeader({ className, label, value, options, onSelect }) {
   )
 }
 
+// Bulk-pull social profiles from Follow Up Boss for all FUB-linked leads.
+function FubEnrichButton() {
+  const [status, setStatus] = useState(null)
+  const [starting, setStarting] = useState(false)
+  useEffect(() => {
+    let alive = true
+    const tick = async () => { try { const r = await authFetch('/api/clients/enrich-fub-bulk/status'); const j = await r.json(); if (alive) setStatus(j) } catch {} }
+    tick()
+    const t = setInterval(tick, 4000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+  const running = status && status.running
+  const start = async () => {
+    if (!confirm('Pull social profiles (LinkedIn / Facebook / job title) from Follow Up Boss for every FUB-linked lead that hasn\'t been checked yet? It runs in the background and saves into the Hub.')) return
+    setStarting(true)
+    try { await authFetch('/api/clients/enrich-fub-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }) } catch {}
+    setStarting(false)
+  }
+  return (
+    <button className="btn btn-secondary" onClick={start} disabled={starting || running} title="Pull LinkedIn / Facebook / job info from Follow Up Boss and save to each lead">
+      {running ? `Pulling FUB… ${status.done}/${status.total} · ${status.found} found` : '⚡ Pull socials from FUB'}
+    </button>
+  )
+}
+
 // Free lead social enrichment. Prefilled search links (agent finds + verifies +
 // pastes) plus a free Gravatar auto-check. No paid API, no scraping.
 function SocialProfiles({ detail, onSaved }) {
@@ -211,6 +236,9 @@ function SocialProfiles({ detail, onSaved }) {
   return (
     <div>
       {detail.avatar_url && <img src={detail.avatar_url} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }} />}
+      {(detail.job_title || detail.employer) && (
+        <div style={{ fontSize: 13, marginBottom: 8 }}>{detail.job_title || ''}{detail.job_title && detail.employer ? ' · ' : ''}{detail.employer || ''}</div>
+      )}
 
       {/* LinkedIn */}
       <div style={{ marginBottom: 8 }}>
@@ -1451,6 +1479,7 @@ export default function Clients() {
             />
           </label>
           <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
+          <FubEnrichButton />
         </div>
       </div>
 

@@ -1289,10 +1289,12 @@ export async function initDb() {
       ['last_fub_activity_detail', 'TEXT'],
       // Cities of the properties this lead has viewed in FUB ("where they're looking")
       ['fub_viewed_cities', 'TEXT'],
-      // Free social enrichment (Gravatar auto-check + agent-verified paste)
+      // Free social enrichment (FUB socialData + Gravatar + agent-verified paste)
       ['linkedin_url', 'TEXT'],
       ['facebook_url', 'TEXT'],
       ['avatar_url', 'TEXT'],
+      ['job_title', 'TEXT'],
+      ['employer', 'TEXT'],
       ['enriched_at', 'TEXT'],
       ['enrichment_source', 'TEXT'],
     ]

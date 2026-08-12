@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-12T22:25:02.104Z",
-  "count": 323,
+  "generated_at": "2026-08-12T22:40:53.020Z",
+  "count": 325,
   "entries": [
+    {
+      "hash": "870936f",
+      "date": "2026-08-12T17:36:23-05:00",
+      "subject": "Leads: pull social profiles from Follow Up Boss (socialData + picture) as the primary free enrichment source, Gravatar as fallback",
+      "title": "Leads: pull social profiles from Follow Up Boss (socialData + picture) as the primary free enrichment source, Gravatar as fallback",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c2f599d",
+      "date": "2026-08-12T17:25:12-05:00",
+      "subject": "Leads: free social enrichment (no paid API, no scraping)",
+      "title": "Leads: free social enrichment (no paid API, no scraping)",
+      "body": "- clients: linkedin_url, facebook_url, avatar_url, enriched_at, enrichment_source\n- POST /api/clients/:id/enrich-free: free Gravatar lookup (email->public profile) fills avatar + linked LinkedIn/Facebook when present; stamps that we checked\n- Client detail 'Social Profiles' section: prefilled Google site: search links for LinkedIn/Facebook (agent finds + verifies), paste-to-save URL fields with clickable links, free Auto-check button, avatar display\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "77233ec",
       "date": "2026-08-12T17:10:44-05:00",
