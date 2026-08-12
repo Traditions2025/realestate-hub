@@ -81,7 +81,8 @@ function ensureHtmlBody(s) {
 const emptyClient = {
   first_name: '', last_name: '', email: '', phone: '', type: 'buyer', status: 'active',
   source: '', agent_assigned: '', address: '', city: '', state: 'IA', zip: '',
-  budget_min: '', budget_max: '', preapproval_amount: '', preapproval_lender: '', notes: ''
+  budget_min: '', budget_max: '', preapproval_amount: '', preapproval_lender: '', notes: '',
+  linkedin_url: '', facebook_url: ''
 }
 
 // Column config for the list view. Users toggle visibility + reorder via the
@@ -175,6 +176,82 @@ function ColumnFilterHeader({ className, label, value, options, onSelect }) {
           </div>
         </>
       )}
+    </div>
+  )
+}
+
+// Free lead social enrichment. Prefilled search links (agent finds + verifies +
+// pastes) plus a free Gravatar auto-check. No paid API, no scraping.
+function SocialProfiles({ detail, onSaved }) {
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [li, setLi] = useState(detail.linkedin_url || '')
+  const [fb, setFb] = useState(detail.facebook_url || '')
+  useEffect(() => { setLi(detail.linkedin_url || ''); setFb(detail.facebook_url || ''); setMsg('') }, [detail.id, detail.linkedin_url, detail.facebook_url])
+
+  const name = `${detail.first_name || ''} ${detail.last_name || ''}`.trim()
+  const city = detail.city || 'Cedar Rapids'
+  const gq = (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`
+  const liSearch = gq(`site:linkedin.com/in "${name}" ${city}`)
+  const fbSearch = gq(`site:facebook.com "${name}" ${city}`)
+  const googleSearch = gq(`"${name}" ${city} ${detail.email || ''}`.trim())
+
+  const save = async (fields) => { await api.updateClient(detail.id, fields); onSaved && onSaved() }
+  const autoCheck = async () => {
+    setBusy(true); setMsg('')
+    try {
+      const r = await authFetch(`/api/clients/${detail.id}/enrich-free`, { method: 'POST' })
+      const j = await r.json()
+      if (j.found_any) { setMsg('Found a public profile — filled what it had.'); onSaved && onSaved() }
+      else setMsg('No free auto-match (most consumers have no public Gravatar). Use the search buttons to find and paste the profile.')
+    } catch { setMsg('Auto-check failed.') }
+    setBusy(false)
+  }
+
+  return (
+    <div>
+      {detail.avatar_url && <img src={detail.avatar_url} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 8 }} />}
+
+      {/* LinkedIn */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>LinkedIn</div>
+        {detail.linkedin_url ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a href={detail.linkedin_url} target="_blank" rel="noreferrer" style={{ color: '#0077b5', fontWeight: 600, wordBreak: 'break-all' }}>{detail.linkedin_url}</a>
+            <button className="btn btn-sm btn-secondary" onClick={() => save({ linkedin_url: '' })}>Remove</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={li} onChange={e => setLi(e.target.value)} placeholder="Paste LinkedIn URL…" style={{ flex: '1 1 200px', minWidth: 0 }} />
+            <button className="btn btn-sm btn-primary" disabled={!li.trim()} onClick={() => save({ linkedin_url: li.trim() })}>Save</button>
+            <a className="btn btn-sm btn-secondary" href={liSearch} target="_blank" rel="noreferrer">🔎 Find</a>
+          </div>
+        )}
+      </div>
+
+      {/* Facebook */}
+      <div style={{ marginBottom: 8 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>Facebook</div>
+        {detail.facebook_url ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <a href={detail.facebook_url} target="_blank" rel="noreferrer" style={{ color: '#1877f2', fontWeight: 600, wordBreak: 'break-all' }}>{detail.facebook_url}</a>
+            <button className="btn btn-sm btn-secondary" onClick={() => save({ facebook_url: '' })}>Remove</button>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={fb} onChange={e => setFb(e.target.value)} placeholder="Paste Facebook URL…" style={{ flex: '1 1 200px', minWidth: 0 }} />
+            <button className="btn btn-sm btn-primary" disabled={!fb.trim()} onClick={() => save({ facebook_url: fb.trim() })}>Save</button>
+            <a className="btn btn-sm btn-secondary" href={fbSearch} target="_blank" rel="noreferrer">🔎 Find</a>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+        <button className="btn btn-sm" disabled={busy} onClick={autoCheck}>{busy ? 'Checking…' : '⚡ Auto-check (free)'}</button>
+        <a className="btn btn-sm btn-secondary" href={googleSearch} target="_blank" rel="noreferrer">🔎 Google this lead</a>
+      </div>
+      {msg && <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 0' }}>{msg}</p>}
+      {detail.enriched_at && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Last checked {new Date(detail.enriched_at).toLocaleDateString()}</p>}
     </div>
   )
 }
@@ -2411,6 +2488,10 @@ export default function Clients() {
                 {!detail.marketing_email_opt_out && detail.ealert_opt_out ? <p style={{color: '#92400e'}}><strong>Property Alerts:</strong> Unsubscribed (email is still fine)</p> : null}
                 {detail.text_opt_out ? <p style={{color: '#ef4444'}}><strong>Text Opt-Out:</strong> Yes</p> : null}
                 {detail.sierra_lead_id && <p><strong>Sierra ID:</strong> {detail.sierra_lead_id}</p>}
+              </div>
+              <div className="detail-section">
+                <h4>Social Profiles</h4>
+                <SocialProfiles detail={detail} onSaved={() => openDetail(detail.id)} />
               </div>
               <div className="detail-section">
                 <h4>Activity & Engagement</h4>

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import crypto from 'crypto'
 import db from '../database.js'
 import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '../lead-sequences.js'
 import { gradeFromRealistScore } from '../sierra-helper.js'
@@ -480,6 +481,44 @@ router.put('/:id', (req, res) => {
 // the "Active Plans" section on the lead profile.
 router.get('/:id/sequences', (req, res) => {
   res.json(activeSequencesForClient(Number(req.params.id)))
+})
+
+// FREE social enrichment via Gravatar (no API key, no scraping). Hashes the
+// lead's email and asks Gravatar for a public profile; if the person set one up
+// it can include an avatar and linked accounts (LinkedIn / Facebook / etc.).
+// Coverage is low for consumers, but it's genuinely free and safe. Anything it
+// can't find, the agent locates with the prefilled search links in the UI and
+// pastes the URL. Only fills fields that are still blank; always stamps that we
+// checked so we don't re-hit it needlessly.
+router.post('/:id/enrich-free', async (req, res) => {
+  const id = Number(req.params.id)
+  const c = db.get('SELECT * FROM clients WHERE id = ?', [id])
+  if (!c) return res.status(404).json({ error: 'Client not found' })
+  const found = {}
+  let profile = null
+  if (c.email) {
+    const hash = crypto.createHash('md5').update(String(c.email).trim().toLowerCase()).digest('hex')
+    try {
+      const r = await fetch(`https://www.gravatar.com/${hash}.json`, { headers: { 'User-Agent': 'MattSmithTeamHub/1.0 (+https://mattsmithteam.com)' } })
+      if (r.ok) { const j = await r.json(); profile = (j && j.entry && j.entry[0]) || null }
+    } catch { /* gravatar down / 404 — treat as no match */ }
+  }
+  if (profile) {
+    const avatar = profile.thumbnailUrl || (profile.photos && profile.photos[0] && profile.photos[0].value) || null
+    if (avatar && !c.avatar_url) found.avatar_url = avatar
+    for (const a of (Array.isArray(profile.accounts) ? profile.accounts : [])) {
+      const url = a.url || ''
+      const dom = String(a.domain || a.shortname || '').toLowerCase()
+      if (!c.linkedin_url && !found.linkedin_url && (/linkedin\.com/i.test(url) || dom.includes('linkedin'))) found.linkedin_url = url
+      if (!c.facebook_url && !found.facebook_url && (/facebook\.com/i.test(url) || dom.includes('facebook'))) found.facebook_url = url
+    }
+  }
+  const foundAny = Object.keys(found).length > 0
+  found.enriched_at = new Date().toISOString()
+  found.enrichment_source = profile ? 'gravatar' : 'gravatar:none'
+  const keys = Object.keys(found)
+  db.run(`UPDATE clients SET ${keys.map(k => `${k} = ?`).join(', ')} WHERE id = ?`, [...keys.map(k => found[k]), id])
+  res.json({ found_any: foundAny, gravatar_profile: !!profile, ...found })
 })
 
 router.delete('/:id', (req, res) => {

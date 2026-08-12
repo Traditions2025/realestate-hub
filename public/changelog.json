@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-12T22:10:25.679Z",
-  "count": 322,
+  "generated_at": "2026-08-12T22:25:02.104Z",
+  "count": 323,
   "entries": [
+    {
+      "hash": "77233ec",
+      "date": "2026-08-12T17:10:44-05:00",
+      "subject": "Email opt-outs: tag, don't block — opted-out contacts are emailable again (with guardrails)",
+      "title": "Email opt-outs: tag, don't block — opted-out contacts are emailable again (with guardrails)",
+      "body": "Team policy: in Sierra a property-alert unsubscribe also flips the marketing-email opt-out, so many 'opted out' leads never actually unsubscribed from us. So opt-out is now a TAG, not a hard block.\n\n- New shared guard in email.js: emailHardBlock() (no email / blocked domain / ReportedAsSpam / WrongAddress = still hard-blocked) + emailOptOutTag() (email vs alert)\n- All 6 send gates (sequence/drip, single send, bulk, inbox compose, AI follow-up draft+send, automation step) now allow opted-out and only hard-block the undeliverable/spam-complaint cases\n- Clients UI: row shows 'Email opt-out' (red) vs 'Alerts off' (amber) tags; detail Email button + follow-up draft no longer hidden for opted-out; detail clarifies alert-only unsubs are still emailable\n- SendGrid's own suppression list remains the backstop for genuine unsubscribes\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8e54f92",
       "date": "2026-08-12T10:40:05-05:00",

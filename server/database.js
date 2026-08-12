@@ -1289,6 +1289,12 @@ export async function initDb() {
       ['last_fub_activity_detail', 'TEXT'],
       // Cities of the properties this lead has viewed in FUB ("where they're looking")
       ['fub_viewed_cities', 'TEXT'],
+      // Free social enrichment (Gravatar auto-check + agent-verified paste)
+      ['linkedin_url', 'TEXT'],
+      ['facebook_url', 'TEXT'],
+      ['avatar_url', 'TEXT'],
+      ['enriched_at', 'TEXT'],
+      ['enrichment_source', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {
