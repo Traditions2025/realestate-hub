@@ -15,6 +15,7 @@ import { Router } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import db from '../database.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
+import { emailHardBlock } from './email.js'
 
 const router = Router()
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
@@ -227,8 +228,10 @@ router.post('/:clientId/analyze', async (req, res) => {
     try { data = parseJson(msg.content?.[0]?.text || '') }
     catch { return res.status(502).json({ error: 'AI returned an unreadable response. Try refreshing.' }) }
     scrubDashes(data)
-    // never email an opted-out contact
-    if (client.marketing_email_opt_out && data.email) data.email = null
+    // Only suppress the drafted email for hard-blocked contacts (bad address /
+    // spam complaint / blocked domain). Opted-out contacts still get a draft;
+    // they're tagged so the agent can decide.
+    if (emailHardBlock(client) && data.email) data.email = null
 
     const fp = activityFingerprint(client); const at = nowIso()
     db.run(`INSERT INTO followup_recommendations (client_id, data, fub_data, fingerprint, analyzed_at) VALUES (?,?,?,?,?)
@@ -253,7 +256,8 @@ const EMAIL_INSTRUCTIONS = {
 router.post('/:clientId/email', async (req, res) => {
   const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(req.params.clientId)])
   if (!client) return res.status(404).json({ error: 'Client not found' })
-  if (client.marketing_email_opt_out) return res.status(400).json({ error: 'This client is opted out of marketing email.' })
+  const hardBlk = emailHardBlock(client)
+  if (hardBlk) return res.status(400).json({ error: `Cannot email this client - ${hardBlk}.` })
   const ai = getClient()
   if (!ai) return res.status(503).json({ error: 'AI is not configured.' })
   const row = db.get('SELECT * FROM followup_recommendations WHERE client_id = ?', [client.id])

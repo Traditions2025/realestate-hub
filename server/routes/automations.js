@@ -2,7 +2,7 @@ import { Router } from 'express'
 import db from '../database.js'
 import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
-import { sendViaSendGrid, buildPropertyCardsLive, logSentToInbox } from './email.js'
+import { sendViaSendGrid, buildPropertyCardsLive, logSentToInbox, emailHardBlock } from './email.js'
 import { enrollInDrip } from './drips.js'
 import { stopSequencesForClient, isStopStatus } from '../lead-sequences.js'
 import { isUsHoliday, bumpPastHolidays } from '../holidays.js'
@@ -189,8 +189,10 @@ async function runAction(node, client, ctx) {
     }
     case 'send_email': {
       if (!client.email) throw new Error('contact has no email')
-      if (client.marketing_email_opt_out) return 'skipped (opted out)'
-      if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) return `skipped (${client.email_status})`
+      // Opt-outs are allowed (tagged), per team policy; only hard-block bad
+      // address / spam complaint / blocked domain.
+      const hardBlk = emailHardBlock(client)
+      if (hardBlk) return `skipped (${hardBlk})`
       let subject = cfg.subject, body = cfg.body
       if (cfg.template_id) { const t = db.get('SELECT subject, body FROM templates WHERE id = ?', [Number(cfg.template_id)]); if (t) { subject = subject || t.subject; body = body || t.body } }
       if (!subject || !body) throw new Error('email missing subject/body/template')

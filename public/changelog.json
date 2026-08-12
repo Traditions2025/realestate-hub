@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-12T15:39:54.956Z",
-  "count": 321,
+  "generated_at": "2026-08-12T22:10:25.679Z",
+  "count": 322,
   "entries": [
+    {
+      "hash": "8e54f92",
+      "date": "2026-08-12T10:40:05-05:00",
+      "subject": "Transactions: split earnest money AMOUNT from STATUS (they shared one field, so setting status erased the amount)",
+      "title": "Transactions: split earnest money AMOUNT from STATUS (they shared one field, so setting status erased the amount)",
+      "body": "- New earnest_money_amount column; migration recovers any dollar value stuck in earnest_money_deposit and resets that back to a valid status\n- PA extractor now writes the dollar amount to earnest_money_amount (never the status field); status stays a human/workflow decision\n- Buyer email reads the amount from earnest_money_amount (fallback to legacy value)\n- Form: separate Earnest Amount input + Status dropdown; dropdown guards against non-status values\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "13faaa8",
       "date": "2026-08-12T10:19:57-05:00",

@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import Busboy from 'busboy'
 import db from '../database.js'
-import { sendViaSendGrid } from './email.js'
+import { sendViaSendGrid, emailHardBlock } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
 
 const router = Router()
@@ -232,8 +232,9 @@ router.post('/send', async (req, res) => {
   const results = []
   for (const cid of client_ids) {
     const c = db.get('SELECT * FROM clients WHERE id = ?', [Number(cid)])
-    if (!c || !c.email) { results.push({ client_id: cid, ok: false, error: 'no email on file' }); continue }
-    if (c.marketing_email_opt_out) { results.push({ client_id: cid, ok: false, error: 'opted out' }); continue }
+    const hard = emailHardBlock(c)
+    if (hard) { results.push({ client_id: cid, ok: false, error: hard }); continue }
+    // Opted-out contacts are allowed (tagged in the UI), per team policy.
     const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
     try {
       await sendViaSendGrid(c.email, name, subject, body, null, [], [], [], 'inbox_compose')

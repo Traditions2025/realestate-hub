@@ -2039,6 +2039,9 @@ export default function Clients() {
               return <div key="email" className="cl-email">
                 {item.email || '—'}
                 {item.email_status && item.email_status !== 'Unknown' && <span className="email-status-tag">{item.email_status}</span>}
+                {item.marketing_email_opt_out
+                  ? <span className="email-status-tag" style={{ background: '#fee2e2', color: '#b91c1c' }} title="Opted out of marketing email (still emailable — tagged)">Email opt-out</span>
+                  : (item.ealert_opt_out ? <span className="email-status-tag" style={{ background: '#fef3c7', color: '#92400e' }} title="Only unsubscribed from property alerts — still fine to email">Alerts off</span> : null)}
               </div>
             case 'address':
               return <div key="address" className="cl-address">
@@ -2238,10 +2241,10 @@ export default function Clients() {
             {/* Communication + transaction actions */}
             <div className="lead-action-bar">
               <div className="lead-action-bar-row">
-                {detail.email && !detail.marketing_email_opt_out && (
-                  <button className="lead-action-btn lead-action-email" onClick={() => openEmailComposer('')}>
+                {detail.email && (
+                  <button className="lead-action-btn lead-action-email" onClick={() => openEmailComposer('')} title={detail.marketing_email_opt_out ? 'This contact is tagged opted-out of email — sending is allowed but use judgment' : undefined}>
                     <span className="lead-action-icon">✉</span>
-                    <span>Email</span>
+                    <span>Email{detail.marketing_email_opt_out ? ' (opted out)' : ''}</span>
                   </button>
                 )}
                 {detail.phone && !detail.text_opt_out && (
@@ -2388,7 +2391,7 @@ export default function Clients() {
                         <button className="btn btn-primary btn-sm" onClick={useFollowupEmail} style={{ marginLeft: 'auto' }}>✉ Use in composer</button>
                       </div>
                     </div>
-                  ) : (followup.recommendation && followup.recommendation.action !== 'none' && !detail.marketing_email_opt_out && (
+                  ) : (followup.recommendation && followup.recommendation.action !== 'none' && (
                     <div><button className="btn btn-sm" disabled={!!fuEmailBusy} onClick={() => adjustFollowupEmail('regenerate')}>{fuEmailBusy ? '…' : '✍ Draft a follow-up email'}</button></div>
                   ))}
                 </div>
@@ -2404,7 +2407,8 @@ export default function Clients() {
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
-                {detail.marketing_email_opt_out ? <p style={{color: '#ef4444'}}><strong>Email Opt-Out:</strong> Yes</p> : null}
+                {detail.marketing_email_opt_out ? <p style={{color: '#b45309'}}><strong>Email Opt-Out:</strong> Tagged (still emailable — note many of these are only property-alert unsubscribes)</p> : null}
+                {!detail.marketing_email_opt_out && detail.ealert_opt_out ? <p style={{color: '#92400e'}}><strong>Property Alerts:</strong> Unsubscribed (email is still fine)</p> : null}
                 {detail.text_opt_out ? <p style={{color: '#ef4444'}}><strong>Text Opt-Out:</strong> Yes</p> : null}
                 {detail.sierra_lead_id && <p><strong>Sierra ID:</strong> {detail.sierra_lead_id}</p>}
               </div>

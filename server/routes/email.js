@@ -231,6 +231,32 @@ export function isBlockedEmail(email) {
   return BLOCKED_EMAIL_DOMAINS.some(d => e.endsWith(d))
 }
 
+// ---- Emailability guard --------------------------------------------------
+// The team's decision (2026-08-12): an "opt-out" should TAG a contact, not hard
+// block them, because in Sierra a property-alert unsubscribe also flips the
+// marketing-email opt-out — so many "opted out" leads never actually unsubscribed
+// from us. We still HARD block the cases that genuinely must never be emailed:
+//   - no address / blocked throwaway domain
+//   - a spam complaint (ReportedAsSpam) — sending again wrecks deliverability
+//   - a bad address (WrongAddress) — it just bounces
+// SendGrid's own suppression list remains the backstop for true unsubscribes.
+export function emailHardBlock(client) {
+  if (!client || !client.email || !String(client.email).trim()) return 'no email'
+  if (isBlockedEmail(client.email)) return 'blocked email domain'
+  if (client.email_status === 'ReportedAsSpam') return 'reported as spam'
+  if (client.email_status === 'WrongAddress') return 'wrong address'
+  return null
+}
+// Soft, informational: which kind of opt-out is on file (for tagging), or null.
+//   'email' = actually opted out of our marketing email
+//   'alert' = only unsubscribed from property alerts (still emailable)
+export function emailOptOutTag(client) {
+  if (!client) return null
+  if (client.marketing_email_opt_out || client.email_status === 'OptedOut') return 'email'
+  if (client.ealert_opt_out) return 'alert'
+  return null
+}
+
 // Shared sender for sequence/drip/automation emails. Resolves a template if given,
 // fills merge fields, injects live property cards where {{properties}} appears (or
 // when include_properties is set), respects opt-outs, and tags a SendGrid category
@@ -252,10 +278,9 @@ export function logSentToInbox(client, subject, body, externalId) {
 }
 
 export async function sendSequenceEmail(client, cfg = {}, category = null) {
-  if (!client || !client.email) return { ok: false, reason: 'no email' }
-  if (isBlockedEmail(client.email)) return { ok: false, reason: 'blocked email domain' }
-  if (client.marketing_email_opt_out) return { ok: false, reason: 'opted out' }
-  if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) return { ok: false, reason: client.email_status }
+  const hard = emailHardBlock(client)
+  if (hard) return { ok: false, reason: hard }
+  // Opted-out contacts are allowed through (tagged), per team policy.
   let subject = cfg.subject, body = cfg.body
   if (cfg.template_id) {
     const t = db.get('SELECT subject, body FROM templates WHERE id = ?', [Number(cfg.template_id)])
@@ -499,12 +524,11 @@ router.post('/send', async (req, res) => {
   if (!recipient) return res.status(400).json({ error: 'No recipient email' })
   if (!subject || !body) return res.status(400).json({ error: 'Subject and body required' })
 
-  // Block opt-outs
-  if (client && client.marketing_email_opt_out) {
-    return res.status(400).json({ error: 'Client has opted out of marketing emails' })
-  }
-  if (client && (client.email_status === 'OptedOut' || client.email_status === 'WrongAddress' || client.email_status === 'ReportedAsSpam')) {
-    return res.status(400).json({ error: `Cannot email - status: ${client.email_status}` })
+  // Opt-outs are allowed (tagged, not blocked). Only hard-block undeliverable /
+  // spam-complaint / bad-address cases.
+  if (client) {
+    const hard = emailHardBlock(client)
+    if (hard) return res.status(400).json({ error: `Cannot email - ${hard}` })
   }
 
   const filledSubject = client ? fillTemplate(subject, client) : subject
@@ -554,9 +578,8 @@ async function runBulkSend(client_ids, subject, body, template) {
   try {
     for (const id of client_ids) {
       const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(id)])
-      if (!client || !client.email) { _bulkState.skipped++; _bulkState.done++; continue }
-      if (client.marketing_email_opt_out) { _bulkState.skipped++; _bulkState.done++; continue }
-      if (['OptedOut', 'WrongAddress', 'ReportedAsSpam'].includes(client.email_status)) { _bulkState.skipped++; _bulkState.done++; continue }
+      if (emailHardBlock(client)) { _bulkState.skipped++; _bulkState.done++; continue }
+      // Opted-out contacts are included (tagged), per team policy.
 
       const filledSubject = fillTemplate(subject, client)
       let filledBody = fillTemplate(body, client)
