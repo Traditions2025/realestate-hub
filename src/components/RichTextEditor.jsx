@@ -6,8 +6,24 @@ import { buildLinkPreviewHtml, soleUrl } from './inlineImages'
 // - value/onChange keep it controlled from the outside (template load, etc.)
 // - we only reset innerHTML when the incoming value differs, so typing never
 //   loses the caret.
+// Personalization fields the email merge engine (server fillTemplate) supports.
+export const MERGE_FIELDS = [
+  ['{{first_name}}', 'First name'],
+  ['{{last_name}}', 'Last name'],
+  ['{{full_name}}', 'Full name'],
+  ['{{email}}', 'Email'],
+  ['{{phone}}', 'Phone'],
+  ['{{address}}', 'Street address'],
+  ['{{city}}', 'City'],
+  ['{{agent}}', 'Agent name'],
+  ['{{greeting}}', 'Greeting (Good morning…)'],
+  ['{{signature}}', 'Email signature'],
+  ['{{properties}}', 'Property cards'],
+]
+
 export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
   const ref = useRef(null)
+  const savedRange = useRef(null)
   const [linkLoading, setLinkLoading] = useState(false)
 
   useEffect(() => {
@@ -18,6 +34,26 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
 
   const sync = () => onChange(ref.current ? ref.current.innerHTML : '')
   const exec = (cmd, arg) => { document.execCommand(cmd, false, arg); ref.current && ref.current.focus(); sync() }
+
+  // Remember the caret inside the editor so a toolbar interaction (which steals
+  // focus) can still insert a field exactly where the cursor was.
+  const saveSel = () => {
+    const s = window.getSelection()
+    if (s && s.rangeCount && ref.current && ref.current.contains(s.anchorNode)) savedRange.current = s.getRangeAt(0).cloneRange()
+  }
+  const insertField = (token) => {
+    if (!token || !ref.current) return
+    ref.current.focus()
+    const sel = window.getSelection()
+    if (savedRange.current) { sel.removeAllRanges(); sel.addRange(savedRange.current) }
+    else if (!sel.rangeCount || !ref.current.contains(sel.anchorNode)) {
+      // no known caret — drop it at the end
+      const r = document.createRange(); r.selectNodeContents(ref.current); r.collapse(false); sel.removeAllRanges(); sel.addRange(r)
+    }
+    document.execCommand('insertText', false, token)
+    saveSel()
+    sync()
+  }
   const addLink = () => { const url = prompt('Link URL (https://…):'); if (url) exec('createLink', url.trim()) }
 
   // Fetch OG metadata and insert a preview card at the caret.
@@ -62,13 +98,25 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
         <button type="button" title="Insert a rich link preview card (image, title, description)" onMouseDown={e => e.preventDefault()} onClick={insertLinkPreview} disabled={linkLoading} style={tbBtn}>{linkLoading ? '⏳' : '🔗+ Preview'}</button>
         <B label="H" cmd="formatBlock" arg="H3" title="Heading" />
         <B label="⟲" cmd="removeFormat" title="Clear formatting" />
+        <select
+          title="Insert a personalization field at the cursor"
+          value=""
+          onMouseDown={saveSel}
+          onChange={e => { insertField(e.target.value); e.target.value = '' }}
+          style={{ ...tbBtn, padding: '4px 6px' }}
+        >
+          <option value="">+ Field</option>
+          {MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
+        </select>
       </div>
       <div
         ref={ref}
         contentEditable
         suppressContentEditableWarning
         onInput={sync}
-        onBlur={sync}
+        onBlur={() => { saveSel(); sync() }}
+        onKeyUp={saveSel}
+        onMouseUp={saveSel}
         onPaste={onPaste}
         style={{ minHeight, maxHeight: '48vh', overflowY: 'auto', padding: '12px 14px', fontSize: 14, lineHeight: 1.6, outline: 'none', fontFamily: 'Arial, Helvetica, sans-serif', background: '#ffffff', color: '#111827' }}
       />

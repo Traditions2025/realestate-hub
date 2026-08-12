@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-12T22:40:53.020Z",
-  "count": 325,
+  "generated_at": "2026-08-12T23:18:00.674Z",
+  "count": 326,
   "entries": [
+    {
+      "hash": "5f49b63",
+      "date": "2026-08-12T17:41:01-05:00",
+      "subject": "Leads: capture FUB job title + employer; add background bulk 'Pull socials from FUB' (rate-limited, resumable) + progress button",
+      "title": "Leads: capture FUB job title + employer; add background bulk 'Pull socials from FUB' (rate-limited, resumable) + progress button",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "870936f",
       "date": "2026-08-12T17:36:23-05:00",

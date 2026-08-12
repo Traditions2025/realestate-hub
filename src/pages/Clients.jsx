@@ -5,7 +5,7 @@ import MultiSelect from '../components/MultiSelect'
 import StatusBadge from '../components/StatusBadge'
 import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
 import EmailToolbar from '../components/EmailToolbar'
-import RichTextEditor from '../components/RichTextEditor'
+import RichTextEditor, { MERGE_FIELDS } from '../components/RichTextEditor'
 
 // Turn a bare mattsmithteam.com property link (pasted into an email) into a rich
 // listing card — photo + address + MLS — like the listing previews. URLs already
@@ -682,6 +682,25 @@ export default function Clients() {
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
   const singleEmailBodyRef = useRef(null)
   const bulkEmailBodyRef = useRef(null)
+  const subjectRef = useRef(null)
+  // Insert a merge token at the cursor of a text input / textarea (subject line,
+  // HTML source view). Keeps the caret after the inserted token.
+  const insertAtCursor = (ref, current, setValue, token) => {
+    const el = ref.current
+    if (!el) { setValue((current || '') + token); return }
+    const start = el.selectionStart ?? (current || '').length
+    const end = el.selectionEnd ?? start
+    const next = (current || '').slice(0, start) + token + (current || '').slice(end)
+    setValue(next)
+    requestAnimationFrame(() => { try { el.focus(); const pos = start + token.length; el.setSelectionRange(pos, pos) } catch {} })
+  }
+  const FieldMenu = ({ onPick, title }) => (
+    <select value="" title={title || 'Insert a personalization field'} onChange={e => { if (e.target.value) { onPick(e.target.value); e.target.value = '' } }}
+      className="btn btn-sm btn-secondary" style={{ padding: '2px 6px', height: 28 }}>
+      <option value="">+ Field</option>
+      {MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
+    </select>
+  )
   const [singleEmailPreviewOpen, setSingleEmailPreviewOpen] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState([])
   const [sending, setSending] = useState(false)
@@ -3002,7 +3021,12 @@ export default function Clients() {
             {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select></label>
           {draftingPropEmail && <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '2px 0'}}>Building “Homes They Viewed”…</p>}
-          <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required /></label>
+          <label>Subject
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <input ref={subjectRef} value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required style={{ flex: 1 }} />
+              <FieldMenu title="Insert a field into the subject line" onPick={tok => insertAtCursor(subjectRef, emailForm.subject, (v) => setEmailForm(p => ({ ...p, subject: v })), tok)} />
+            </div>
+          </label>
 
           {/* Cc — always ready, with client search. Bcc behind a toggle. */}
           <div style={{marginTop: 4}}>
@@ -3035,12 +3059,15 @@ export default function Clients() {
             <RichTextEditor value={emailForm.body} onChange={(b) => setEmailForm(p => ({ ...p, body: b }))} minHeight={240} />
           ) : (
             <>
-              <EmailToolbar textareaRef={singleEmailBodyRef} body={emailForm.body} setBody={(b) => setEmailForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginBottom: 4 }}>
+                <EmailToolbar textareaRef={singleEmailBodyRef} body={emailForm.body} setBody={(b) => setEmailForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+                <FieldMenu title="Insert a field into the body" onPick={tok => insertAtCursor(singleEmailBodyRef, emailForm.body, (v) => setEmailForm(p => ({ ...p, body: v })), tok)} />
+              </div>
               <textarea ref={singleEmailBodyRef} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={18} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
             </>
           )}
           <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
-            Type freely like Gmail. Templates load in fully editable. Variables: {'{{first_name}} {{last_name}} {{city}}'} · paste a mattsmithteam.com property link → it becomes a listing card on send/preview.
+            Type freely like Gmail. Use the <strong>+ Field</strong> menu (on the subject and body) to drop in personalization like {'{{first_name}}'}, {'{{address}}'}, {'{{city}}'} anywhere — they fill in per recipient on send. Paste a mattsmithteam.com property link → it becomes a listing card on send/preview.
           </p>
 
           {/* Attachments */}
