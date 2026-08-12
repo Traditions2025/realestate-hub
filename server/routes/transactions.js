@@ -664,6 +664,11 @@ router.post('/:id/extract-pdf', async (req, res) => {
       if (data.inspection_business_days) data.inspection_contingency_date = addBusinessDays(acceptance, data.inspection_business_days)
       if (data.financing_business_days) data.mortgage_contingency_date = addBusinessDays(acceptance, data.financing_business_days)
       if (data.appraisal_business_days) data.appraisal_contingency_date = addBusinessDays(acceptance, data.appraisal_business_days)
+      // Earnest money is standard-due within 3 business days of acceptance. The
+      // PA rarely states an explicit date, so compute it (same pattern as the
+      // insurance contingency) unless the extractor already found one.
+      const exEarnest = db.get('SELECT earnest_money_due_date FROM transactions WHERE id = ?', [id])?.earnest_money_due_date
+      if (!data.earnest_money_due_date && !exEarnest) data.earnest_money_due_date = addBusinessDays(acceptance, 3)
     }
 
     // Home warranty: the on/off flag is derived from who pays (line 132).

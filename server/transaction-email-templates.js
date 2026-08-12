@@ -547,8 +547,11 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.closing_date = transaction.closing_date || ''
     v.closing_date_long = fmtLongDate(transaction.closing_date)
     v.earnest_money = transaction.earnest_money_deposit || ''
-    v.earnest_money_due_date = transaction.earnest_money_due_date || ''
-    v.earnest_money_due_date_long = fmtLongDate(transaction.earnest_money_due_date)
+    // Earnest is due within 3 business days of acceptance. Prefer the stored date,
+    // but fall back to contract_date + 3 business days so the email is never blank
+    // on records that pre-date the auto-fill rule.
+    v.earnest_money_due_date = transaction.earnest_money_due_date || addBusinessDays(transaction.contract_date, 3)
+    v.earnest_money_due_date_long = fmtLongDate(v.earnest_money_due_date)
     v.ipi_due_date = transaction.ipi_due_date || ''
     v.ipi_due_date_long = fmtLongDate(transaction.ipi_due_date)
     v.mortgage_contingency_date = transaction.mortgage_contingency_date || ''
