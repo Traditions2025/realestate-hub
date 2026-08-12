@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-12T15:05:27.711Z",
-  "count": 318,
+  "generated_at": "2026-08-12T15:39:54.956Z",
+  "count": 321,
   "entries": [
+    {
+      "hash": "13faaa8",
+      "date": "2026-08-12T10:19:57-05:00",
+      "subject": "Transactions: also auto-compute final walkthrough (weekday before closing) on PA extraction — matches the form rule that extraction bypassed",
+      "title": "Transactions: also auto-compute final walkthrough (weekday before closing) on PA extraction — matches the form rule that extraction bypassed",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "869d790",
+      "date": "2026-08-12T10:17:25-05:00",
+      "subject": "Transactions: auto-compute earnest money due date (contract + 3 business days) on PA extraction; email falls back to the same so it's never blank",
+      "title": "Transactions: auto-compute earnest money due date (contract + 3 business days) on PA extraction; email falls back to the same so it's never blank",
+      "body": "Earnest due date had no compute rule — only fixed email text + a reminder window — so the stored field stayed empty and the buyer email rendered a blank due date. Now computed on extraction (like the 7-day insurance contingency) and back-stopped in the email template.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e837040",
+      "date": "2026-08-12T10:06:18-05:00",
+      "subject": "Transactions: auto-pilot CRAAR PA parsing + cash/appraisal rule + home warranty payer + multiple people",
+      "title": "Transactions: auto-pilot CRAAR PA parsing + cash/appraisal rule + home warranty payer + multiple people",
+      "body": "- PA extractor now reads insurance contingency (CRAAR line 53), home warranty payer (line 132: seller/buyer/none), and lender + lender company (line 25); CRAAR line-aware with a full-document semantic fallback for other PA forms\n- has_home_warranty derived from home_warranty_paid_by; buyer email states who actually pays (seller vs buyer) instead of always 'seller'\n- Financing = Cash -> clears mortgage/financing contingency and appraisal (no loan); otherwise appraisal mirrors the mortgage contingency date (already locked in form); form disables those dates on Cash\n- New home_warranty_paid_by column (backfilled from existing flag); warranty UI is now a 3-way select\n- transaction_people table + /:id/people GET/POST/DELETE endpoints; modal roster to add multiple leads/clients (co-buyers/co-sellers) by CRM match or free-text name\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d73cc4d",
       "date": "2026-08-11T17:34:53-05:00",

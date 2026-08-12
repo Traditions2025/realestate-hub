@@ -155,7 +155,7 @@ const emptyTx = {
   dotloop_status: 'Not Submitted',
   has_insurance_contingency: 1, has_home_warranty: 1, home_warranty_paid_by: 'seller',
   remove_listing_alerts: 0, email_contract_closing: 0,
-  ayse_added_to_loop: 0, ayse_contracts_signed: 0, earnest_money_deposit: 'Not Started',
+  ayse_added_to_loop: 0, ayse_contracts_signed: 0, earnest_money_deposit: 'Not Started', earnest_money_amount: '',
   home_inspection: 'Not Started', home_inspector: '', inspection_date: '',
   whole_property_inspection: 0, radon_test: 0, wdi_inspection: 0, septic_inspection: 0,
   well_inspection: 0, sewer_inspection: 0, seller_acknowledgment: 0, abstract: 'Not Started',
@@ -1284,13 +1284,18 @@ export default function Transactions() {
           <div className="form-section">
             <h4>Pricing</h4>
             <label>Purchase Price<input type="number" value={form.purchase_price} onChange={e => f('purchase_price', e.target.value)} /></label>
-            <label>Earnest Money Status
-              <select value={form.earnest_money_deposit || 'Not Started'} onChange={e => f('earnest_money_deposit', e.target.value)}>
-                <option>Not Started</option>
-                <option>In Progress</option>
-                <option>Completed</option>
-              </select>
-            </label>
+            <div className="form-row">
+              <label>Earnest Money Amount
+                <input type="text" inputMode="decimal" placeholder="$" value={form.earnest_money_amount || ''} onChange={e => f('earnest_money_amount', e.target.value)} />
+              </label>
+              <label>Earnest Money Status
+                <select value={['Not Started', 'In Progress', 'Completed'].includes(form.earnest_money_deposit) ? form.earnest_money_deposit : 'Not Started'} onChange={e => f('earnest_money_deposit', e.target.value)}>
+                  <option>Not Started</option>
+                  <option>In Progress</option>
+                  <option>Completed</option>
+                </select>
+              </label>
+            </div>
           </div>
 
           {/* Key Dates */}

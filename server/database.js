@@ -1384,6 +1384,11 @@ export async function initDb() {
       // has_home_warranty stays as the on/off flag; this records WHO pays so the
       // buyer email says the right thing instead of always "paid by the seller".
       ['home_warranty_paid_by', "TEXT DEFAULT 'seller'"],
+      // 2026-08-12 earnest money AMOUNT — split out of earnest_money_deposit,
+      // which is (and stays) the collection STATUS. They previously shared one
+      // field, so setting the status erased the dollar amount the PA extractor
+      // had written in. Now the amount has its own home.
+      ['earnest_money_amount', 'TEXT'],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {
@@ -1393,6 +1398,13 @@ export async function initDb() {
         // for current rows: warranty off -> 'none', otherwise keep seller-paid.
         if (name === 'home_warranty_paid_by') {
           db.run("UPDATE transactions SET home_warranty_paid_by = 'none' WHERE has_home_warranty = 0")
+        }
+        // Recover any dollar amount sitting in the status field into the new amount
+        // column, then normalize the status back to a valid value so the dropdown
+        // and checklist work again.
+        if (name === 'earnest_money_amount') {
+          db.run("UPDATE transactions SET earnest_money_amount = earnest_money_deposit WHERE earnest_money_deposit LIKE '$%' OR earnest_money_deposit GLOB '[0-9]*'")
+          db.run("UPDATE transactions SET earnest_money_deposit = 'Not Started' WHERE earnest_money_deposit IS NOT NULL AND earnest_money_deposit NOT IN ('Not Started','In Progress','Completed')")
         }
       }
     }

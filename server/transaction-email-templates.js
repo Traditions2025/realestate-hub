@@ -546,7 +546,10 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.contract_date_long = fmtLongDate(transaction.contract_date)
     v.closing_date = transaction.closing_date || ''
     v.closing_date_long = fmtLongDate(transaction.closing_date)
-    v.earnest_money = transaction.earnest_money_deposit || ''
+    // Amount lives in earnest_money_amount now; fall back to a money-looking value
+    // still sitting in the old status field for rows not yet migrated.
+    v.earnest_money = transaction.earnest_money_amount
+      || (/^\$?\d/.test(transaction.earnest_money_deposit || '') ? transaction.earnest_money_deposit : '')
     // Earnest is due within 3 business days of acceptance. Prefer the stored date,
     // but fall back to contract_date + 3 business days so the email is never blank
     // on records that pre-date the auto-fill rule.
