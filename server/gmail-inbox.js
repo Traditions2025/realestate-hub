@@ -96,8 +96,10 @@ async function pollOne(m) {
         let maxUid = m.cursor, count = 0
         for await (const msg of client.fetch(`${m.cursor + 1}:*`, { uid: true, source: true, internalDate: true }, { uid: true })) {
           if (!msg.uid || msg.uid <= m.cursor) continue
-          maxUid = Math.max(maxUid, msg.uid)
+          // Cap the batch BEFORE advancing the cursor, so the message that trips
+          // the cap stays above it and gets imported on the next poll.
           if (++count > 200) break
+          maxUid = Math.max(maxUid, msg.uid)
           let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
           const fromEmail = (parsed.from?.value?.[0]?.address || '').toLowerCase()
           const c = matchClientByEmail(fromEmail)

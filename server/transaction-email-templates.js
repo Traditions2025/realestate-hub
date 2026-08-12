@@ -132,7 +132,7 @@ You can contact them directly to get scheduled, or we can help coordinate it for
 
 {{#if has_home_warranty}}
 HOME WARRANTY
-Per the contract, a 1-year home warranty is included and paid for by the seller.
+{{home_warranty_line}}
 
 {{/if}}
 UTILITIES
@@ -573,7 +573,16 @@ export function buildMergeVars(client, transaction, extra = {}) {
     // Conditional flags — used by {{#if has_insurance_contingency}}...{{/if}} blocks
     // Default to enabled if column is null (existing rows from before the migration)
     v.has_insurance_contingency = (transaction.has_insurance_contingency == null || transaction.has_insurance_contingency === 1) ? '1' : ''
-    v.has_home_warranty = (transaction.has_home_warranty == null || transaction.has_home_warranty === 1) ? '1' : ''
+    // Home warranty: payer drives both whether the section shows AND the wording.
+    const warrantyPayer = (transaction.home_warranty_paid_by || '').toLowerCase()
+    const warrantyOn = warrantyPayer
+      ? warrantyPayer !== 'none'
+      : (transaction.has_home_warranty == null || transaction.has_home_warranty === 1)
+    v.has_home_warranty = warrantyOn ? '1' : ''
+    v.home_warranty_paid_by = warrantyPayer || (warrantyOn ? 'seller' : 'none')
+    v.home_warranty_line = warrantyPayer === 'buyer'
+      ? 'Per the contract, a 1-year home warranty is included, paid for by the buyer.'
+      : 'Per the contract, a 1-year home warranty is included and paid for by the seller.'
   }
   // Recommended inspectors — pull from vendors (category = 'Home Inspector')
   // Prefer those flagged as Preferred; fall back to all home inspectors. Cap at 4.

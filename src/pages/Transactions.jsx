@@ -153,7 +153,7 @@ const emptyTx = {
   earnest_money_due_date: '', ipi_due_date: '',
   lender_name: '', lender_company: '', lender_email: '',
   dotloop_status: 'Not Submitted',
-  has_insurance_contingency: 1, has_home_warranty: 1,
+  has_insurance_contingency: 1, has_home_warranty: 1, home_warranty_paid_by: 'seller',
   remove_listing_alerts: 0, email_contract_closing: 0,
   ayse_added_to_loop: 0, ayse_contracts_signed: 0, earnest_money_deposit: 'Not Started',
   home_inspection: 'Not Started', home_inspector: '', inspection_date: '',
@@ -266,6 +266,12 @@ export default function Transactions() {
   const [extractResult, setExtractResult] = useState(null)
   const [aiConfigured, setAiConfigured] = useState(false)
   const [linkedClient, setLinkedClient] = useState(null)
+  // People roster (multiple leads/clients on one transaction)
+  const [people, setPeople] = useState([])
+  const [personSearch, setPersonSearch] = useState('')
+  const [personResults, setPersonResults] = useState([])
+  const [personOpen, setPersonOpen] = useState(false)
+  const [personRole, setPersonRole] = useState('co-buyer')
   // Email composer
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailTemplates, setEmailTemplates] = useState([])
@@ -375,6 +381,35 @@ export default function Transactions() {
     if (!cid) { setLinkedClient(null); return }
     authFetch(`/api/clients/${cid}`).then(r => r.json()).then(setLinkedClient).catch(() => setLinkedClient(null))
   }, [form.client_id])
+
+  // People roster — load whenever an existing transaction is opened.
+  const loadPeople = (id) => {
+    if (!id) { setPeople([]); return }
+    authFetch(`/api/transactions/${id}/people`).then(r => r.json()).then(rows => setPeople(Array.isArray(rows) ? rows : [])).catch(() => setPeople([]))
+  }
+  useEffect(() => { loadPeople(editing) }, [editing])
+  // Search CRM clients to add as a person (debounced).
+  useEffect(() => {
+    if (personSearch.trim().length < 2) { setPersonResults([]); return }
+    const t = setTimeout(() => {
+      const params = new URLSearchParams({ search: personSearch, limit: 20 })
+      authFetch(`/api/clients?${params}`).then(r => r.json()).then(rows => setPersonResults(Array.isArray(rows) ? rows : (rows.rows || []))).catch(() => setPersonResults([]))
+    }, 250)
+    return () => clearTimeout(t)
+  }, [personSearch])
+  const addPerson = async ({ client_id, name }) => {
+    if (!editing) { alert('Save the transaction first, then add people.'); return }
+    await authFetch(`/api/transactions/${editing}/people`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: client_id || null, name: name || null, role: personRole })
+    })
+    setPersonSearch(''); setPersonResults([]); setPersonOpen(false)
+    loadPeople(editing)
+  }
+  const removePerson = async (pid) => {
+    await authFetch(`/api/transactions/${editing}/people/${pid}`, { method: 'DELETE' })
+    loadPeople(editing)
+  }
 
   const fileToBase64 = (file) => new Promise((resolve, reject) => {
     const r = new FileReader()
@@ -709,6 +744,17 @@ export default function Transactions() {
 
   const f = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
+
+  // Finance type change: Cash means no loan -> no mortgage/financing contingency
+  // and no appraisal, so clear both. (Matches the PA-extraction rule.)
+  const setFinance = (v) => setForm(prev => {
+    const next = { ...prev, type_of_finance: v }
+    if (v === 'Cash') { next.mortgage_contingency_date = ''; next.appraisal_contingency_date = '' }
+    return next
+  })
+  // (Mortgage & appraisal contingency inputs already lock to the same date below.)
+  // Home warranty payer drives the on/off flag the email templates read.
+  const setWarrantyPayer = (v) => setForm(prev => ({ ...prev, home_warranty_paid_by: v, has_home_warranty: v === 'none' ? 0 : 1 }))
   const toggleMarketing = (key) => setForm(prev => {
     const mt = { ...(prev.marketing_tasks || {}) }
     mt[key] = { done: !(mt[key] && mt[key].done) }
@@ -1063,7 +1109,7 @@ export default function Transactions() {
                 <option value="Listing Agent">Listing Agent</option>
                 <option value="Dual Agent">Dual Agent</option>
               </select></label>
-              <label>Type of Finance<select value={form.type_of_finance} onChange={e => f('type_of_finance', e.target.value)}>
+              <label>Type of Finance<select value={form.type_of_finance} onChange={e => setFinance(e.target.value)}>
                 <option value="">Select...</option>
                 {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
               </select></label>
@@ -1155,6 +1201,62 @@ export default function Transactions() {
                 </div>
               )}
             </label>
+
+            {/* Additional people on this deal (e.g. two family members buying together) */}
+            <div style={{ marginTop: 12 }}>
+              <label style={{ display: 'block' }}>Additional people on this transaction</label>
+              {!editing ? (
+                <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>Save the transaction first, then add co-buyers or co-sellers here.</p>
+              ) : (
+                <>
+                  {people.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '6px 0' }}>
+                      {people.map(p => (
+                        <div key={p.id} className="linked-client-card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px' }}>
+                          <span style={{ fontWeight: 600 }}>{p.name || 'Unnamed'}</span>
+                          <span className="email-status-tag">{p.role}</span>
+                          {p.email && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>✉ {p.email}</span>}
+                          {p.phone && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>☎ {p.phone}</span>}
+                          <button type="button" className="btn-sm btn-danger" style={{ marginLeft: 'auto' }} onClick={() => removePerson(p.id)}>Remove</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginTop: 6 }}>
+                    <select value={personRole} onChange={e => setPersonRole(e.target.value)} style={{ maxWidth: 130 }}>
+                      <option value="co-buyer">Co-buyer</option>
+                      <option value="buyer">Buyer</option>
+                      <option value="co-seller">Co-seller</option>
+                      <option value="seller">Seller</option>
+                      <option value="other">Other</option>
+                    </select>
+                    <div style={{ position: 'relative', flex: 1 }}>
+                      <input
+                        type="text"
+                        placeholder="Search CRM by name/email, or type a name…"
+                        value={personSearch}
+                        onChange={e => { setPersonSearch(e.target.value); setPersonOpen(true) }}
+                        onFocus={() => setPersonOpen(true)}
+                        onBlur={() => setTimeout(() => setPersonOpen(false), 200)}
+                        onKeyDown={e => { if (e.key === 'Enter' && personSearch.trim()) { e.preventDefault(); addPerson({ name: personSearch.trim() }) } }}
+                      />
+                      {personOpen && personResults.length > 0 && (
+                        <div className="addr-suggestions">
+                          {personResults.map(c => (
+                            <div key={c.id} className="addr-suggestion" onMouseDown={() => addPerson({ client_id: c.id })}>
+                              <div className="addr-suggestion-line1">{c.first_name} {c.last_name}</div>
+                              <div className="addr-suggestion-line2">{c.email || 'no email'}{c.phone ? ' · ' + c.phone : ''}{c.city ? ' · ' + c.city : ''}</div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button type="button" className="btn btn-sm btn-secondary" disabled={!personSearch.trim()} onClick={() => addPerson({ name: personSearch.trim() })}>Add</button>
+                  </div>
+                  <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>Pick a CRM match to link the lead, or type a name and click Add for someone not in the CRM.</p>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Lender */}
@@ -1166,7 +1268,7 @@ export default function Transactions() {
             </div>
             <label>Lender Email<input type="email" value={form.lender_email} onChange={e => f('lender_email', e.target.value)} placeholder="e.g. tim@cordacu.com" /></label>
             <div className="form-row">
-              <label>Type of Finance<select value={form.type_of_finance} onChange={e => f('type_of_finance', e.target.value)}>
+              <label>Type of Finance<select value={form.type_of_finance} onChange={e => setFinance(e.target.value)}>
                 <option value="">Select...</option>
                 {financeTypes.map(t => <option key={t} value={t}>{t}</option>)}
               </select></label>
@@ -1248,11 +1350,15 @@ export default function Transactions() {
                 <input type="date" value={form.ipi_due_date} onChange={e => f('ipi_due_date', e.target.value)} />
               </label>
             </div>
+            {form.type_of_finance === 'Cash' && (
+              <p className="muted" style={{margin: '0 0 8px', fontSize: 12}}>Cash purchase — no mortgage/financing contingency and no appraisal, so these are cleared.</p>
+            )}
             <div className="form-row">
               <label>Mortgage Contingency
                 <input
                   type="date"
                   value={form.mortgage_contingency_date}
+                  disabled={form.type_of_finance === 'Cash'}
                   onChange={e => {
                     const v = e.target.value
                     setForm(prev => {
@@ -1271,6 +1377,7 @@ export default function Transactions() {
                 <input
                   type="date"
                   value={form.appraisal_contingency_date}
+                  disabled={form.type_of_finance === 'Cash'}
                   onChange={e => {
                     const v = e.target.value
                     setForm(prev => {
@@ -1380,9 +1487,12 @@ export default function Transactions() {
               <input type="checkbox" checked={!!form.has_insurance_contingency} onChange={() => check('has_insurance_contingency')} />
               Insurance contingency in contract (7 business days)
             </label>
-            <label className="checkbox-label">
-              <input type="checkbox" checked={!!form.has_home_warranty} onChange={() => check('has_home_warranty')} />
-              1-year home warranty included (paid by seller)
+            <label>1-year home warranty
+              <select value={form.home_warranty_paid_by || 'seller'} onChange={e => setWarrantyPayer(e.target.value)}>
+                <option value="seller">Included — paid by seller</option>
+                <option value="buyer">Included — paid by buyer</option>
+                <option value="none">No home warranty</option>
+              </select>
             </label>
           </div>
 

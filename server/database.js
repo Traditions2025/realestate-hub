@@ -1380,15 +1380,44 @@ export async function initDb() {
       // 2026-07-10 seller prepaids / credit on under-contract deals (Yes/No + amount)
       ['seller_prepaids', 'TEXT'],
       ['seller_prepaids_amount', 'TEXT'],
+      // 2026-08-12 home warranty payer (CRAAR line 132: seller | buyer | none).
+      // has_home_warranty stays as the on/off flag; this records WHO pays so the
+      // buyer email says the right thing instead of always "paid by the seller".
+      ['home_warranty_paid_by', "TEXT DEFAULT 'seller'"],
     ]
     for (const [name, type] of newTxCols) {
       if (!cols.includes(name)) {
         db.run(`ALTER TABLE transactions ADD COLUMN ${name} ${type}`)
         console.log(`[migration] Added transactions.${name}`)
+        // Backfill warranty payer from the existing on/off flag so nothing changes
+        // for current rows: warranty off -> 'none', otherwise keep seller-paid.
+        if (name === 'home_warranty_paid_by') {
+          db.run("UPDATE transactions SET home_warranty_paid_by = 'none' WHERE has_home_warranty = 0")
+        }
       }
     }
   } catch (e) {
     console.error('[migration] transactions new cols failed:', e.message)
+  }
+
+  // People on a transaction — many-to-many so a deal can carry multiple leads
+  // (e.g. two family members buying together). The transaction keeps its single
+  // primary client_id for comms; this table is the full roster with roles.
+  try {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS transaction_people (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        transaction_id INTEGER NOT NULL,
+        client_id INTEGER,               -- null when added as a free-text name only
+        name TEXT,                       -- display name (from client or typed)
+        role TEXT DEFAULT 'buyer',       -- buyer | co-buyer | seller | co-seller | other
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+      )
+    `)
+    db.run('CREATE INDEX IF NOT EXISTS idx_txpeople_tx ON transaction_people(transaction_id)')
+  } catch (e) {
+    console.error('[migration] transaction_people failed:', e.message)
   }
 
   // Migration: add marketing_tasks column to listings if missing

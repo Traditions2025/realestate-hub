@@ -31,7 +31,7 @@ const FIELDS = [
   'financing_release', 'final_walkthrough', 'inspection_release', 'final_inspection_waiver',
   'type_of_finance',
   'earnest_money_due_date', 'ipi_due_date', 'lender_name', 'lender_company', 'lender_email', 'dotloop_status',
-  'has_insurance_contingency', 'has_home_warranty',
+  'has_insurance_contingency', 'has_home_warranty', 'home_warranty_paid_by',
   'remove_listing_alerts', 'email_contract_closing', 'ayse_added_to_loop',
   'ayse_contracts_signed', 'earnest_money_deposit', 'home_inspection', 'home_inspector',
   'inspection_date', 'whole_property_inspection', 'radon_test', 'wdi_inspection',
@@ -586,6 +586,10 @@ Extract the following fields and return ONLY a single JSON object — omit any k
   "financing_business_days": number (the loan/financing contingency period in business days — null if not written as a period),
   "appraisal_business_days": number (the appraisal contingency period in business days — null if not written as a period),
   "type_of_finance": string (one of: "Conventional", "FHA", "VA", "USDA", "Cash", "Other"),
+  "lender_name": string (the loan officer / lender contact PERSON's name),
+  "lender_company": string (the mortgage/lending COMPANY name),
+  "has_insurance_contingency": number (1 if the contract includes an insurance/hazard-insurance contingency, 0 if it is waived/none),
+  "home_warranty_paid_by": string (one of: "seller", "buyer", "none" — who pays for the 1-year home warranty; "none" if no warranty is included),
   "earnest_money_deposit": string (just the dollar amount as a string, e.g. "$2,500", or "Not Started" if not yet collected),
   "whole_property_inspection": number (1 if mentioned, 0 if not),
   "radon_test": number (1 if radon test is mentioned/required, 0 if not),
@@ -595,6 +599,12 @@ Extract the following fields and return ONLY a single JSON object — omit any k
   "sewer_inspection": number (1 if sewer/lateral inspection mentioned, 0 if not),
   "notes": string (any unusual terms, contingencies, or seller concessions worth flagging)
 }
+
+This is MOST OFTEN a CRAAR (Cedar Rapids Area Association of Realtors) purchase agreement, whose lines are numbered. On a CRAAR form, use these anchors:
+- Line 25: Lender / loan-officer name and the lending company -> lender_name (the person) and lender_company (the company).
+- Line 53: the INSURANCE box/checkbox -> has_insurance_contingency (1 if an insurance contingency box is checked/applies, 0 if it is marked waived/none).
+- Line 132: the HOME WARRANTY section with checkboxes for who pays -> home_warranty_paid_by = "seller", "buyer", or "none" (if the "no warranty" option is selected or none is checked).
+If the document is NOT a CRAAR form (different layout, no matching line numbers), do NOT rely on line numbers — read the FULL document and find the insurance contingency, the home-warranty payer, and the lender/lender-company by meaning. If you cannot determine one of these with confidence, omit that key.
 
 Rules:
 - Contingency periods: when a contingency is written as a number of days from acceptance (e.g. "within 10 business days of acceptance"), put that NUMBER in the matching *_business_days field and leave the corresponding *_contingency_date blank. Do NOT compute the deadline date yourself — the system computes it (skipping weekends and federal holidays, not counting the acceptance date). Only fill a *_contingency_date when the contract states an explicit calendar date.
@@ -655,6 +665,27 @@ router.post('/:id/extract-pdf', async (req, res) => {
       if (data.financing_business_days) data.mortgage_contingency_date = addBusinessDays(acceptance, data.financing_business_days)
       if (data.appraisal_business_days) data.appraisal_contingency_date = addBusinessDays(acceptance, data.appraisal_business_days)
     }
+
+    // Home warranty: the on/off flag is derived from who pays (line 132).
+    if (data.home_warranty_paid_by) {
+      data.home_warranty_paid_by = String(data.home_warranty_paid_by).toLowerCase()
+      data.has_home_warranty = data.home_warranty_paid_by === 'none' ? 0 : 1
+    }
+
+    // Financing rules. Prefer the freshly-read finance type, else the existing row.
+    const finance = (data.type_of_finance || db.get('SELECT type_of_finance FROM transactions WHERE id = ?', [id])?.type_of_finance || '').toLowerCase()
+    if (finance === 'cash') {
+      // Cash deal: no loan, so no mortgage/financing contingency and no appraisal.
+      // Force-clear both (applyExtracted skips empty values, so clear directly below).
+      data.mortgage_contingency_date = ''
+      data.appraisal_contingency_date = ''
+      db.run("UPDATE transactions SET mortgage_contingency_date = NULL, appraisal_contingency_date = NULL, updated_at = datetime('now') WHERE id = ?", [id])
+    } else {
+      // Default: appraisal contingency date mirrors the mortgage/financing
+      // contingency date unless the contract stated an explicit appraisal date.
+      const mortgage = data.mortgage_contingency_date
+      if (mortgage && !data.appraisal_contingency_date) data.appraisal_contingency_date = mortgage
+    }
     // A purchase agreement is uploaded for BOTH sides (we upload every PA just to
     // capture the contract details). The document does NOT tell us who we
     // represent — that's set by how the deal was created (an active listing that
@@ -673,6 +704,51 @@ router.post('/:id/extract-pdf', async (req, res) => {
 
 router.get('/_meta/ai-status', (_req, res) => {
   res.json({ configured: !!process.env.ANTHROPIC_API_KEY, model: MODEL })
+})
+
+// =====================================================================
+// PEOPLE ON A TRANSACTION — multiple leads/clients per deal (e.g. two family
+// members buying together). Additive; the transaction's primary client_id is
+// untouched. Each person can be a linked CRM client or a free-text name.
+// =====================================================================
+const PERSON_ROLES = ['buyer', 'co-buyer', 'seller', 'co-seller', 'other']
+
+router.get('/:id/people', (req, res) => {
+  const id = Number(req.params.id)
+  // Join clients so we can surface current email/phone even if the name changed.
+  const rows = db.all(`SELECT tp.id, tp.transaction_id, tp.client_id, tp.role,
+      COALESCE(tp.name, TRIM(c.first_name || ' ' || COALESCE(c.last_name, ''))) AS name,
+      c.email, c.phone, c.lead_score
+    FROM transaction_people tp
+    LEFT JOIN clients c ON c.id = tp.client_id
+    WHERE tp.transaction_id = ? ORDER BY tp.id ASC`, [id])
+  res.json(rows)
+})
+
+router.post('/:id/people', (req, res) => {
+  const id = Number(req.params.id)
+  if (!db.get('SELECT id FROM transactions WHERE id = ?', [id])) return res.status(404).json({ error: 'Transaction not found' })
+  const { client_id, name, role } = req.body || {}
+  const r = (PERSON_ROLES.includes(role) ? role : 'buyer')
+  let nm = name && String(name).trim()
+  if (!nm && client_id) {
+    const c = db.get('SELECT first_name, last_name FROM clients WHERE id = ?', [Number(client_id)])
+    if (c) nm = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+  }
+  if (!nm && !client_id) return res.status(400).json({ error: 'Provide a client or a name' })
+  // Don't add the same client twice.
+  if (client_id && db.get('SELECT id FROM transaction_people WHERE transaction_id = ? AND client_id = ?', [id, Number(client_id)])) {
+    return res.status(200).json({ duplicate: true })
+  }
+  const result = db.run('INSERT INTO transaction_people (transaction_id, client_id, name, role) VALUES (?,?,?,?)',
+    [id, client_id ? Number(client_id) : null, nm || null, r])
+  logActivity('added_person', 'transaction', id, `Added ${nm || 'person'} (${r}) to transaction`)
+  res.status(201).json({ id: result.lastInsertRowid })
+})
+
+router.delete('/:id/people/:pid', (req, res) => {
+  db.run('DELETE FROM transaction_people WHERE id = ? AND transaction_id = ?', [Number(req.params.pid), Number(req.params.id)])
+  res.json({ success: true })
 })
 
 // =====================================================================
