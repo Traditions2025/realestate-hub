@@ -670,6 +670,20 @@ router.post('/:id/extract-pdf', async (req, res) => {
       const exEarnest = db.get('SELECT earnest_money_due_date FROM transactions WHERE id = ?', [id])?.earnest_money_due_date
       if (!data.earnest_money_due_date && !exEarnest) data.earnest_money_due_date = addBusinessDays(acceptance, 3)
     }
+    // Final walkthrough = the weekday before closing (matches the form's rule).
+    // The form auto-fills this on the Closing Date field, but a PDF extraction
+    // writes closing_date server-side and bypasses that, so replicate it here.
+    const closing = data.closing_date || db.get('SELECT closing_date FROM transactions WHERE id = ?', [id])?.closing_date
+    const exWalk = db.get('SELECT final_walkthrough FROM transactions WHERE id = ?', [id])?.final_walkthrough
+    if (closing && !data.final_walkthrough && !exWalk) {
+      const p = String(closing).split('-').map(Number)
+      if (p.length === 3 && !p.some(isNaN)) {
+        const d = new Date(p[0], p[1] - 1, p[2])
+        d.setDate(d.getDate() - 1)
+        while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() - 1)
+        data.final_walkthrough = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+      }
+    }
 
     // Home warranty: the on/off flag is derived from who pays (line 132).
     if (data.home_warranty_paid_by) {
