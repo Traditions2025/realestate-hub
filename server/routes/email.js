@@ -206,8 +206,30 @@ export async function buildPropertyCardsLive(client, max = 5) {
   } catch { return buildPropertyCards(client.id, max) }
 }
 
+const fmtMoney = (v) => v ? '$' + Number(v).toLocaleString() : ''
+function priceRangeStr(min, max) {
+  if (min && max) return `${fmtMoney(min)} to ${fmtMoney(max)}`
+  if (max) return `up to ${fmtMoney(max)}`
+  if (min) return `${fmtMoney(min)}+`
+  return ''
+}
+// Primary "city of interest" from the FUB viewed-cities list (first = top), else city.
+const primaryCity = (client) => (String(client.fub_viewed_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || client.city || ''
+
 function fillTemplate(text, client) {
   if (!text) return ''
+  // Lender: client records rarely carry it, so fall back to the lender on this
+  // client's most recent transaction (populated once they're under contract).
+  let lenderName = client.lender_name || ''
+  let lenderCompany = client.lender_company || ''
+  if ((!lenderName || !lenderCompany) && client.id) {
+    try {
+      const tx = db.get(`SELECT lender_name, lender_company FROM transactions
+        WHERE client_id = ? AND (lender_name IS NOT NULL OR lender_company IS NOT NULL)
+        ORDER BY updated_at DESC LIMIT 1`, [client.id])
+      if (tx) { lenderName = lenderName || tx.lender_name || ''; lenderCompany = lenderCompany || tx.lender_company || '' }
+    } catch {}
+  }
   return text
     .replace(/\{\{first_name\}\}/g, client.first_name || 'there')
     .replace(/\{\{last_name\}\}/g, client.last_name || '')
@@ -216,6 +238,13 @@ function fillTemplate(text, client) {
     .replace(/\{\{phone\}\}/g, client.phone || '')
     .replace(/\{\{address\}\}/g, client.address || 'your home')
     .replace(/\{\{city\}\}/g, client.city || 'Cedar Rapids')
+    .replace(/\{\{state\}\}/g, client.state || '')
+    .replace(/\{\{zip\}\}/g, client.zip || '')
+    .replace(/\{\{city_of_interest\}\}/g, primaryCity(client))
+    .replace(/\{\{last_viewed_address\}\}/g, client.last_fub_activity_detail || '')
+    .replace(/\{\{search_price_range\}\}/g, priceRangeStr(client.search_price_min, client.search_price_max))
+    .replace(/\{\{lender_name\}\}/g, lenderName)
+    .replace(/\{\{lender_company\}\}/g, lenderCompany)
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
     .replace(/\{\{greeting\}\}/g, currentGreeting())
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())

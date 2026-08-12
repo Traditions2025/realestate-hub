@@ -24,12 +24,23 @@ const account = () => parse(getSetting('account_info', null), {}) || {}
 function fillMerge(text, c) {
   if (!text) return ''
   const a = account()
+  const money = (v) => v ? '$' + Number(v).toLocaleString() : ''
+  const priceRange = c.search_price_min && c.search_price_max ? `${money(c.search_price_min)} to ${money(c.search_price_max)}`
+    : c.search_price_max ? `up to ${money(c.search_price_max)}` : c.search_price_min ? `${money(c.search_price_min)}+` : ''
+  const cityOfInterest = (String(c.fub_viewed_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || c.city || ''
   return String(text)
     .replace(/\{\{first_name\}\}/g, c.first_name || 'there')
     .replace(/\{\{last_name\}\}/g, c.last_name || '')
     .replace(/\{\{full_name\}\}/g, `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'there')
     .replace(/\{\{city\}\}/g, c.city || 'Cedar Rapids')
     .replace(/\{\{address\}\}/g, c.address || 'your home')
+    .replace(/\{\{state\}\}/g, c.state || '')
+    .replace(/\{\{zip\}\}/g, c.zip || '')
+    .replace(/\{\{city_of_interest\}\}/g, cityOfInterest)
+    .replace(/\{\{last_viewed_address\}\}/g, c.last_fub_activity_detail || '')
+    .replace(/\{\{search_price_range\}\}/g, priceRange)
+    .replace(/\{\{lender_name\}\}/g, c.lender_name || '')
+    .replace(/\{\{lender_company\}\}/g, c.lender_company || '')
     .replace(/\{\{agent_name\}\}/g, c.agent_assigned || a.name || 'Matt Smith')
     .replace(/\{\{agent_phone\}\}/g, a.phone || '')
     .replace(/\{\{agent_email\}\}/g, a.email || 'matt@mattsmithteam.com')

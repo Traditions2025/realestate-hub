@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-12T23:18:00.674Z",
-  "count": 326,
+  "generated_at": "2026-08-12T23:35:00.036Z",
+  "count": 327,
   "entries": [
+    {
+      "hash": "9913972",
+      "date": "2026-08-12T18:18:36-05:00",
+      "subject": "Email composer: '+ Field' menu to insert personalization anywhere in subject + body (WYSIWYG and HTML modes), caret-preserving",
+      "title": "Email composer: '+ Field' menu to insert personalization anywhere in subject + body (WYSIWYG and HTML modes), caret-preserving",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5f49b63",
       "date": "2026-08-12T17:41:01-05:00",
