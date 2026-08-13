@@ -32,6 +32,7 @@ import templatesRouter from './routes/templates.js'
 import automationsRouter from './routes/automations.js'
 import reportingRouter from './routes/reporting.js'
 import dripsRouter from './routes/drips.js'
+import campaignMatchRouter from './routes/campaign-match.js'
 import inboxRouter from './routes/inbox.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 import followupRouter from './routes/followup.js'
@@ -312,6 +313,7 @@ async function start() {
   app.use('/api/automations', automationsRouter)
   app.use('/api/reporting', reportingRouter)
   app.use('/api/drips', dripsRouter)
+  app.use('/api/campaign-match', campaignMatchRouter)
   app.use('/api/inbox', inboxRouter)
   app.use('/api/followup', followupRouter)
   app.use('/api/track', trackingRouter)

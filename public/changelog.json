@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-13T14:25:38.774Z",
-  "count": 330,
+  "generated_at": "2026-08-13T19:48:31.163Z",
+  "count": 332,
   "entries": [
+    {
+      "hash": "e98f388",
+      "date": "2026-08-13T12:54:35-05:00",
+      "subject": "Add read-only FUB raw-person inspector endpoint (see all available fields)",
+      "title": "read-only FUB raw-person inspector endpoint (see all available fields)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "8003106",
+      "date": "2026-08-13T09:25:42-05:00",
+      "subject": "city_of_interest now = last city they viewed in FUB (freshest signal), fallback to top viewed city",
+      "title": "city_of_interest now = last city they viewed in FUB (freshest signal), fallback to top viewed city",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "93d2796",
       "date": "2026-08-13T09:16:53-05:00",

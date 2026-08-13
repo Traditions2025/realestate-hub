@@ -1420,6 +1420,14 @@ export async function initDb() {
     console.error('[migration] transactions new cols failed:', e.message)
   }
 
+  // Campaign-match enrollment tracking: record WHY + the match score when a
+  // contact is enrolled via AI Campaign Match (the "records why/when" requirement).
+  try {
+    const deCols = db.all('PRAGMA table_info(drip_enrollments)').map(r => r.name)
+    if (!deCols.includes('enroll_reason')) db.run('ALTER TABLE drip_enrollments ADD COLUMN enroll_reason TEXT')
+    if (!deCols.includes('match_score')) db.run('ALTER TABLE drip_enrollments ADD COLUMN match_score INTEGER')
+  } catch (e) { console.error('[migration] drip_enrollments campaign-match cols failed:', e.message) }
+
   // People on a transaction — many-to-many so a deal can carry multiple leads
   // (e.g. two family members buying together). The transaction keeps its single
   // primary client_id for comms; this table is the full roster with roles.
