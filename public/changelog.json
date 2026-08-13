@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-13T20:46:33.437Z",
-  "count": 333,
+  "generated_at": "2026-08-13T21:14:32.051Z",
+  "count": 334,
   "entries": [
+    {
+      "hash": "a523bb7",
+      "date": "2026-08-13T15:46:36-05:00",
+      "subject": "Campaign Match: show lead CRM status chip per recommendation; Dashboard: add 'In Drip Campaigns' + 'Website Visits (24h)' metrics",
+      "title": "Campaign Match: show lead CRM status chip per recommendation; Dashboard: add 'In Drip Campaigns' + 'Website Visits (24h)' metrics",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4259fab",
       "date": "2026-08-13T14:48:49-05:00",

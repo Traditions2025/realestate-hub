@@ -242,6 +242,28 @@ function listingInterestStr(raw, fallback) {
   return `${cities.slice(0, -1).join(', ')}, and ${cities[cities.length - 1]}`
 }
 
+// FUB "At a Glance" price point: the average price of the homes this lead has
+// actually viewed (from their FUB property-view events), rounded to the nearest
+// $10k. Far more real than the Sierra saved-search band, which is a shared default
+// (~$200k-$600k) on 99% of leads. Blank when we have no viewed-home prices.
+function fubPricePoint(clientId) {
+  if (!clientId) return ''
+  try {
+    const rows = db.all("SELECT prop_price FROM fub_activity WHERE client_id = ? AND prop_price IS NOT NULL AND prop_price != ''", [clientId])
+    const nums = rows.map(r => Number(String(r.prop_price).replace(/[^0-9.]/g, ''))).filter(n => n > 10000 && n < 20000000)
+    if (!nums.length) return ''
+    const avg = nums.reduce((a, b) => a + b, 0) / nums.length
+    return '$' + (Math.round(avg / 10000) * 10000).toLocaleString()
+  } catch { return '' }
+}
+// Suppress the Sierra saved-search band when it is the shared default so we never
+// state a budget the lead never actually chose.
+function searchPriceRange(client) {
+  const min = Number(client.search_price_min) || 0, max = Number(client.search_price_max) || 0
+  if (min === 200000 && max === 600000) return ''   // the ~99% default — not real
+  return priceRangeStr(client.search_price_min, client.search_price_max)
+}
+
 function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
@@ -269,7 +291,8 @@ function fillTemplate(text, client) {
     .replace(/\{\{city_of_interest\}\}/g, lastViewedCity(client) || primaryCity(client))
     .replace(/\{\{listing_interest\}\}/g, listingInterestStr(client.fub_viewed_cities, primaryCity(client)))
     .replace(/\{\{last_viewed_address\}\}/g, client.last_fub_activity_detail || '')
-    .replace(/\{\{search_price_range\}\}/g, priceRangeStr(client.search_price_min, client.search_price_max))
+    .replace(/\{\{search_price_range\}\}/g, searchPriceRange(client))
+    .replace(/\{\{price_point\}\}/g, fubPricePoint(client.id))
     .replace(/\{\{lender_name\}\}/g, lenderName)
     .replace(/\{\{lender_company\}\}/g, lenderCompany)
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
