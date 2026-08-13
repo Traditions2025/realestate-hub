@@ -60,6 +60,18 @@ router.get('/', (req, res) => {
     }
   }
 
+  // Engagement metrics. Guarded so a missing table never breaks the dashboard.
+  const safeCount = (sql) => { try { return db.get(sql).count } catch { return 0 } }
+  stats.engagement = {
+    // distinct leads currently moving through any active drip campaign
+    in_drips: safeCount("SELECT COUNT(DISTINCT client_id) as count FROM drip_enrollments WHERE status = 'active'"),
+    // distinct leads with a website visit in the last 24h (FUB web activity + our tracking pixel)
+    website_24h: safeCount(`SELECT COUNT(DISTINCT client_id) as count FROM (
+        SELECT client_id FROM fub_activity WHERE client_id IS NOT NULL AND occurred_at >= datetime('now','-1 day')
+        UNION
+        SELECT client_id FROM lead_activity WHERE client_id IS NOT NULL AND created_at >= datetime('now','-1 day'))`),
+  }
+
   stats.recent_activity = db.all('SELECT * FROM activity_log ORDER BY created_at DESC LIMIT 15')
   stats.upcoming_tasks = db.all("SELECT * FROM tasks WHERE status != 'done' ORDER BY CASE WHEN due_date < date('now') THEN 0 ELSE 1 END, due_date ASC LIMIT 10")
   stats.active_transactions = db.all(`SELECT t.*, c.first_name || ' ' || c.last_name as client_name

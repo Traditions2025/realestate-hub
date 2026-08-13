@@ -220,7 +220,7 @@ router.post('/:key/analyze', async (req, res) => {
     for (const c of rows) {
       const { score, factors } = campaign.score(c, ctx)
       const reason = campaign.hard(c, ctx)
-      if (reason) { if (score >= 25) notRec.push({ id: c.id, name: nameOf(c), city: c.city, reason }); continue }
+      if (reason) { if (score >= 25) notRec.push({ id: c.id, name: nameOf(c), city: c.city, status: c.status, reason }); continue }
       if (score <= 0) continue
       eligible.push({ c, score, factors })
     }
@@ -233,7 +233,7 @@ router.post('/:key/analyze', async (req, res) => {
       const match = ai ? Math.max(0, Math.min(100, Math.round(ai.match))) : score
       const group = ai?.group || (match >= 80 ? 'high' : match >= 55 ? 'possible' : 'low')
       const why = (ai?.why && String(ai.why).trim()) || factors.slice(0, 3).join(' • ') || 'Fits the campaign profile'
-      return { id: c.id, name: nameOf(c), email: c.email, city: c.city, type: c.type, match, intent: ai?.intent || null, group, why, factors }
+      return { id: c.id, name: nameOf(c), email: c.email, city: c.city, type: c.type, status: c.status, match, intent: ai?.intent || null, group, why, factors }
     }).sort((a, b) => b.match - a.match)
     const counts = {
       high: candidates.filter(x => x.group === 'high').length,

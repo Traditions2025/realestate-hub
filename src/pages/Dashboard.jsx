@@ -50,7 +50,7 @@ export default function Dashboard() {
   if (!data && loading) return <div className="page-loading">Loading dashboard...</div>
   if (!data) return <div className="page-loading">Failed to load dashboard</div>
 
-  const { transactions, clients, tasks, projects, pre_listings, marketing, social_media, vendors, partners, calendar } = data
+  const { transactions, clients, tasks, projects, pre_listings, marketing, social_media, vendors, partners, calendar, engagement } = data
 
   const fmt = (n) => n ? `$${Number(n).toLocaleString()}` : '$0'
 
@@ -114,6 +114,14 @@ export default function Dashboard() {
         <div className="stat-card stat-indigo">
           <div className="stat-number">{pre_listings.total}</div>
           <div className="stat-label">Pre-Listings</div>
+        </div>
+        <div className="stat-card stat-purple">
+          <div className="stat-number">{engagement?.in_drips ?? 0}</div>
+          <div className="stat-label">In Drip Campaigns</div>
+        </div>
+        <div className="stat-card stat-teal">
+          <div className="stat-number">{engagement?.website_24h ?? 0}</div>
+          <div className="stat-label">Website Visits (24h)</div>
         </div>
       </div>
 

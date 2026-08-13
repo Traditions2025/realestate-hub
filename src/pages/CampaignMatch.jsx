@@ -8,6 +8,20 @@ const GROUP_META = {
   low: { label: 'Low', color: '#6b7280', bg: 'rgba(107,114,128,.12)' },
 }
 
+// Color-code the lead's CRM status (Sierra lifecycle: prime, active, watch, past client, potential, junk…)
+function StatusChip({ status }) {
+  if (!status) return null
+  const s = String(status).toLowerCase()
+  let color = '#6b7280', bg = 'rgba(107,114,128,.12)'
+  if (/prime/.test(s)) { color = '#7c3aed'; bg = 'rgba(124,58,237,.12)' }
+  else if (/active/.test(s)) { color = '#16a34a'; bg = 'rgba(22,163,74,.12)' }
+  else if (/watch/.test(s)) { color = '#d97706'; bg = 'rgba(217,119,6,.12)' }
+  else if (/past|client|closed/.test(s)) { color = '#2563eb'; bg = 'rgba(37,99,235,.12)' }
+  else if (/junk|donotcontact|blocked|trash|archive/.test(s)) { color = '#dc2626'; bg = 'rgba(220,38,38,.12)' }
+  const label = String(status).replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
+  return <span style={{ fontSize: 11, fontWeight: 600, color, background: bg, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>{label}</span>
+}
+
 export default function CampaignMatch() {
   const [campaigns, setCampaigns] = useState([])
   const [key, setKey] = useState('')
@@ -130,14 +144,15 @@ export default function CampaignMatch() {
           {/* table */}
           <div className="table-container">
             <table className="data-table">
-              <thead><tr><th style={{ width: 34 }}></th><th>Contact</th><th style={{ width: 90 }}>Match</th><th style={{ width: 90 }}>Intent</th><th>Why the Hub recommends them</th></tr></thead>
+              <thead><tr><th style={{ width: 34 }}></th><th>Contact</th><th style={{ width: 110 }}>Status</th><th style={{ width: 90 }}>Match</th><th style={{ width: 90 }}>Intent</th><th>Why the Hub recommends them</th></tr></thead>
               <tbody>
-                {shown.length === 0 ? <tr><td colSpan="5" className="empty-state">No contacts in this group.</td></tr> : shown.map(row => {
+                {shown.length === 0 ? <tr><td colSpan="6" className="empty-state">No contacts in this group.</td></tr> : shown.map(row => {
                   const g = GROUP_META[row.group] || GROUP_META.low
                   return (
                     <tr key={row.id}>
                       <td><input type="checkbox" checked={sel.has(row.id)} onChange={() => toggle(row.id)} /></td>
                       <td><div style={{ fontWeight: 600 }}>{row.name}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{row.city || ''}{row.city && row.type ? ' · ' : ''}{row.type || ''}</div></td>
+                      <td><StatusChip status={row.status} /></td>
                       <td><span style={{ fontWeight: 700, color: g.color, background: g.bg, borderRadius: 12, padding: '2px 9px', fontSize: 13 }}>{row.match}%</span></td>
                       <td>{row.intent ? <span style={{ fontSize: 12 }}>{row.intent}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                       <td style={{ fontSize: 13 }}>{row.why}</td>

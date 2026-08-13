@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-13T19:48:31.163Z",
-  "count": 332,
+  "generated_at": "2026-08-13T20:46:33.437Z",
+  "count": 333,
   "entries": [
+    {
+      "hash": "4259fab",
+      "date": "2026-08-13T14:48:49-05:00",
+      "subject": "AI Campaign Match (Phase 1): hybrid hard-rules + campaign-specific scoring + AI interpretation",
+      "title": "AI Campaign Match (Phase 1): hybrid hard-rules + campaign-specific scoring + AI interpretation",
+      "body": "- server/routes/campaign-match.js: 6 campaign profiles (cold re-engagement, seller motivation, home value, first-time buyer, downsizing, past client) with hard exclusions, deterministic candidate scoring, and batched AI scoring (match %, intent, one-sentence why, confidence group)\n- Endpoints: GET /campaigns, POST /:key/analyze, /:key/preflight (pre-enroll warnings), /:key/enroll (records why + match on the drip enrollment)\n- drip_enrollments: enroll_reason + match_score columns\n- New 'AI Campaign Match' page: analyze -> High/Possible/Low counts + Not-Recommended (with reasons) -> filter/select -> Enroll Selected with quality-check warnings\n- Architected as the base for a Next Best Action engine (Lead->Campaign, Opportunities dashboard next)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e98f388",
       "date": "2026-08-13T12:54:35-05:00",
