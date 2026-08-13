@@ -569,6 +569,18 @@ router.post('/:id/enrich-free', async (req, res) => {
   res.json(out)
 })
 
+// Inspect the raw FUB person record (all fields) — used to see what data is
+// available to pull. Read-only.
+router.get('/:id/fub-raw', async (req, res) => {
+  const c = db.get('SELECT fub_person_id FROM clients WHERE id = ?', [Number(req.params.id)])
+  if (!c || !c.fub_person_id) return res.status(404).json({ error: 'client not linked to FUB' })
+  if (!fubConfigured()) return res.status(400).json({ error: 'FUB not configured' })
+  try {
+    const person = await fubGet(`/people/${c.fub_person_id}`, { fields: 'allFields' })
+    res.json(person)
+  } catch (e) { res.status(500).json({ error: String(e.message || e) }) }
+})
+
 // ---- Bulk FUB enrichment (free) ----
 // Pulls FUB social profiles for every FUB-linked lead and saves them. FUB API
 // only, rate-limited, resumable (skips already-enriched). Runs in the background.
