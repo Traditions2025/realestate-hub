@@ -297,6 +297,9 @@ function fillTemplate(text, client) {
     .replace(/\{\{last_viewed_address\}\}/g, client.last_fub_activity_detail || '')
     .replace(/\{\{search_price_range\}\}/g, searchPriceRange(client))
     .replace(/\{\{price_point\}\}/g, fubPricePoint(client))
+    // Self-framing price clause: reads naturally when present, vanishes when the
+    // lead has no FUB price (so a sentence using it works for everyone).
+    .replace(/\{\{price_clause\}\}/g, fubPricePoint(client) ? ` in the ${fubPricePoint(client)} range` : '')
     .replace(/\{\{lender_name\}\}/g, lenderName)
     .replace(/\{\{lender_company\}\}/g, lenderCompany)
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')

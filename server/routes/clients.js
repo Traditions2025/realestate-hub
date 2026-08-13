@@ -612,7 +612,7 @@ async function fubAvgViewedPrice(personId) {
 router.post('/:id/enrich-price', async (req, res) => {
   const c = db.get('SELECT id, fub_person_id FROM clients WHERE id = ?', [Number(req.params.id)])
   if (!c) return res.status(404).json({ error: 'Client not found' })
-  const pp = await fubAvgViewedPrice(c.fub_person_id)
+  const { price_point: pp } = await fubPersonInfo(c.fub_person_id)
   db.run('UPDATE clients SET fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [pp || null, new Date().toISOString(), c.id])
   res.json({ id: c.id, price_point: pp })
 })
@@ -630,7 +630,7 @@ router.post('/enrich-fub-price-bulk', (req, res) => {
   res.json({ started: true, total: rows.length })
   ;(async () => {
     for (const row of rows) {
-      try { const pp = await fubAvgViewedPrice(row.fub_person_id); db.run('UPDATE clients SET fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [pp || null, new Date().toISOString(), row.id]); if (pp) _fubPrice.found++ }
+      try { const { price_point: pp } = await fubPersonInfo(row.fub_person_id); db.run('UPDATE clients SET fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [pp || null, new Date().toISOString(), row.id]); if (pp) _fubPrice.found++ }
       catch (e) { _fubPrice.error = String(e.message || e) }
       _fubPrice.done++
       await new Promise(r => setTimeout(r, 160))
@@ -648,19 +648,25 @@ function toIsoDate(v) {
   if (isNaN(t)) return null
   return new Date(t).toISOString().slice(0, 10)
 }
-async function fubRegisterDate(personId) {
-  if (!personId || !fubConfigured()) return null
+const fmtPrice = (v) => { const n = Number(String(v == null ? '' : v).replace(/[^0-9.]/g, '')); return (n > 10000 && n < 20000000) ? '$' + Math.round(n).toLocaleString() : '' }
+// One person fetch → both the original register date AND the FUB price (their
+// stated budget, else the At-a-Glance average). ~50% of engaged leads carry a price.
+async function fubPersonInfo(personId) {
+  if (!personId || !fubConfigured()) return { register_date: null, price_point: '' }
   try {
-    const p = await fubGet(`/people/${personId}`, { fields: 'name,created,customRegTime' })
-    return toIsoDate(p.customRegTime) || toIsoDate(p.created) || null
-  } catch { return null }
+    const p = await fubGet(`/people/${personId}`, { fields: 'name,created,customRegTime,price,customAvePricePoint' })
+    return {
+      register_date: toIsoDate(p.customRegTime) || toIsoDate(p.created) || null,
+      price_point: fmtPrice(p.price) || fmtPrice(p.customAvePricePoint) || '',
+    }
+  } catch { return { register_date: null, price_point: '' } }
 }
 router.post('/:id/enrich-register', async (req, res) => {
   const c = db.get('SELECT id, fub_person_id FROM clients WHERE id = ?', [Number(req.params.id)])
   if (!c) return res.status(404).json({ error: 'Client not found' })
-  const rd = await fubRegisterDate(c.fub_person_id)
-  db.run('UPDATE clients SET register_date = ? WHERE id = ?', [rd, c.id])
-  res.json({ id: c.id, register_date: rd })
+  const info = await fubPersonInfo(c.fub_person_id)
+  db.run('UPDATE clients SET register_date = ?, fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [info.register_date, info.price_point || null, new Date().toISOString(), c.id])
+  res.json({ id: c.id, ...info })
 })
 let _fubReg = { running: false, total: 0, done: 0, found: 0, started: null, finished: null, error: null }
 router.get('/enrich-fub-register-bulk/status', (_req, res) => res.json(_fubReg))
@@ -673,8 +679,11 @@ router.post('/enrich-fub-register-bulk', (req, res) => {
   res.json({ started: true, total: rows.length })
   ;(async () => {
     for (const row of rows) {
-      try { const rd = await fubRegisterDate(row.fub_person_id); if (rd) { db.run('UPDATE clients SET register_date = ? WHERE id = ?', [rd, row.id]); _fubReg.found++ } else db.run('UPDATE clients SET register_date = ? WHERE id = ?', ['', row.id]) }
-      catch (e) { _fubReg.error = String(e.message || e) }
+      try {
+        const info = await fubPersonInfo(row.fub_person_id)
+        db.run('UPDATE clients SET register_date = ?, fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [info.register_date || '', info.price_point || null, new Date().toISOString(), row.id])
+        if (info.register_date) _fubReg.found++
+      } catch (e) { _fubReg.error = String(e.message || e) }
       _fubReg.done++
       await new Promise(r => setTimeout(r, 150))
     }
