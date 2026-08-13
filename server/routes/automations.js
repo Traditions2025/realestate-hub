@@ -27,7 +27,10 @@ function fillMerge(text, c) {
   const money = (v) => v ? '$' + Number(v).toLocaleString() : ''
   const priceRange = c.search_price_min && c.search_price_max ? `${money(c.search_price_min)} to ${money(c.search_price_max)}`
     : c.search_price_max ? `up to ${money(c.search_price_max)}` : c.search_price_min ? `${money(c.search_price_min)}+` : ''
-  const cityOfInterest = (String(c.fub_viewed_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || c.city || ''
+  const lvParts = String(c.last_fub_activity_detail || '').split(',').map(s => s.trim()).filter(Boolean)
+  const lvCity = lvParts.length ? lvParts[lvParts.length - 1] : ''
+  const cityOfInterest = ((lvCity && !/\d/.test(lvCity) && lvCity.length <= 40) ? lvCity : '')
+    || (String(c.fub_viewed_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || c.city || ''
   const STREETISH = /\b(road|rd|st|street|ave|avenue|dr|drive|lane|ln|ct|court|blvd|way|cir|circle|pl|place|ter|terrace|hwy|highway|pkwy)\b/i
   const liSeen = new Set()
   const liCities = String(c.fub_viewed_cities || '').split(',').map(s => s.trim())
