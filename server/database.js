@@ -1297,6 +1297,10 @@ export async function initDb() {
       ['employer', 'TEXT'],
       ['enriched_at', 'TEXT'],
       ['enrichment_source', 'TEXT'],
+      // FUB "At a Glance" price: avg price of the homes this lead viewed, computed
+      // from their FUB events and stored so {{price_point}} is instant per send.
+      ['fub_price_point', 'TEXT'],
+      ['fub_price_enriched_at', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {

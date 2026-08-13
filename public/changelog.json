@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-13T21:14:32.051Z",
-  "count": 334,
+  "generated_at": "2026-08-13T21:18:34.106Z",
+  "count": 335,
   "entries": [
+    {
+      "hash": "53a8a5c",
+      "date": "2026-08-13T16:14:34-05:00",
+      "subject": "Merge fields: add {{price_point}} = avg price of homes the lead viewed in FUB (rounded); suppress the Sierra default 200k/600k range so it never states a fake budget",
+      "title": "Merge fields: add {{price_point}} = avg price of homes the lead viewed in FUB (rounded); suppress the Sierra default 200k/600k range so it never states a fake budget",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a523bb7",
       "date": "2026-08-13T15:46:36-05:00",

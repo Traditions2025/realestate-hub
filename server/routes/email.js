@@ -246,7 +246,11 @@ function listingInterestStr(raw, fallback) {
 // actually viewed (from their FUB property-view events), rounded to the nearest
 // $10k. Far more real than the Sierra saved-search band, which is a shared default
 // (~$200k-$600k) on 99% of leads. Blank when we have no viewed-home prices.
-function fubPricePoint(clientId) {
+function fubPricePoint(client) {
+  // Prefer the stored FUB At-a-Glance value (works for cold leads); fall back to
+  // averaging any locally-synced recent property views.
+  if (client && client.fub_price_point) return client.fub_price_point
+  const clientId = client && client.id
   if (!clientId) return ''
   try {
     const rows = db.all("SELECT prop_price FROM fub_activity WHERE client_id = ? AND prop_price IS NOT NULL AND prop_price != ''", [clientId])
@@ -292,7 +296,7 @@ function fillTemplate(text, client) {
     .replace(/\{\{listing_interest\}\}/g, listingInterestStr(client.fub_viewed_cities, primaryCity(client)))
     .replace(/\{\{last_viewed_address\}\}/g, client.last_fub_activity_detail || '')
     .replace(/\{\{search_price_range\}\}/g, searchPriceRange(client))
-    .replace(/\{\{price_point\}\}/g, fubPricePoint(client.id))
+    .replace(/\{\{price_point\}\}/g, fubPricePoint(client))
     .replace(/\{\{lender_name\}\}/g, lenderName)
     .replace(/\{\{lender_company\}\}/g, lenderCompany)
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')

@@ -581,6 +581,55 @@ router.get('/:id/fub-raw', async (req, res) => {
   } catch (e) { res.status(500).json({ error: String(e.message || e) }) }
 })
 
+// FUB "At a Glance" price point: fetch this lead's FUB events and average the
+// price of the homes they actually viewed (rounded to the nearest $10k). This is
+// the number the agent sees in FUB's At-a-Glance widget, and it works for cold
+// leads whose old views aren't in our local fub_activity table.
+async function fubAvgViewedPrice(personId) {
+  if (!personId || !fubConfigured()) return ''
+  try {
+    const data = await fubGet('/events', { personId, limit: 100, sort: '-created' })
+    const events = data?.events || []
+    const nums = events.map(e => e && e.property && e.property.price)
+      .map(p => Number(String(p == null ? '' : p).replace(/[^0-9.]/g, '')))
+      .filter(n => n > 10000 && n < 20000000)
+    if (!nums.length) return ''
+    const avg = nums.reduce((a, b) => a + b, 0) / nums.length
+    return '$' + (Math.round(avg / 10000) * 10000).toLocaleString()
+  } catch { return '' }
+}
+
+// On-demand single-lead price-point pull.
+router.post('/:id/enrich-price', async (req, res) => {
+  const c = db.get('SELECT id, fub_person_id FROM clients WHERE id = ?', [Number(req.params.id)])
+  if (!c) return res.status(404).json({ error: 'Client not found' })
+  const pp = await fubAvgViewedPrice(c.fub_person_id)
+  db.run('UPDATE clients SET fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [pp || null, new Date().toISOString(), c.id])
+  res.json({ id: c.id, price_point: pp })
+})
+
+// Bulk price-point pull (background, resumable, rate-limited) — same pattern as
+// the social pull. Fills fub_price_point for every FUB-linked lead not yet done.
+let _fubPrice = { running: false, total: 0, done: 0, found: 0, started: null, finished: null, error: null }
+router.get('/enrich-fub-price-bulk/status', (_req, res) => res.json(_fubPrice))
+router.post('/enrich-fub-price-bulk', (req, res) => {
+  if (_fubPrice.running) return res.json({ already_running: true, ..._fubPrice })
+  if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss is not connected' })
+  const redo = req.body && req.body.redo
+  const rows = db.all(`SELECT id, fub_person_id FROM clients WHERE fub_person_id IS NOT NULL ${redo ? '' : 'AND fub_price_enriched_at IS NULL'} ORDER BY id`)
+  _fubPrice = { running: true, total: rows.length, done: 0, found: 0, started: new Date().toISOString(), finished: null, error: null }
+  res.json({ started: true, total: rows.length })
+  ;(async () => {
+    for (const row of rows) {
+      try { const pp = await fubAvgViewedPrice(row.fub_person_id); db.run('UPDATE clients SET fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [pp || null, new Date().toISOString(), row.id]); if (pp) _fubPrice.found++ }
+      catch (e) { _fubPrice.error = String(e.message || e) }
+      _fubPrice.done++
+      await new Promise(r => setTimeout(r, 160))
+    }
+    _fubPrice.running = false; _fubPrice.finished = new Date().toISOString()
+  })()
+})
+
 // ---- Bulk FUB enrichment (free) ----
 // Pulls FUB social profiles for every FUB-linked lead and saves them. FUB API
 // only, rate-limited, resumable (skips already-enriched). Runs in the background.
