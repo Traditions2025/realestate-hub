@@ -587,16 +587,25 @@ router.get('/:id/fub-raw', async (req, res) => {
 // leads whose old views aren't in our local fub_activity table.
 async function fubAvgViewedPrice(personId) {
   if (!personId || !fubConfigured()) return ''
+  const nums = []
   try {
-    const data = await fubGet('/events', { personId, limit: 100, sort: '-created' })
-    const events = data?.events || []
-    const nums = events.map(e => e && e.property && e.property.price)
-      .map(p => Number(String(p == null ? '' : p).replace(/[^0-9.]/g, '')))
-      .filter(n => n > 10000 && n < 20000000)
-    if (!nums.length) return ''
-    const avg = nums.reduce((a, b) => a + b, 0) / nums.length
-    return '$' + (Math.round(avg / 10000) * 10000).toLocaleString()
-  } catch { return '' }
+    // Page a few levels deep so a cold lead's older property views (which sit
+    // beneath their newer non-property events) are still captured. Stop early
+    // once we have enough priced views.
+    for (let offset = 0; offset < 500; offset += 100) {
+      const data = await fubGet('/events', { personId, limit: 100, offset, sort: '-created' })
+      const events = data?.events || []
+      for (const e of events) {
+        const p = e && e.property && e.property.price
+        const n = Number(String(p == null ? '' : p).replace(/[^0-9.]/g, ''))
+        if (n > 10000 && n < 20000000) nums.push(n)
+      }
+      if (events.length < 100 || nums.length >= 25) break
+    }
+  } catch { /* partial is fine */ }
+  if (!nums.length) return ''
+  const avg = nums.reduce((a, b) => a + b, 0) / nums.length
+  return '$' + (Math.round(avg / 10000) * 10000).toLocaleString()
 }
 
 // On-demand single-lead price-point pull.
