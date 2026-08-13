@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-13T21:18:34.106Z",
-  "count": 335,
+  "generated_at": "2026-08-13T21:27:11.242Z",
+  "count": 337,
   "entries": [
+    {
+      "hash": "b64faa9",
+      "date": "2026-08-13T16:21:17-05:00",
+      "subject": "FUB price point: page deeper (up to 500 events) so cold leads' older property views are captured",
+      "title": "FUB price point: page deeper (up to 500 events) so cold leads' older property views are captured",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d04fd36",
+      "date": "2026-08-13T16:18:36-05:00",
+      "subject": "FUB price point: fetch avg viewed-home price from FUB events per lead (works for cold leads); stored on client, single + bulk endpoints; {{price_point}} reads stored value first",
+      "title": "FUB price point: fetch avg viewed-home price from FUB events per lead (works for cold leads); stored on client, single + bulk endpoints; {{price_point}} reads stored value first",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "53a8a5c",
       "date": "2026-08-13T16:14:34-05:00",

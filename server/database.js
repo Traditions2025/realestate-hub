@@ -1301,6 +1301,9 @@ export async function initDb() {
       // from their FUB events and stored so {{price_point}} is instant per send.
       ['fub_price_point', 'TEXT'],
       ['fub_price_enriched_at', 'TEXT'],
+      // Original lead registration date, recovered from FUB (the Sierra sync lost
+      // it — Sierra only carries the date it first imported the lead last year).
+      ['register_date', 'TEXT'],
     ]
     for (const [name, type] of newCols) {
       if (!cols.includes(name)) {

@@ -2532,6 +2532,7 @@ export default function Clients() {
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
+                {detail.register_date && <p><strong>Registered:</strong> {new Date(detail.register_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(from FUB)</span></p>}
                 {detail.marketing_email_opt_out ? <p style={{color: '#b45309'}}><strong>Email Opt-Out:</strong> Tagged (still emailable — note many of these are only property-alert unsubscribes)</p> : null}
                 {!detail.marketing_email_opt_out && detail.ealert_opt_out ? <p style={{color: '#92400e'}}><strong>Property Alerts:</strong> Unsubscribed (email is still fine)</p> : null}
                 {detail.text_opt_out ? <p style={{color: '#ef4444'}}><strong>Text Opt-Out:</strong> Yes</p> : null}

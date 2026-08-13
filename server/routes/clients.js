@@ -639,6 +639,49 @@ router.post('/enrich-fub-price-bulk', (req, res) => {
   })()
 })
 
+// Original registration date, recovered from FUB. FUB keeps the true sign-up
+// time in a custom field (customRegTime, e.g. "Aug 24, 2019 02:41:55 AM") that
+// predates our Sierra import; fall back to FUB's own person `created` date.
+function toIsoDate(v) {
+  if (!v) return null
+  const t = Date.parse(String(v))
+  if (isNaN(t)) return null
+  return new Date(t).toISOString().slice(0, 10)
+}
+async function fubRegisterDate(personId) {
+  if (!personId || !fubConfigured()) return null
+  try {
+    const p = await fubGet(`/people/${personId}`, { fields: 'name,created,customRegTime' })
+    return toIsoDate(p.customRegTime) || toIsoDate(p.created) || null
+  } catch { return null }
+}
+router.post('/:id/enrich-register', async (req, res) => {
+  const c = db.get('SELECT id, fub_person_id FROM clients WHERE id = ?', [Number(req.params.id)])
+  if (!c) return res.status(404).json({ error: 'Client not found' })
+  const rd = await fubRegisterDate(c.fub_person_id)
+  db.run('UPDATE clients SET register_date = ? WHERE id = ?', [rd, c.id])
+  res.json({ id: c.id, register_date: rd })
+})
+let _fubReg = { running: false, total: 0, done: 0, found: 0, started: null, finished: null, error: null }
+router.get('/enrich-fub-register-bulk/status', (_req, res) => res.json(_fubReg))
+router.post('/enrich-fub-register-bulk', (req, res) => {
+  if (_fubReg.running) return res.json({ already_running: true, ..._fubReg })
+  if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss is not connected' })
+  const redo = req.body && req.body.redo
+  const rows = db.all(`SELECT id, fub_person_id FROM clients WHERE fub_person_id IS NOT NULL ${redo ? '' : 'AND register_date IS NULL'} ORDER BY id`)
+  _fubReg = { running: true, total: rows.length, done: 0, found: 0, started: new Date().toISOString(), finished: null, error: null }
+  res.json({ started: true, total: rows.length })
+  ;(async () => {
+    for (const row of rows) {
+      try { const rd = await fubRegisterDate(row.fub_person_id); if (rd) { db.run('UPDATE clients SET register_date = ? WHERE id = ?', [rd, row.id]); _fubReg.found++ } else db.run('UPDATE clients SET register_date = ? WHERE id = ?', ['', row.id]) }
+      catch (e) { _fubReg.error = String(e.message || e) }
+      _fubReg.done++
+      await new Promise(r => setTimeout(r, 150))
+    }
+    _fubReg.running = false; _fubReg.finished = new Date().toISOString()
+  })()
+})
+
 // ---- Bulk FUB enrichment (free) ----
 // Pulls FUB social profiles for every FUB-linked lead and saves them. FUB API
 // only, rate-limited, resumable (skips already-enriched). Runs in the background.
