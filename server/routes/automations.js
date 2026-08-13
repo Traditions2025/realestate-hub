@@ -28,6 +28,16 @@ function fillMerge(text, c) {
   const priceRange = c.search_price_min && c.search_price_max ? `${money(c.search_price_min)} to ${money(c.search_price_max)}`
     : c.search_price_max ? `up to ${money(c.search_price_max)}` : c.search_price_min ? `${money(c.search_price_min)}+` : ''
   const cityOfInterest = (String(c.fub_viewed_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || c.city || ''
+  const STREETISH = /\b(road|rd|st|street|ave|avenue|dr|drive|lane|ln|ct|court|blvd|way|cir|circle|pl|place|ter|terrace|hwy|highway|pkwy)\b/i
+  const liSeen = new Set()
+  const liCities = String(c.fub_viewed_cities || '').split(',').map(s => s.trim())
+    .filter(s => s && !/\d/.test(s) && !STREETISH.test(s))
+    .filter(s => { const k = s.toLowerCase(); if (liSeen.has(k)) return false; liSeen.add(k); return true })
+    .slice(0, 3)
+  const listingInterest = !liCities.length ? cityOfInterest
+    : liCities.length === 1 ? liCities[0]
+    : liCities.length === 2 ? `${liCities[0]} and ${liCities[1]}`
+    : `${liCities.slice(0, -1).join(', ')}, and ${liCities[liCities.length - 1]}`
   return String(text)
     .replace(/\{\{first_name\}\}/g, c.first_name || 'there')
     .replace(/\{\{last_name\}\}/g, c.last_name || '')
@@ -37,7 +47,7 @@ function fillMerge(text, c) {
     .replace(/\{\{state\}\}/g, c.state || '')
     .replace(/\{\{zip\}\}/g, c.zip || '')
     .replace(/\{\{city_of_interest\}\}/g, cityOfInterest)
-    .replace(/\{\{listing_interest\}\}/g, c.fub_viewed_cities || cityOfInterest)
+    .replace(/\{\{listing_interest\}\}/g, listingInterest)
     .replace(/\{\{last_viewed_address\}\}/g, c.last_fub_activity_detail || '')
     .replace(/\{\{search_price_range\}\}/g, priceRange)
     .replace(/\{\{lender_name\}\}/g, c.lender_name || '')

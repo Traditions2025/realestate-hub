@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-12T23:42:58.576Z",
-  "count": 328,
+  "generated_at": "2026-08-13T14:16:47.459Z",
+  "count": 329,
   "entries": [
+    {
+      "hash": "d37ca70",
+      "date": "2026-08-12T18:43:01-05:00",
+      "subject": "Add {{listing_interest}} merge field sourced from FUB listing activity (viewed cities)",
+      "title": "{{listing_interest}} merge field sourced from FUB listing activity (viewed cities)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "34223d5",
       "date": "2026-08-12T18:35:26-05:00",

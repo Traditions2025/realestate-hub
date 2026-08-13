@@ -215,6 +215,20 @@ function priceRangeStr(min, max) {
 }
 // Primary "city of interest" from the FUB viewed-cities list (first = top), else city.
 const primaryCity = (client) => (String(client.fub_viewed_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || client.city || ''
+// Clean the FUB viewed-cities list into a short, natural phrase: drop street-ish
+// noise ("… Road/St/Ave …") and duplicates, keep the top 3, join with "and".
+const STREETISH = /\b(road|rd|st|street|ave|avenue|dr|drive|lane|ln|ct|court|blvd|way|cir|circle|pl|place|ter|terrace|hwy|highway|pkwy)\b/i
+function listingInterestStr(raw, fallback) {
+  const seen = new Set()
+  const cities = String(raw || '').split(',').map(s => s.trim())
+    .filter(s => s && !/\d/.test(s) && !STREETISH.test(s))
+    .filter(s => { const k = s.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true })
+    .slice(0, 3)
+  if (!cities.length) return fallback || ''
+  if (cities.length === 1) return cities[0]
+  if (cities.length === 2) return `${cities[0]} and ${cities[1]}`
+  return `${cities.slice(0, -1).join(', ')}, and ${cities[cities.length - 1]}`
+}
 
 function fillTemplate(text, client) {
   if (!text) return ''
@@ -241,7 +255,7 @@ function fillTemplate(text, client) {
     .replace(/\{\{state\}\}/g, client.state || '')
     .replace(/\{\{zip\}\}/g, client.zip || '')
     .replace(/\{\{city_of_interest\}\}/g, primaryCity(client))
-    .replace(/\{\{listing_interest\}\}/g, client.fub_viewed_cities || primaryCity(client))
+    .replace(/\{\{listing_interest\}\}/g, listingInterestStr(client.fub_viewed_cities, primaryCity(client)))
     .replace(/\{\{last_viewed_address\}\}/g, client.last_fub_activity_detail || '')
     .replace(/\{\{search_price_range\}\}/g, priceRangeStr(client.search_price_min, client.search_price_max))
     .replace(/\{\{lender_name\}\}/g, lenderName)
