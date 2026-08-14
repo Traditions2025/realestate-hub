@@ -1,6 +1,45 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { authFetch } from '../api'
 import WhatsNew from './WhatsNew'
+import { MERGE_FIELDS } from '../components/RichTextEditor'
+
+// =====================================================
+// CUSTOM FIELDS — auto-generated reference of every email merge field.
+// Reads the single MERGE_FIELDS source, so anything added there appears here.
+// =====================================================
+function CustomFields() {
+  const [copied, setCopied] = useState('')
+  const copy = (t) => { try { navigator.clipboard.writeText(t); setCopied(t); setTimeout(() => setCopied(''), 1200) } catch {} }
+  return (
+    <div>
+      <div className="sierra-banner info" style={{ marginBottom: 14 }}>
+        These are the personalization fields you can drop into any email (the <strong>+ Field</strong> menu in the composer inserts them).
+        They fill in per recipient on send. This list is generated automatically — every field the Hub supports appears here with what it pulls and where it comes from.
+      </div>
+      <div className="table-container">
+        <table className="data-table">
+          <thead><tr><th style={{ width: 200 }}>Field</th><th style={{ width: 170 }}>Name</th><th>What it inserts</th><th style={{ width: 120 }}>Source</th></tr></thead>
+          <tbody>
+            {MERGE_FIELDS.map(([tok, label, desc, source]) => (
+              <tr key={tok}>
+                <td>
+                  <code style={{ fontSize: 12.5, cursor: 'pointer' }} title="Click to copy" onClick={() => copy(tok)}>{tok}</code>
+                  {copied === tok && <span style={{ fontSize: 11, color: 'var(--accent, #2563eb)', marginLeft: 6 }}>copied</span>}
+                </td>
+                <td style={{ fontWeight: 600 }}>{label}</td>
+                <td style={{ fontSize: 13 }}>{desc || ''}</td>
+                <td><span className="email-status-tag">{source || 'System'}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>
+        {MERGE_FIELDS.length} fields · Transaction/closing emails also have deal-specific fields ({'{{closing_date}}'}, {'{{earnest_money}}'}, {'{{lender_name}}'}, etc.) that live in the transaction templates.
+      </p>
+    </div>
+  )
+}
 
 // =====================================================
 // HUB UPDATES (development changelog from git history)
@@ -762,6 +801,7 @@ export default function Updates() {
     email: 'Every email send attempt — successful + failed, with timestamps and error details',
     bulk: 'Bulk admin tools — apply tags to many clients at once from a source sheet',
     systems: 'Data-source sync status — Sierra Interactive lead sync + Realist enrichment',
+    fields: 'Custom fields — every email merge field, what it inserts, and where the data comes from',
   }
   return (
     <div className="page">
@@ -791,6 +831,9 @@ export default function Updates() {
         <button className={`listing-tab ${tab === 'systems' ? 'active' : ''}`} onClick={() => setTab('systems')}>
           ⚙ Systems
         </button>
+        <button className={`listing-tab ${tab === 'fields' ? 'active' : ''}`} onClick={() => setTab('fields')}>
+          🔤 Custom Fields
+        </button>
       </div>
 
       {tab === 'whatsnew' && <WhatsNew />}
@@ -799,6 +842,7 @@ export default function Updates() {
       {tab === 'email' && <EmailLog />}
       {tab === 'bulk' && <MigratePreListings />}{/* BulkTagFromSheet removed 2026-08-06 — hub no longer connects to any Google Sheet */}
       {tab === 'systems' && <SystemsStatus />}
+      {tab === 'fields' && <CustomFields />}
     </div>
   )
 }

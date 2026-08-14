@@ -7,28 +7,31 @@ import { buildLinkPreviewHtml, soleUrl } from './inlineImages'
 // - we only reset innerHTML when the incoming value differs, so typing never
 //   loses the caret.
 // Personalization fields the email merge engine (server fillTemplate) supports.
+// Single source of truth for email merge fields: [token, label, description, source].
+// The composer's "+ Field" menu AND the Updates → Custom Fields reference both read
+// from this list, so anything added here shows up in both places automatically.
 export const MERGE_FIELDS = [
-  ['{{first_name}}', 'First name'],
-  ['{{last_name}}', 'Last name'],
-  ['{{full_name}}', 'Full name'],
-  ['{{email}}', 'Email'],
-  ['{{phone}}', 'Phone'],
-  ['{{address}}', 'Street address'],
-  ['{{city}}', 'City'],
-  ['{{state}}', 'State'],
-  ['{{zip}}', 'Zip code'],
-  ['{{city_of_interest}}', 'City of interest — last viewed (FUB)'],
-  ['{{listing_interest}}', 'Listing Interest — top areas (FUB)'],
-  ['{{last_viewed_address}}', 'Last viewed address (FUB)'],
-  ['{{price_point}}', 'Price / budget (FUB)'],
-  ['{{price_clause}}', 'Price clause — "in the $X range" (FUB, self-hiding)'],
-  ['{{search_price_range}}', 'Saved-search budget (Sierra)'],
-  ['{{lender_name}}', 'Lender name'],
-  ['{{lender_company}}', 'Lender company'],
-  ['{{agent}}', 'Agent name'],
-  ['{{greeting}}', 'Greeting (Good morning…)'],
-  ['{{signature}}', 'Email signature'],
-  ['{{properties}}', 'Property cards'],
+  ['{{first_name}}', 'First name', "The lead's first name. Falls back to 'there' so an email never opens with 'Hi ,'.", 'Sierra / FUB'],
+  ['{{last_name}}', 'Last name', "The lead's last name. Blank if not on file.", 'Sierra / FUB'],
+  ['{{full_name}}', 'Full name', 'First + last name together.', 'Sierra / FUB'],
+  ['{{email}}', 'Email', "The lead's email address.", 'Sierra / FUB'],
+  ['{{phone}}', 'Phone', "The lead's phone number.", 'Sierra / FUB'],
+  ['{{address}}', 'Street address', "The lead's street address. Falls back to 'your home'.", 'Sierra'],
+  ['{{city}}', 'City', "The lead's city. Falls back to 'Cedar Rapids'.", 'Sierra'],
+  ['{{state}}', 'State', "The lead's state.", 'Sierra'],
+  ['{{zip}}', 'Zip code', "The lead's ZIP code.", 'Sierra'],
+  ['{{city_of_interest}}', 'City of interest', 'The city of the LAST home they viewed — the freshest interest signal. Falls back to their top viewed city, then their own city.', 'Follow Up Boss'],
+  ['{{listing_interest}}', 'Listing interest (areas)', 'The top 3 areas they have been viewing homes in, cleaned and joined naturally (e.g. "Cedar Rapids, Marion, and Solon").', 'Follow Up Boss'],
+  ['{{last_viewed_address}}', 'Last viewed address', 'The exact last property they looked at (e.g. "419 3rd St, Nw Mt Vernon").', 'Follow Up Boss'],
+  ['{{price_range}}', 'Price range', 'Self-framing budget clause: renders " in the $220,000 range" when the lead has a FUB price, and NOTHING at all when they do not, so a sentence using it reads cleanly either way. Never shows a made-up number.', 'Follow Up Boss'],
+  ['{{price_point}}', 'Price (number only)', 'Just the budget number, like "$220,000". Blank when FUB has no price. Use {{price_range}} inside a sentence; use this when you only want the number.', 'Follow Up Boss'],
+  ['{{search_price_range}}', 'Saved-search budget', 'The Sierra saved-search band (e.g. "$175,000 to $900,000"). Suppressed when it is the shared $200k-$600k default that 99% of leads carry, since that is not a real chosen budget.', 'Sierra'],
+  ['{{lender_name}}', 'Lender name', "The lead's lender. Pulls from their transaction once under contract; blank for buyer leads with no deal yet.", 'Transaction'],
+  ['{{lender_company}}', 'Lender company', 'The lending company, from their transaction. Blank until under contract.', 'Transaction'],
+  ['{{agent}}', 'Agent name', "The assigned agent's name. Falls back to 'Matt Smith'.", 'Sierra'],
+  ['{{greeting}}', 'Greeting', 'A time-aware greeting — "Good morning / afternoon / evening" based on when it sends.', 'System'],
+  ['{{signature}}', 'Email signature', 'Your saved email signature block (name, title, phone, links).', 'Settings'],
+  ['{{properties}}', 'Property cards', 'Live "homes they viewed" property cards, built into the email on send.', 'Follow Up Boss'],
 ]
 
 export default function RichTextEditor({ value, onChange, minHeight = 220 }) {

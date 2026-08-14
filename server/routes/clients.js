@@ -745,4 +745,27 @@ router.post('/bulk-type', (req, res) => {
   res.json({ success: true, updated: ids.length, type })
 })
 
+// Auto-enrich newly-added FUB-linked leads (socials + register date + price) that
+// haven't been pulled yet. Runs on the scheduler so new leads get enriched without
+// the manual button. Newest leads first; small, rate-limited batch.
+export async function enrichNewFubLeads(limit = 30) {
+  if (!fubConfigured()) return { done: 0, found: 0 }
+  const rows = db.all(`SELECT * FROM clients WHERE fub_person_id IS NOT NULL AND (enriched_at IS NULL OR register_date IS NULL) ORDER BY id DESC LIMIT ?`, [limit])
+  let done = 0, found = 0
+  for (const c of rows) {
+    try {
+      let social = {}
+      try { social = await fubEnrich(c, null) } catch {}
+      saveEnrichment(c.id, social, Object.keys(social).length ? ['fub'] : [])   // stamps enriched_at
+      const info = await fubPersonInfo(c.fub_person_id)
+      db.run('UPDATE clients SET register_date = ?, fub_price_point = ?, fub_price_enriched_at = ? WHERE id = ?', [info.register_date || '', info.price_point || null, new Date().toISOString(), c.id])
+      if (info.register_date || info.price_point || Object.keys(social).length) found++
+      done++
+    } catch { /* skip this lead */ }
+    await new Promise(r => setTimeout(r, 200))
+  }
+  if (done) console.log(`[enrich] auto-enriched ${done} new FUB leads (${found} with data)`)
+  return { done, found }
+}
+
 export default router

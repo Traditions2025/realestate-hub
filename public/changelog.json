@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-14T14:29:29.518Z",
-  "count": 341,
+  "generated_at": "2026-08-14T14:41:01.018Z",
+  "count": 342,
   "entries": [
+    {
+      "hash": "03b8b4d",
+      "date": "2026-08-14T09:29:32-05:00",
+      "subject": "Price clause backup: drop the fub_activity viewed-listing average fallback (produced outliers like $2.75M); show nothing when there is no reliable FUB price",
+      "title": "Price clause backup: drop the fub_activity viewed-listing average fallback (produced outliers like $2.75M); show nothing when there is no reliable FUB price",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "153e8aa",
       "date": "2026-08-14T09:15:53-05:00",

@@ -760,6 +760,12 @@ export function startScheduler() {
   setInterval(syncFubActivityIncremental, 60 * 60 * 1000)
   setTimeout(syncFubActivityIncremental, 90 * 1000)
 
+  // Auto-enrich NEW FUB-linked leads (socials + original register date + price) so
+  // leads added after the big backfill get pulled without the manual button.
+  const fubEnrichTick = async () => { try { const { enrichNewFubLeads } = await import('./routes/clients.js'); await enrichNewFubLeads(30) } catch (e) { console.error('[scheduler] fub enrich tick error:', e.message) } }
+  setInterval(fubEnrichTick, 20 * 60 * 1000)
+  setTimeout(fubEnrichTick, 150 * 1000)
+
   // FUB Realist Score backfill sync — weekly (+ once ~2 min after boot).
   setInterval(syncFubRealistScores, 7 * 24 * 60 * 60 * 1000)
   setTimeout(syncFubRealistScores, 120 * 1000)

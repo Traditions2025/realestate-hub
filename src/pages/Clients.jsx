@@ -1498,7 +1498,6 @@ export default function Clients() {
             />
           </label>
           <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
-          <FubEnrichButton />
         </div>
       </div>
 
