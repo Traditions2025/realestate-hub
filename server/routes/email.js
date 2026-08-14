@@ -242,23 +242,12 @@ function listingInterestStr(raw, fallback) {
   return `${cities.slice(0, -1).join(', ')}, and ${cities[cities.length - 1]}`
 }
 
-// FUB "At a Glance" price point: the average price of the homes this lead has
-// actually viewed (from their FUB property-view events), rounded to the nearest
-// $10k. Far more real than the Sierra saved-search band, which is a shared default
-// (~$200k-$600k) on 99% of leads. Blank when we have no viewed-home prices.
+// FUB price point: ONLY the reliable stored FUB value (their budget, recovered by
+// the register/price pull). No noisy fallback — averaging recently-viewed listings
+// produced outliers (one luxury/commercial view skewing a lead to $2.75M), so when
+// we have no real FUB price we show NOTHING rather than a made-up number.
 function fubPricePoint(client) {
-  // Prefer the stored FUB At-a-Glance value (works for cold leads); fall back to
-  // averaging any locally-synced recent property views.
-  if (client && client.fub_price_point) return client.fub_price_point
-  const clientId = client && client.id
-  if (!clientId) return ''
-  try {
-    const rows = db.all("SELECT prop_price FROM fub_activity WHERE client_id = ? AND prop_price IS NOT NULL AND prop_price != ''", [clientId])
-    const nums = rows.map(r => Number(String(r.prop_price).replace(/[^0-9.]/g, ''))).filter(n => n > 10000 && n < 20000000)
-    if (!nums.length) return ''
-    const avg = nums.reduce((a, b) => a + b, 0) / nums.length
-    return '$' + (Math.round(avg / 10000) * 10000).toLocaleString()
-  } catch { return '' }
+  return (client && client.fub_price_point) ? String(client.fub_price_point).trim() : ''
 }
 // Suppress the Sierra saved-search band when it is the shared default so we never
 // state a budget the lead never actually chose.
