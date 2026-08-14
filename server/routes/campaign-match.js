@@ -108,11 +108,17 @@ const DRIP_CONFIG = {
       return { score: Math.min(100, s), factors: f }
     },
   },
-  4: { // Lifelong Friends — Past Client Nurture  (Closed / past clients ONLY)
-    profile: 'Past clients only: people whose status is Closed, meaning they bought or sold with us. This is the stay-in-touch track (home value, seasonal notes, referrals). Do NOT include active buyer or seller leads here.',
+  4: { // Lifelong Friends — Past Client Nurture  (Closed / past clients, UNDER 3 years)
+    profile: 'Past clients only: people whose status is Closed, meaning they bought or sold with us, and whose closing was RECENT (under three years ago) or whose closing date is unknown. This is the stay-in-touch track (home value, seasonal notes, referrals). Long-tenure past clients (closed 3+ years ago) belong on the Vintage track instead. Do NOT include active buyer or seller leads here.',
     statuses: ['closed'],
     candidate: () => `1=1`,
-    hard: (c) => isOptedOut(c) ? 'Unsubscribed / undeliverable email' : null,
+    hard: (c, ctx) => {
+      if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'
+      // Route 3+ year homeowners to the Vintage track so nobody is on both.
+      const ten = ctx.txMap.get(c.id)?.lastPurchase ? daysSince(ctx.txMap.get(c.id).lastPurchase) : null
+      if (ten != null && ten > 365 * 3) return 'Closed 3+ years ago — better fit for the Vintage (3+ year) track'
+      return null
+    },
     score: (c, ctx) => {
       const f = []; let s = 45; f.push('Past client (Closed)')
       const tx = ctx.txMap.get(c.id)
@@ -136,6 +142,29 @@ const DRIP_CONFIG = {
       if (ten != null) { if (ten > 365 * 5) { s += 20; f.push(`${Math.floor(ten / 365)} years in the home`) } else if (ten > 365 * 3) { s += 10 } }
       if (tg.some(t => /sell|valuation|equity|listing|cma/.test(t))) { s += 15; f.push('Seller / valuation tag') }
       if (c.fub_viewed_cities || c.visits > 0) { s += 8; f.push('Recent market activity') }
+      return { score: Math.min(100, s), factors: f }
+    },
+  },
+  12: { // Lifelong Friends: Vintage — Past Client Nurture (Closed, 3+ YEARS)
+    profile: 'Long-tenure past clients only: status Closed AND they bought with us 3+ years ago and still own the home. The Vintage stay-in-touch track leans into what only time earns — built-up equity, the aging of the home\'s major systems, remodel-or-move, insurance coverage that has fallen behind. NOT for recent closings (under three years — those are the standard Lifelong Friends track) and NOT for active buyer or seller leads.',
+    statuses: ['closed'],
+    candidate: () => `1=1`,
+    hard: (c, ctx) => {
+      if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'
+      // Keep the two past-client tracks mutually exclusive: recent closings go to
+      // the standard Lifelong Friends deck, only 3+ years land here.
+      const ten = ctx.txMap.get(c.id)?.lastPurchase ? daysSince(ctx.txMap.get(c.id).lastPurchase) : null
+      if (ten != null && ten <= 365 * 3) return 'Closed under 3 years ago — use the standard Lifelong Friends track'
+      return null
+    },
+    score: (c, ctx) => {
+      const f = []; let s = 40; f.push('Past client (Closed)')
+      const tx = ctx.txMap.get(c.id)
+      const ten = tx?.lastPurchase ? daysSince(tx.lastPurchase) : null
+      if (ten != null && ten > 365 * 3) { s += 35; f.push(`${Math.floor(ten / 365)} years in the home`) }
+      else { s += 5; f.push('Closing date unknown — confirm 3+ year tenure before enrolling') }
+      if (tx?.isPastBuyer) { s += 12; const yr = tx.lastPurchase ? tx.lastPurchase.slice(0, 4) : null; f.push(yr ? `Bought with us in ${yr}` : 'Bought with us') }
+      if (tx?.isPastBuyer && !tx?.isPastSeller) { s += 8; f.push('Still owns the home') }
       return { score: Math.min(100, s), factors: f }
     },
   },

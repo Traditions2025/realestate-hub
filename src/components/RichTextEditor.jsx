@@ -35,6 +35,7 @@ export const MERGE_FIELDS = [
   ['{{home_value_link}}', 'Home value link', 'A hyperlink reading "Get your home value here" that points to the team\'s home-value tool. The raw URL never shows. For past-client / homeowner emails.', 'Team tool'],
   ['{{cma_request_link}}', 'Home analysis (CMA) link', 'A hyperlink reading "Request your full home analysis here" to the team\'s home-value tool. The raw URL never shows. For past-client emails.', 'Team tool'],
   ['{{seasonal_maintenance}}', 'Seasonal maintenance blurb', 'A short, Iowa-accurate home-maintenance paragraph (from Matt) that changes with the current season automatically, so it is always right for the season it sends in.', 'System'],
+  ['{{years_in_home}}', 'Years in the home', 'Whole years since the client\'s closing, computed from their most recent transaction closing date. Falls back to "several" when no closing date is on file. Used by the Vintage (3+ year) past-client track.', 'Transaction'],
 ]
 
 export default function RichTextEditor({ value, onChange, minHeight = 220 }) {

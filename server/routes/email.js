@@ -275,6 +275,27 @@ function seasonalMaintenance() {
   return V[season].map(p => `<p>${p}</p>`).join('\n')
 }
 
+// Whole years since this client's most recent closing — the "Vintage" past-client
+// track ({{years_in_home}}). Reads the latest closing_date off their transactions.
+// Falls back to "several" so Email 12 ("...years ago I handed you the keys") always
+// reads naturally even when we have no exact closing date on file.
+function yearsInHome(client) {
+  if (!client || !client.id) return 'several'
+  try {
+    const tx = db.get(`SELECT closing_date FROM transactions
+      WHERE client_id = ? AND closing_date IS NOT NULL AND closing_date != ''
+      ORDER BY closing_date DESC LIMIT 1`, [client.id])
+    if (tx && tx.closing_date) {
+      const then = new Date(tx.closing_date)
+      if (!isNaN(then.getTime())) {
+        const yrs = Math.floor((Date.now() - then.getTime()) / (365.25 * 86400000))
+        if (yrs >= 1) return String(yrs)
+      }
+    }
+  } catch {}
+  return 'several'
+}
+
 function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
@@ -316,6 +337,8 @@ function fillTemplate(text, client) {
     .replace(/\{\{cma_request_link\}\}/g, valueLink('Request your full home analysis here'))
     // Season-accurate maintenance blurb, picked by the current month.
     .replace(/\{\{seasonal_maintenance\}\}/g, seasonalMaintenance())
+    // Whole years since closing — for the Vintage (3+ year) past-client track.
+    .replace(/\{\{years_in_home\}\}/g, yearsInHome(client))
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
     .replace(/\{\{greeting\}\}/g, currentGreeting())
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())
