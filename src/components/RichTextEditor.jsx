@@ -32,6 +32,9 @@ export const MERGE_FIELDS = [
   ['{{greeting}}', 'Greeting', 'A time-aware greeting — "Good morning / afternoon / evening" based on when it sends.', 'System'],
   ['{{signature}}', 'Email signature', 'Your saved email signature block (name, title, phone, links).', 'Settings'],
   ['{{properties}}', 'Property cards', 'Live "homes they viewed" property cards, built into the email on send.', 'Follow Up Boss'],
+  ['{{home_value_link}}', 'Home value link', 'A hyperlink reading "Get your home value here" that points to the team\'s home-value tool. The raw URL never shows. For past-client / homeowner emails.', 'Team tool'],
+  ['{{cma_request_link}}', 'Home analysis (CMA) link', 'A hyperlink reading "Request your full home analysis here" to the team\'s home-value tool. The raw URL never shows. For past-client emails.', 'Team tool'],
+  ['{{seasonal_maintenance}}', 'Seasonal maintenance blurb', 'A short, Iowa-accurate home-maintenance paragraph (from Matt) that changes with the current season automatically, so it is always right for the season it sends in.', 'System'],
 ]
 
 export default function RichTextEditor({ value, onChange, minHeight = 220 }) {

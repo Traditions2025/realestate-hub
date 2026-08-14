@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-14T15:07:26.454Z",
-  "count": 344,
+  "generated_at": "2026-08-14T18:38:05.628Z",
+  "count": 346,
   "entries": [
+    {
+      "hash": "58bced0",
+      "date": "2026-08-14T11:56:05-05:00",
+      "subject": "Inbox notifications: skip the 'New inbox email' gmail heads-up for our own ops senders (John/team) and Render platform mail; message still stored in the inbox",
+      "title": "Inbox notifications: skip the 'New inbox email' gmail heads-up for our own ops senders (John/team) and Render platform mail; message still stored in the inbox",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b282dc4",
+      "date": "2026-08-14T10:07:28-05:00",
+      "subject": "Templates tab: show a read-only 'Transaction Emails' section (live from the transaction system) so all email templates are visible in one place, separated",
+      "title": "Templates tab: show a read-only 'Transaction Emails' section (live from the transaction system) so all email templates are visible in one place, separated",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f58af80",
       "date": "2026-08-14T09:57:16-05:00",

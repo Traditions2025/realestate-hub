@@ -257,6 +257,24 @@ function searchPriceRange(client) {
   return priceRangeStr(client.search_price_min, client.search_price_max)
 }
 
+// Past-client value tools — the team's home-value site, same for everyone.
+// Rendered as a hyperlink so the raw URL never shows in the email body.
+const VALUE_TOOL_URL = 'https://cedarrapidsmetroareahomevalue.sierrasellersites.com/'
+const valueLink = (text) => `<a href="${VALUE_TOOL_URL}" style="color:#2563eb;font-weight:600;">${text}</a>`
+// Iowa-accurate seasonal maintenance blurb, chosen by the CURRENT month so the
+// "seasonal" email is always right for the season it actually sends in.
+function seasonalMaintenance() {
+  const m = new Date().getMonth() // 0=Jan
+  const season = (m === 11 || m <= 1) ? 'winter' : m <= 4 ? 'spring' : m <= 7 ? 'summer' : 'fall'
+  const V = {
+    winter: ['I was out knocking icicles off my own eaves this weekend, muttering, and thought of you somewhere mid-mutter.', 'Every winter I run the same quick check around my place: gutters and downspouts clear so the melt has somewhere to go, an eye on the attic for ice dams, a fresh furnace filter, and the pipes on exterior walls kept warm on the coldest nights. Five minutes on a cold day has saved me a flooded basement more than once.'],
+    spring: ['I spent Saturday morning walking my property looking for what winter left behind, muttering, and thought of you somewhere mid-mutter.', 'Every spring I do the same ten-minute walk around my place: gutters cleared of the last of fall, the roof scanned for shingles the wind loosened, the foundation and driveway checked for fresh cracks, and the AC given a once-over before the first hot week. Ten minutes in April has saved me a small fortune come July.'],
+    summer: ['I spent Saturday morning working through my own list, muttering, and thought of you somewhere mid-mutter.', 'Every summer I do the same quick walk around my place: the AC coils cleared and running clean, the dryer vent cleaned out, the deck and exterior wood checked before another Iowa winter, and an eye out for the little water spots that turn into big ones. A few minutes in July has saved me a real headache more than once.'],
+    fall: ['I spent Saturday morning on my own gutters, muttering, and thought of you somewhere mid-mutter.', 'Every fall I do the same ten-minute walk around my place: gutters cleared, hose bibs shut off before the first hard freeze, the furnace filter swapped, and the driveway cracks sealed before the cold finds them. Ten minutes in October has saved me a thousand dollars in February more than once.'],
+  }
+  return V[season].map(p => `<p>${p}</p>`).join('\n')
+}
+
 function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
