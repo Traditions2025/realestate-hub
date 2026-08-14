@@ -352,7 +352,7 @@ export function buildClientFilter(q) {
 // Map sort key to SQL ORDER BY
 const SORT_OPTIONS = {
   recent_activity: 'sierra_update_date DESC NULLS LAST',
-  recent_added: 'sierra_creation_date DESC NULLS LAST',
+  recent_added: "COALESCE(NULLIF(register_date,''), sierra_creation_date) DESC NULLS LAST",
   most_visits: 'visits DESC',
   least_visits: 'visits ASC',
   highest_score: 'CAST(lead_score AS INTEGER) DESC NULLS LAST',
@@ -360,7 +360,7 @@ const SORT_OPTIONS = {
   name_az: 'last_name ASC, first_name ASC',
   name_za: 'last_name DESC, first_name DESC',
   recent_update: 'updated_at DESC',
-  oldest_first: 'sierra_creation_date ASC NULLS LAST',
+  oldest_first: "COALESCE(NULLIF(register_date,''), sierra_creation_date) ASC NULLS LAST",
   // Follow Up Boss last web visit (most/least active)
   recent_fub_visit: 'last_fub_activity_at DESC NULLS LAST',
   oldest_fub_visit: 'last_fub_activity_at ASC NULLS LAST',

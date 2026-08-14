@@ -2197,12 +2197,17 @@ export default function Clients() {
                   </>
                 ) : '—'}
               </div>
-            case 'registered':
-              return <div key="registered" className="cl-registered" title={item.sierra_creation_date || ''}>
-                {item.sierra_creation_date
-                  ? new Date(item.sierra_creation_date.replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
+            case 'registered': {
+              // Prefer the real FUB registration date; fall back to the Sierra
+              // import date only when a lead has no FUB register date.
+              const reg = (item.register_date && item.register_date.trim()) ? item.register_date : item.sierra_creation_date
+              const fromFub = !!(item.register_date && item.register_date.trim())
+              return <div key="registered" className="cl-registered" title={fromFub ? `${reg} (from FUB)` : (reg || '')}>
+                {reg
+                  ? new Date(String(reg).replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
                   : '—'}
               </div>
+            }
             default: return null
           }
         }
