@@ -43,26 +43,60 @@ function buildContext() {
 }
 
 // ---------- campaign registry ----------
-// Each: hard exclusions (why NOT), a coarse candidate score + human factors (for
-// ranking + grounding the AI), and an AI target-profile prompt.
+// AI Campaign Match is driven by the ACTUAL drip campaigns: every drip in the
+// system shows up here, so anyone you match can be enrolled straight into it.
+// The per-drip config below tailors the target profile, the candidate pool, the
+// eligible lead STATUSES, and the scoring. A drip with no entry still appears
+// with a sensible generic profile so nothing is ever hidden.
 const EMAIL_OK = "email IS NOT NULL AND email != '' AND (status IS NULL OR lower(status) NOT IN ('junk','donotcontact','blocked','archived','trash'))"
 const inList = (ids) => ids.length ? `(${ids.join(',')})` : '(0)'
+const quoteList = (arr) => arr.map(s => `'${String(s).toLowerCase().replace(/'/g, "''")}'`).join(',')
 
-const CAMPAIGNS = [
-  {
-    key: 'cold_reengagement',
-    label: 'Cold Lead Re-Engagement',
-    dripId: 3,
+const defaultHard = (c) => isOptedOut(c) ? 'Unsubscribed / undeliverable email' : null
+const defaultScore = (c) => {
+  const f = []; let s = 20
+  const inact = daysSince(c.last_fub_activity_at || c.sierra_update_date || c.created_at)
+  if (inact != null && inact < 180) { s += 15; f.push('Active in the last few months') }
+  if (c.has_saved_search) { s += 10; f.push('Has a saved search') }
+  if (c.fub_viewed_cities) { s += 10; f.push(`Viewed homes in ${String(c.fub_viewed_cities).split(',')[0]}`) }
+  if (c.lead_score) { s += 8; f.push(`Lead score ${c.lead_score}`) }
+  return { score: Math.min(100, s), factors: f }
+}
+
+// Per-drip matching config, keyed by drip_id.
+//   profile   -> the AI target-profile prompt
+//   statuses  -> allow-list of eligible lead statuses (omit = any non-junk/DNC)
+//   candidate -> extra SQL predicate for the candidate pool
+//   hard      -> per-lead hard exclusion (why NOT)
+//   score     -> coarse fit score + human factors
+const DRIP_CONFIG = {
+  2: { // The Long Game — Buyer Nurture
+    profile: 'Active buyer leads worth a long, patient nurture: they have shown real interest (a saved search, homes viewed, a budget, site visits) and have not bought with us yet. Best matches are engaged and reasonably recent, not long-dead.',
+    statuses: ['new', 'active', 'prime', 'watch', 'qualify'],
+    candidate: (ctx) => `type IN ('buyer','both') AND id NOT IN ${inList(ctx.pastBuyerIds)} AND (has_saved_search=1 OR fub_viewed_cities IS NOT NULL OR visits>0 OR lead_score IS NOT NULL)`,
+    hard: (c, ctx) => { if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'; if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Already under contract / active deal'; return null },
+    score: (c) => {
+      const f = []; let s = 15; f.push('Buyer, no prior purchase')
+      const inact = daysSince(c.last_fub_activity_at || c.sierra_update_date || c.created_at)
+      if (inact != null) { if (inact < 90) { s += 25; f.push('Active in the last 3 months') } else if (inact < 180) { s += 16; f.push(`Quiet for ${Math.round(inact / 30)} months`) } else if (inact < 365) { s += 8 } }
+      if (c.has_saved_search) { s += 14; f.push('Has a saved search') }
+      if (c.fub_viewed_cities) { s += 14; f.push(`Looking in ${String(c.fub_viewed_cities).split(',')[0]}`) }
+      if (c.visits > 0) { s += 8; f.push(`${c.visits} site visits`) }
+      if (c.search_price_min || c.search_price_max) f.push(`Budget ${money(c.search_price_min) || '?'}-${money(c.search_price_max) || '?'}`)
+      return { score: Math.min(100, s), factors: f }
+    },
+  },
+  3: { // The Comeback — Cold Buyer Re-Engagement
     profile: 'Buyer leads who were once engaged (saved a search, viewed homes, had a budget) but have gone quiet for months. Best matches: real past engagement plus a long stretch of silence, and no sign they already bought or are actively working a deal.',
-    sql: (ctx) => ({ where: `type IN ('buyer','both') AND ${EMAIL_OK} AND (has_saved_search=1 OR fub_viewed_cities IS NOT NULL OR visits>0 OR lead_score IS NOT NULL)`, params: [] }),
+    statuses: ['new', 'active', 'prime', 'watch', 'qualify'],
+    candidate: () => `type IN ('buyer','both') AND (has_saved_search=1 OR fub_viewed_cities IS NOT NULL OR visits>0 OR lead_score IS NOT NULL)`,
     hard: (c, ctx) => {
       if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'
-      if (ctx.dripMap.get(c.id)?.has(3)) return 'Already in The Comeback re-engagement'
       if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Has an active transaction in progress'
       const lp = ctx.txMap.get(c.id)?.lastPurchase; if (lp && daysSince(lp) < 120) return 'Purchased within the last 4 months'
       return null
     },
-    score: (c, ctx) => {
+    score: (c) => {
       const f = []; let s = 0
       const inact = daysSince(c.last_fub_activity_at || c.sierra_update_date || c.created_at)
       if (inact != null) { if (inact > 365) { s += 40; f.push(`No activity in ${Math.round(inact / 30)} months`) } else if (inact > 180) { s += 32; f.push(`Quiet for ${Math.round(inact / 30)} months`) } else if (inact > 90) { s += 22; f.push(`Quiet for ${Math.round(inact / 30)} months`) } else if (inact > 60) { s += 10 } }
@@ -74,17 +108,26 @@ const CAMPAIGNS = [
       return { score: Math.min(100, s), factors: f }
     },
   },
-  {
-    key: 'seller_motivation',
-    label: 'Seller Motivation',
-    dripId: null,
-    profile: 'Homeowners who may be ready to sell: they own a property (often a past buyer of ours who still owns it), have longer tenure, are marked as a seller or show seller-side signals (valuation, equity, market interest). Higher intent when they have engaged with seller/market content or mentioned moving.',
-    sql: (ctx) => ({ where: `(type IN ('seller','both') OR id IN ${inList(ctx.pastBuyerIds)}) AND ${EMAIL_OK}`, params: [] }),
-    hard: (c, ctx) => {
-      if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'
-      if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Already has an active listing/transaction'
-      return null
+  4: { // Lifelong Friends — Past Client Nurture  (Closed / past clients ONLY)
+    profile: 'Past clients only: people whose status is Closed, meaning they bought or sold with us. This is the stay-in-touch track (home value, seasonal notes, referrals). Do NOT include active buyer or seller leads here.',
+    statuses: ['closed'],
+    candidate: () => `1=1`,
+    hard: (c) => isOptedOut(c) ? 'Unsubscribed / undeliverable email' : null,
+    score: (c, ctx) => {
+      const f = []; let s = 45; f.push('Past client (Closed)')
+      const tx = ctx.txMap.get(c.id)
+      if (tx?.isPastBuyer) { s += 25; const yr = tx.lastPurchase ? tx.lastPurchase.slice(0, 4) : null; f.push(yr ? `Bought with us in ${yr}` : 'Bought with us') }
+      if (tx?.isPastSeller) { s += 15; f.push('Sold with us') }
+      if (tx?.isPastBuyer && !tx?.isPastSeller) { s += 8; f.push('Still owns the home') }
+      const ten = tx?.lastPurchase ? daysSince(tx.lastPurchase) : null
+      if (ten != null && ten > 365) { s += 8; f.push(`${Math.floor(ten / 365)} years since closing`) }
+      return { score: Math.min(100, s), factors: f }
     },
+  },
+  5: { // Before the Sign — Seller Nurture
+    profile: 'Homeowners who may be ready to sell: marked as a seller or a past buyer who still owns, ideally with longer tenure or seller / market signals. Not for past clients already on the stay-in-touch track, and not for pure buyer leads.',
+    candidate: (ctx) => `(type IN ('seller','both') OR id IN ${inList(ctx.pastBuyerIds)})`,
+    hard: (c, ctx) => { if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'; if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Already has an active listing/transaction'; return null },
     score: (c, ctx) => {
       const f = []; let s = 0; const tx = ctx.txMap.get(c.id); const tg = tagsOf(c)
       if (['seller', 'both'].includes(c.type)) { s += 30; f.push('Marked as a seller') }
@@ -96,75 +139,37 @@ const CAMPAIGNS = [
       return { score: Math.min(100, s), factors: f }
     },
   },
-  {
-    key: 'home_value_nurture',
-    label: 'Home Value Nurture',
-    dripId: null,
-    profile: 'Homeowners and past clients who would value a periodic plain-English update on what their home and neighborhood are worth. Property ownership and time-in-home matter most; immediate selling intent is not required.',
-    sql: (ctx) => ({ where: `(type IN ('seller','both') OR id IN ${inList(ctx.pastBuyerIds)}) AND ${EMAIL_OK}`, params: [] }),
-    hard: (c, ctx) => { if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'; if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Active transaction in progress'; return null },
-    score: (c, ctx) => {
-      const f = []; let s = 0; const tx = ctx.txMap.get(c.id)
-      if (tx?.isPastBuyer && !tx?.isPastSeller) { s += 45; const yr = tx.lastPurchase ? tx.lastPurchase.slice(0, 4) : null; f.push(yr ? `Homeowner since ${yr}` : 'Homeowner (past buyer)') }
-      else if (['seller', 'both'].includes(c.type)) { s += 25; f.push('Marked as a seller') }
-      if (c.address) { s += 10; f.push('Property address on file') }
-      const ten = tx?.lastPurchase ? daysSince(tx.lastPurchase) : null
-      if (ten != null && ten > 365 * 2) { s += 15; f.push(`${Math.floor(ten / 365)} years in the home`) }
-      return { score: Math.min(100, s), factors: f }
-    },
-  },
-  {
-    key: 'first_time_buyer_edu',
-    label: 'First-Time Buyer Education',
-    dripId: null,
-    profile: 'Buyer leads who look like first-time buyers: no prior purchase with us, a modest budget, and recent-enough interest. They benefit from education (financing, the twenty-percent myth, the process) rather than a hard sell.',
-    sql: (ctx) => ({ where: `type IN ('buyer','both') AND id NOT IN ${inList(ctx.pastBuyerIds)} AND ${EMAIL_OK} AND (has_saved_search=1 OR fub_viewed_cities IS NOT NULL OR visits>0 OR lead_score IS NOT NULL)`, params: [] }),
-    hard: (c, ctx) => { if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'; if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Already under contract / active deal'; return null },
-    score: (c, ctx) => {
-      const f = []; let s = 20; f.push('Buyer, no prior purchase')
-      const pmax = Number(c.search_price_max) || null
-      if (pmax && pmax < 300000) { s += 25; f.push(`Budget under ${money(pmax)}`) } else if (pmax && pmax < 400000) { s += 12 }
-      const inact = daysSince(c.last_fub_activity_at || c.sierra_update_date || c.created_at)
-      if (inact != null && inact < 120) { s += 20; f.push('Active in the last few months') }
-      if (c.has_saved_search) { s += 10; f.push('Has a saved search') }
-      if (c.fub_viewed_cities) { s += 10; f.push(`Looking in ${String(c.fub_viewed_cities).split(',')[0]}`) }
-      return { score: Math.min(100, s), factors: f }
-    },
-  },
-  {
-    key: 'downsizing_seller',
-    label: 'Downsizing Seller',
-    dripId: null,
-    profile: 'Longer-tenured homeowners who may be ready to downsize: own the home for many years, often marked seller or a past buyer who still owns. Intent is higher with age/tenure and any move-related signals.',
-    sql: (ctx) => ({ where: `(type IN ('seller','both') OR id IN ${inList(ctx.pastBuyerIds)}) AND ${EMAIL_OK}`, params: [] }),
-    hard: (c, ctx) => { if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'; if (ctx.txMap.get(c.id)?.hasActiveTxn) return 'Active transaction in progress'; return null },
-    score: (c, ctx) => {
-      const f = []; let s = 0; const tx = ctx.txMap.get(c.id)
-      if (tx?.isPastBuyer && !tx?.isPastSeller) { s += 30; f.push('Owns a home (past buyer)') }
-      const ten = tx?.lastPurchase ? daysSince(tx.lastPurchase) : null
-      if (ten != null) { if (ten > 365 * 10) { s += 40; f.push(`${Math.floor(ten / 365)}+ years in the home`) } else if (ten > 365 * 6) { s += 22; f.push(`${Math.floor(ten / 365)} years in the home`) } }
-      if (['seller', 'both'].includes(c.type)) { s += 12; f.push('Marked as a seller') }
-      return { score: Math.min(100, s), factors: f }
-    },
-  },
-  {
-    key: 'past_client_homeowner',
-    label: 'Past Client Homeowner',
-    dripId: null,
-    profile: 'Past clients who bought a home through us and still own it: the stay-in-touch homeowner track (anniversary, value, referrals). Strongest matches closed a purchase with us and have no later sale on record.',
-    sql: (ctx) => ({ where: `id IN ${inList(ctx.pastBuyerIds)} AND ${EMAIL_OK}`, params: [] }),
-    hard: (c, ctx) => { if (isOptedOut(c)) return 'Unsubscribed / undeliverable email'; return null },
-    score: (c, ctx) => {
-      const f = []; let s = 0; const tx = ctx.txMap.get(c.id)
-      if (tx?.isPastBuyer) { s += 55; const yr = tx.lastPurchase ? tx.lastPurchase.slice(0, 4) : null; f.push(yr ? `Bought with us in ${yr}` : 'Past buyer client') }
-      if (tx?.isPastBuyer && !tx?.isPastSeller) { s += 20; f.push('Still owns the home') }
-      const ten = tx?.lastPurchase ? daysSince(tx.lastPurchase) : null
-      if (ten != null && ten > 365) { s += 10; f.push(`${Math.floor(ten / 365)} years since closing`) }
-      return { score: Math.min(100, s), factors: f }
-    },
-  },
-]
-const byKey = (k) => CAMPAIGNS.find(c => c.key === k)
+}
+
+// Build the campaign list live from the actual drip campaigns, so every drip is
+// selectable in AI Campaign Match now and in the future.
+function buildCampaigns() {
+  const drips = db.all('SELECT id, name, description FROM drip_campaigns ORDER BY id')
+  return drips.map(d => {
+    const cfg = DRIP_CONFIG[d.id] || {}
+    return {
+      key: `drip_${d.id}`,
+      label: d.name,
+      dripId: d.id,
+      profile: cfg.profile || d.description || `Leads who fit the "${d.name}" campaign.`,
+      statuses: cfg.statuses || null,
+      candidate: cfg.candidate || (() => '1=1'),
+      hard: cfg.hard || defaultHard,
+      score: cfg.score || defaultScore,
+    }
+  })
+}
+const byKey = (k) => buildCampaigns().find(c => c.key === k)
+
+// Combine the campaign's candidate filter + eligible statuses + the global
+// deliverability gate into one WHERE clause.
+function campaignWhere(campaign, ctx) {
+  const parts = [EMAIL_OK]
+  const cand = campaign.candidate(ctx)
+  if (cand && cand !== '1=1') parts.push(`(${cand})`)
+  if (campaign.statuses && campaign.statuses.length) parts.push(`lower(status) IN (${quoteList(campaign.statuses)})`)
+  return parts.join(' AND ')
+}
 
 // ---------- AI scoring (batched) ----------
 const AI_LIMIT = 120, BATCH = 20
@@ -206,7 +211,7 @@ Return ONLY a JSON array: [{"id":number,"match":number,"intent":"...","group":".
 
 // ---------- ROUTES ----------
 router.get('/campaigns', (_req, res) => {
-  res.json(CAMPAIGNS.map(c => ({ key: c.key, label: c.label, dripId: c.dripId, hasDrip: !!c.dripId })))
+  res.json(buildCampaigns().map(c => ({ key: c.key, label: c.label, dripId: c.dripId, hasDrip: true, statuses: c.statuses || null })))
 })
 
 router.post('/:key/analyze', async (req, res) => {
@@ -214,12 +219,13 @@ router.post('/:key/analyze', async (req, res) => {
   if (!campaign) return res.status(404).json({ error: 'Unknown campaign' })
   try {
     const ctx = buildContext()
-    const { where, params } = campaign.sql(ctx)
-    const rows = db.all(`SELECT ${COLS} FROM clients WHERE ${where}`, params)
+    const where = campaignWhere(campaign, ctx)
+    const rows = db.all(`SELECT ${COLS} FROM clients WHERE ${where}`)
     const eligible = [], notRec = []
     for (const c of rows) {
       const { score, factors } = campaign.score(c, ctx)
-      const reason = campaign.hard(c, ctx)
+      // per-campaign exclusion, plus a universal "already in this drip" guard
+      const reason = campaign.hard(c, ctx) || (ctx.dripMap.get(c.id)?.has(campaign.dripId) ? `Already in ${campaign.label}` : null)
       if (reason) { if (score >= 25) notRec.push({ id: c.id, name: nameOf(c), city: c.city, status: c.status, reason }); continue }
       if (score <= 0) continue
       eligible.push({ c, score, factors })
