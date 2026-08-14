@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-14T14:41:01.018Z",
-  "count": 342,
+  "generated_at": "2026-08-14T14:57:14.413Z",
+  "count": 343,
   "entries": [
+    {
+      "hash": "3c0234c",
+      "date": "2026-08-14T09:41:10-05:00",
+      "subject": "Merge fields: rename {{price_clause}}->{{price_range}} (alias kept); add descriptions + a Custom Fields reference tab under Updates (auto-generated from MERGE_FIELDS). Remove 'Pull socials from FUB' button; auto-enrich new FUB leads (socials+register+price) via scheduler every 20 min",
+      "title": "Merge fields: rename {{price_clause}}->{{price_range}} (alias kept); add descriptions + a Custom Fields reference tab under Updates (auto-generated from MERGE_FIELDS). Remove 'Pull socials from FUB' button; auto-enrich new FUB leads (socials+register+price) via scheduler every 20 min",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "03b8b4d",
       "date": "2026-08-14T09:29:32-05:00",

@@ -455,6 +455,51 @@ We've added everything to Dotloop. Let us know what else you need from us.
 
 Thanks!${SIG}`,
   },
+
+  // ============== REVIEW / THANK-YOU ==============
+  thank_you_review: {
+    name: '⭐ Review — Thank You + Google Review (Buyer/Seller/Both)',
+    role: 'both',
+    recipient: 'client',
+    subject: 'Thank you for trusting the Matt Smith Team, {{client_first_names}}',
+    body: `Hello {{client_first_names}}! :)
+
+{{#if is_buyer}}Congratulations on closing on your new home at {{property_address}}! We wanted to thank you again for trusting Matt and the Matt Smith Team to help you through the purchase. It was truly a pleasure working with you, and we're grateful to have been part of this exciting milestone.
+
+{{/if}}{{#if is_seller}}We just wanted to thank you again for trusting Matt and the Matt Smith Team to help with the sale of your home. We know selling a home is a major life event, and one that comes with a lot of memories, decisions, and emotions along the way. It truly meant a lot that you trusted us to be part of that journey, and we're grateful for the opportunity to work with you.
+
+{{/if}}{{#if is_both}}Congratulations on closing! We wanted to thank you again for trusting Matt and the Matt Smith Team to help with both the sale of your home and the purchase of your new one. It was truly a pleasure working with you through every step, and we're grateful to have been part of this milestone.
+
+{{/if}}If you have a few minutes, we'd really appreciate it if you could share your experience working with Matt and the Matt Smith Team by leaving us a Google review. Your feedback means so much to us and helps other families who are looking for a real estate team they can trust.
+
+Here's the link to leave a review:
+https://g.page/r/CZvtr7F-LfnaEBM/review
+
+{{#if is_buyer}}We wish you many wonderful years and great memories in your new home. {{/if}}{{#if is_both}}We wish you many wonderful years and great memories in your new home. {{/if}}If you ever need anything in the future, whether it's recommendations for contractors, home service professionals, real estate advice, or anything else, don't hesitate to reach out. We're always happy to help. :)
+
+Thank you again for your trust and support. We truly appreciate it.
+
+Take care,${SIG}`,
+  },
+
+  review_followup: {
+    name: '🔁 Review — Gentle Follow-Up (if no review yet)',
+    role: 'both',
+    recipient: 'client',
+    subject: 'Following up from the Matt Smith Team, {{client_first_names}}',
+    body: `Hi {{client_first_names}}! :)
+
+I hope you've been doing well and settling in. I just wanted to follow up on one small thing.
+
+A little while back I mentioned a Google review, and I know life gets busy, so no worries at all if it slipped your mind. If you have a couple of minutes and felt good about your experience with Matt and the Matt Smith Team, a short review would mean the world to us. It genuinely helps other families decide who to trust with something this big.
+
+Here's the link, it only takes a minute:
+https://g.page/r/CZvtr7F-LfnaEBM/review
+
+And if now isn't the right time, that's completely okay too. Either way, thank you again for trusting us. We're always here if you ever need anything.
+
+Take care,${SIG}`,
+  },
 }
 
 export const PRELISTING_TEMPLATES = {
@@ -576,6 +621,25 @@ export function buildMergeVars(client, transaction, extra = {}) {
     v.lender_email = transaction.lender_email || ''
     v.buyer_name = transaction.buyer_name || ''
     v.seller_name = transaction.seller_name || ''
+    // Deal side (buyer / seller / both) + the first names of the party we're
+    // writing to, so a thank-you reads "Hello John & Jane" and adapts its wording.
+    const firstNames = (full) => {
+      if (!full) return ''
+      const people = String(full).split(/\s*(?:&|\band\b|\+|\/|,)\s*/i).map(s => s.trim()).filter(Boolean)
+      const firsts = [...new Set(people.map(p => p.split(/\s+/)[0]).filter(Boolean))]
+      if (firsts.length <= 1) return firsts[0] || ''
+      if (firsts.length === 2) return `${firsts[0]} & ${firsts[1]}`
+      return `${firsts.slice(0, -1).join(', ')} & ${firsts[firsts.length - 1]}`
+    }
+    const tt = (transaction.type || '').toLowerCase(), ag = (transaction.agency_type || '').toLowerCase()
+    let side = 'buyer'
+    if (tt === 'both' || ag.includes('dual') || ag.includes('both')) side = 'both'
+    else if (tt === 'listing' || ag.includes('listing') || ag.includes('seller')) side = 'seller'
+    v.is_buyer = side === 'buyer' ? '1' : ''
+    v.is_seller = side === 'seller' ? '1' : ''
+    v.is_both = side === 'both' ? '1' : ''
+    const partyName = side === 'seller' ? transaction.seller_name : side === 'both' ? (transaction.buyer_name || transaction.seller_name) : transaction.buyer_name
+    v.client_first_names = firstNames(partyName) || (client && client.first_name) || 'there'
     // Conditional flags — used by {{#if has_insurance_contingency}}...{{/if}} blocks
     // Default to enabled if column is null (existing rows from before the migration)
     v.has_insurance_contingency = (transaction.has_insurance_contingency == null || transaction.has_insurance_contingency === 1) ? '1' : ''
