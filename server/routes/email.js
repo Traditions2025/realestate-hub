@@ -311,6 +311,11 @@ function fillTemplate(text, client) {
     .replace(/\{\{price_clause\}\}/g, fubPricePoint(client) ? ` in the ${fubPricePoint(client)} range` : '')
     .replace(/\{\{lender_name\}\}/g, lenderName)
     .replace(/\{\{lender_company\}\}/g, lenderCompany)
+    // Past-client value tools: hyperlinked text, never the raw URL.
+    .replace(/\{\{home_value_link\}\}/g, valueLink('Get your home value here'))
+    .replace(/\{\{cma_request_link\}\}/g, valueLink('Request your full home analysis here'))
+    // Season-accurate maintenance blurb, picked by the current month.
+    .replace(/\{\{seasonal_maintenance\}\}/g, seasonalMaintenance())
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
     .replace(/\{\{greeting\}\}/g, currentGreeting())
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())
