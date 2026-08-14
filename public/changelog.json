@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-14T14:57:14.413Z",
-  "count": 343,
+  "generated_at": "2026-08-14T15:07:26.454Z",
+  "count": 344,
   "entries": [
+    {
+      "hash": "f58af80",
+      "date": "2026-08-14T09:57:16-05:00",
+      "subject": "Transaction emails: add Thank-You + Google review request (adapts buyer/seller/both) and a gentle review follow-up; new {{client_first_names}} + is_buyer/seller/both vars",
+      "title": "Transaction emails: add Thank-You + Google review request (adapts buyer/seller/both) and a gentle review follow-up; new {{client_first_names}} + is_buyer/seller/both vars",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3c0234c",
       "date": "2026-08-14T09:41:10-05:00",

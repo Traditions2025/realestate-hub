@@ -38,6 +38,11 @@ export default function Templates() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [tplView, setTplView] = useState('wysiwyg') // email body editor: 'wysiwyg' | 'html'
+  // Transaction emails — read-only, live from the transaction system
+  const [txTemplates, setTxTemplates] = useState([])
+  const [txOpen, setTxOpen] = useState(true)
+  const [viewTx, setViewTx] = useState(null)
+  useEffect(() => { authFetch('/api/email/transaction-templates?body=1').then(r => r.json()).then(t => setTxTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
   const fileInputRef = useRef(null)
   const tplBodyRef = useRef(null)
 
@@ -237,6 +242,44 @@ export default function Templates() {
           </tbody>
         </table>
       </div>
+
+      {/* Transaction Emails — read-only, sent from the Transactions tab with deal details filled in */}
+      <div style={{ marginTop: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setTxOpen(v => !v)}>
+          <h3 style={{ margin: 0 }}>Transaction Emails {txOpen ? '▾' : '▸'}</h3>
+          <span className="email-status-tag">{txTemplates.length}</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Sent from the Transactions tab — each deal's details (address, names, dates, price) fill in automatically</span>
+        </div>
+        {txOpen && (
+          <div className="table-container" style={{ marginTop: 10 }}>
+            <table className="data-table">
+              <thead><tr><th>Name</th><th style={{ width: 110 }}>For</th><th>Subject</th><th style={{ width: 140 }}>Actions</th></tr></thead>
+              <tbody>
+                {txTemplates.length === 0 ? <tr><td colSpan="4" className="empty-state">Loading…</td></tr> : txTemplates.map(t => (
+                  <tr key={t.id}>
+                    <td className="cell-primary" style={{ cursor: 'pointer' }} onClick={() => setViewTx(t)}>{t.name}</td>
+                    <td><span className="email-status-tag">{t.recipient === 'client' ? (t.role || 'client') : t.recipient}</span></td>
+                    <td style={{ fontSize: 13 }}>{t.subject}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <button className="btn-sm" onClick={() => setViewTx(t)}>View</button>
+                      <button className="btn-sm" onClick={() => { try { navigator.clipboard.writeText(t.body || '') } catch {} }} title="Copy body">Copy</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <Modal open={!!viewTx} onClose={() => setViewTx(null)} title={viewTx?.name || 'Transaction Email'} wide>
+        {viewTx && (<>
+          <p style={{ margin: '0 0 8px' }}><strong>Subject:</strong> {viewTx.subject}</p>
+          <div style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, maxHeight: '55vh', overflowY: 'auto' }}>{viewTx.body}</div>
+          <p className="muted" style={{ fontSize: 12, marginTop: 10 }}>Sent from the <strong>Transactions</strong> tab. Merge fields like {'{{property_address}}'}, {'{{client_first_names}}'}, {'{{closing_date}}'} fill in from the specific deal when you send it there.</p>
+          <div className="form-actions"><button className="btn btn-secondary" onClick={() => setViewTx(null)}>Close</button></div>
+        </>)}
+      </Modal>
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Template' : 'New Template'} wide>
         <form onSubmit={save} className="form">

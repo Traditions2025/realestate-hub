@@ -829,13 +829,15 @@ router.post('/preview', (req, res) => {
 // =========================================================
 
 // List available transaction templates
-router.get('/transaction-templates', (_req, res) => {
+router.get('/transaction-templates', (req, res) => {
+  const withBody = req.query.body === '1'
   const list = Object.entries(TRANSACTION_TEMPLATES).map(([id, t]) => ({
     id,
     name: t.name,
     role: t.role,
     recipient: t.recipient,
     subject: t.subject,
+    ...(withBody ? { body: t.body } : {}),
   }))
   res.json(list)
 })
