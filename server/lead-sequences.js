@@ -8,9 +8,8 @@ import db from './database.js'
 const nowIso = () => new Date().toISOString()
 
 // Statuses that mean "stop contacting this lead". Moving a lead into any of
-// these removes it from all active sequences. Kept as a Set so it is trivial
-// to extend to DoNotContact / Blocked later if desired.
-export const STOP_STATUSES = new Set(['junk'])
+// these removes it from all active drips + automations so nothing else fires.
+export const STOP_STATUSES = new Set(['junk', 'donotcontact'])
 
 export function isStopStatus(status) {
   return STOP_STATUSES.has(String(status || '').toLowerCase())
@@ -28,6 +27,27 @@ export function stopSequencesForClient(clientId, reason = 'lead marked junk') {
   const a = db.run(
     "UPDATE automation_enrollments SET status='removed', exit_reason=?, completed_at=?, next_run_at=NULL WHERE client_id=? AND status IN ('active','waiting')",
     [reason, nowIso(), id])
+  return { drips: d.changes || 0, automations: a.changes || 0 }
+}
+
+// One-time / boot backfill: remove active enrollments for any lead ALREADY in a
+// stop status (leads marked Junk/DNC before this rule existed, or added via a
+// path that bypassed the status hook). Idempotent and cheap. Statuses are stored
+// lowercase, so match on lower(status).
+export function purgeStopStatusEnrollments() {
+  const list = Array.from(STOP_STATUSES)
+  const ph = list.map(() => '?').join(',')
+  const d = db.run(
+    `UPDATE drip_enrollments SET status='removed', completed_at=?
+       WHERE status='active' AND client_id IN (SELECT id FROM clients WHERE lower(status) IN (${ph}))`,
+    [nowIso(), ...list])
+  const a = db.run(
+    `UPDATE automation_enrollments SET status='removed', exit_reason='stop-status backfill', completed_at=?, next_run_at=NULL
+       WHERE status IN ('active','waiting') AND client_id IN (SELECT id FROM clients WHERE lower(status) IN (${ph}))`,
+    [nowIso(), ...list])
+  if ((d.changes || 0) + (a.changes || 0) > 0) {
+    console.log(`[lead-sequences] stop-status backfill removed ${d.changes || 0} drip + ${a.changes || 0} automation enrollment(s)`)
+  }
   return { drips: d.changes || 0, automations: a.changes || 0 }
 }
 

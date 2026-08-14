@@ -2,6 +2,7 @@ import { Router } from 'express'
 import db from '../database.js'
 import { sendSequenceEmail, previewSequenceEmail } from './email.js'
 import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
+import { isStopStatus } from '../lead-sequences.js'
 
 const router = Router()
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d } catch { return d } }
@@ -63,6 +64,9 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   if (!drip) return null
   const steps = parse(drip.steps, [])
   if (!steps.length) return null
+  // never enroll a lead we've been told to stop contacting (Junk / DNC)
+  const cli = db.get('SELECT status FROM clients WHERE id = ?', [Number(clientId)])
+  if (cli && isStopStatus(cli.status)) return null
   // don't double-enroll an active contact
   const active = db.get("SELECT id FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [dripId, clientId])
   if (active) return active.id
@@ -92,6 +96,10 @@ async function advanceDrip(enr) {
   const step = steps[idx]
   const client = db.get('SELECT * FROM clients WHERE id = ?', [enr.client_id])
   if (!client) return db.run("UPDATE drip_enrollments SET status='removed', completed_at=? WHERE id=?", [nowIso(), enr.id])
+
+  // stop-contact guard: if the lead was moved to Junk/DNC, pull them out here too
+  // (belt-and-suspenders in case the status hook didn't fire), no send.
+  if (isStopStatus(client.status)) return db.run("UPDATE drip_enrollments SET status='removed', completed_at=? WHERE id=?", [nowIso(), enr.id])
 
   // no sends on US federal holidays — defer to the next non-holiday day
   if (isUsHoliday(new Date())) return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [bumpPastHolidays(nowIso()), enr.id])

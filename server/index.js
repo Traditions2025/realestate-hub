@@ -9,6 +9,7 @@ import db from './database.js'
 import authRouter, { requireAuth } from './routes/auth.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import { startScheduler } from './scheduler.js'
+import { purgeStopStatusEnrollments } from './lead-sequences.js'
 import transactionsRouter from './routes/transactions.js'
 import clientsRouter from './routes/clients.js'
 import tasksRouter from './routes/tasks.js'
@@ -913,6 +914,10 @@ ${signature}
     console.log(`  API Server:  http://localhost:${PORT}`)
     console.log('  =============================================')
     console.log('')
+
+    // One-time cleanup: pull any lead already in a stop status (Junk/DNC) out of
+    // every active drip + automation. Idempotent, so safe to run each boot.
+    try { purgeStopStatusEnrollments() } catch (e) { console.error('[boot] stop-status purge failed:', e.message) }
 
     // Start auto-sync scheduler
     startScheduler()
