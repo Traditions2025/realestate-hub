@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-14T14:09:10.231Z",
-  "count": 339,
+  "generated_at": "2026-08-14T14:15:50.156Z",
+  "count": 340,
   "entries": [
+    {
+      "hash": "1abd5a8",
+      "date": "2026-08-14T09:09:15-05:00",
+      "subject": "Clients: Registered column + Oldest/Recently-Added sort now follow the FUB register date (fall back to Sierra create date only when no FUB date) so sorting by lead age is accurate",
+      "title": "Clients: Registered column + Oldest/Recently-Added sort now follow the FUB register date (fall back to Sierra create date only when no FUB date) so sorting by lead age is accurate",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "63fdc40",
       "date": "2026-08-13T17:10:47-05:00",

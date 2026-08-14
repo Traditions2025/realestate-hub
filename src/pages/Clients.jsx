@@ -2204,7 +2204,7 @@ export default function Clients() {
               const fromFub = !!(item.register_date && item.register_date.trim())
               return <div key="registered" className="cl-registered" title={fromFub ? `${reg} (from FUB)` : (reg || '')}>
                 {reg
-                  ? new Date(String(reg).replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
+                  ? new Date(String(reg).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   : '—'}
               </div>
             }
