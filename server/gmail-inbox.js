@@ -13,9 +13,25 @@ const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&l
 // Email a heads-up when a client emails the inbox. Recipient is configurable in
 // app_settings (inbox_notify_email); defaults to the team's ops inbox. Fire and
 // forget so it never blocks or breaks the poll loop.
+// Senders we never want a heads-up about: our own operational accounts (John /
+// the team) and hosting-platform status mail (Render). The message still lands in
+// the inbox; we just skip the email nudge so real client mail isn't buried.
+const NOTIFY_SKIP_SENDERS = ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com', 'matt@mattsmithteam.com']
+function skipInboxNotify(fromEmail, subject, client) {
+  const from = String(fromEmail || '').toLowerCase().trim()
+  const cname = `${client?.first_name || ''} ${client?.last_name || ''}`.toLowerCase()
+  const subj = String(subject || '').toLowerCase()
+  if (NOTIFY_SKIP_SENDERS.includes(from)) return true                 // our own ops mail
+  if (/john with the matt smith team/.test(cname)) return true        // matched to John's record
+  if (/@?(render\.com|onrender\.com)/.test(from)) return true         // Render platform mail
+  if (/server failure|exited with status|render\.com|onrender\.com|deploy (failed|succeeded|live)/.test(subj)) return true
+  return false
+}
+
 async function notifyNewInbound(client, subject, preview, fromEmail) {
   const to = getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
   if (!to) return
+  if (skipInboxNotify(fromEmail, subject, client)) return
   const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromEmail
   const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
