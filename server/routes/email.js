@@ -310,7 +310,7 @@ function monthlyIntro() {
     5: 'This is one of my favorite times of year around Eastern Iowa.',
     6: "Summer has officially arrived, and there's plenty happening around town.",
     7: "There's something about July that makes everything feel a little more relaxed.",
-    8: 'The calendar says August, but somehow it feels like summer just started.',
+    8: "August has a way of reminding us summer doesn't stick around forever.",
     9: 'You can definitely start to feel the seasons changing.',
     10: 'Fall around Eastern Iowa is tough to beat.',
     11: 'This time of year always seems to bring life back to the things that matter most.',

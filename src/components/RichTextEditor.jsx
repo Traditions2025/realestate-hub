@@ -36,7 +36,7 @@ export const MERGE_FIELDS = [
   ['{{cma_request_link}}', 'Home analysis (CMA) link', 'A hyperlink reading "Request your full home analysis here" to the team\'s home-value tool. The raw URL never shows. For past-client emails.', 'Team tool'],
   ['{{seasonal_maintenance}}', 'Seasonal maintenance blurb', 'A short, Iowa-accurate home-maintenance paragraph (from Matt) that changes with the current season automatically, so it is always right for the season it sends in.', 'System'],
   ['{{years_in_home}}', 'Years in the home', 'Whole years since the client\'s closing, computed from their most recent transaction closing date. Falls back to "several" when no closing date is on file. Used by the Vintage (3+ year) past-client track.', 'Transaction'],
-  ['{{monthly_intro}}', 'Monthly intro line', 'A warm opening line that changes with the current calendar month (e.g. August: "The calendar says August, but somehow it feels like summer just started."). Cedar Rapids / Eastern Iowa flavored, so each monthly past-client touch opens in-season automatically — and never repeats the line month to month.', 'System'],
+  ['{{monthly_intro}}', 'Monthly intro line', 'A warm opening line that changes with the current calendar month (e.g. August: "August has a way of reminding us summer doesn\'t stick around forever."). Cedar Rapids / Eastern Iowa flavored, so each monthly past-client touch opens in-season automatically — and never repeats the line month to month.', 'System'],
 ]
 
 export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
