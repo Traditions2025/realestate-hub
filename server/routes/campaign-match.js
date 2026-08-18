@@ -250,11 +250,20 @@ router.post('/:key/analyze', async (req, res) => {
     const ctx = buildContext()
     const where = campaignWhere(campaign, ctx)
     const rows = db.all(`SELECT ${COLS} FROM clients WHERE ${where}`)
+    const dripNames = new Map(db.all('SELECT id, name FROM drip_campaigns').map(d => [d.id, d.name]))
     const eligible = [], notRec = []
     for (const c of rows) {
       const { score, factors } = campaign.score(c, ctx)
-      // per-campaign exclusion, plus a universal "already in this drip" guard
-      const reason = campaign.hard(c, ctx) || (ctx.dripMap.get(c.id)?.has(campaign.dripId) ? `Already in ${campaign.label}` : null)
+      // Per-campaign exclusion, plus the one-drip-per-lead rule: a contact already
+      // active in ANY drip is not recommended (enrolling would be skipped anyway).
+      const inDrips = ctx.dripMap.get(c.id)
+      let dripReason = null
+      if (inDrips && inDrips.size) {
+        dripReason = inDrips.has(campaign.dripId)
+          ? `Already in ${campaign.label}`
+          : `Already in another drip (${dripNames.get([...inDrips][0]) || 'a campaign'})`
+      }
+      const reason = campaign.hard(c, ctx) || dripReason
       if (reason) { if (score >= 25) notRec.push({ id: c.id, name: nameOf(c), city: c.city, status: c.status, reason }); continue }
       if (score <= 0) continue
       eligible.push({ c, score, factors })

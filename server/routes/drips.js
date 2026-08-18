@@ -72,9 +72,11 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   // the roster as enrolled-but-silent. Mirrors emailHardBlock at send time. Opt-outs
   // are NOT skipped here — team policy still emails them, tagged.
   if (cli && emailHardBlock(cli)) return null
-  // don't double-enroll an active contact
-  const active = db.get("SELECT id FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [dripId, clientId])
-  if (active) return active.id
+  // one drip per lead: never stack a second active drip on a contact. If they are
+  // already active in THIS drip, treat it as already-enrolled (no-op); if they are
+  // active in a DIFFERENT drip, skip so a lead is never in two campaigns at once.
+  const activeAny = db.get("SELECT id, drip_id FROM drip_enrollments WHERE client_id=? AND status='active' LIMIT 1", [clientId])
+  if (activeAny) return Number(activeAny.drip_id) === Number(dripId) ? activeAny.id : null
   const next = nextSendIso(Date.now(), steps[0])
   const r = db.run('INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, next_run_at, source, automation_id) VALUES (?,?,?,?,?,?,?)',
     [dripId, clientId, 'active', 0, next, opts.source || 'manual', opts.automation_id || null])
