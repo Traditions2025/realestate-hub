@@ -296,6 +296,29 @@ function yearsInHome(client) {
   return 'several'
 }
 
+// Calendar-month opening line for the monthly past-client emails. Picks by the
+// CURRENT month (Chicago), so whichever monthly touch fires, its intro always
+// matches the real month — and consecutive monthly sends never repeat the line.
+// Cedar Rapids / Eastern Iowa flavored, per Matt's rotation.
+function monthlyIntro() {
+  const m = Number(new Intl.DateTimeFormat('en-US', { month: 'numeric', timeZone: 'America/Chicago' }).format(new Date())) // 1..12
+  const LINES = {
+    1: 'A new year always brings a little fresh energy with it.',
+    2: "Somehow we're already a month into the new year.",
+    3: "You can finally start to feel that spring isn't too far away.",
+    4: 'Spring is finally starting to show up around Cedar Rapids.',
+    5: 'This is one of my favorite times of year around Eastern Iowa.',
+    6: "Summer has officially arrived, and there's plenty happening around town.",
+    7: "There's something about July that makes everything feel a little more relaxed.",
+    8: 'The calendar says August, but somehow it feels like summer just started.',
+    9: 'You can definitely start to feel the seasons changing.',
+    10: 'Fall around Eastern Iowa is tough to beat.',
+    11: 'This time of year always seems to bring life back to the things that matter most.',
+    12: "Hard to believe we're already wrapping up another year.",
+  }
+  return LINES[m] || ''
+}
+
 function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
@@ -339,6 +362,8 @@ function fillTemplate(text, client) {
     .replace(/\{\{seasonal_maintenance\}\}/g, seasonalMaintenance())
     // Whole years since closing — for the Vintage (3+ year) past-client track.
     .replace(/\{\{years_in_home\}\}/g, yearsInHome(client))
+    // Calendar-month opening line for the monthly past-client emails.
+    .replace(/\{\{monthly_intro\}\}/g, monthlyIntro())
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
     .replace(/\{\{greeting\}\}/g, currentGreeting())
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())
