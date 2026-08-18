@@ -61,17 +61,19 @@ export default function DripCampaigns() {
           </div>
         )}
 
-      {editing && <DripEditor drip={editing} templates={templates} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+      {editing && <DripEditor drip={editing} templates={templates} setTemplates={setTemplates} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
       {activity && <DripActivity id={activity.id} name={activity.name} onClose={() => setActivity(null)} />}
     </div>
   )
 }
 
-function DripEditor({ drip, templates, onClose, onSaved }) {
+function DripEditor({ drip, templates, setTemplates, onClose, onSaved }) {
   const [name, setName] = useState(drip.name || '')
   const [description, setDescription] = useState(drip.description || '')
   const [steps, setSteps] = useState(drip.steps || [newStep()])
   const [saving, setSaving] = useState(false)
+  const [editingTplId, setEditingTplId] = useState(null)  // template being edited in place
+  const templateById = (id) => templates.find(t => String(t.id) === String(id))
 
   const setStep = (i, patch) => setSteps(s => s.map((x, j) => j === i ? { ...x, ...patch } : x))
   const addStep = () => setSteps(s => [...s, { ...newStep(), delay_days: 3 }])
@@ -117,15 +119,19 @@ function DripEditor({ drip, templates, onClose, onSaved }) {
                 </div>
               </div>
               <div className="form-row" style={{ gap: 10 }}>
-                <label style={{ flex: 2 }}>Subject<input value={s.subject} onChange={e => setStep(i, { subject: e.target.value })} placeholder="Supports {{first_name}}" /></label>
-                <label style={{ flex: 1 }}>Or use a template
+                {!s.template_id && (
+                  <label style={{ flex: 2 }}>Subject<input value={s.subject} onChange={e => setStep(i, { subject: e.target.value })} placeholder="Supports {{first_name}}" /></label>
+                )}
+                <label style={{ flex: s.template_id ? 2 : 1 }}>{s.template_id ? 'Email template' : 'Or use a template'}
                   <select value={s.template_id || ''} onChange={e => setStep(i, { template_id: e.target.value })}>
                     <option value="">— write below —</option>
                     {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                   </select>
                 </label>
               </div>
-              {!s.template_id && (
+              {s.template_id ? (
+                <TemplateStepPreview tpl={templateById(s.template_id)} onEdit={() => setEditingTplId(s.template_id)} />
+              ) : (
                 <div style={{ marginTop: 8 }}>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Message</div>
                   <RichTextEditor value={s.body} onChange={(b) => setStep(i, { body: b })} minHeight={140} />
@@ -143,6 +149,73 @@ function DripEditor({ drip, templates, onClose, onSaved }) {
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={save} disabled={saving || !valid}>{saving ? 'Saving…' : (drip.new ? 'Create Drip' : 'Save Changes')}</button>
+        </div>
+      </div>
+
+      {editingTplId != null && templateById(editingTplId) && (
+        <TemplateEditModal
+          template={templateById(editingTplId)}
+          onClose={() => setEditingTplId(null)}
+          onSaved={(upd) => { setTemplates?.(ts => ts.map(x => String(x.id) === String(upd.id) ? { ...x, ...upd } : x)); setEditingTplId(null) }}
+        />
+      )}
+    </Modal>
+  )
+}
+
+// Read-only preview of the template a step uses, with an "Edit email" button.
+// Body is rendered on a white card (email content is authored for a white bg, so
+// this keeps it legible in dark mode). Merge tokens like {{first_name}} show as-is;
+// they fill in per-recipient at send time.
+function TemplateStepPreview({ tpl, onEdit }) {
+  if (!tpl) return (
+    <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic' }}>
+      This template was not found (it may have been deleted). Pick another above, or choose “— write below —” to write inline.
+    </div>
+  )
+  return (
+    <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em' }}>Subject</span>
+        <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tpl.subject || '(no subject)'}</span>
+        <button type="button" className="btn btn-sm btn-secondary" onClick={onEdit}>✏️ Edit email</button>
+      </div>
+      <div style={{ maxHeight: 240, overflowY: 'auto', padding: '12px 14px', background: '#ffffff', color: '#111827', fontSize: 13, lineHeight: 1.55, fontFamily: 'Arial, Helvetica, sans-serif' }}
+        dangerouslySetInnerHTML={{ __html: tpl.body || '<em>(empty)</em>' }} />
+      <div style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)' }}>
+        Editing here also updates the “{tpl.name}” template in the Templates tab. Merge fields fill in when the email sends.
+      </div>
+    </div>
+  )
+}
+
+// Edit a shared template in place. Saves via PUT /api/templates/:id, so the change
+// is reflected in the drip AND everywhere else the template is used.
+function TemplateEditModal({ template, onClose, onSaved }) {
+  const [subject, setSubject] = useState(template.subject || '')
+  const [body, setBody] = useState(template.body || '')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    setSaving(true)
+    try {
+      await authFetch(`/api/templates/${template.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject, body, is_html: 1 }) })
+      onSaved({ ...template, subject, body })
+    } catch (e) { alert('Save failed: ' + e.message) } finally { setSaving(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Edit email — ${template.name}`} wide>
+      <div className="form">
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10, padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 6, border: '1px solid var(--border)' }}>
+          This is the shared template <strong>{template.name}</strong>. Saving updates it everywhere it is used — this drip and the Templates tab.
+        </div>
+        <label>Subject<input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Supports {{first_name}}" /></label>
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Message</div>
+          <RichTextEditor value={body} onChange={setBody} minHeight={240} />
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : 'Save email'}</button>
         </div>
       </div>
     </Modal>
