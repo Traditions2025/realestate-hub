@@ -1,6 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
-import { sendSequenceEmail, previewSequenceEmail } from './email.js'
+import { sendSequenceEmail, previewSequenceEmail, emailHardBlock } from './email.js'
 import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
 import { isStopStatus } from '../lead-sequences.js'
 
@@ -65,8 +65,13 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   const steps = parse(drip.steps, [])
   if (!steps.length) return null
   // never enroll a lead we've been told to stop contacting (Junk / DNC)
-  const cli = db.get('SELECT status FROM clients WHERE id = ?', [Number(clientId)])
+  const cli = db.get('SELECT status, email, email_status FROM clients WHERE id = ?', [Number(clientId)])
   if (cli && isStopStatus(cli.status)) return null
+  // drips are email-only: skip contacts we could never actually email (no address,
+  // throwaway domain, prior spam complaint, known-bad address) so they don't clutter
+  // the roster as enrolled-but-silent. Mirrors emailHardBlock at send time. Opt-outs
+  // are NOT skipped here — team policy still emails them, tagged.
+  if (cli && emailHardBlock(cli)) return null
   // don't double-enroll an active contact
   const active = db.get("SELECT id FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [dripId, clientId])
   if (active) return active.id
@@ -185,7 +190,7 @@ router.post('/:id/enroll', (req, res) => {
   const ids = req.body?.client_ids || []
   let n = 0
   for (const cid of ids) { if (enrollInDrip(Number(req.params.id), Number(cid), { source: 'manual' })) n++ }
-  res.json({ success: true, enrolled: n })
+  res.json({ success: true, enrolled: n, skipped: ids.length - n, total: ids.length })
 })
 router.post('/enrollments/:eid/remove', (req, res) => {
   db.run("UPDATE drip_enrollments SET status='removed', completed_at=? WHERE id=?", [nowIso(), Number(req.params.eid)])

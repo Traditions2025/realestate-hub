@@ -3236,7 +3236,9 @@ function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
     setBusy(false)
     if (r.error) return alert(r.error)
     const name = (items || []).find(i => i.id === Number(selId))?.name || (kind === 'automation' ? 'automation' : 'drip')
-    alert(`Enrolled ${r.enrolled} of ${clientIds.length} selected into “${name}”.` + (r.enrolled < clientIds.length ? '\n(Contacts already enrolled or without an email are skipped.)' : ''))
+    const skipped = (r.skipped != null) ? r.skipped : (clientIds.length - (r.enrolled || 0))
+    alert(`Enrolled ${r.enrolled} of ${clientIds.length} selected into “${name}”.` +
+      (skipped > 0 ? `\n${skipped} skipped — already enrolled, no email on file, a bad/wrong address, or Do-Not-Contact.` : ''))
     onDone()
   }
   const title = kind === 'automation' ? 'Apply Automation' : 'Apply Drip Campaign'
