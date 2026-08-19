@@ -126,13 +126,19 @@ export async function a2pStatus(numberE164) {
   const svc = await get('https://messaging.twilio.com/v1/Services?PageSize=50')
   for (const s of (svc.j.services || [])) {
     const pn = await get(`https://messaging.twilio.com/v1/Services/${s.sid}/PhoneNumbers?PageSize=200`)
-    const hasNum = (pn.j.data || []).some(n => n.phone_number === target)
+    const hasNum = (pn.j.phone_numbers || pn.j.data || []).some(n => n.phone_number === target)
     const usa2p = await get(`https://messaging.twilio.com/v1/Services/${s.sid}/Compliance/Usa2p`)
     const camps = (usa2p.j.compliance || (usa2p.j.sid ? [usa2p.j] : [])).map(x => ({
       campaign_status: x.campaign_status, brand_registration_sid: x.brand_registration_sid,
       us_app_to_person_usecase: x.us_app_to_person_usecase, message_samples: (x.message_samples || []).length,
     }))
-    if (hasNum || camps.length) out.services.push({ sid: s.sid, name: s.friendly_name, has_our_number: hasNum, us_a2p: camps })
+    if (hasNum || camps.length) out.services.push({
+      sid: s.sid, name: s.friendly_name, has_our_number: hasNum, us_a2p: camps,
+      // Inbound routing for this service: if use_inbound_webhook_on_number is true,
+      // Twilio uses each number's own SmsUrl; else it uses the service's URL below.
+      inbound_request_url: s.inbound_request_url || '', inbound_method: s.inbound_method || '',
+      use_inbound_webhook_on_number: s.use_inbound_webhook_on_number,
+    })
   }
   out.number_in_any_service = out.services.some(s => s.has_our_number)
   return { ok: true, ...out }
