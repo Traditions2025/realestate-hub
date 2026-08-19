@@ -38,9 +38,14 @@ export default function CallWidget() {
 
   useEffect(() => {
     let cancelled = false
+    const waitForSdk = async () => {
+      for (let i = 0; i < 30; i++) { if (window.Twilio && window.Twilio.Device) return true; await new Promise(r => setTimeout(r, 300)) }
+      return !!(window.Twilio && window.Twilio.Device)
+    }
     const init = async () => {
+      if (!(await waitForSdk())) return   // SDK never loaded — voice disabled, no crash
       const Twilio = window.Twilio
-      if (!Twilio || !Twilio.Device) return   // SDK not loaded — voice disabled, no crash
+      if (!Twilio || !Twilio.Device) return
       let tok
       try { const r = await authFetch('/api/voice/token'); tok = await r.json() } catch { return }
       if (!tok || !tok.ok || !tok.token || cancelled) return
