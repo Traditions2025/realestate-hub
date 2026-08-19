@@ -515,55 +515,99 @@ async function start() {
   const xml = (res, body) => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`)
   const escXml = (s) => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]))
   // Best-effort match an inbound/outbound phone to a client + log the call.
-  const logCall = (direction, phone, status, sid) => {
+  // Insert-or-update a call / voicemail communication row, keyed by Twilio SID.
+  const upsertCall = (channel, direction, phone, f = {}) => {
     try {
       const last10 = String(phone || '').replace(/\D/g, '').slice(-10)
       if (!last10) return null
       const match = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-7)])
         .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
+      const ext = 'twiliocall_' + (f.sid || Date.now())
+      const label = channel === 'voicemail' ? 'Voicemail' : `${direction === 'incoming' ? 'Incoming' : 'Outgoing'} call`
+      const tail = f.disposition ? ` — ${f.disposition}` : (f.delivery_status && !['completed', 'ringing', 'initiated'].includes(f.delivery_status) ? ` (${f.delivery_status})` : '')
+      const preview = (label + tail).slice(0, 160)
+      const existing = db.get('SELECT id FROM communications WHERE external_id = ?', [ext])
+      if (existing) {
+        const sets = ['preview=?'], vals = [preview]
+        for (const k of ['delivery_status', 'duration_sec', 'recording_url', 'recording_sid', 'transcript', 'disposition']) if (f[k] != null) { sets.push(`${k}=?`); vals.push(f[k]) }
+        if (channel === 'voicemail') { sets.push('channel=?', "status='unread'"); vals.push('voicemail') }
+        vals.push(existing.id)
+        db.run(`UPDATE communications SET ${sets.join(', ')} WHERE id=?`, vals)
+        return match ? match.id : null
+      }
       if (!match) return null
-      const ext = 'twiliocall_' + (sid || Date.now())
-      if (db.get('SELECT id FROM communications WHERE external_id = ?', [ext])) return match.id
-      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        ['call', direction, match.id, `${match.first_name || ''} ${match.last_name || ''}`.trim(), direction === 'incoming' ? phone : '', direction === 'outgoing' ? phone : '',
-          null, `${direction === 'incoming' ? 'Incoming' : 'Outgoing'} call${status ? ' (' + status + ')' : ''}`, null, ext, `c${match.id}_call`, direction === 'incoming' ? 'unread' : 'read', new Date().toISOString()])
-      return match.id
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, external_id, thread_key, status, delivery_status, duration_sec, recording_url, recording_sid, transcript, disposition, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [channel, direction, match.id, `${match.first_name || ''} ${match.last_name || ''}`.trim(), direction === 'incoming' ? phone : '', direction === 'outgoing' ? phone : '',
+          null, preview, ext, `c${match.id}_call`, direction === 'incoming' ? 'unread' : 'read',
+          f.delivery_status || null, f.duration_sec || null, f.recording_url || null, f.recording_sid || null, f.transcript || null, f.disposition || null, new Date().toISOString()])
+      return match ? match.id : null
     } catch { return null }
   }
+  // Twilio signature guard (dynamic import; module is cached after first load).
+  const twGuard = (req, res, next) => import('./twilio-webhook.js').then(m => m.twilioWebhookGuard(req, res, next)).catch(() => next())
 
   // Access token for the browser Device.
   app.get('/api/voice/token', async (_req, res) => {
     try { const { voiceToken } = await import('./voice.js'); res.json(voiceToken()) }
     catch (e) { res.status(500).json({ ok: false, error: e.message }) }
   })
-  // One-time setup: create API key + TwiML app + wire the number's voice webhook.
+  // One-time setup: create API key + TwiML app + wire the number's voice webhooks.
   app.post('/api/voice/setup', async (_req, res) => {
     try { const { ensureVoiceInfra } = await import('./voice.js'); res.json(await ensureVoiceInfra(HUB_BASE)) }
     catch (e) { res.status(500).json({ ok: false, error: e.message }) }
   })
   // TwiML: browser places an outbound call → dial the number from the Hub caller ID.
-  app.post('/api/voice/outbound', async (req, res) => {
+  app.post('/api/voice/outbound', twGuard, async (req, res) => {
     const { toE164, twilioConfig } = await import('./twilio.js')
     const to = toE164(req.body?.To || '')
     const from = twilioConfig().from
     if (!to) return xml(res, `<Say>No number was provided.</Say>`)
-    logCall('outgoing', to, 'initiated', req.body?.CallSid)
-    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"><Number>${escXml(to)}</Number></Dial>`)
+    upsertCall('call', 'outgoing', to, { sid: req.body?.CallSid, delivery_status: 'initiated' })
+    const rec = (db.getSetting && db.getSetting('twilio_record_calls', '0')) === '1'
+    const recAttr = rec ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
+    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"${recAttr}><Number>${escXml(to)}</Number></Dial>`)
   })
-  // TwiML: inbound call to the Hub number → ring the browser client (accept/reject there).
-  app.post('/api/voice/inbound', (req, res) => {
+  // TwiML: inbound call → ring the browser client; the Dial `action` handles the result.
+  app.post('/api/voice/inbound', twGuard, (req, res) => {
     const from = req.body?.From || ''
-    logCall('incoming', from, 'ringing', req.body?.CallSid)
-    xml(res, `<Dial answerOnBridge="true" timeout="25" callerId="${escXml(from)}"><Client>hub</Client></Dial><Say voice="alice">Sorry, we could not connect you right now. Please try again later, or leave a text message. Goodbye.</Say>`)
+    upsertCall('call', 'incoming', from, { sid: req.body?.CallSid, delivery_status: 'ringing' })
+    xml(res, `<Dial answerOnBridge="true" timeout="20" action="${HUB_BASE}/api/voice/dial-complete" callerId="${escXml(from)}"><Client>hub</Client></Dial>`)
   })
-  // Call status callback (completed / no-answer / etc.) — update the logged call.
-  app.post('/api/voice/status', (req, res) => {
+  // After the browser Dial finishes: answered → log completed; missed → take a voicemail.
+  app.post('/api/voice/dial-complete', twGuard, (req, res) => {
+    const b = req.body || {}
+    const from = b.From || ''
+    if ((b.DialCallStatus || '') === 'completed') {
+      upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'completed', duration_sec: Number(b.DialCallDuration || 0) || null })
+      return xml(res, `<Hangup/>`)
+    }
+    upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'missed', disposition: 'Missed call' })
+    xml(res, `<Say voice="alice">Sorry we missed you. Please leave a message after the tone.</Say><Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`)
+  })
+  // Voicemail recording finished (Record `action`) → store it on the timeline.
+  app.post('/api/voice/voicemail-done', twGuard, (req, res) => {
+    const b = req.body || {}
+    if (b.RecordingUrl) upsertCall('voicemail', 'incoming', b.From || '', { sid: b.CallSid, delivery_status: 'completed', recording_url: b.RecordingUrl, recording_sid: b.RecordingSid, duration_sec: Number(b.RecordingDuration || 0) || null, disposition: 'Voicemail' })
+    xml(res, `<Say voice="alice">Thank you. Goodbye.</Say><Hangup/>`)
+  })
+  // Voicemail transcription ready → attach transcript to the row.
+  app.post('/api/voice/transcription', twGuard, (req, res) => {
+    try { if (req.body?.CallSid && req.body?.TranscriptionText) db.run('UPDATE communications SET transcript=? WHERE external_id=?', [req.body.TranscriptionText, 'twiliocall_' + req.body.CallSid]) } catch {}
+    res.sendStatus(204)
+  })
+  // Call recording ready (when recording is enabled) → attach media.
+  app.post('/api/voice/recording', twGuard, (req, res) => {
+    try { if (req.body?.CallSid && req.body?.RecordingUrl) db.run('UPDATE communications SET recording_url=?, recording_sid=? WHERE external_id=?', [req.body.RecordingUrl, req.body.RecordingSid, 'twiliocall_' + req.body.CallSid]) } catch {}
+    res.sendStatus(204)
+  })
+  // Call status callback → reconcile final status + duration.
+  app.post('/api/voice/status', twGuard, (req, res) => {
     try {
       const b = req.body || {}
       const dir = (b.Direction || '').includes('inbound') ? 'incoming' : 'outgoing'
       const phone = dir === 'incoming' ? b.From : b.To
-      logCall(dir, phone, b.CallStatus, b.CallSid)
+      upsertCall('call', dir, phone, { sid: b.CallSid, delivery_status: b.CallStatus, duration_sec: Number(b.CallDuration || 0) || null })
     } catch {}
     res.sendStatus(204)
   })

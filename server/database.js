@@ -733,6 +733,21 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_status ON communications(status, occurred_at DESC)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_client ON communications(client_id, occurred_at DESC)') } catch {}
+  // Communications metadata for the full CRM comms center (2026-08-19). Safe,
+  // additive migrations — each is a no-op if the column already exists.
+  for (const [col, type] of [
+    ['delivery_status', 'TEXT'],   // text: queued|sent|delivered|undelivered|failed ; call: initiated|ringing|in-progress|completed|busy|no-answer|failed|canceled|missed
+    ['duration_sec', 'INTEGER'],   // call length
+    ['recording_url', 'TEXT'],     // voicemail / call recording media
+    ['recording_sid', 'TEXT'],
+    ['transcript', 'TEXT'],        // voicemail transcription
+    ['disposition', 'TEXT'],       // agent-selected call outcome
+    ['notes', 'TEXT'],             // call notes
+    ['media_url', 'TEXT'],         // MMS media (json array)
+    ['error_message', 'TEXT'],     // friendly failure reason
+    ['agent', 'TEXT'],             // which hub user handled it
+  ]) { try { db.run(`ALTER TABLE communications ADD COLUMN ${col} ${type}`) } catch {} }
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_sid ON communications(external_id)') } catch {}
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`

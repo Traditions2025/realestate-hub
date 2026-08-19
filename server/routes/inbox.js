@@ -4,6 +4,18 @@ import db from '../database.js'
 import { sendViaSendGrid, emailHardBlock } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
 import { notifyNewInbound } from '../gmail-inbox.js'
+import { twilioWebhookGuard } from '../twilio-webhook.js'
+
+// Friendly, agent-readable text for the common Twilio messaging error codes.
+function twilioErrorText(code) {
+  const m = {
+    30003: 'Phone unreachable (off or out of coverage)', 30004: 'Message blocked by the carrier',
+    30005: 'Unknown or non-existent number', 30006: 'Landline or unreachable carrier (can’t receive texts)',
+    30007: 'Carrier filtered as spam', 30008: 'Unknown delivery error', 21610: 'Recipient has opted out (STOP)',
+    21614: 'Not a valid mobile number', 30034: 'Number not registered for A2P 10DLC',
+  }
+  return m[Number(code)] || (code ? `Carrier error ${code}` : null)
+}
 
 const router = Router()
 
@@ -153,15 +165,19 @@ router.post('/incoming', (req, res) => {
 
 // ---- Twilio inbound texts (PUBLIC — whitelisted in requireAuth; Twilio posts here) ----
 // Twilio sends application/x-www-form-urlencoded: From, To, Body, MessageSid, ...
-router.post('/twilio-inbound', async (req, res) => {
+router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
   try {
     const b = req.body || {}
     const from = b.From || b.from || ''
     const to = b.To || b.to || ''
     const body = b.Body || b.body || ''
     const sid = b.MessageSid || b.SmsSid || ''
+    // MMS media (Twilio sends NumMedia + MediaUrl0.. / MediaContentType0..)
+    const numMedia = Number(b.NumMedia || 0)
+    const media = []
+    for (let i = 0; i < numMedia; i++) { const u = b['MediaUrl' + i]; if (u) media.push({ url: u, type: b['MediaContentType' + i] || '' }) }
     const client = matchClient('text', from)
-    // STOP / START compliance — always honor it for a matched client.
+    // STOP / START / HELP compliance — always honor it for a matched client.
     const { optKeyword } = await import('../twilio.js')
     const kw = optKeyword(body)
     if (kw && client) db.run('UPDATE clients SET text_opt_out = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, client.id])
@@ -169,12 +185,12 @@ router.post('/twilio-inbound', async (req, res) => {
       const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)
       const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
       if (!dup) {
-        const preview = String(body).replace(/\s+/g, ' ').trim().slice(0, 160)
+        const preview = (String(body).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} attachment${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
         const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'incoming', client.id, name, from, to, null, preview, body, externalId, `c${client.id}_text`, 'unread', nowIso()])
-        notifyInboundText(client, body, from).catch(() => {})
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'incoming', client.id, name, from, to, null, preview, body, externalId, `c${client.id}_text`, 'unread', media.length ? 1 : 0, media.length ? JSON.stringify(media) : null, 'received', nowIso()])
+        notifyInboundText(client, body || (media.length ? '[media]' : ''), from).catch(() => {})
       }
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }
@@ -182,13 +198,15 @@ router.post('/twilio-inbound', async (req, res) => {
   res.set('Content-Type', 'text/xml').send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>')
 })
 
-// ---- Twilio delivery status (PUBLIC — whitelisted). Marks failed sends visibly. ----
-router.post('/twilio-status', (req, res) => {
+// ---- Twilio delivery status (PUBLIC). Reconciles the outgoing text's delivery_status. ----
+router.post('/twilio-status', twilioWebhookGuard, (req, res) => {
   try {
     const sid = req.body?.MessageSid || req.body?.SmsSid
     const status = req.body?.MessageStatus || req.body?.SmsStatus
-    if (sid && (status === 'failed' || status === 'undelivered')) {
-      db.run("UPDATE communications SET preview = '⚠ Not delivered — ' || preview WHERE external_id = ? AND direction='outgoing' AND preview NOT LIKE '⚠%'", ['twilio_' + sid])
+    const errCode = req.body?.ErrorCode
+    if (sid && status) {
+      const err = (status === 'failed' || status === 'undelivered') ? twilioErrorText(errCode) : null
+      db.run("UPDATE communications SET delivery_status=?, error_message=? WHERE external_id=? AND direction='outgoing'", [status, err, 'twilio_' + sid])
     }
   } catch {}
   res.sendStatus(204)
@@ -233,9 +251,9 @@ router.post('/send', async (req, res) => {
       try {
         const r = await sendSms(c.phone, body, { statusCallback: hub + '/api/inbox/twilio-status' })
         const preview = String(body).replace(/\s+/g, ' ').trim().slice(0, 160)
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', nowIso()])
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, delivery_status, agent, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', req.body?.agent || null, nowIso()])
         results.push({ client_id: cid, ok: true })
       } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
     }
