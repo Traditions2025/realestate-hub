@@ -15,6 +15,8 @@ export default function CallWidget() {
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
   const [err, setErr] = useState('')
+  const [reg, setReg] = useState('connecting')   // connecting | ready | error
+  const [regErr, setRegErr] = useState('')
 
   const fmt = (n) => { const d = String(n || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (n || '') }
   const startTimer = () => { setSeconds(0); clearInterval(timerRef.current); timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000) }
@@ -42,18 +44,25 @@ export default function CallWidget() {
       for (let i = 0; i < 30; i++) { if (window.Twilio && window.Twilio.Device) return true; await new Promise(r => setTimeout(r, 300)) }
       return !!(window.Twilio && window.Twilio.Device)
     }
+    const primeMic = async () => {
+      // Secure mic permission up front so accepting a call bridges audio instantly
+      // (without this, the first accept can fail before the caller connects).
+      try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); return true }
+      catch { setRegErr('Microphone is blocked — click the 🔒 in the address bar and allow the mic, or calls won\'t have audio.'); return false }
+    }
     const init = async () => {
-      if (!(await waitForSdk())) return   // SDK never loaded — voice disabled, no crash
+      if (!(await waitForSdk())) { setReg('error'); setRegErr('Phone SDK failed to load'); return }
       const Twilio = window.Twilio
-      if (!Twilio || !Twilio.Device) return
       let tok
-      try { const r = await authFetch('/api/voice/token'); tok = await r.json() } catch { return }
-      if (!tok || !tok.ok || !tok.token || cancelled) return
+      try { const r = await authFetch('/api/voice/token'); tok = await r.json() } catch { setReg('error'); setRegErr('Could not get a phone token'); return }
+      if (!tok || !tok.ok || !tok.token) { setReg('error'); setRegErr(tok?.error || 'Voice is not set up yet'); return }
+      if (cancelled) return
       try {
         const device = new Twilio.Device(tok.token, { codecPreferences: ['opus', 'pcmu'], closeProtection: true })
         deviceRef.current = device
-        device.on('registered', () => setReady(true))
-        device.on('error', (e) => { setErr(e?.message || 'Voice error'); if (e?.code === 20104 || e?.code === 31205) refreshToken() })
+        device.on('registered', () => { setReady(true); setReg('ready'); primeMic() })
+        device.on('unregistered', () => setReg('connecting'))
+        device.on('error', (e) => { const m = e?.message || 'Phone error'; setErr(m); setRegErr(m); setReg('error'); if (e?.code === 20104 || e?.code === 31205) refreshToken() })
         device.on('tokenWillExpire', () => refreshToken())
         device.on('incoming', async (call) => {
           const from = call.parameters?.From || ''
@@ -62,7 +71,7 @@ export default function CallWidget() {
           wireCall(call)
         })
         await device.register()
-      } catch (e) { setErr(e?.message || 'Voice init failed') }
+      } catch (e) { setReg('error'); setRegErr(e?.message || 'Phone failed to start') }
     }
     const refreshToken = async () => { try { const r = await authFetch('/api/voice/token'); const t = await r.json(); if (t?.token && deviceRef.current) deviceRef.current.updateToken(t.token) } catch {} }
     init()
@@ -82,12 +91,23 @@ export default function CallWidget() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const primeMicAgain = async () => {
+    try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); setRegErr('') }
+    catch { setRegErr('Microphone is still blocked. Allow it in your browser site settings, then reload.') }
+  }
   const accept = () => { try { callRef.current?.accept() } catch {} }
   const reject = () => { try { callRef.current?.reject() } catch {}; endLocal() }
   const hangup = () => { try { callRef.current?.disconnect() } catch {}; endLocal() }
   const toggleMute = () => { const m = !muted; setMuted(m); try { callRef.current?.mute(m) } catch {} }
 
-  if (status === 'idle') return null   // nothing on screen when not in a call
+  if (status === 'idle') {
+    const chip = { position: 'fixed', right: 20, bottom: 20, zIndex: 4000, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, boxShadow: '0 6px 20px rgba(0,0,0,.15)', border: '1px solid var(--border,#e5e7eb)', background: 'var(--bg-primary,#fff)', color: 'var(--text-primary,#111)', maxWidth: 280 }
+    const dot = (c) => ({ width: 9, height: 9, borderRadius: '50%', background: c, flexShrink: 0 })
+    if (reg === 'ready' && !regErr) return <div style={chip} title="Hub phone connected — ready for calls"><span style={dot('#10b981')} />Phone ready</div>
+    if (reg === 'ready' && regErr) return <div style={{ ...chip, borderColor: '#f59e0b', cursor: 'pointer' }} onClick={() => primeMicAgain()} title={regErr}><span style={dot('#f59e0b')} /><span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Mic blocked — click to enable</span></div>
+    if (reg === 'connecting') return <div style={chip}><span style={dot('#f59e0b')} />Phone connecting…</div>
+    return <div style={{ ...chip, borderColor: '#ef4444', cursor: 'pointer' }} onClick={() => window.location.reload()} title="Click to retry"><span style={dot('#ef4444')} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{regErr || 'Phone error'}</span></div>
+  }
 
   const title = peer.name || fmt(peer.number) || 'Unknown'
   const sub = peer.name ? fmt(peer.number) : ''
