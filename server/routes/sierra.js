@@ -530,15 +530,11 @@ router.post('/update-lead-tag', async (req, res) => {
   // Sierra tag endpoint shapes vary. We try several. Some accept a single tag
   // string; others expect the FULL updated tags array. The full-list shape is
   // last-resort because it can clobber tags added in Sierra since our last sync.
-  // PUT /leads/{id} is the CONFIRMED-working Sierra lead-update endpoint (same one
-  // that status writes use). It does a partial update, so sending the full tags
-  // array sets the lead's tags. The Hub's local tag list already mirrors Sierra
-  // (sync stores Sierra tags) plus our additions, so this is a safe superset.
-  // Tried first; the older shapes remain as fallbacks.
-  const tagObjs = updatedTags.map(t => ({ name: t }))
+  // WARNING: Sierra has NO working tag-write endpoint on this account — the tag
+  // routes 404, and PUT /leads/{id} clears tags (string array) or 400s (objects).
+  // So tag pushes stay LOCAL-only. Do NOT add a PUT /leads/{id} {tags} attempt here.
   const attempts = action === 'add'
     ? [
-        { method: 'PUT',  path: `/leads/${leadId}`,                     body: { tags: tagObjs } },
         { method: 'POST', path: `/leads/${leadId}/tags`,                body: { tag } },
         { method: 'POST', path: `/leads/${leadId}/tag`,                 body: { name: tag } },
         { method: 'POST', path: `/leads/edit/${leadId}`,                body: { addTags: [tag] } },
@@ -546,7 +542,6 @@ router.post('/update-lead-tag', async (req, res) => {
         { method: 'POST', path: `/leads/edit/${leadId}`,                body: { tags: updatedTags } },
       ]
     : [
-        { method: 'PUT',    path: `/leads/${leadId}`,             body: { tags: tagObjs } },
         { method: 'DELETE', path: `/leads/${leadId}/tags/${encodeURIComponent(tag)}`, body: null },
         { method: 'POST',   path: `/leads/${leadId}/tags/remove`, body: { tag } },
         { method: 'POST',   path: `/leads/edit/${leadId}`,        body: { removeTags: [tag] } },
