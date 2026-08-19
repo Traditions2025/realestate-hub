@@ -483,6 +483,38 @@ router.post('/update-lead-status', async (req, res) => {
   })
 })
 
+// Push edited profile fields to Sierra so Hub edits STICK (otherwise the sync
+// overwrites them back to Sierra's values). Uses the documented PUT /leads/{id}
+// (partial update). Send only the fields you changed. Non-empty values only, so
+// we never accidentally blank a Sierra field. Maps Hub column names → Sierra params.
+const HUB_TO_SIERRA_FIELD = {
+  first_name: 'firstName', last_name: 'lastName', email: 'email', phone: 'phone',
+  address: 'streetAddress', city: 'city', state: 'state', zip: 'zip',
+}
+router.post('/update-lead-fields', async (req, res) => {
+  const { client_id, fields } = req.body || {}
+  if (!client_id) return res.status(400).json({ error: 'client_id required' })
+  const client = db.get('SELECT id, sierra_lead_id FROM clients WHERE id = ?', [Number(client_id)])
+  if (!client) return res.status(404).json({ error: 'Client not found' })
+  if (!client.sierra_lead_id) return res.json({ success: true, skipped: 'not a Sierra lead (local only)' })
+  const src = fields || db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)])
+  const body = {}
+  for (const [hk, sk] of Object.entries(HUB_TO_SIERRA_FIELD)) {
+    const v = src[hk]
+    if (v !== undefined && v !== null && String(v).trim() !== '') body[sk] = String(v).trim()
+  }
+  if (src.status) { const ss = HUB_TO_SIERRA_STATUS[String(src.status).toLowerCase()]; if (ss) body.leadStatus = ss }
+  if (!Object.keys(body).length) return res.json({ success: true, skipped: 'no pushable fields' })
+  try {
+    const result = await sierraPut(`/leads/${client.sierra_lead_id}`, body)
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['sierra_fields_pushed', 'client', client.id, `Pushed to Sierra: ${Object.keys(body).join(', ')}`])
+    res.json({ success: true, pushed: Object.keys(body), sierra_response: result })
+  } catch (err) {
+    res.status(502).json({ success: false, error: err.message })
+  }
+})
+
 // =============================================================
 // WRITE-BACK: push tag add/remove to Sierra. Local hub DB is updated
 // first (always succeeds, so the change is never lost locally even if

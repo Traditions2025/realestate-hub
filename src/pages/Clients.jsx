@@ -1195,36 +1195,40 @@ export default function Clients() {
       else if (data[k]) data[k] = Number(data[k])
     })
 
-    // Detect status change on an existing Sierra-sourced lead BEFORE the save,
-    // so we can offer to push to Sierra after the local save succeeds.
-    const statusChanged = editing
-      && editingOriginal
-      && editingOriginal.sierra_lead_id
-      && editingOriginal.status !== data.status
+    const isSierraLead = editing && editingOriginal && editingOriginal.sierra_lead_id
 
-    if (editing) await api.updateClient(editing, data)
-    else await api.createClient(data)
+    // Local save first. If it fails, tell the user — the change did NOT save.
+    try {
+      if (editing) await api.updateClient(editing, data)
+      else await api.createClient(data)
+    } catch (err) {
+      alert('Save failed — your change was NOT saved. Please try again.\n\n' + (err?.message || err))
+      return
+    }
 
-    // Local-first, then always push the status change to Sierra automatically
-    // (no confirm — a status change always belongs in Sierra too). Only a real
-    // Sierra failure surfaces an alert.
-    if (statusChanged) {
+    // For a Sierra-sourced lead, push the edited fields (name/phone/email/address/
+    // status) to Sierra too — otherwise the next Sierra sync overwrites them back.
+    if (isSierraLead) {
       try {
-        const r = await authFetch('/api/sierra/update-lead-status', {
+        const r = await authFetch('/api/sierra/update-lead-fields', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ client_id: editing, status: data.status })
+          body: JSON.stringify({ client_id: editing, fields: data })
         })
         const result = await r.json()
-        if (!result.success) {
-          alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
+        if (!result.success && !result.skipped) {
+          alert('Saved in the Hub, but pushing to Sierra failed — it may revert on the next sync.\n\nDetails: ' + (result.error || 'unknown'))
         }
       } catch (err) {
-        alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
+        alert('Saved in the Hub, but pushing to Sierra failed — it may revert on the next sync.\n\n' + err.message)
       }
     }
 
     setModalOpen(false)
+    // Refresh the open profile so it reflects the edit (was showing stale data).
+    if (editing && detail?.id === editing) {
+      try { const fresh = await authFetch(`/api/clients/${editing}`).then(r => r.json()); setDetail(fresh) } catch {}
+    }
     load()
   }
 
@@ -2530,9 +2534,12 @@ export default function Clients() {
             <div className="detail-grid">
               <div className="detail-section">
                 <h4>Contact Info</h4>
-                <p><strong>Phone:</strong> {detail.phone || '—'} {detail.phone_status && detail.phone_status !== 'Unknown' && <span className="email-status-tag">{detail.phone_status}</span>}</p>
-                <p><strong>Email:</strong> {detail.email || '—'} {detail.email_status && detail.email_status !== 'Unknown' && <span className="email-status-tag">{detail.email_status}</span>}</p>
-                <p><strong>Address:</strong> {detail.address || '—'}</p>
+                <InlineName detail={detail} onSaved={() => openDetail(detail.id)} />
+                <InlineField label="Phone" field="phone" value={detail.phone} clientId={detail.id} onSaved={() => openDetail(detail.id)}
+                  statusTag={detail.phone_status && detail.phone_status !== 'Unknown' ? <span className="email-status-tag">{detail.phone_status}</span> : null} />
+                <InlineField label="Email" field="email" type="email" value={detail.email} clientId={detail.id} onSaved={() => openDetail(detail.id)}
+                  statusTag={detail.email_status && detail.email_status !== 'Unknown' ? <span className="email-status-tag">{detail.email_status}</span> : null} />
+                <InlineField label="Address" field="address" value={detail.address} clientId={detail.id} onSaved={() => openDetail(detail.id)} />
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
@@ -3264,5 +3271,81 @@ function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+// --- Inline field editors for the lead profile (edit a single field in place) ---
+// Saves to the Hub, then pushes to Sierra (no-op for non-Sierra leads) so the edit
+// sticks past the next sync. onSaved refreshes the profile.
+function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text' }) {
+  const [editing, setEditing] = React.useState(false)
+  const [val, setVal] = React.useState(value || '')
+  const [saving, setSaving] = React.useState(false)
+  React.useEffect(() => { setVal(value || '') }, [value])
+  const save = async () => {
+    setSaving(true)
+    try {
+      await authFetch(`/api/clients/${clientId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) })
+      try { await authFetch('/api/sierra/update-lead-fields', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId, fields: { [field]: val } }) }) } catch {}
+      setEditing(false); onSaved && onSaved()
+    } catch (e) { alert('Could not save ' + label.toLowerCase() + ': ' + e.message) }
+    finally { setSaving(false) }
+  }
+  return (
+    <p style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <strong>{label}:</strong>
+      {editing ? (
+        <>
+          <input type={type} value={val} autoFocus onChange={e => setVal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setVal(value || ''); setEditing(false) } }}
+            style={{ flex: 1, minWidth: 140, padding: '3px 6px' }} />
+          <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>{saving ? '…' : 'Save'}</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => { setVal(value || ''); setEditing(false) }}>Cancel</button>
+        </>
+      ) : (
+        <>
+          <span>{value || '—'}</span>{statusTag}
+          <button title={`Edit ${label.toLowerCase()}`} onClick={() => setEditing(true)}
+            style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 4px' }}>✎</button>
+        </>
+      )}
+    </p>
+  )
+}
+
+// Name is two columns (first + last), so it gets its own inline editor.
+function InlineName({ detail, onSaved }) {
+  const [editing, setEditing] = React.useState(false)
+  const [fn, setFn] = React.useState(detail.first_name || '')
+  const [ln, setLn] = React.useState(detail.last_name || '')
+  const [saving, setSaving] = React.useState(false)
+  React.useEffect(() => { setFn(detail.first_name || ''); setLn(detail.last_name || '') }, [detail.first_name, detail.last_name])
+  const save = async () => {
+    setSaving(true)
+    try {
+      await authFetch(`/api/clients/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ first_name: fn, last_name: ln }) })
+      try { await authFetch('/api/sierra/update-lead-fields', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: detail.id, fields: { first_name: fn, last_name: ln } }) }) } catch {}
+      setEditing(false); onSaved && onSaved()
+    } catch (e) { alert('Could not save name: ' + e.message) }
+    finally { setSaving(false) }
+  }
+  return (
+    <p style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <strong>Name:</strong>
+      {editing ? (
+        <>
+          <input value={fn} autoFocus onChange={e => setFn(e.target.value)} placeholder="First" style={{ width: 110, padding: '3px 6px' }} />
+          <input value={ln} onChange={e => setLn(e.target.value)} placeholder="Last" style={{ flex: 1, minWidth: 120, padding: '3px 6px' }} />
+          <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>{saving ? '…' : 'Save'}</button>
+          <button className="btn btn-sm btn-secondary" onClick={() => { setFn(detail.first_name || ''); setLn(detail.last_name || ''); setEditing(false) }}>Cancel</button>
+        </>
+      ) : (
+        <>
+          <span>{`${detail.first_name || ''} ${detail.last_name || ''}`.trim() || '—'}</span>
+          <button title="Edit name" onClick={() => setEditing(true)}
+            style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 4px' }}>✎</button>
+        </>
+      )}
+    </p>
   )
 }
