@@ -70,6 +70,7 @@ export function requireAuth(req, res, next) {
   if (req.path === '/api/inbox/parse-inbound') return next() // SendGrid Inbound Parse posts here (no token)
   if (req.path === '/api/inbox/twilio-inbound') return next() // Twilio posts incoming texts here (no token)
   if (req.path === '/api/inbox/twilio-status') return next() // Twilio posts delivery status here (no token)
+  if (req.path === '/api/voice/outbound' || req.path === '/api/voice/inbound' || req.path === '/api/voice/status') return next() // Twilio Voice webhooks (no token)
   if (req.path.startsWith('/api/social-media/img/')) return next() // public images so Meta/LinkedIn can fetch them
   if (req.path === '/api/social-media/queue' || req.path === '/api/social-media/result') return next() // n8n (checks its own shared key)
   if (req.path === '/api/track/beacon') return next() // tracking pixel beacons (public)

@@ -509,6 +509,64 @@ async function start() {
       res.json(await a2pStatus(req.query.number || null))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
+
+  // ===================== VOICE (browser softphone) =====================
+  const HUB_BASE = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  const xml = (res, body) => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`)
+  const escXml = (s) => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]))
+  // Best-effort match an inbound/outbound phone to a client + log the call.
+  const logCall = (direction, phone, status, sid) => {
+    try {
+      const last10 = String(phone || '').replace(/\D/g, '').slice(-10)
+      if (!last10) return null
+      const match = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-7)])
+        .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
+      if (!match) return null
+      const ext = 'twiliocall_' + (sid || Date.now())
+      if (db.get('SELECT id FROM communications WHERE external_id = ?', [ext])) return match.id
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['call', direction, match.id, `${match.first_name || ''} ${match.last_name || ''}`.trim(), direction === 'incoming' ? phone : '', direction === 'outgoing' ? phone : '',
+          null, `${direction === 'incoming' ? 'Incoming' : 'Outgoing'} call${status ? ' (' + status + ')' : ''}`, null, ext, `c${match.id}_call`, direction === 'incoming' ? 'unread' : 'read', new Date().toISOString()])
+      return match.id
+    } catch { return null }
+  }
+
+  // Access token for the browser Device.
+  app.get('/api/voice/token', async (_req, res) => {
+    try { const { voiceToken } = await import('./voice.js'); res.json(voiceToken()) }
+    catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+  // One-time setup: create API key + TwiML app + wire the number's voice webhook.
+  app.post('/api/voice/setup', async (_req, res) => {
+    try { const { ensureVoiceInfra } = await import('./voice.js'); res.json(await ensureVoiceInfra(HUB_BASE)) }
+    catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+  // TwiML: browser places an outbound call → dial the number from the Hub caller ID.
+  app.post('/api/voice/outbound', async (req, res) => {
+    const { toE164, twilioConfig } = await import('./twilio.js')
+    const to = toE164(req.body?.To || '')
+    const from = twilioConfig().from
+    if (!to) return xml(res, `<Say>No number was provided.</Say>`)
+    logCall('outgoing', to, 'initiated', req.body?.CallSid)
+    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"><Number>${escXml(to)}</Number></Dial>`)
+  })
+  // TwiML: inbound call to the Hub number → ring the browser client (accept/reject there).
+  app.post('/api/voice/inbound', (req, res) => {
+    const from = req.body?.From || ''
+    logCall('incoming', from, 'ringing', req.body?.CallSid)
+    xml(res, `<Dial answerOnBridge="true" timeout="25" callerId="${escXml(from)}"><Client>hub</Client></Dial><Say voice="alice">Sorry, we could not connect you right now. Please try again later, or leave a text message. Goodbye.</Say>`)
+  })
+  // Call status callback (completed / no-answer / etc.) — update the logged call.
+  app.post('/api/voice/status', (req, res) => {
+    try {
+      const b = req.body || {}
+      const dir = (b.Direction || '').includes('inbound') ? 'incoming' : 'outgoing'
+      const phone = dir === 'incoming' ? b.From : b.To
+      logCall(dir, phone, b.CallStatus, b.CallSid)
+    } catch {}
+    res.sendStatus(204)
+  })
   // Send a one-off test text (verify outbound works end to end).
   app.post('/api/settings/twilio/test-send', async (req, res) => {
     const { to, body } = req.body || {}

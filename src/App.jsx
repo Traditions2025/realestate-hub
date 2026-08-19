@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, NavLink } from 'react-router-dom'
 import LoginScreen from './components/LoginScreen'
+import CallWidget from './components/CallWidget'
 
 // Lazy load pages so initial bundle is smaller
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -126,6 +127,7 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <CallWidget />
       {/* Mobile top bar */}
       <div className="mobile-topbar">
         <button className="hamburger" onClick={() => setSidebarOpen(!sidebarOpen)}>
