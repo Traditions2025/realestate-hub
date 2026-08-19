@@ -28,20 +28,46 @@ function skipInboxNotify(fromEmail, subject, client) {
   return false
 }
 
+// Base notification recipients: John + Matt ALWAYS get inbox-email alerts (same
+// pair the TC digest uses). Anything in the inbox_notify_email setting is ADDED on
+// top and de-duped, so both always get it regardless of any older single-address setting.
+const BASE_NOTIFY_RECIPIENTS = 'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com'
+
+// Strip stacked Re:/Fwd: prefixes and report whether it was a reply, so the alert
+// subject can read: <name> replied to your email "<original subject>".
+function cleanReplySubject(subject) {
+  let s = String(subject || '').trim()
+  const isReply = /^\s*(re|fwd?|aw|antwort)\s*:/i.test(s)
+  s = s.replace(/^\s*((re|fwd?|aw|antwort)\s*:\s*)+/i, '').trim()
+  return { clean: s, isReply }
+}
+
 async function notifyNewInbound(client, subject, preview, fromEmail) {
-  const to = getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
-  if (!to) return
   if (skipInboxNotify(fromEmail, subject, client)) return
+  // John + Matt always, plus any configured extra recipients.
+  const extra = getSetting('inbox_notify_email', '') || ''
+  const recipients = [...new Set((BASE_NOTIFY_RECIPIENTS + ',' + extra)
+    .split(/[,;]+/).map(e => e.trim().toLowerCase()).filter(Boolean))]
+  if (!recipients.length) return
   const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromEmail
+  const { clean, isReply } = cleanReplySubject(subject)
+  const shortClean = clean.length > 90 ? clean.slice(0, 89) + '…' : clean
+  // Detailed subject line so it's clear at a glance what the reply is about.
+  const notifySubject = isReply
+    ? `${name} replied to your email "${shortClean || '(no subject)'}"`
+    : (clean ? `${name} emailed you: "${shortClean}"` : `${name} emailed you`)
   const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  const lead = isReply
+    ? `<strong>${esc(name)}</strong> replied to your email:`
+    : `<strong>${esc(name)}</strong> just emailed the inbox:`
   const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
-    <p style="margin:0 0 10px;"><strong>${esc(name)}</strong> just emailed the inbox.</p>
+    <p style="margin:0 0 10px;">${lead}</p>
+    <p style="margin:0 0 12px;font-size:16px;color:#0f172a;"><strong>&ldquo;${esc(shortClean || subject || '(no subject)')}&rdquo;</strong></p>
     <p style="margin:0 0 4px;"><strong>From:</strong> ${esc(fromEmail)}</p>
-    <p style="margin:0 0 4px;"><strong>Subject:</strong> ${esc(subject || '(no subject)')}</p>
     <p style="margin:0 0 14px;color:#475569;">${esc(preview || '')}</p>
     <p style="margin:0;"><a href="${hub}/inbox" style="color:#2563eb;font-weight:600;">Open it in the Hub Inbox</a></p>
   </div>`
-  await sendViaSendGrid(to, 'Matt Smith Team', `New inbox email from ${name}`, html, null, [], [], [], 'inbox_notify')
+  await sendViaSendGrid(recipients.join(','), 'Matt Smith Team', notifySubject, html, null, [], [], [], 'inbox_notify')
 }
 
 const nowIso = () => new Date().toISOString()
