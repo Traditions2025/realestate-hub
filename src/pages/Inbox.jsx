@@ -13,6 +13,44 @@ const chMeta = (k) => CHANNELS.find(c => c.key === k) || CHANNELS[0]
 const INTENT_COLORS = { 'Needs Response': '#2563eb', 'Question': '#0ea5e9', 'Scheduling Request': '#8b5cf6', 'Property Interest': '#10b981', 'High Intent': '#ef4444', 'Information Request': '#f59e0b', 'No Response Needed': '#64748b' }
 const intentBadgeStyle = (intent) => ({ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
 const FOLDERS = [{ key: 'inbox', label: 'Inbox' }, { key: 'sent', label: 'Sent' }, { key: 'closed', label: 'Closed' }]
+const DISPOSITIONS = ['Connected', 'Left voicemail', 'No answer', 'Busy', 'Wrong number', 'Appointment set', 'Interested', 'Not interested', 'Call back later', 'Do not call']
+
+// Friendly delivery state for an outgoing text (never shows raw Twilio codes).
+function deliveryText(m) {
+  if (m.channel !== 'text' || m.direction !== 'outgoing') return null
+  const s = String(m.delivery_status || '').toLowerCase()
+  if (['queued', 'accepted', 'sending', 'scheduled'].includes(s)) return { t: 'Sending…', c: '#94a3b8' }
+  if (s === 'sent') return { t: 'Sent', c: '#94a3b8' }
+  if (s === 'delivered') return { t: '✓ Delivered', c: '#10b981' }
+  if (['undelivered', 'failed'].includes(s)) return { t: '⚠ Failed' + (m.error_message ? ' · ' + m.error_message : ''), c: '#ef4444' }
+  return null
+}
+const fmtDur = (s) => { s = Number(s || 0); return s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '' }
+const recUrl = (id) => `/api/inbox/recording/${id}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
+
+// Notes + disposition editor for a call/voicemail row.
+function CallDispo({ m, onSaved }) {
+  const [notes, setNotes] = React.useState(m.notes || '')
+  const [disp, setDisp] = React.useState(m.disposition || '')
+  const [saving, setSaving] = React.useState(false)
+  const [dirty, setDirty] = React.useState(false)
+  const save = async (patch) => {
+    setSaving(true)
+    try { await authFetch(`/api/inbox/${m.id}/annotate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); setDirty(false); onSaved && onSaved() }
+    catch (e) { alert('Could not save: ' + e.message) } finally { setSaving(false) }
+  }
+  const pickDisp = (v) => { setDisp(v); if (v === 'Do not call' && !confirm('Mark this contact Do Not Call? They will be opted out of all texts/automations.')) return; save({ disposition: v }) }
+  return (
+    <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
+      <select value={disp} onChange={e => pickDisp(e.target.value)} style={{ fontSize: 12, padding: '3px 6px', maxWidth: 200 }}>
+        <option value="">Set outcome…</option>
+        {DISPOSITIONS.map(d => <option key={d} value={d}>{d}</option>)}
+      </select>
+      <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} onBlur={() => dirty && save({ notes })} rows={2} placeholder="Call notes…" style={{ fontSize: 12, padding: '5px 7px', resize: 'vertical', width: '100%', maxWidth: 320 }} />
+      {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>saving…</span>}
+    </div>
+  )
+}
 
 const fmtDate = (iso) => {
   if (!iso) return ''
@@ -263,14 +301,28 @@ export default function Inbox() {
                     )
                   }
                   // Texts / calls / voicemails: chat bubble.
+                  const dstat = deliveryText(m)
+                  const isVoicemail = m.channel === 'voicemail'
+                  const isCall = m.channel === 'call'
+                  const missed = isCall && String(m.delivery_status || '').toLowerCase() === 'missed'
+                  const nMedia = (() => { try { return JSON.parse(m.media_url || '[]').length } catch { return 0 } })()
                   return (
                     <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                         <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : m.contact_name} · {fmtDate(m.occurred_at)}
+                        {m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
                       </div>
-                      <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
-                        <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
+                      <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
+                        {isCall || isVoicemail
+                          ? <div style={{ fontSize: 14, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
+                          : <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>}
+                        {nMedia > 0 && <div style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 {nMedia} attachment{nMedia === 1 ? '' : 's'}</div>}
+                        {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
+                        {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
+                        {isCall && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                       </div>
+                      {dstat && <div style={{ fontSize: 10.5, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+                      {(isCall || isVoicemail) && <CallDispo m={m} onSaved={() => openThread(sel)} />}
                     </div>
                   )
                 })}

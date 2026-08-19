@@ -75,6 +75,12 @@ export function requireAuth(req, res, next) {
   if (req.path === '/api/social-media/queue' || req.path === '/api/social-media/result') return next() // n8n (checks its own shared key)
   if (req.path === '/api/track/beacon') return next() // tracking pixel beacons (public)
   if (req.path === '/track.js') return next() // tracking snippet served to public sites
+  // Recording/voicemail media proxy: <audio> can't set headers, so accept a token
+  // in the query string (validated the same way) as well as the header.
+  if (req.path.startsWith('/api/inbox/recording/')) {
+    if (verifyToken(req.query.token) || verifyToken(req.headers['x-auth-token'])) return next()
+    return res.status(401).json({ error: 'Unauthorized' })
+  }
   if (!req.path.startsWith('/api/')) return next()
   const token = req.headers['x-auth-token']
   if (verifyToken(token)) return next()

@@ -123,6 +123,22 @@ router.get('/thread/:clientId', (req, res) => {
   res.json(rows)
 })
 
+// ---- secure recording/voicemail media proxy (streams Twilio media w/ account auth) ----
+router.get('/recording/:id', async (req, res) => {
+  const row = db.get('SELECT recording_url FROM communications WHERE id = ?', [Number(req.params.id)])
+  if (!row?.recording_url) return res.status(404).send('No recording')
+  const { twilioConfig } = await import('../twilio.js')
+  const c = twilioConfig()
+  const url = /\.(mp3|wav)$/i.test(row.recording_url) ? row.recording_url : row.recording_url + '.mp3'
+  try {
+    const tr = await fetch(url, { headers: { Authorization: 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64') } })
+    if (!tr.ok) return res.status(502).send('Recording unavailable')
+    res.set('Content-Type', tr.headers.get('content-type') || 'audio/mpeg')
+    res.set('Cache-Control', 'private, max-age=3600')
+    res.send(Buffer.from(await tr.arrayBuffer()))
+  } catch { res.status(502).send('Recording error') }
+})
+
 // ---- counts for the sidebar badges ----
 router.get('/counts', (_req, res) => {
   const byChannel = {}
@@ -213,6 +229,22 @@ router.post('/twilio-status', twilioWebhookGuard, (req, res) => {
 })
 
 // ---- status changes ----
+// Call notes + disposition on a communication row. "Do Not Call" flips the
+// contact's opt-out so nothing (manual, automation, bulk) texts them again.
+router.post('/:id/annotate', (req, res) => {
+  const { notes, disposition } = req.body || {}
+  const sets = [], vals = []
+  if (notes !== undefined) { sets.push('notes=?'); vals.push(notes) }
+  if (disposition !== undefined) { sets.push('disposition=?'); vals.push(disposition) }
+  if (!sets.length) return res.json({ success: true })
+  vals.push(Number(req.params.id))
+  db.run(`UPDATE communications SET ${sets.join(', ')} WHERE id=?`, vals)
+  if (String(disposition || '').toLowerCase() === 'do not call') {
+    const c = db.get('SELECT client_id FROM communications WHERE id=?', [Number(req.params.id)])
+    if (c?.client_id) db.run('UPDATE clients SET text_opt_out=1, status=?, updated_at=? WHERE id=?', ['donotcontact', new Date().toISOString(), c.client_id])
+  }
+  res.json({ success: true })
+})
 router.post('/:id/read', (req, res) => { db.run("UPDATE communications SET status='read' WHERE id=?", [Number(req.params.id)]); res.json({ success: true }) })
 router.post('/:id/unread', (req, res) => { db.run("UPDATE communications SET status='unread' WHERE id=?", [Number(req.params.id)]); res.json({ success: true }) })
 router.post('/thread/:clientId/read', (req, res) => { db.run("UPDATE communications SET status='read' WHERE client_id=? AND status='unread'", [Number(req.params.clientId)]); res.json({ success: true }) })
