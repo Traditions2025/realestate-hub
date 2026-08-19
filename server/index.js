@@ -517,10 +517,15 @@ async function start() {
   // configured From number). Repoints it away from GoHighLevel/whatever it was on.
   app.post('/api/settings/twilio/wire-number', async (req, res) => {
     const base = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
-    const number = (req.body && req.body.number) || db.getSetting('twilio_from_number', '')
+    const b = req.body || {}
+    const number = b.number || db.getSetting('twilio_from_number', '')
+    // Defaults point the number at the Hub; pass sms_url/status_url to point it
+    // elsewhere (e.g. restore a number back to GoHighLevel/LeadConnector).
+    const smsUrl = b.sms_url || (base + '/api/inbox/twilio-inbound')
+    const statusUrl = b.status_url || (base + '/api/inbox/twilio-status')
     try {
       const { wireNumberToHub } = await import('./twilio.js')
-      const r = await wireNumberToHub(number, base + '/api/inbox/twilio-inbound', base + '/api/inbox/twilio-status')
+      const r = await wireNumberToHub(number, smsUrl, statusUrl)
       res.json({ success: true, ...r })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
