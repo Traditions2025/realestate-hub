@@ -535,9 +535,10 @@ router.post('/update-lead-tag', async (req, res) => {
   // array sets the lead's tags. The Hub's local tag list already mirrors Sierra
   // (sync stores Sierra tags) plus our additions, so this is a safe superset.
   // Tried first; the older shapes remain as fallbacks.
+  const tagObjs = updatedTags.map(t => ({ name: t }))
   const attempts = action === 'add'
     ? [
-        { method: 'PUT',  path: `/leads/${leadId}`,                     body: { tags: updatedTags } },
+        { method: 'PUT',  path: `/leads/${leadId}`,                     body: { tags: tagObjs } },
         { method: 'POST', path: `/leads/${leadId}/tags`,                body: { tag } },
         { method: 'POST', path: `/leads/${leadId}/tag`,                 body: { name: tag } },
         { method: 'POST', path: `/leads/edit/${leadId}`,                body: { addTags: [tag] } },
@@ -545,7 +546,7 @@ router.post('/update-lead-tag', async (req, res) => {
         { method: 'POST', path: `/leads/edit/${leadId}`,                body: { tags: updatedTags } },
       ]
     : [
-        { method: 'PUT',    path: `/leads/${leadId}`,             body: { tags: updatedTags } },
+        { method: 'PUT',    path: `/leads/${leadId}`,             body: { tags: tagObjs } },
         { method: 'DELETE', path: `/leads/${leadId}/tags/${encodeURIComponent(tag)}`, body: null },
         { method: 'POST',   path: `/leads/${leadId}/tags/remove`, body: { tag } },
         { method: 'POST',   path: `/leads/edit/${leadId}`,        body: { removeTags: [tag] } },
