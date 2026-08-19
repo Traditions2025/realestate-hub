@@ -527,25 +527,22 @@ router.post('/update-lead-tag', async (req, res) => {
   }
 
   const leadId = client.sierra_lead_id
-  // Sierra tag endpoint shapes vary. We try several. Some accept a single tag
-  // string; others expect the FULL updated tags array. The full-list shape is
-  // last-resort because it can clobber tags added in Sierra since our last sync.
-  // WARNING: Sierra has NO working tag-write endpoint on this account — the tag
-  // routes 404, and PUT /leads/{id} clears tags (string array) or 400s (objects).
-  // So tag pushes stay LOCAL-only. Do NOT add a PUT /leads/{id} {tags} attempt here.
+  // Per Sierra's documented "Update Existing Lead" endpoint (PUT /leads/{id}):
+  //   tags       = array of tag NAME STRINGS to ASSIGN (additive — does NOT replace)
+  //   removeTags = array of tag NAME STRINGS to remove
+  // We send ONLY the single tag being changed, so existing tags are never touched
+  // (no clobber). Strings only — object form returns 400. The older shapes are kept
+  // as fallbacks but 404 on this account.
   const attempts = action === 'add'
     ? [
-        { method: 'POST', path: `/leads/${leadId}/tags`,                body: { tag } },
-        { method: 'POST', path: `/leads/${leadId}/tag`,                 body: { name: tag } },
-        { method: 'POST', path: `/leads/edit/${leadId}`,                body: { addTags: [tag] } },
-        { method: 'PUT',  path: `/leads/${leadId}/tags/${encodeURIComponent(tag)}`, body: {} },
-        { method: 'POST', path: `/leads/edit/${leadId}`,                body: { tags: updatedTags } },
+        { method: 'PUT',  path: `/leads/${leadId}`,      body: { tags: [tag] } },
+        { method: 'POST', path: `/leads/${leadId}/tags`, body: { tag } },
+        { method: 'POST', path: `/leads/edit/${leadId}`, body: { addTags: [tag] } },
       ]
     : [
+        { method: 'PUT',    path: `/leads/${leadId}`,      body: { removeTags: [tag] } },
         { method: 'DELETE', path: `/leads/${leadId}/tags/${encodeURIComponent(tag)}`, body: null },
-        { method: 'POST',   path: `/leads/${leadId}/tags/remove`, body: { tag } },
-        { method: 'POST',   path: `/leads/edit/${leadId}`,        body: { removeTags: [tag] } },
-        { method: 'POST',   path: `/leads/edit/${leadId}`,        body: { tags: updatedTags } },
+        { method: 'POST',   path: `/leads/edit/${leadId}`, body: { removeTags: [tag] } },
       ]
 
   const errors = []
