@@ -42,7 +42,7 @@ function cleanReplySubject(subject) {
   return { clean: s, isReply }
 }
 
-async function notifyNewInbound(client, subject, preview, fromEmail) {
+export async function notifyNewInbound(client, subject, preview, fromEmail) {
   if (skipInboxNotify(fromEmail, subject, client)) return
   // John + Matt always, plus any configured extra recipients.
   const extra = getSetting('inbox_notify_email', '') || ''

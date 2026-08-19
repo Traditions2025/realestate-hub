@@ -3,8 +3,23 @@ import Busboy from 'busboy'
 import db from '../database.js'
 import { sendViaSendGrid, emailHardBlock } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
+import { notifyNewInbound } from '../gmail-inbox.js'
 
 const router = Router()
+
+// Diagnostic: re-send the inbox-email alert for a client's most recent inbound
+// email (used to verify the alert format/recipients). Runs the real notify path.
+router.post('/test-notify/:clientId', async (req, res) => {
+  const cid = Number(req.params.clientId)
+  const client = db.get('SELECT id, first_name, last_name FROM clients WHERE id = ?', [cid])
+  if (!client) return res.status(404).json({ error: 'client not found' })
+  const msg = db.get("SELECT subject, preview, from_addr FROM communications WHERE client_id = ? AND direction = 'incoming' AND channel = 'email' ORDER BY occurred_at DESC LIMIT 1", [cid])
+  if (!msg) return res.status(404).json({ error: 'no inbound email for this client' })
+  try {
+    await notifyNewInbound(client, msg.subject, msg.preview, msg.from_addr)
+    res.json({ sent: true, client: `${client.first_name || ''} ${client.last_name || ''}`.trim(), subject: msg.subject, from: msg.from_addr })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 const nowIso = () => new Date().toISOString()
 const stripHtml = (s) => String(s == null ? '' : s).replace(/<style[\s\S]*?<\/style>/gi, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/\s+/g, ' ').trim()
 const clip = (s, n) => { const t = String(s == null ? '' : s); return t.length > n ? t.slice(0, n) + '…' : t }
