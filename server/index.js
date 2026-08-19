@@ -502,6 +502,13 @@ async function start() {
     const { twilioVerify } = await import('./twilio.js')
     res.json(await twilioVerify())
   })
+  // A2P 10DLC status for a number (brand + campaign + messaging-service membership).
+  app.get('/api/settings/twilio/a2p', async (req, res) => {
+    try {
+      const { a2pStatus } = await import('./twilio.js')
+      res.json(await a2pStatus(req.query.number || null))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
   // Send a one-off test text (verify outbound works end to end).
   app.post('/api/settings/twilio/test-send', async (req, res) => {
     const { to, body } = req.body || {}

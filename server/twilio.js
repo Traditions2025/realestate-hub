@@ -110,6 +110,34 @@ export async function wireNumberToHub(numberE164, smsUrl, statusUrl) {
   }
 }
 
+// Read-only A2P 10DLC status check for a number: the account's brand registration,
+// and each Messaging Service's US A2P campaign status + whether this number is in it.
+export async function a2pStatus(numberE164) {
+  const c = twilioConfig()
+  if (!c.sid || !c.token) return { ok: false, error: 'Twilio not connected.' }
+  const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+  const target = toE164(numberE164 || c.from)
+  const get = async (url) => { try { const r = await fetch(url, { headers: { Authorization: auth } }); const j = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, j } } catch (e) { return { ok: false, error: e.message, j: {} } } }
+  const out = { number: target, brands: [], services: [] }
+  // 1) A2P Brand registrations (account-level)
+  const br = await get('https://messaging.twilio.com/v1/a2p/BrandRegistrations?PageSize=20')
+  for (const b of (br.j.data || [])) out.brands.push({ sid: b.sid, status: b.status, identity_status: b.identity_status, brand_type: b.brand_type, failure_reason: b.failure_reason || null })
+  // 2) Messaging Services: is our number in it, and what's the US A2P campaign status
+  const svc = await get('https://messaging.twilio.com/v1/Services?PageSize=50')
+  for (const s of (svc.j.services || [])) {
+    const pn = await get(`https://messaging.twilio.com/v1/Services/${s.sid}/PhoneNumbers?PageSize=200`)
+    const hasNum = (pn.j.data || []).some(n => n.phone_number === target)
+    const usa2p = await get(`https://messaging.twilio.com/v1/Services/${s.sid}/Compliance/Usa2p`)
+    const camps = (usa2p.j.compliance || (usa2p.j.sid ? [usa2p.j] : [])).map(x => ({
+      campaign_status: x.campaign_status, brand_registration_sid: x.brand_registration_sid,
+      us_app_to_person_usecase: x.us_app_to_person_usecase, message_samples: (x.message_samples || []).length,
+    }))
+    if (hasNum || camps.length) out.services.push({ sid: s.sid, name: s.friendly_name, has_our_number: hasNum, us_a2p: camps })
+  }
+  out.number_in_any_service = out.services.some(s => s.has_our_number)
+  return { ok: true, ...out }
+}
+
 // Read-only credential check — used by Settings "Test connection".
 export async function twilioVerify() {
   const c = twilioConfig()
