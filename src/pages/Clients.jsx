@@ -324,6 +324,7 @@ export default function Clients() {
   })
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState(null)
+  const [textComposeClient, setTextComposeClient] = useState(null)  // lead-profile SMS composer
   const [sierraStatus, setSierraStatus] = useState(null) // null = not started, 'syncing', { added, updated, total_synced, error }
   const [syncLog, setSyncLog] = useState(null)
   const [batchRefreshState, setBatchRefreshState] = useState(null)
@@ -1971,6 +1972,12 @@ export default function Clients() {
           onDone={() => { setBulkApply(null); clearSelection() }} />
       )}
 
+      {textComposeClient && (
+        <TextComposerModal client={textComposeClient}
+          onClose={() => setTextComposeClient(null)}
+          onSent={() => { if (detail?.id === textComposeClient.id) openDetail(textComposeClient.id) }} />
+      )}
+
       {/* Save as List Modal */}
       {saveListOpen && (
         <Modal open={saveListOpen} onClose={() => setSaveListOpen(false)} title="Save as List">
@@ -2381,17 +2388,16 @@ export default function Clients() {
                   </button>
                 )}
                 {detail.phone && !detail.text_opt_out && (
-                  <button className="lead-action-btn lead-action-text" title="Twilio SMS coming soon" onClick={() => alert('Twilio SMS integration is in setup. Coming soon.')}>
+                  <button className="lead-action-btn lead-action-text" title="Send an SMS from your Hub number" onClick={() => setTextComposeClient(detail)}>
                     <span className="lead-action-icon">💬</span>
                     <span>Text</span>
-                    <span className="lead-action-soon">soon</span>
                   </button>
                 )}
                 {detail.phone && (
-                  <a className="lead-action-btn lead-action-call" href={`tel:${detail.phone}`}>
+                  <button className="lead-action-btn lead-action-call" title="Call from the Hub" onClick={() => window.hubCall && window.hubCall(detail.phone, `${detail.first_name || ''} ${detail.last_name || ''}`.trim())}>
                     <span className="lead-action-icon">📞</span>
                     <span>Call</span>
-                  </a>
+                  </button>
                 )}
                 <button className="lead-action-btn lead-action-voicemail" title="Recorded voicemail drops — coming with Twilio" onClick={() => alert('Recorded voicemail drops are planned with Twilio. Coming soon.')}>
                   <span className="lead-action-icon">🎙</span>
@@ -3347,5 +3353,38 @@ function InlineName({ detail, onSaved }) {
         </>
       )}
     </p>
+  )
+}
+
+// --- Text (SMS) composer for the lead profile — sends via the Hub/Twilio number ---
+function TextComposerModal({ client, onClose, onSent }) {
+  const [body, setBody] = React.useState('')
+  const [sending, setSending] = React.useState(false)
+  const send = async () => {
+    if (!body.trim()) return
+    setSending(true)
+    try {
+      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids: [client.id], body: body.trim() }) })
+      const d = await r.json()
+      if (d.sent >= 1) { onSent && onSent(); onClose() }
+      else alert('Text not sent: ' + (d.results?.[0]?.error || d.error || 'unknown error'))
+    } catch (e) { alert('Text failed: ' + e.message) }
+    finally { setSending(false) }
+  }
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+  return (
+    <Modal open onClose={onClose} title={`Text ${name || client.phone}`}>
+      <div className="form">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>To <strong>{client.phone}</strong> · from your Hub number (319) 343-1562</p>
+        <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={5} maxLength={1000}
+          placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }}
+          style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical' }} />
+        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send</div>
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Sending…' : 'Send Text'}</button>
+        </div>
+      </div>
+    </Modal>
   )
 }
