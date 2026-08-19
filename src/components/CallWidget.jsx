@@ -75,7 +75,7 @@ export default function CallWidget() {
 
     return () => { cancelled = true; stopTimer(); try { window.hubCall = undefined; deviceRef.current?.destroy() } catch {} }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ready])
+  }, [])
 
   const accept = () => { try { callRef.current?.accept() } catch {} }
   const reject = () => { try { callRef.current?.reject() } catch {}; endLocal() }
