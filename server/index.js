@@ -502,6 +502,28 @@ async function start() {
     const { twilioVerify } = await import('./twilio.js')
     res.json(await twilioVerify())
   })
+  // Send a one-off test text (verify outbound works end to end).
+  app.post('/api/settings/twilio/test-send', async (req, res) => {
+    const { to, body } = req.body || {}
+    if (!to) return res.status(400).json({ error: 'to (phone number) is required' })
+    try {
+      const { sendSms } = await import('./twilio.js')
+      const base = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+      const r = await sendSms(to, body || 'Test from the Matt Smith Team Hub — texting is live. You can reply to this message.', { statusCallback: base + '/api/inbox/twilio-status' })
+      res.json({ success: true, ...r })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+  // Point a Twilio number's inbound + status webhooks at the Hub (defaults to the
+  // configured From number). Repoints it away from GoHighLevel/whatever it was on.
+  app.post('/api/settings/twilio/wire-number', async (req, res) => {
+    const base = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    const number = (req.body && req.body.number) || db.getSetting('twilio_from_number', '')
+    try {
+      const { wireNumberToHub } = await import('./twilio.js')
+      const r = await wireNumberToHub(number, base + '/api/inbox/twilio-inbound', base + '/api/inbox/twilio-status')
+      res.json({ success: true, ...r })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
 
   // Inbox mailboxes (App Password over IMAP). Multiple mailboxes supported; each
   // read directly (no forwarding). Creds live in app_settings, never in git.

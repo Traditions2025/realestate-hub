@@ -76,6 +76,40 @@ export async function sendSms(toPhone, body, opts = {}) {
   return { sid: data.sid, status: data.status, to }
 }
 
+// Point a Twilio phone number's inbound SMS webhook (and delivery status callback)
+// at the Hub, so incoming texts land in the Hub inbox. Repoints away from whatever
+// it was wired to before (e.g. GoHighLevel/LeadConnector). Returns before/after so
+// the caller can see what changed. NOTE: if the number is attached to a Messaging
+// Service, inbound routing follows the Messaging Service's webhook, not the number's
+// SmsUrl — we surface that in the result so it can be handled.
+export async function wireNumberToHub(numberE164, smsUrl, statusUrl) {
+  const c = twilioConfig()
+  if (!c.sid || !c.token) throw new Error('Twilio is not connected — add your Account SID and Auth Token in Settings.')
+  const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+  const target = toE164(numberE164)
+  if (!target) throw new Error('No number given to wire.')
+  const listUrl = `https://api.twilio.com/2010-04-01/Accounts/${c.sid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(target)}`
+  const lr = await fetch(listUrl, { headers: { Authorization: auth } })
+  const ld = await lr.json().catch(() => ({}))
+  if (!lr.ok) throw new Error(ld.message || `Twilio list error ${lr.status}`)
+  const num = (ld.incoming_phone_numbers || [])[0]
+  if (!num) throw new Error(`Number ${target} was not found on this Twilio account.`)
+  const before = { sms_url: num.sms_url || '', sms_method: num.sms_method || '', status_callback: num.status_callback || '' }
+  const params = new URLSearchParams()
+  params.set('SmsUrl', smsUrl)
+  params.set('SmsMethod', 'POST')
+  if (statusUrl) { params.set('StatusCallback', statusUrl); params.set('StatusCallbackMethod', 'POST') }
+  const upUrl = `https://api.twilio.com/2010-04-01/Accounts/${c.sid}/IncomingPhoneNumbers/${num.sid}.json`
+  const ur = await fetch(upUrl, { method: 'POST', headers: { Authorization: auth, 'Content-Type': 'application/x-www-form-urlencoded' }, body: params.toString() })
+  const ud = await ur.json().catch(() => ({}))
+  if (!ur.ok) throw new Error(ud.message || `Twilio update error ${ur.status}`)
+  return {
+    number: target, sid: num.sid,
+    before,
+    after: { sms_url: ud.sms_url || '', sms_method: ud.sms_method || '', status_callback: ud.status_callback || '' },
+  }
+}
+
 // Read-only credential check — used by Settings "Test connection".
 export async function twilioVerify() {
   const c = twilioConfig()
