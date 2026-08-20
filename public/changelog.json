@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T20:20:00.814Z",
-  "count": 403,
+  "generated_at": "2026-08-20T20:23:49.862Z",
+  "count": 404,
   "entries": [
+    {
+      "hash": "e8e24a4",
+      "date": "2026-08-20T15:20:03-05:00",
+      "subject": "AI: manual Send-AI-now nudges the model to actually reply (SEND_TEXT), not stay conservative",
+      "title": "AI: manual Send-AI-now nudges the model to actually reply (SEND_TEXT), not stay conservative",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f8310ce",
       "date": "2026-08-20T15:16:42-05:00",

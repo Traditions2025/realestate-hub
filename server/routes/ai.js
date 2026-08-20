@@ -68,7 +68,13 @@ router.post('/lead/:id/send-now', async (req, res) => {
     const hasInbound = db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' LIMIT 1", [cid])
     const m = await import('../ai-followup/orchestrator.js')
     const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
-    const result = hasInbound && lastIn ? await m.handleInboundText(cid, lastIn.body, { force: true }) : await m.handleProactive(cid, { force: true })
+    let result = hasInbound && lastIn ? await m.handleInboundText(cid, lastIn.body, { force: true }) : await m.handleProactive(cid, { force: true })
+    // Manual click should reliably send: if a responsive reply produced nothing (e.g.
+    // the last inbound has nothing to answer), fall back to a proactive opener.
+    if (result && result.ok && !result.sent && !/blocked|STOP|opt|quiet/i.test(result.reason || '')) {
+      const p = await m.handleProactive(cid, { force: true })
+      if (p?.sent) result = p
+    }
     res.json(result)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
