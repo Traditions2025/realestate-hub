@@ -51,12 +51,16 @@ export default function Reporting() {
 
       <div className="listing-tabs" style={{ marginBottom: 16 }}>
         <button className={`listing-tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>✉ Batch Emails</button>
+        <button className={`listing-tab ${tab === 'comms' ? 'active' : ''}`} onClick={() => setTab('comms')}>💬 Texting &amp; Calls</button>
       </div>
 
-      {!sendgrid && (
+      {tab === 'comms' && <CommsReport />}
+
+      {tab === 'email' && !sendgrid && (
         <div className="sierra-banner warning" style={{ marginBottom: 12 }}>SendGrid API key not set on the server — sent counts show, but opens/clicks won't populate until it's configured.</div>
       )}
 
+      {tab === 'email' && (<>
       <div className="detail-section" style={{ padding: 0, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
           <thead>
@@ -117,6 +121,7 @@ export default function Reporting() {
       <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 10 }}>
         Click a subject to view the email that went out. Click any opens/clicks/unsubscribes/bounces number to see exactly who. Opens/clicks can take a few hours to populate after a send. % is of Sent (bounces are of Recipients).
       </p>
+      </>)}
 
       {preview && <EmailPreview {...preview} onClose={() => setPreview(null)} />}
       {people && <PeopleList {...people} onClose={() => setPeople(null)} />}
@@ -177,5 +182,96 @@ function PeopleList({ subject, date, metric, label, onClose }) {
             </table>
           )}
     </Modal>
+  )
+}
+
+// --- SMS + call analytics (Reporting → Texting & Calls) ---
+function CommsReport() {
+  const [days, setDays] = React.useState(30)
+  const [d, setD] = React.useState(undefined)
+  React.useEffect(() => { setD(undefined); authFetch(`/api/reporting/comms?days=${days}`).then(r => r.json()).then(setD).catch(() => setD(null)) }, [days])
+  if (d === undefined) return <div className="detail-section" style={{ padding: 24, color: 'var(--text-muted)' }}>Loading…</div>
+  if (d === null) return <div className="detail-section" style={{ padding: 24, color: 'var(--text-muted)' }}>Could not load communications analytics.</div>
+  const dur = (s) => { s = Number(s || 0); return s ? `${Math.floor(s / 60)}m ${s % 60}s` : '0s' }
+  const Card = ({ label, value, sub, color }) => (
+    <div className="detail-section" style={{ padding: '14px 16px', minWidth: 130, flex: '1 1 130px' }}>
+      <div style={{ fontSize: 26, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+      {sub != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+  const maxDay = Math.max(1, ...(d.by_day || []).map(x => (x.texts_out || 0) + (x.texts_in || 0) + (x.calls || 0)))
+  const maxDisp = Math.max(1, ...(d.dispositions || []).map(x => x.n))
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Range:</span>
+        {[7, 30, 90].map(n => <button key={n} className={`btn btn-sm ${days === n ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDays(n)}>{n}d</button>)}
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 8px' }}>Texting</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+        <Card label="Texts sent" value={d.texts_out} color="#2563eb" />
+        <Card label="Texts received" value={d.texts_in} color="#10b981" />
+        <Card label="Delivery rate" value={d.delivery_rate == null ? '—' : d.delivery_rate + '%'} sub={`${d.delivered} delivered`} color="#10b981" />
+        <Card label="Failed" value={d.failed} color={d.failed ? '#ef4444' : undefined} />
+        <Card label="Reply rate" value={d.reply_rate == null ? '—' : d.reply_rate + '%'} sub={`${d.replied_contacts}/${d.texted_contacts} contacts`} color="#8b5cf6" />
+      </div>
+
+      <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 8px' }}>Calls</div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+        <Card label="Calls placed" value={d.calls_out} color="#8b5cf6" />
+        <Card label="Calls received" value={d.calls_in} color="#8b5cf6" />
+        <Card label="Answered" value={d.answered} color="#10b981" />
+        <Card label="Missed" value={d.missed} color={d.missed ? '#f59e0b' : undefined} />
+        <Card label="Voicemails" value={d.voicemails} color="#f59e0b" />
+        <Card label="Avg call length" value={dur(d.avg_call_sec)} />
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16 }}>
+        <div className="detail-section" style={{ padding: 16 }}>
+          <h4 style={{ margin: '0 0 12px' }}>Volume by day</h4>
+          {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No activity yet.</div> : (
+            <>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>
+                {d.by_day.map(x => {
+                  const total = (x.texts_out || 0) + (x.texts_in || 0) + (x.calls || 0)
+                  const h = (n) => `${(n / maxDay) * 110}px`
+                  return (
+                    <div key={x.day} title={`${x.day}\nTexts out ${x.texts_out} · in ${x.texts_in} · calls ${x.calls}`} style={{ flex: 1, display: 'flex', flexDirection: 'column-reverse', gap: 1, minWidth: 4 }}>
+                      <div style={{ height: h(x.texts_out), background: '#2563eb', borderRadius: '2px 2px 0 0' }} />
+                      <div style={{ height: h(x.texts_in), background: '#10b981' }} />
+                      <div style={{ height: h(x.calls), background: '#8b5cf6' }} />
+                    </div>
+                  )
+                })}
+              </div>
+              <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>
+                <span><span style={{ display: 'inline-block', width: 9, height: 9, background: '#2563eb', borderRadius: 2, marginRight: 4 }} />Texts out</span>
+                <span><span style={{ display: 'inline-block', width: 9, height: 9, background: '#10b981', borderRadius: 2, marginRight: 4 }} />Texts in</span>
+                <span><span style={{ display: 'inline-block', width: 9, height: 9, background: '#8b5cf6', borderRadius: 2, marginRight: 4 }} />Calls</span>
+              </div>
+            </>
+          )}
+        </div>
+        <div className="detail-section" style={{ padding: 16 }}>
+          <h4 style={{ margin: '0 0 12px' }}>Call dispositions</h4>
+          {(d.dispositions || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No dispositions logged yet. Set one on a call in the Inbox.</div> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {d.dispositions.map(x => (
+                <div key={x.d} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{ width: 130, fontSize: 12, flexShrink: 0 }}>{x.d}</div>
+                  <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 4, height: 16, overflow: 'hidden' }}>
+                    <div style={{ width: `${(x.n / maxDisp) * 100}%`, height: '100%', background: '#8b5cf6' }} />
+                  </div>
+                  <div style={{ width: 28, textAlign: 'right', fontSize: 12, fontWeight: 700 }}>{x.n}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12 }}>Live from the communications log — updates as texts and calls happen. Delivery rate is of texts with a final Twilio status; reply rate is distinct contacts who texted back.</p>
+    </div>
   )
 }

@@ -203,4 +203,41 @@ router.get('/campaigns/:id/recipients', (req, res) => {
   res.json(rows)
 })
 
+// ---- SMS + call analytics (from the communications log; instant, no Twilio calls) ----
+router.get('/comms', (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365)
+  const since = `date('now','-${days} days')`
+  const q = (cond) => db.get(`SELECT COUNT(*) n FROM communications WHERE substr(occurred_at,1,10) >= ${since} AND ${cond}`).n
+  const textsOut = q("channel='text' AND direction='outgoing'")
+  const textsIn = q("channel='text' AND direction='incoming'")
+  const delivered = q("channel='text' AND direction='outgoing' AND delivery_status='delivered'")
+  const failed = q("channel='text' AND direction='outgoing' AND delivery_status IN ('failed','undelivered')")
+  const finalized = q("channel='text' AND direction='outgoing' AND delivery_status IN ('delivered','failed','undelivered','sent')")
+  const callsOut = q("channel='call' AND direction='outgoing'")
+  const callsIn = q("channel='call' AND direction='incoming'")
+  const answered = q("channel='call' AND delivery_status='completed'")
+  const missed = q("channel='call' AND delivery_status='missed'")
+  const voicemails = q("channel='voicemail'")
+  const avgDur = db.get(`SELECT AVG(duration_sec) a FROM communications WHERE substr(occurred_at,1,10) >= ${since} AND channel='call' AND delivery_status='completed' AND duration_sec > 0`).a
+  // contacts we texted who replied at least once (a light, honest response signal)
+  const textedContacts = db.get(`SELECT COUNT(DISTINCT client_id) n FROM communications WHERE substr(occurred_at,1,10) >= ${since} AND channel='text' AND direction='outgoing'`).n
+  const repliedContacts = db.get(`SELECT COUNT(DISTINCT client_id) n FROM communications WHERE substr(occurred_at,1,10) >= ${since} AND channel='text' AND direction='incoming'`).n
+  const dispositions = db.all(`SELECT disposition d, COUNT(*) n FROM communications WHERE substr(occurred_at,1,10) >= ${since} AND disposition IS NOT NULL AND disposition != '' GROUP BY disposition ORDER BY n DESC`)
+  const byDay = db.all(`SELECT substr(occurred_at,1,10) day,
+      SUM(CASE WHEN channel='text' AND direction='outgoing' THEN 1 ELSE 0 END) texts_out,
+      SUM(CASE WHEN channel='text' AND direction='incoming' THEN 1 ELSE 0 END) texts_in,
+      SUM(CASE WHEN channel IN ('call','voicemail') THEN 1 ELSE 0 END) calls
+    FROM communications WHERE substr(occurred_at,1,10) >= ${since} GROUP BY day ORDER BY day`)
+  res.json({
+    days,
+    texts_out: textsOut, texts_in: textsIn, delivered, failed,
+    delivery_rate: finalized ? Math.round(delivered / finalized * 100) : null,
+    calls_out: callsOut, calls_in: callsIn, answered, missed, voicemails,
+    avg_call_sec: avgDur ? Math.round(avgDur) : 0,
+    reply_rate: textedContacts ? Math.round(repliedContacts / textedContacts * 100) : null,
+    texted_contacts: textedContacts, replied_contacts: repliedContacts,
+    dispositions, by_day: byDay,
+  })
+})
+
 export default router
