@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-20T22:19:14.734Z",
-  "count": 411,
+  "generated_at": "2026-08-20T22:31:27.780Z",
+  "count": 413,
   "entries": [
+    {
+      "hash": "53bafef",
+      "date": "2026-08-20T17:28:16-05:00",
+      "subject": "templates: probe + import FUB text templates (tries several FUB endpoints); Sierra has no template API",
+      "title": "templates: probe + import FUB text templates (tries several FUB endpoints); Sierra has no template API",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "748dacd",
+      "date": "2026-08-20T17:19:17-05:00",
+      "subject": "AI text tweaks: greet with Hi/Hello never Hey (prompt + safety net); property type = single-family vs condo, plus home style (ranch/two-story/other)",
+      "title": "AI text tweaks: greet with Hi/Hello never Hey (prompt + safety net); property type = single-family vs condo, plus home style (ranch/two-story/other)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "dc1c96e",
       "date": "2026-08-20T16:54:25-05:00",

@@ -25,6 +25,21 @@ async function fetchFubTextTemplates() {
   return { endpoint: null, templates: [] }
 }
 
+// Convert FUB merge tokens (%contact_first_name%) to the Hub's ({{first_name}}) so
+// imported templates work with fillTemplate. Unknown %tokens% are removed so a
+// customer never sees a raw placeholder.
+function convertFubTokens(s) {
+  return String(s)
+    .replace(/%contact_first_name%/gi, '{{first_name}}')
+    .replace(/%contact_last_name%/gi, '{{last_name}}')
+    .replace(/%contact_full_name%|%contact_name%/gi, '{{full_name}}')
+    .replace(/%contact_city%/gi, '{{city}}')
+    .replace(/%(sender|agent|user)_first_name%/gi, 'John')
+    .replace(/%greeting_time%/gi, 'Hi')
+    .replace(/%[a-z0-9_]+%/gi, '')      // strip any remaining unknown tokens
+    .replace(/[ \t]{2,}/g, ' ').trim()
+}
+
 // Probe: what FUB text templates are available (no import).
 router.get('/fub-text', async (_req, res) => {
   if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
@@ -40,7 +55,7 @@ router.post('/import-fub', async (_req, res) => {
   let imported = 0, skipped = 0
   for (const t of templates) {
     const name = String(t.name || '').trim() || 'FUB Template'
-    const body = String(t.body || '').trim()
+    const body = convertFubTokens(String(t.body || '').trim())
     if (!body) { skipped++; continue }
     if (db.get("SELECT id FROM templates WHERE name=? AND type='text'", [name])) { skipped++; continue }
     db.run("INSERT INTO templates (name, type, category, body, is_html, tags) VALUES (?,?,?,?,?,?)", [name, 'text', 'FUB', body, 0, 'imported:fub'])

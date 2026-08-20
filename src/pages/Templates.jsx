@@ -83,6 +83,7 @@ export default function Templates() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [tplView, setTplView] = useState('wysiwyg') // email body editor: 'wysiwyg' | 'html'
+  const [fubBusy, setFubBusy] = useState(false)
   // Transaction emails — read-only, live from the transaction system
   const [txTemplates, setTxTemplates] = useState([])
   const [txOpen, setTxOpen] = useState(true)
@@ -96,6 +97,16 @@ export default function Templates() {
     if (typeFilter) params.set('type', typeFilter)
     if (search.trim()) params.set('q', search.trim())
     authFetch('/api/templates?' + params).then(r => r.json()).then(setItems).catch(() => setItems([]))
+  }
+  const importFub = async () => {
+    if (!confirm('Import your text templates from Follow Up Boss? FUB merge fields are converted to Hub fields; duplicates (by name) are skipped.')) return
+    setFubBusy(true)
+    try {
+      const r = await authFetch('/api/templates/import-fub', { method: 'POST' })
+      const d = await r.json()
+      if (d.error) alert(d.error)
+      else { alert(`Imported ${d.imported} text template${d.imported === 1 ? '' : 's'} from FUB.\nSkipped ${d.skipped} (duplicates or empty).`); setTypeFilter('text'); load() }
+    } catch (e) { alert('Import failed: ' + e.message) } finally { setFubBusy(false) }
   }
 
   useEffect(() => { load() }, [typeFilter])
@@ -204,6 +215,7 @@ export default function Templates() {
           <p className="page-sub">Reusable email, text, script, and voicemail templates</p>
         </div>
         <div style={{display: 'flex', gap: 8}}>
+          <button className="btn btn-secondary" onClick={importFub} disabled={fubBusy} title="Import your text templates from Follow Up Boss">{fubBusy ? 'Importing…' : '⬇ Import from FUB'}</button>
           <button className="btn btn-secondary" onClick={() => openNew('text')}>+ New Text</button>
           <button className="btn btn-primary" onClick={() => openNew('email')}>+ New Email</button>
         </div>
