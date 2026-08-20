@@ -5,7 +5,7 @@ export const AI_PROMPT_VERSION = 'hubai-2026.08.20-1'
 const ALLOWED_ACTIONS = ['SEND_TEXT', 'NO_ACTION', 'HANDOFF_AGENT']
 export { ALLOWED_ACTIONS }
 
-const PERSONA = (persona) => `You are ${persona}. You are texting on behalf of the Matt Smith Real Estate Team (RE/MAX Concepts) in Cedar Rapids / Marion, Iowa. You are an AI assistant, not Matt himself. Never claim to personally be Matt or any agent. If someone asks if you are a person, be honest that you are the team's assistant and can connect them with the team.`
+const PERSONA = (persona) => `You are ${persona || 'John with the Matt Smith Team at RE/MAX Concepts'}, serving Cedar Rapids and Marion, Iowa. You handle first response and follow-up for the team by text. Write in a natural, warm, first-person voice as John (say "I", "me"). Do NOT claim to be Matt. When someone wants to tour, meet, talk on the phone, or work with an agent, connect them with the team (hand off).`
 
 const TONE = `TONE: warm, natural, concise, helpful, human-sounding without pretending to be human, conversational, low pressure, curious, knowledgeable. Not robotic, not salesy, not overly enthusiastic.`
 
@@ -32,10 +32,13 @@ const playbook = (leadType) => leadType === 'seller'
   : `BUYER PLAYBOOK: naturally learn area, price range, property type, beds/baths, timeframe, financing (pre-approved?), whether they need to sell first, must-haves and deal-breakers, and touring interest. Do not interrogate; one useful question at a time.`
 
 export function buildSystemPrompt(ctx = {}) {
-  const persona = ctx.persona || 'a helpful assistant with the Matt Smith Real Estate Team'
+  const persona = ctx.persona || 'John with the Matt Smith Team at RE/MAX Concepts'
   const leadType = (ctx.intelligence?.lead_type || ctx.lead_type || 'buyer')
+  const firstText = ctx.facts?.is_first_text
+    ? `FIRST MESSAGE: This is the very first text to this person. Briefly introduce yourself as John with the Matt Smith Team at RE/MAX, and include our website MattSmithTeam.com naturally in the message. Keep it short and friendly.`
+    : ''
   return [
-    PERSONA(persona), TONE, OBJECTIVES, playbook(leadType), STYLE, REAL_ESTATE_GUARDRAILS, FAIR_HOUSING, HANDOFF, SECURITY,
+    PERSONA(persona), TONE, OBJECTIVES, playbook(leadType), STYLE, REAL_ESTATE_GUARDRAILS, FAIR_HOUSING, HANDOFF, SECURITY, firstText,
     `OUTPUT: Return ONLY a JSON object, no prose, with exactly these keys:
 {
   "action": one of ${JSON.stringify(ALLOWED_ACTIONS)},

@@ -122,5 +122,13 @@ test('system prompt carries Fair Housing + prompt-injection guardrails + JSON co
   assert.match(p, /FAIR HOUSING/)
   assert.match(p, /UNTRUSTED/)
   assert.match(p, /"action"/)
-  assert.match(p, /Never claim to personally be Matt/i)
+  assert.match(p, /claim to be Matt/i)
+})
+
+test('first text: prompt tells it to introduce as John + include the website', () => {
+  const p = buildSystemPrompt({ persona: 'John with the Matt Smith Team at RE/MAX Concepts', facts: { is_first_text: true } })
+  assert.match(p, /MattSmithTeam\.com/i)
+  assert.match(p, /John with the Matt Smith Team/i)
+  const p2 = buildSystemPrompt({ facts: { is_first_text: false } })
+  assert.ok(!/FIRST MESSAGE/.test(p2))
 })

@@ -27,6 +27,8 @@ export function buildLeadAiContext(clientId) {
     return `[${when}] ${who}: ${clip(text, 600)}`
   }).join('\n')
   const latestInbound = [...msgs].reverse().find(m => m.direction === 'incoming')
+  const priorOutText = db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [cid])
+  const isFirstText = !priorOutText
 
   let behavior = []
   try {
@@ -58,6 +60,7 @@ export function buildLeadAiContext(clientId) {
     recent_website_activity: behavior,
     now: new Date().toISOString(),
     team_area: 'Cedar Rapids / Marion, Iowa (Linn County)',
+    is_first_text: isFirstText,
   }
   return { client, state, intelligence: li, lead_type: li.lead_type || client.type || 'buyer', persona: cfg.ai_persona, facts, transcript, latestInbound: latestInbound ? (latestInbound.body || latestInbound.preview) : '' }
 }

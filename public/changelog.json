@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:44:06.516Z",
-  "count": 399,
+  "generated_at": "2026-08-20T19:52:08.540Z",
+  "count": 400,
   "entries": [
+    {
+      "hash": "4cd6425",
+      "date": "2026-08-20T14:44:19-05:00",
+      "subject": "HUB AI: manual-first (Autopilot off) — AI only runs on leads you enable, no auto-enrollment/nurture",
+      "title": "HUB AI: manual-first (Autopilot off) — AI only runs on leads you enable, no auto-enrollment/nurture",
+      "body": "- New ai_autopilot flag (default OFF) + per-lead ai_managed enrollment\n- Manual mode (autopilot off): responsive + proactive AI only act on leads an agent explicitly enabled (aiManages gate); ALL sweeps (new-lead, nurture, re-engage, behavioral) + nurture cadence are hard-gated behind autopilot -> nothing auto-enrolls or auto-nurtures\n- 'Enable AI for this lead' / 'Send AI now' enroll that one lead; card shows 'AI managing this lead' vs 'AI not enabled here' + a manual-mode note\n- Settings: prominent Autopilot toggle with plain-language on/off explanation; proactive/nurture/behavioral disabled unless autopilot on\n- Test: manual-mode enrollment gate. 23 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ec2fb2b",
       "date": "2026-08-20T14:35:35-05:00",

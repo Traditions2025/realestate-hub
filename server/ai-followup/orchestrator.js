@@ -25,6 +25,13 @@ const noDash = (s) => String(s == null ? '' : s).replace(/[—–]/g, ', ')
 
 // Latest message id for the client — used for the race-condition guard.
 const latestMsgId = (cid) => db.get('SELECT MAX(id) m FROM communications WHERE client_id=?', [cid])?.m || 0
+// Is this the first text we've ever sent this contact?
+const isFirstOutboundText = (cid) => !db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [cid])
+// Guarantee the website on the FIRST text even if the model omits it.
+function withSiteIfFirst(cid, message) {
+  if (isFirstOutboundText(cid) && !/mattsmithteam\.com/i.test(message)) return (message.trim() + ' MattSmithTeam.com').slice(0, 640)
+  return message
+}
 
 // Did a HUMAN (not AI) already reply after the most recent inbound? If so, suppress.
 function humanAlreadyHandled(cid) {
@@ -107,8 +114,9 @@ export async function handleInboundText(clientId, inboundBody) {
     const g2 = canSendSms(fresh, { channel: 'ai', mode: 'responsive' })
     if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
     try {
-      const actionId = logAiAction({ client_id: cid, action_type: 'SEND_TEXT', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: 'responsive reply', context_summary: ctx.intelligence?.ai_summary || '', output_text: message, intent_before: intentBefore, intent_after: intent.score, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
-      await sendAiSms(fresh, message, actionId)
+      const finalMsg = withSiteIfFirst(cid, message)
+      const actionId = logAiAction({ client_id: cid, action_type: 'SEND_TEXT', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: 'responsive reply', context_summary: ctx.intelligence?.ai_summary || '', output_text: finalMsg, intent_before: intentBefore, intent_after: intent.score, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
+      await sendAiSms(fresh, finalMsg, actionId)
       sent = true
       markOutbound(cid)
       transitionAiState(cid, handoffId ? 'HUMAN_HANDOFF_REQUIRED' : (decision?.next_state && ['AI_CONVERSATION_ACTIVE', 'AI_ENGAGED', 'AI_HIGH_INTENT', 'NOT_INTERESTED'].includes(decision.next_state) ? decision.next_state : 'AI_CONVERSATION_ACTIVE'), 'responsive reply sent')
@@ -169,8 +177,9 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
   try {
     if (decision?.memory || decision?.summary) { try { applyMemory(cid, decision.memory || {}, decision.summary) } catch {} }
-    const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: message, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
-    await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), message, actionId)
+    const finalMsg = withSiteIfFirst(cid, message)
+    const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: finalMsg, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
+    await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), finalMsg, actionId)
     markOutbound(cid)
     transitionAiState(cid, nextState || 'AI_WAITING_FOR_REPLY', actionType.toLowerCase())
     return { ok: true, sent: true }

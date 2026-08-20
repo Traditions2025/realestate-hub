@@ -361,8 +361,9 @@ function AiFollowUpSettings() {
         <label style={{ fontSize: 12.5 }}>Quiet hours <input type="time" defaultValue={cfg.ai_quiet_hours_start} onBlur={e => saveCfg('ai_quiet_hours_start', e.target.value)} style={inp} /> to <input type="time" defaultValue={cfg.ai_quiet_hours_end} onBlur={e => saveCfg('ai_quiet_hours_end', e.target.value)} style={inp} /></label>
       </div>
       <div style={{ marginTop: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>AI persona (how it introduces itself)</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>AI identity (how it introduces itself)</div>
         <input defaultValue={cfg.ai_persona} onBlur={e => saveCfg('ai_persona', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Texts in first person as this person. Every first text also includes MattSmithTeam.com automatically.</div>
       </div>
       {diag && (
         <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
