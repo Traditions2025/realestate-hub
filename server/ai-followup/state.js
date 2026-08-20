@@ -66,11 +66,23 @@ export function setManaged(clientId, managed) { ensureState(clientId); db.run('U
 // (configurable via ai_autopilot_exclude). An agent can still enable AI on one
 // manually (that sets ai_managed and overrides this).
 export function isExcludedFromAutopilot(client) {
-  const raw = db.getSetting('ai_autopilot_exclude', 'fsbo,expired,cancel') || ''
-  const patterns = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
-  if (!patterns.length) return false
   const hay = ((client?.tags || '') + ' ' + (client?.source || '')).toLowerCase()
-  return patterns.some(p => hay.includes(p))
+  const status = String(client?.status || '').toLowerCase()
+  const list = (key, def = '') => (db.getSetting(key, def) || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  // 1) tag / source substring match
+  if (list('ai_autopilot_exclude', 'fsbo,mls: expired,mls: cancelled').some(p => hay.includes(p))) return true
+  // 2) status match
+  if (status && list('ai_exclude_statuses').some(p => status === p || status.includes(p))) return true
+  // 3) combination rules — tag AND status must both match
+  let rules = []; try { rules = JSON.parse(db.getSetting('ai_exclude_rules', '[]') || '[]') } catch {}
+  for (const r of (Array.isArray(rules) ? rules : [])) {
+    const t = String(r?.tag || '').trim().toLowerCase(), s = String(r?.status || '').trim().toLowerCase()
+    if (!t && !s) continue
+    const tOk = !t || hay.includes(t)
+    const sOk = !s || status === s || status.includes(s)
+    if (tOk && sOk) return true
+  }
+  return false
 }
 
 // Whether AI is allowed to act on this lead right now:

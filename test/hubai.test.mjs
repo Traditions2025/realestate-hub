@@ -103,6 +103,16 @@ test('autopilot never auto-manages excluded imports (expired/cancelled/FSBO); ma
   assert.equal(isExcludedFromAutopilot({ tags: 'FSBO_Off Market', source: '' }), true)
   assert.equal(isExcludedFromAutopilot({ tags: '', source: 'Expired MLS' }), true)
   assert.equal(isExcludedFromAutopilot({ tags: 'Hot Buyer', source: 'Website' }), false)
+  // exclude by status
+  db.setSetting('ai_exclude_statuses', 'archived')
+  assert.equal(isExcludedFromAutopilot({ tags: '', source: '', status: 'archived' }), true)
+  assert.equal(isExcludedFromAutopilot({ tags: '', source: '', status: 'active' }), false)
+  db.setSetting('ai_exclude_statuses', '')
+  // combination rule: tag AND status
+  db.setSetting('ai_exclude_rules', JSON.stringify([{ tag: 'zillow', status: 'active' }]))
+  assert.equal(isExcludedFromAutopilot({ tags: 'Zillow Lead', source: '', status: 'active' }), true, 'tag+status both match')
+  assert.equal(isExcludedFromAutopilot({ tags: 'Zillow Lead', source: '', status: 'lead' }), false, 'tag matches but status does not')
+  db.setSetting('ai_exclude_rules', '[]')
   // Make our test lead look like an FSBO import
   db.run("UPDATE clients SET tags='FSBO_Off Market' WHERE id=?", [cid])
   setManaged(cid, 0); db.setSetting('ai_autopilot', '1')

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T21:14:57.876Z",
-  "count": 407,
+  "generated_at": "2026-08-20T21:20:17.935Z",
+  "count": 408,
   "entries": [
+    {
+      "hash": "91f1c5c",
+      "date": "2026-08-20T16:15:02-05:00",
+      "subject": "AI: default autopilot-exclude to exact import tags (fsbo, MLS: Expired, MLS: Cancelled)",
+      "title": "AI: default autopilot-exclude to exact import tags (fsbo, MLS: Expired, MLS: Cancelled)",
+      "body": "Verified against real data: FSBO leads carry tags like ['FSBO ACTIVE','FSBO New'] + source 'FSBO Zillow'; all excluded by substring match.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9d33186",
       "date": "2026-08-20T16:07:48-05:00",

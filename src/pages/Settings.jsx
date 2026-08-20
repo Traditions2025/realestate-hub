@@ -308,6 +308,43 @@ export default function Settings() {
 // --- Communications diagnostics + admin toggles (health check, signature, recording) ---
 // HUB AI ISA — feature flags, cadence config, and live diagnostics. Everything is
 // OFF until turned on here. The master switch gates all autonomous behavior.
+// Autopilot exclusion builder: by tag/source, by status, and combination rules.
+function AiExclusions({ cfg, saveCfg }) {
+  const [rules, setRules] = React.useState(() => { try { const r = JSON.parse(cfg.ai_exclude_rules || '[]'); return Array.isArray(r) ? r : [] } catch { return [] } })
+  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const saveRules = (r) => { setRules(r); saveCfg('ai_exclude_rules', JSON.stringify(r.filter(x => (x.tag || '').trim() || (x.status || '').trim()))) }
+  const setRule = (i, k, v) => { const n = rules.map((x, j) => j === i ? { ...x, [k]: v } : x); setRules(n) }
+  return (
+    <div style={{ marginTop: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Autopilot exclusions</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10 }}>Leads matching any of these are never auto-contacted (first-touch, nurture, re-engage, behavioral, or auto-reply). You can still turn AI on for one manually. For imported prospecting lists that never opted in.</div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by tag or source contains (comma-separated)</div>
+        <input defaultValue={cfg.ai_autopilot_exclude} onBlur={e => saveCfg('ai_autopilot_exclude', e.target.value)} placeholder="fsbo, mls: expired, mls: cancelled" style={{ ...inp, width: '100%', maxWidth: 520 }} />
+      </div>
+      <div style={{ marginBottom: 10 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by status (comma-separated)</div>
+        <input defaultValue={cfg.ai_exclude_statuses} onBlur={e => saveCfg('ai_exclude_statuses', e.target.value)} placeholder="e.g. archived, do not contact" style={{ ...inp, width: '100%', maxWidth: 520 }} />
+      </div>
+      <div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Combination rules — exclude when a tag AND a status both match</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {rules.map((r, i) => (
+            <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>tag</span>
+              <input value={r.tag || ''} onChange={e => setRule(i, 'tag', e.target.value)} onBlur={() => saveRules(rules)} placeholder="fsbo" style={{ ...inp, width: 150 }} />
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>AND status</span>
+              <input value={r.status || ''} onChange={e => setRule(i, 'status', e.target.value)} onBlur={() => saveRules(rules)} placeholder="active" style={{ ...inp, width: 150 }} />
+              <button className="btn btn-sm" onClick={() => saveRules(rules.filter((_, j) => j !== i))}>✕</button>
+            </div>
+          ))}
+          <button className="btn btn-sm btn-secondary" style={{ alignSelf: 'flex-start' }} onClick={() => setRules([...rules, { tag: '', status: '' }])}>+ Add rule</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AiFollowUpSettings() {
   const [s, setS] = React.useState(undefined)
   const [diag, setDiag] = React.useState(null)
@@ -365,11 +402,7 @@ function AiFollowUpSettings() {
         <input defaultValue={cfg.ai_persona} onBlur={e => saveCfg('ai_persona', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Texts in first person as this person. Every first text also includes MattSmithTeam.com automatically.</div>
       </div>
-      <div style={{ marginTop: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Autopilot never auto-contacts leads tagged (comma-separated)</div>
-        <input defaultValue={cfg.ai_autopilot_exclude} onBlur={e => saveCfg('ai_autopilot_exclude', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Prospecting imports that never opted in (expired, cancelled, FSBO). Matches these words in a lead's tags or source. You can still turn AI on for one manually.</div>
-      </div>
+      <AiExclusions cfg={cfg} saveCfg={saveCfg} />
       {diag && (
         <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           <span><strong>Diagnostics:</strong></span>

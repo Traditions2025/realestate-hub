@@ -29,9 +29,12 @@ export const AI_CONFIG_DEFAULTS = {
   ai_persona: 'John with Matt Smith Team at RE/MAX Concepts',
   ai_default_owner: 'Matt',
   ai_response_delay_seconds: '0',
-  // Autopilot never auto-contacts leads whose tags/source contain any of these
-  // (comma-separated substrings). For imported prospecting lists that never opted in.
-  ai_autopilot_exclude: 'fsbo,mls: expired,mls: cancelled',
+  // ---- Autopilot exclusions (imported prospecting lists that never opted in). A
+  // lead is excluded if it matches ANY tag/source substring, OR any status, OR any
+  // combination rule (tag AND status both match). An agent can still enable AI manually.
+  ai_autopilot_exclude: 'fsbo,mls: expired,mls: cancelled',   // tag/source substrings
+  ai_exclude_statuses: '',                                    // comma statuses (lowercased match)
+  ai_exclude_rules: '[]',                                     // JSON [{tag, status}] — both must match
 }
 
 export function getFlags() { const o = {}; for (const f of AI_FLAGS) o[f] = db.getSetting(f, '0') === '1'; return o }
