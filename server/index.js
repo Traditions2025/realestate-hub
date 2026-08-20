@@ -540,6 +540,28 @@ async function start() {
       missed_call_textback_enabled: db.getSetting('missed_call_textback_enabled', '1'),
     })
   })
+  // Call routing + business hours (inbound behavior for the Hub number).
+  app.get('/api/settings/voice', (_req, res) => {
+    res.json({
+      business_hours_enabled: db.getSetting('voice_business_hours_enabled', '0') === '1',
+      tz: db.getSetting('voice_hours_tz', 'America/Chicago'),
+      open: db.getSetting('voice_open', '08:00'),
+      close: db.getSetting('voice_close', '18:00'),
+      days: db.getSetting('voice_days', '1,2,3,4,5'),
+      afterhours_message: db.getSetting('voice_afterhours_message', AFTERHOURS_DEFAULT),
+      forward_number: db.getSetting('voice_forward_number', ''),
+      forward_on_missed: db.getSetting('voice_forward_on_missed', '0') === '1',
+      open_now: voiceBusinessOpen(),
+    })
+  })
+  app.post('/api/settings/voice', (req, res) => {
+    const b = req.body || {}
+    const set = (k, key) => { if (b[k] !== undefined) db.setSetting(key, typeof b[k] === 'boolean' ? (b[k] ? '1' : '0') : String(b[k])) }
+    set('business_hours_enabled', 'voice_business_hours_enabled')
+    set('tz', 'voice_hours_tz'); set('open', 'voice_open'); set('close', 'voice_close'); set('days', 'voice_days')
+    set('afterhours_message', 'voice_afterhours_message'); set('forward_number', 'voice_forward_number'); set('forward_on_missed', 'voice_forward_on_missed')
+    res.json({ success: true, open_now: voiceBusinessOpen() })
+  })
   // A2P 10DLC status for a number (brand + campaign + messaging-service membership).
   app.get('/api/settings/twilio/a2p', async (req, res) => {
     try {
@@ -552,6 +574,25 @@ async function start() {
   const HUB_BASE = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
   const xml = (res, body) => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`)
   const escXml = (s) => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]))
+  const AFTERHOURS_DEFAULT = 'You have reached the Matt Smith Team. Our office is currently closed. Please leave a message and we will get right back to you.'
+  // Is the Hub number "open" right now? Uses the configured timezone, open/close
+  // times, and days of week. When business hours are off, always open.
+  const voiceBusinessOpen = () => {
+    try {
+      if (db.getSetting('voice_business_hours_enabled', '0') !== '1') return true
+      const tz = db.getSetting('voice_hours_tz', 'America/Chicago')
+      const days = (db.getSetting('voice_days', '1,2,3,4,5') || '').split(',').map(s => s.trim()).filter(Boolean)
+      const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date())
+      const get = (t) => (parts.find(x => x.type === t) || {}).value
+      const wd = { Sun: '0', Mon: '1', Tue: '2', Wed: '3', Thu: '4', Fri: '5', Sat: '6' }[get('weekday')]
+      if (days.length && !days.includes(wd)) return false
+      let hh = parseInt(get('hour'), 10); if (hh === 24) hh = 0
+      const cur = hh * 60 + parseInt(get('minute'), 10)
+      const toMin = (s) => { const [a, b] = String(s).split(':'); return (parseInt(a, 10) || 0) * 60 + (parseInt(b, 10) || 0) }
+      return cur >= toMin(db.getSetting('voice_open', '08:00')) && cur < toMin(db.getSetting('voice_close', '18:00'))
+    } catch { return true }
+  }
+  const voicemailTwiml = (msg) => `<Say voice="alice">${escXml(msg)}</Say><Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`
   const fmtPhoneUS = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
   const isDncStatus = (s) => ['junk', 'donotcontact'].includes(String(s || '').toLowerCase())
   // Best-effort match an inbound/outbound phone to a client + log the call. Unknown
@@ -637,14 +678,21 @@ async function start() {
     const recAttr = rec ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
     xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"${recAttr}><Number>${escXml(to)}</Number></Dial>`)
   })
-  // TwiML: inbound call → ring the browser client; the Dial `action` handles the result.
+  // TwiML: inbound call → ring the browser client during business hours; outside
+  // hours go straight to an after-hours greeting + voicemail.
   app.post('/api/voice/inbound', twGuard, (req, res) => {
     const from = req.body?.From || ''
     upsertCall('call', 'incoming', from, { sid: req.body?.CallSid, delivery_status: 'ringing' })
+    if (!voiceBusinessOpen()) {
+      upsertCall('call', 'incoming', from, { sid: req.body?.CallSid, delivery_status: 'missed', disposition: 'After-hours' })
+      missedCallTextBack(from, req.body?.CallSid)
+      return xml(res, voicemailTwiml(db.getSetting('voice_afterhours_message', AFTERHOURS_DEFAULT)))
+    }
     xml(res, `<Dial answerOnBridge="true" timeout="20" action="${HUB_BASE}/api/voice/dial-complete" callerId="${escXml(from)}"><Client>hub</Client></Dial>`)
   })
-  // After the browser Dial finishes: answered → log completed; missed → take a voicemail.
-  app.post('/api/voice/dial-complete', twGuard, (req, res) => {
+  // After the browser Dial finishes: answered → log completed; missed → optionally
+  // forward to a mobile, else take a voicemail.
+  app.post('/api/voice/dial-complete', twGuard, async (req, res) => {
     const b = req.body || {}
     const from = b.From || ''
     if ((b.DialCallStatus || '') === 'completed') {
@@ -653,7 +701,17 @@ async function start() {
     }
     upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'missed', disposition: 'Missed call' })
     missedCallTextBack(from, b.CallSid)   // fire-and-forget auto text-back
-    xml(res, `<Say voice="alice">Sorry we missed you. Please leave a message after the tone.</Say><Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`)
+    const fwd = db.getSetting('voice_forward_number', '')
+    if (fwd && db.getSetting('voice_forward_on_missed', '0') === '1') {
+      const { toE164 } = await import('./twilio.js'); const to = toE164(fwd)
+      if (to) return xml(res, `<Dial answerOnBridge="true" timeout="20" callerId="${escXml(from)}" action="${HUB_BASE}/api/voice/voicemail-fallback"><Number>${escXml(to)}</Number></Dial>`)
+    }
+    xml(res, voicemailTwiml('Sorry we missed you. Please leave a message after the tone.'))
+  })
+  // If the forward-to-mobile leg also went unanswered, fall through to voicemail.
+  app.post('/api/voice/voicemail-fallback', twGuard, (req, res) => {
+    if ((req.body?.DialCallStatus || '') === 'completed') return xml(res, `<Hangup/>`)
+    xml(res, voicemailTwiml('Sorry we missed you. Please leave a message after the tone.'))
   })
   // Voicemail recording finished (Record `action`) → store it on the timeline.
   app.post('/api/voice/voicemail-done', twGuard, (req, res) => {

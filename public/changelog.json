@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T17:34:41.601Z",
-  "count": 385,
+  "generated_at": "2026-08-20T17:37:18.813Z",
+  "count": 386,
   "entries": [
+    {
+      "hash": "a5fa964",
+      "date": "2026-08-20T12:34:51-05:00",
+      "subject": "#5 Conversation ownership: assign conversations to an agent, Mine/Unassigned filters, assignee chips",
+      "title": "#5 Conversation ownership: assign conversations to an agent, Mine/Unassigned filters, assignee chips",
+      "body": "- Owner = clients.agent_assigned. GET /inbox/agents (configurable via inbox_agents setting, default Matt,John,Hunter), POST /thread/:id/assign\n- Inbox list returns assigned_to per conversation + supports ?assigned=<agent>|unassigned\n- Sidebar: All/Mine/Unassigned filter + 'I am' agent picker (localStorage); assignee chip on list rows; reassign dropdown in the thread header\n- Assigning emits a contact_assigned automation event\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fe66657",
       "date": "2026-08-20T12:18:46-05:00",

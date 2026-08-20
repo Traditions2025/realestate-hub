@@ -256,6 +256,8 @@ export default function Settings() {
 
           <CommsDiagnostics />
 
+          <VoiceRouting />
+
           {/* Business Registration (Twilio A2P) */}
           <section className="detail-section">
             <h4 style={{ margin: 0 }}>Business Registration</h4>
@@ -302,6 +304,66 @@ export default function Settings() {
 }
 
 // --- Communications diagnostics + admin toggles (health check, signature, recording) ---
+function VoiceRouting() {
+  const [v, setV] = React.useState(undefined)
+  const [saving, setSaving] = React.useState(false)
+  React.useEffect(() => { authFetch('/api/settings/voice').then(r => r.json()).then(setV).catch(() => setV(null)) }, [])
+  const save = async (patch) => {
+    setSaving(true)
+    try { const r = await authFetch('/api/settings/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); const d = await r.json(); setV(x => ({ ...x, ...patch, open_now: d.open_now })) }
+    finally { setSaving(false) }
+  }
+  if (v === undefined) return null
+  if (v === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Call Routing</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  const DAYS = [['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed'], ['4', 'Thu'], ['5', 'Fri'], ['6', 'Sat'], ['0', 'Sun']]
+  const daySet = new Set((v.days || '').split(',').map(s => s.trim()).filter(Boolean))
+  const toggleDay = (d) => { const s = new Set(daySet); s.has(d) ? s.delete(d) : s.add(d); save({ days: DAYS.map(([k]) => k).filter(k => s.has(k)).join(',') }) }
+  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  return (
+    <section className="detail-section">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h4 style={{ margin: 0 }}>Call Routing &amp; Business Hours</h4>
+        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: v.open_now ? '#10b981' : '#f59e0b' }}>{v.open_now ? '● Open now' : '● Closed now'}</span>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>How the Hub number handles inbound calls.</p>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+        <input type="checkbox" checked={v.business_hours_enabled} onChange={e => save({ business_hours_enabled: e.target.checked })} />
+        Use business hours <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(outside hours → straight to voicemail)</span>
+      </label>
+      {v.business_hours_enabled && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 24, marginBottom: 12 }}>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 13 }}>Open</span>
+            <input type="time" defaultValue={v.open} onBlur={e => save({ open: e.target.value })} style={inp} />
+            <span style={{ fontSize: 13 }}>to</span>
+            <input type="time" defaultValue={v.close} onBlur={e => save({ close: e.target.value })} style={inp} />
+            <select defaultValue={v.tz} onChange={e => save({ tz: e.target.value })} style={inp}>
+              {['America/Chicago', 'America/New_York', 'America/Denver', 'America/Los_Angeles'].map(t => <option key={t} value={t}>{t.replace('America/', '')}</option>)}
+            </select>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {DAYS.map(([k, l]) => <button key={k} onClick={() => toggleDay(k)} className={`btn btn-sm ${daySet.has(k) ? 'btn-primary' : 'btn-secondary'}`}>{l}</button>)}
+          </div>
+          <div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>After-hours greeting</div>
+            <textarea defaultValue={v.afterhours_message} onBlur={e => save({ afterhours_message: e.target.value })} rows={2} style={{ ...inp, width: '100%', maxWidth: 520, resize: 'vertical' }} />
+          </div>
+        </div>
+      )}
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 8 }}>
+        <input type="checkbox" checked={v.forward_on_missed} onChange={e => save({ forward_on_missed: e.target.checked })} />
+        Forward to a mobile when a call is missed <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(rings your cell before voicemail)</span>
+      </label>
+      {v.forward_on_missed && (
+        <div style={{ paddingLeft: 24, display: 'flex', gap: 8, alignItems: 'center' }}>
+          <input defaultValue={v.forward_number} onBlur={e => save({ forward_number: e.target.value })} placeholder="Mobile number e.g. (319) 555-1234" style={{ ...inp, minWidth: 260 }} />
+          {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>saving…</span>}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function CommsDiagnostics() {
   const [health, setHealth] = React.useState(undefined)
   const [busy, setBusy] = React.useState(false)
