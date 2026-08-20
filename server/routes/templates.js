@@ -34,10 +34,16 @@ function convertFubTokens(s) {
     .replace(/%contact_last_name%/gi, '{{last_name}}')
     .replace(/%contact_full_name%|%contact_name%/gi, '{{full_name}}')
     .replace(/%contact_city%/gi, '{{city}}')
+    .replace(/%contact_email%/gi, '{{email}}')
+    .replace(/%contact_(address|street)%/gi, '{{address}}')
+    .replace(/%(inquiry_address|viewed_address)%/gi, '{{last_viewed_address}}')
+    .replace(/%lender_first_name%/gi, '{{lender_name}}')
     .replace(/%(sender|agent|user)_first_name%/gi, 'John')
     .replace(/%greeting_time%/gi, 'Hi')
-    .replace(/%[a-z0-9_]+%/gi, '')      // strip any remaining unknown tokens
-    .replace(/[ \t]{2,}/g, ' ').trim()
+    // no Hub equivalent (Ylopo alert link / viewed-property URL) → remove so nothing leaks
+    .replace(/%custom_ylopo_listing_alert%|%viewed_address_url%/gi, '')
+    .replace(/%[a-z0-9_]+%/gi, '')      // safety: strip any other unknown token
+    .replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim()
 }
 
 // Probe: what FUB text templates are available (no import).
