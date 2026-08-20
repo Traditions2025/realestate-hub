@@ -324,7 +324,8 @@ export default function Clients() {
   })
   const [detailOpen, setDetailOpen] = useState(false)
   const [detail, setDetail] = useState(null)
-  const [textComposeClient, setTextComposeClient] = useState(null)  // lead-profile SMS composer
+  const [textComposeClient, setTextComposeClient] = useState(null)  // lead-profile SMS composer (bulk/legacy)
+  const [textPanelOpen, setTextPanelOpen] = useState(false)         // inline text box on the lead profile
   const [sierraStatus, setSierraStatus] = useState(null) // null = not started, 'syncing', { added, updated, total_synced, error }
   const [syncLog, setSyncLog] = useState(null)
   const [batchRefreshState, setBatchRefreshState] = useState(null)
@@ -770,7 +771,7 @@ export default function Clients() {
     }).catch(() => {})
     // reset per-client detail UI state
     setTagsExpanded(false); setFubExpanded(false); setListingActExpanded(false)
-    setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText('')
+    setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText(''); setTextPanelOpen(false)
     setDetailOpen(true)
     // Hub tracking activity (mattsmithteam.com pixel) — always fetch, not gated on Sierra link
     authFetch(`/api/track/activity/${id}?limit=50`).then(r => r.json()).then(setHubActivity).catch(() => {})
@@ -2397,7 +2398,7 @@ export default function Clients() {
                   </button>
                 )}
                 {detail.phone && !detail.hub_text_opt_out && (
-                  <button className="lead-action-btn lead-action-text" title="Send an SMS from your Hub number" onClick={() => setTextComposeClient(detail)}>
+                  <button className={`lead-action-btn lead-action-text${textPanelOpen ? ' active' : ''}`} title="Send an SMS from your Hub number" onClick={() => setTextPanelOpen(o => !o)}>
                     <span className="lead-action-icon">💬</span>
                     <span>Text</span>
                   </button>
@@ -2450,6 +2451,10 @@ export default function Clients() {
                   <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add an internal note…" rows={2} style={{flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical'}} />
                   <button className="btn btn-primary btn-sm" onClick={saveQuickNote} disabled={savingNote || !noteText.trim()}>{savingNote ? 'Saving…' : 'Save Note'}</button>
                 </div>
+              )}
+              {textPanelOpen && detail.phone && !detail.hub_text_opt_out && (
+                <InlineTextComposer client={detail} onClose={() => setTextPanelOpen(false)}
+                  onSent={() => { if (detail?.id) openDetail(detail.id) }} />
               )}
             </div>
 
@@ -3411,6 +3416,109 @@ function TextComposerModal({ client, onClose, onSent }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+// --- Inline text box on the lead profile: opens under the action buttons (not a
+// modal behind the drawer). Text, template, merge fields, photo (MMS), and add
+// more recipients — sends from the Hub number to everyone in one shot. ---
+function InlineTextComposer({ client, onClose, onSent }) {
+  const [recips, setRecips] = React.useState([client])
+  const [q, setQ] = React.useState('')
+  const [results, setResults] = React.useState([])
+  const [body, setBody] = React.useState('')
+  const [media, setMedia] = React.useState([])
+  const [uploading, setUploading] = React.useState(false)
+  const [sending, setSending] = React.useState(false)
+  const [templates, setTemplates] = React.useState([])
+  const fileRef = React.useRef(null)
+  React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  React.useEffect(() => {
+    if (q.trim().length < 2) { setResults([]); return }
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
+    return () => clearTimeout(t)
+  }, [q])
+  const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
+  const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
+  const addRecip = (c) => { if (!recips.find(r => r.id === c.id)) setRecips([...recips, c]); setQ(''); setResults([]) }
+  const removeRecip = (id) => setRecips(recips.filter(r => r.id !== id))
+  const uploadPhoto = async (file) => {
+    if (!file) return; setUploading(true)
+    try { const fd = new FormData(); fd.append('file', file); const r = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) setMedia(m => [...m, { url: d.url, type: d.type }]); else alert(d.error || 'Upload failed') }
+    catch (e) { alert('Upload failed: ' + e.message) } finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
+  }
+  const send = async () => {
+    if (!body.trim() && !media.length) return
+    if (!recips.length) { alert('Add at least one recipient.'); return }
+    setSending(true)
+    try {
+      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids: recips.map(c => c.id), body: body.trim(), media: media.map(m => m.url) }) })
+      const d = await r.json()
+      if (d.sent >= 1) {
+        setBody(''); setMedia([]); onSent && onSent()
+        const failed = (d.results || []).filter(x => !x.ok)
+        if (failed.length) alert(`Sent to ${d.sent}. ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).`)
+        else onClose()
+      } else alert('Text not sent: ' + (d.results?.[0]?.error || d.error || 'unknown error'))
+    } catch (e) { alert('Text failed: ' + e.message) } finally { setSending(false) }
+  }
+  const fld = { width: '100%', padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
+  return (
+    <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 10, padding: 12, background: 'var(--bg-secondary)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>💬 Text</span>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>from your Hub number (319) 343-1562</span>
+        <button onClick={onClose} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16 }} title="Close">✕</button>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+        {recips.map(r => (
+          <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 12 }}>
+            {`${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone}
+            {recips.length > 1 && <button onClick={() => removeRecip(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>}
+          </span>
+        ))}
+      </div>
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <input value={q} onChange={e => setQ(e.target.value)} placeholder="+ Add another recipient (name or phone)…" style={fld} />
+        {results.length > 0 && (
+          <div style={{ position: 'absolute', zIndex: 40, top: '100%', left: 0, right: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 200, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+            {results.map(c => (
+              <div key={c.id} onClick={() => addRecip(c)} style={{ padding: '7px 11px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone || 'no phone'}</div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+        <select value="" onChange={e => { const t = templates.find(x => String(x.id) === e.target.value); if (t) insert(stripHtml(t.body)); e.target.value = '' }} style={{ ...fld, width: 'auto', fontSize: 12, padding: '5px 6px' }}>
+          <option value="">Insert template…</option>
+          {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+        </select>
+        <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ ...fld, width: 'auto', fontSize: 12, padding: '5px 6px' }}>
+          <option value="">+ Merge field…</option>
+          {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
+        </select>
+        <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
+        <button className="btn btn-sm btn-secondary" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? 'Uploading…' : '📷 Photo'}</button>
+      </div>
+      {media.length > 0 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          {media.map((mm, i) => (
+            <div key={i} style={{ position: 'relative' }}>
+              <img src={mm.url} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+              <button onClick={() => setMedia(list => list.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 11, lineHeight: '18px', padding: 0 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={3} maxLength={1000} placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }} style={{ ...fld, resize: 'vertical', lineHeight: 1.5 }} />
+      <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send{recips.length > 1 ? ` · ${recips.length} recipients` : ''}</span>
+        <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={send} disabled={sending || (!body.trim() && !media.length)}>{sending ? 'Sending…' : 'Send Text'}</button>
+      </div>
+    </div>
   )
 }
 

@@ -58,6 +58,8 @@ export async function sendSms(toPhone, body, opts = {}) {
   if (c.messagingServiceSid) params.set('MessagingServiceSid', c.messagingServiceSid)
   else params.set('From', c.from)
   params.set('Body', String(body == null ? '' : body))
+  // MMS media: Twilio accepts up to 10 MediaUrl params, each a public URL it fetches.
+  if (Array.isArray(opts.mediaUrls)) for (const u of opts.mediaUrls.slice(0, 10)) if (u) params.append('MediaUrl', u)
   if (opts.statusCallback) params.set('StatusCallback', opts.statusCallback)
   const url = `https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Messages.json`
   const resp = await fetch(url, {

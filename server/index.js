@@ -203,6 +203,8 @@ async function start() {
 
   // Serve static files in production
   app.use(express.static(join(__dirname, '..', 'dist')))
+  // Publicly serve MMS uploads (so Twilio can fetch them); lives on the /data disk.
+  app.use('/uploads', express.static(join(process.env.DB_DIR || join(__dirname, '..'), 'uploads')))
 
   // Auth
   app.use('/api/auth', authRouter)

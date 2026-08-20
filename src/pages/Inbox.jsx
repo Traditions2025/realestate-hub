@@ -27,6 +27,38 @@ function deliveryText(m) {
 }
 const fmtDur = (s) => { s = Number(s || 0); return s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '' }
 const recUrl = (id) => `/api/inbox/recording/${id}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
+const mediaUrl = (id, idx) => `/api/inbox/media/${id}/${idx}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
+const stripTplHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
+const firstUrl = (text) => { const m = String(text || '').match(/https?:\/\/[^\s<]+/); return m ? m[0].replace(/[.,)\]]+$/, '') : null }
+
+// Render message text with clickable links (URLs become anchors).
+function LinkifiedText({ text, light }) {
+  const parts = String(text || '').split(/(https?:\/\/[^\s<]+)/g)
+  return <>{parts.map((p, i) => /^https?:\/\//i.test(p)
+    ? <a key={i} href={p} target="_blank" rel="noopener noreferrer" style={{ color: light ? '#dbeafe' : '#2563eb', textDecoration: 'underline', wordBreak: 'break-all' }}>{p}</a>
+    : <React.Fragment key={i}>{p}</React.Fragment>)}</>
+}
+
+// Rich preview card for the first link in a message (OpenGraph via the server).
+function LinkPreview({ url }) {
+  const [d, setD] = React.useState(undefined)
+  React.useEffect(() => {
+    let ok = true
+    authFetch('/api/inbox/link-preview?url=' + encodeURIComponent(url)).then(r => r.json()).then(v => { if (ok) setD(v && !v.error ? v : null) }).catch(() => ok && setD(null))
+    return () => { ok = false }
+  }, [url])
+  if (!d) return null
+  return (
+    <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 6, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', textDecoration: 'none', maxWidth: 300, background: 'var(--bg-primary)' }}>
+      {d.image && <img src={d.image} alt="" onError={e => { e.target.style.display = 'none' }} style={{ width: '100%', maxHeight: 150, objectFit: 'cover', display: 'block' }} />}
+      <div style={{ padding: '8px 10px' }}>
+        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.site}</div>
+        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.25, marginTop: 2 }}>{d.title}</div>
+        {d.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.description}</div>}
+      </div>
+    </a>
+  )
+}
 
 // Notes + disposition editor for a call/voicemail row.
 function CallDispo({ m, onSaved }) {
@@ -81,6 +113,10 @@ export default function Inbox() {
   const [sending, setSending] = useState(false)
   const [replyOpen, setReplyOpen] = useState(false)   // AI/reply composer minimized by default (saves space)
   const [openMsgs, setOpenMsgs] = useState({})        // per-message expand overrides (Gmail-style thread collapse)
+  const [replyMedia, setReplyMedia] = useState([])    // outgoing MMS photos: [{url,type}]
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [replyTemplates, setReplyTemplates] = useState([])
+  const fileRef = React.useRef(null)
 
   const load = useCallback(() => {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
@@ -101,7 +137,7 @@ export default function Inbox() {
   const openThread = (clientId) => {
     if (!clientId) return
     setSel(clientId)
-    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(false); setOpenMsgs({})
+    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(false); setOpenMsgs({}); setReplyMedia([])
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
     // AI: restore a saved draft, else the suggestion; generate on first open / when a newer email arrived
@@ -144,17 +180,43 @@ export default function Inbox() {
     finally { setAiBusy('') }
   }
   const useSuggested = () => { if (ai?.suggestion) setReply({ subject: ai.suggestion.subject || '', body: ai.suggestion.body || '' }) }
-  const clearDraft = () => setReply({ subject: '', body: '' })
+  const clearDraft = () => { setReply({ subject: '', body: '' }); setReplyMedia([]) }
+  // Which channel the reply sends on: mirrors the last message VISIBLE in the thread
+  // (so with the Texts filter on, a reply is a text even if the client also emailed).
+  const shownThread = thread.filter(m => channels.includes(m.channel))
+  const lastShown = shownThread.length ? shownThread[shownThread.length - 1] : (thread.length ? thread[thread.length - 1] : null)
+  const replyChannel = lastShown && lastShown.channel === 'text' ? 'text' : 'email'
+  // Load templates for the reply channel when the composer is open.
+  useEffect(() => {
+    if (!replyOpen) return
+    authFetch('/api/templates?type=' + replyChannel).then(r => r.json()).then(t => setReplyTemplates(Array.isArray(t) ? t : [])).catch(() => setReplyTemplates([]))
+  }, [replyOpen, replyChannel])
+  const insertTemplate = (id) => {
+    const t = replyTemplates.find(x => String(x.id) === String(id)); if (!t) return
+    const text = replyChannel === 'text' ? stripTplHtml(t.body) : t.body
+    setReply(v => ({ subject: v.subject || (replyChannel === 'email' ? (t.subject || '') : ''), body: v.body ? v.body + '\n\n' + text : text }))
+  }
+  const uploadPhoto = async (file) => {
+    if (!file) return
+    setUploadingPhoto(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const r = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd })
+      const d = await r.json()
+      if (d.url) setReplyMedia(m => [...m, { url: d.url, type: d.type }])
+      else alert(d.error || 'Upload failed')
+    } catch (e) { alert('Upload failed: ' + e.message) }
+    finally { setUploadingPhoto(false); if (fileRef.current) fileRef.current.value = '' }
+  }
   const sendReply = async () => {
     if (!sel) return
-    if (!reply.body.trim()) { alert('Write a reply first.'); return }
-    // Reply in the same channel as the conversation (text thread → text, else email).
-    const threadChannel = (thread && thread.length) ? (thread[thread.length - 1].channel || 'email') : 'email'
+    const hasBody = !!reply.body.trim()
+    if (!hasBody && !(replyChannel === 'text' && replyMedia.length)) { alert('Write a reply first.'); return }
     setSending(true)
     try {
       let payload
-      if (threadChannel === 'text') {
-        payload = { channel: 'text', client_ids: [sel], body: reply.body.trim() }
+      if (replyChannel === 'text') {
+        payload = { channel: 'text', client_ids: [sel], body: reply.body.trim(), media: replyMedia.map(m => m.url) }
       } else {
         const subject = reply.subject.trim() || 'Re: your message'
         const html = reply.body.split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
@@ -165,7 +227,7 @@ export default function Inbox() {
       if (d.error || !(d.sent > 0)) { alert(d.error || 'Send failed: ' + ((d.results || [])[0]?.error || 'unknown')); return }
       // clear the draft, refresh the thread + list
       await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {})
-      setReply({ subject: '', body: '' })
+      setReply({ subject: '', body: '' }); setReplyMedia([])
       authFetch(`/api/inbox/thread/${sel}`).then(x => x.json()).then(setThread).catch(() => {})
       load()
     } catch (e) { alert(e.message) }
@@ -271,10 +333,10 @@ export default function Inbox() {
                 <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => closeThread(sel)}>Close</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {thread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : thread.map((m, idx) => {
+                {shownThread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : shownThread.map((m, idx) => {
                   const meta = chMeta(m.channel)
                   const out = m.direction === 'outgoing'
-                  const total = thread.length
+                  const total = shownThread.length
                   // Gmail-style: only the latest (and any unread incoming) message is expanded;
                   // older read messages collapse to a one-line summary. Click to toggle.
                   const expanded = (m.id in openMsgs) ? openMsgs[m.id] : (idx === total - 1 || (m.status === 'unread' && m.direction === 'incoming'))
@@ -313,8 +375,11 @@ export default function Inbox() {
                   const dstat = deliveryText(m)
                   const isVoicemail = m.channel === 'voicemail'
                   const isCall = m.channel === 'call'
+                  const isText = m.channel === 'text'
                   const missed = isCall && String(m.delivery_status || '').toLowerCase() === 'missed'
-                  const nMedia = (() => { try { return JSON.parse(m.media_url || '[]').length } catch { return 0 } })()
+                  const mediaList = (() => { try { return JSON.parse(m.media_url || '[]') } catch { return [] } })()
+                  const textBody = m.body || m.preview
+                  const link0 = isText ? firstUrl(textBody) : null
                   return (
                     <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
@@ -324,12 +389,16 @@ export default function Inbox() {
                       <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
                         {isCall || isVoicemail
                           ? <div style={{ fontSize: 14, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
-                          : <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>}
-                        {nMedia > 0 && <div style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 {nMedia} attachment{nMedia === 1 ? '' : 's'}</div>}
+                          : (textBody ? <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><LinkifiedText text={textBody} light={out && !missed} /></div> : null)}
+                        {/* Inline MMS photos (streamed through the auth'd media proxy) */}
+                        {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
+                          ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
+                          : <div key={i} style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
                         {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                         {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
                         {isCall && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                       </div>
+                      {link0 && <LinkPreview url={link0} />}
                       {dstat && <div style={{ fontSize: 10.5, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
                       {(isCall || isVoicemail) && <CallDispo m={m} onSaved={() => openThread(sel)} />}
                     </div>
@@ -347,7 +416,7 @@ export default function Inbox() {
               ) : (
                 <div style={{ borderTop: '1px solid var(--border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-primary)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 Suggested Response</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 {replyChannel === 'text' ? 'Suggested Text' : 'Suggested Response'}</span>
                     {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
                     {ai && ai.stale && <span style={{ fontSize: 11, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
                     <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={!!aiBusy} onClick={() => generateSuggestion(sel, true)}>{aiBusy === 'suggest' ? '…' : '↻ Regenerate'}</button>
@@ -358,8 +427,30 @@ export default function Inbox() {
                   {ai && ai.summary && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 8 }}>{ai.summary}</div>}
                   {aiBusy === 'suggest' && !(ai && ai.summary) && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
 
-                  <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
-                  <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={5} placeholder="Write your reply…" style={{ padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
+                  {/* Template + photo toolbar */}
+                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select value="" onChange={e => { insertTemplate(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }}>
+                      <option value="">Insert template…</option>
+                      {replyTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                    </select>
+                    {replyChannel === 'text' && <>
+                      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
+                      <button className="btn btn-sm btn-secondary" disabled={uploadingPhoto} onClick={() => fileRef.current?.click()}>{uploadingPhoto ? 'Uploading…' : '📷 Insert photo'}</button>
+                    </>}
+                  </div>
+                  {replyMedia.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      {replyMedia.map((mm, i) => (
+                        <div key={i} style={{ position: 'relative' }}>
+                          <img src={mm.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                          <button onClick={() => setReplyMedia(list => list.filter((_, j) => j !== i))} title="Remove" style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: '20px', padding: 0 }}>✕</button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {replyChannel === 'email' && <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />}
+                  <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={replyChannel === 'text' ? 3 : 5} placeholder={replyChannel === 'text' ? 'Write your text…' : 'Write your reply…'} style={{ padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
 
                   <div style={{ display: 'flex', gap: 6 }}>
                     <input value={aiCtx} onChange={e => setAiCtx(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustReply(null, aiCtx.trim()) }} placeholder="Add context for the AI (e.g. tell them we can meet Saturday)…" style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
@@ -371,8 +462,8 @@ export default function Inbox() {
                     {[['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['warmer', 'Warmer']].map(([k, l]) => (
                       <button key={k} className="btn btn-sm" disabled={!!aiBusy || !reply.body.trim()} onClick={() => adjustReply(k)}>{aiBusy === k ? '…' : l}</button>
                     ))}
-                    <button className="btn btn-sm" disabled={!reply.body.trim()} onClick={clearDraft}>Clear</button>
-                    <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || !reply.body.trim()} onClick={sendReply}>{sending ? 'Sending…' : '✉ Send reply'}</button>
+                    <button className="btn btn-sm" disabled={!reply.body.trim() && !replyMedia.length} onClick={clearDraft}>Clear</button>
+                    <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || (!reply.body.trim() && !(replyChannel === 'text' && replyMedia.length))} onClick={sendReply}>{sending ? 'Sending…' : replyChannel === 'text' ? '💬 Send text' : '✉ Send reply'}</button>
                   </div>
                 </div>
               )}

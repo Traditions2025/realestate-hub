@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T14:42:12.153Z",
-  "count": 379,
+  "generated_at": "2026-08-20T15:21:10.672Z",
+  "count": 380,
   "entries": [
+    {
+      "hash": "c052a94",
+      "date": "2026-08-20T09:42:19-05:00",
+      "subject": "Reporting: split Texting and Calls into separate tabs; remove idle phone-status chip",
+      "title": "Reporting: split Texting and Calls into separate tabs; remove idle phone-status chip",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "17566fd",
       "date": "2026-08-20T09:32:18-05:00",

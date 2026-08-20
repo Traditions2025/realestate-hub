@@ -1,10 +1,21 @@
 import { Router } from 'express'
 import Busboy from 'busboy'
+import { createWriteStream, mkdirSync, unlinkSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
+import { randomUUID } from 'crypto'
 import db from '../database.js'
 import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
 import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
+
+// MMS uploads live next to the DB (the persistent /data disk on Render) and are
+// served publicly at /uploads so Twilio can fetch them when sending an MMS.
+const DB_DIR = process.env.DB_DIR || join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+const UPLOAD_DIR = join(DB_DIR, 'uploads')
+try { mkdirSync(UPLOAD_DIR, { recursive: true }) } catch {}
+const HUB_BASE = () => process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
 
 // Friendly, agent-readable text for the common Twilio messaging error codes.
 function twilioErrorText(code) {
@@ -137,6 +148,92 @@ router.get('/recording/:id', async (req, res) => {
     res.set('Cache-Control', 'private, max-age=3600')
     res.send(Buffer.from(await tr.arrayBuffer()))
   } catch { res.status(502).send('Recording error') }
+})
+
+// ---- MMS media proxy: streams an image attached to a message. Handles Twilio
+// media (needs account auth) and our own /uploads URLs uniformly. Renders inline
+// in the thread. Whitelisted for query-token auth like the recording proxy. ----
+router.get('/media/:id/:idx', async (req, res) => {
+  const row = db.get('SELECT media_url FROM communications WHERE id = ?', [Number(req.params.id)])
+  let list = []; try { list = JSON.parse(row?.media_url || '[]') } catch {}
+  const item = list[Number(req.params.idx)]
+  if (!item?.url) return res.status(404).send('no media')
+  try {
+    const headers = {}
+    if (/api\.twilio\.com/.test(item.url)) {
+      const { twilioConfig } = await import('../twilio.js'); const c = twilioConfig()
+      headers.Authorization = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+    }
+    const tr = await fetch(item.url, { headers })
+    if (!tr.ok) return res.status(502).send('media unavailable')
+    res.set('Content-Type', tr.headers.get('content-type') || item.type || 'image/jpeg')
+    res.set('Cache-Control', 'private, max-age=86400')
+    res.send(Buffer.from(await tr.arrayBuffer()))
+  } catch { res.status(502).send('media error') }
+})
+
+// ---- upload a photo for an outgoing MMS. Stores it under /uploads (public) and
+// returns the absolute URL so Twilio can fetch it at send time. ----
+router.post('/upload-media', (req, res) => {
+  if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return res.status(400).json({ error: 'expected an uploaded file' })
+  const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: 5 * 1024 * 1024 } })
+  let saved = null, tooBig = false, mime = 'image/jpeg'
+  bb.on('file', (_n, stream, info) => {
+    mime = info?.mimeType || 'image/jpeg'
+    if (!/^image\//i.test(mime)) { stream.resume(); return }
+    const ext = (mime.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'jpg'
+    const fname = `${randomUUID().replace(/-/g, '')}.${ext}`
+    const full = join(UPLOAD_DIR, fname)
+    const ws = createWriteStream(full)
+    stream.on('limit', () => { tooBig = true; ws.destroy(); try { unlinkSync(full) } catch {} })
+    ws.on('finish', () => { if (!tooBig) saved = fname })
+    stream.pipe(ws)
+  })
+  bb.on('close', () => {
+    if (tooBig) return res.status(413).json({ error: 'Image too large (max 5 MB).' })
+    if (!saved) return res.status(400).json({ error: 'That file is not an image.' })
+    res.json({ url: `${HUB_BASE()}/uploads/${saved}`, type: mime })
+  })
+  bb.on('error', () => res.status(500).json({ error: 'upload failed' }))
+  req.pipe(bb)
+})
+
+// ---- link preview: fetch OpenGraph metadata for a URL found in a message so the
+// inbox can show a rich card. In-memory cached 6h; SSRF-guarded (no private hosts). ----
+const linkCache = new Map()
+router.get('/link-preview', async (req, res) => {
+  const url = String(req.query.url || '').trim()
+  let u; try { u = new URL(url) } catch { return res.status(400).json({ error: 'bad url' }) }
+  if (!/^https?:$/.test(u.protocol)) return res.status(400).json({ error: 'bad url' })
+  const host = u.hostname
+  if (host === 'localhost' || host === '::1' || /^(127\.|10\.|192\.168\.|169\.254\.|0\.)/.test(host) || /^172\.(1[6-9]|2\d|3[01])\./.test(host)) return res.status(400).json({ error: 'blocked host' })
+  const hit = linkCache.get(url)
+  if (hit && Date.now() - hit.t < 6 * 3600 * 1000) return res.json(hit.v)
+  const fallback = { url, title: u.hostname.replace(/^www\./, ''), site: u.hostname.replace(/^www\./, ''), image: null, description: '' }
+  try {
+    const ctrl = new AbortController(); const to = setTimeout(() => ctrl.abort(), 6000)
+    const r = await fetch(url, { redirect: 'follow', signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 (compatible; HubBot/1.0; +link-preview)' } })
+    clearTimeout(to)
+    if (!/text\/html/i.test(r.headers.get('content-type') || '')) { linkCache.set(url, { t: Date.now(), v: fallback }); return res.json(fallback) }
+    const html = (await r.text()).slice(0, 200000)
+    const meta = (prop) => {
+      const m = html.match(new RegExp(`<meta[^>]+(?:property|name)=["']${prop}["'][^>]*content=["']([^"']*)["']`, 'i'))
+        || html.match(new RegExp(`<meta[^>]+content=["']([^"']*)["'][^>]*(?:property|name)=["']${prop}["']`, 'i'))
+      return m ? m[1] : ''
+    }
+    const decode = (s) => String(s || '').replace(/&amp;/g, '&').replace(/&#0?39;/g, "'").replace(/&apos;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').trim()
+    const titleTag = (html.match(/<title[^>]*>([^<]*)<\/title>/i) || [])[1] || ''
+    let image = meta('og:image') || meta('og:image:url') || meta('twitter:image')
+    if (image && image.startsWith('//')) image = u.protocol + image
+    else if (image && image.startsWith('/')) image = u.origin + image
+    const v = {
+      url, title: decode(meta('og:title') || titleTag) || fallback.title,
+      description: decode(meta('og:description') || meta('description')).slice(0, 200),
+      image: image || null, site: decode(meta('og:site_name')) || fallback.site,
+    }
+    linkCache.set(url, { t: Date.now(), v })
+    res.json(v)
+  } catch { res.json(fallback) }
 })
 
 // ---- counts for the sidebar badges ----
@@ -313,8 +410,10 @@ router.get('/contacts', (req, res) => {
 // ---- compose + send (Email now; Text arrives with Twilio) ----
 router.post('/send', async (req, res) => {
   const { channel, client_ids, subject, body } = req.body || {}
+  // media: array of public https URLs (from /upload-media) to attach as MMS
+  const media = Array.isArray(req.body?.media) ? req.body.media.filter(Boolean).slice(0, 10) : []
   if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Add at least one recipient.' })
-  if (!body) return res.status(400).json({ error: 'A message is required.' })
+  if (!body && !(channel === 'text' && media.length)) return res.status(400).json({ error: 'A message is required.' })
 
   // ---- TEXT (Twilio) ----
   if (channel === 'text') {
@@ -329,14 +428,14 @@ router.post('/send', async (req, res) => {
       const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
       // Fill merge fields per recipient, then strip any UNRESOLVED {{...}} so a
       // customer never receives a raw placeholder.
-      const outText = fillTemplate(body, c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
-      if (!outText) { results.push({ client_id: cid, ok: false, error: 'message empty after merge fields' }); continue }
+      const outText = fillTemplate(body || '', c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+      if (!outText && !media.length) { results.push({ client_id: cid, ok: false, error: 'message empty after merge fields' }); continue }
       try {
-        const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
-        const preview = String(outText).replace(/\s+/g, ' ').trim().slice(0, 160)
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, delivery_status, agent, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', req.body?.agent || null, nowIso()])
+        const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status', mediaUrls: media })
+        const preview = (String(outText).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} photo${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, nowIso()])
         results.push({ client_id: cid, ok: true })
       } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
     }

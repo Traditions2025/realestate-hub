@@ -77,7 +77,7 @@ export function requireAuth(req, res, next) {
   if (req.path === '/track.js') return next() // tracking snippet served to public sites
   // Recording/voicemail media proxy: <audio> can't set headers, so accept a token
   // in the query string (validated the same way) as well as the header.
-  if (req.path.startsWith('/api/inbox/recording/')) {
+  if (req.path.startsWith('/api/inbox/recording/') || req.path.startsWith('/api/inbox/media/')) {
     if (verifyToken(req.query.token) || verifyToken(req.headers['x-auth-token'])) return next()
     return res.status(401).json({ error: 'Unauthorized' })
   }
