@@ -39,7 +39,7 @@ function CallDispo({ m, onSaved }) {
     try { await authFetch(`/api/inbox/${m.id}/annotate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); setDirty(false); onSaved && onSaved() }
     catch (e) { alert('Could not save: ' + e.message) } finally { setSaving(false) }
   }
-  const pickDisp = (v) => { setDisp(v); if (v === 'Do not call' && !confirm('Mark this contact Do Not Call? They will be opted out of all texts/automations.')) return; save({ disposition: v }) }
+  const pickDisp = (v) => { setDisp(v); if (v === 'Do not call' && !confirm('Mark this contact Do Not Call? This stops future TEXTS from the Hub (manual + automated). Calling stays allowed.')) return; save({ disposition: v }) }
   return (
     <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
       <select value={disp} onChange={e => pickDisp(e.target.value)} style={{ fontSize: 12, padding: '3px 6px', maxWidth: 200 }}>

@@ -1270,6 +1270,11 @@ export async function initDb() {
       ['pond_id', 'INTEGER'],
       ['marketing_email_opt_out', 'INTEGER DEFAULT 0'],
       ['text_opt_out', 'INTEGER DEFAULT 0'],
+      // Hub-specific hard text block: set ONLY when a contact replies STOP to OUR Hub
+      // number. Unlike text_opt_out (synced from Sierra, informational), this is never
+      // overwritten by sync and is the sole thing that blocks outbound texting. Calling
+      // is never blocked by any opt-out.
+      ['hub_text_opt_out', 'INTEGER DEFAULT 0'],
       ['ealert_opt_out', 'INTEGER DEFAULT 0'],
       ['short_summary', 'TEXT'],
       ['tags', 'TEXT'],

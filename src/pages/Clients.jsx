@@ -2387,7 +2387,7 @@ export default function Clients() {
                     <span>Email{detail.marketing_email_opt_out ? ' (opted out)' : ''}</span>
                   </button>
                 )}
-                {detail.phone && !detail.text_opt_out && (
+                {detail.phone && !detail.hub_text_opt_out && (
                   <button className="lead-action-btn lead-action-text" title="Send an SMS from your Hub number" onClick={() => setTextComposeClient(detail)}>
                     <span className="lead-action-icon">💬</span>
                     <span>Text</span>
@@ -2552,7 +2552,8 @@ export default function Clients() {
                 {detail.register_date && <p><strong>Registered:</strong> {new Date(detail.register_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(from FUB)</span></p>}
                 {detail.marketing_email_opt_out ? <p style={{color: '#b45309'}}><strong>Email Opt-Out:</strong> Tagged (still emailable — note many of these are only property-alert unsubscribes)</p> : null}
                 {!detail.marketing_email_opt_out && detail.ealert_opt_out ? <p style={{color: '#92400e'}}><strong>Property Alerts:</strong> Unsubscribed (email is still fine)</p> : null}
-                {detail.text_opt_out ? <p style={{color: '#ef4444'}}><strong>Text Opt-Out:</strong> Yes</p> : null}
+                {detail.hub_text_opt_out ? <p style={{ color: '#ef4444' }}><strong>Texting stopped:</strong> replied STOP to our number — no texts (calling is still allowed)</p> : null}
+                {!detail.hub_text_opt_out && detail.text_opt_out ? <p style={{ color: '#92400e' }}><strong>Prior text opt-out:</strong> on file from before (informational — texting from the Hub is still allowed)</p> : null}
                 {detail.sierra_lead_id && <p><strong>Sierra ID:</strong> {detail.sierra_lead_id}</p>}
               </div>
               <div className="detail-section">

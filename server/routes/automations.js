@@ -273,7 +273,8 @@ async function runAction(node, client, ctx) {
       return '__END__'
     case 'send_text': {
       if (!client.phone) throw new Error('contact has no phone')
-      if (client.text_opt_out) return 'skipped (opted out of texts)'
+      // Same compliance as manual texting: only a STOP-to-our-number blocks it.
+      if (client.hub_text_opt_out) return 'skipped (replied STOP to our number)'
       let body = cfg.body
       if (cfg.template_id) { const t = db.get('SELECT body FROM templates WHERE id = ?', [Number(cfg.template_id)]); if (t) body = body || t.body }
       if (!body) throw new Error('text missing body/template')

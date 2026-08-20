@@ -193,10 +193,12 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     const media = []
     for (let i = 0; i < numMedia; i++) { const u = b['MediaUrl' + i]; if (u) media.push({ url: u, type: b['MediaContentType' + i] || '' }) }
     const client = matchClient('text', from)
-    // STOP / START / HELP compliance — always honor it for a matched client.
+    // STOP / START compliance for OUR Hub number. This sets hub_text_opt_out (the only
+    // thing that blocks outbound texting) — NOT the informational, Sierra-synced
+    // text_opt_out. Calling is never blocked. START clears it.
     const { optKeyword } = await import('../twilio.js')
     const kw = optKeyword(body)
-    if (kw && client) db.run('UPDATE clients SET text_opt_out = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, client.id])
+    if (kw && client) db.run('UPDATE clients SET hub_text_opt_out = ?, updated_at = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, new Date().toISOString(), client.id])
     if (client) {
       const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)
       const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
@@ -240,8 +242,10 @@ router.post('/:id/annotate', (req, res) => {
   vals.push(Number(req.params.id))
   db.run(`UPDATE communications SET ${sets.join(', ')} WHERE id=?`, vals)
   if (String(disposition || '').toLowerCase() === 'do not call') {
+    // "Do not call" stops future TEXTS from the Hub (hub_text_opt_out) and flags the
+    // contact — but per policy does not hard-block calling or junk the lead.
     const c = db.get('SELECT client_id FROM communications WHERE id=?', [Number(req.params.id)])
-    if (c?.client_id) db.run('UPDATE clients SET text_opt_out=1, status=?, updated_at=? WHERE id=?', ['donotcontact', new Date().toISOString(), c.client_id])
+    if (c?.client_id) db.run('UPDATE clients SET hub_text_opt_out=1, updated_at=? WHERE id=?', [new Date().toISOString(), c.client_id])
   }
   res.json({ success: true })
 })
@@ -278,7 +282,7 @@ router.post('/send', async (req, res) => {
     for (const cid of client_ids) {
       const c = db.get('SELECT * FROM clients WHERE id = ?', [Number(cid)])
       if (!c || !c.phone) { results.push({ client_id: cid, ok: false, error: 'no phone on file' }); continue }
-      if (c.text_opt_out) { results.push({ client_id: cid, ok: false, error: 'opted out of texts' }); continue }
+      if (c.hub_text_opt_out) { results.push({ client_id: cid, ok: false, error: 'replied STOP to our number — texting blocked (you can still call)' }); continue }
       const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
       // Fill merge fields per recipient, then strip any UNRESOLVED {{...}} so a
       // customer never receives a raw placeholder.
