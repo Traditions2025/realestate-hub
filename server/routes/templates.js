@@ -43,8 +43,15 @@ function convertFubTokens(s) {
 // Probe: what FUB text templates are available (no import).
 router.get('/fub-text', async (_req, res) => {
   if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
-  try { const r = await fetchFubTextTemplates(); res.json({ endpoint: r.endpoint, count: r.templates.length, templates: r.templates.slice(0, 50) }) }
-  catch (e) { res.status(500).json({ error: e.message }) }
+  try {
+    const r = await fetchFubTextTemplates()
+    // distinct raw %tokens% used across ALL templates, so we can confirm every one maps
+    const tokenSet = new Set()
+    for (const t of r.templates) for (const m of String(t.body || '').match(/%[a-z0-9_]+%/gi) || []) tokenSet.add(m.toLowerCase())
+    const tokens = [...tokenSet].sort()
+    const unmapped = tokens.filter(tok => convertFubTokens(tok) !== '' && /%/.test(convertFubTokens(tok)))
+    res.json({ endpoint: r.endpoint, count: r.templates.length, tokens, unmapped, templates: r.templates.slice(0, 5) })
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 // Import FUB text templates into the Hub templates (type text), dedupe by name.
