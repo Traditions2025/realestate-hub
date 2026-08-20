@@ -3357,9 +3357,14 @@ function InlineName({ detail, onSaved }) {
 }
 
 // --- Text (SMS) composer for the lead profile — sends via the Hub/Twilio number ---
+const TEXT_MERGE_FIELDS = [['{{first_name}}', 'First name'], ['{{last_name}}', 'Last name'], ['{{full_name}}', 'Full name'], ['{{city}}', 'City'], ['{{address}}', 'Address'], ['{{agent}}', 'Agent name'], ['{{price_range}}', 'Price range']]
 function TextComposerModal({ client, onClose, onSent }) {
   const [body, setBody] = React.useState('')
   const [sending, setSending] = React.useState(false)
+  const [templates, setTemplates] = React.useState([])
+  React.useEffect(() => { authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
+  const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
   const send = async () => {
     if (!body.trim()) return
     setSending(true)
@@ -3376,6 +3381,16 @@ function TextComposerModal({ client, onClose, onSent }) {
     <Modal open onClose={onClose} title={`Text ${name || client.phone}`}>
       <div className="form">
         <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>To <strong>{client.phone}</strong> · from your Hub number (319) 343-1562</p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <select value="" onChange={e => { const t = templates.find(x => String(x.id) === e.target.value); if (t) insert(stripHtml(t.body)); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
+            <option value="">Insert template…</option>
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
+            <option value="">+ Merge field…</option>
+            {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
+          </select>
+        </div>
         <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={5} maxLength={1000}
           placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }}
           style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical' }} />

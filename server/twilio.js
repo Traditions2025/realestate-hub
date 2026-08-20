@@ -110,6 +110,46 @@ export async function wireNumberToHub(numberE164, smsUrl, statusUrl) {
   }
 }
 
+// Admin health check for the whole communications stack. Returns a list of checks
+// with status: 'ok' | 'attention' | 'missing'. Never returns secret values.
+export async function commsHealth() {
+  const c = twilioConfig()
+  const base = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  const checks = []
+  const add = (name, status, detail) => checks.push({ name, status, detail })
+  if (!c.sid || !c.token) { add('Twilio account', 'missing', 'Account SID / Auth Token not set in Settings'); return { ok: false, checks } }
+  const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+  const get = async (u) => { try { const r = await fetch(u, { headers: { Authorization: auth } }); return { ok: r.ok, j: await r.json().catch(() => ({})) } } catch (e) { return { ok: false, j: {}, err: e.message } } }
+  // account
+  const acct = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}.json`)
+  add('Twilio account', acct.ok && acct.j.status === 'active' ? 'ok' : 'attention', acct.ok ? `${acct.j.friendly_name} (${acct.j.status})` : 'Cannot reach Twilio — check the Auth Token')
+  add('Texting enabled', c.enabled ? 'ok' : 'attention', c.enabled ? 'On' : 'Turn on in Settings')
+  add('Sending number', c.from ? 'ok' : 'missing', c.from || 'No From number set')
+  // number capabilities + webhooks
+  if (c.from) {
+    const pn = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/IncomingPhoneNumbers.json?PhoneNumber=${encodeURIComponent(toE164(c.from))}`)
+    const n = (pn.j.incoming_phone_numbers || [])[0]
+    if (n) {
+      const cap = n.capabilities || {}
+      add('SMS / MMS capability', cap.sms ? 'ok' : 'attention', `SMS ${cap.sms ? 'yes' : 'no'} · MMS ${cap.mms ? 'yes' : 'no'}`)
+      add('Voice capability', cap.voice ? 'ok' : 'attention', cap.voice ? 'yes' : 'no')
+      const vOk = /\/api\/voice\/inbound/.test(n.voice_url || '')
+      add('Voice webhook', vOk ? 'ok' : 'attention', vOk ? 'Points at the Hub' : `Currently: ${n.voice_url || '(none)'}`)
+    } else add('Phone number', 'attention', 'Number not found on this Twilio account')
+  }
+  // A2P
+  try { const a = await a2pStatus(c.from); const camp = a.services?.find(s => s.has_our_number)?.us_a2p?.[0]?.campaign_status; add('A2P 10DLC registration', camp === 'VERIFIED' ? 'ok' : (a.number_in_any_service ? 'attention' : 'missing'), camp ? `Campaign ${camp}` : 'Number not linked to a verified campaign') } catch { add('A2P 10DLC registration', 'attention', 'Could not read A2P status') }
+  // voice infra + settings
+  const voiceReady = !!(db.getSetting('twilio_api_key_sid', '') && db.getSetting('twilio_twiml_app_sid', ''))
+  const sigMode = db.getSetting('twilio_signature_mode', 'monitor')
+  const recOn = db.getSetting('twilio_record_calls', '0') === '1'
+  add('Browser calling', voiceReady ? 'ok' : 'missing', voiceReady ? 'API key + TwiML app configured' : 'Run voice setup')
+  add('Webhook signature check', sigMode === 'enforce' ? 'ok' : 'attention', `Mode: ${sigMode} (flip to enforce once monitored)`)
+  add('Call recording', recOn ? 'ok' : 'attention', recOn ? 'Enabled' : 'Off (opt-in)')
+  const ok = checks.every(x => x.status !== 'missing')
+  return { ok, checks }
+}
+
 // Read-only A2P 10DLC status check for a number: the account's brand registration,
 // and each Messaging Service's US A2P campaign status + whether this number is in it.
 export async function a2pStatus(numberE164) {

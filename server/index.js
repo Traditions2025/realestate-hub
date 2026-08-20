@@ -502,6 +502,18 @@ async function start() {
     const { twilioVerify } = await import('./twilio.js')
     res.json(await twilioVerify())
   })
+  // Communications health check (admin diagnostics). Never returns secrets.
+  app.get('/api/settings/twilio/health', async (_req, res) => {
+    try { const { commsHealth } = await import('./twilio.js'); res.json(await commsHealth()) }
+    catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+  })
+  // Admin toggles: webhook signature enforcement + call recording (both opt-in).
+  app.post('/api/settings/twilio/mode', (req, res) => {
+    const b = req.body || {}
+    if (b.signature_mode && ['enforce', 'monitor', 'off'].includes(b.signature_mode)) db.setSetting('twilio_signature_mode', b.signature_mode)
+    if (b.record_calls !== undefined) db.setSetting('twilio_record_calls', b.record_calls ? '1' : '0')
+    res.json({ success: true, signature_mode: db.getSetting('twilio_signature_mode', 'monitor'), record_calls: db.getSetting('twilio_record_calls', '0') })
+  })
   // A2P 10DLC status for a number (brand + campaign + messaging-service membership).
   app.get('/api/settings/twilio/a2p', async (req, res) => {
     try {

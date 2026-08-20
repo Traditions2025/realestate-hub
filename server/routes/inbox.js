@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import Busboy from 'busboy'
 import db from '../database.js'
-import { sendViaSendGrid, emailHardBlock } from './email.js'
+import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
 import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
@@ -280,12 +280,16 @@ router.post('/send', async (req, res) => {
       if (!c || !c.phone) { results.push({ client_id: cid, ok: false, error: 'no phone on file' }); continue }
       if (c.text_opt_out) { results.push({ client_id: cid, ok: false, error: 'opted out of texts' }); continue }
       const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+      // Fill merge fields per recipient, then strip any UNRESOLVED {{...}} so a
+      // customer never receives a raw placeholder.
+      const outText = fillTemplate(body, c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+      if (!outText) { results.push({ client_id: cid, ok: false, error: 'message empty after merge fields' }); continue }
       try {
-        const r = await sendSms(c.phone, body, { statusCallback: hub + '/api/inbox/twilio-status' })
-        const preview = String(body).replace(/\s+/g, ' ').trim().slice(0, 160)
+        const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
+        const preview = String(outText).replace(/\s+/g, ' ').trim().slice(0, 160)
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, delivery_status, agent, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', req.body?.agent || null, nowIso()])
+          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', req.body?.agent || null, nowIso()])
         results.push({ client_id: cid, ok: true })
       } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
     }

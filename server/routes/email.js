@@ -319,7 +319,7 @@ function monthlyIntro() {
   return LINES[m] || ''
 }
 
-function fillTemplate(text, client) {
+export function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
   // client's most recent transaction (populated once they're under contract).
