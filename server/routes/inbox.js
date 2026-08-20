@@ -462,6 +462,8 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
           const priorOut = db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [client.id])
           if (priorOut) m.emitAutomationEvent('text_replied', client.id, { body }, 'reply_' + externalId)
         }).catch(() => {})
+        // HUB AI responsive follow-up — fully gated + fail-safe; never blocks the webhook.
+        if (body && !kw) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
       } else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }
@@ -683,9 +685,11 @@ router.post('/send', async (req, res) => {
       try {
         const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status', mediaUrls: media })
         const preview = (String(outText).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} photo${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, nowIso()])
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, sent_by_type, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
+        // A human texting an AI-managed lead → AI backs off (only if AI already touched this lead).
+        if (db.get('SELECT client_id FROM ai_lead_state WHERE client_id=?', [c.id])) { try { const { humanTakeover } = await import('../ai-followup/state.js'); humanTakeover(c.id, 'agent sent a text') } catch {} }
         results.push({ client_id: cid, ok: true })
       } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
     }

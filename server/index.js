@@ -38,6 +38,7 @@ import campaignMatchRouter from './routes/campaign-match.js'
 import inboxRouter from './routes/inbox.js'
 import dialerRouter from './routes/dialer.js'
 import voicemailsRouter from './routes/voicemails.js'
+import aiRouter from './routes/ai.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 import followupRouter from './routes/followup.js'
 
@@ -323,6 +324,7 @@ async function start() {
   app.use('/api/inbox', inboxRouter)
   app.use('/api/dialer', dialerRouter)
   app.use('/api/voicemails', voicemailsRouter)
+  app.use('/api/ai', aiRouter)
   app.use('/api/followup', followupRouter)
   app.use('/api/track', trackingRouter)
   app.use('/api/seed', seedRouter)

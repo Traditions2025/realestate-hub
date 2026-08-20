@@ -12,7 +12,7 @@ export function levelFor(score) {
 }
 
 // Phrases that signal high intent (tour, offer, call request, valuation, financing).
-export const HIGH_INTENT_RE = /\b(tour|showing|see the (home|house|place|property)|come see|visit|walk[- ]?through|come by|open house|make an offer|put in an offer|write an offer|pre[- ]?approv|pre[- ]?qualif|when can (i|we)|call me|give me a call|can you call|schedule|book|available (today|tomorrow|this)|sell my (home|house)|list my (home|house)|what.?s my (home|house) worth|home value|market value|cash offer)\b/i
+export const HIGH_INTENT_RE = /\b(?:tour|showing|see the (?:home|house|place|property)|come see|visit|walk[- ]?through|come by|open house|make an offer|put in an offer|write an offer|pre[- ]?approv|pre[- ]?qualif|when can (?:i|we)|call me|give me a call|can you call|schedule|book a|available (?:today|tomorrow|this)|sell my (?:home|house)|list my (?:home|house)|what.?s my (?:home|house) worth|home value|market value|cash offer)/i
 
 // Deterministic score from comms + behavior + structured intelligence.
 export function computeIntent(clientId) {

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:13:08.589Z",
-  "count": 395,
+  "generated_at": "2026-08-20T19:21:13.351Z",
+  "count": 396,
   "entries": [
+    {
+      "hash": "f6833ed",
+      "date": "2026-08-20T14:13:11-05:00",
+      "subject": "HUB AI ISA Stage 1 foundation: schema + compliance policy + AI state machine (flags OFF)",
+      "title": "HUB AI ISA Stage 1 foundation: schema + compliance policy + AI state machine (flags OFF)",
+      "body": "- Tables: communication_preferences, ai_lead_state, lead_intelligence, lead_events, ai_actions, ai_handoffs, ai_scheduled_actions, ai_intent_history; comms gains sent_by_type + ai_action_id\n- server/ai-followup/: policy.js (canSendSms/canAiCall centralized; do_not_text != do_not_call), state.js (AI state machine separate from CRM stage, transitions audited, human-takeover cancels scheduled sends), audit.js, events.js, handoff.js (createAiHandoff -> Opportunities + notify), intent.js (explainable 0-100 scorer), flags.js (feature flags default OFF + quiet hours)\n- STOP/START now routes through policy.applyOptOut (keeps hub_text_opt_out + prefs in sync). No autonomous behavior yet.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6c4c3c4",
       "date": "2026-08-20T13:52:48-05:00",
