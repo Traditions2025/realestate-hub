@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-20T18:19:49.474Z",
-  "count": 391,
+  "generated_at": "2026-08-20T18:36:01.622Z",
+  "count": 393,
   "entries": [
+    {
+      "hash": "e8c576c",
+      "date": "2026-08-20T13:22:38-05:00",
+      "subject": "docs: manifest — Power Dialer (#12) delivered; whole review complete",
+      "title": "docs: manifest — Power Dialer (#12) delivered; whole review complete",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "docs"
+    },
+    {
+      "hash": "723687e",
+      "date": "2026-08-20T13:20:02-05:00",
+      "subject": "#12 Power Dialer — work a call list end to end inside the Hub",
+      "title": "#12 Power Dialer — work a call list end to end inside the Hub",
+      "body": "- New Power Dialer page (PIPELINE nav): build a queue (least-recently-contacted / never-called / new leads / assigned-to-me, or a Clients selection via ?client_ids), then Call -> log outcome -> next. Optional auto-dial-next.\n- Rings through the existing browser softphone on the Hub number; CallWidget now emits hubcall:started/ended so the dialer advances automatically\n- server/routes/dialer.js: GET /queue (excludes Do Not Contact/Junk + no-phone; presets + explicit ids) and POST /outcome (annotates the latest call log or creates one, emits call_disposition, 'Do not call' -> Do Not Contact + removes campaigns)\n- Clients bulk menu: 'Power Dial Selected'\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "073922c",
       "date": "2026-08-20T12:47:50-05:00",

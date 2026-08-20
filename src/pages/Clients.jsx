@@ -2048,7 +2048,7 @@ export default function Clients() {
                     💬 Text Selected
                   </button>
                   <button onClick={() => { setBulkActionsOpen(false); if (selectedIds.size) window.location.assign('/dialer?client_ids=' + [...selectedIds].join(',')) }}>
-                    ☎ Power Dial Selected
+                    ☎ Call Leads (Power Dialer)
                   </button>
                   <div className="bulk-actions-divider" />
                   <div className="bulk-actions-section-label">Enroll</div>

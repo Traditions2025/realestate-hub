@@ -307,12 +307,23 @@ export default function Settings() {
 function VoiceRouting() {
   const [v, setV] = React.useState(undefined)
   const [saving, setSaving] = React.useState(false)
+  const [vmUrl, setVmUrl] = React.useState('')
+  const [vmBusy, setVmBusy] = React.useState(false)
+  const vmRef = React.useRef(null)
   React.useEffect(() => { authFetch('/api/settings/voice').then(r => r.json()).then(setV).catch(() => setV(null)) }, [])
+  React.useEffect(() => { authFetch('/api/inbox/voicemail-greeting').then(r => r.json()).then(d => setVmUrl(d.url || '')).catch(() => {}) }, [])
   const save = async (patch) => {
     setSaving(true)
     try { const r = await authFetch('/api/settings/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); const d = await r.json(); setV(x => ({ ...x, ...patch, open_now: d.open_now })) }
     finally { setSaving(false) }
   }
+  const uploadVm = async (file) => {
+    if (!file) return
+    setVmBusy(true)
+    try { const fd = new FormData(); fd.append('file', file); const r = await authFetch('/api/inbox/voicemail-greeting', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) setVmUrl(d.url); else alert(d.error || 'Upload failed') }
+    catch (e) { alert(e.message) } finally { setVmBusy(false); if (vmRef.current) vmRef.current.value = '' }
+  }
+  const removeVm = async () => { await authFetch('/api/inbox/voicemail-greeting', { method: 'DELETE' }).catch(() => {}); setVmUrl('') }
   if (v === undefined) return null
   if (v === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Call Routing</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
   const DAYS = [['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed'], ['4', 'Thu'], ['5', 'Fri'], ['6', 'Sat'], ['0', 'Sun']]
@@ -350,6 +361,21 @@ function VoiceRouting() {
           </div>
         </div>
       )}
+      <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 12px' }} />
+      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Voicemail greeting</div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>Upload your own voicemail greeting (MP3 or WAV) to play instead of the automated voice. Record it on your phone or computer and upload here.</p>
+      {vmUrl
+        ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+            <audio controls src={vmUrl} style={{ height: 34 }} />
+            <button className="btn btn-sm btn-secondary" onClick={() => vmRef.current?.click()} disabled={vmBusy}>{vmBusy ? 'Uploading…' : 'Replace'}</button>
+            <button className="btn btn-sm" onClick={removeVm}>Remove (use automated voice)</button>
+          </div>
+        : <div style={{ marginBottom: 12 }}>
+            <button className="btn btn-sm btn-secondary" onClick={() => vmRef.current?.click()} disabled={vmBusy}>{vmBusy ? 'Uploading…' : '🎙 Upload greeting'}</button>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>Currently using the automated voice.</span>
+          </div>}
+      <input ref={vmRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => uploadVm(e.target.files?.[0])} />
+
       <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 8 }}>
         <input type="checkbox" checked={v.forward_on_missed} onChange={e => save({ forward_on_missed: e.target.checked })} />
         Forward to a mobile when a call is missed <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(rings your cell before voicemail)</span>

@@ -204,6 +204,21 @@ router.get('/campaigns/:id/recipients', (req, res) => {
 })
 
 // ---- SMS + call analytics (from the communications log; instant, no Twilio calls) ----
+// Power Dialer call-list report.
+router.get('/dialer', (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365)
+  const since = `date('now','-${days} days')`
+  const where = `substr(occurred_at,1,10) >= ${since}`
+  const total = db.get(`SELECT COUNT(*) n FROM dialer_log WHERE ${where}`).n
+  const connected = db.get(`SELECT COUNT(*) n FROM dialer_log WHERE ${where} AND disposition='Connected'`).n
+  const appointments = db.get(`SELECT COUNT(*) n FROM dialer_log WHERE ${where} AND disposition='Appointment set'`).n
+  const dnc = db.get(`SELECT COUNT(*) n FROM dialer_log WHERE ${where} AND disposition='Do not call'`).n
+  const by_disposition = db.all(`SELECT disposition d, COUNT(*) n FROM dialer_log WHERE ${where} AND disposition IS NOT NULL AND disposition != '' GROUP BY disposition ORDER BY n DESC`)
+  const by_day = db.all(`SELECT substr(occurred_at,1,10) day, COUNT(*) n FROM dialer_log WHERE ${where} GROUP BY day ORDER BY day`)
+  const recent = db.all(`SELECT id, client_id, contact_name, phone, disposition, notes, agent, occurred_at FROM dialer_log WHERE ${where} ORDER BY occurred_at DESC LIMIT 100`)
+  res.json({ total, connected, appointments, do_not_call: dnc, by_disposition, by_day, recent })
+})
+
 router.get('/comms', (req, res) => {
   const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365)
   const since = `date('now','-${days} days')`

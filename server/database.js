@@ -789,6 +789,20 @@ export async function initDb() {
       completed_at TEXT
     )
   `)
+  // Power Dialer call-list log — one row per call outcome logged in the dialer.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS dialer_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      contact_name TEXT,
+      phone TEXT,
+      disposition TEXT,
+      notes TEXT,
+      agent TEXT,
+      occurred_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_dialer_when ON dialer_log(occurred_at)') } catch {}
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`

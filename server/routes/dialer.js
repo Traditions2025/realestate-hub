@@ -82,6 +82,9 @@ router.post('/outcome', (req, res) => {
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ['call', 'outgoing', cid, name, '', c.phone || '', `Call — ${disposition || 'logged'}`, 'dialer_' + cid + '_' + Date.now(), `c${cid}_call`, 'read', disposition || null, notes, req.body?.agent || 'dialer', nowIso()])
   }
+  // Call-list log for the Reporting tab.
+  db.run('INSERT INTO dialer_log (client_id, contact_name, phone, disposition, notes, agent) VALUES (?,?,?,?,?,?)',
+    [cid, `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, c.phone || '', disposition || null, notes, req.body?.agent || null])
   if (disposition) import('./automations.js').then(m => m.emitAutomationEvent('call_disposition', cid, { disposition }, `disp_dialer_${cid}_${Date.now()}`)).catch(() => {})
   // "Do not call" → Do Not Contact status + remove all campaigns (mirrors the inbox disposition).
   if (disposition.toLowerCase() === 'do not call') {

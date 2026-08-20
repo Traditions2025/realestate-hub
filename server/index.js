@@ -593,7 +593,12 @@ async function start() {
       return businessOpen({ day, minutes }, { enabled: true, open: db.getSetting('voice_open', '08:00'), close: db.getSetting('voice_close', '18:00'), days })
     } catch { return true }
   }
-  const voicemailTwiml = (msg) => `<Say voice="alice">${escXml(msg)}</Say><Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`
+  const voicemailTwiml = (msg) => {
+    // Play the team's uploaded greeting (mp3/wav) if set; otherwise speak the text.
+    const url = db.getSetting('voicemail_greeting_url', '')
+    const greet = url ? `<Play>${escXml(url)}</Play>` : `<Say voice="alice">${escXml(msg)}</Say>`
+    return `${greet}<Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`
+  }
   const fmtPhoneUS = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
   const isDncStatus = (s) => ['junk', 'donotcontact'].includes(String(s || '').toLowerCase())
   // Best-effort match an inbound/outbound phone to a client + log the call. Unknown

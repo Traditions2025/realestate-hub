@@ -37,7 +37,6 @@ const navSections = [
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
     { path: '/inbox', label: 'Inbox', icon: '\u2709' },
-    { path: '/dialer', label: 'Power Dialer', icon: '\u260e' },
   ]},
   { label: 'WORK', items: [
     { path: '/tasks', label: 'Tasks', icon: '\u2610' },

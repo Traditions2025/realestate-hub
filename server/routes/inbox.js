@@ -310,6 +310,38 @@ router.post('/upload-media', (req, res) => {
   req.pipe(bb)
 })
 
+// ---- Voicemail greeting: upload your own audio (mp3/wav) to play instead of the
+// robot voice when a caller reaches voicemail. Stored on /uploads, URL in a setting. ----
+router.get('/voicemail-greeting', (_req, res) => res.json({ url: db.getSetting('voicemail_greeting_url', '') || '' }))
+router.delete('/voicemail-greeting', (_req, res) => { db.setSetting('voicemail_greeting_url', ''); res.json({ success: true }) })
+router.post('/voicemail-greeting', (req, res) => {
+  if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return res.status(400).json({ error: 'expected an uploaded file' })
+  const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: 8 * 1024 * 1024 } })
+  let saved = null, tooBig = false, badType = false
+  bb.on('file', (_n, stream, info) => {
+    const mime = info?.mimeType || ''
+    // Twilio <Play> supports mp3 + wav reliably.
+    const ext = /mpeg|mp3/i.test(mime) ? 'mp3' : /wav/i.test(mime) ? 'wav' : null
+    if (!ext) { badType = true; stream.resume(); return }
+    const fname = `vm_${randomUUID().replace(/-/g, '')}.${ext}`
+    const full = join(UPLOAD_DIR, fname)
+    const ws = createWriteStream(full)
+    stream.on('limit', () => { tooBig = true; ws.destroy(); try { unlinkSync(full) } catch {} })
+    ws.on('finish', () => { if (!tooBig) saved = fname })
+    stream.pipe(ws)
+  })
+  bb.on('close', () => {
+    if (tooBig) return res.status(413).json({ error: 'Audio too large (max 8 MB).' })
+    if (badType) return res.status(400).json({ error: 'Please upload an MP3 or WAV file.' })
+    if (!saved) return res.status(400).json({ error: 'No audio received.' })
+    const url = `${HUB_BASE()}/uploads/${saved}`
+    db.setSetting('voicemail_greeting_url', url)
+    res.json({ success: true, url })
+  })
+  bb.on('error', () => res.status(500).json({ error: 'upload failed' }))
+  req.pipe(bb)
+})
+
 // ---- link preview: fetch OpenGraph metadata for a URL found in a message so the
 // inbox can show a rich card. In-memory cached 6h; SSRF-guarded (no private hosts). ----
 const linkCache = new Map()

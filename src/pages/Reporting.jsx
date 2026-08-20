@@ -321,7 +321,53 @@ function CommsReport({ mode = 'texting' }) {
           )}
         </div>
       </div>
+      <PowerDialerReport days={days} />
       <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 12 }}>Live from the communications log — updates as texts and calls happen. Delivery rate is of texts with a final Twilio status; reply rate is distinct contacts who texted back.</p>
+    </div>
+  )
+}
+
+function PowerDialerReport({ days }) {
+  const [d, setD] = React.useState(undefined)
+  React.useEffect(() => { setD(undefined); authFetch(`/api/reporting/dialer?days=${days}`).then(r => r.json()).then(setD).catch(() => setD(null)) }, [days])
+  if (!d || !d.total) return null
+  const fmt = (iso) => { try { return new Date(String(iso).includes('T') ? iso : String(iso).replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
+  const Card = ({ label, value, color }) => (
+    <div className="detail-section" style={{ padding: '12px 14px', minWidth: 120, flex: '1 1 120px' }}>
+      <div style={{ fontSize: 24, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+    </div>
+  )
+  const th = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-muted)', textAlign: 'left' }
+  const td = { padding: '6px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }
+  return (
+    <div style={{ marginTop: 20 }}>
+      <h4 style={{ margin: '0 0 10px' }}>☎ Power Dialer — call list</h4>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
+        <Card label="Calls logged" value={d.total} color="#8b5cf6" />
+        <Card label="Connected" value={d.connected} color="#10b981" />
+        <Card label="Appointments set" value={d.appointments} color="#2563eb" />
+        <Card label="Do not call" value={d.do_not_call} color={d.do_not_call ? '#ef4444' : undefined} />
+      </div>
+      <div className="detail-section" style={{ padding: 16 }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <thead><tr>{['Contact', 'Phone', 'Outcome', 'Notes', 'By', 'When'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+            <tbody>
+              {d.recent.map(r => (
+                <tr key={r.id}>
+                  <td style={{ ...td, fontWeight: 600 }}>{r.contact_name}</td>
+                  <td style={td}>{r.phone}</td>
+                  <td style={{ ...td, color: r.disposition === 'Do not call' ? '#ef4444' : r.disposition === 'Connected' || r.disposition === 'Appointment set' ? '#10b981' : 'inherit' }}>{r.disposition || '—'}</td>
+                  <td style={{ ...td, color: 'var(--text-secondary)', maxWidth: 260 }}>{r.notes || ''}</td>
+                  <td style={{ ...td, color: 'var(--text-muted)' }}>{r.agent || ''}</td>
+                  <td style={{ ...td, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmt(r.occurred_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   )
 }
