@@ -71,10 +71,11 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   const t0 = Date.now()
   let decision, usage = {}
   try {
+    const nudge = force ? '\n\nA team member has manually asked you to send a message to this contact now. Continue the conversation with a natural, helpful reply — use action SEND_TEXT with a real message (do not choose NO_ACTION), unless the contact opted out.' : ''
     const msg = await ai.messages.create({
       model: AI_MODEL, max_tokens: 900,
       system: buildSystemPrompt(ctx),
-      messages: [{ role: 'user', content: buildUserMessage(ctx) }],
+      messages: [{ role: 'user', content: buildUserMessage(ctx) + nudge }],
     })
     usage = msg.usage || {}
     decision = parseJson(msg.content?.[0]?.text || '')

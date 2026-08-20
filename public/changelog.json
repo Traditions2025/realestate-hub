@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T20:16:33.246Z",
-  "count": 402,
+  "generated_at": "2026-08-20T20:20:00.814Z",
+  "count": 403,
   "entries": [
+    {
+      "hash": "f8310ce",
+      "date": "2026-08-20T15:16:42-05:00",
+      "subject": "AI: manual 'Send AI now' works with autopilot/flags off (force bypasses feature gates, keeps STOP/opt-out compliance)",
+      "title": "AI: manual 'Send AI now' works with autopilot/flags off (force bypasses feature gates, keeps STOP/opt-out compliance)",
+      "body": "- canSendSms skips AI feature-flag/pause gates when context.force; handleInboundText accepts {force} to skip flag/enrollment/human gates for a manual send-now\n- send-now route forces the responsive path when an inbound exists\n- Test: force bypasses flags but STOP still blocks. 25 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b7ce870",
       "date": "2026-08-20T14:59:58-05:00",
