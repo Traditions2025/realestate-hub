@@ -53,10 +53,12 @@ export default function Reporting() {
         <button className={`listing-tab ${tab === 'email' ? 'active' : ''}`} onClick={() => setTab('email')}>✉ Batch Emails</button>
         <button className={`listing-tab ${tab === 'texting' ? 'active' : ''}`} onClick={() => setTab('texting')}>💬 Texting</button>
         <button className={`listing-tab ${tab === 'calls' ? 'active' : ''}`} onClick={() => setTab('calls')}>☎ Calls</button>
+        <button className={`listing-tab ${tab === 'ai' ? 'active' : ''}`} onClick={() => setTab('ai')}>🤖 AI Follow-Up</button>
       </div>
 
       {tab === 'texting' && <CommsReport mode="texting" />}
       {tab === 'calls' && <CommsReport mode="calls" />}
+      {tab === 'ai' && <AiReport />}
 
       {tab === 'email' && !sendgrid && (
         <div className="sierra-banner warning" style={{ marginBottom: 12 }}>SendGrid API key not set on the server — sent counts show, but opens/clicks won't populate until it's configured.</div>
@@ -188,6 +190,77 @@ function PeopleList({ subject, date, metric, label, onClose }) {
 }
 
 // --- SMS + call analytics (Reporting → Texting & Calls) ---
+function AiReport() {
+  const [days, setDays] = React.useState(30)
+  const [d, setD] = React.useState(undefined)
+  const [diag, setDiag] = React.useState(null)
+  const [quality, setQuality] = React.useState([])
+  const [sched, setSched] = React.useState(null)
+  const loadQuality = React.useCallback(() => { authFetch(`/api/ai/quality?filter=sends&days=${days}`).then(r => r.json()).then(q => setQuality(Array.isArray(q) ? q : [])).catch(() => {}) }, [days])
+  React.useEffect(() => { setD(undefined); authFetch(`/api/ai/analytics?days=${days}`).then(r => r.json()).then(setD).catch(() => setD(null)); loadQuality() }, [days, loadQuality])
+  React.useEffect(() => { authFetch('/api/ai/diagnostics').then(r => r.json()).then(setDiag).catch(() => {}); authFetch('/api/ai/scheduler').then(r => r.json()).then(setSched).catch(() => {}) }, [])
+  const rate = async (id, r) => { await authFetch(`/api/ai/actions/${id}/rate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ rating: r }) }).catch(() => {}); loadQuality() }
+  if (d === undefined) return <div className="detail-section" style={{ padding: 24, color: 'var(--text-muted)' }}>Loading…</div>
+  if (d === null) return <div className="detail-section" style={{ padding: 24, color: 'var(--text-muted)' }}>Could not load AI analytics.</div>
+  const maxDay = Math.max(1, ...(d.by_day || []).map(x => x.n))
+  const Card = ({ label, value, sub, color }) => (
+    <div className="detail-section" style={{ padding: '14px 16px', minWidth: 130, flex: '1 1 130px' }}>
+      <div style={{ fontSize: 26, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+      {sub != null && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+    </div>
+  )
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Range:</span>
+        {[7, 30, 90].map(n => <button key={n} className={`btn btn-sm ${days === n ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDays(n)}>{n}d</button>)}
+        {diag && <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: diag.flags?.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{diag.flags?.ai_followup_enabled ? '● AI active' : '○ AI off (enable in Settings)'}</span>}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+        <Card label="Leads managed by AI" value={d.leads_managed} color="#2563eb" />
+        <Card label="AI messages sent" value={d.ai_sends} color="#2563eb" />
+        <Card label="Leads who replied" value={d.replies} color="#10b981" />
+        <Card label="AI response rate" value={d.response_rate == null ? '—' : d.response_rate + '%'} color="#10b981" />
+        <Card label="High-intent leads" value={d.high_intent_leads} color="#f59e0b" />
+        <Card label="Handoffs created" value={d.handoffs} sub={`${d.handoffs_actioned} actioned`} color="#ef4444" />
+      </div>
+      <div className="detail-section" style={{ padding: 16 }}>
+        <h4 style={{ margin: '0 0 12px' }}>AI messages by day</h4>
+        {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No AI activity yet. Turn on HUB AI Follow-Up in Settings.</div> : (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>
+            {d.by_day.map(x => <div key={x.day} title={`${x.day}: ${x.n}`} style={{ flex: 1, height: `${(x.n / maxDay) * 110}px`, background: '#2563eb', borderRadius: '2px 2px 0 0', minWidth: 4 }} />)}
+          </div>
+        )}
+      </div>
+      <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 12, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+        <span>AI token usage: {(d.tokens_input || 0).toLocaleString()} in / {(d.tokens_output || 0).toLocaleString()} out</span>
+        {sched && <span>Scheduler: {sched.pending} pending · {sched.completed_24h} sent/24h · {sched.failed} failed{sched.next_execute_at ? ` · next ${new Date(String(sched.next_execute_at).replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</span>}
+      </div>
+
+      <div className="detail-section" style={{ padding: 16, marginTop: 16 }}>
+        <h4 style={{ margin: '0 0 12px' }}>Recent AI messages (rate to improve)</h4>
+        {quality.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No AI messages yet.</div> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {quality.slice(0, 25).map(m => (
+              <div key={m.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}><strong style={{ color: 'var(--text-primary)' }}>{m.name}</strong> · {m.action_type}{m.intent != null ? ` · intent ${m.intent}` : ''}</div>
+                  <div style={{ fontSize: 13, marginTop: 2 }}>{m.text}</div>
+                </div>
+                <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                  <button className={`btn btn-sm ${m.rating === 'good' ? 'btn-primary' : 'btn-secondary'}`} title="Good" onClick={() => rate(m.id, m.rating === 'good' ? '' : 'good')}>👍</button>
+                  <button className={`btn btn-sm ${m.rating === 'needs_work' ? 'btn-primary' : 'btn-secondary'}`} title="Needs work" onClick={() => rate(m.id, m.rating === 'needs_work' ? '' : 'needs_work')}>👎</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Campaigns() {
   const [rows, setRows] = React.useState(undefined)
   React.useEffect(() => { authFetch('/api/inbox/campaigns').then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([])) }, [])

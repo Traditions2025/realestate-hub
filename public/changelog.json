@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:24:24.352Z",
-  "count": 397,
+  "generated_at": "2026-08-20T19:34:42.018Z",
+  "count": 398,
   "entries": [
+    {
+      "hash": "6922ef8",
+      "date": "2026-08-20T14:24:35-05:00",
+      "subject": "HUB AI ISA Stage 2 frontend: Settings panel, per-lead AI card, Opportunities queue, Inbox AI badge",
+      "title": "HUB AI ISA Stage 2 frontend: Settings panel, per-lead AI card, Opportunities queue, Inbox AI badge",
+      "body": "- Settings: 'HUB AI Follow-Up (AI ISA)' panel — master + per-feature flags (all off), cadence config (handoff threshold, daily cap, new-lead delay, quiet hours), persona, live diagnostics\n- Clients profile: 'HUB AI' card — AI state, intent score+level, rolling summary, signals, open handoff; controls Enable/Pause today/Take over/Send AI now/Stop/Resume\n- New 'AI Opportunities' page (nav+route): high-intent handoff queue with Mine/Unassigned/Urgent filters; Call (softphone) / Take over / Resolve\n- Inbox: subtle 'AI' badge on messages HUB AI sent (sent_by_type='ai'); shown as 'HUB AI', not 'You'\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e397984",
       "date": "2026-08-20T14:21:27-05:00",

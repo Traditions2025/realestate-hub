@@ -100,6 +100,34 @@ router.post('/settings', (req, res) => {
   res.json({ success: true, flags: getFlags(), config: getConfig() })
 })
 
+// ---- quality review: recent AI messages the admin can rate ----
+router.get('/quality', (req, res) => {
+  const days = Math.min(Math.max(Number(req.query.days) || 30, 1), 365)
+  const filter = String(req.query.filter || 'sends')
+  const conds = [`substr(a.created_at,1,10) >= date('now','-${days} days')`]
+  if (filter === 'sends') conds.push("a.action_type IN ('SEND_TEXT','PROACTIVE','NURTURE','REENGAGE') AND a.output_text IS NOT NULL AND a.output_text != ''")
+  else if (filter === 'handoffs') conds.push("a.action_type='STATE_TRANSITION' AND a.ai_state_after='HUMAN_HANDOFF_REQUIRED'")
+  else if (filter === 'errors') conds.push("a.status='failed'")
+  else if (filter === 'rated_bad') conds.push("a.rating IN ('needs_work','incorrect','unsafe')")
+  const rows = db.all(`SELECT a.id, a.client_id, a.action_type, a.output_text, a.reason, a.status, a.rating, a.created_at, a.intent_after,
+      c.first_name, c.last_name FROM ai_actions a LEFT JOIN clients c ON c.id=a.client_id
+      WHERE ${conds.join(' AND ')} ORDER BY a.id DESC LIMIT 100`)
+  res.json(rows.map(r => ({ id: r.id, client_id: r.client_id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || '(unknown)', action_type: r.action_type, text: r.output_text, reason: r.reason, status: r.status, rating: r.rating, intent: r.intent_after, created_at: r.created_at })))
+})
+router.post('/actions/:id/rate', (req, res) => {
+  const rating = String(req.body?.rating || '')
+  if (!['good', 'needs_work', 'incorrect', 'unsafe', ''].includes(rating)) return res.status(400).json({ error: 'invalid rating' })
+  db.run('UPDATE ai_actions SET rating=? WHERE id=?', [rating || null, Number(req.params.id)])
+  res.json({ success: true })
+})
+
+// ---- scheduler health ----
+router.get('/scheduler', (_req, res) => {
+  const c = (w, p = []) => { try { return db.get(`SELECT COUNT(*) n FROM ai_scheduled_actions WHERE ${w}`, p).n } catch { return 0 } }
+  const next = db.get("SELECT execute_at FROM ai_scheduled_actions WHERE state='pending' ORDER BY execute_at ASC LIMIT 1")
+  res.json({ pending: c("state='pending'"), processing: c("state='processing'"), completed_24h: c("state='completed' AND completed_at >= datetime('now','-1 day')"), failed: c("state='failed'"), canceled_24h: c("state='canceled' AND completed_at >= datetime('now','-1 day')"), next_execute_at: next?.execute_at || null })
+})
+
 // ---- diagnostics ----
 router.get('/diagnostics', (_req, res) => {
   const count = (t, w = '1=1', p = []) => { try { return db.get(`SELECT COUNT(*) n FROM ${t} WHERE ${w}`, p).n } catch { return null } }

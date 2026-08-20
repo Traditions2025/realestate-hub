@@ -707,6 +707,12 @@ export function startScheduler() {
   // (compliance is re-checked at send time inside the runner).
   setInterval(() => { import('./scheduled-texts.js').then(m => m.runDueScheduledTexts()).catch(() => {}) }, 60 * 1000)
 
+  // HUB AI ISA — drain due AI actions every minute; run enqueue sweeps periodically.
+  // All are cheap no-ops when the AI feature flags are off.
+  setInterval(() => { import('./ai-followup/scheduler.js').then(m => m.runDueAiActions()).catch(() => {}) }, 60 * 1000)
+  setInterval(() => { import('./ai-followup/scheduler.js').then(m => m.newLeadSweep()).catch(() => {}) }, 5 * 60 * 1000)
+  setInterval(() => { import('./ai-followup/scheduler.js').then(m => { m.reengagementSweep(); m.behavioralSweep() }).catch(() => {}) }, 60 * 60 * 1000)
+
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
   setInterval(checkDigestTick, 60 * 1000)
 

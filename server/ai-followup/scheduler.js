@@ -1,0 +1,121 @@
+// HUB AI durable scheduler (Stages 3-5). Restart-safe + idempotent via
+// ai_scheduled_actions (dedup_key, state locking). Drains due actions and runs
+// the enqueue sweeps (new-lead first touch, nurture cadence, re-engagement,
+// behavioral triggers). Everything is gated by the AI feature flags — if they are
+// off, the worker is a cheap no-op. Wired into server/scheduler.js.
+import db from '../database.js'
+import { flag, getConfig } from './flags.js'
+import { canSendSms } from './policy.js'
+import { ensureState } from './state.js'
+
+const nowIso = () => new Date().toISOString()
+const plusMin = (m) => new Date(Date.now() + m * 60000).toISOString()
+const plusDays = (d) => new Date(Date.now() + d * 86400000).toISOString()
+
+export function scheduleAiAction(clientId, actionType, executeAt, { reason = '', dedupKey = null, payload = {} } = {}) {
+  try {
+    db.run(`INSERT OR IGNORE INTO ai_scheduled_actions (client_id, action_type, execute_at, state, reason, payload_json, dedup_key, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?)`,
+      [clientId, actionType, executeAt, 'pending', reason, JSON.stringify(payload || {}), dedupKey || `${actionType}_${clientId}_${executeAt}`, nowIso(), nowIso()])
+  } catch {}
+}
+
+// Nurture cadence: increasing spacing, then long-term. Returns days-until-next or null.
+const NURTURE_DAYS = [2, 5, 14, 30, 60]
+
+// ---- drain due actions ----
+export async function runDueAiActions() {
+  if (!flag('ai_followup_enabled')) return
+  let due
+  try { due = db.all("SELECT * FROM ai_scheduled_actions WHERE state='pending' AND execute_at <= ? ORDER BY execute_at ASC LIMIT 25", [nowIso()]) } catch { return }
+  if (!due?.length) return
+  const orch = await import('./orchestrator.js')
+  for (const a of due) {
+    // claim atomically (single-writer sqlite): only proceed if we flip pending->processing
+    const claim = db.run("UPDATE ai_scheduled_actions SET state='processing', locked_at=?, attempt_count=attempt_count+1, updated_at=? WHERE id=? AND state='pending'", [nowIso(), nowIso(), a.id])
+    if (!claim.changes) continue
+    try {
+      const client = db.get('SELECT * FROM clients WHERE id=?', [a.client_id])
+      if (!client) { finish(a.id, 'failed', 'no client'); continue }
+      // re-check eligibility immediately before executing
+      const gate = canSendSms(client, { channel: 'ai', mode: 'proactive' })
+      if (!gate.ok) { finish(a.id, 'canceled', gate.reason); continue }
+      // if the lead replied or a human took over since scheduling, skip
+      const st = db.get('SELECT ai_state, ai_last_inbound_at, ai_last_human_contact_at FROM ai_lead_state WHERE client_id=?', [a.client_id])
+      if (st && ['HUMAN_TAKEOVER', 'HUMAN_HANDOFF_REQUIRED', 'AI_DISABLED', 'NOT_INTERESTED'].includes(st.ai_state)) { finish(a.id, 'canceled', 'state ' + st.ai_state); continue }
+      const payload = (() => { try { return JSON.parse(a.payload_json || '{}') } catch { return {} } })()
+      let res
+      if (a.action_type === 'AI_INITIAL_OUTREACH') { res = await orch.handleProactive(a.client_id); if (res?.sent) scheduleNurture(a.client_id, 0) }
+      else if (a.action_type === 'AI_NURTURE_TOUCH') { const step = payload.step || 0; res = await orch.handleNurture(a.client_id, { attempt: step + 1 }); if (res?.sent) scheduleNurture(a.client_id, step + 1) }
+      else if (a.action_type === 'AI_REENGAGE') { res = await orch.handleNurture(a.client_id, { reengage: true }) }
+      finish(a.id, res?.sent ? 'completed' : (res?.ok ? 'completed' : 'failed'), res?.reason || null)
+    } catch (e) { finish(a.id, 'failed', String(e.message).slice(0, 200)) }
+  }
+}
+function finish(id, state, error) { db.run("UPDATE ai_scheduled_actions SET state=?, completed_at=?, error=?, updated_at=? WHERE id=?", [state, nowIso(), error, nowIso(), id]) }
+
+// Schedule the next nurture touch after step `n` (n=0 means schedule first nurture).
+function scheduleNurture(clientId, n) {
+  if (!flag('ai_nurture_enabled')) return
+  if (n >= NURTURE_DAYS.length) return   // exhausted — falls to long-term (a slow re-engage sweep may pick it up)
+  scheduleAiAction(clientId, 'AI_NURTURE_TOUCH', plusDays(NURTURE_DAYS[n]), { reason: `nurture step ${n + 1}`, payload: { step: n }, dedupKey: `nurture_${clientId}_${n}` })
+}
+
+// ---- SWEEP: new leads → schedule a first touch (cursor-based; never backfills the DB) ----
+export function newLeadSweep() {
+  if (!flag('ai_followup_enabled') || !flag('ai_proactive_text_enabled')) return
+  const cur = db.getSetting('ai_newlead_cursor', null)
+  if (cur == null) { const max = db.get('SELECT MAX(id) m FROM clients')?.m || 0; db.setSetting('ai_newlead_cursor', String(max)); return }
+  const delay = Number(getConfig().ai_new_lead_delay_minutes) || 5
+  const rows = db.all("SELECT id, phone, status, hub_text_opt_out FROM clients WHERE id > ? ORDER BY id ASC LIMIT 200", [Number(cur)])
+  for (const c of rows) {
+    // only for eligible, textable, never-contacted leads
+    const contacted = db.get("SELECT id FROM communications WHERE client_id=? LIMIT 1", [c.id])
+    if (!contacted && c.phone && !c.hub_text_opt_out) {
+      ensureState(c.id)
+      const gate = canSendSms(c, { channel: 'ai', mode: 'proactive' })
+      if (gate.ok) scheduleAiAction(c.id, 'AI_INITIAL_OUTREACH', plusMin(delay), { reason: 'new lead first touch', dedupKey: `firsttouch_${c.id}` })
+    }
+  }
+  if (rows.length) db.setSetting('ai_newlead_cursor', String(rows[rows.length - 1].id))
+}
+
+// ---- SWEEP: re-engagement — dormant eligible leads with no recent activity ----
+export function reengagementSweep() {
+  if (!flag('ai_followup_enabled') || !flag('ai_nurture_enabled')) return
+  const rows = db.all(`SELECT c.id, c.phone, c.status, c.hub_text_opt_out FROM clients c
+    JOIN ai_lead_state s ON s.client_id=c.id
+    WHERE c.phone IS NOT NULL AND c.phone != '' AND c.hub_text_opt_out=0
+      AND s.ai_enabled=1 AND s.ai_state IN ('AI_LONG_TERM_NURTURE','AI_WAITING_FOR_REPLY','AI_NURTURE')
+      AND (s.ai_last_outbound_at IS NULL OR s.ai_last_outbound_at <= datetime('now','-60 days'))
+      AND (s.ai_last_inbound_at IS NULL OR s.ai_last_inbound_at <= datetime('now','-60 days'))
+    LIMIT 25`)
+  for (const c of rows) {
+    const gate = canSendSms(c, { channel: 'ai', mode: 'proactive' })
+    if (gate.ok) scheduleAiAction(c.id, 'AI_REENGAGE', plusMin(2), { reason: 'dormant re-engagement', dedupKey: `reengage_${c.id}_${new Date().toISOString().slice(0, 10)}` })
+  }
+}
+
+// ---- SWEEP: behavioral triggers from website activity (lead_activity) ----
+// Thresholds + cooldown so a single view never triggers a text.
+export function behavioralSweep() {
+  if (!flag('ai_followup_enabled') || !flag('ai_behavioral_enabled')) return
+  let hot = []
+  try {
+    hot = db.all(`SELECT client_id, COUNT(*) n, MAX(listing_mls) mls FROM lead_activity
+      WHERE client_id IS NOT NULL AND created_at >= datetime('now','-3 days')
+      GROUP BY client_id HAVING n >= 4 LIMIT 50`)
+  } catch { return }
+  for (const h of hot) {
+    const c = db.get("SELECT id, phone, status, hub_text_opt_out FROM clients WHERE id=?", [h.client_id])
+    if (!c || !c.phone || c.hub_text_opt_out) continue
+    // cooldown: one behavioral touch per client per 7 days
+    const recent = db.get("SELECT id FROM ai_scheduled_actions WHERE client_id=? AND action_type='AI_BEHAVIORAL' AND created_at >= datetime('now','-7 days') LIMIT 1", [c.id])
+    if (recent) continue
+    const gate = canSendSms(c, { channel: 'ai', mode: 'proactive' })
+    if (!gate.ok) continue
+    // raise intent + (if configured) nudge; scheduled as a nurture-style contextual touch
+    scheduleAiAction(c.id, 'AI_NURTURE_TOUCH', plusMin(3), { reason: `high site activity (${h.n} views)`, payload: { step: 0, behavioral: true, mls: h.mls }, dedupKey: `behavioral_${c.id}_${new Date().toISOString().slice(0, 10)}` })
+    try { db.run("INSERT OR IGNORE INTO ai_scheduled_actions (client_id, action_type, execute_at, state, reason, dedup_key, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", [c.id, 'AI_BEHAVIORAL', nowIso(), 'completed', 'behavioral marker', `behmark_${c.id}_${new Date().toISOString().slice(0, 10)}`, nowIso(), nowIso()]) } catch {}
+  }
+}

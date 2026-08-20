@@ -42,6 +42,7 @@ export async function handleInboundText(clientId, inboundBody) {
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
   markInbound(cid)
+  cancelPendingScheduled(cid, 'lead replied')   // never talk over a live reply
 
   // ---- gates (HUB-controlled, never the model) ----
   if (!flag('ai_followup_enabled') || !flag('ai_responsive_text_enabled')) return logNo(cid, 'responsive AI disabled')
@@ -135,40 +136,71 @@ async function sendAiSms(client, text, aiActionId) {
   return r
 }
 
-// Proactive first-touch (new-lead opener). Used by the "Send AI Now" control and,
-// later, the proactive scheduler. force=true (manual) bypasses the global proactive
-// flag but still honors all compliance gates.
-export async function handleProactive(clientId, { force = false } = {}) {
-  const cid = Number(clientId)
+// Shared outbound generator (proactive / nurture / re-engage). HUB-gated, compliance
+// re-checked, race-guarded, daily-capped, quiet-hours aware. force=true (manual "Send
+// AI now") bypasses only the per-mode global flag, never compliance.
+async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false }) {
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
-  if (!force && (!flag('ai_followup_enabled') || !flag('ai_proactive_text_enabled'))) return logNo(cid, 'proactive AI disabled')
-  const gate = canSendSms(client, { channel: 'ai', mode: force ? 'responsive' : 'proactive' })
+  if (!force) { if (!flag('ai_followup_enabled')) return logNo(cid, 'AI disabled globally'); if (flagKey && !flag(flagKey)) return logNo(cid, flagKey + ' disabled') }
+  const mode = force ? 'responsive' : 'proactive'
+  const gate = canSendSms(client, { channel: 'ai', mode })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
-  if (inQuietHours() && !force) return logNo(cid, 'quiet hours')
+  if (!force && inQuietHours()) return logNo(cid, 'quiet hours')
+  // daily cap
+  const cap = Number(getConfig().ai_followup_max_per_day) || 4
+  const sentToday = db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND sent_by_type='ai' AND occurred_at >= datetime('now','-1 day')", [cid])?.n || 0
+  if (!force && sentToday >= cap) return logNo(cid, 'daily AI cap reached')
   const ai = getAiClient(); if (!ai) return logNo(cid, 'AI not configured')
   const ctx = buildLeadAiContext(cid)
   const startedAtMsgId = latestMsgId(cid)
   const t0 = Date.now()
-  const userMsg = `This is a lead the team has NOT texted yet (or is re-engaging). Lead source: ${ctx.facts.lead_source || 'unknown'}. Write a short, natural opening SMS to start a conversation — give a real, contextual reason for reaching out based on the context. Do not force an appointment. Return the JSON now.`
   let decision, usage = {}
   try {
-    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${userMsg}` }] })
+    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` }] })
     usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '')
-  } catch (e) { logAiAction({ client_id: cid, action_type: 'PROACTIVE', status: 'failed', error: e.message, model_name: AI_MODEL }); return { ok: false, reason: e.message } }
+  } catch (e) { logAiAction({ client_id: cid, action_type: actionType, status: 'failed', error: e.message, model_name: AI_MODEL }); return { ok: false, reason: e.message } }
   const message = noDash(String(decision?.message || '').trim()).slice(0, 640)
-  if (!message || (ALLOWED_ACTIONS.includes(decision?.action) && decision.action !== 'SEND_TEXT')) return logNo(cid, 'AI chose not to open')
+  if (!message || (ALLOWED_ACTIONS.includes(decision?.action) && decision.action !== 'SEND_TEXT')) return logNo(cid, 'AI chose not to send')
   if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale (new message arrived)')
-  const g2 = canSendSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), { channel: 'ai', mode: force ? 'responsive' : 'proactive' })
+  const g2 = canSendSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), { channel: 'ai', mode })
   if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
   try {
-    const actionId = logAiAction({ client_id: cid, action_type: 'PROACTIVE', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: force ? 'manual send now' : 'proactive first touch', output_text: message, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
+    if (decision?.memory || decision?.summary) { try { applyMemory(cid, decision.memory || {}, decision.summary) } catch {} }
+    const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: message, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
     await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), message, actionId)
     markOutbound(cid)
-    transitionAiState(cid, 'AI_WAITING_FOR_REPLY', force ? 'manual AI send' : 'proactive first touch')
+    transitionAiState(cid, nextState || 'AI_WAITING_FOR_REPLY', actionType.toLowerCase())
     return { ok: true, sent: true }
   } catch (e) { return { ok: false, reason: e.message } }
+}
+
+// Proactive first-touch (new-lead opener). Used by "Send AI Now" and the scheduler.
+export async function handleProactive(clientId, { force = false } = {}) {
+  const cid = Number(clientId)
+  const ctx0 = db.get('SELECT source FROM clients WHERE id=?', [cid]) || {}
+  return runOutbound(cid, {
+    actionType: 'PROACTIVE', flagKey: 'ai_proactive_text_enabled', force, nextState: 'AI_WAITING_FOR_REPLY',
+    instruction: `This is a lead the team has NOT texted yet. Lead source: ${ctx0.source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.`,
+  })
+}
+
+// Nurture / re-engagement touch (scheduler-driven). attempt informs the tone.
+export async function handleNurture(clientId, { reengage = false, attempt = 1 } = {}) {
+  const cid = Number(clientId)
+  return runOutbound(cid, {
+    actionType: reengage ? 'REENGAGE' : 'NURTURE', flagKey: 'ai_nurture_enabled', nextState: reengage ? 'AI_REENGAGED' : 'AI_LONG_TERM_NURTURE',
+    instruction: reengage
+      ? `This lead went quiet a while ago and just showed fresh signs of life (or enough time has passed that their timing may have changed). Write ONE short, warm, low-pressure text that gives a genuine, contextual reason to reconnect. Do not say "just checking in".`
+      : `This lead has not replied to recent messages (nurture attempt ${attempt}). Write ONE short, low-pressure, genuinely useful text with a real contextual reason. Vary it from prior messages. Do not say "just checking in" or "following up". If nothing useful to say, choose NO_ACTION.`,
+  })
+}
+
+// Cancel any pending scheduled AI actions for a lead (called when they reply or a
+// human takes over) so we never talk over a live conversation.
+export function cancelPendingScheduled(clientId, reason = 'lead replied') {
+  try { db.run("UPDATE ai_scheduled_actions SET state='canceled', canceled_at=?, error=? WHERE client_id=? AND state='pending'", [nowIso(), reason, Number(clientId)]) } catch {}
 }
 
 function logNo(cid, reason, extra = {}) {

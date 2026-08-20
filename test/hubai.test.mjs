@@ -88,6 +88,22 @@ test('quiet hours wrap past midnight (21:00 to 08:00 Central)', () => {
   assert.equal(inQuietHours(new Date('2026-01-15T18:00:00Z')), false)  // ~12:00 CT
 })
 
+test('scheduler: actions dedup by key; drain is a no-op while the master flag is off', async () => {
+  const { scheduleAiAction, runDueAiActions } = await import('../server/ai-followup/scheduler.js')
+  db.setSetting('ai_followup_enabled', '0')
+  scheduleAiAction(cid, 'AI_NURTURE_TOUCH', new Date(Date.now() - 1000).toISOString(), { dedupKey: 'dk_test' })
+  scheduleAiAction(cid, 'AI_NURTURE_TOUCH', new Date(Date.now() - 1000).toISOString(), { dedupKey: 'dk_test' }) // dup ignored
+  assert.equal(db.get("SELECT COUNT(*) n FROM ai_scheduled_actions WHERE dedup_key='dk_test'").n, 1)
+  await runDueAiActions() // flags off → must not process/throw
+  assert.equal(db.get("SELECT state FROM ai_scheduled_actions WHERE dedup_key='dk_test'").state, 'pending')
+})
+
+test('a lead reply cancels pending scheduled AI touches', async () => {
+  const { cancelPendingScheduled } = await import('../server/ai-followup/orchestrator.js')
+  cancelPendingScheduled(cid, 'lead replied')
+  assert.equal(db.get("SELECT state FROM ai_scheduled_actions WHERE dedup_key='dk_test'").state, 'canceled')
+})
+
 test('system prompt carries Fair Housing + prompt-injection guardrails + JSON contract', () => {
   const p = buildSystemPrompt({ persona: 'a helpful assistant', lead_type: 'buyer' })
   assert.match(p, /FAIR HOUSING/)

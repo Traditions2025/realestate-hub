@@ -1004,6 +1004,8 @@ export async function initDb() {
   for (const [col, type] of [['sent_by_type', 'TEXT'], ['ai_action_id', 'INTEGER']]) {
     try { db.run(`ALTER TABLE communications ADD COLUMN ${col} ${type}`) } catch {}
   }
+  // Admin quality rating on an AI action (good | needs_work | incorrect | unsafe).
+  try { db.run('ALTER TABLE ai_actions ADD COLUMN rating TEXT') } catch {}
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`
