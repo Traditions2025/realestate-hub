@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T21:20:17.935Z",
-  "count": 408,
+  "generated_at": "2026-08-20T21:30:09.489Z",
+  "count": 409,
   "entries": [
+    {
+      "hash": "a6fa5a4",
+      "date": "2026-08-20T16:20:29-05:00",
+      "subject": "AI Settings: flexible autopilot exclusions — by tag/source, by status, and combination rules (tag AND status)",
+      "title": "AI Settings: flexible autopilot exclusions — by tag/source, by status, and combination rules (tag AND status)",
+      "body": "- isExcludedFromAutopilot now checks ai_autopilot_exclude (tag/source substrings) OR ai_exclude_statuses OR ai_exclude_rules (JSON [{tag,status}] both-match)\n- Settings 'Autopilot exclusions' builder: tags field, statuses field, add/remove combination rules\n- Tests extended: status exclusion + tag-AND-status combination rule\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "91f1c5c",
       "date": "2026-08-20T16:15:02-05:00",

@@ -103,6 +103,26 @@ router.get('/opportunities', (req, res) => {
 router.post('/opportunities/:id/ack', (req, res) => { db.run("UPDATE ai_handoffs SET status='acknowledged', acknowledged_at=? WHERE id=?", [nowIso(), Number(req.params.id)]); res.json({ success: true }) })
 router.post('/opportunities/:id/resolve', (req, res) => { db.run("UPDATE ai_handoffs SET status='resolved', completed_at=? WHERE id=?", [nowIso(), Number(req.params.id)]); res.json({ success: true }) })
 
+// ---- facets: distinct tags / statuses / sources for the exclusion picker ----
+let _facetCache = { at: 0, data: null }
+router.get('/facets', (_req, res) => {
+  if (_facetCache.data && Date.now() - _facetCache.at < 60000) return res.json(_facetCache.data)
+  const statuses = db.all("SELECT status FROM clients WHERE status IS NOT NULL AND status != '' GROUP BY status ORDER BY COUNT(*) DESC").map(r => r.status)
+  const sources = db.all("SELECT source FROM clients WHERE source IS NOT NULL AND source != '' GROUP BY source ORDER BY COUNT(*) DESC LIMIT 100").map(r => r.source)
+  const tagCounts = new Map()
+  try {
+    for (const row of db.all("SELECT tags FROM clients WHERE tags IS NOT NULL AND tags != '' AND tags != '[]'")) {
+      let arr = []
+      try { const p = JSON.parse(row.tags); if (Array.isArray(p)) arr = p } catch { arr = String(row.tags).split(',') }
+      for (let t of arr) { t = String(t).trim(); if (t) tagCounts.set(t, (tagCounts.get(t) || 0) + 1) }
+    }
+  } catch {}
+  const tags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 400).map(([t]) => t)
+  const data = { tags, statuses, sources }
+  _facetCache = { at: Date.now(), data }
+  res.json(data)
+})
+
 // ---- settings (flags + config) ----
 router.get('/settings', (_req, res) => res.json({ flags: getFlags(), config: getConfig() }))
 router.post('/settings', (req, res) => {

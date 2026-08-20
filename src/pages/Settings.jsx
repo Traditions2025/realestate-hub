@@ -308,33 +308,66 @@ export default function Settings() {
 // --- Communications diagnostics + admin toggles (health check, signature, recording) ---
 // HUB AI ISA — feature flags, cadence config, and live diagnostics. Everything is
 // OFF until turned on here. The master switch gates all autonomous behavior.
-// Autopilot exclusion builder: by tag/source, by status, and combination rules.
+// Search-with-suggestions chip picker. Type to filter real options, click/Enter to
+// add a chip. Free text is allowed too (for source substrings). Stored as a comma string.
+function ChipPicker({ value, options, onChange, placeholder }) {
+  const [q, setQ] = React.useState('')
+  const [open, setOpen] = React.useState(false)
+  const arr = (value || '').split(',').map(s => s.trim()).filter(Boolean)
+  const add = (v) => { v = String(v).trim(); if (v && !arr.some(x => x.toLowerCase() === v.toLowerCase())) onChange([...arr, v].join(',')); setQ(''); setOpen(false) }
+  const remove = (v) => onChange(arr.filter(x => x !== v).join(','))
+  const sugg = q.trim() ? (options || []).filter(o => o.toLowerCase().includes(q.trim().toLowerCase()) && !arr.some(x => x.toLowerCase() === o.toLowerCase())).slice(0, 12) : []
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '2px 8px', fontSize: 12 }
+  return (
+    <div style={{ position: 'relative', maxWidth: 560 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', background: 'var(--bg-secondary)' }}>
+        {arr.map(v => <span key={v} style={chip}>{v}<button onClick={() => remove(v)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: 0 }}>✕</button></span>)}
+        <input value={q} onChange={e => { setQ(e.target.value); setOpen(true) }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
+          onKeyDown={e => { if (e.key === 'Enter' && q.trim()) { e.preventDefault(); add(q) } if (e.key === 'Backspace' && !q && arr.length) remove(arr[arr.length - 1]) }}
+          placeholder={arr.length ? '' : placeholder} style={{ flex: 1, minWidth: 140, border: 'none', background: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }} />
+      </div>
+      {open && sugg.length > 0 && (
+        <div style={{ position: 'absolute', zIndex: 30, top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+          {sugg.map(o => <div key={o} onMouseDown={() => add(o)} style={{ padding: '7px 11px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}>{o}</div>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Autopilot exclusion builder: by tag/source, by status, and combination rules —
+// all search-with-suggestions (click to add), backed by the CRM's real values.
 function AiExclusions({ cfg, saveCfg }) {
+  const [facets, setFacets] = React.useState({ tags: [], statuses: [], sources: [] })
   const [rules, setRules] = React.useState(() => { try { const r = JSON.parse(cfg.ai_exclude_rules || '[]'); return Array.isArray(r) ? r : [] } catch { return [] } })
+  React.useEffect(() => { authFetch('/api/ai/facets').then(r => r.json()).then(f => setFacets({ tags: f.tags || [], statuses: f.statuses || [], sources: f.sources || [] })).catch(() => {}) }, [])
   const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   const saveRules = (r) => { setRules(r); saveCfg('ai_exclude_rules', JSON.stringify(r.filter(x => (x.tag || '').trim() || (x.status || '').trim()))) }
   const setRule = (i, k, v) => { const n = rules.map((x, j) => j === i ? { ...x, [k]: v } : x); setRules(n) }
+  const tagOpts = [...new Set([...(facets.tags || []), ...(facets.sources || [])])]
   return (
     <div style={{ marginTop: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Autopilot exclusions</div>
-      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10 }}>Leads matching any of these are never auto-contacted (first-touch, nurture, re-engage, behavioral, or auto-reply). You can still turn AI on for one manually. For imported prospecting lists that never opted in.</div>
+      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 10 }}>Leads matching any of these are never auto-contacted (first-touch, nurture, re-engage, behavioral, or auto-reply). Type to search your tags/statuses and click to add. You can still turn AI on for a lead manually.</div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by tag or source contains (comma-separated)</div>
-        <input defaultValue={cfg.ai_autopilot_exclude} onBlur={e => saveCfg('ai_autopilot_exclude', e.target.value)} placeholder="fsbo, mls: expired, mls: cancelled" style={{ ...inp, width: '100%', maxWidth: 520 }} />
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by tag or source</div>
+        <ChipPicker value={cfg.ai_autopilot_exclude} options={tagOpts} onChange={v => saveCfg('ai_autopilot_exclude', v)} placeholder="Search tags or sources…" />
       </div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by status (comma-separated)</div>
-        <input defaultValue={cfg.ai_exclude_statuses} onBlur={e => saveCfg('ai_exclude_statuses', e.target.value)} placeholder="e.g. archived, do not contact" style={{ ...inp, width: '100%', maxWidth: 520 }} />
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by status</div>
+        <ChipPicker value={cfg.ai_exclude_statuses} options={facets.statuses} onChange={v => saveCfg('ai_exclude_statuses', v)} placeholder="Search statuses…" />
       </div>
       <div>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Combination rules — exclude when a tag AND a status both match</div>
+        <datalist id="ai-tag-opts">{tagOpts.map(t => <option key={t} value={t} />)}</datalist>
+        <datalist id="ai-status-opts">{(facets.statuses || []).map(t => <option key={t} value={t} />)}</datalist>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {rules.map((r, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>tag</span>
-              <input value={r.tag || ''} onChange={e => setRule(i, 'tag', e.target.value)} onBlur={() => saveRules(rules)} placeholder="fsbo" style={{ ...inp, width: 150 }} />
+              <input list="ai-tag-opts" value={r.tag || ''} onChange={e => setRule(i, 'tag', e.target.value)} onBlur={() => saveRules(rules)} placeholder="search tag" style={{ ...inp, width: 170 }} />
               <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>AND status</span>
-              <input value={r.status || ''} onChange={e => setRule(i, 'status', e.target.value)} onBlur={() => saveRules(rules)} placeholder="active" style={{ ...inp, width: 150 }} />
+              <input list="ai-status-opts" value={r.status || ''} onChange={e => setRule(i, 'status', e.target.value)} onBlur={() => saveRules(rules)} placeholder="search status" style={{ ...inp, width: 170 }} />
               <button className="btn btn-sm" onClick={() => saveRules(rules.filter((_, j) => j !== i))}>✕</button>
             </div>
           ))}
