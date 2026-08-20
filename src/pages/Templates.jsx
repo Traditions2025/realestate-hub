@@ -105,7 +105,7 @@ export default function Templates() {
       const r = await authFetch('/api/templates/import-fub', { method: 'POST' })
       const d = await r.json()
       if (d.error) alert(d.error)
-      else { alert(`Imported ${d.imported} text template${d.imported === 1 ? '' : 's'} from FUB.\nSkipped ${d.skipped} (duplicates or empty).`); setTypeFilter('text'); load() }
+      else { alert(`Imported ${d.imported} text template${d.imported === 1 ? '' : 's'} from FUB.\nSkipped ${d.skipped} (duplicates/empty) and ${d.ylopo_skipped || 0} that used a Ylopo link.`); setTypeFilter('text'); load() }
     } catch (e) { alert('Import failed: ' + e.message) } finally { setFubBusy(false) }
   }
 

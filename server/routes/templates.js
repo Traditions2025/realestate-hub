@@ -65,16 +65,19 @@ router.post('/import-fub', async (_req, res) => {
   if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
   let templates
   try { ({ templates } = await fetchFubTextTemplates()) } catch (e) { return res.status(500).json({ error: 'FUB error: ' + e.message }) }
-  let imported = 0, skipped = 0
+  let imported = 0, skipped = 0, ylopoSkipped = 0
   for (const t of templates) {
+    const raw = String(t.body || '')
+    // Skip templates that rely on a Ylopo link (listing alert / viewed-property URL) — no Hub equivalent.
+    if (/%custom_ylopo_listing_alert%|%viewed_address_url%/i.test(raw)) { ylopoSkipped++; continue }
     const name = String(t.name || '').trim() || 'FUB Template'
-    const body = convertFubTokens(String(t.body || '').trim())
+    const body = convertFubTokens(raw.trim())
     if (!body) { skipped++; continue }
     if (db.get("SELECT id FROM templates WHERE name=? AND type='text'", [name])) { skipped++; continue }
     db.run("INSERT INTO templates (name, type, category, body, is_html, tags) VALUES (?,?,?,?,?,?)", [name, 'text', 'FUB', body, 0, 'imported:fub'])
     imported++
   }
-  res.json({ success: true, imported, skipped, total: templates.length })
+  res.json({ success: true, imported, skipped, ylopo_skipped: ylopoSkipped, total: templates.length })
 })
 
 function logActivity(action, entityId, details) {

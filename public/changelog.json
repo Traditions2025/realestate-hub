@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-20T22:31:27.780Z",
-  "count": 413,
+  "generated_at": "2026-08-20T22:38:07.568Z",
+  "count": 416,
   "entries": [
+    {
+      "hash": "8c7c75e",
+      "date": "2026-08-20T17:35:58-05:00",
+      "subject": "templates: map all 11 FUB tokens to Hub fields (address, email, last_viewed_address, lender_name); only Ylopo/URL tokens with no equivalent are stripped",
+      "title": "templates: map all 11 FUB tokens to Hub fields (address, email, last_viewed_address, lender_name); only Ylopo/URL tokens with no equivalent are stripped",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3f14b08",
+      "date": "2026-08-20T17:33:25-05:00",
+      "subject": "templates: fub-text probe returns distinct + unmapped FUB tokens for compliance audit",
+      "title": "templates: fub-text probe returns distinct + unmapped FUB tokens for compliance audit",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9362cda",
+      "date": "2026-08-20T17:31:30-05:00",
+      "subject": "templates: convert FUB merge tokens on import + one-click 'Import from FUB' button on Templates page",
+      "title": "templates: convert FUB merge tokens on import + one-click 'Import from FUB' button on Templates page",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "53bafef",
       "date": "2026-08-20T17:28:16-05:00",
