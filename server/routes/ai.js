@@ -68,7 +68,7 @@ router.post('/lead/:id/send-now', async (req, res) => {
     const hasInbound = db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' LIMIT 1", [cid])
     const m = await import('../ai-followup/orchestrator.js')
     const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
-    const result = hasInbound && lastIn ? await m.handleInboundText(cid, lastIn.body) : await m.handleProactive(cid, { force: true })
+    const result = hasInbound && lastIn ? await m.handleInboundText(cid, lastIn.body, { force: true }) : await m.handleProactive(cid, { force: true })
     res.json(result)
   } catch (e) { res.status(500).json({ error: e.message }) }
 })

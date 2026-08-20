@@ -43,22 +43,24 @@ function humanAlreadyHandled(cid) {
 }
 
 // Main entry: an eligible inbound text arrived. Returns a small result object.
-export async function handleInboundText(clientId, inboundBody) {
+export async function handleInboundText(clientId, inboundBody, { force = false } = {}) {
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
-  markInbound(cid)
-  cancelPendingScheduled(cid, 'lead replied')   // never talk over a live reply
+  if (!force) { markInbound(cid); cancelPendingScheduled(cid, 'lead replied') }   // never talk over a live reply
 
-  // ---- gates (HUB-controlled, never the model) ----
-  if (!flag('ai_followup_enabled') || !flag('ai_responsive_text_enabled')) return logNo(cid, 'responsive AI disabled')
-  if (!aiManages(cid)) return logNo(cid, 'lead not enrolled in AI (manual mode — enable AI on this lead first)')
-  const gate = canSendSms(client, { channel: 'ai', mode: 'responsive' })
+  // ---- gates (HUB-controlled, never the model). A manual send-now (force) skips
+  // the feature-flag + enrollment + human-handled gates but keeps hard compliance. ----
+  if (!force) {
+    if (!flag('ai_followup_enabled') || !flag('ai_responsive_text_enabled')) return logNo(cid, 'responsive AI disabled')
+    if (!aiManages(cid)) return logNo(cid, 'lead not enrolled in AI (manual mode — enable AI on this lead first)')
+    if (humanAlreadyHandled(cid)) return logNo(cid, 'a human already replied')
+    const st = db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [cid])
+    if (st && ['HUMAN_TAKEOVER', 'HUMAN_HANDOFF_REQUIRED'].includes(st.ai_state)) return logNo(cid, 'human owns the conversation')
+  }
+  const gate = canSendSms(client, { channel: 'ai', mode: 'responsive', force })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
-  if (humanAlreadyHandled(cid)) return logNo(cid, 'a human already replied')
-  const st = db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [cid])
-  if (st && ['HUMAN_TAKEOVER', 'HUMAN_HANDOFF_REQUIRED'].includes(st.ai_state)) return logNo(cid, 'human owns the conversation')
 
   const ai = getAiClient()
   if (!ai) return logNo(cid, 'AI not configured (ANTHROPIC_API_KEY)')
@@ -111,7 +113,7 @@ export async function handleInboundText(clientId, inboundBody) {
     if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale send (new message arrived)', { intentBefore, intentAfter: intent.score })
     // re-check eligibility right before sending
     const fresh = db.get('SELECT * FROM clients WHERE id=?', [cid])
-    const g2 = canSendSms(fresh, { channel: 'ai', mode: 'responsive' })
+    const g2 = canSendSms(fresh, { channel: 'ai', mode: 'responsive', force })
     if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
     try {
       const finalMsg = withSiteIfFirst(cid, message)
@@ -154,7 +156,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   ensureState(cid)
   if (!force) { if (!flag('ai_followup_enabled')) return logNo(cid, 'AI disabled globally'); if (flagKey && !flag(flagKey)) return logNo(cid, flagKey + ' disabled'); if (!aiManages(cid)) return logNo(cid, 'lead not enrolled in AI (manual mode)') }
   const mode = force ? 'responsive' : 'proactive'
-  const gate = canSendSms(client, { channel: 'ai', mode })
+  const gate = canSendSms(client, { channel: 'ai', mode, force })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
   if (!force && inQuietHours()) return logNo(cid, 'quiet hours')
   // daily cap
@@ -173,7 +175,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   const message = noDash(String(decision?.message || '').trim()).slice(0, 640)
   if (!message || (ALLOWED_ACTIONS.includes(decision?.action) && decision.action !== 'SEND_TEXT')) return logNo(cid, 'AI chose not to send')
   if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale (new message arrived)')
-  const g2 = canSendSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), { channel: 'ai', mode })
+  const g2 = canSendSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), { channel: 'ai', mode, force })
   if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
   try {
     if (decision?.memory || decision?.summary) { try { applyMemory(cid, decision.memory || {}, decision.summary) } catch {} }

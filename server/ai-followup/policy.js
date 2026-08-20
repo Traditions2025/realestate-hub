@@ -38,8 +38,9 @@ export function canSendSms(client, context = {}) {
   if (p?.sms_status === 'blocked') return deny('SMS blocked')
   // Campaign-style + AI channels also exclude Do Not Contact / Junk status:
   if (channel !== 'manual' && isStopStatus(client.status)) return deny(`lead status ${client.status}`)
-  // AI-specific gates:
-  if (channel === 'ai') {
+  // AI-specific gates — skipped for a manual agent-triggered send (context.force),
+  // which only needs the hard compliance blocks above (STOP / opt-out / status).
+  if (channel === 'ai' && !context.force) {
     if (getFlag('ai_followup_enabled') !== '1') return deny('AI follow-up disabled globally')
     if (getFlag('ai_responsive_text_enabled') !== '1' && context.mode === 'responsive') return deny('responsive AI disabled')
     if (getFlag('ai_proactive_text_enabled') !== '1' && context.mode === 'proactive') return deny('proactive AI disabled')

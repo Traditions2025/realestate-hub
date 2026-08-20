@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:59:50.494Z",
-  "count": 401,
+  "generated_at": "2026-08-20T20:16:33.246Z",
+  "count": 402,
   "entries": [
+    {
+      "hash": "b7ce870",
+      "date": "2026-08-20T14:59:58-05:00",
+      "subject": "AI identity: 'John with Matt Smith Team at RE/MAX' (no 'the'); prompt enforces it",
+      "title": "AI identity: 'John with Matt Smith Team at RE/MAX' (no 'the'); prompt enforces it",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0c3aba8",
       "date": "2026-08-20T14:52:18-05:00",

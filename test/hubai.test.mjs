@@ -55,6 +55,15 @@ test('compliance: AI channel is blocked until the flags are on', () => {
   db.setSetting('ai_followup_enabled', '0'); db.setSetting('ai_responsive_text_enabled', '0')
 })
 
+test('manual send-now (force) bypasses feature flags but STOP still blocks it', () => {
+  db.setSetting('ai_followup_enabled', '0'); db.setSetting('ai_responsive_text_enabled', '0')
+  assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive' }).ok, false, 'autonomous blocked when flags off')
+  assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive', force: true }).ok, true, 'manual send-now allowed')
+  applyOptOut(cid, 'stop')
+  assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive', force: true }).ok, false, 'STOP still blocks even a forced send')
+  applyOptOut(cid, 'start')
+})
+
 test('state machine: valid transitions apply, invalid rejected, human takeover works', () => {
   assert.equal(transitionAiState(cid, 'NOT_A_STATE', 'x').ok, false)
   assert.equal(transitionAiState(cid, 'AI_CONVERSATION_ACTIVE', 'ok').ok, true)
