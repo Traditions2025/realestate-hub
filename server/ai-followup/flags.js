@@ -31,7 +31,7 @@ export const AI_CONFIG_DEFAULTS = {
   ai_response_delay_seconds: '0',
   // Autopilot never auto-contacts leads whose tags/source contain any of these
   // (comma-separated substrings). For imported prospecting lists that never opted in.
-  ai_autopilot_exclude: 'fsbo,expired,cancel',
+  ai_autopilot_exclude: 'fsbo,mls: expired,mls: cancelled',
 }
 
 export function getFlags() { const o = {}; for (const f of AI_FLAGS) o[f] = db.getSetting(f, '0') === '1'; return o }

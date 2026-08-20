@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T21:07:36.427Z",
-  "count": 406,
+  "generated_at": "2026-08-20T21:14:57.876Z",
+  "count": 407,
   "entries": [
+    {
+      "hash": "9d33186",
+      "date": "2026-08-20T16:07:48-05:00",
+      "subject": "AI: Autopilot never auto-treats imported prospecting lists (expired/cancelled/FSBO) as new leads",
+      "title": "AI: Autopilot never auto-treats imported prospecting lists (expired/cancelled/FSBO) as new leads",
+      "body": "- isExcludedFromAutopilot(client): substring match on tags+source vs ai_autopilot_exclude (default 'fsbo,expired,cancel')\n- aiManages: under autopilot, excluded imports are NOT auto-managed (no responsive, no sweeps); an agent can still manually enable AI on one (ai_managed overrides)\n- newLeadSweep / reengagementSweep / behavioralSweep skip excluded leads (never queued)\n- Settings field to refine the excluded tags; test: FSBO/expired excluded, manual enable overrides. 26 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f281854",
       "date": "2026-08-20T15:47:47-05:00",
