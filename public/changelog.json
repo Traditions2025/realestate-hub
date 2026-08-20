@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-20T17:15:04.255Z",
-  "count": 383,
+  "generated_at": "2026-08-20T17:34:41.601Z",
+  "count": 385,
   "entries": [
+    {
+      "hash": "fe66657",
+      "date": "2026-08-20T12:18:46-05:00",
+      "subject": "docs: update comms manifest (compliance, enforce, unknown queue, missed-call text-back, scheduled texting)",
+      "title": "docs: update comms manifest (compliance, enforce, unknown queue, missed-call text-back, scheduled texting)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "docs"
+    },
+    {
+      "hash": "aa99a2f",
+      "date": "2026-08-20T12:15:14-05:00",
+      "subject": "Scheduled one-to-one texting",
+      "title": "Scheduled one-to-one texting",
+      "body": "- scheduled_texts table + scheduler tick (every 60s) sends due texts after a FRESH compliance re-check at send time (STOP / Do Not Contact / no-phone are canceled, not sent)\n- Endpoints: POST /schedule-text, GET /scheduled?client_id, POST /scheduled/:id/cancel\n- Lead-profile inline composer: 'Schedule' button (datetime) + pending-scheduled list with cancel\n- Inbox text reply: 'Schedule' send option\n- Sends land in the normal conversation thread; agent + timezone captured\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f464025",
       "date": "2026-08-20T12:11:52-05:00",

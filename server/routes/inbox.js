@@ -152,7 +152,14 @@ router.get('/', (req, res) => {
   // lightweight AI intent hint per conversation (from the last analysis)
   const intents = {}
   try { for (const r of db.all('SELECT client_id, intent FROM inbox_ai WHERE intent IS NOT NULL')) intents[r.client_id] = r.intent } catch {}
-  const list = [...threads.values()].map(t => ({ ...t, channels: [...t.channels], ai_intent: t.client_id ? (intents[t.client_id] || null) : null }))
+  // conversation owner = the assigned agent on the client record
+  const owners = {}
+  try { for (const r of db.all("SELECT id, agent_assigned FROM clients WHERE agent_assigned IS NOT NULL AND agent_assigned != ''")) owners[r.id] = r.agent_assigned } catch {}
+  let list = [...threads.values()].map(t => ({ ...t, channels: [...t.channels], ai_intent: t.client_id ? (intents[t.client_id] || null) : null, assigned_to: t.client_id ? (owners[t.client_id] || null) : null }))
+  // assignment filter: a specific agent name, or 'unassigned'
+  const assigned = (req.query.assigned || '').trim()
+  if (assigned === 'unassigned') list = list.filter(c => !c.assigned_to)
+  else if (assigned) list = list.filter(c => c.assigned_to === assigned)
   const totalUnread = db.get("SELECT COUNT(*) c FROM communications WHERE direction='incoming' AND status='unread'").c
   res.json({ conversations: list, total_unread: totalUnread })
 })
@@ -161,6 +168,22 @@ router.get('/', (req, res) => {
 router.get('/thread/:clientId', (req, res) => {
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [Number(req.params.clientId)])
   res.json(rows)
+})
+
+// ---- team agents (for assignment); configurable via the inbox_agents setting ----
+router.get('/agents', (_req, res) => {
+  const raw = db.getSetting('inbox_agents', 'Matt,John,Hunter') || ''
+  res.json(raw.split(',').map(s => s.trim()).filter(Boolean))
+})
+// ---- assign / reassign a conversation to an agent (owner = clients.agent_assigned) ----
+router.post('/thread/:clientId/assign', (req, res) => {
+  const cid = Number(req.params.clientId)
+  const agent = (req.body?.agent || '').trim() || null
+  const c = db.get('SELECT id, agent_assigned FROM clients WHERE id=?', [cid])
+  if (!c) return res.status(404).json({ error: 'client not found' })
+  db.run('UPDATE clients SET agent_assigned=?, updated_at=? WHERE id=?', [agent, new Date().toISOString(), cid])
+  if (agent) import('./automations.js').then(m => m.emitAutomationEvent('contact_assigned', cid, { agent })).catch(() => {})
+  res.json({ success: true, assigned_to: agent })
 })
 
 // ---- UNKNOWN queue: an inbound text/call from a number not in the CRM. The

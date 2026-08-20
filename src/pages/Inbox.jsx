@@ -98,6 +98,9 @@ export default function Inbox() {
   const [unreadOnly, setUnreadOnly] = useState(true)
   const [channels, setChannels] = useState(['email', 'text', 'call'])
   const [filterOpen, setFilterOpen] = useState(false)
+  const [agents, setAgents] = useState([])
+  const [myAgent, setMyAgent] = useState(() => localStorage.getItem('mst_agent') || '')
+  const [assignFilter, setAssignFilter] = useState('all')   // all | mine | unassigned
   const [q, setQ] = useState('')
   const [convos, setConvos] = useState(null)
   const [totalUnread, setTotalUnread] = useState(0)
@@ -123,10 +126,15 @@ export default function Inbox() {
 
   const load = useCallback(() => {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
+    if (assignFilter === 'mine' && myAgent) p.set('assigned', myAgent)
+    else if (assignFilter === 'unassigned') p.set('assigned', 'unassigned')
     authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0) }).catch(() => setConvos([]))
     authFetch('/api/inbox/counts').then(r => r.json()).then(setCounts).catch(() => {})
-  }, [folder, unreadOnly, channels, q])
+  }, [folder, unreadOnly, channels, q, assignFilter, myAgent])
   useEffect(() => { load() }, [load])
+  useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const chooseAgent = (a) => { setMyAgent(a); localStorage.setItem('mst_agent', a) }
+  const assignThread = async (clientId, agent) => { await authFetch(`/api/inbox/thread/${clientId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent }) }).catch(() => {}); load(); if (sel === clientId) authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => {}) }
   // Near-real-time: refresh the conversation list + the open thread every 15s so
   // incoming texts, calls, and delivery updates appear without a manual refresh.
   useEffect(() => {
@@ -295,6 +303,16 @@ export default function Inbox() {
               {(counts.by_channel?.[c.key] || 0) > 0 && <span style={{ ...badge, marginLeft: 'auto' }}>{counts.by_channel[c.key]}</span>}
             </label>
           ))}
+          <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
+          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Assigned</div>
+          {[['all', 'All'], ['mine', 'Mine'], ['unassigned', 'Unassigned']].map(([k, l]) => (
+            <button key={k} onClick={() => setAssignFilter(k)} style={folderBtn(assignFilter === k)}>{l}</button>
+          ))}
+          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>I am</div>
+          <select value={myAgent} onChange={e => chooseAgent(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '6px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+            <option value="">(choose)</option>
+            {agents.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
         </aside>
 
         {/* middle: conversation list */}
@@ -327,6 +345,7 @@ export default function Inbox() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: c.unread_count ? 700 : 600, fontSize: 14 }}>{c.contact_name}</span>
                         {c.unknown && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>}
+                        {c.assigned_to && <span title={`Assigned to ${c.assigned_to}`} style={{ fontSize: 10, fontWeight: 700, color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '1px 6px', borderRadius: 4 }}>{c.assigned_to}</span>}
                         {c.msg_count > 1 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
                         {c.ai_intent && c.ai_intent !== 'No Response Needed' && <span style={intentBadgeStyle(c.ai_intent)}>{c.ai_intent}</span>}
                         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
@@ -358,7 +377,12 @@ export default function Inbox() {
             <>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontWeight: 700 }}>{selConvo?.contact_name || 'Conversation'}</div>
-                <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => closeThread(sel)}>Close</button>
+                <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
+                  style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                  <option value="">Unassigned</option>
+                  {agents.map(a => <option key={a} value={a}>{a}</option>)}
+                </select>
+                <button className="btn btn-sm btn-secondary" onClick={() => closeThread(sel)}>Close</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {shownThread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : shownThread.map((m, idx) => {
