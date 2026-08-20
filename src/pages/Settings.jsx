@@ -254,6 +254,8 @@ export default function Settings() {
             </div>
           </section>
 
+          <CommsDiagnostics />
+
           {/* Business Registration (Twilio A2P) */}
           <section className="detail-section">
             <h4 style={{ margin: 0 }}>Business Registration</h4>
@@ -296,5 +298,53 @@ export default function Settings() {
         </div>
       )}
     </div>
+  )
+}
+
+// --- Communications diagnostics + admin toggles (health check, signature, recording) ---
+function CommsDiagnostics() {
+  const [health, setHealth] = React.useState(undefined)
+  const [busy, setBusy] = React.useState(false)
+  const [enforce, setEnforce] = React.useState(null)
+  const [record, setRecord] = React.useState(null)
+  const run = async () => {
+    setBusy(true)
+    try { const h = await authFetch('/api/settings/twilio/health').then(r => r.json()); setHealth(h); const sig = (h.checks || []).find(c => /signature/i.test(c.name)); setEnforce(sig ? /enforce/i.test(sig.detail) : false); setRecord((h.checks || []).some(c => /recording/i.test(c.name) && c.status === 'ok')) }
+    catch { setHealth(null) } finally { setBusy(false) }
+  }
+  React.useEffect(() => { run() }, [])
+  const saveMode = async (patch) => { await authFetch('/api/settings/twilio/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); run() }
+  const dot = { ok: '#10b981', attention: '#f59e0b', missing: '#ef4444' }
+  const label = { ok: 'Healthy', attention: 'Needs attention', missing: 'Not configured' }
+  return (
+    <section className="detail-section">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <h4 style={{ margin: 0 }}>Communications Diagnostics</h4>
+        <button className="btn btn-sm btn-secondary" onClick={run} disabled={busy} style={{ marginLeft: 'auto' }}>{busy ? '…' : '↻ Re-check'}</button>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Live check of texting + calling configuration. No secrets are shown.</p>
+      {health === undefined ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Checking…</div>
+        : health === null ? <div style={{ color: '#ef4444', fontSize: 13 }}>Could not run diagnostics.</div>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {(health.checks || []).map(c => (
+              <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+                <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot[c.status], flexShrink: 0 }} />
+                <span style={{ fontWeight: 600, width: 200, flexShrink: 0 }}>{c.name}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: dot[c.status], width: 120, flexShrink: 0 }}>{label[c.status]}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{c.detail}</span>
+              </div>
+            ))}
+          </div>}
+      <div style={{ display: 'flex', gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input type="checkbox" checked={!!enforce} onChange={e => { setEnforce(e.target.checked); saveMode({ signature_mode: e.target.checked ? 'enforce' : 'monitor' }) }} />
+          Enforce webhook signatures <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(reject forged Twilio requests — turn on once monitored)</span>
+        </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input type="checkbox" checked={!!record} onChange={e => { setRecord(e.target.checked); saveMode({ record_calls: e.target.checked }) }} />
+          Record calls <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(check local consent rules first)</span>
+        </label>
+      </div>
+    </section>
   )
 }

@@ -17,6 +17,7 @@ export default function CallWidget() {
   const [err, setErr] = useState('')
   const [reg, setReg] = useState('connecting')   // connecting | ready | error
   const [regErr, setRegErr] = useState('')
+  const [keypad, setKeypad] = useState(false)
 
   const fmt = (n) => { const d = String(n || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (n || '') }
   const startTimer = () => { setSeconds(0); clearInterval(timerRef.current); timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000) }
@@ -36,7 +37,7 @@ export default function CallWidget() {
     call.on('reject', () => endLocal())
     call.on('error', (e) => { setErr(e?.message || 'Call error'); endLocal() })
   }
-  const endLocal = () => { stopTimer(); setStatus('idle'); setMuted(false); setPeer({ number: '', name: '' }); callRef.current = null }
+  const endLocal = () => { stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setPeer({ number: '', name: '' }); callRef.current = null }
 
   useEffect(() => {
     let cancelled = false
@@ -136,6 +137,19 @@ export default function CallWidget() {
           </>
         )}
       </div>
+      {status === 'active' && (
+        <div style={{ marginTop: 10 }}>
+          <button onClick={() => setKeypad(k => !k)} style={{ border: 'none', background: 'none', color: 'var(--text-muted, #6b7280)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>{keypad ? '▾ Hide keypad' : '▸ Keypad'}</button>
+          {keypad && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6, marginTop: 8 }}>
+              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(dg => (
+                <button key={dg} onClick={() => { try { callRef.current?.sendDigits(dg) } catch {} }}
+                  style={{ padding: '11px 0', borderRadius: 8, border: '1px solid var(--border, #e5e7eb)', background: 'var(--bg-secondary, #f8fafc)', color: 'var(--text-primary, #111)', fontSize: 17, fontWeight: 600, cursor: 'pointer' }}>{dg}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
