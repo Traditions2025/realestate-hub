@@ -1,8 +1,53 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { fubGet, fubConfigured } from '../fub-helper.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
+
+// FUB text templates live under one of a few possible endpoint names depending on
+// the account. Try each and return the first that responds with a list.
+const FUB_TEMPLATE_ENDPOINTS = ['/textMessageTemplates', '/textTemplates', '/smsTemplates', '/templates']
+async function fetchFubTextTemplates() {
+  let lastErr = null
+  for (const ep of FUB_TEMPLATE_ENDPOINTS) {
+    try {
+      const d = await fubGet(ep, { limit: 100 })
+      const key = Object.keys(d || {}).find(k => Array.isArray(d[k]))
+      const list = key ? d[key] : (Array.isArray(d) ? d : [])
+      // email templates endpoint (/templates) has html; keep text-ish ones only if we fell back to it
+      const mapped = list.map(t => ({ id: t.id, name: t.name || t.title || 'FUB Template', body: t.body || t.message || t.text || t.bodyText || '' }))
+        .filter(t => t.body && !/^<.*>/.test(t.body.trim()))
+      if (mapped.length || ep !== '/templates') return { endpoint: ep, templates: mapped }
+    } catch (e) { lastErr = e; if (e.status && e.status !== 404) throw e }
+  }
+  if (lastErr) throw lastErr
+  return { endpoint: null, templates: [] }
+}
+
+// Probe: what FUB text templates are available (no import).
+router.get('/fub-text', async (_req, res) => {
+  if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
+  try { const r = await fetchFubTextTemplates(); res.json({ endpoint: r.endpoint, count: r.templates.length, templates: r.templates.slice(0, 50) }) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Import FUB text templates into the Hub templates (type text), dedupe by name.
+router.post('/import-fub', async (_req, res) => {
+  if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
+  let templates
+  try { ({ templates } = await fetchFubTextTemplates()) } catch (e) { return res.status(500).json({ error: 'FUB error: ' + e.message }) }
+  let imported = 0, skipped = 0
+  for (const t of templates) {
+    const name = String(t.name || '').trim() || 'FUB Template'
+    const body = String(t.body || '').trim()
+    if (!body) { skipped++; continue }
+    if (db.get("SELECT id FROM templates WHERE name=? AND type='text'", [name])) { skipped++; continue }
+    db.run("INSERT INTO templates (name, type, category, body, is_html, tags) VALUES (?,?,?,?,?,?)", [name, 'text', 'FUB', body, 0, 'imported:fub'])
+    imported++
+  }
+  res.json({ success: true, imported, skipped, total: templates.length })
+})
 
 function logActivity(action, entityId, details) {
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)',
