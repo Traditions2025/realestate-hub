@@ -199,6 +199,30 @@ export async function handleProactive(clientId, { force = false } = {}) {
   })
 }
 
+// Preview the message the AI would send next — WITHOUT sending, logging a send, or
+// changing state. Picks first-touch / reply / follow-up based on the conversation.
+export async function previewMessage(clientId) {
+  const cid = Number(clientId)
+  const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  if (!client) return { ok: false, reason: 'no client' }
+  const ai = getAiClient(); if (!ai) return { ok: false, reason: 'AI not configured (ANTHROPIC_API_KEY missing)' }
+  const ctx = buildLeadAiContext(cid)
+  const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
+  let kind, instruction
+  if (!lastText) { kind = 'first text'; instruction = `This is a lead the team has NOT texted yet. Lead source: ${ctx.facts.lead_source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.` }
+  else if (lastText.direction === 'incoming') { kind = 'reply'; instruction = null }
+  else { kind = 'follow-up'; instruction = `You've already been in touch and are getting to know this lead. Send ONE short, natural follow-up asking the single most useful thing you do NOT know yet (buyer: area, then price, then beds, then timeframe, then financing; seller: address, then timeframe, then motivation). One question, no re-intro, do not repeat prior messages.` }
+  const userContent = instruction ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` : buildUserMessage(ctx)
+  let decision, usage = {}
+  try { const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] }); usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '') }
+  catch (e) { return { ok: false, reason: e.message } }
+  let message = noDash(String(decision?.message || '').trim()).slice(0, 640)
+  if (message) message = withSiteIfFirst(cid, message)
+  const elig = canSendSms(client, { channel: 'ai', mode: 'responsive', force: true })
+  logAiAction({ client_id: cid, action_type: 'PREVIEW', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: 'preview ' + kind, output_text: message, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, status: 'success' })
+  return { ok: true, kind, message: message || '(the AI would not send here — nothing to say)', eligible: elig.ok, block_reason: elig.ok ? null : elig.reason }
+}
+
 // Follow-up touch: we've already reached out; ask the next useful qualifying
 // question to learn what the lead wants (area, price, beds, timeframe, financing
 // for buyers; address, timeframe, motivation for sellers). One question, no re-intro.

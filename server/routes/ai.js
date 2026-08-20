@@ -36,6 +36,11 @@ router.get('/lead/:id', (req, res) => {
 })
 
 router.get('/lead/:id/history', (req, res) => res.json(recentAiActions(Number(req.params.id), 60)))
+// Preview the next AI message WITHOUT sending it.
+router.post('/lead/:id/preview', async (req, res) => {
+  try { const m = await import('../ai-followup/orchestrator.js'); res.json(await m.previewMessage(Number(req.params.id))) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
 
 // ---- per-lead controls ----
 router.post('/lead/:id/enable', (req, res) => { setEnabled(Number(req.params.id), true); setManaged(Number(req.params.id), true); transitionAiState(Number(req.params.id), 'AI_ELIGIBLE', 'enabled by agent'); res.json({ success: true }) })

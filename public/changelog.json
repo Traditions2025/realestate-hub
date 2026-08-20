@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T21:30:09.489Z",
-  "count": 409,
+  "generated_at": "2026-08-20T21:54:17.355Z",
+  "count": 410,
   "entries": [
+    {
+      "hash": "e31d5d3",
+      "date": "2026-08-20T16:30:18-05:00",
+      "subject": "AI exclusions: search-with-suggestions chip picker (click to add), backed by real CRM tags/statuses/sources",
+      "title": "AI exclusions: search-with-suggestions chip picker (click to add), backed by real CRM tags/statuses/sources",
+      "body": "- GET /api/ai/facets: distinct tags (parsed from JSON arrays), statuses, sources (60s cache)\n- Settings exclusions: ChipPicker (type to filter real values, click/Enter to add chip, free text allowed) for tag/source + status; combination rules use datalist autocomplete\n- No more manual comma typing\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a6fa5a4",
       "date": "2026-08-20T16:20:29-05:00",

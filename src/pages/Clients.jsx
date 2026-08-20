@@ -3429,9 +3429,12 @@ function TextComposerModal({ client, onClose, onSent }) {
 function AiIsaCard({ clientId }) {
   const [d, setD] = React.useState(undefined)
   const [busy, setBusy] = React.useState(false)
+  const [preview, setPreview] = React.useState(null)
   const load = React.useCallback(() => { authFetch('/api/ai/lead/' + clientId).then(r => r.json()).then(setD).catch(() => setD(null)) }, [clientId])
   React.useEffect(() => { load() }, [load])
+  React.useEffect(() => { setPreview(null) }, [clientId])
   const act = async (path, body) => { setBusy(true); try { await authFetch('/api/ai/lead/' + clientId + '/' + path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined }) } finally { setBusy(false); load() } }
+  const doPreview = async () => { setBusy(true); setPreview({ loading: true }); try { const r = await authFetch('/api/ai/lead/' + clientId + '/preview', { method: 'POST' }); setPreview(await r.json()) } catch (e) { setPreview({ ok: false, reason: e.message }) } finally { setBusy(false) } }
   if (!d) return null
   const LEVEL = { URGENT: '#ef4444', HIGH: '#f59e0b', ENGAGED: '#10b981', NURTURE: '#2563eb', LOW: '#64748b' }
   const managed = d.ai_managed || (d.global?.autopilot && d.ai_enabled)
@@ -3452,7 +3455,18 @@ function AiIsaCard({ clientId }) {
       {d.intent?.reasons?.length > 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Signals: {d.intent.reasons.join(' · ')}</div>}
       {d.open_handoff && <div style={{ fontSize: 12.5, color: '#b45309', marginTop: 6, fontWeight: 600 }}>⚑ Open handoff: {d.open_handoff.reason}</div>}
       {d.ai_next_action_at && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Next AI action: {fmt(d.ai_next_action_at)}</div>}
+      {preview && (
+        <div style={{ marginTop: 10, padding: '9px 11px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          {preview.loading ? <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Drafting preview…</span>
+            : preview.ok ? <>
+              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 4 }}>Preview · {preview.kind} {!preview.eligible && <span style={{ color: '#ef4444' }}>· would be blocked: {preview.block_reason}</span>}</div>
+              <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{preview.message}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Not sent — this is only a preview.</div>
+            </> : <span style={{ fontSize: 12.5, color: '#ef4444' }}>{preview.reason || 'Could not preview'}</span>}
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+        <button className="btn btn-sm btn-secondary" disabled={busy} onClick={doPreview}>👁 Preview next text</button>
         {managed ? (
           <>
             {st === 'HUMAN_TAKEOVER' || st === 'AI_PAUSED'
