@@ -255,6 +255,49 @@ router.post('/thread/:clientId/read', (req, res) => { db.run("UPDATE communicati
 router.post('/thread/:clientId/close', (req, res) => { db.run("UPDATE communications SET status='closed' WHERE client_id=?", [Number(req.params.clientId)]); res.json({ success: true }) })
 router.delete('/:id', (req, res) => { db.run('DELETE FROM communications WHERE id=?', [Number(req.params.id)]); res.json({ success: true }) })
 
+// ---- BULK TEXT campaign: dedup phones, exclude STOP opt-outs + no-phone, then
+// queue sends in the background (safe pacing) so the request returns immediately.
+// Returns the recipient breakdown up front; sent messages appear in the inbox. ----
+router.post('/bulk-text', async (req, res) => {
+  const { client_ids, body, template_id } = req.body || {}
+  if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Select at least one recipient.' })
+  let msg = body
+  if (template_id) { const t = db.get('SELECT body FROM templates WHERE id=?', [Number(template_id)]); if (t) msg = msg || t.body }
+  if (!msg || !String(msg).trim()) return res.status(400).json({ error: 'A message is required.' })
+  const { sendSms, twilioConfigured } = await import('../twilio.js')
+  if (!twilioConfigured()) return res.status(400).json({ error: 'Texting isn’t connected yet.' })
+  const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  // Resolve the recipient list synchronously: dedup by phone, drop no-phone + STOP.
+  const seen = new Set(); const recipients = []
+  let noPhone = 0, optedOut = 0, duplicates = 0
+  for (const cid of client_ids) {
+    const c = db.get('SELECT * FROM clients WHERE id=?', [Number(cid)])
+    const key = c && c.phone ? String(c.phone).replace(/\D/g, '').slice(-10) : ''
+    if (!c || key.length < 10) { noPhone++; continue }
+    if (seen.has(key)) { duplicates++; continue }
+    seen.add(key)
+    if (c.hub_text_opt_out) { optedOut++; continue }   // only STOP-to-our-number is excluded
+    recipients.push(c)
+  }
+  // Fire the sends in the background so we never hit the HTTP timeout on big lists.
+  ;(async () => {
+    for (const c of recipients) {
+      try {
+        const outText = fillTemplate(msg, c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+        if (!outText) continue
+        const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
+        const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', c.id, name, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', nowIso()])
+        await new Promise(rs => setTimeout(rs, 900))   // gentle pacing to respect Twilio rate limits
+      } catch (e) { console.error('[bulk-text] send error:', e.message) }
+    }
+    console.log(`[bulk-text] campaign done: queued ${recipients.length}`)
+  })()
+  res.json({ queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, duplicate_number: duplicates }, total: client_ids.length })
+})
+
 // ---- contact search for the composer (name / email / phone) ----
 router.get('/contacts', (req, res) => {
   const q = (req.query.q || '').trim()

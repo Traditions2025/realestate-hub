@@ -88,6 +88,15 @@ export default function Inbox() {
     authFetch('/api/inbox/counts').then(r => r.json()).then(setCounts).catch(() => {})
   }, [folder, unreadOnly, channels, q])
   useEffect(() => { load() }, [load])
+  // Near-real-time: refresh the conversation list + the open thread every 15s so
+  // incoming texts, calls, and delivery updates appear without a manual refresh.
+  useEffect(() => {
+    const t = setInterval(() => {
+      load()
+      if (sel) authFetch(`/api/inbox/thread/${sel}`).then(r => r.json()).then(setThread).catch(() => {})
+    }, 15000)
+    return () => clearInterval(t)
+  }, [load, sel])
 
   const openThread = (clientId) => {
     if (!clientId) return

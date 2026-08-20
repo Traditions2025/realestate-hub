@@ -439,6 +439,7 @@ export default function Clients() {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkApply, setBulkApply] = useState(null) // 'automation' | 'drip'
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
+  const [bulkTextOpen, setBulkTextOpen] = useState(false)
   const [bulkEmailForm, setBulkEmailForm] = useState({ subject: '', body: '', template: '' })
   const [bulkComposerView, setBulkComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
   const [bulkSending, setBulkSending] = useState(false)
@@ -1978,6 +1979,11 @@ export default function Clients() {
           onSent={() => { if (detail?.id === textComposeClient.id) openDetail(textComposeClient.id) }} />
       )}
 
+      {bulkTextOpen && (
+        <BulkTextModal clientIds={[...selectedIds]} onClose={() => setBulkTextOpen(false)}
+          onDone={() => { setBulkTextOpen(false); clearSelection() }} />
+      )}
+
       {/* Save as List Modal */}
       {saveListOpen && (
         <Modal open={saveListOpen} onClose={() => setSaveListOpen(false)} title="Save as List">
@@ -2036,6 +2042,9 @@ export default function Clients() {
                 <div className="bulk-actions-menu">
                   <button onClick={() => { setBulkActionsOpen(false); openBulkEmail() }}>
                     ✉ Email Selected
+                  </button>
+                  <button onClick={() => { setBulkActionsOpen(false); setBulkTextOpen(true) }}>
+                    💬 Text Selected
                   </button>
                   <div className="bulk-actions-divider" />
                   <div className="bulk-actions-section-label">Enroll</div>
@@ -3399,6 +3408,52 @@ function TextComposerModal({ client, onClose, onSent }) {
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Sending…' : 'Send Text'}</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// --- Bulk SMS to selected contacts (dedups phones, excludes STOP opt-outs, queues) ---
+function BulkTextModal({ clientIds, onClose, onDone }) {
+  const [body, setBody] = React.useState('')
+  const [templates, setTemplates] = React.useState([])
+  const [sending, setSending] = React.useState(false)
+  React.useEffect(() => { authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
+  const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
+  const send = async () => {
+    if (!body.trim()) return
+    if (!confirm(`Send this text to up to ${clientIds.length} selected contact(s)? Contacts who replied STOP to your number, have no phone, or are duplicate numbers are automatically skipped.`)) return
+    setSending(true)
+    try {
+      const r = await authFetch('/api/inbox/bulk-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds, body: body.trim() }) })
+      const d = await r.json()
+      if (d.error) { alert(d.error); setSending(false); return }
+      const ex = d.excluded || {}
+      alert(`Queued ${d.queued} text${d.queued === 1 ? '' : 's'} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.duplicate_number || 0} duplicate number.`)
+      onDone()
+    } catch (e) { alert('Bulk text failed: ' + e.message); setSending(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Text ${clientIds.length.toLocaleString()} selected`}>
+      <div className="form">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Sends from your Hub number (319) 343-1562. Merge fields fill per contact; anyone who replied STOP is excluded.</p>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <select value="" onChange={e => { const t = templates.find(x => String(x.id) === e.target.value); if (t) insert(stripHtml(t.body)); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
+            <option value="">Insert template…</option>
+            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+          <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
+            <option value="">+ Merge field…</option>
+            {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
+          </select>
+        </div>
+        <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={5} maxLength={1000} placeholder="Type your message…" style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical' }} />
+        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000</div>
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Queuing…' : `Send to ${clientIds.length.toLocaleString()}`}</button>
         </div>
       </div>
     </Modal>
