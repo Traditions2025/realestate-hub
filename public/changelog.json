@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T17:37:18.813Z",
-  "count": 386,
+  "generated_at": "2026-08-20T17:39:16.320Z",
+  "count": 387,
   "entries": [
+    {
+      "hash": "c5db028",
+      "date": "2026-08-20T12:37:27-05:00",
+      "subject": "#7 Inbound call routing + business hours",
+      "title": "#7 Inbound call routing + business hours",
+      "body": "- Business hours (tz, open/close, days): outside hours, inbound calls go straight to an after-hours greeting + voicemail instead of ringing the browser\n- Optional forward-to-mobile on a missed call (rings a cell, falls through to voicemail via /voice/voicemail-fallback)\n- After-hours calls also fire the missed-call text-back\n- Settings 'Call Routing & Business Hours' panel with live Open/Closed indicator; GET/POST /api/settings/voice\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a5fa964",
       "date": "2026-08-20T12:34:51-05:00",

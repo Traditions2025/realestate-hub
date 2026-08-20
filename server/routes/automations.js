@@ -568,6 +568,7 @@ function processEvent(ev) {
         if (trig.type === 'tag_removed' && cfg.tag && p.tag !== cfg.tag) match = false
         if ((trig.type === 'stage_changed' || trig.type === 'contact_status_changed') && cfg.to_status && p.status !== cfg.to_status) match = false
         if (trig.type === 'contact_created' && cfg.lead_source && client && client.source !== cfg.lead_source) match = false
+        if (trig.type === 'call_disposition' && cfg.disposition && p.disposition !== cfg.disposition) match = false
       }
       if (match && client) { enrollClient(auto, client.id, { via: ev.event_type, payload: parse(ev.payload, {}) }); break }
     }

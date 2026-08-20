@@ -684,7 +684,8 @@ async function start() {
     const from = req.body?.From || ''
     upsertCall('call', 'incoming', from, { sid: req.body?.CallSid, delivery_status: 'ringing' })
     if (!voiceBusinessOpen()) {
-      upsertCall('call', 'incoming', from, { sid: req.body?.CallSid, delivery_status: 'missed', disposition: 'After-hours' })
+      const aid = upsertCall('call', 'incoming', from, { sid: req.body?.CallSid, delivery_status: 'missed', disposition: 'After-hours' })
+      if (aid) import('./routes/automations.js').then(m => m.emitAutomationEvent('missed_call', aid, { from, after_hours: true }, 'missed_' + (req.body?.CallSid || from))).catch(() => {})
       missedCallTextBack(from, req.body?.CallSid)
       return xml(res, voicemailTwiml(db.getSetting('voice_afterhours_message', AFTERHOURS_DEFAULT)))
     }
@@ -699,7 +700,8 @@ async function start() {
       upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'completed', duration_sec: Number(b.DialCallDuration || 0) || null })
       return xml(res, `<Hangup/>`)
     }
-    upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'missed', disposition: 'Missed call' })
+    const mid = upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'missed', disposition: 'Missed call' })
+    if (mid) import('./routes/automations.js').then(m => m.emitAutomationEvent('missed_call', mid, { from }, 'missed_' + (b.CallSid || from))).catch(() => {})
     missedCallTextBack(from, b.CallSid)   // fire-and-forget auto text-back
     const fwd = db.getSetting('voice_forward_number', '')
     if (fwd && db.getSetting('voice_forward_on_missed', '0') === '1') {
@@ -716,7 +718,10 @@ async function start() {
   // Voicemail recording finished (Record `action`) → store it on the timeline.
   app.post('/api/voice/voicemail-done', twGuard, (req, res) => {
     const b = req.body || {}
-    if (b.RecordingUrl) upsertCall('voicemail', 'incoming', b.From || '', { sid: b.CallSid, delivery_status: 'completed', recording_url: b.RecordingUrl, recording_sid: b.RecordingSid, duration_sec: Number(b.RecordingDuration || 0) || null, disposition: 'Voicemail' })
+    if (b.RecordingUrl) {
+      const vid = upsertCall('voicemail', 'incoming', b.From || '', { sid: b.CallSid, delivery_status: 'completed', recording_url: b.RecordingUrl, recording_sid: b.RecordingSid, duration_sec: Number(b.RecordingDuration || 0) || null, disposition: 'Voicemail' })
+      if (vid) import('./routes/automations.js').then(m => m.emitAutomationEvent('voicemail_received', vid, { from: b.From }, 'vm_' + (b.CallSid || ''))).catch(() => {})
+    }
     xml(res, `<Say voice="alice">Thank you. Goodbye.</Say><Hangup/>`)
   })
   // Voicemail transcription ready → attach transcript to the row.

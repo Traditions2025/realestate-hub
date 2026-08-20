@@ -402,8 +402,15 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
       db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, occurred_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         ['text', 'incoming', cid, name, from, to, null, preview, body, externalId, tkey, 'unread', media.length ? 1 : 0, media.length ? JSON.stringify(media) : null, 'received', nowIso()])
-      if (client) notifyInboundText(client, body || (media.length ? '[media]' : ''), from).catch(() => {})
-      else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
+      if (client) {
+        notifyInboundText(client, body || (media.length ? '[media]' : ''), from).catch(() => {})
+        // Automation triggers: incoming text (always) + text reply (if we've texted them before)
+        import('./automations.js').then(m => {
+          m.emitAutomationEvent('new_message_received', client.id, { body }, 'msg_' + externalId)
+          const priorOut = db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [client.id])
+          if (priorOut) m.emitAutomationEvent('text_replied', client.id, { body }, 'reply_' + externalId)
+        }).catch(() => {})
+      } else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }
   // Always 200 with empty TwiML so Twilio doesn't retry or auto-reply.
@@ -435,6 +442,11 @@ router.post('/:id/annotate', (req, res) => {
   if (!sets.length) return res.json({ success: true })
   vals.push(Number(req.params.id))
   db.run(`UPDATE communications SET ${sets.join(', ')} WHERE id=?`, vals)
+  // Automation trigger: a call outcome was set.
+  if (disposition) {
+    const cc = db.get('SELECT client_id FROM communications WHERE id=?', [Number(req.params.id)])
+    if (cc?.client_id) import('./automations.js').then(m => m.emitAutomationEvent('call_disposition', cc.client_id, { disposition }, `disp_${req.params.id}_${disposition}`)).catch(() => {})
+  }
   // "Do not call" during a call → set the lead's status to Do Not Contact. That
   // status pulls the lead out of every active drip + automation campaign
   // (stopSequencesForClient) and excludes them from bulk/automated outreach.

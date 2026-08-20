@@ -106,8 +106,8 @@ export const TRIGGERS = [
   T('website_form_submitted', 'Website Form Submitted', 'A site form is submitted', '🖥️', 'Inquiry', false),
   T('property_inquiry', 'Property Inquiry', 'Inquiry about a specific listing', '🏠', 'Inquiry', false),
   T('general_inquiry', 'General Inquiry', 'A non-property inquiry', '❓', 'Inquiry', false),
-  T('new_message_received', 'New Message Received', 'A contact sends a message', '💬', 'Inquiry', false),
-  T('missed_call', 'Missed Call', 'A call from a contact is missed', '📵', 'Inquiry', false),
+  T('new_message_received', 'Incoming Text', 'A contact texts the Hub number', '💬', 'Inquiry', true),
+  T('missed_call', 'Missed Call', 'A call from a contact is missed', '📵', 'Inquiry', true),
   T('appointment_requested', 'Appointment Requested', 'A contact requests an appointment', '📅', 'Inquiry', false),
 
   // --- Property Activity ---
@@ -154,7 +154,11 @@ export const TRIGGERS = [
   T('email_opened', 'Email Opened', 'A contact opens an email', '📬', 'Communication', false),
   T('email_link_clicked', 'Email Link Clicked', 'A contact clicks an email link', '🖱️', 'Communication', false),
   T('email_replied', 'Email Replied To', 'A contact replies to an email', '↩️', 'Communication', false),
-  T('text_replied', 'Text Message Replied To', 'A contact replies to a text', '💬', 'Communication', false),
+  T('text_replied', 'Text Message Replied To', 'A contact replies to a text we sent', '💬', 'Communication', true),
+  T('voicemail_received', 'Voicemail Received', 'A contact leaves a voicemail', '🎙️', 'Communication', true),
+  T('call_disposition', 'Call Outcome Set', 'A call is logged with an outcome', '📞', 'Communication', true, [
+    f('disposition', 'Only when the outcome is', 'select', { options: ['', 'Connected', 'Left voicemail', 'No answer', 'Busy', 'Wrong number', 'Appointment set', 'Interested', 'Not interested', 'Call back later', 'Do not call'] }),
+  ]),
   T('no_response_received', 'No Response Received', 'No reply within a window', '🔕', 'Communication', true, [
     f('days', 'No reply for (days)', 'number', { required: true, default: 3, placeholder: '3' }),
   ]),
