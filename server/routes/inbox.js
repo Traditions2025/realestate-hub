@@ -9,6 +9,7 @@ import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
 import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
+import { isStopStatus, stopSequencesForClient } from '../lead-sequences.js'
 
 // MMS uploads live next to the DB (the persistent /data disk on Render) and are
 // served publicly at /uploads so Twilio can fetch them when sending an MMS.
@@ -338,11 +339,17 @@ router.post('/:id/annotate', (req, res) => {
   if (!sets.length) return res.json({ success: true })
   vals.push(Number(req.params.id))
   db.run(`UPDATE communications SET ${sets.join(', ')} WHERE id=?`, vals)
+  // "Do not call" during a call → set the lead's status to Do Not Contact. That
+  // status pulls the lead out of every active drip + automation campaign
+  // (stopSequencesForClient) and excludes them from bulk/automated outreach.
+  // It does NOT set the text opt-out — only a STOP reply to our number does that.
   if (String(disposition || '').toLowerCase() === 'do not call') {
-    // "Do not call" stops future TEXTS from the Hub (hub_text_opt_out) and flags the
-    // contact — but per policy does not hard-block calling or junk the lead.
     const c = db.get('SELECT client_id FROM communications WHERE id=?', [Number(req.params.id)])
-    if (c?.client_id) db.run('UPDATE clients SET hub_text_opt_out=1, updated_at=? WHERE id=?', [new Date().toISOString(), c.client_id])
+    if (c?.client_id) {
+      db.run("UPDATE clients SET status='donotcontact', updated_at=? WHERE id=?", [new Date().toISOString(), c.client_id])
+      const removed = stopSequencesForClient(c.client_id, 'do not call disposition')
+      return res.json({ success: true, marked_do_not_contact: true, removed })
+    }
   }
   res.json({ success: true })
 })
@@ -366,14 +373,15 @@ router.post('/bulk-text', async (req, res) => {
   const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
   // Resolve the recipient list synchronously: dedup by phone, drop no-phone + STOP.
   const seen = new Set(); const recipients = []
-  let noPhone = 0, optedOut = 0, duplicates = 0
+  let noPhone = 0, optedOut = 0, duplicates = 0, doNotContact = 0
   for (const cid of client_ids) {
     const c = db.get('SELECT * FROM clients WHERE id=?', [Number(cid)])
     const key = c && c.phone ? String(c.phone).replace(/\D/g, '').slice(-10) : ''
     if (!c || key.length < 10) { noPhone++; continue }
     if (seen.has(key)) { duplicates++; continue }
     seen.add(key)
-    if (c.hub_text_opt_out) { optedOut++; continue }   // only STOP-to-our-number is excluded
+    if (c.hub_text_opt_out) { optedOut++; continue }   // STOP-to-our-number
+    if (isStopStatus(c.status)) { doNotContact++; continue }   // Do Not Contact / Junk — no campaign blasts
     recipients.push(c)
   }
   // Fire the sends in the background so we never hit the HTTP timeout on big lists.
@@ -392,7 +400,7 @@ router.post('/bulk-text', async (req, res) => {
     }
     console.log(`[bulk-text] campaign done: queued ${recipients.length}`)
   })()
-  res.json({ queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, duplicate_number: duplicates }, total: client_ids.length })
+  res.json({ queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, do_not_contact: doNotContact, duplicate_number: duplicates }, total: client_ids.length })
 })
 
 // ---- contact search for the composer (name / email / phone) ----

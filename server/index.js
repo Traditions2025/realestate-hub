@@ -509,6 +509,20 @@ async function start() {
     try { const { commsHealth } = await import('./twilio.js'); res.json(await commsHealth()) }
     catch (e) { res.status(500).json({ ok: false, error: e.message }) }
   })
+  // Webhook signature telemetry — proves real Twilio webhooks validate before
+  // flipping to 'enforce'. `ready_to_enforce` = at least one valid, zero invalid.
+  app.get('/api/settings/twilio/signature', (_req, res) => {
+    const valid = Number(db.getSetting('twilio_sig_valid_count', '0'))
+    const invalid = Number(db.getSetting('twilio_sig_invalid_count', '0'))
+    res.json({
+      mode: db.getSetting('twilio_signature_mode', 'monitor'),
+      valid, invalid,
+      last_valid_at: db.getSetting('twilio_sig_last_valid_at', null),
+      last_invalid_at: db.getSetting('twilio_sig_last_invalid_at', null),
+      last_invalid_path: db.getSetting('twilio_sig_last_invalid_path', null),
+      ready_to_enforce: valid > 0 && invalid === 0,
+    })
+  })
   // Admin toggles: webhook signature enforcement + call recording (both opt-in).
   app.post('/api/settings/twilio/mode', (req, res) => {
     const b = req.body || {}

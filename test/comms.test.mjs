@@ -3,6 +3,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'crypto'
 import { twilioSignatureValid, phoneKey10, optKeyword } from '../server/twilio-sig.js'
+import { isStopStatus, STOP_STATUSES } from '../server/lead-sequences.js'
 
 const TOKEN = 'test_auth_token_ABC123'
 const URL = 'https://realestate-hub-1rzu.onrender.com/api/inbox/twilio-inbound'
@@ -37,6 +38,12 @@ test('opt-out keywords: STOP/START variants detected, normal text ignored', () =
   for (const w of ['STOP', 'stop', 'Unsubscribe', 'CANCEL', 'quit']) assert.equal(optKeyword(w), 'stop')
   for (const w of ['START', 'yes', 'UNSTOP']) assert.equal(optKeyword(w), 'start')
   assert.equal(optKeyword('Hi, is the house still available?'), null)
+})
+
+test('compliance: Do Not Contact + Junk are stop statuses (remove campaigns)', () => {
+  for (const s of ['donotcontact', 'DoNotContact', 'DONOTCONTACT', 'junk', 'Junk']) assert.equal(isStopStatus(s), true)
+  for (const s of ['active', 'lead', 'nurture', '', null, undefined]) assert.equal(isStopStatus(s), false)
+  assert.ok(STOP_STATUSES.has('donotcontact'))
 })
 
 test('unresolved merge fields are stripped (customer never sees {{...}})', () => {

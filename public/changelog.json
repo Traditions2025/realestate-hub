@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T15:21:10.672Z",
-  "count": 380,
+  "generated_at": "2026-08-20T17:00:07.454Z",
+  "count": 381,
   "entries": [
+    {
+      "hash": "a150b79",
+      "date": "2026-08-20T10:21:27-05:00",
+      "subject": "Inbox+lead texting: channel-scoped thread, link previews, MMS photos, text templates; inline profile text box",
+      "title": "Inbox+lead texting: channel-scoped thread, link previews, MMS photos, text templates; inline profile text box",
+      "body": "- Inbox thread respects the channel filter (Texts filter hides emails/calls)\n- Text bubbles: clickable links + OpenGraph link-preview cards; inline MMS images\n- Reply composer: text mode hides Subject, adds template picker + insert photo (MMS)\n- Server: /link-preview (OG, SSRF-guarded, cached), /upload-media (MMS), /media proxy, sendSms MediaUrl, /uploads static\n- Lead profile Text button now opens an inline box under the action bar (not a modal behind the drawer): text, template, merge fields, photo, add more recipients\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c052a94",
       "date": "2026-08-20T09:42:19-05:00",

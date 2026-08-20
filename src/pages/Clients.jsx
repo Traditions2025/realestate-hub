@@ -3539,7 +3539,7 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
       const d = await r.json()
       if (d.error) { alert(d.error); setSending(false); return }
       const ex = d.excluded || {}
-      alert(`Queued ${d.queued} text${d.queued === 1 ? '' : 's'} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.duplicate_number || 0} duplicate number.`)
+      alert(`Queued ${d.queued} text${d.queued === 1 ? '' : 's'} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.do_not_contact || 0} do-not-contact, ${ex.duplicate_number || 0} duplicate number.`)
       onDone()
     } catch (e) { alert('Bulk text failed: ' + e.message); setSending(false) }
   }
