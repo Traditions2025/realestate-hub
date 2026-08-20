@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:52:08.540Z",
-  "count": 400,
+  "generated_at": "2026-08-20T19:59:50.494Z",
+  "count": 401,
   "entries": [
+    {
+      "hash": "0c3aba8",
+      "date": "2026-08-20T14:52:18-05:00",
+      "subject": "HUB AI identity: texts as John with Matt Smith Team at RE/MAX; first text always includes MattSmithTeam.com",
+      "title": "HUB AI identity: texts as John with Matt Smith Team at RE/MAX; first text always includes MattSmithTeam.com",
+      "body": "- Prompt persona rewritten to first-person as John (default ai_persona updated); no longer disclaims being an agent\n- First-message directive: introduce as John with the Matt Smith Team at RE/MAX + include MattSmithTeam.com; context computes is_first_text\n- Hard guarantee: withSiteIfFirst appends MattSmithTeam.com on the first outbound text if the model omitted it\n- Settings hint clarifies identity + auto-website; tests +1 (first-text intro/website)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4cd6425",
       "date": "2026-08-20T14:44:19-05:00",

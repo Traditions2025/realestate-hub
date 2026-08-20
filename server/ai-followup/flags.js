@@ -26,7 +26,7 @@ export const AI_CONFIG_DEFAULTS = {
   ai_intent_handoff_threshold: '70',
   ai_pause_after_human: '1',
   ai_pause_after_call: '1',
-  ai_persona: 'John with the Matt Smith Team at RE/MAX Concepts',
+  ai_persona: 'John with Matt Smith Team at RE/MAX Concepts',
   ai_default_owner: 'Matt',
   ai_response_delay_seconds: '0',
 }
