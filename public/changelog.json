@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T21:54:17.355Z",
-  "count": 410,
+  "generated_at": "2026-08-20T22:19:14.734Z",
+  "count": 411,
   "entries": [
+    {
+      "hash": "dc1c96e",
+      "date": "2026-08-20T16:54:25-05:00",
+      "subject": "AI: Preview next text — draft the message without sending (opener/reply/follow-up) + card button",
+      "title": "AI: Preview next text — draft the message without sending (opener/reply/follow-up) + card button",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e31d5d3",
       "date": "2026-08-20T16:30:18-05:00",

@@ -22,6 +22,8 @@ function parseJson(text) {
   return JSON.parse(t)
 }
 const noDash = (s) => String(s == null ? '' : s).replace(/[—–]/g, ', ')
+// Safety net for the greeting rule: never let a message open with "Hey".
+const noHey = (s) => String(s == null ? '' : s).replace(/^(\s*)hey\b([,!]*)/i, '$1Hi')
 
 // Latest message id for the client — used for the race-condition guard.
 const latestMsgId = (cid) => db.get('SELECT MAX(id) m FROM communications WHERE client_id=?', [cid])?.m || 0
@@ -86,7 +88,7 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
 
   // ---- validate the model output server-side ----
   const action = ALLOWED_ACTIONS.includes(decision?.action) ? decision.action : 'NO_ACTION'
-  const message = noDash(String(decision?.message || '').trim()).slice(0, 640)
+  const message = noHey(noDash(String(decision?.message || '').trim())).slice(0, 640)
   const handoffReq = !!(decision?.handoff?.required)
   const cfg = getConfig()
 
@@ -173,7 +175,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
     const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` }] })
     usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '')
   } catch (e) { logAiAction({ client_id: cid, action_type: actionType, status: 'failed', error: e.message, model_name: AI_MODEL }); return { ok: false, reason: e.message } }
-  const message = noDash(String(decision?.message || '').trim()).slice(0, 640)
+  const message = noHey(noDash(String(decision?.message || '').trim())).slice(0, 640)
   if (!message || (ALLOWED_ACTIONS.includes(decision?.action) && decision.action !== 'SEND_TEXT')) return logNo(cid, 'AI chose not to send')
   if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale (new message arrived)')
   const g2 = canSendSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), { channel: 'ai', mode, force })
@@ -211,12 +213,12 @@ export async function previewMessage(clientId) {
   let kind, instruction
   if (!lastText) { kind = 'first text'; instruction = `This is a lead the team has NOT texted yet. Lead source: ${ctx.facts.lead_source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.` }
   else if (lastText.direction === 'incoming') { kind = 'reply'; instruction = null }
-  else { kind = 'follow-up'; instruction = `You've already been in touch and are getting to know this lead. Send ONE short, natural follow-up asking the single most useful thing you do NOT know yet (buyer: area, then price, then beds, then timeframe, then financing; seller: address, then timeframe, then motivation). One question, no re-intro, do not repeat prior messages.` }
+  else { kind = 'follow-up'; instruction = `You've already been in touch and are getting to know this lead. Send ONE short, natural follow-up asking the single most useful thing you do NOT know yet (buyer: area, then price, then property type (single-family or condo), then style (ranch, two-story, or something else), then beds, then timeframe, then financing; seller: address, then timeframe, then motivation). One question, no re-intro, do not repeat prior messages.` }
   const userContent = instruction ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` : buildUserMessage(ctx)
   let decision, usage = {}
   try { const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] }); usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '') }
   catch (e) { return { ok: false, reason: e.message } }
-  let message = noDash(String(decision?.message || '').trim()).slice(0, 640)
+  let message = noHey(noDash(String(decision?.message || '').trim())).slice(0, 640)
   if (message) message = withSiteIfFirst(cid, message)
   const elig = canSendSms(client, { channel: 'ai', mode: 'responsive', force: true })
   logAiAction({ client_id: cid, action_type: 'PREVIEW', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: 'preview ' + kind, output_text: message, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, status: 'success' })
@@ -230,7 +232,7 @@ export async function handleFollowup(clientId, { force = false } = {}) {
   const cid = Number(clientId)
   return runOutbound(cid, {
     actionType: 'FOLLOWUP', flagKey: 'ai_proactive_text_enabled', force, nextState: 'AI_CONVERSATION_ACTIVE',
-    instruction: `You've already been in touch with this person and are getting to know them. Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area or part of town they want, then price range, then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
+    instruction: `You've already been in touch with this person and are getting to know them. Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area/part of town, then price range, then property type (single-family home or condo), then home style (ranch, two-story, or something else), then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
   })
 }
 
