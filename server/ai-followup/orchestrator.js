@@ -199,6 +199,17 @@ export async function handleProactive(clientId, { force = false } = {}) {
   })
 }
 
+// Follow-up touch: we've already reached out; ask the next useful qualifying
+// question to learn what the lead wants (area, price, beds, timeframe, financing
+// for buyers; address, timeframe, motivation for sellers). One question, no re-intro.
+export async function handleFollowup(clientId, { force = false } = {}) {
+  const cid = Number(clientId)
+  return runOutbound(cid, {
+    actionType: 'FOLLOWUP', flagKey: 'ai_proactive_text_enabled', force, nextState: 'AI_CONVERSATION_ACTIVE',
+    instruction: `You've already been in touch with this person and are getting to know them. Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area or part of town they want, then price range, then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
+  })
+}
+
 // Nurture / re-engagement touch (scheduler-driven). attempt informs the tone.
 export async function handleNurture(clientId, { reengage = false, attempt = 1 } = {}) {
   const cid = Number(clientId)

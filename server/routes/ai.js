@@ -65,14 +65,18 @@ router.post('/lead/:id/send-now', async (req, res) => {
   try {
     const cid = Number(req.params.id)
     setManaged(cid, true)   // a manual "Send AI now" enrolls the lead
-    const hasInbound = db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' LIMIT 1", [cid])
     const m = await import('../ai-followup/orchestrator.js')
+    const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
     const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
-    let result = hasInbound && lastIn ? await m.handleInboundText(cid, lastIn.body, { force: true }) : await m.handleProactive(cid, { force: true })
-    // Manual click should reliably send: if a responsive reply produced nothing (e.g.
-    // the last inbound has nothing to answer), fall back to a proactive opener.
+    // Right message for where the conversation is: no texts yet → opener; they replied
+    // → answer + qualify; we texted with no reply → the next qualifying follow-up.
+    let result
+    if (!lastText) result = await m.handleProactive(cid, { force: true })
+    else if (lastText.direction === 'incoming' && lastIn) result = await m.handleInboundText(cid, lastIn.body, { force: true })
+    else result = await m.handleFollowup(cid, { force: true })
+    // Manual click should reliably send: if that path produced nothing, try a follow-up.
     if (result && result.ok && !result.sent && !/blocked|STOP|opt|quiet/i.test(result.reason || '')) {
-      const p = await m.handleProactive(cid, { force: true })
+      const p = await m.handleFollowup(cid, { force: true })
       if (p?.sent) result = p
     }
     res.json(result)

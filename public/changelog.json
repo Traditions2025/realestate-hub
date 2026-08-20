@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T20:23:49.862Z",
-  "count": 404,
+  "generated_at": "2026-08-20T20:47:44.403Z",
+  "count": 405,
   "entries": [
+    {
+      "hash": "a53ac28",
+      "date": "2026-08-20T15:23:52-05:00",
+      "subject": "AI: manual Send-AI-now falls back to a proactive opener if the reply path produced nothing (always sends on manual click unless compliance-blocked)",
+      "title": "AI: manual Send-AI-now falls back to a proactive opener if the reply path produced nothing (always sends on manual click unless compliance-blocked)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e8e24a4",
       "date": "2026-08-20T15:20:03-05:00",
