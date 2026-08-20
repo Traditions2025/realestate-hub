@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:21:13.351Z",
-  "count": 396,
+  "generated_at": "2026-08-20T19:24:24.352Z",
+  "count": 397,
   "entries": [
+    {
+      "hash": "e397984",
+      "date": "2026-08-20T14:21:27-05:00",
+      "subject": "HUB AI ISA Stage 2: responsive AI text engine + control API (flags OFF)",
+      "title": "HUB AI ISA Stage 2: responsive AI text engine + control API (flags OFF)",
+      "body": "- server/ai-followup/: prompts.js (versioned, modular: persona/Fair Housing/security/handoff/JSON contract), context.js (bounded decision context, no lifetime transcript), memory.js (structured merge, no blank overwrite), orchestrator.js (handleInboundText + handleProactive: HUB-gated compliance, race-condition guard, quiet hours, intent update, memory, handoff, full audit, fail-safe)\n- Wired: inbound text -> orchestrator (gated, non-blocking); manual /send tagged sent_by_type=human -> humanTakeover (AI backs off, cancels scheduled)\n- server/routes/ai.js: per-lead AI card + controls (enable/pause/resume/takeover/stop/prefs/send-now), Opportunities queue, settings (flags+config), diagnostics, analytics\n- Model authority strictly limited: server validates action set, never lets model set permissions; STOP blocks AI even with flags on\n- Tests: +9 (STOP blocks AI, do_not_text vs do_not_call independence, flag gating, state transitions, takeover cancels scheduled, intent bands, high-intent phrases, quiet-hours wrap, prompt guardrails). 20 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f6833ed",
       "date": "2026-08-20T14:13:11-05:00",

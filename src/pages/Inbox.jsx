@@ -441,7 +441,8 @@ export default function Inbox() {
                   return (
                     <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
-                        <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : m.contact_name} · {fmtDate(m.occurred_at)}
+                        <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : m.contact_name} · {fmtDate(m.occurred_at)}
+                        {m.sent_by_type === 'ai' && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 5px', borderRadius: 3, letterSpacing: '.03em' }}>AI</span>}
                         {m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
                       </div>
                       <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>

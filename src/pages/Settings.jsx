@@ -256,6 +256,8 @@ export default function Settings() {
 
           <CommsDiagnostics />
 
+          <AiFollowUpSettings />
+
           <VoiceRouting />
 
           {/* Business Registration (Twilio A2P) */}
@@ -304,6 +306,71 @@ export default function Settings() {
 }
 
 // --- Communications diagnostics + admin toggles (health check, signature, recording) ---
+// HUB AI ISA — feature flags, cadence config, and live diagnostics. Everything is
+// OFF until turned on here. The master switch gates all autonomous behavior.
+function AiFollowUpSettings() {
+  const [s, setS] = React.useState(undefined)
+  const [diag, setDiag] = React.useState(null)
+  const [saving, setSaving] = React.useState(false)
+  const load = () => {
+    authFetch('/api/ai/settings').then(r => r.json()).then(setS).catch(() => setS(null))
+    authFetch('/api/ai/diagnostics').then(r => r.json()).then(setDiag).catch(() => {})
+  }
+  React.useEffect(() => { load() }, [])
+  const saveFlag = async (k, v) => { setSaving(true); try { const r = await authFetch('/api/ai/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ flags: { [k]: v } }) }); const d = await r.json(); setS(x => ({ ...x, flags: d.flags })) } finally { setSaving(false); authFetch('/api/ai/diagnostics').then(r => r.json()).then(setDiag).catch(() => {}) } }
+  const saveCfg = async (k, v) => { const r = await authFetch('/api/ai/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: { [k]: v } }) }); const d = await r.json(); setS(x => ({ ...x, config: d.config })) }
+  if (s === undefined) return null
+  if (s === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>HUB AI Follow-Up</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  const f = s.flags || {}, cfg = s.config || {}
+  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const Toggle = ({ k, label, hint, disabled }) => (
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, opacity: disabled ? .5 : 1 }}>
+      <input type="checkbox" checked={!!f[k]} disabled={disabled || saving} onChange={e => saveFlag(k, e.target.checked)} />
+      {label} {hint && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{hint}</span>}
+    </label>
+  )
+  const masterOff = !f.ai_followup_enabled
+  return (
+    <section className="detail-section">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <h4 style={{ margin: 0 }}>🤖 HUB AI Follow-Up (AI ISA)</h4>
+        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: f.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{f.ai_followup_enabled ? '● Active' : '○ Off'}</span>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Autonomous SMS follow-up + qualification. Everything is off until you enable it. STOP always blocks AI, and a human reply always pauses it.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+        <Toggle k="ai_followup_enabled" label="Master switch" hint="(nothing autonomous runs without this)" />
+        <Toggle k="ai_responsive_text_enabled" label="Responsive text" hint="(reply to inbound texts from eligible leads)" disabled={masterOff} />
+        <Toggle k="ai_proactive_text_enabled" label="Proactive first-touch" hint="(text brand-new leads first)" disabled={masterOff} />
+        <Toggle k="ai_auto_handoff_enabled" label="Auto handoff on high intent" disabled={masterOff} />
+        <Toggle k="ai_nurture_enabled" label="Long-term nurture / re-engagement" disabled={masterOff} />
+        <Toggle k="ai_behavioral_enabled" label="Behavioral triggers (website/IDX)" disabled={masterOff} />
+        <Toggle k="ai_voice_enabled" label="AI voice" hint="(future — keep off)" disabled={masterOff} />
+      </div>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 14 }}>
+        <label style={{ fontSize: 12.5 }}>Handoff at intent ≥ <input type="number" min="1" max="100" defaultValue={cfg.ai_intent_handoff_threshold} onBlur={e => saveCfg('ai_intent_handoff_threshold', e.target.value)} style={{ ...inp, width: 70 }} /></label>
+        <label style={{ fontSize: 12.5 }}>Max AI texts/day <input type="number" min="1" max="20" defaultValue={cfg.ai_followup_max_per_day} onBlur={e => saveCfg('ai_followup_max_per_day', e.target.value)} style={{ ...inp, width: 60 }} /></label>
+        <label style={{ fontSize: 12.5 }}>New-lead delay (min) <input type="number" min="0" defaultValue={cfg.ai_new_lead_delay_minutes} onBlur={e => saveCfg('ai_new_lead_delay_minutes', e.target.value)} style={{ ...inp, width: 60 }} /></label>
+        <label style={{ fontSize: 12.5 }}>Quiet hours <input type="time" defaultValue={cfg.ai_quiet_hours_start} onBlur={e => saveCfg('ai_quiet_hours_start', e.target.value)} style={inp} /> to <input type="time" defaultValue={cfg.ai_quiet_hours_end} onBlur={e => saveCfg('ai_quiet_hours_end', e.target.value)} style={inp} /></label>
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>AI persona (how it introduces itself)</div>
+        <input defaultValue={cfg.ai_persona} onBlur={e => saveCfg('ai_persona', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
+      </div>
+      {diag && (
+        <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+          <span><strong>Diagnostics:</strong></span>
+          <span style={{ color: diag.anthropic_configured ? '#10b981' : '#ef4444' }}>{diag.anthropic_configured ? 'Anthropic ✓' : 'Anthropic not configured'}</span>
+          <span>model {diag.model}</span>
+          <span>{diag.ai_states_tracked} leads tracked</span>
+          <span>{diag.open_handoffs} open handoffs</span>
+          <span>{diag.ai_sends_24h} AI texts / 24h</span>
+          <span style={{ color: 'var(--text-muted)' }}>prompt {diag.prompt_version}</span>
+        </div>
+      )}
+    </section>
+  )
+}
+
 function VoiceRouting() {
   const [v, setV] = React.useState(undefined)
   const [saving, setSaving] = React.useState(false)
