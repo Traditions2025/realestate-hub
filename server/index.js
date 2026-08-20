@@ -37,6 +37,7 @@ import dripsRouter from './routes/drips.js'
 import campaignMatchRouter from './routes/campaign-match.js'
 import inboxRouter from './routes/inbox.js'
 import dialerRouter from './routes/dialer.js'
+import voicemailsRouter from './routes/voicemails.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 import followupRouter from './routes/followup.js'
 
@@ -321,6 +322,7 @@ async function start() {
   app.use('/api/campaign-match', campaignMatchRouter)
   app.use('/api/inbox', inboxRouter)
   app.use('/api/dialer', dialerRouter)
+  app.use('/api/voicemails', voicemailsRouter)
   app.use('/api/followup', followupRouter)
   app.use('/api/track', trackingRouter)
   app.use('/api/seed', seedRouter)
@@ -682,7 +684,23 @@ async function start() {
     upsertCall('call', 'outgoing', to, { sid: req.body?.CallSid, delivery_status: 'initiated' })
     const rec = (db.getSetting && db.getSetting('twilio_record_calls', '0')) === '1'
     const recAttr = rec ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
-    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"${recAttr}><Number>${escXml(to)}</Number></Dial>`)
+    // statusCallback on the callee leg lets us capture its CallSid for voicemail drop.
+    const cb = ` statusCallbackEvent="initiated ringing answered completed" statusCallback="${HUB_BASE}/api/voice/child-status" statusCallbackMethod="POST"`
+    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"${recAttr}><Number${cb}>${escXml(to)}</Number></Dial>`)
+  })
+  // Callee-leg status → remember its CallSid keyed by the parent (browser) call,
+  // so a voicemail drop can redirect that leg to play a recording.
+  app.post('/api/voice/child-status', twGuard, async (req, res) => {
+    try {
+      const b = req.body || {}
+      const child = b.CallSid, parent = b.ParentCallSid, status = String(b.CallStatus || '').toLowerCase()
+      if (child && parent) {
+        const { vmDropChildMap } = await import('./voice-state.js')
+        if (['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(status)) vmDropChildMap.delete(parent)
+        else vmDropChildMap.set(parent, { childSid: child, at: Date.now() })
+      }
+    } catch {}
+    res.sendStatus(204)
   })
   // TwiML: inbound call → ring the browser client during business hours; outside
   // hours go straight to an after-hours greeting + voicemail.

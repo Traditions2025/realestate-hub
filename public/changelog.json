@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T18:36:01.622Z",
-  "count": 393,
+  "generated_at": "2026-08-20T18:52:38.651Z",
+  "count": 394,
   "entries": [
+    {
+      "hash": "5499186",
+      "date": "2026-08-20T13:36:11-05:00",
+      "subject": "Dialer inside Clients + custom voicemail greeting + power-dialer reporting",
+      "title": "Dialer inside Clients + custom voicemail greeting + power-dialer reporting",
+      "body": "- Removed the separate Power Dialer nav tab; it's launched from Clients bulk action 'Call Leads (Power Dialer)' (route kept, hidden)\n- Custom voicemail greeting: upload your own MP3/WAV (POST/GET/DELETE /api/inbox/voicemail-greeting); voicemail TwiML plays it via <Play> instead of the robot voice. Settings 'Voicemail greeting' block with audio preview + replace/remove\n- Power Dialer call-list reporting: dialer_log table, /outcome logs each outcome, GET /api/reporting/dialer, and a 'Power Dialer — call list' section on the Reporting Calls tab (calls logged / connected / appointments / do-not-call + recent call table)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e8c576c",
       "date": "2026-08-20T13:22:38-05:00",

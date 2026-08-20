@@ -620,6 +620,29 @@ router.post('/scheduled/:id/cancel', (req, res) => {
   res.json({ success: true })
 })
 
+// ---- VOICEMAIL DROP: during a live outbound call that reached the callee's
+// voicemail, redirect the callee leg to play a saved recording, then hang up. ----
+router.post('/drop-voicemail', async (req, res) => {
+  const { parent_sid, voicemail_id, url } = req.body || {}
+  let audioUrl = url
+  if (!audioUrl && voicemail_id) { const v = db.get('SELECT url FROM voicemails WHERE id=?', [Number(voicemail_id)]); audioUrl = v?.url }
+  if (!audioUrl) return res.status(400).json({ error: 'Pick a voicemail to drop.' })
+  const { vmDropChildMap } = await import('../voice-state.js')
+  let childSid = parent_sid ? vmDropChildMap.get(parent_sid)?.childSid : null
+  if (!childSid) { // fallback: the most recent active callee leg (single softphone)
+    let latest = null
+    for (const [, val] of vmDropChildMap) if (!latest || val.at > latest.at) latest = val
+    childSid = latest?.childSid
+  }
+  if (!childSid) return res.status(409).json({ error: 'No active call to drop into. Drop once the call is connected to their voicemail.' })
+  try {
+    const { updateCallTwiml } = await import('../twilio.js')
+    await updateCallTwiml(childSid, `<Response><Play>${escHtml(audioUrl)}</Play><Hangup/></Response>`)
+    if (parent_sid) db.run("UPDATE communications SET disposition='Left voicemail' WHERE external_id=?", ['twiliocall_' + parent_sid])
+    res.json({ success: true })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ---- contact search for the composer (name / email / phone) ----
 router.get('/contacts', (req, res) => {
   const q = (req.query.q || '').trim()

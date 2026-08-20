@@ -28,6 +28,51 @@ function looksLikeHtml(s) {
   return /<\/?(p|div|br|a|h[1-6]|ul|ol|li|strong|em|b|i|table|tr|td|img|span|hr|blockquote|pre|code|style|center|html|head|body|!DOCTYPE)\b/i.test(s)
 }
 
+// Voicemail recordings — upload MP3/WAV clips (record on your phone/computer),
+// used for live-call voicemail drops and as the voicemail greeting.
+function VoicemailManager() {
+  const [list, setList] = useState([])
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const fileRef = useRef(null)
+  const load = () => authFetch('/api/voicemails').then(r => r.json()).then(d => setList(Array.isArray(d) ? d : [])).catch(() => {})
+  useEffect(() => { load() }, [])
+  const upload = async (file) => {
+    if (!file) return
+    setBusy(true)
+    try {
+      const fd = new FormData(); fd.append('name', name.trim() || 'Voicemail'); fd.append('file', file)
+      const r = await authFetch('/api/voicemails', { method: 'POST', body: fd }); const d = await r.json()
+      if (d.success) { setName(''); load() } else alert(d.error || 'Upload failed')
+    } catch (e) { alert(e.message) } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+  }
+  const del = async (id) => { if (!confirm('Delete this voicemail recording?')) return; await authFetch('/api/voicemails/' + id, { method: 'DELETE' }).catch(() => {}); load() }
+  return (
+    <section className="detail-section" style={{ marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <h3 style={{ margin: 0 }}>🎙 Voicemail Recordings</h3>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Upload MP3/WAV clips (record on your phone or computer). Use them for one-click voicemail drops during a call.</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Buyer follow-up drop)" style={{ padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, minWidth: 260 }} />
+        <input ref={fileRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => upload(e.target.files?.[0])} />
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { if (!name.trim()) { alert('Give the voicemail a name first.'); return } fileRef.current?.click() }}>{busy ? 'Uploading…' : '＋ Upload MP3/WAV'}</button>
+      </div>
+      {list.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No voicemails yet. Record one on your phone or computer and upload it here.</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {list.map(v => (
+            <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+              <span style={{ fontWeight: 600, minWidth: 160 }}>{v.name}</span>
+              <audio controls src={v.url} style={{ height: 34, flex: 1, minWidth: 200 }} />
+              <button className="btn btn-sm" onClick={() => del(v.id)}>Delete</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 export default function Templates() {
   const [items, setItems] = useState([])
   const [typeFilter, setTypeFilter] = useState('')
@@ -163,6 +208,8 @@ export default function Templates() {
           <button className="btn btn-primary" onClick={() => openNew('email')}>+ New Email</button>
         </div>
       </div>
+
+      <VoicemailManager />
 
       {/* Type tabs */}
       <div className="type-tabs">

@@ -18,6 +18,10 @@ export default function CallWidget() {
   const [reg, setReg] = useState('connecting')   // connecting | ready | error
   const [regErr, setRegErr] = useState('')
   const [keypad, setKeypad] = useState(false)
+  const [vms, setVms] = useState([])
+  const [vmMenu, setVmMenu] = useState(false)
+  const [dropping, setDropping] = useState(false)
+  const parentSidRef = useRef('')
 
   const fmt = (n) => { const d = String(n || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (n || '') }
   const startTimer = () => { setSeconds(0); clearInterval(timerRef.current); timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000) }
@@ -32,14 +36,15 @@ export default function CallWidget() {
   const connectedRef = useRef(false)
   const wireCall = (call) => {
     callRef.current = call
-    call.on('accept', () => { setStatus('active'); startTimer(); connectedRef.current = true; try { window.dispatchEvent(new CustomEvent('hubcall:started')) } catch {} })
+    try { parentSidRef.current = call.parameters?.CallSid || '' } catch {}
+    call.on('accept', () => { setStatus('active'); startTimer(); connectedRef.current = true; try { parentSidRef.current = call.parameters?.CallSid || parentSidRef.current } catch {}; try { window.dispatchEvent(new CustomEvent('hubcall:started')) } catch {} })
     call.on('disconnect', () => endLocal())
     call.on('cancel', () => endLocal())
     call.on('reject', () => endLocal())
     call.on('error', (e) => { setErr(e?.message || 'Call error'); endLocal() })
   }
   const endLocal = () => {
-    stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setPeer({ number: '', name: '' }); callRef.current = null
+    stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setVmMenu(false); setPeer({ number: '', name: '' }); callRef.current = null; parentSidRef.current = ''
     // Let the Power Dialer (or any listener) know a call finished + whether it connected.
     try { window.dispatchEvent(new CustomEvent('hubcall:ended', { detail: { connected: connectedRef.current } })) } catch {}
     connectedRef.current = false
@@ -102,6 +107,17 @@ export default function CallWidget() {
     try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); setRegErr('') }
     catch { setRegErr('Microphone is still blocked. Allow it in your browser site settings, then reload.') }
   }
+  useEffect(() => { authFetch('/api/voicemails').then(r => r.json()).then(a => setVms(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const dropVoicemail = async (vmId) => {
+    setDropping(true)
+    try {
+      const r = await authFetch('/api/inbox/drop-voicemail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_sid: parentSidRef.current, voicemail_id: vmId }) })
+      const d = await r.json()
+      if (!d.success) { alert(d.error || 'Could not drop voicemail'); return }
+      setVmMenu(false)
+      try { callRef.current?.disconnect() } catch {}   // the callee leg now plays the recording; drop our leg
+    } catch (e) { alert(e.message) } finally { setDropping(false) }
+  }
   const accept = () => { try { callRef.current?.accept() } catch {} }
   const reject = () => { try { callRef.current?.reject() } catch {}; endLocal() }
   const hangup = () => { try { callRef.current?.disconnect() } catch {}; endLocal() }
@@ -139,6 +155,22 @@ export default function CallWidget() {
           </>
         )}
       </div>
+      {status === 'active' && vms.length > 0 && (
+        <div style={{ marginTop: 10, position: 'relative' }}>
+          <button onClick={() => setVmMenu(m => !m)} disabled={dropping}
+            style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, #e5e7eb)', background: 'var(--bg-secondary, #f8fafc)', color: 'var(--text-primary, #111)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+            {dropping ? 'Dropping voicemail…' : '🎙 Drop voicemail ▾'}
+          </button>
+          {vmMenu && (
+            <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 6, background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.28)', maxHeight: 200, overflowY: 'auto', zIndex: 5 }}>
+              {vms.map(v => (
+                <button key={v.id} onClick={() => dropVoicemail(v.id)} title="Play this recording into their voicemail, then hang up"
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderBottom: '1px solid var(--border, #eee)', background: 'none', color: 'var(--text-primary, #111)', cursor: 'pointer', fontSize: 13 }}>{v.name}</button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
       {status === 'active' && (
         <div style={{ marginTop: 10 }}>
           <button onClick={() => setKeypad(k => !k)} style={{ border: 'none', background: 'none', color: 'var(--text-muted, #6b7280)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>{keypad ? '▾ Hide keypad' : '▸ Keypad'}</button>

@@ -803,6 +803,16 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_dialer_when ON dialer_log(occurred_at)') } catch {}
+  // Saved voicemail recordings (managed on the Templates tab) — reusable for
+  // live-call voicemail drops and as the voicemail greeting.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS voicemails (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      url TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`

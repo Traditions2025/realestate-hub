@@ -78,6 +78,24 @@ export async function sendSms(toPhone, body, opts = {}) {
   return { sid: data.sid, status: data.status, to }
 }
 
+// Modify a call in progress (used for voicemail drop): replace the leg's TwiML
+// so it plays an audio file and hangs up. callSid = the callee (child) leg.
+export async function updateCallTwiml(callSid, twiml) {
+  const c = twilioConfig()
+  if (!c.sid || !c.token) throw new Error('Twilio is not connected.')
+  const url = `https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Calls/${callSid}.json`
+  const params = new URLSearchParams()
+  params.set('Twiml', twiml)
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: { 'Authorization': 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok) throw new Error(data.message || `Twilio error ${resp.status}`)
+  return data
+}
+
 // Point a Twilio phone number's inbound SMS webhook (and delivery status callback)
 // at the Hub, so incoming texts land in the Hub inbox. Repoints away from whatever
 // it was wired to before (e.g. GoHighLevel/LeadConnector). Returns before/after so
