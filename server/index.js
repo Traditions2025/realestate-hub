@@ -521,14 +521,24 @@ async function start() {
       last_invalid_at: db.getSetting('twilio_sig_last_invalid_at', null),
       last_invalid_path: db.getSetting('twilio_sig_last_invalid_path', null),
       ready_to_enforce: valid > 0 && invalid === 0,
+      record_calls: db.getSetting('twilio_record_calls', '0') === '1',
+      missed_call_textback_enabled: db.getSetting('missed_call_textback_enabled', '1') === '1',
+      missed_call_textback_message: db.getSetting('missed_call_textback_message', 'Sorry we missed your call! This is the Matt Smith Team. How can we help? You can reply right here.'),
     })
   })
-  // Admin toggles: webhook signature enforcement + call recording (both opt-in).
+  // Admin toggles: webhook signature enforcement, call recording, missed-call text-back.
   app.post('/api/settings/twilio/mode', (req, res) => {
     const b = req.body || {}
     if (b.signature_mode && ['enforce', 'monitor', 'off'].includes(b.signature_mode)) db.setSetting('twilio_signature_mode', b.signature_mode)
     if (b.record_calls !== undefined) db.setSetting('twilio_record_calls', b.record_calls ? '1' : '0')
-    res.json({ success: true, signature_mode: db.getSetting('twilio_signature_mode', 'monitor'), record_calls: db.getSetting('twilio_record_calls', '0') })
+    if (b.missed_call_textback !== undefined) db.setSetting('missed_call_textback_enabled', b.missed_call_textback ? '1' : '0')
+    if (typeof b.missed_call_message === 'string' && b.missed_call_message.trim()) db.setSetting('missed_call_textback_message', b.missed_call_message.trim().slice(0, 320))
+    res.json({
+      success: true,
+      signature_mode: db.getSetting('twilio_signature_mode', 'monitor'),
+      record_calls: db.getSetting('twilio_record_calls', '0'),
+      missed_call_textback_enabled: db.getSetting('missed_call_textback_enabled', '1'),
+    })
   })
   // A2P 10DLC status for a number (brand + campaign + messaging-service membership).
   app.get('/api/settings/twilio/a2p', async (req, res) => {
@@ -542,7 +552,11 @@ async function start() {
   const HUB_BASE = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
   const xml = (res, body) => res.type('text/xml').send(`<?xml version="1.0" encoding="UTF-8"?><Response>${body}</Response>`)
   const escXml = (s) => String(s == null ? '' : s).replace(/[<>&'"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', "'": '&apos;', '"': '&quot;' }[c]))
-  // Best-effort match an inbound/outbound phone to a client + log the call.
+  const fmtPhoneUS = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
+  const isDncStatus = (s) => ['junk', 'donotcontact'].includes(String(s || '').toLowerCase())
+  // Best-effort match an inbound/outbound phone to a client + log the call. Unknown
+  // numbers are still logged (client_id NULL, thread_key u_<phone10>) so the Unknown
+  // queue catches inbound calls from people not yet in the CRM.
   // Insert-or-update a call / voicemail communication row, keyed by Twilio SID.
   const upsertCall = (channel, direction, phone, f = {}) => {
     try {
@@ -563,14 +577,41 @@ async function start() {
         db.run(`UPDATE communications SET ${sets.join(', ')} WHERE id=?`, vals)
         return match ? match.id : null
       }
-      if (!match) return null
+      const cid = match ? match.id : null
+      const cname = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : fmtPhoneUS(phone)
+      const tkey = match ? `c${match.id}_call` : `u_${last10}`
       db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, external_id, thread_key, status, delivery_status, duration_sec, recording_url, recording_sid, transcript, disposition, occurred_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [channel, direction, match.id, `${match.first_name || ''} ${match.last_name || ''}`.trim(), direction === 'incoming' ? phone : '', direction === 'outgoing' ? phone : '',
-          null, preview, ext, `c${match.id}_call`, direction === 'incoming' ? 'unread' : 'read',
+        [channel, direction, cid, cname, direction === 'incoming' ? phone : '', direction === 'outgoing' ? phone : '',
+          null, preview, ext, tkey, direction === 'incoming' ? 'unread' : 'read',
           f.delivery_status || null, f.duration_sec || null, f.recording_url || null, f.recording_sid || null, f.transcript || null, f.disposition || null, new Date().toISOString()])
-      return match ? match.id : null
+      return cid
     } catch { return null }
+  }
+  // Auto text-back when an inbound call is missed. Off/on via missed_call_textback_enabled
+  // (default on). Deduped per call (external_id missedcb_<sid>). Uses the SAME texting
+  // permission model as every other outbound text: a known contact who replied STOP
+  // (hub_text_opt_out) or is Do Not Contact/Junk is skipped; unknown callers are allowed
+  // (they just called us). Fires only for numbers we can text back.
+  const missedCallTextBack = async (from, callSid) => {
+    try {
+      if (db.getSetting('missed_call_textback_enabled', '1') !== '1') return
+      const last10 = String(from || '').replace(/\D/g, '').slice(-10)
+      if (last10.length < 10) return
+      const ext = 'missedcb_' + (callSid || last10)
+      if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) return
+      const match = db.all('SELECT id, first_name, last_name, phone, status, hub_text_opt_out FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-7)])
+        .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
+      if (match && (match.hub_text_opt_out || isDncStatus(match.status))) return
+      const msg = db.getSetting('missed_call_textback_message', 'Sorry we missed your call! This is the Matt Smith Team. How can we help? You can reply right here.')
+      const { sendSms } = await import('./twilio.js')
+      const r = await sendSms(from, msg, { statusCallback: HUB_BASE + '/api/inbox/twilio-status' })
+      const name = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : fmtPhoneUS(from)
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['text', 'outgoing', match ? match.id : null, name, '', from, msg.slice(0, 160), msg, ext, match ? `c${match.id}_text` : `u_${last10}`, 'read', r.status || 'queued', 'auto:missed-call', new Date().toISOString()])
+      console.log('[missed-call textback] sent to', last10)
+    } catch (e) { console.error('[missed-call textback]', e.message) }
   }
   // Twilio signature guard (dynamic import; module is cached after first load).
   const twGuard = (req, res, next) => import('./twilio-webhook.js').then(m => m.twilioWebhookGuard(req, res, next)).catch(() => next())
@@ -611,6 +652,7 @@ async function start() {
       return xml(res, `<Hangup/>`)
     }
     upsertCall('call', 'incoming', from, { sid: b.CallSid, delivery_status: 'missed', disposition: 'Missed call' })
+    missedCallTextBack(from, b.CallSid)   // fire-and-forget auto text-back
     xml(res, `<Say voice="alice">Sorry we missed you. Please leave a message after the tone.</Say><Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`)
   })
   // Voicemail recording finished (Record `action`) → store it on the timeline.

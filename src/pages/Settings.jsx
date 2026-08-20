@@ -305,12 +305,22 @@ export default function Settings() {
 function CommsDiagnostics() {
   const [health, setHealth] = React.useState(undefined)
   const [busy, setBusy] = React.useState(false)
-  const [enforce, setEnforce] = React.useState(null)
-  const [record, setRecord] = React.useState(null)
+  const [sig, setSig] = React.useState(null)          // signature telemetry + prefs
+  const [enforce, setEnforce] = React.useState(false)
+  const [record, setRecord] = React.useState(false)
+  const [mcb, setMcb] = React.useState(false)         // missed-call text-back on/off
+  const [mcbMsg, setMcbMsg] = React.useState('')
   const run = async () => {
     setBusy(true)
-    try { const h = await authFetch('/api/settings/twilio/health').then(r => r.json()); setHealth(h); const sig = (h.checks || []).find(c => /signature/i.test(c.name)); setEnforce(sig ? /enforce/i.test(sig.detail) : false); setRecord((h.checks || []).some(c => /recording/i.test(c.name) && c.status === 'ok')) }
-    catch { setHealth(null) } finally { setBusy(false) }
+    try {
+      const [h, s] = await Promise.all([
+        authFetch('/api/settings/twilio/health').then(r => r.json()),
+        authFetch('/api/settings/twilio/signature').then(r => r.json()),
+      ])
+      setHealth(h); setSig(s)
+      setEnforce(s.mode === 'enforce'); setRecord(!!s.record_calls)
+      setMcb(!!s.missed_call_textback_enabled); setMcbMsg(s.missed_call_textback_message || '')
+    } catch { setHealth(null) } finally { setBusy(false) }
   }
   React.useEffect(() => { run() }, [])
   const saveMode = async (patch) => { await authFetch('/api/settings/twilio/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); run() }
@@ -335,15 +345,39 @@ function CommsDiagnostics() {
               </div>
             ))}
           </div>}
-      <div style={{ display: 'flex', gap: 20, marginTop: 14, flexWrap: 'wrap' }}>
+
+      {sig && (
+        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5 }}>
+          <strong>Webhook signatures:</strong> {sig.valid} valid, {sig.invalid} invalid ·{' '}
+          {sig.mode === 'enforce'
+            ? <span style={{ color: '#10b981', fontWeight: 700 }}>Enforcing ✓</span>
+            : sig.ready_to_enforce
+              ? <span style={{ color: '#10b981' }}>Ready to enforce</span>
+              : <span style={{ color: 'var(--text-muted)' }}>Monitoring (need a valid webhook first)</span>}
+          {sig.last_invalid_at && <span style={{ color: '#ef4444' }}> · last invalid {new Date(sig.last_invalid_at).toLocaleString()} ({sig.last_invalid_path})</span>}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <input type="checkbox" checked={!!enforce} onChange={e => { setEnforce(e.target.checked); saveMode({ signature_mode: e.target.checked ? 'enforce' : 'monitor' }) }} />
-          Enforce webhook signatures <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(reject forged Twilio requests — turn on once monitored)</span>
+          <input type="checkbox" checked={enforce} onChange={e => { setEnforce(e.target.checked); saveMode({ signature_mode: e.target.checked ? 'enforce' : 'monitor' }) }} />
+          Enforce webhook signatures <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(reject forged Twilio requests)</span>
         </label>
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-          <input type="checkbox" checked={!!record} onChange={e => { setRecord(e.target.checked); saveMode({ record_calls: e.target.checked }) }} />
+          <input type="checkbox" checked={record} onChange={e => { setRecord(e.target.checked); saveMode({ record_calls: e.target.checked }) }} />
           Record calls <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(check local consent rules first)</span>
         </label>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+          <input type="checkbox" checked={mcb} onChange={e => { setMcb(e.target.checked); saveMode({ missed_call_textback: e.target.checked }) }} />
+          Auto text-back on missed calls <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(texts the caller when nobody answers)</span>
+        </label>
+        {mcb && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingLeft: 24 }}>
+            <textarea value={mcbMsg} onChange={e => setMcbMsg(e.target.value)} rows={2} maxLength={320}
+              style={{ flex: 1, maxWidth: 460, padding: '6px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', resize: 'vertical' }} />
+            <button className="btn btn-sm btn-secondary" disabled={!mcbMsg.trim()} onClick={() => saveMode({ missed_call_message: mcbMsg })}>Save message</button>
+          </div>
+        )}
       </div>
     </section>
   )

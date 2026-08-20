@@ -69,6 +69,32 @@ function matchClient(channel, fromAddr) {
 }
 
 const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+const fmtPhone = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
+const unknownKey = (phone) => { const k = phoneKey(phone); return k ? 'u_' + k : null }
+
+// Re-point every unknown (client_id NULL) communication in a thread onto a real
+// client, so the conversation becomes a normal lead thread going forward.
+function relinkUnknownThread(key, clientId, name) {
+  if (!key) return 0
+  const rows = db.all('SELECT id, channel FROM communications WHERE thread_key = ? AND client_id IS NULL', [key])
+  for (const row of rows) db.run('UPDATE communications SET client_id=?, contact_name=?, thread_key=? WHERE id=?', [clientId, name, `c${clientId}_${row.channel}`, row.id])
+  return rows.length
+}
+
+// Email John when an UNKNOWN number (not yet a client) texts the Hub, so an
+// inbound lead is never missed. Uses the same notify inbox as matched texts.
+async function notifyUnknownInbound(fromPhone, body) {
+  try {
+    const to = db.getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
+    if (!to) return
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
+      <p style="margin:0 0 10px;">A <strong>new number</strong> just texted the Hub (not in the CRM yet).</p>
+      <p style="margin:0 0 4px;"><strong>From:</strong> ${escHtml(fmtPhone(fromPhone))}</p>
+      <p style="margin:8px 0;background:#f1f5f9;padding:10px 12px;border-radius:8px;">${escHtml(body).slice(0, 600)}</p>
+      <p style="margin:6px 0 0;color:#64748b;font-size:12px;">Open the Hub Inbox to reply and add them as a lead.</p></div>`
+    await sendViaSendGrid(to, 'Matt Smith Team', 'New text from an unknown number', html, null, [], [], [], 'inbox_notify')
+  } catch {}
+}
 
 // Email John (or whoever inbox_notify_email is) when a client texts the Hub.
 async function notifyInboundText(client, body, fromPhone) {
@@ -108,11 +134,13 @@ router.get('/', (req, res) => {
   // group by client into conversation threads
   const threads = new Map()
   for (const r of rows) {
-    const key = r.client_id || `x_${r.from_addr}`
+    const key = r.client_id || r.thread_key || `x_${r.from_addr}`
     if (!threads.has(key)) {
       threads.set(key, {
         client_id: r.client_id, contact_name: r.contact_name || 'Unknown',
         last: r, msg_count: 0, unread_count: 0, channels: new Set(),
+        unknown: !r.client_id, thread_key: r.thread_key || null,
+        phone: r.client_id ? null : (r.from_addr || r.to_addr || ''),
       })
     }
     const t = threads.get(key)
@@ -133,6 +161,48 @@ router.get('/', (req, res) => {
 router.get('/thread/:clientId', (req, res) => {
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [Number(req.params.clientId)])
   res.json(rows)
+})
+
+// ---- UNKNOWN queue: an inbound text/call from a number not in the CRM. The
+// conversation lives under a thread_key (u_<phone10>) with client_id NULL until
+// an agent creates or links a lead, at which point it becomes a normal thread. ----
+router.get('/unknown-thread', (req, res) => {
+  const key = String(req.query.key || '')
+  if (!key) return res.json([])
+  res.json(db.all('SELECT * FROM communications WHERE thread_key = ? AND client_id IS NULL ORDER BY occurred_at ASC LIMIT 500', [key]))
+})
+router.post('/unknown-thread/read', (req, res) => {
+  const key = String(req.body?.key || '')
+  if (key) db.run("UPDATE communications SET status='read' WHERE thread_key=? AND client_id IS NULL AND status='unread'", [key])
+  res.json({ success: true })
+})
+// Create a brand-new lead from an unknown conversation and re-point the thread onto it.
+router.post('/unknown/create-lead', (req, res) => {
+  const { key, phone, first_name, last_name } = req.body || {}
+  const k = String(key || '')
+  const last10 = phoneKey(phone) || k.replace(/^u_/, '')
+  if (!/^\d{10}$/.test(last10)) return res.status(400).json({ error: 'no valid phone' })
+  const already = db.all("SELECT id, first_name, last_name, phone FROM clients WHERE phone IS NOT NULL AND phone != ''").find(c => phoneKey(c.phone) === last10)
+  const fn = String(first_name || '').trim() || 'Inbound'
+  const ln = String(last_name || '').trim() || 'Lead'
+  let cid
+  if (already) { cid = already.id }
+  else {
+    const r = db.run("INSERT INTO clients (first_name, last_name, phone, type, status, source, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)",
+      [fn, ln, phone || last10, 'buyer', 'active', 'Inbound Text (Hub)', nowIso(), nowIso()])
+    cid = r.lastInsertRowid
+  }
+  const name = already ? `${already.first_name || ''} ${already.last_name || ''}`.trim() : `${fn} ${ln}`.trim()
+  const n = relinkUnknownThread(k, cid, name || fmtPhone(last10))
+  res.json({ success: true, client_id: cid, linked_messages: n, existing: !!already })
+})
+// Link an unknown conversation to an existing client.
+router.post('/unknown/link', (req, res) => {
+  const { key, client_id } = req.body || {}
+  const c = db.get('SELECT id, first_name, last_name FROM clients WHERE id=?', [Number(client_id)])
+  if (!c) return res.status(404).json({ error: 'client not found' })
+  const n = relinkUnknownThread(String(key || ''), c.id, `${c.first_name || ''} ${c.last_name || ''}`.trim())
+  res.json({ success: true, client_id: c.id, linked_messages: n })
 })
 
 // ---- secure recording/voicemail media proxy (streams Twilio media w/ account auth) ----
@@ -297,17 +367,20 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     const { optKeyword } = await import('../twilio.js')
     const kw = optKeyword(body)
     if (kw && client) db.run('UPDATE clients SET hub_text_opt_out = ?, updated_at = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, new Date().toISOString(), client.id])
-    if (client) {
-      const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)
-      const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
-      if (!dup) {
-        const preview = (String(body).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} attachment${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
-        const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'incoming', client.id, name, from, to, null, preview, body, externalId, `c${client.id}_text`, 'unread', media.length ? 1 : 0, media.length ? JSON.stringify(media) : null, 'received', nowIso()])
-        notifyInboundText(client, body || (media.length ? '[media]' : ''), from).catch(() => {})
-      }
+    // Store the message whether or not the sender is a known client. Unknown
+    // senders land in the Unknown queue (client_id NULL) so no inbound lead is lost.
+    const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)
+    const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
+    if (!dup) {
+      const preview = (String(body).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} attachment${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
+      const name = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : fmtPhone(from)
+      const cid = client ? client.id : null
+      const tkey = client ? `c${client.id}_text` : (unknownKey(from) || `u_${from}`)
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['text', 'incoming', cid, name, from, to, null, preview, body, externalId, tkey, 'unread', media.length ? 1 : 0, media.length ? JSON.stringify(media) : null, 'received', nowIso()])
+      if (client) notifyInboundText(client, body || (media.length ? '[media]' : ''), from).catch(() => {})
+      else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }
   // Always 200 with empty TwiML so Twilio doesn't retry or auto-reply.

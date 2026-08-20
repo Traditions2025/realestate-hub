@@ -103,6 +103,7 @@ export default function Inbox() {
   const [totalUnread, setTotalUnread] = useState(0)
   const [counts, setCounts] = useState({ by_channel: {} })
   const [sel, setSel] = useState(null)
+  const [unknownSel, setUnknownSel] = useState(null)   // { key, phone, name } for an Unknown-queue conversation
   const [thread, setThread] = useState([])
   const [compose, setCompose] = useState(false)
   // AI suggested reply + editable draft
@@ -134,8 +135,14 @@ export default function Inbox() {
     return () => clearInterval(t)
   }, [load, sel])
 
+  const openConvo = (c) => { if (c.unknown) openUnknown(c); else openThread(c.client_id) }
+  const openUnknown = (c) => {
+    setSel(null); setUnknownSel({ key: c.thread_key, phone: c.phone, name: c.contact_name })
+    authFetch('/api/inbox/unknown-thread/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: c.thread_key }) }).then(() => load()).catch(() => {})
+  }
   const openThread = (clientId) => {
     if (!clientId) return
+    setUnknownSel(null)
     setSel(clientId)
     setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(false); setOpenMsgs({}); setReplyMedia([])
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
@@ -293,15 +300,17 @@ export default function Inbox() {
                 </div>
               ) : convos.map(c => {
                 const m = chMeta(c.last?.channel)
+                const isSelected = c.unknown ? unknownSel?.key === c.thread_key : sel === c.client_id
                 return (
-                  <div key={c.client_id || c.last?.id} onClick={() => openThread(c.client_id)}
-                    style={{ display: 'flex', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: sel === c.client_id ? 'var(--bg-secondary)' : 'transparent' }}>
+                  <div key={c.client_id || c.thread_key || c.last?.id} onClick={() => openConvo(c)}
+                    style={{ display: 'flex', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: isSelected ? 'var(--bg-secondary)' : 'transparent' }}>
                     <div style={{ width: 8, display: 'flex', alignItems: 'flex-start', paddingTop: 5 }}>
                       {c.unread_count > 0 && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#2563eb', display: 'inline-block' }} />}
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: c.unread_count ? 700 : 600, fontSize: 14 }}>{c.contact_name}</span>
+                        {c.unknown && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>}
                         {c.msg_count > 1 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
                         {c.ai_intent && c.ai_intent !== 'No Response Needed' && <span style={intentBadgeStyle(c.ai_intent)}>{c.ai_intent}</span>}
                         <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
@@ -321,7 +330,10 @@ export default function Inbox() {
 
         {/* right: reading pane */}
         <div className="inbox-reading" style={{ flex: 1, minWidth: 0, overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {!sel ? (
+          {unknownSel ? (
+            <UnknownPane sel={unknownSel} onClose={() => setUnknownSel(null)}
+              onLinked={(cid) => { setUnknownSel(null); load(); if (cid) openThread(cid) }} />
+          ) : !sel ? (
             <div style={{ margin: 'auto', textAlign: 'center', color: 'var(--text-muted)', padding: 30 }}>
               <div style={{ fontSize: 34 }}>💬</div>
               <div style={{ marginTop: 8 }}>Select a conversation to read it.</div>
@@ -559,6 +571,114 @@ function Composer({ onClose, onSent }) {
         </div>
       </div>
     </Modal>
+  )
+}
+
+const fmtPhoneDisp = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || 'Unknown') }
+
+// Reading pane for an UNKNOWN-queue conversation (inbound text/call from a number
+// not yet in the CRM). Shows the messages and a Create-lead / Link-to-existing bar.
+// Replying is unlocked once the conversation is turned into a real lead.
+function UnknownPane({ sel, onClose, onLinked }) {
+  const [rows, setRows] = React.useState([])
+  const [mode, setMode] = React.useState(null)   // null | 'create' | 'link'
+  const [fn, setFn] = React.useState(''); const [ln, setLn] = React.useState('')
+  const [q, setQ] = React.useState(''); const [results, setResults] = React.useState([])
+  const [busy, setBusy] = React.useState(false)
+  const load = React.useCallback(() => { authFetch('/api/inbox/unknown-thread?key=' + encodeURIComponent(sel.key)).then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => {}) }, [sel.key])
+  React.useEffect(() => { load() }, [load])
+  React.useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [load])
+  React.useEffect(() => {
+    if (q.trim().length < 2) { setResults([]); return }
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
+    return () => clearTimeout(t)
+  }, [q])
+  const createLead = async () => {
+    setBusy(true)
+    try { const r = await authFetch('/api/inbox/unknown/create-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, phone: sel.phone, first_name: fn, last_name: ln }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else alert(d.error || 'Could not create lead') }
+    catch (e) { alert(e.message) } finally { setBusy(false) }
+  }
+  const linkTo = async (cid) => {
+    setBusy(true)
+    try { const r = await authFetch('/api/inbox/unknown/link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, client_id: cid }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else alert(d.error || 'Could not link') }
+    catch (e) { alert(e.message) } finally { setBusy(false) }
+  }
+  const inp = { padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }
+  return (
+    <>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontWeight: 700 }}>{fmtPhoneDisp(sel.phone)}</div>
+        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>
+        <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={onClose}>Close</button>
+      </div>
+      <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {rows.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : rows.map(m => {
+          const meta = chMeta(m.channel)
+          const out = m.direction === 'outgoing'
+          const isCall = m.channel === 'call', isVoicemail = m.channel === 'voicemail'
+          const missed = isCall && String(m.delivery_status || '').toLowerCase() === 'missed'
+          const mediaList = (() => { try { return JSON.parse(m.media_url || '[]') } catch { return [] } })()
+          const textBody = m.body || m.preview
+          const dstat = deliveryText(m)
+          const link0 = m.channel === 'text' ? firstUrl(textBody) : null
+          return (
+            <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
+                <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : (m.contact_name || 'Them')} · {fmtDate(m.occurred_at)}{m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
+              </div>
+              <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
+                {isCall || isVoicemail
+                  ? <div style={{ fontSize: 14, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
+                  : (textBody ? <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><LinkifiedText text={textBody} light={out && !missed} /></div> : null)}
+                {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
+                  ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
+                  : <div key={i} style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
+                {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
+                {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
+              </div>
+              {link0 && <LinkPreview url={link0} />}
+              {dstat && <div style={{ fontSize: 10.5, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+            </div>
+          )
+        })}
+      </div>
+      <div style={{ borderTop: '1px solid var(--border)', padding: 12, background: 'var(--bg-primary)' }}>
+        {mode === null && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>This number isn't a contact yet. Add them to reply and start a normal conversation.</span>
+            <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setMode('create')}>+ Create lead</button>
+            <button className="btn btn-sm" onClick={() => setMode('link')}>Link to existing</button>
+          </div>
+        )}
+        {mode === 'create' && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <input value={fn} onChange={e => setFn(e.target.value)} placeholder="First name" style={inp} />
+            <input value={ln} onChange={e => setLn(e.target.value)} placeholder="Last name" style={inp} />
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtPhoneDisp(sel.phone)}</span>
+            <button className="btn btn-sm" onClick={() => setMode(null)}>Cancel</button>
+            <button className="btn btn-primary btn-sm" disabled={busy} onClick={createLead} style={{ marginLeft: 'auto' }}>{busy ? 'Creating…' : 'Create lead'}</button>
+          </div>
+        )}
+        {mode === 'link' && (
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a client by name, email, or phone…" style={{ ...inp, flex: 1 }} autoFocus />
+              <button className="btn btn-sm" onClick={() => { setMode(null); setQ('') }}>Cancel</button>
+            </div>
+            {results.length > 0 && (
+              <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+                {results.map(c => (
+                  <div key={c.id} onClick={() => linkTo(c.id)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone || c.email || ''}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
   )
 }
 

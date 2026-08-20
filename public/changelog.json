@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T17:00:07.454Z",
-  "count": 381,
+  "generated_at": "2026-08-20T17:11:27.918Z",
+  "count": 382,
   "entries": [
+    {
+      "hash": "431326d",
+      "date": "2026-08-20T12:00:21-05:00",
+      "subject": "Comms compliance: Do-Not-Call disposition -> Do Not Contact status (removes all campaigns); exclude DNC from bulk; webhook signature telemetry",
+      "title": "Comms compliance: Do-Not-Call disposition -> Do Not Contact status (removes all campaigns); exclude DNC from bulk; webhook signature telemetry",
+      "body": "- 'Do not call' disposition now sets lead status=donotcontact and stopSequencesForClient (removes active drip + automation enrollments), instead of setting the text opt-out. STOP-to-Hub remains the only hard text block.\n- Bulk texting excludes Do Not Contact / Junk statuses (new do_not_contact bucket in the excluded breakdown)\n- Twilio webhook guard records valid/invalid signature telemetry; GET /api/settings/twilio/signature reports ready_to_enforce (>=1 valid, 0 invalid)\n- Tests: +1 (isStopStatus / STOP_STATUSES)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a150b79",
       "date": "2026-08-20T10:21:27-05:00",
