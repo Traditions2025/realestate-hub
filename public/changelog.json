@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T18:52:38.651Z",
-  "count": 394,
+  "generated_at": "2026-08-20T19:13:08.589Z",
+  "count": 395,
   "entries": [
+    {
+      "hash": "6c4c3c4",
+      "date": "2026-08-20T13:52:48-05:00",
+      "subject": "Live-call voicemail drop + voicemail library on Templates",
+      "title": "Live-call voicemail drop + voicemail library on Templates",
+      "body": "- Voicemails managed on Templates tab: upload named MP3/WAV clips (voicemails table + /api/voicemails GET/POST/DELETE)\n- Softphone 'Drop voicemail' menu during an active call: plays a saved recording into the callee's voicemail then hangs up your leg. Marks the call 'Left voicemail'.\n- Mechanics: outbound Dial <Number> gets a statusCallback -> /api/voice/child-status maps parent(browser)->child(callee) leg (voice-state.js); POST /api/inbox/drop-voicemail redirects the child leg via Twilio call-modify (updateCallTwiml) to <Play><Hangup>\n- Captures the browser call SID for targeting; single-softphone fallback to latest active leg\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5499186",
       "date": "2026-08-20T13:36:11-05:00",

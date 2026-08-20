@@ -439,7 +439,9 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     // text_opt_out. Calling is never blocked. START clears it.
     const { optKeyword } = await import('../twilio.js')
     const kw = optKeyword(body)
-    if (kw && client) db.run('UPDATE clients SET hub_text_opt_out = ?, updated_at = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, new Date().toISOString(), client.id])
+    // STOP/START flows through the centralized policy so hub_text_opt_out AND the
+    // normalized communication_preferences stay in sync (do_not_call untouched).
+    if (kw && client) { try { const { applyOptOut } = await import('../ai-followup/policy.js'); applyOptOut(client.id, kw, 'sms_reply') } catch { db.run('UPDATE clients SET hub_text_opt_out = ?, updated_at = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, new Date().toISOString(), client.id]) } }
     // Store the message whether or not the sender is a known client. Unknown
     // senders land in the Unknown queue (client_id NULL) so no inbound lead is lost.
     const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)

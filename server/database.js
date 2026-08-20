@@ -814,6 +814,197 @@ export async function initDb() {
     )
   `)
 
+  // =====================================================================
+  // HUB AI ISA — foundation tables (Stage 1). No autonomous behavior until
+  // the feature flags are turned on. AI state is SEPARATE from CRM status.
+  // =====================================================================
+  // Normalized communication permission model. hub_text_opt_out remains the
+  // legacy hard block; this layer adds independent do_not_text / do_not_call,
+  // consent provenance, and per-lead AI enable/pause. See server/ai-followup/policy.js.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS communication_preferences (
+      client_id INTEGER PRIMARY KEY,
+      phone_e164 TEXT,
+      sms_status TEXT DEFAULT 'unknown',        -- unknown|eligible|consented|opted_out|blocked
+      sms_consent_source TEXT,
+      sms_consent_type TEXT,
+      sms_consent_timestamp TEXT,
+      sms_consent_evidence TEXT,
+      sms_opt_out_timestamp TEXT,
+      sms_opt_out_source TEXT,
+      sms_opt_in_timestamp TEXT,
+      do_not_text INTEGER DEFAULT 0,
+      do_not_call INTEGER DEFAULT 0,
+      voice_consent_status TEXT DEFAULT 'unknown',
+      ai_text_enabled INTEGER DEFAULT 1,
+      ai_voice_enabled INTEGER DEFAULT 0,
+      ai_followup_paused INTEGER DEFAULT 0,
+      ai_pause_reason TEXT,
+      preferred_channel TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  // Per-lead AI state machine (what HUB AI should be doing) — distinct from sales stage.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_lead_state (
+      client_id INTEGER PRIMARY KEY,
+      ai_state TEXT DEFAULT 'NEW_UNCONTACTED',
+      ai_enabled INTEGER DEFAULT 1,
+      ai_state_changed_at TEXT DEFAULT (datetime('now')),
+      ai_last_action_at TEXT,
+      ai_next_action_at TEXT,
+      ai_last_inbound_at TEXT,
+      ai_last_outbound_at TEXT,
+      ai_last_human_contact_at TEXT,
+      ai_pause_until TEXT,
+      ai_pause_reason TEXT,
+      ai_owner TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  // Structured, persistent lead memory (buyer/seller preferences + rolling summary).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lead_intelligence (
+      client_id INTEGER PRIMARY KEY,
+      lead_type TEXT,
+      intent_score INTEGER DEFAULT 0,
+      intent_level TEXT DEFAULT 'LOW',
+      intent_reason_json TEXT,
+      buying_timeframe TEXT,
+      selling_timeframe TEXT,
+      price_min INTEGER,
+      price_max INTEGER,
+      preferred_cities TEXT,
+      preferred_neighborhoods TEXT,
+      bedrooms_min INTEGER,
+      bathrooms_min REAL,
+      property_types TEXT,
+      must_haves TEXT,
+      deal_breakers TEXT,
+      financing_status TEXT,
+      preapproved INTEGER,
+      needs_to_sell_first INTEGER,
+      current_housing TEXT,
+      preferred_contact_method TEXT,
+      preferred_contact_time TEXT,
+      working_with_agent INTEGER,
+      seller_property_address TEXT,
+      seller_motivation TEXT,
+      seller_condition_notes TEXT,
+      seller_price_expectation TEXT,
+      last_property_discussed TEXT,
+      properties_of_interest_json TEXT,
+      objections_json TEXT,
+      motivation_summary TEXT,
+      ai_summary TEXT,
+      confidence_json TEXT,
+      last_extracted_at TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  // Normalized lead-event log (CRM + website + comms events the AI reacts to).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lead_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      event_type TEXT NOT NULL,
+      event_source TEXT,
+      event_timestamp TEXT DEFAULT (datetime('now')),
+      metadata_json TEXT,
+      processed_by_ai INTEGER DEFAULT 0,
+      processed_at TEXT,
+      dedup_key TEXT UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_leadevt_client ON lead_events(client_id, event_timestamp)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_leadevt_type ON lead_events(event_type, event_timestamp)') } catch {}
+  // Full audit of every autonomous AI action ("why did AI send this?").
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      event_id INTEGER,
+      action_type TEXT,
+      ai_state_before TEXT,
+      ai_state_after TEXT,
+      model_name TEXT,
+      prompt_version TEXT,
+      reason TEXT,
+      context_summary TEXT,
+      tool_calls_json TEXT,
+      output_text TEXT,
+      intent_before INTEGER,
+      intent_after INTEGER,
+      tokens_input INTEGER,
+      tokens_output INTEGER,
+      latency_ms INTEGER,
+      status TEXT,
+      error TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_aiact_client ON ai_actions(client_id, created_at)') } catch {}
+  // High-intent handoffs → the AI Opportunities queue.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_handoffs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      assigned_to TEXT,
+      urgency TEXT DEFAULT 'high',
+      reason TEXT,
+      summary TEXT,
+      recommended_action TEXT,
+      intent_score INTEGER,
+      status TEXT DEFAULT 'open',            -- open|acknowledged|contacted|resolved|expired
+      created_at TEXT DEFAULT (datetime('now')),
+      acknowledged_at TEXT,
+      completed_at TEXT
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_handoff_queue ON ai_handoffs(status, urgency, created_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_handoff_agent ON ai_handoffs(assigned_to, status)') } catch {}
+  // Durable scheduled AI actions (proactive/nurture) — restart-safe, idempotent.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_scheduled_actions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      action_type TEXT,
+      execute_at TEXT,
+      timezone TEXT,
+      state TEXT DEFAULT 'pending',          -- pending|processing|completed|canceled|failed
+      reason TEXT,
+      payload_json TEXT,
+      dedup_key TEXT UNIQUE,
+      attempt_count INTEGER DEFAULT 0,
+      locked_at TEXT,
+      completed_at TEXT,
+      canceled_at TEXT,
+      error TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_aisched_due ON ai_scheduled_actions(state, execute_at)') } catch {}
+  // Intent score history (explainable, trended).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_intent_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      score INTEGER,
+      level TEXT,
+      reasons_json TEXT,
+      source TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_intent_client ON ai_intent_history(client_id, created_at)') } catch {}
+  // AI attribution on the existing communications rows (no parallel message table).
+  for (const [col, type] of [['sent_by_type', 'TEXT'], ['ai_action_id', 'INTEGER']]) {
+    try { db.run(`ALTER TABLE communications ADD COLUMN ${col} ${type}`) } catch {}
+  }
+
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`
     CREATE TABLE IF NOT EXISTS automation_events (
