@@ -365,6 +365,11 @@ function AiFollowUpSettings() {
         <input defaultValue={cfg.ai_persona} onBlur={e => saveCfg('ai_persona', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
         <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Texts in first person as this person. Every first text also includes MattSmithTeam.com automatically.</div>
       </div>
+      <div style={{ marginTop: 10 }}>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Autopilot never auto-contacts leads tagged (comma-separated)</div>
+        <input defaultValue={cfg.ai_autopilot_exclude} onBlur={e => saveCfg('ai_autopilot_exclude', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Prospecting imports that never opted in (expired, cancelled, FSBO). Matches these words in a lead's tags or source. You can still turn AI on for one manually.</div>
+      </div>
       {diag && (
         <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           <span><strong>Diagnostics:</strong></span>

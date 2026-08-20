@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T20:47:44.403Z",
-  "count": 405,
+  "generated_at": "2026-08-20T21:07:36.427Z",
+  "count": 406,
   "entries": [
+    {
+      "hash": "f281854",
+      "date": "2026-08-20T15:47:47-05:00",
+      "subject": "AI: qualifying follow-ups — 'Send AI now' picks opener / reply / next-question based on conversation state",
+      "title": "AI: qualifying follow-ups — 'Send AI now' picks opener / reply / next-question based on conversation state",
+      "body": "- handleFollowup: asks the single most useful unknown (buyer: area->price->beds->timeframe->financing; seller: address->timeframe->motivation), one question, no re-intro\n- send-now routes: no texts -> opener; last was inbound -> responsive answer+qualify; we texted, no reply -> qualifying follow-up\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a53ac28",
       "date": "2026-08-20T15:23:52-05:00",

@@ -6,7 +6,7 @@
 import db from '../database.js'
 import { flag, getConfig, autopilotOn } from './flags.js'
 import { canSendSms } from './policy.js'
-import { ensureState } from './state.js'
+import { ensureState, isExcludedFromAutopilot } from './state.js'
 
 const nowIso = () => new Date().toISOString()
 const plusMin = (m) => new Date(Date.now() + m * 60000).toISOString()
@@ -67,8 +67,10 @@ export function newLeadSweep() {
   const cur = db.getSetting('ai_newlead_cursor', null)
   if (cur == null) { const max = db.get('SELECT MAX(id) m FROM clients')?.m || 0; db.setSetting('ai_newlead_cursor', String(max)); return }
   const delay = Number(getConfig().ai_new_lead_delay_minutes) || 5
-  const rows = db.all("SELECT id, phone, status, hub_text_opt_out FROM clients WHERE id > ? ORDER BY id ASC LIMIT 200", [Number(cur)])
+  const rows = db.all("SELECT id, phone, status, hub_text_opt_out, tags, source FROM clients WHERE id > ? ORDER BY id ASC LIMIT 200", [Number(cur)])
   for (const c of rows) {
+    // NEVER auto first-touch imported prospecting lists (expired/cancelled/FSBO, etc.)
+    if (isExcludedFromAutopilot(c)) continue
     // only for eligible, textable, never-contacted leads
     const contacted = db.get("SELECT id FROM communications WHERE client_id=? LIMIT 1", [c.id])
     if (!contacted && c.phone && !c.hub_text_opt_out) {
@@ -83,7 +85,7 @@ export function newLeadSweep() {
 // ---- SWEEP: re-engagement — dormant eligible leads with no recent activity ----
 export function reengagementSweep() {
   if (!autopilotOn() || !flag('ai_followup_enabled') || !flag('ai_nurture_enabled')) return
-  const rows = db.all(`SELECT c.id, c.phone, c.status, c.hub_text_opt_out FROM clients c
+  const rows = db.all(`SELECT c.id, c.phone, c.status, c.hub_text_opt_out, c.tags, c.source FROM clients c
     JOIN ai_lead_state s ON s.client_id=c.id
     WHERE c.phone IS NOT NULL AND c.phone != '' AND c.hub_text_opt_out=0
       AND s.ai_enabled=1 AND s.ai_state IN ('AI_LONG_TERM_NURTURE','AI_WAITING_FOR_REPLY','AI_NURTURE')
@@ -91,6 +93,7 @@ export function reengagementSweep() {
       AND (s.ai_last_inbound_at IS NULL OR s.ai_last_inbound_at <= datetime('now','-60 days'))
     LIMIT 25`)
   for (const c of rows) {
+    if (isExcludedFromAutopilot(c)) continue
     const gate = canSendSms(c, { channel: 'ai', mode: 'proactive' })
     if (gate.ok) scheduleAiAction(c.id, 'AI_REENGAGE', plusMin(2), { reason: 'dormant re-engagement', dedupKey: `reengage_${c.id}_${new Date().toISOString().slice(0, 10)}` })
   }
@@ -107,8 +110,9 @@ export function behavioralSweep() {
       GROUP BY client_id HAVING n >= 4 LIMIT 50`)
   } catch { return }
   for (const h of hot) {
-    const c = db.get("SELECT id, phone, status, hub_text_opt_out FROM clients WHERE id=?", [h.client_id])
+    const c = db.get("SELECT id, phone, status, hub_text_opt_out, tags, source FROM clients WHERE id=?", [h.client_id])
     if (!c || !c.phone || c.hub_text_opt_out) continue
+    if (isExcludedFromAutopilot(c)) continue
     // cooldown: one behavioral touch per client per 7 days
     const recent = db.get("SELECT id FROM ai_scheduled_actions WHERE client_id=? AND action_type='AI_BEHAVIORAL' AND created_at >= datetime('now','-7 days') LIMIT 1", [c.id])
     if (recent) continue

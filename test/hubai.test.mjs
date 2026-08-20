@@ -97,6 +97,21 @@ test('quiet hours wrap past midnight (21:00 to 08:00 Central)', () => {
   assert.equal(inQuietHours(new Date('2026-01-15T18:00:00Z')), false)  // ~12:00 CT
 })
 
+test('autopilot never auto-manages excluded imports (expired/cancelled/FSBO); manual enable overrides', async () => {
+  const { aiManages, setManaged, isExcludedFromAutopilot } = await import('../server/ai-followup/state.js')
+  db.setSetting('ai_autopilot_exclude', 'fsbo,expired,cancel')
+  assert.equal(isExcludedFromAutopilot({ tags: 'FSBO_Off Market', source: '' }), true)
+  assert.equal(isExcludedFromAutopilot({ tags: '', source: 'Expired MLS' }), true)
+  assert.equal(isExcludedFromAutopilot({ tags: 'Hot Buyer', source: 'Website' }), false)
+  // Make our test lead look like an FSBO import
+  db.run("UPDATE clients SET tags='FSBO_Off Market' WHERE id=?", [cid])
+  setManaged(cid, 0); db.setSetting('ai_autopilot', '1')
+  assert.equal(aiManages(cid), false, 'autopilot on but excluded import → not auto-managed')
+  setManaged(cid, 1)
+  assert.equal(aiManages(cid), true, 'agent manually enabled → overrides exclusion')
+  setManaged(cid, 0); db.setSetting('ai_autopilot', '0'); db.run("UPDATE clients SET tags=NULL WHERE id=?", [cid])
+})
+
 test('manual mode: AI only manages leads explicitly enabled (autopilot off)', async () => {
   const { aiManages, setManaged } = await import('../server/ai-followup/state.js')
   db.setSetting('ai_autopilot', '0')

@@ -60,10 +60,29 @@ export function resumeAi(clientId, reason = 'manual') {
 export function setEnabled(clientId, enabled) { ensureState(clientId); db.run('UPDATE ai_lead_state SET ai_enabled=?, updated_at=? WHERE client_id=?', [enabled ? 1 : 0, nowIso(), Number(clientId)]) }
 // Explicit per-lead enrollment (agent turned AI on for this specific lead).
 export function setManaged(clientId, managed) { ensureState(clientId); db.run('UPDATE ai_lead_state SET ai_managed=?, updated_at=? WHERE client_id=?', [managed ? 1 : 0, nowIso(), Number(clientId)]) }
-// Whether AI is allowed to act on this lead right now (autopilot OR explicitly enrolled).
+// Imported prospecting lists (expired / cancelled / FSBO, etc.) are NOT inbound
+// leads — they have their own drips and never opted in. Autopilot must never
+// auto-treat them as new leads. Matched by substring against tags + source
+// (configurable via ai_autopilot_exclude). An agent can still enable AI on one
+// manually (that sets ai_managed and overrides this).
+export function isExcludedFromAutopilot(client) {
+  const raw = db.getSetting('ai_autopilot_exclude', 'fsbo,expired,cancel') || ''
+  const patterns = raw.split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+  if (!patterns.length) return false
+  const hay = ((client?.tags || '') + ' ' + (client?.source || '')).toLowerCase()
+  return patterns.some(p => hay.includes(p))
+}
+
+// Whether AI is allowed to act on this lead right now:
+//  - explicitly enrolled by an agent (ai_managed) → always yes
+//  - else autopilot on AND not an excluded prospecting import → yes
+//  - else no (manual mode)
 export function aiManages(clientId) {
-  if (db.getSetting('ai_autopilot', '0') === '1') return true
-  return !!(db.get('SELECT ai_managed FROM ai_lead_state WHERE client_id=?', [Number(clientId)])?.ai_managed)
+  const cid = Number(clientId)
+  if (db.get('SELECT ai_managed FROM ai_lead_state WHERE client_id=?', [cid])?.ai_managed) return true
+  if (db.getSetting('ai_autopilot', '0') !== '1') return false
+  const c = db.get('SELECT tags, source FROM clients WHERE id=?', [cid])
+  return !isExcludedFromAutopilot(c)
 }
 
 // Human takeover: pause autonomous conversation, cancel pending scheduled sends.
