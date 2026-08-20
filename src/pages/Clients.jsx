@@ -2047,6 +2047,9 @@ export default function Clients() {
                   <button onClick={() => { setBulkActionsOpen(false); setBulkTextOpen(true) }}>
                     💬 Text Selected
                   </button>
+                  <button onClick={() => { setBulkActionsOpen(false); if (selectedIds.size) window.location.assign('/dialer?client_ids=' + [...selectedIds].join(',')) }}>
+                    ☎ Power Dial Selected
+                  </button>
                   <div className="bulk-actions-divider" />
                   <div className="bulk-actions-section-label">Enroll</div>
                   <button onClick={() => { setBulkActionsOpen(false); setBulkApply('drip') }}>💧 Apply Drip Campaign</button>

@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-20T17:44:38.601Z",
-  "count": 389,
+  "generated_at": "2026-08-20T18:19:49.474Z",
+  "count": 391,
   "entries": [
+    {
+      "hash": "073922c",
+      "date": "2026-08-20T12:47:50-05:00",
+      "subject": "docs: manifest — CRM-workflow layer (ownership, routing, triggers, campaigns, realtime, tests)",
+      "title": "docs: manifest — CRM-workflow layer (ownership, routing, triggers, campaigns, realtime, tests)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "docs"
+    },
+    {
+      "hash": "e4d1e69",
+      "date": "2026-08-20T12:44:49-05:00",
+      "subject": "#11 real-time inbox (SSE) + #10 expanded test coverage",
+      "title": "#11 real-time inbox (SSE) + #10 expanded test coverage",
+      "body": "- GET /api/inbox/stream (Server-Sent Events): pushes a 'changed' event on any new communication; inbox refreshes near-instantly. EventSource token via ?token= (whitelisted). 45s poll kept as a backstop (also catches delivery-status updates)\n- Extracted pure server/comms-logic.js (businessOpen, toMinutes, bulkExcluded); index.js business-hours now uses it\n- Tests: +2 (business hours open/closed boundaries, bulk exclusion) — 11 total\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9c0dd28",
       "date": "2026-08-20T12:42:25-05:00",

@@ -29,15 +29,21 @@ export default function CallWidget() {
     return ''
   }
 
+  const connectedRef = useRef(false)
   const wireCall = (call) => {
     callRef.current = call
-    call.on('accept', () => { setStatus('active'); startTimer() })
+    call.on('accept', () => { setStatus('active'); startTimer(); connectedRef.current = true; try { window.dispatchEvent(new CustomEvent('hubcall:started')) } catch {} })
     call.on('disconnect', () => endLocal())
     call.on('cancel', () => endLocal())
     call.on('reject', () => endLocal())
     call.on('error', (e) => { setErr(e?.message || 'Call error'); endLocal() })
   }
-  const endLocal = () => { stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setPeer({ number: '', name: '' }); callRef.current = null }
+  const endLocal = () => {
+    stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setPeer({ number: '', name: '' }); callRef.current = null
+    // Let the Power Dialer (or any listener) know a call finished + whether it connected.
+    try { window.dispatchEvent(new CustomEvent('hubcall:ended', { detail: { connected: connectedRef.current } })) } catch {}
+    connectedRef.current = false
+  }
 
   useEffect(() => {
     let cancelled = false

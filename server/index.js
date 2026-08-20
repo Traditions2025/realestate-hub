@@ -36,6 +36,7 @@ import reportingRouter from './routes/reporting.js'
 import dripsRouter from './routes/drips.js'
 import campaignMatchRouter from './routes/campaign-match.js'
 import inboxRouter from './routes/inbox.js'
+import dialerRouter from './routes/dialer.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 import followupRouter from './routes/followup.js'
 
@@ -319,6 +320,7 @@ async function start() {
   app.use('/api/drips', dripsRouter)
   app.use('/api/campaign-match', campaignMatchRouter)
   app.use('/api/inbox', inboxRouter)
+  app.use('/api/dialer', dialerRouter)
   app.use('/api/followup', followupRouter)
   app.use('/api/track', trackingRouter)
   app.use('/api/seed', seedRouter)

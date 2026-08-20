@@ -19,6 +19,7 @@ const BlogPosts = lazy(() => import('./pages/BlogPosts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Updates = lazy(() => import('./pages/Updates'))
 const Inbox = lazy(() => import('./pages/Inbox'))
+const PowerDialer = lazy(() => import('./pages/PowerDialer'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Automations = lazy(() => import('./pages/Automations'))
@@ -36,6 +37,7 @@ const navSections = [
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
     { path: '/inbox', label: 'Inbox', icon: '\u2709' },
+    { path: '/dialer', label: 'Power Dialer', icon: '\u260e' },
   ]},
   { label: 'WORK', items: [
     { path: '/tasks', label: 'Tasks', icon: '\u2610' },
@@ -194,6 +196,7 @@ export default function App() {
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/clients" element={<Clients />} />
             <Route path="/inbox" element={<Inbox />} />
+            <Route path="/dialer" element={<PowerDialer />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/projects" element={<Projects />} />
             <Route path="/notes" element={<Notes />} />
