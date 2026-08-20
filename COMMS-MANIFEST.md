@@ -113,14 +113,15 @@ Any URL in a text becomes a clickable link plus an OpenGraph **preview card** (i
 
 ## 6. Compliance model (IMPORTANT)
 
-| Flag | Source | Effect |
+| Flag / Status | Source | Effect |
 |---|---|---|
-| **`hub_text_opt_out`** | Set when a contact replies **STOP to our Hub number** (cleared by START) | **The ONLY hard block on texting** (manual + automation + bulk). Hub-owned, never synced from Sierra. |
+| **`hub_text_opt_out`** | Set when a contact replies **STOP to our Hub number** (cleared by START) | **The ONLY hard block on a 1:1 text** (manual + automation + bulk). Hub-owned, never synced from Sierra. |
+| **`donotcontact` / `junk` status** (STOP_STATUSES) | "Do not call" disposition, or a manual status change | **Removes the lead from every active drip + automation** (`stopSequencesForClient`) and **excludes them from bulk + automated texting**. A deliberate 1:1 manual text/call is still allowed. |
 | `text_opt_out` (legacy) | Synced/imported from Sierra | **Informational only** — does NOT block texting or calling |
 | Calling | — | **Never blocked** by any opt-out |
-| "Do not call" disposition | Call outcome | Sets `hub_text_opt_out=1` (stops future texts); does NOT junk the lead or block calling |
+| "Do not call" disposition | Call outcome | Sets **status = Do Not Contact** → removes all campaigns (see above). Does NOT set the text opt-out or block a 1:1 call. |
 
-Rationale: fresh number + campaign, so old opt-out history doesn't suppress outreach. Honoring STOP-to-our-number is the real CTIA/carrier requirement; everything else is team discretion.
+Rationale: fresh number + campaign, so old opt-out history doesn't suppress outreach. Honoring STOP-to-our-number is the real CTIA/carrier requirement; everything else is team discretion. **Gate rule:** 1:1 manual text → check `hub_text_opt_out` only; campaign/bulk/automated → also exclude `isStopStatus(status)`.
 
 ---
 
@@ -138,11 +139,29 @@ Rationale: fresh number + campaign, so old opt-out history doesn't suppress outr
 
 ## 8. Webhook security
 
-- `twilioWebhookGuard` validates the **X-Twilio-Signature** (HMAC-SHA1 of URL + sorted params, base64) on every Twilio POST.
+- `twilioWebhookGuard` validates the **X-Twilio-Signature** (HMAC-SHA1 of URL + sorted params, base64) on every Twilio POST. URL is rebuilt from `HUB_BASE_URL` so it's correct behind Render's proxy.
 - Mode setting `twilio_signature_mode`:
-  - `monitor` (default) — logs mismatches, still accepts (safe rollout)
-  - `enforce` — rejects invalid signatures (flip from Settings when ready)
-- Public webhook routes are whitelisted in `auth.js`; media/recording proxies accept a query `?token=`.
+  - `enforce` (**CURRENT** — verified 2026-08-20) — rejects invalid signatures with 403
+  - `monitor` — logs mismatches, still accepts (rollout only)
+- **Telemetry:** the guard records valid/invalid counts; `GET /api/settings/twilio/signature` reports `ready_to_enforce` and last-invalid details. Verified live: 4 real signed webhooks valid, 0 invalid, before enforcing.
+- Public webhook routes are whitelisted in `auth.js`; media/recording proxies accept a query `?token=` (validated identically to the header).
+
+## 8b. Unknown-inbound queue
+
+- An inbound **text OR call from a number not in the CRM** is captured (not dropped): stored with `client_id NULL` and `thread_key = u_<phone10>`, shown in the inbox with an **Unknown** badge. John gets an email alert for unknown texters.
+- Open one → **Create lead** (one click) or **Link to existing** (search). This re-points the whole thread onto the client (`relinkUnknownThread`); it then behaves as a normal conversation and future messages auto-match.
+- Endpoints: `GET /unknown-thread?key=`, `POST /unknown-thread/read`, `POST /unknown/create-lead`, `POST /unknown/link`.
+
+## 8c. Missed-call auto text-back
+
+- When an inbound call goes unanswered, HUB texts the caller (e.g. "Sorry we missed your call!..."). Setting `missed_call_textback_enabled` (default on) + `missed_call_textback_message` (editable in Settings).
+- Uses the same permission model: known contacts who replied STOP or are Do Not Contact/Junk are skipped; unknown callers are allowed (they just called us). Deduped per call (`missedcb_<CallSid>`).
+
+## 8d. Scheduled one-to-one texting
+
+- Table `scheduled_texts`; a scheduler tick (every 60s) sends due texts after a **fresh compliance re-check at send time** (STOP / Do Not Contact / no-phone → canceled, not sent).
+- Endpoints: `POST /schedule-text`, `GET /scheduled?client_id=`, `POST /scheduled/:id/cancel`.
+- UI: lead-profile inline composer has a **🕑 Schedule** button (datetime) + a pending-scheduled list with cancel; the Inbox text reply has a Schedule option. Sends land in the normal thread.
 
 ---
 
