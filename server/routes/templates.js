@@ -28,22 +28,25 @@ async function fetchFubTextTemplates() {
 // Convert FUB merge tokens (%contact_first_name%) to the Hub's ({{first_name}}) so
 // imported templates work with fillTemplate. Unknown %tokens% are removed so a
 // customer never sees a raw placeholder.
+// %? allows for FUB templates with an unclosed token (e.g. "%greeting_time" without
+// the trailing %). Order matters: handle the "Good %greeting_time" phrasing first.
 function convertFubTokens(s) {
   return String(s)
-    .replace(/%contact_first_name%/gi, '{{first_name}}')
-    .replace(/%contact_last_name%/gi, '{{last_name}}')
-    .replace(/%contact_full_name%|%contact_name%/gi, '{{full_name}}')
-    .replace(/%contact_city%/gi, '{{city}}')
-    .replace(/%contact_email%/gi, '{{email}}')
-    .replace(/%contact_(address|street)%/gi, '{{address}}')
-    .replace(/%(inquiry_address|viewed_address)%/gi, '{{last_viewed_address}}')
-    .replace(/%lender_first_name%/gi, '{{lender_name}}')
-    .replace(/%(sender|agent|user)_first_name%/gi, 'John')
-    .replace(/%greeting_time%/gi, 'Hi')
+    .replace(/good\s+%greeting_time%?/gi, 'Hi')
+    .replace(/%greeting_time%?/gi, 'Hi')
+    .replace(/%contact_first_name%?/gi, '{{first_name}}')
+    .replace(/%contact_last_name%?/gi, '{{last_name}}')
+    .replace(/%contact_full_name%?|%contact_name%?/gi, '{{full_name}}')
+    .replace(/%contact_city%?/gi, '{{city}}')
+    .replace(/%contact_email%?/gi, '{{email}}')
+    .replace(/%contact_(address|street)%?/gi, '{{address}}')
+    .replace(/%(inquiry_address|viewed_address)%?/gi, '{{last_viewed_address}}')
+    .replace(/%lender_first_name%?/gi, '{{lender_name}}')
+    .replace(/%(sender|agent|user)_first_name%?/gi, 'John')
     // no Hub equivalent (Ylopo alert link / viewed-property URL) → remove so nothing leaks
-    .replace(/%custom_ylopo_listing_alert%|%viewed_address_url%/gi, '')
-    .replace(/%[a-z0-9_]+%/gi, '')      // safety: strip any other unknown token
-    .replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim()
+    .replace(/%custom_ylopo_listing_alert%?|%viewed_address_url%?/gi, '')
+    .replace(/%[a-z0-9_]+%?/gi, '')      // safety: strip any other token (closed OR unclosed)
+    .replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?:)])/g, '$1').trim()
 }
 
 // Probe: what FUB text templates are available (no import).
@@ -65,7 +68,7 @@ router.post('/import-fub', async (_req, res) => {
   if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
   let templates
   try { ({ templates } = await fetchFubTextTemplates()) } catch (e) { return res.status(500).json({ error: 'FUB error: ' + e.message }) }
-  let imported = 0, skipped = 0, ylopoSkipped = 0
+  let imported = 0, updated = 0, skipped = 0, ylopoSkipped = 0
   for (const t of templates) {
     const raw = String(t.body || '')
     // Skip templates that rely on a Ylopo link (listing alert / viewed-property URL) — no Hub equivalent.
@@ -73,11 +76,17 @@ router.post('/import-fub', async (_req, res) => {
     const name = String(t.name || '').trim() || 'FUB Template'
     const body = convertFubTokens(raw.trim())
     if (!body) { skipped++; continue }
-    if (db.get("SELECT id FROM templates WHERE name=? AND type='text'", [name])) { skipped++; continue }
+    const existing = db.get("SELECT id, tags FROM templates WHERE name=? AND type='text'", [name])
+    if (existing) {
+      // refresh a previously imported FUB template (re-convert); never overwrite a hand-made one
+      if (String(existing.tags || '').includes('imported:fub')) { db.run("UPDATE templates SET body=?, updated_at=datetime('now') WHERE id=?", [body, existing.id]); updated++ }
+      else skipped++
+      continue
+    }
     db.run("INSERT INTO templates (name, type, category, body, is_html, tags) VALUES (?,?,?,?,?,?)", [name, 'text', 'FUB', body, 0, 'imported:fub'])
     imported++
   }
-  res.json({ success: true, imported, skipped, ylopo_skipped: ylopoSkipped, total: templates.length })
+  res.json({ success: true, imported, updated, skipped, ylopo_skipped: ylopoSkipped, total: templates.length })
 })
 
 function logActivity(action, entityId, details) {
