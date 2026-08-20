@@ -188,6 +188,38 @@ function PeopleList({ subject, date, metric, label, onClose }) {
 }
 
 // --- SMS + call analytics (Reporting → Texting & Calls) ---
+function Campaigns() {
+  const [rows, setRows] = React.useState(undefined)
+  React.useEffect(() => { authFetch('/api/inbox/campaigns').then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([])) }, [])
+  if (rows === undefined || !rows.length) return null
+  const fmt = (iso) => { try { return new Date(String(iso).includes('T') ? iso : String(iso).replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) } catch { return iso } }
+  const th = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-muted)', textAlign: 'left' }
+  const td = { padding: '6px 8px', borderBottom: '1px solid var(--border)' }
+  return (
+    <div className="detail-section" style={{ padding: 16, marginTop: 16 }}>
+      <h4 style={{ margin: '0 0 12px' }}>Bulk campaigns</h4>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+          <thead><tr>{['Campaign', 'Sent', 'Delivered', 'Failed', 'Replies', 'Opt-outs', 'When'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
+          <tbody>
+            {rows.map(c => (
+              <tr key={c.id}>
+                <td style={td}><div style={{ fontWeight: 600 }}>{c.name || '(unnamed)'}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.body}</div></td>
+                <td style={td}>{c.sent}{c.status === 'sending' && <span style={{ color: '#f59e0b' }}> …</span>}</td>
+                <td style={{ ...td, color: '#10b981' }}>{c.delivered}</td>
+                <td style={{ ...td, color: c.failed ? '#ef4444' : 'inherit' }}>{c.failed}</td>
+                <td style={{ ...td, color: '#8b5cf6' }}>{c.replies}</td>
+                <td style={{ ...td, color: c.opt_outs ? '#ef4444' : 'inherit' }}>{c.opt_outs}</td>
+                <td style={{ ...td, color: 'var(--text-muted)' }}>{fmt(c.created_at)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function CommsReport({ mode = 'texting' }) {
   const [days, setDays] = React.useState(30)
   const [d, setD] = React.useState(undefined)
@@ -245,6 +277,7 @@ function CommsReport({ mode = 'texting' }) {
           </>
         )}
       </div>
+      <Campaigns />
     </div>
   )
 

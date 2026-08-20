@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T17:39:16.320Z",
-  "count": 387,
+  "generated_at": "2026-08-20T17:42:15.858Z",
+  "count": 388,
   "entries": [
+    {
+      "hash": "2a90d5d",
+      "date": "2026-08-20T12:39:26-05:00",
+      "subject": "#8 Automation triggers on communication events",
+      "title": "#8 Automation triggers on communication events",
+      "body": "- Enabled/added comm-event triggers in the shared registry: Incoming Text, Missed Call, Text Replied, Voicemail Received, Call Outcome Set (with per-outcome filter)\n- Emit automation events at each point: inbound text (new_message_received + text_replied), missed call + after-hours (missed_call), voicemail (voicemail_received), call disposition (call_disposition)\n- Event processor matches call_disposition by configured outcome\n- Now: incoming text -> assign/task, missed call -> task, appointment-set -> stage change, etc. can be built in the Automations builder\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c5db028",
       "date": "2026-08-20T12:37:27-05:00",

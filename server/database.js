@@ -766,8 +766,29 @@ export async function initDb() {
     ['media_url', 'TEXT'],         // MMS media (json array)
     ['error_message', 'TEXT'],     // friendly failure reason
     ['agent', 'TEXT'],             // which hub user handled it
+    ['campaign_id', 'INTEGER'],    // links a sent text to a bulk campaign
   ]) { try { db.run(`ALTER TABLE communications ADD COLUMN ${col} ${type}`) } catch {} }
   try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_sid ON communications(external_id)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_campaign ON communications(campaign_id)') } catch {}
+  // Bulk text campaigns — an auditable record of each blast + its recipient math.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS text_campaigns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT,
+      created_by TEXT,
+      body TEXT,
+      template_id INTEGER,
+      total INTEGER DEFAULT 0,
+      queued INTEGER DEFAULT 0,
+      excluded_no_phone INTEGER DEFAULT 0,
+      excluded_stop INTEGER DEFAULT 0,
+      excluded_dnc INTEGER DEFAULT 0,
+      excluded_dup INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'sending',
+      created_at TEXT DEFAULT (datetime('now')),
+      completed_at TEXT
+    )
+  `)
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`

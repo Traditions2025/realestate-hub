@@ -471,7 +471,7 @@ router.delete('/:id', (req, res) => { db.run('DELETE FROM communications WHERE i
 // queue sends in the background (safe pacing) so the request returns immediately.
 // Returns the recipient breakdown up front; sent messages appear in the inbox. ----
 router.post('/bulk-text', async (req, res) => {
-  const { client_ids, body, template_id } = req.body || {}
+  const { client_ids, body, template_id, name, created_by } = req.body || {}
   if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Select at least one recipient.' })
   let msg = body
   if (template_id) { const t = db.get('SELECT body FROM templates WHERE id=?', [Number(template_id)]); if (t) msg = msg || t.body }
@@ -479,7 +479,11 @@ router.post('/bulk-text', async (req, res) => {
   const { sendSms, twilioConfigured } = await import('../twilio.js')
   if (!twilioConfigured()) return res.status(400).json({ error: 'Texting isn’t connected yet.' })
   const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
-  // Resolve the recipient list synchronously: dedup by phone, drop no-phone + STOP.
+  // Double-launch guard: an identical body/name campaign started in the last 2 minutes
+  // is almost certainly an accidental re-submit.
+  const dupCampaign = db.get("SELECT id FROM text_campaigns WHERE ((name IS NOT NULL AND name = ?) OR body = ?) AND created_at >= datetime('now','-120 seconds') LIMIT 1", [name || null, msg])
+  if (dupCampaign && !req.body?.force) return res.status(409).json({ error: 'An identical campaign was just launched moments ago. Re-send anyway?', duplicate: true })
+  // Resolve the recipient list synchronously: dedup by phone, drop no-phone + STOP + Do Not Contact.
   const seen = new Set(); const recipients = []
   let noPhone = 0, optedOut = 0, duplicates = 0, doNotContact = 0
   for (const cid of client_ids) {
@@ -492,23 +496,49 @@ router.post('/bulk-text', async (req, res) => {
     if (isStopStatus(c.status)) { doNotContact++; continue }   // Do Not Contact / Junk — no campaign blasts
     recipients.push(c)
   }
+  // Record the campaign up front for auditing.
+  const camp = db.run('INSERT INTO text_campaigns (name, created_by, body, template_id, total, queued, excluded_no_phone, excluded_stop, excluded_dnc, excluded_dup, status) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    [name || null, created_by || null, msg, template_id || null, client_ids.length, recipients.length, noPhone, optedOut, doNotContact, duplicates, 'sending'])
+  const campaignId = camp.lastInsertRowid
   // Fire the sends in the background so we never hit the HTTP timeout on big lists.
   ;(async () => {
+    let sent = 0
     for (const c of recipients) {
       try {
         const outText = fillTemplate(msg, c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
         if (!outText) continue
         const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
-        const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', nowIso()])
+        const name2 = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, campaign_id, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', c.id, name2, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
+        sent++
         await new Promise(rs => setTimeout(rs, 900))   // gentle pacing to respect Twilio rate limits
       } catch (e) { console.error('[bulk-text] send error:', e.message) }
     }
-    console.log(`[bulk-text] campaign done: queued ${recipients.length}`)
+    db.run("UPDATE text_campaigns SET status='sent', queued=?, completed_at=? WHERE id=?", [sent, nowIso(), campaignId])
+    console.log(`[bulk-text] campaign ${campaignId} done: sent ${sent}`)
   })()
-  res.json({ queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, do_not_contact: doNotContact, duplicate_number: duplicates }, total: client_ids.length })
+  res.json({ campaign_id: campaignId, queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, do_not_contact: doNotContact, duplicate_number: duplicates }, total: client_ids.length })
+})
+
+// ---- bulk campaign list + per-campaign live counts (delivered/failed/replies/opt-outs) ----
+router.get('/campaigns', (_req, res) => {
+  const rows = db.all('SELECT * FROM text_campaigns ORDER BY id DESC LIMIT 100')
+  const out = rows.map(camp => {
+    const agg = db.get(`SELECT
+        COUNT(*) sent,
+        SUM(CASE WHEN delivery_status='delivered' THEN 1 ELSE 0 END) delivered,
+        SUM(CASE WHEN delivery_status IN ('failed','undelivered') THEN 1 ELSE 0 END) failed
+      FROM communications WHERE campaign_id=? AND direction='outgoing'`, [camp.id]) || {}
+    // replies = distinct recipients who texted us back after the campaign started
+    const replies = db.get(`SELECT COUNT(DISTINCT client_id) n FROM communications
+      WHERE direction='incoming' AND channel='text' AND occurred_at > ?
+        AND client_id IN (SELECT DISTINCT client_id FROM communications WHERE campaign_id=?)`, [camp.created_at, camp.id])?.n || 0
+    const optOuts = db.get(`SELECT COUNT(*) n FROM clients WHERE hub_text_opt_out=1 AND id IN (SELECT DISTINCT client_id FROM communications WHERE campaign_id=?)`, [camp.id])?.n || 0
+    return { ...camp, sent: agg.sent || 0, delivered: agg.delivered || 0, failed: agg.failed || 0, replies, opt_outs: optOuts }
+  })
+  res.json(out)
 })
 
 // ---- SCHEDULED one-to-one texts: queue now, a background tick sends at send_at ----
