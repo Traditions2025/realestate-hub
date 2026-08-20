@@ -3431,8 +3431,28 @@ function InlineTextComposer({ client, onClose, onSent }) {
   const [uploading, setUploading] = React.useState(false)
   const [sending, setSending] = React.useState(false)
   const [templates, setTemplates] = React.useState([])
+  const [schedOpen, setSchedOpen] = React.useState(false)
+  const [sendAt, setSendAt] = React.useState('')
+  const [scheduled, setScheduled] = React.useState([])
   const fileRef = React.useRef(null)
   React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  const loadScheduled = React.useCallback(() => { authFetch('/api/inbox/scheduled?client_id=' + client.id).then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {}) }, [client.id])
+  React.useEffect(() => { loadScheduled() }, [loadScheduled])
+  const scheduleText = async () => {
+    if (!body.trim() && !media.length) return
+    if (!sendAt) { alert('Pick a date and time.'); return }
+    const iso = new Date(sendAt).toISOString()
+    if (new Date(iso).getTime() < Date.now() + 60000) { alert('Pick a time in the future.'); return }
+    setSending(true)
+    try {
+      const r = await authFetch('/api/inbox/schedule-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, body: body.trim(), media: media.map(m => m.url), send_at: iso, created_by: 'John', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }) })
+      const d = await r.json()
+      if (d.success) { setBody(''); setMedia([]); setSchedOpen(false); setSendAt(''); loadScheduled() }
+      else alert(d.error || 'Could not schedule')
+    } catch (e) { alert('Schedule failed: ' + e.message) } finally { setSending(false) }
+  }
+  const cancelScheduled = async (id) => { await authFetch(`/api/inbox/scheduled/${id}/cancel`, { method: 'POST' }).catch(() => {}); loadScheduled() }
+  const fmtWhenLocal = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
   React.useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return }
     const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
@@ -3513,10 +3533,31 @@ function InlineTextComposer({ client, onClose, onSent }) {
           ))}
         </div>
       )}
+      {scheduled.length > 0 && (
+        <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          {scheduled.map(s => (
+            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 9px' }}>
+              <span style={{ color: '#f59e0b' }}>🕑</span>
+              <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtWhenLocal(s.send_at)}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.body || '[photo]'}</span>
+              <button onClick={() => cancelScheduled(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }} title="Cancel">✕</button>
+            </div>
+          ))}
+        </div>
+      )}
       <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={3} maxLength={1000} placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }} style={{ ...fld, resize: 'vertical', lineHeight: 1.5 }} />
-      <div style={{ display: 'flex', alignItems: 'center', marginTop: 8 }}>
+      {schedOpen && (
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send at:</span>
+          <input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} style={{ ...fld, width: 'auto' }} />
+          <button className="btn btn-primary btn-sm" onClick={scheduleText} disabled={sending || (!body.trim() && !media.length) || !sendAt}>{sending ? '…' : 'Schedule send'}</button>
+          <button className="btn btn-sm" onClick={() => setSchedOpen(false)}>Cancel</button>
+        </div>
+      )}
+      <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, gap: 8 }}>
         <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send{recips.length > 1 ? ` · ${recips.length} recipients` : ''}</span>
-        <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={send} disabled={sending || (!body.trim() && !media.length)}>{sending ? 'Sending…' : 'Send Text'}</button>
+        {!schedOpen && recips.length === 1 && <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSchedOpen(true)} title="Schedule for later">🕑 Schedule</button>}
+        <button className="btn btn-primary btn-sm" style={{ marginLeft: schedOpen || recips.length > 1 ? 'auto' : 0 }} onClick={send} disabled={sending || (!body.trim() && !media.length)}>{sending ? 'Sending…' : 'Send Text'}</button>
       </div>
     </div>
   )

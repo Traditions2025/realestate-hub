@@ -703,6 +703,10 @@ export function startScheduler() {
   // Google Calendar - every 5 min
   setInterval(syncGoogleCalendar, 5 * 60 * 1000)
 
+  // Scheduled one-to-one texts - check every minute, send any that are due
+  // (compliance is re-checked at send time inside the runner).
+  setInterval(() => { import('./scheduled-texts.js').then(m => m.runDueScheduledTexts()).catch(() => {}) }, 60 * 1000)
+
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
   setInterval(checkDigestTick, 60 * 1000)
 

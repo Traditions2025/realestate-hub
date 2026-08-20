@@ -476,6 +476,35 @@ router.post('/bulk-text', async (req, res) => {
   res.json({ queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, do_not_contact: doNotContact, duplicate_number: duplicates }, total: client_ids.length })
 })
 
+// ---- SCHEDULED one-to-one texts: queue now, a background tick sends at send_at ----
+router.post('/schedule-text', (req, res) => {
+  const { client_id, body, media, send_at, created_by, timezone } = req.body || {}
+  const cid = Number(client_id) || null
+  const mediaArr = Array.isArray(media) ? media.filter(Boolean).slice(0, 10) : []
+  if (!body && !mediaArr.length) return res.status(400).json({ error: 'A message is required.' })
+  const when = new Date(send_at)
+  if (!send_at || isNaN(when.getTime())) return res.status(400).json({ error: 'A valid send time is required.' })
+  if (when.getTime() < Date.now() + 30000) return res.status(400).json({ error: 'Pick a time at least a minute in the future.' })
+  const c = cid ? db.get('SELECT id, phone, hub_text_opt_out, status FROM clients WHERE id=?', [cid]) : null
+  if (cid && !c) return res.status(404).json({ error: 'client not found' })
+  if (c && !c.phone) return res.status(400).json({ error: 'no phone on file for this contact' })
+  if (c && c.hub_text_opt_out) return res.status(400).json({ error: 'this contact replied STOP to our number — texting is blocked' })
+  const r = db.run('INSERT INTO scheduled_texts (client_id, phone, body, media_url, send_at, timezone, created_by) VALUES (?,?,?,?,?,?,?)',
+    [cid, c ? c.phone : (req.body?.phone || null), body || '', mediaArr.length ? JSON.stringify(mediaArr.map(u => ({ url: u, type: 'image' }))) : null, when.toISOString(), timezone || null, created_by || null])
+  res.json({ success: true, id: r.lastInsertRowid, send_at: when.toISOString() })
+})
+router.get('/scheduled', (req, res) => {
+  const cid = Number(req.query.client_id) || null
+  const rows = cid
+    ? db.all("SELECT * FROM scheduled_texts WHERE client_id=? AND status='scheduled' ORDER BY send_at ASC", [cid])
+    : db.all("SELECT * FROM scheduled_texts WHERE status='scheduled' ORDER BY send_at ASC LIMIT 200")
+  res.json(rows)
+})
+router.post('/scheduled/:id/cancel', (req, res) => {
+  db.run("UPDATE scheduled_texts SET status='canceled' WHERE id=? AND status='scheduled'", [Number(req.params.id)])
+  res.json({ success: true })
+})
+
 // ---- contact search for the composer (name / email / phone) ----
 router.get('/contacts', (req, res) => {
   const q = (req.query.q || '').trim()

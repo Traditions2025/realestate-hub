@@ -117,6 +117,8 @@ export default function Inbox() {
   const [replyMedia, setReplyMedia] = useState([])    // outgoing MMS photos: [{url,type}]
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [replyTemplates, setReplyTemplates] = useState([])
+  const [schedOpen, setSchedOpen] = useState(false)
+  const [sendAt, setSendAt] = useState('')
   const fileRef = React.useRef(null)
 
   const load = useCallback(() => {
@@ -202,6 +204,20 @@ export default function Inbox() {
     const t = replyTemplates.find(x => String(x.id) === String(id)); if (!t) return
     const text = replyChannel === 'text' ? stripTplHtml(t.body) : t.body
     setReply(v => ({ subject: v.subject || (replyChannel === 'email' ? (t.subject || '') : ''), body: v.body ? v.body + '\n\n' + text : text }))
+  }
+  const scheduleReply = async () => {
+    if (!sel) return
+    if (!reply.body.trim() && !replyMedia.length) { alert('Write a text first.'); return }
+    if (!sendAt) { alert('Pick a date and time.'); return }
+    const iso = new Date(sendAt).toISOString()
+    if (new Date(iso).getTime() < Date.now() + 60000) { alert('Pick a time in the future.'); return }
+    setSending(true)
+    try {
+      const r = await authFetch('/api/inbox/schedule-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: sel, body: reply.body.trim(), media: replyMedia.map(m => m.url), send_at: iso, created_by: 'John', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }) })
+      const d = await r.json()
+      if (d.success) { setReply({ subject: '', body: '' }); setReplyMedia([]); setSchedOpen(false); setSendAt(''); await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {}); alert('Text scheduled for ' + new Date(iso).toLocaleString()) }
+      else alert(d.error || 'Could not schedule')
+    } catch (e) { alert(e.message) } finally { setSending(false) }
   }
   const uploadPhoto = async (file) => {
     if (!file) return
@@ -469,12 +485,21 @@ export default function Inbox() {
                     <button className="btn btn-sm" disabled={!!aiBusy || !aiCtx.trim()} onClick={() => adjustReply(null, aiCtx.trim())}>{aiBusy === 'context' ? '…' : 'Apply'}</button>
                   </div>
 
+                  {schedOpen && replyChannel === 'text' && (
+                    <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send at:</span>
+                      <input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} style={{ padding: '6px 8px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                      <button className="btn btn-primary btn-sm" disabled={sending || !sendAt || (!reply.body.trim() && !replyMedia.length)} onClick={scheduleReply}>{sending ? '…' : 'Schedule send'}</button>
+                      <button className="btn btn-sm" onClick={() => setSchedOpen(false)}>Cancel</button>
+                    </div>
+                  )}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {ai && ai.suggestion && <button className="btn btn-sm" disabled={!!aiBusy} onClick={useSuggested}>Use suggested</button>}
                     {[['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['warmer', 'Warmer']].map(([k, l]) => (
                       <button key={k} className="btn btn-sm" disabled={!!aiBusy || !reply.body.trim()} onClick={() => adjustReply(k)}>{aiBusy === k ? '…' : l}</button>
                     ))}
                     <button className="btn btn-sm" disabled={!reply.body.trim() && !replyMedia.length} onClick={clearDraft}>Clear</button>
+                    {replyChannel === 'text' && !schedOpen && <button className="btn btn-sm" disabled={!reply.body.trim() && !replyMedia.length} onClick={() => setSchedOpen(true)} title="Schedule for later">🕑 Schedule</button>}
                     <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || (!reply.body.trim() && !(replyChannel === 'text' && replyMedia.length))} onClick={sendReply}>{sending ? 'Sending…' : replyChannel === 'text' ? '💬 Send text' : '✉ Send reply'}</button>
                   </div>
                 </div>

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T17:11:27.918Z",
-  "count": 382,
+  "generated_at": "2026-08-20T17:15:04.255Z",
+  "count": 383,
   "entries": [
+    {
+      "hash": "f464025",
+      "date": "2026-08-20T12:11:52-05:00",
+      "subject": "Unknown-inbound capture queue + missed-call auto text-back",
+      "title": "Unknown-inbound capture queue + missed-call auto text-back",
+      "body": "- Inbound texts AND calls from numbers not in the CRM are now captured (client_id NULL, thread_key u_<phone10>) instead of dropped — no lost leads. Shown in the inbox with an Unknown badge; John gets an email alert for unknown texters.\n- UnknownPane: view the conversation + one-click 'Create lead' or 'Link to existing' (re-points the whole thread onto the client, then it becomes a normal conversation)\n- Missed-call auto text-back: when an inbound call goes unanswered, HUB texts the caller (configurable message, on/off). Uses the same permission model — skips STOP/Do-Not-Contact; unknown callers allowed. Deduped per call.\n- Settings: missed-call text-back toggle + editable message; webhook signature telemetry (valid/invalid, ready-to-enforce) surfaced in the diagnostics panel\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "431326d",
       "date": "2026-08-20T12:00:21-05:00",

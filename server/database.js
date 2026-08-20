@@ -694,6 +694,26 @@ export async function initDb() {
       updated_at TEXT
     )
   `)
+  // Scheduled one-to-one texts. A background tick sends any that are due, after a
+  // fresh compliance re-check at send time. status: scheduled|sent|canceled|failed.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS scheduled_texts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      phone TEXT,
+      body TEXT,
+      media_url TEXT,
+      send_at TEXT NOT NULL,
+      timezone TEXT,
+      status TEXT DEFAULT 'scheduled',
+      created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      sent_comm_id INTEGER,
+      error TEXT
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_sched_due ON scheduled_texts(status, send_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_sched_client ON scheduled_texts(client_id, status)') } catch {}
   // idempotency: one successful send per (enrollment, step)
   db.run(`
     CREATE TABLE IF NOT EXISTS drip_executions (
