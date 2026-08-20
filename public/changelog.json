@@ -1,7 +1,271 @@
 {
-  "generated_at": "2026-08-14T18:38:05.628Z",
-  "count": 346,
+  "generated_at": "2026-08-20T14:42:12.153Z",
+  "count": 379,
   "entries": [
+    {
+      "hash": "17566fd",
+      "date": "2026-08-20T09:32:18-05:00",
+      "subject": "Settings: comms diagnostics panel + toggles; softphone DTMF keypad",
+      "title": "Settings: comms diagnostics panel + toggles; softphone DTMF keypad",
+      "body": "- Settings → Text Messaging now has a \"Communications Diagnostics\" panel: live\n  health check (account, number capabilities, SMS/voice webhooks, A2P, browser\n  calling, signature mode, recording) shown as Healthy/Needs attention/Not\n  configured (no secrets), plus admin toggles to enforce webhook signatures and\n  enable call recording.\n- Softphone: in-call DTMF keypad (sends digits for phone menus/extensions).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "247934a",
+      "date": "2026-08-20T09:28:37-05:00",
+      "subject": "Reporting: Texting & Calls analytics tab",
+      "title": "Reporting: Texting & Calls analytics tab",
+      "body": "New GET /api/reporting/comms aggregates the communications log (instant, no Twilio\ncalls): texts sent/received, delivery + reply rate, failed; calls placed/received/\nanswered/missed, voicemails, avg call length; call dispositions; and volume-by-day.\nReporting tab gets a \"💬 Texting & Calls\" view — metric cards, a by-day bar chart,\nand a dispositions breakdown, matching the existing Reporting UI.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "173a826",
+      "date": "2026-08-20T09:10:00-05:00",
+      "subject": "Comms center: bulk texting + near-real-time inbox",
+      "title": "Comms center: bulk texting + near-real-time inbox",
+      "body": "- Bulk SMS: POST /api/inbox/bulk-text dedups phone numbers, excludes STOP opt-outs +\n  no-phone, fills merge fields per contact, and queues sends in the background (paced\n  for Twilio limits) — returns the recipient breakdown immediately. New \"💬 Text\n  Selected\" bulk action in Clients with template + merge-field picker and a\n  pre-send confirmation showing who's excluded.\n- Inbox now auto-refreshes the conversation list + open thread every 15s, so incoming\n  texts/calls and delivery-status updates appear without a manual refresh.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "aca98e2",
+      "date": "2026-08-20T09:06:55-05:00",
+      "subject": "Compliance: legacy opt-outs are informational; only STOP-to-our-number blocks TEXT",
+      "title": "Compliance: legacy opt-outs are informational; only STOP-to-our-number blocks TEXT",
+      "body": "Per policy (new Hub number + fresh A2P campaign): prior/imported opt-outs no longer\nblock anything — we can text and call. The ONLY hard text block is hub_text_opt_out,\nset when a contact replies STOP to OUR Hub number (cleared by START). Calling is never\nblocked by any opt-out.\n\n- New clients.hub_text_opt_out (NOT synced from Sierra, so it persists).\n- Inbound STOP/START now sets hub_text_opt_out (not the Sierra-synced text_opt_out).\n- Manual text send + automation send_text block only on hub_text_opt_out.\n- \"Do not call\" disposition stops future texts (hub_text_opt_out) but no longer junks\n  the lead or blocks calling.\n- Profile: Text shown unless hub_text_opt_out; Call always; prior text_opt_out shown as\n  informational (\"texting still allowed\"), STOP shown as a hard \"texting stopped\".\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "020b4da",
+      "date": "2026-08-19T19:04:46-05:00",
+      "subject": "Comms center: diagnostics health check, SMS templates + merge fields, tests",
+      "title": "Comms center: diagnostics health check, SMS templates + merge fields, tests",
+      "body": "- Admin diagnostics: GET /api/settings/twilio/health returns per-item ok/attention/\n  missing (account, number capabilities, SMS+voice webhooks, A2P campaign, browser\n  calling, signature mode, recording) — no secrets. POST /api/settings/twilio/mode\n  flips signature enforcement + call recording.\n- SMS templates + merge fields: text send now fills merge fields per recipient via\n  the shared fillTemplate and strips any unresolved {{...}} (customers never see a\n  raw placeholder). Profile text composer got a template picker + merge-field inserter.\n- Extracted pure twilio-sig.js (signature/phone-key/opt-out) for unit testing; added\n  test/comms.test.mjs (8 tests: signature valid/tampered/forged/missing, phone-format\n  matching, STOP/START, merge-field stripping) + npm test. Production build verified.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b3f9295",
+      "date": "2026-08-19T18:58:43-05:00",
+      "subject": "Comms center UI: delivery status, voicemail playback, call notes + dispositions",
+      "title": "Comms center UI: delivery status, voicemail playback, call notes + dispositions",
+      "body": "- Inbox thread now shows: text delivery state (Sending/Delivered/⚠Failed+reason,\n  friendly not raw codes), MMS attachment count, missed-call highlight, call/voicemail\n  duration, voicemail audio player + transcript, and call recording playback.\n- Secure media proxy GET /api/inbox/recording/:id streams Twilio recordings/voicemail\n  through the Hub with account auth (never exposes Twilio media URLs/creds); accepts a\n  query token so <audio> works. Whitelisted with its own token check in auth.js.\n- Call/voicemail rows get a notes + disposition editor (POST /api/inbox/:id/annotate);\n  the \"Do not call\" disposition opts the contact out everywhere (text_opt_out + DNC).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6784796",
+      "date": "2026-08-19T18:55:11-05:00",
+      "subject": "Comms center: webhook security + delivery status + voicemail/missed-call/MMS",
+      "title": "Comms center: webhook security + delivery status + voicemail/missed-call/MMS",
+      "body": "- Twilio webhook signature validation (server/twilio-webhook.js): HMAC-SHA1 over\n  URL + sorted params vs X-Twilio-Signature; mode setting twilio_signature_mode\n  (monitor default → log-only, flip to 'enforce'). Applied to ALL Twilio webhooks\n  (inbound SMS, status, and every /api/voice/* callback).\n- communications: additive migrations for delivery_status, duration_sec,\n  recording_url/sid, transcript, disposition, notes, media_url, error_message, agent.\n- SMS: capture MMS media on inbound; outbound seeds delivery_status='queued';\n  status webhook reconciles queued→sent→delivered/undelivered/failed with friendly\n  carrier-error text (no raw codes shown to agents).\n- Voice: upsert call rows by SID; inbound Dial has an action → answered logs\n  completed+duration, no-answer records a VOICEMAIL (transcribed) and logs a MISSED\n  call; recording callback attaches media when call recording is enabled (opt-in\n  setting, not mandatory).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6dae125",
+      "date": "2026-08-19T18:45:05-05:00",
+      "subject": "CallWidget: pre-authorize mic on connect (fixes answered-but-no-bridge) + visible phone status/error chip",
+      "title": "CallWidget: pre-authorize mic on connect (fixes answered-but-no-bridge) + visible phone status/error chip",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5826f86",
+      "date": "2026-08-19T18:24:17-05:00",
+      "subject": "Voice: defer SDK script (non-blocking) + widget waits for SDK to load",
+      "title": "Voice: defer SDK script (non-blocking) + widget waits for SDK to load",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4c8386c",
+      "date": "2026-08-19T18:20:01-05:00",
+      "subject": "CallWidget: init device once on mount (was recreating on ready change, clearing window.hubCall)",
+      "title": "CallWidget: init device once on mount (was recreating on ready change, clearing window.hubCall)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cabf61b",
+      "date": "2026-08-19T18:16:33-05:00",
+      "subject": "Voice: browser softphone (make + receive calls with accept/reject)",
+      "title": "Voice: browser softphone (make + receive calls with accept/reject)",
+      "body": "Backend: server/voice.js mints Twilio Voice access tokens (JWT) + ensureVoiceInfra()\ncreates an API Key + TwiML App and wires the Hub number's voice webhook. New\nendpoints: GET /api/voice/token, POST /api/voice/setup, and public TwiML webhooks\n/api/voice/{outbound,inbound,status} (outbound dials the number from the Hub caller\nID; inbound rings the browser <Client>hub</Client>; calls logged to communications\nas channel='call'). Whitelisted the webhooks in auth.js.\n\nFrontend: Twilio Voice SDK loaded from jsDelivr (no bundle risk); CallWidget mounts\nglobally, registers the Device, exposes window.hubCall(number,name), and shows an\nincoming-call panel with Accept/Reject plus an in-call panel (mute, hang up, timer).\nLead-profile Call button now calls through the Hub. Fails quietly if not set up.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8d8a8c8",
+      "date": "2026-08-19T18:09:48-05:00",
+      "subject": "Lead profile: real SMS composer (Text button sends via Hub/Twilio); Call button hooks window.hubCall (voice widget next)",
+      "title": "Lead profile: real SMS composer (Text button sends via Hub/Twilio); Call button hooks window.hubCall (voice widget next)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5af7382",
+      "date": "2026-08-19T18:03:17-05:00",
+      "subject": "Fix a2pStatus phone_numbers field + report service inbound routing config",
+      "title": "a2pStatus phone_numbers field + report service inbound routing config",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "876df8e",
+      "date": "2026-08-19T17:54:47-05:00",
+      "subject": "Add Twilio A2P 10DLC status check endpoint (brand + campaign + service membership)",
+      "title": "Twilio A2P 10DLC status check endpoint (brand + campaign + service membership)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "4ff220d",
+      "date": "2026-08-19T17:42:27-05:00",
+      "subject": "Client edits: push fields to Sierra so they stick + inline profile editing",
+      "title": "Client edits: push fields to Sierra so they stick + inline profile editing",
+      "body": "- New POST /api/sierra/update-lead-fields: pushes name/phone/email/address/status\n  to Sierra via PUT /leads/{id} (documented partial update). Fixes edits on\n  Sierra-linked leads silently reverting on the next sync.\n- Edit Client modal save() now: surfaces an error if the local save fails (was\n  silent), pushes edited fields to Sierra for Sierra leads, and refreshes the open\n  profile (was showing stale data after an edit).\n- Inline editing on the lead profile: ✎ buttons next to Name, Phone, Email, and\n  Address edit that field in place (Hub + Sierra push) without opening Edit Client.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "91f5cad",
+      "date": "2026-08-19T17:28:15-05:00",
+      "subject": "twilio wire-number: accept custom sms_url/status_url (to restore a number to GHL)",
+      "title": "twilio wire-number: accept custom sms_url/status_url (to restore a number to GHL)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "629246d",
+      "date": "2026-08-19T17:11:15-05:00",
+      "subject": "Twilio go-live: add test-send + wire-number (repoint inbound webhook) endpoints",
+      "title": "Twilio go-live: add test-send + wire-number (repoint inbound webhook) endpoints",
+      "body": "Account is funded/active again. Added POST /api/settings/twilio/test-send (one-off\noutbound test) and POST /api/settings/twilio/wire-number (points a number's inbound\nSmsUrl + StatusCallback at the Hub, defaulting to the configured From number) so we\ncan move inbound off GoHighLevel to the Hub. wireNumberToHub returns before/after.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c2ae2d2",
+      "date": "2026-08-19T16:15:59-05:00",
+      "subject": "Sierra tag push: use documented PUT /leads/{id} {tags:[tag]} / {removeTags:[tag]}",
+      "title": "Sierra tag push: use documented PUT /leads/{id} {tags:[tag]} / {removeTags:[tag]}",
+      "body": "Per Sierra's Update Existing Lead docs, `tags` (string array) ASSIGNS additively\nand `removeTags` removes — so sending only the single changed tag never touches\nexisting tags. Confirmed working: a test push added FSBO_Off Market while keeping\nthe lead's other tags. Object form 400s; strings are required. Earlier \"clobber\"\nwas a transient empty read right after the write (Sierra eventual consistency).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f9fb2df",
+      "date": "2026-08-19T16:00:48-05:00",
+      "subject": "Revert Sierra tag-push via PUT /leads/{id} — it clobbers tags",
+      "title": "Revert Sierra tag-push via PUT /leads/{id} — it clobbers tags",
+      "body": "Confirmed on this account: dedicated tag routes 404; PUT /leads/{id} with a\nstring tags array CLEARS the lead's tags, and with objects returns 400\n\"Missing request parameters\". There is no safe API tag-write, so tag pushes\nremain local-only (as before). Removed the PUT /leads/{id} {tags} attempts.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1784a60",
+      "date": "2026-08-19T15:56:36-05:00",
+      "subject": "Sierra tag push: send tags as objects {name} via PUT /leads/{id} (test format)",
+      "title": "Sierra tag push: send tags as objects {name} via PUT /leads/{id} (test format)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "68de052",
+      "date": "2026-08-19T15:51:33-05:00",
+      "subject": "Sierra tag push: try PUT /leads/{id} with full tags array (the working shape)",
+      "title": "Sierra tag push: try PUT /leads/{id} with full tags array (the working shape)",
+      "body": "Status writes succeed via PUT /leads/{id}; tags almost certainly use the same\nlead-update endpoint. Added it as the first attempt for both add and remove\n(sending the full local tags array, which mirrors Sierra + our additions).\nOlder tag-specific shapes remain as fallbacks.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "22c3dce",
+      "date": "2026-08-19T11:52:52-05:00",
+      "subject": "inbox: add auth-gated test-notify endpoint to resend the latest inbound alert",
+      "title": "inbox: add auth-gated test-notify endpoint to resend the latest inbound alert",
+      "body": "POST /api/inbox/test-notify/:clientId re-runs the real notifyNewInbound path\nfor a client's most recent inbound email, so the alert format/recipients can be\nverified without waiting for a fresh reply. Exports notifyNewInbound for it.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "439e5ad",
+      "date": "2026-08-19T11:45:18-05:00",
+      "subject": "Inbox email alerts: detailed subject + always notify John AND Matt",
+      "title": "Inbox email alerts: detailed subject + always notify John AND Matt",
+      "body": "The heads-up when a client emails/replies now has a self-explanatory subject:\n\"<Client> replied to your email \\\"<original subject>\\\"\" (Re:/Fwd: prefixes\nstripped), or \"<Client> emailed you: \\\"<subject>\\\"\" for a fresh email. The\nalert body leads with the subject in quotes. Recipients now always include\nJohn + Matt (johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com — the\nsame pair the TC digest uses), plus any inbox_notify_email extras, de-duped.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2b04c88",
+      "date": "2026-08-18T13:56:18-05:00",
+      "subject": "Drips: one active drip per lead (never stack a second campaign)",
+      "title": "Drips: one active drip per lead (never stack a second campaign)",
+      "body": "enrollInDrip now skips any contact already active in ANY drip — previously the\nguard was per-drip, so a lead could end up in two campaigns at once. Applies to\nevery enroll path (Clients bulk-apply, automations' Start Drip action, AI\nCampaign Match). AI Campaign Match no longer recommends contacts already in a\ndrip (names the other campaign in the not-recommended reason), and the bulk\nconfirmation reflects the one-drip-per-lead skip reason.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "eea4c0e",
+      "date": "2026-08-18T13:31:03-05:00",
+      "subject": "Drips: exclude un-emailable contacts at enrollment (not just at send)",
+      "title": "Drips: exclude un-emailable contacts at enrollment (not just at send)",
+      "body": "enrollInDrip now skips contacts that emailHardBlock would reject anyway —\nno email on file, throwaway @notvalidemail.com domain, prior spam complaint,\nor a known wrong address — so bulk-applying a drip from the Clients tab no\nlonger adds bad-email leads to the roster as enrolled-but-silent. Junk/DNC\nstatus is still skipped; opt-outs are NOT (team policy emails them, tagged).\n\nThe enroll route now returns skipped/total, and the Clients bulk-apply\nconfirmation reports the real skip count and reason. This also makes the\nexisting \"without an email are skipped\" UI copy actually true.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e8d887c",
+      "date": "2026-08-18T10:53:39-05:00",
+      "subject": "monthly_intro: swap the August line to a weather-neutral one",
+      "title": "monthly_intro: swap the August line to a weather-neutral one",
+      "body": "\"The calendar says August, but somehow it feels like summer just started\"\nassumed peak-summer weather; replaced with \"August has a way of reminding us\nsummer doesn't stick around forever\" so it reads right regardless of a rainy\nstretch. Updated the merge-field example to match.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f58aae0",
+      "date": "2026-08-18T10:34:36-05:00",
+      "subject": "Past-client emails: add {{monthly_intro}} rotating calendar-month opener",
+      "title": "Past-client emails: add {{monthly_intro}} rotating calendar-month opener",
+      "body": "New merge field {{monthly_intro}} renders a warm, Cedar Rapids/Eastern\nIowa-flavored opening line chosen by the CURRENT calendar month (Chicago),\nmirroring how {{seasonal_maintenance}} self-adjusts. Because the past-client\ndrips send relative to enrollment (not by calendar), this keeps every monthly\ntouch opening in-season and never repeats the line month to month.\n\nWired into fillTemplate + the shared MERGE_FIELDS list. Inserted after the\ngreeting in 21 past-client templates (both the standard Lifelong Friends and\nVintage decks), skipping the bare E12 anniversary email in both decks and the\nstandard E3 seasonal-maintenance email (which already opens seasonal).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "84eae15",
+      "date": "2026-08-18T09:47:36-05:00",
+      "subject": "Drip editor: preview + edit-in-place for template-backed steps",
+      "title": "Drip editor: preview + edit-in-place for template-backed steps",
+      "body": "Steps that use a shared template now render a read-only preview of the\nactual email (subject + body on a white card, legible in dark mode)\ninstead of just a template-name dropdown, so the emails in a drip can be\nreviewed at a glance. An \"Edit email\" button opens the template in place;\nsaving PUTs /api/templates/:id, so the edit also updates that template in\nthe Templates tab (and anywhere else it is used). The step Subject input\nis hidden when a template is selected (the template's subject wins).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fb33065",
+      "date": "2026-08-14T17:15:38-05:00",
+      "subject": "Add \"Lifelong Friends: Vintage\" past-client drip (#12) for 3+ year closings",
+      "title": "\"Lifelong Friends: Vintage\" past-client drip (#12) for 3+ year closings",
+      "body": "- New {{years_in_home}} merge field: whole years since the client's most\n  recent closing (from transactions.closing_date), falls back to \"several\".\n  Wired into fillTemplate + the shared MERGE_FIELDS list (composer + Custom\n  Fields tab).\n- AI Campaign Match: register drip 12 (Closed status + 3+ year tenure);\n  add mutual-exclusion so drip 4 (standard Lifelong Friends) skips 3+ year\n  closings and drip 12 skips closings under 3 years — nobody on both.\n- 12 monthly Vintage templates + drip were created on the live server\n  (templates 181-192, drip id 12) via build_vintage.mjs.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "9b4af42",
+      "date": "2026-08-14T15:20:42-05:00",
+      "subject": "AI Campaign Match: drive campaigns from actual drips (every drip selectable + enrollable) with per-drip status eligibility; Past Client Nurture restricted to Closed status only",
+      "title": "AI Campaign Match: drive campaigns from actual drips (every drip selectable + enrollable) with per-drip status eligibility; Past Client Nurture restricted to Closed status only",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bb04161",
+      "date": "2026-08-14T13:54:44-05:00",
+      "subject": "Stop-contact: DNC now removes drips like Junk; block new enrollment + send for stop-status leads; boot backfill purges existing Junk/DNC enrollments",
+      "title": "Stop-contact: DNC now removes drips like Junk; block new enrollment + send for stop-status leads; boot backfill purges existing Junk/DNC enrollments",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d6a2412",
+      "date": "2026-08-14T13:40:49-05:00",
+      "subject": "Wire the new past-client merge fields into fillTemplate replacement chain (helpers were defined but not applied)",
+      "title": "Wire the new past-client merge fields into fillTemplate replacement chain (helpers were defined but not applied)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1bb6120",
+      "date": "2026-08-14T13:38:10-05:00",
+      "subject": "Add past-client value-tool hyperlinks + self-adjusting seasonal maintenance merge fields ({{home_value_link}}, {{cma_request_link}}, {{seasonal_maintenance}}); expose in composer field menu",
+      "title": "past-client value-tool hyperlinks + self-adjusting seasonal maintenance merge fields ({{home_value_link}}, {{cma_request_link}}, {{seasonal_maintenance}}); expose in composer field menu",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "58bced0",
       "date": "2026-08-14T11:56:05-05:00",

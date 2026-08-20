@@ -101,14 +101,10 @@ export default function CallWidget() {
   const hangup = () => { try { callRef.current?.disconnect() } catch {}; endLocal() }
   const toggleMute = () => { const m = !muted; setMuted(m); try { callRef.current?.mute(m) } catch {} }
 
-  if (status === 'idle') {
-    const chip = { position: 'fixed', right: 20, bottom: 20, zIndex: 4000, display: 'flex', alignItems: 'center', gap: 8, padding: '8px 13px', borderRadius: 999, fontSize: 12, fontWeight: 600, boxShadow: '0 6px 20px rgba(0,0,0,.15)', border: '1px solid var(--border,#e5e7eb)', background: 'var(--bg-primary,#fff)', color: 'var(--text-primary,#111)', maxWidth: 280 }
-    const dot = (c) => ({ width: 9, height: 9, borderRadius: '50%', background: c, flexShrink: 0 })
-    if (reg === 'ready' && !regErr) return <div style={chip} title="Hub phone connected — ready for calls"><span style={dot('#10b981')} />Phone ready</div>
-    if (reg === 'ready' && regErr) return <div style={{ ...chip, borderColor: '#f59e0b', cursor: 'pointer' }} onClick={() => primeMicAgain()} title={regErr}><span style={dot('#f59e0b')} /><span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Mic blocked — click to enable</span></div>
-    if (reg === 'connecting') return <div style={chip}><span style={dot('#f59e0b')} />Phone connecting…</div>
-    return <div style={{ ...chip, borderColor: '#ef4444', cursor: 'pointer' }} onClick={() => window.location.reload()} title="Click to retry"><span style={dot('#ef4444')} /><span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{regErr || 'Phone error'}</span></div>
-  }
+  // Idle: no persistent status chip — the softphone stays invisible until a call
+  // starts (outbound via window.hubCall) or arrives (incoming). Mic is primed
+  // silently on registration so audio bridges instantly when a call connects.
+  if (status === 'idle') return null
 
   const title = peer.name || fmt(peer.number) || 'Unknown'
   const sub = peer.name ? fmt(peer.number) : ''
