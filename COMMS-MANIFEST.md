@@ -223,7 +223,20 @@ Rationale: fresh number + campaign, so old opt-out history doesn't suppress outr
 
 - **Deploy:** `git push origin HEAD` → Render auto-deploy (~2‑3 min, brief 502 during swap). Verify: health `200` + new `index-*.js` bundle hash.
 - **Persistence:** SQLite + uploads live on Render's `/data` disk (`DB_DIR`).
-- **Tests:** `npm test` (node:test, 8 tests). **Build:** `npm run build`.
+- **Tests:** `npm test` (node:test, 11 tests). **Build:** `npm run build`.
 - **Diagnostics:** Settings → Communications Diagnostics (live health of account, number capabilities, webhooks, A2P, calling, signature mode, recording).
 - **Softphone SDK:** loaded from jsDelivr CDN (Twilio's own CDN 403s for 2.x) — deferred `<script>`, not bundled.
 - **Rate limits:** Twilio 429s on ~100 rapid calls; bulk sends are spaced ~900ms with per-recipient error capture.
+
+---
+
+## 13. CRM-workflow layer (roadmap items 5–11, added 2026-08-20)
+
+- **#5 Conversation ownership** — each conversation has an assigned agent (`clients.agent_assigned`). Inbox sidebar: All / Mine / Unassigned + an "I am" agent picker (localStorage). Assignee chips on rows, reassign dropdown in the thread header. `GET /inbox/agents` (setting `inbox_agents`, default Matt,John,Hunter), `POST /thread/:id/assign`. Assigning emits a `contact_assigned` automation event.
+- **#7 Call routing + business hours** — outside configured hours, inbound calls skip the browser and go straight to an after-hours greeting + voicemail. Optional forward-to-mobile on a missed call (falls through to voicemail). Settings panel "Call Routing & Business Hours" with a live Open/Closed indicator. `GET/POST /api/settings/voice`. Logic in the pure, tested `businessOpen()`.
+- **#8 Automation comm-triggers** — the builder now fires on: **Incoming Text**, **Text Replied**, **Missed Call**, **Voicemail Received**, **Call Outcome Set** (per-disposition filter). Events emitted at each comm point via the existing `automation_events` bus → enroll into any active automation.
+- **#9 Bulk campaign management** — `text_campaigns` table + `campaign_id` on communications. Each blast is an auditable record (name, created_by, recipient math, status). Double-launch guard (identical name/body within 120s → 409). `GET /inbox/campaigns` with live counts (sent, delivered, failed, replies, opt-outs); shown in Reporting → Texting. Campaign-name field in the bulk composer.
+- **#10 Test coverage** — 11 tests (added business-hours boundaries + bulk exclusion), pure logic extracted to `server/comms-logic.js`.
+- **#11 Real-time inbox** — `GET /api/inbox/stream` (Server-Sent Events) pushes a `changed` event on any new communication; the inbox updates near-instantly. 45s poll kept as a backstop.
+
+**Still open (from the external review):** #12 power dialer. Ring-group / simultaneous-team ring is deferred (needs per-agent Twilio identities; the current model uses a single `hub` browser identity).
