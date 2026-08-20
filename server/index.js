@@ -10,6 +10,7 @@ import authRouter, { requireAuth } from './routes/auth.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import { startScheduler } from './scheduler.js'
 import { purgeStopStatusEnrollments } from './lead-sequences.js'
+import { businessOpen } from './comms-logic.js'
 import transactionsRouter from './routes/transactions.js'
 import clientsRouter from './routes/clients.js'
 import tasksRouter from './routes/tasks.js'
@@ -581,15 +582,13 @@ async function start() {
     try {
       if (db.getSetting('voice_business_hours_enabled', '0') !== '1') return true
       const tz = db.getSetting('voice_hours_tz', 'America/Chicago')
-      const days = (db.getSetting('voice_days', '1,2,3,4,5') || '').split(',').map(s => s.trim()).filter(Boolean)
       const parts = new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, weekday: 'short', hour: '2-digit', minute: '2-digit' }).formatToParts(new Date())
       const get = (t) => (parts.find(x => x.type === t) || {}).value
-      const wd = { Sun: '0', Mon: '1', Tue: '2', Wed: '3', Thu: '4', Fri: '5', Sat: '6' }[get('weekday')]
-      if (days.length && !days.includes(wd)) return false
+      const day = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[get('weekday')]
       let hh = parseInt(get('hour'), 10); if (hh === 24) hh = 0
-      const cur = hh * 60 + parseInt(get('minute'), 10)
-      const toMin = (s) => { const [a, b] = String(s).split(':'); return (parseInt(a, 10) || 0) * 60 + (parseInt(b, 10) || 0) }
-      return cur >= toMin(db.getSetting('voice_open', '08:00')) && cur < toMin(db.getSetting('voice_close', '18:00'))
+      const minutes = hh * 60 + parseInt(get('minute'), 10)
+      const days = (db.getSetting('voice_days', '1,2,3,4,5') || '').split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n))
+      return businessOpen({ day, minutes }, { enabled: true, open: db.getSetting('voice_open', '08:00'), close: db.getSetting('voice_close', '18:00'), days })
     } catch { return true }
   }
   const voicemailTwiml = (msg) => `<Say voice="alice">${escXml(msg)}</Say><Record maxLength="120" playBeep="true" transcribe="true" transcribeCallback="${HUB_BASE}/api/voice/transcription" action="${HUB_BASE}/api/voice/voicemail-done"/><Say voice="alice">We did not receive a message. Goodbye.</Say>`

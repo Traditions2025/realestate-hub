@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T17:42:15.858Z",
-  "count": 388,
+  "generated_at": "2026-08-20T17:44:38.601Z",
+  "count": 389,
   "entries": [
+    {
+      "hash": "9c0dd28",
+      "date": "2026-08-20T12:42:25-05:00",
+      "subject": "#9 Bulk campaign management",
+      "title": "#9 Bulk campaign management",
+      "body": "- text_campaigns table + campaign_id on communications; bulk-text records an auditable campaign (name, created_by, recipient math, status sending->sent)\n- Double-launch guard: identical name/body within 120s -> 409 'launched moments ago, re-send anyway?' (force to override)\n- GET /inbox/campaigns with live counts: sent, delivered, failed, replies (recipients who texted back after launch), opt-outs\n- BulkTextModal: campaign name field + duplicate confirm; Reporting Texting tab shows a Bulk campaigns table\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "2a90d5d",
       "date": "2026-08-20T12:39:26-05:00",

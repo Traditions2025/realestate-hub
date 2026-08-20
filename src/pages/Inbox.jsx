@@ -135,15 +135,21 @@ export default function Inbox() {
   useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
   const chooseAgent = (a) => { setMyAgent(a); localStorage.setItem('mst_agent', a) }
   const assignThread = async (clientId, agent) => { await authFetch(`/api/inbox/thread/${clientId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent }) }).catch(() => {}); load(); if (sel === clientId) authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => {}) }
-  // Near-real-time: refresh the conversation list + the open thread every 15s so
-  // incoming texts, calls, and delivery updates appear without a manual refresh.
-  useEffect(() => {
-    const t = setInterval(() => {
-      load()
-      if (sel) authFetch(`/api/inbox/thread/${sel}`).then(r => r.json()).then(setThread).catch(() => {})
-    }, 15000)
-    return () => clearInterval(t)
+  // Real-time via Server-Sent Events: refresh the list + open thread the moment a
+  // new message/call arrives. A slow poll stays as a backstop if SSE drops.
+  const refreshNow = useCallback(() => {
+    load()
+    if (sel) authFetch(`/api/inbox/thread/${sel}`).then(r => r.json()).then(setThread).catch(() => {})
   }, [load, sel])
+  useEffect(() => {
+    let es
+    try {
+      es = new EventSource(`/api/inbox/stream?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`)
+      es.addEventListener('changed', refreshNow)
+    } catch {}
+    const t = setInterval(refreshNow, 45000)   // backstop (also catches delivery-status updates)
+    return () => { try { es && es.close() } catch {}; clearInterval(t) }
+  }, [refreshNow])
 
   const openConvo = (c) => { if (c.unknown) openUnknown(c); else openThread(c.client_id) }
   const openUnknown = (c) => {

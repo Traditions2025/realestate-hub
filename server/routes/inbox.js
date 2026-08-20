@@ -164,6 +164,24 @@ router.get('/', (req, res) => {
   res.json({ conversations: list, total_unread: totalUnread })
 })
 
+// ---- REAL-TIME stream (Server-Sent Events). Pushes a 'changed' event whenever a
+// new communication row appears, so the inbox updates near-instantly instead of
+// waiting on the poll. EventSource can't set headers → token comes via ?token=. ----
+router.get('/stream', (req, res) => {
+  res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' })
+  if (res.flushHeaders) res.flushHeaders()
+  res.write(': connected\n\n')
+  let last = db.get('SELECT MAX(id) m FROM communications')?.m || 0
+  const tick = setInterval(() => {
+    try {
+      const m = db.get('SELECT MAX(id) m FROM communications')?.m || 0
+      if (m !== last) { last = m; res.write(`event: changed\ndata: ${JSON.stringify({ max_id: m })}\n\n`) }
+      else res.write(': ping\n\n')   // heartbeat keeps the connection open through proxies
+    } catch {}
+  }, 3000)
+  req.on('close', () => clearInterval(tick))
+})
+
 // ---- one contact's full thread ----
 router.get('/thread/:clientId', (req, res) => {
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [Number(req.params.clientId)])

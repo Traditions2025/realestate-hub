@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import crypto from 'crypto'
 import { twilioSignatureValid, phoneKey10, optKeyword } from '../server/twilio-sig.js'
 import { isStopStatus, STOP_STATUSES } from '../server/lead-sequences.js'
+import { businessOpen, toMinutes, bulkExcluded } from '../server/comms-logic.js'
 
 const TOKEN = 'test_auth_token_ABC123'
 const URL = 'https://realestate-hub-1rzu.onrender.com/api/inbox/twilio-inbound'
@@ -44,6 +45,24 @@ test('compliance: Do Not Contact + Junk are stop statuses (remove campaigns)', (
   for (const s of ['donotcontact', 'DoNotContact', 'DONOTCONTACT', 'junk', 'Junk']) assert.equal(isStopStatus(s), true)
   for (const s of ['active', 'lead', 'nurture', '', null, undefined]) assert.equal(isStopStatus(s), false)
   assert.ok(STOP_STATUSES.has('donotcontact'))
+})
+
+test('business hours: open/closed by time and day (close is exclusive)', () => {
+  const cfg = { enabled: true, open: '08:00', close: '18:00', days: [1, 2, 3, 4, 5] } // Mon-Fri
+  assert.equal(businessOpen({ day: 3, minutes: toMinutes('09:30') }, cfg), true)   // Wed 9:30am
+  assert.equal(businessOpen({ day: 3, minutes: toMinutes('07:59') }, cfg), false)  // before open
+  assert.equal(businessOpen({ day: 3, minutes: toMinutes('18:00') }, cfg), false)  // close is exclusive
+  assert.equal(businessOpen({ day: 3, minutes: toMinutes('08:00') }, cfg), true)   // open is inclusive
+  assert.equal(businessOpen({ day: 0, minutes: toMinutes('12:00') }, cfg), false)  // Sunday, not a work day
+  assert.equal(businessOpen({ day: 0, minutes: 0 }, { enabled: false }), true)     // hours off → always open
+})
+
+test('bulk exclusion: STOP opt-out or Do Not Contact / Junk status is excluded', () => {
+  assert.equal(bulkExcluded({ hub_text_opt_out: 1, status: 'active' }), true)
+  assert.equal(bulkExcluded({ status: 'donotcontact' }), true)
+  assert.equal(bulkExcluded({ status: 'Junk' }), true)
+  assert.equal(bulkExcluded({ status: 'active' }), false)
+  assert.equal(bulkExcluded({}), false)
 })
 
 test('unresolved merge fields are stripped (customer never sees {{...}})', () => {
