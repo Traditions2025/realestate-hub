@@ -58,6 +58,13 @@ export function resumeAi(clientId, reason = 'manual') {
   transitionAiState(clientId, 'AI_CONVERSATION_ACTIVE', reason)
 }
 export function setEnabled(clientId, enabled) { ensureState(clientId); db.run('UPDATE ai_lead_state SET ai_enabled=?, updated_at=? WHERE client_id=?', [enabled ? 1 : 0, nowIso(), Number(clientId)]) }
+// Explicit per-lead enrollment (agent turned AI on for this specific lead).
+export function setManaged(clientId, managed) { ensureState(clientId); db.run('UPDATE ai_lead_state SET ai_managed=?, updated_at=? WHERE client_id=?', [managed ? 1 : 0, nowIso(), Number(clientId)]) }
+// Whether AI is allowed to act on this lead right now (autopilot OR explicitly enrolled).
+export function aiManages(clientId) {
+  if (db.getSetting('ai_autopilot', '0') === '1') return true
+  return !!(db.get('SELECT ai_managed FROM ai_lead_state WHERE client_id=?', [Number(clientId)])?.ai_managed)
+}
 
 // Human takeover: pause autonomous conversation, cancel pending scheduled sends.
 export function humanTakeover(clientId, reason = 'agent sent a message') {

@@ -1006,6 +1006,9 @@ export async function initDb() {
   }
   // Admin quality rating on an AI action (good | needs_work | incorrect | unsafe).
   try { db.run('ALTER TABLE ai_actions ADD COLUMN rating TEXT') } catch {}
+  // Explicit per-lead AI enrollment. In manual mode (autopilot off), AI only acts on
+  // leads an agent turned on here. Autopilot on = AI may act on all eligible leads.
+  try { db.run('ALTER TABLE ai_lead_state ADD COLUMN ai_managed INTEGER DEFAULT 0') } catch {}
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`

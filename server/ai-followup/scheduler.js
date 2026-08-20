@@ -4,7 +4,7 @@
 // behavioral triggers). Everything is gated by the AI feature flags — if they are
 // off, the worker is a cheap no-op. Wired into server/scheduler.js.
 import db from '../database.js'
-import { flag, getConfig } from './flags.js'
+import { flag, getConfig, autopilotOn } from './flags.js'
 import { canSendSms } from './policy.js'
 import { ensureState } from './state.js'
 
@@ -56,14 +56,14 @@ function finish(id, state, error) { db.run("UPDATE ai_scheduled_actions SET stat
 
 // Schedule the next nurture touch after step `n` (n=0 means schedule first nurture).
 function scheduleNurture(clientId, n) {
-  if (!flag('ai_nurture_enabled')) return
+  if (!autopilotOn() || !flag('ai_nurture_enabled')) return
   if (n >= NURTURE_DAYS.length) return   // exhausted — falls to long-term (a slow re-engage sweep may pick it up)
   scheduleAiAction(clientId, 'AI_NURTURE_TOUCH', plusDays(NURTURE_DAYS[n]), { reason: `nurture step ${n + 1}`, payload: { step: n }, dedupKey: `nurture_${clientId}_${n}` })
 }
 
 // ---- SWEEP: new leads → schedule a first touch (cursor-based; never backfills the DB) ----
 export function newLeadSweep() {
-  if (!flag('ai_followup_enabled') || !flag('ai_proactive_text_enabled')) return
+  if (!autopilotOn() || !flag('ai_followup_enabled') || !flag('ai_proactive_text_enabled')) return
   const cur = db.getSetting('ai_newlead_cursor', null)
   if (cur == null) { const max = db.get('SELECT MAX(id) m FROM clients')?.m || 0; db.setSetting('ai_newlead_cursor', String(max)); return }
   const delay = Number(getConfig().ai_new_lead_delay_minutes) || 5
@@ -82,7 +82,7 @@ export function newLeadSweep() {
 
 // ---- SWEEP: re-engagement — dormant eligible leads with no recent activity ----
 export function reengagementSweep() {
-  if (!flag('ai_followup_enabled') || !flag('ai_nurture_enabled')) return
+  if (!autopilotOn() || !flag('ai_followup_enabled') || !flag('ai_nurture_enabled')) return
   const rows = db.all(`SELECT c.id, c.phone, c.status, c.hub_text_opt_out FROM clients c
     JOIN ai_lead_state s ON s.client_id=c.id
     WHERE c.phone IS NOT NULL AND c.phone != '' AND c.hub_text_opt_out=0
@@ -99,7 +99,7 @@ export function reengagementSweep() {
 // ---- SWEEP: behavioral triggers from website activity (lead_activity) ----
 // Thresholds + cooldown so a single view never triggers a text.
 export function behavioralSweep() {
-  if (!flag('ai_followup_enabled') || !flag('ai_behavioral_enabled')) return
+  if (!autopilotOn() || !flag('ai_followup_enabled') || !flag('ai_behavioral_enabled')) return
   let hot = []
   try {
     hot = db.all(`SELECT client_id, COUNT(*) n, MAX(listing_mls) mls FROM lead_activity

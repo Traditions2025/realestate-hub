@@ -3,7 +3,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { AI_FLAGS, AI_CONFIG_DEFAULTS, getFlags, getConfig, flag } from '../ai-followup/flags.js'
-import { ensureState, getState, transitionAiState, pauseAi, resumeAi, humanTakeover, setEnabled, AI_STATES } from '../ai-followup/state.js'
+import { ensureState, getState, transitionAiState, pauseAi, resumeAi, humanTakeover, setEnabled, setManaged, AI_STATES } from '../ai-followup/state.js'
 import { getIntent } from '../ai-followup/intent.js'
 import { recentAiActions } from '../ai-followup/audit.js'
 import { ensurePrefs } from '../ai-followup/policy.js'
@@ -30,15 +30,16 @@ router.get('/lead/:id', (req, res) => {
     prefs: { do_not_text: !!prefs?.do_not_text, do_not_call: !!prefs?.do_not_call, ai_text_enabled: prefs?.ai_text_enabled !== 0, ai_voice_enabled: prefs?.ai_voice_enabled === 1, sms_status: prefs?.sms_status, hub_text_opt_out: !!client.hub_text_opt_out },
     last_consumer_message: lastConsumer ? { text: lastConsumer.body, at: lastConsumer.occurred_at } : null,
     open_handoff: openHandoff || null,
-    global: { responsive: flag('ai_responsive_text_enabled'), proactive: flag('ai_proactive_text_enabled'), master: flag('ai_followup_enabled') },
+    ai_managed: state?.ai_managed === 1,
+    global: { responsive: flag('ai_responsive_text_enabled'), proactive: flag('ai_proactive_text_enabled'), master: flag('ai_followup_enabled'), autopilot: flag('ai_autopilot') },
   })
 })
 
 router.get('/lead/:id/history', (req, res) => res.json(recentAiActions(Number(req.params.id), 60)))
 
 // ---- per-lead controls ----
-router.post('/lead/:id/enable', (req, res) => { setEnabled(Number(req.params.id), true); transitionAiState(Number(req.params.id), 'AI_ELIGIBLE', 'enabled by agent'); res.json({ success: true }) })
-router.post('/lead/:id/stop', (req, res) => { setEnabled(Number(req.params.id), false); transitionAiState(Number(req.params.id), 'AI_DISABLED', 'stopped by agent'); res.json({ success: true }) })
+router.post('/lead/:id/enable', (req, res) => { setEnabled(Number(req.params.id), true); setManaged(Number(req.params.id), true); transitionAiState(Number(req.params.id), 'AI_ELIGIBLE', 'enabled by agent'); res.json({ success: true }) })
+router.post('/lead/:id/stop', (req, res) => { setEnabled(Number(req.params.id), false); setManaged(Number(req.params.id), false); transitionAiState(Number(req.params.id), 'AI_DISABLED', 'stopped by agent'); res.json({ success: true }) })
 router.post('/lead/:id/resume', (req, res) => { resumeAi(Number(req.params.id), 'resumed by agent'); res.json({ success: true }) })
 router.post('/lead/:id/takeover', (req, res) => { humanTakeover(Number(req.params.id), 'agent takeover'); res.json({ success: true }) })
 router.post('/lead/:id/pause', (req, res) => {
@@ -63,6 +64,7 @@ router.post('/lead/:id/prefs', (req, res) => {
 router.post('/lead/:id/send-now', async (req, res) => {
   try {
     const cid = Number(req.params.id)
+    setManaged(cid, true)   // a manual "Send AI now" enrolls the lead
     const hasInbound = db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' LIMIT 1", [cid])
     const m = await import('../ai-followup/orchestrator.js')
     const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])

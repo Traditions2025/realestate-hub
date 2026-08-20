@@ -336,14 +336,22 @@ function AiFollowUpSettings() {
         <h4 style={{ margin: 0 }}>🤖 HUB AI Follow-Up (AI ISA)</h4>
         <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: f.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{f.ai_followup_enabled ? '● Active' : '○ Off'}</span>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Autonomous SMS follow-up + qualification. Everything is off until you enable it. STOP always blocks AI, and a human reply always pauses it.</p>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Autonomous SMS follow-up + qualification. Everything is off until you enable it. STOP always blocks AI, and a human reply always pauses it. <strong>Start with Autopilot OFF</strong> and turn AI on per lead (on their profile) to test it before letting it run on its own.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
         <Toggle k="ai_followup_enabled" label="Master switch" hint="(nothing autonomous runs without this)" />
-        <Toggle k="ai_responsive_text_enabled" label="Responsive text" hint="(reply to inbound texts from eligible leads)" disabled={masterOff} />
-        <Toggle k="ai_proactive_text_enabled" label="Proactive first-touch" hint="(text brand-new leads first)" disabled={masterOff} />
+        <div style={{ padding: '9px 11px', borderRadius: 8, background: f.ai_autopilot ? 'rgba(245,158,11,.12)' : 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+          <Toggle k="ai_autopilot" label="Autopilot" hint="" disabled={masterOff} />
+          <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 24 }}>
+            {f.ai_autopilot
+              ? '⚠ ON: AI can act on ALL eligible leads and the auto sweeps (new-lead, nurture, re-engage, behavioral) run.'
+              : 'OFF (recommended to start): AI ONLY acts on leads you turn on individually from their profile. No auto-enrollment, no auto nurture.'}
+          </div>
+        </div>
+        <Toggle k="ai_responsive_text_enabled" label="Responsive text" hint="(reply to inbound texts from enrolled leads)" disabled={masterOff} />
+        <Toggle k="ai_proactive_text_enabled" label="Proactive first-touch" hint="(autopilot only — text brand-new leads first)" disabled={masterOff || !f.ai_autopilot} />
         <Toggle k="ai_auto_handoff_enabled" label="Auto handoff on high intent" disabled={masterOff} />
-        <Toggle k="ai_nurture_enabled" label="Long-term nurture / re-engagement" disabled={masterOff} />
-        <Toggle k="ai_behavioral_enabled" label="Behavioral triggers (website/IDX)" disabled={masterOff} />
+        <Toggle k="ai_nurture_enabled" label="Long-term nurture / re-engagement" hint="(autopilot only)" disabled={masterOff || !f.ai_autopilot} />
+        <Toggle k="ai_behavioral_enabled" label="Behavioral triggers (website/IDX)" hint="(autopilot only)" disabled={masterOff || !f.ai_autopilot} />
         <Toggle k="ai_voice_enabled" label="AI voice" hint="(future — keep off)" disabled={masterOff} />
       </div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 14 }}>

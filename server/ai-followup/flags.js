@@ -4,13 +4,18 @@ import db from '../database.js'
 
 export const AI_FLAGS = [
   'ai_followup_enabled',        // master switch
+  'ai_autopilot',               // OFF = manual: AI only acts on leads an agent enables + no sweeps.
   'ai_responsive_text_enabled', // reply to inbound texts
-  'ai_proactive_text_enabled',  // first-touch new leads
-  'ai_nurture_enabled',         // long-term / re-engagement
-  'ai_behavioral_enabled',      // website/IDX-triggered
+  'ai_proactive_text_enabled',  // first-touch new leads (only when autopilot on)
+  'ai_nurture_enabled',         // long-term / re-engagement (only when autopilot on)
+  'ai_behavioral_enabled',      // website/IDX-triggered (only when autopilot on)
   'ai_voice_enabled',           // AI voice (future)
   'ai_auto_handoff_enabled',    // auto-create handoffs on high intent
 ]
+
+// Autopilot ON = AI may act on all eligible leads + the enqueue sweeps run.
+// Autopilot OFF (default) = AI only acts on leads explicitly enabled by an agent.
+export function autopilotOn() { return db.getSetting('ai_autopilot', '0') === '1' }
 
 export const AI_CONFIG_DEFAULTS = {
   ai_new_lead_delay_minutes: '5',

@@ -3434,6 +3434,7 @@ function AiIsaCard({ clientId }) {
   const act = async (path, body) => { setBusy(true); try { await authFetch('/api/ai/lead/' + clientId + '/' + path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined }) } finally { setBusy(false); load() } }
   if (!d) return null
   const LEVEL = { URGENT: '#ef4444', HIGH: '#f59e0b', ENGAGED: '#10b981', NURTURE: '#2563eb', LOW: '#64748b' }
+  const managed = d.ai_managed || (d.global?.autopilot && d.ai_enabled)
   const st = d.ai_state || 'NEW_UNCONTACTED'
   const fmt = (iso) => { try { return new Date(String(iso).includes('T') ? iso : iso.replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
   return (
@@ -3442,26 +3443,30 @@ function AiIsaCard({ clientId }) {
         <h4 style={{ margin: 0, color: '#2563eb' }}>🤖 HUB AI</h4>
         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: '#2563eb', padding: '2px 7px', borderRadius: 4 }}>{st.replace(/_/g, ' ')}</span>
         {d.intent && <span style={{ fontSize: 12, fontWeight: 700, color: LEVEL[d.intent.level] || '#64748b' }}>intent {d.intent.score} · {d.intent.level}</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: d.ai_enabled ? '#10b981' : 'var(--text-muted)' }}>{d.ai_enabled ? 'AI on' : 'AI off'}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: managed ? '#10b981' : 'var(--text-muted)' }}>{managed ? 'AI managing this lead' : 'AI not enabled here'}</span>
       </div>
       {!d.global?.master && <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>AI is off globally. Turn on HUB AI Follow-Up in Settings for it to run.</div>}
+      {d.global?.master && !d.global?.autopilot && !managed && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Manual mode: AI won’t act on this lead until you turn it on here. (Autopilot is off.)</div>}
       {d.prefs?.hub_text_opt_out && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>This contact replied STOP — AI texting is blocked.</div>}
       {d.summary && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.45, fontStyle: 'italic', borderLeft: '2px solid rgba(37,99,235,0.4)', paddingLeft: 8 }}>{d.summary}</div>}
       {d.intent?.reasons?.length > 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Signals: {d.intent.reasons.join(' · ')}</div>}
       {d.open_handoff && <div style={{ fontSize: 12.5, color: '#b45309', marginTop: 6, fontWeight: 600 }}>⚑ Open handoff: {d.open_handoff.reason}</div>}
       {d.ai_next_action_at && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Next AI action: {fmt(d.ai_next_action_at)}</div>}
       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
-        {d.ai_enabled ? (
+        {managed ? (
           <>
             {st === 'HUMAN_TAKEOVER' || st === 'AI_PAUSED'
               ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('resume')}>Resume AI</button>
               : <button className="btn btn-sm" disabled={busy} onClick={() => act('pause', { duration: 'today' })}>Pause today</button>}
             <button className="btn btn-sm" disabled={busy} onClick={() => act('takeover')}>Take over</button>
-            <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Have HUB AI send a message to this contact now? It still honors all compliance rules.')) act('send-now') }}>Send AI now</button>
+            <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Have HUB AI send a message to this contact now? It still honors all compliance rules (STOP, opt-outs, quiet hours).')) act('send-now') }}>Send AI now</button>
             <button className="btn btn-sm" disabled={busy} style={{ color: '#ef4444' }} onClick={() => { if (confirm('Turn AI off for this contact?')) act('stop') }}>Stop AI</button>
           </>
         ) : (
-          <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('enable')}>Enable AI</button>
+          <>
+            <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('enable')}>Enable AI for this lead</button>
+            <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Enable AI for this lead and send a message now?')) act('send-now') }}>Send AI now</button>
+          </>
         )}
       </div>
     </div>

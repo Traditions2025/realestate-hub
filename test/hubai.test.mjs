@@ -88,6 +88,19 @@ test('quiet hours wrap past midnight (21:00 to 08:00 Central)', () => {
   assert.equal(inQuietHours(new Date('2026-01-15T18:00:00Z')), false)  // ~12:00 CT
 })
 
+test('manual mode: AI only manages leads explicitly enabled (autopilot off)', async () => {
+  const { aiManages, setManaged } = await import('../server/ai-followup/state.js')
+  db.setSetting('ai_autopilot', '0')
+  setManaged(cid, 0)
+  assert.equal(aiManages(cid), false, 'not enrolled → AI does not manage')
+  setManaged(cid, 1)
+  assert.equal(aiManages(cid), true, 'explicitly enrolled → AI manages')
+  setManaged(cid, 0)
+  db.setSetting('ai_autopilot', '1')
+  assert.equal(aiManages(cid), true, 'autopilot on → AI manages all eligible')
+  db.setSetting('ai_autopilot', '0')
+})
+
 test('scheduler: actions dedup by key; drain is a no-op while the master flag is off', async () => {
   const { scheduleAiAction, runDueAiActions } = await import('../server/ai-followup/scheduler.js')
   db.setSetting('ai_followup_enabled', '0')

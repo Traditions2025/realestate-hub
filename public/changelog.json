@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-20T19:34:42.018Z",
-  "count": 398,
+  "generated_at": "2026-08-20T19:44:06.516Z",
+  "count": 399,
   "entries": [
+    {
+      "hash": "ec2fb2b",
+      "date": "2026-08-20T14:35:35-05:00",
+      "subject": "HUB AI ISA: Reporting AI tab + Stages 3-6 (proactive scheduler, nurture cadence, re-engagement, behavioral, quality review)",
+      "title": "HUB AI ISA: Reporting AI tab + Stages 3-6 (proactive scheduler, nurture cadence, re-engagement, behavioral, quality review)",
+      "body": "- Reporting: '🤖 AI Follow-Up' tab (leads managed, sends, replies, response rate, high-intent, handoffs, tokens, by-day, scheduler health) + Recent AI messages review with 👍/👎 ratings\n- Stage 3 proactive: durable ai_scheduled_actions worker (restart-safe, idempotent, per-item eligibility re-check + state locking); newLeadSweep (cursor-based, never backfills the 45k) enqueues first-touch after the configured delay\n- Stage 4 nurture: increasing-spacing cadence (2/5/14/30/60d), stops on reply/handoff; reengagementSweep for dormant eligible leads\n- Stage 5 behavioral: behavioralSweep triggers on 4+ site views in 3 days with a 7-day cooldown (never on a single view)\n- Stage 6 quality: rating column + /ai/quality, /ai/actions/:id/rate, /ai/scheduler\n- orchestrator: shared runOutbound (compliance re-check, quiet hours, daily cap, race guard) powers proactive+nurture; reply cancels pending scheduled\n- Wired ticks into scheduler.js (drain 60s, new-lead sweep 5m, reengage+behavioral hourly) — all cheap no-ops while flags off\n- Tests: +2 (scheduler dedup/no-op-when-off, reply cancels scheduled). 22 total. All flags remain OFF.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6922ef8",
       "date": "2026-08-20T14:24:35-05:00",

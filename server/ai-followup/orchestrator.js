@@ -5,7 +5,7 @@ import db from '../database.js'
 import { getAiClient, AI_MODEL } from '../routes/followup.js'
 import { canSendSms } from './policy.js'
 import { flag, getConfig, inQuietHours } from './flags.js'
-import { ensureState, transitionAiState, markInbound, markOutbound } from './state.js'
+import { ensureState, transitionAiState, markInbound, markOutbound, aiManages } from './state.js'
 import { buildLeadAiContext } from './context.js'
 import { computeIntent, saveIntent, getIntent, levelFor } from './intent.js'
 import { applyMemory } from './memory.js'
@@ -46,6 +46,7 @@ export async function handleInboundText(clientId, inboundBody) {
 
   // ---- gates (HUB-controlled, never the model) ----
   if (!flag('ai_followup_enabled') || !flag('ai_responsive_text_enabled')) return logNo(cid, 'responsive AI disabled')
+  if (!aiManages(cid)) return logNo(cid, 'lead not enrolled in AI (manual mode — enable AI on this lead first)')
   const gate = canSendSms(client, { channel: 'ai', mode: 'responsive' })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
   if (humanAlreadyHandled(cid)) return logNo(cid, 'a human already replied')
@@ -143,7 +144,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
-  if (!force) { if (!flag('ai_followup_enabled')) return logNo(cid, 'AI disabled globally'); if (flagKey && !flag(flagKey)) return logNo(cid, flagKey + ' disabled') }
+  if (!force) { if (!flag('ai_followup_enabled')) return logNo(cid, 'AI disabled globally'); if (flagKey && !flag(flagKey)) return logNo(cid, flagKey + ' disabled'); if (!aiManages(cid)) return logNo(cid, 'lead not enrolled in AI (manual mode)') }
   const mode = force ? 'responsive' : 'proactive'
   const gate = canSendSms(client, { channel: 'ai', mode })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
