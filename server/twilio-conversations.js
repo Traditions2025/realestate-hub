@@ -90,6 +90,13 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
   return { conversationSid: convSid, serviceSid: sid, participants, skipped, messageSid: msg.sid }
 }
 
+// Send a message INTO an existing group conversation (agent replying to the group).
+export async function sendConversationMessage(convSid, body, author = 'Matt Smith Team') {
+  const sid = await ensureConversationsService()
+  const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: author, Body: body })
+  return { messageSid: msg.sid }
+}
+
 // Fetch a conversation's participant addresses (for labeling inbound replies).
 export async function conversationParticipants(serviceSid, convSid) {
   try {

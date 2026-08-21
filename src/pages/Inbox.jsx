@@ -110,6 +110,7 @@ export default function Inbox() {
   const [counts, setCounts] = useState({ by_channel: {} })
   const [sel, setSel] = useState(null)
   const [unknownSel, setUnknownSel] = useState(null)   // { key, phone, name } for an Unknown-queue conversation
+  const [groupSel, setGroupSel] = useState(null)       // { sid, name, group_meta } for a group-MMS conversation
   const [thread, setThread] = useState([])
   const [compose, setCompose] = useState(false)
   // AI suggested reply + editable draft
@@ -154,14 +155,19 @@ export default function Inbox() {
     return () => { try { es && es.close() } catch {}; clearInterval(t) }
   }, [refreshNow])
 
-  const openConvo = (c) => { if (c.unknown) openUnknown(c); else openThread(c.client_id) }
+  const openConvo = (c) => { if (c.is_group) openGroup(c); else if (c.unknown) openUnknown(c); else openThread(c.client_id) }
+  const openGroup = (c) => {
+    setSel(null); setUnknownSel(null)
+    setGroupSel({ sid: c.conversation_sid, name: c.contact_name, group_meta: c.group_meta })
+    load()
+  }
   const openUnknown = (c) => {
-    setSel(null); setUnknownSel({ key: c.thread_key, phone: c.phone, name: c.contact_name })
+    setSel(null); setGroupSel(null); setUnknownSel({ key: c.thread_key, phone: c.phone, name: c.contact_name })
     authFetch('/api/inbox/unknown-thread/read', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: c.thread_key }) }).then(() => load()).catch(() => {})
   }
   const openThread = (clientId) => {
     if (!clientId) return
-    setUnknownSel(null)
+    setUnknownSel(null); setGroupSel(null)
     setSel(clientId)
     setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(false); setOpenMsgs({}); setReplyMedia([])
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
@@ -384,7 +390,9 @@ export default function Inbox() {
 
         {/* right: reading pane */}
         <div className="inbox-reading" style={{ flex: 1, minWidth: 0, overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
-          {unknownSel ? (
+          {groupSel ? (
+            <GroupPane sel={groupSel} onClose={() => setGroupSel(null)} />
+          ) : unknownSel ? (
             <UnknownPane sel={unknownSel} onClose={() => setUnknownSel(null)}
               onLinked={(cid) => { setUnknownSel(null); load(); if (cid) openThread(cid) }} />
           ) : !sel ? (
@@ -646,6 +654,50 @@ const fmtPhoneDisp = (p) => { const d = String(p || '').replace(/\D/g, '').slice
 // Reading pane for an UNKNOWN-queue conversation (inbound text/call from a number
 // not yet in the CRM). Shows the messages and a Create-lead / Link-to-existing bar.
 // Replying is unlocked once the conversation is turned into a real lead.
+// Reading pane for a GROUP-MMS conversation (Twilio Conversations). One shared thread:
+// the group send + every reply, and a reply box that posts back into the group.
+function GroupPane({ sel, onClose }) {
+  const [rows, setRows] = React.useState([])
+  const [reply, setReply] = React.useState('')
+  const [sending, setSending] = React.useState(false)
+  const load = React.useCallback(() => authFetch('/api/inbox/group-thread?sid=' + encodeURIComponent(sel.sid)).then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => {}), [sel.sid])
+  React.useEffect(() => { load(); const t = setInterval(load, 20000); return () => clearInterval(t) }, [load])
+  const send = async () => {
+    if (!reply.trim()) return; setSending(true)
+    try { const d = await authFetch('/api/inbox/group-reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_sid: sel.sid, body: reply.trim() }) }).then(r => r.json()); if (d.success) { setReply(''); load() } else alert(d.error || 'Reply failed') }
+    catch (e) { alert('Reply failed: ' + e.message) } finally { setSending(false) }
+  }
+  let participants = []
+  try { participants = (JSON.parse(sel.group_meta || '{}').participants || []).map(p => p.name || p.phone) } catch {}
+  return (
+    <>
+      <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ fontWeight: 700 }}>👥 {sel.name || 'Group text'}</div>
+        <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={onClose}>Close</button>
+      </div>
+      {participants.length > 0 && <div style={{ padding: '6px 16px', fontSize: 12, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>Recipients: {participants.join(', ')}</div>}
+      <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+        {rows.map(m => {
+          const out = m.direction === 'outgoing'
+          return (
+            <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : (m.contact_name || 'Reply')} · {fmtDate(m.occurred_at)}</div>
+              <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
+                <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
+              </div>
+            </div>
+          )
+        })}
+        {rows.length === 0 && <div style={{ color: 'var(--text-muted)', margin: 'auto' }}>No messages yet.</div>}
+      </div>
+      <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', display: 'flex', gap: 8 }}>
+        <input value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }} placeholder="Reply to the group…" style={{ flex: 1, padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }} />
+        <button className="btn btn-primary" onClick={send} disabled={sending || !reply.trim()}>{sending ? '…' : 'Send'}</button>
+      </div>
+    </>
+  )
+}
+
 function UnknownPane({ sel, onClose, onLinked }) {
   const [rows, setRows] = React.useState([])
   const [mode, setMode] = React.useState(null)   // null | 'create' | 'link'

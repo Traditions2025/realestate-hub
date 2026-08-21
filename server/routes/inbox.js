@@ -131,15 +131,17 @@ router.get('/', (req, res) => {
   let rows = db.all(sql, params)
   if (q) rows = rows.filter(r => `${r.contact_name} ${r.subject} ${r.preview}`.toLowerCase().includes(q))
 
-  // group by client into conversation threads
+  // group into conversation threads. A Twilio-Conversations group (group MMS) is keyed
+  // by its conversation_sid so the group + every reply render as ONE thread.
   const threads = new Map()
   for (const r of rows) {
-    const key = r.client_id || r.thread_key || `x_${r.from_addr}`
+    const key = r.conversation_sid ? ('grp_' + r.conversation_sid) : (r.client_id || r.thread_key || `x_${r.from_addr}`)
     if (!threads.has(key)) {
       threads.set(key, {
-        client_id: r.client_id, contact_name: r.contact_name || 'Unknown',
+        client_id: r.conversation_sid ? null : r.client_id, contact_name: r.contact_name || 'Unknown',
         last: r, msg_count: 0, unread_count: 0, channels: new Set(),
-        unknown: !r.client_id, thread_key: r.thread_key || null,
+        unknown: !r.conversation_sid && !r.client_id, thread_key: r.thread_key || null,
+        conversation_sid: r.conversation_sid || null, is_group: !!r.conversation_sid, group_meta: null,
         phone: r.client_id ? null : (r.from_addr || r.to_addr || ''),
       })
     }
@@ -147,7 +149,14 @@ router.get('/', (req, res) => {
     t.msg_count++
     if (r.status === 'unread') t.unread_count++
     t.channels.add(r.channel)
+    if (r.group_meta && !t.group_meta) t.group_meta = r.group_meta
     // rows are newest-first, so the first seen is the latest
+  }
+  // Group threads get a stable "Group: name, name" label from the send's participants.
+  for (const t of threads.values()) {
+    if (t.is_group && t.group_meta) {
+      try { const names = (JSON.parse(t.group_meta).participants || []).map(p => p.name || p.phone); if (names.length) t.contact_name = 'Group: ' + names.join(', ') } catch {}
+    } else if (t.is_group && !/^Group:/.test(t.contact_name)) { t.contact_name = 'Group text' }
   }
   // lightweight AI intent hint per conversation (from the last analysis)
   const intents = {}
@@ -821,6 +830,28 @@ router.post('/conversations-webhook', async (req, res) => {
     }
   } catch (e) { console.error('[conversations-webhook]', e.message) }
   res.sendStatus(204)
+})
+// Reply INTO an existing group conversation (message goes to everyone).
+router.post('/group-reply', async (req, res) => {
+  const sid = String(req.body?.conversation_sid || '')
+  const body = String(req.body?.body || '').trim()
+  if (!sid || !body) return res.status(400).json({ error: 'A conversation and message are required.' })
+  try {
+    const { sendConversationMessage } = await import('../twilio-conversations.js')
+    const out = await sendConversationMessage(sid, body)
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['text', 'outgoing', null, 'You', '', '', body.replace(/\s+/g, ' ').slice(0, 160), body, 'conv_' + out.messageSid, 'grp_' + sid, 'read', 'human', sid, nowIso()])
+    res.json({ success: true })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+// All messages in a group conversation (the group send + every reply), oldest first.
+router.get('/group-thread', (req, res) => {
+  const sid = String(req.query.sid || '')
+  if (!sid) return res.json([])
+  const rows = db.all('SELECT * FROM communications WHERE conversation_sid = ? ORDER BY occurred_at ASC LIMIT 500', [sid])
+  try { db.run("UPDATE communications SET status='read' WHERE conversation_sid=? AND status='unread'", [sid]) } catch {}
+  res.json(rows)
 })
 
 // ---- REAL-TIME inbound receiver (SendGrid Inbound Parse posts here) ----

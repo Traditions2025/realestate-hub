@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-21T22:05:48.923Z",
-  "count": 445,
+  "generated_at": "2026-08-21T22:25:59.471Z",
+  "count": 447,
   "entries": [
+    {
+      "hash": "51bbeae",
+      "date": "2026-08-21T17:20:18-05:00",
+      "subject": "Group texting backend: Twilio Conversations (true group MMS) + capability check",
+      "title": "Group texting backend: Twilio Conversations (true group MMS) + capability check",
+      "body": "- server/twilio-conversations.js: ensureConversationsService/Webhook, conversationsStatus\n  (readiness incl. MMS capability), createGroupText (one conversation, all recipients\n  bound to our number, message fans out), conversationParticipants.\n- inbox routes: GET /group-status, POST /group-setup, POST /group-text (compliance-checked,\n  logs one grouped outbound row with conversation_sid), POST /conversations-webhook\n  (public; stores inbound group replies under the same conversation_sid).\n- communications: +conversation_sid +group_meta (+index) so a group + its replies share one thread.\n\nBackend + capability check only; compose wiring + Inbox grouping UI come next once the\naccount/number is confirmed group-MMS capable.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a0283fc",
+      "date": "2026-08-21T17:06:10-05:00",
+      "subject": "P0-4: DB health diagnostics + Postgres migration plan (P0 band complete)",
+      "title": "P0-4: DB health diagnostics + Postgres migration plan (P0 band complete)",
+      "body": "- getDbHealth() + GET /api/admin/db-health: size, PRAGMA quick_check integrity,\n  journal mode, page/freelist counts, table + migration counts, client count, and\n  recent (24h) scheduler sync errors. Surfaced as the Database card in Admin System Health.\n- POSTGRES-MIGRATION-PLAN.md authored (planning only; no migration executed).\n\nCompletes the P0 security/data-integrity band. 1 new test; 112 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d0bbc85",
       "date": "2026-08-21T17:01:04-05:00",

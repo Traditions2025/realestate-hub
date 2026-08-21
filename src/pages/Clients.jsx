@@ -3698,6 +3698,20 @@ function InlineTextComposer({ client, onClose, onSent }) {
     if (!recips.length) { alert('Add at least one recipient.'); return }
     setSending(true)
     try {
+      // 2+ recipients + no photo → true group MMS (one shared thread, replies grouped).
+      if (recips.length >= 2 && !media.length) {
+        const recipients = recips.map(r => r.agent
+          ? { phone: r.phone, name: r.name }
+          : { client_id: r.id, name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() })
+        const resp = await authFetch('/api/inbox/group-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: body.trim(), recipients }) })
+        const d = await resp.json()
+        if (d.success) {
+          setBody(''); onSent && onSent()
+          const notes = [...(d.blocked || []).map(b => `${b.name || b.phone || 'one'} skipped (${b.reason})`), ...(d.skipped || []).map(s => `${s.name || s.phone} couldn't be added`)]
+          if (notes.length) alert(`Group text sent to ${d.sent_to}.\n${notes.join('\n')}`); else onClose()
+        } else alert('Group text failed: ' + (d.error || 'unknown error'))
+        return
+      }
       const client_ids = recips.filter(r => !r.agent).map(r => r.id)
       const phones = recips.filter(r => r.agent).map(r => ({ phone: r.phone, name: r.name }))
       const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids, phones, body: body.trim(), media: media.map(m => m.url) }) })
