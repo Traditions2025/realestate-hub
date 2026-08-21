@@ -46,6 +46,7 @@ export async function runDueScheduledTexts() {
       await new Promise(rs => setTimeout(rs, 400))   // gentle pacing
     } catch (e) {
       db.run("UPDATE scheduled_texts SET status='failed', error=? WHERE id=?", [String(e.message || e).slice(0, 300), s.id])
+      try { const { recordFailure } = await import('./failures.js'); recordFailure('sms', { ref: s.client_id, summary: 'Scheduled text failed to send', error: e.message }) } catch {}
     }
   }
 }

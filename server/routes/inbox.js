@@ -589,7 +589,10 @@ router.post('/bulk-text', async (req, res) => {
           ['text', 'outgoing', c.id, name2, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
         sent++
         await new Promise(rs => setTimeout(rs, 900))   // gentle pacing to respect Twilio rate limits
-      } catch (e) { console.error('[bulk-text] send error:', e.message) }
+      } catch (e) {
+        console.error('[bulk-text] send error:', e.message)
+        try { const { recordFailure } = await import('../failures.js'); recordFailure('bulk', { ref: c.id, summary: `Bulk text failed to ${c.first_name || ''} ${c.last_name || ''}`.trim(), error: e.message }) } catch {}
+      }
     }
     db.run("UPDATE text_campaigns SET status='sent', queued=?, completed_at=? WHERE id=?", [sent, nowIso(), campaignId])
     console.log(`[bulk-text] campaign ${campaignId} done: sent ${sent}`)

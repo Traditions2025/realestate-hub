@@ -883,6 +883,23 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)') } catch {}
+  // Failure visibility log (Phase 16 / P0-3): failed sends, AI actions, syncs, backups.
+  // Nothing should be silently lost — every failure is recorded and surfaced to admins.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS failed_jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      kind TEXT NOT NULL,              -- sms|email|ai_action|sync|automation|bulk|backup
+      ref TEXT,                        -- related id (client_id, campaign_id, ...)
+      summary TEXT,                    -- short human description
+      payload_json TEXT,
+      last_error TEXT,
+      retry_count INTEGER DEFAULT 0,   -- times this same failure recurred
+      state TEXT DEFAULT 'open',       -- open|resolved
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_failed_state ON failed_jobs(state, kind)') } catch {}
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

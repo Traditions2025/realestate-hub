@@ -22,6 +22,7 @@ import {
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import zlib from 'zlib'
+import Database from 'better-sqlite3'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -208,13 +209,50 @@ export async function backupDbViaEmail() {
   }
 }
 
-// Top-level runner — called from the scheduler. Composes the layers and
-// returns a summary object that can be logged.
+// Verify a backup file is a USABLE SQLite database, not just present. Opens it
+// read-only, runs PRAGMA integrity_check, and confirms core data is queryable.
+// "The job ran" is NOT the same as "a usable backup exists."
+export function verifyBackupFile(path) {
+  try {
+    if (!existsSync(path)) return { ok: false, reason: 'file missing' }
+    const s = statSync(path)
+    if (!s.isFile() || s.size < 8 * 1024) return { ok: false, reason: 'file too small', sizeKb: Math.round(s.size / 1024) }
+    const bdb = new Database(path, { readonly: true, fileMustExist: true })
+    try {
+      const integ = bdb.prepare('PRAGMA integrity_check').get()
+      const integrity = integ ? Object.values(integ)[0] : null
+      let clients = null; try { clients = bdb.prepare('SELECT COUNT(*) n FROM clients').get()?.n ?? null } catch {}
+      return { ok: integrity === 'ok' && clients != null, integrity, clients, sizeKb: Math.round(s.size / 1024) }
+    } finally { bdb.close() }
+  } catch (e) { return { ok: false, reason: e.message } }
+}
+
+// Health snapshot for the admin dashboard: newest backup age + whether it verifies.
+export function getBackupHealth() {
+  const backups = listBackups()
+  const newest = backups[0] || null
+  let ageHours = null, verify = null
+  if (newest) {
+    ageHours = Math.round(((Date.now() - new Date(newest.mtime).getTime()) / 3600000) * 10) / 10
+    verify = verifyBackupFile(join(BACKUP_DIR, newest.name))
+  }
+  const stale = ageHours == null || ageHours > 48
+  return {
+    ok: !!(newest && verify && verify.ok && !stale),
+    count: backups.length,
+    newest: newest ? { name: newest.name, sizeKb: newest.sizeKb, mtime: newest.mtime } : null,
+    age_hours: ageHours, stale, verified: !!(verify && verify.ok), verify,
+  }
+}
+
+// Top-level runner — called from the scheduler. Composes the layers, VERIFIES the
+// disk backup, and records a failure if anything is off. Returns a summary.
 export async function runDailyBackup() {
   const result = { startedAt: new Date().toISOString() }
   try {
     result.disk = backupDbToDisk('daily')
     result.diskRotate = rotateBackups('daily', 14)  // keep 14 days
+    if (result.disk?.path) result.diskVerify = verifyBackupFile(result.disk.path)
   } catch (err) {
     result.diskError = err.message
   }
@@ -225,6 +263,14 @@ export async function runDailyBackup() {
   }
   result.finishedAt = new Date().toISOString()
   console.log('[backup] daily run:', JSON.stringify(result))
+  // Alert (via the failure log) if the disk backup didn't produce a usable file.
+  try {
+    const bad = result.diskError || result.disk?.skipped || (result.diskVerify && !result.diskVerify.ok)
+    if (bad) {
+      const { recordFailure } = await import('./failures.js')
+      recordFailure('backup', { ref: 'daily', summary: 'Daily DB backup did not produce a verified, usable file', error: result.diskError || result.disk?.skipped || result.diskVerify?.reason || result.diskVerify?.integrity || 'verify failed', payload: { disk: result.disk, verify: result.diskVerify } })
+    }
+  } catch {}
   return result
 }
 

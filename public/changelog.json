@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T21:55:01.707Z",
-  "count": 443,
+  "generated_at": "2026-08-21T22:01:00.789Z",
+  "count": 444,
   "entries": [
+    {
+      "hash": "fdca95f",
+      "date": "2026-08-21T16:55:09-05:00",
+      "subject": "P0-2: unified automated-communication collision guard",
+      "title": "P0-2: unified automated-communication collision guard",
+      "body": "policy.canAutomatedSend() — the single gate every automated text path consults so\nAI, automations, and bulk can never talk over the AI, over a human, or stack a\nduplicate. Blocks: hard compliance (STOP/DNT/DNC), human takeover/handoff, active\nAI conversation or pending AI action (unless source is the AI), active human 1:1,\nrecent-duplicate window, and quiet hours.\n\nWired into: automation send_text action, bulk-text (per-recipient; surfaced as\nexcluded.active_conversation), and a light variant in scheduled 1:1 texts. Drips\nare email-only so not a texting-collision path.\n\n8 new tests (test/collision-guard.test.mjs); 104 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b9ad421",
       "date": "2026-08-21T16:47:17-05:00",

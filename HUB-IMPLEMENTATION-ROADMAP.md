@@ -27,10 +27,9 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 - **Why:** prevents AI + automation + bulk from texting the same lead at once.
 - **Delivered:** `policy.canAutomatedSend(client, { source, dedupMinutes, respectQuietHours })` layering on `canSendSms` and blocking: hard compliance (STOP/DNT/DNC), human takeover/handoff, an active AI conversation or pending AI action (unless source==='ai'), an active human 1:1, a duplicate within the dedup window, and quiet hours. Wired into the **automation `send_text`** action, **bulk-text** (per-recipient, reported as `excluded.active_conversation`), and a light variant into **scheduled 1:1 texts**. Drips are email-only, so not a texting-collision path. 8 tests in `test/collision-guard.test.mjs`.
 
-### P0-3 · Failure/retry queue + backup verification (Phase 16 + Phase 2)
+### P0-3 · Failure visibility + backup verification (Phase 16 + Phase 2) — ✅ DONE
 - **Why:** stop silently losing failed sends/actions; guarantee a *usable* backup.
-- **Work:** `failed_jobs` table (kind, payload, retry_count, last_error, next_retry_at, state); enqueue on SMS/email/AI/sync failure; scheduler drain with backoff; admin view. Backup: after each backup, open+integrity-check the file, record size/age, alert on stale/failed.
-- **Dependencies:** P0-1 audit log (nice-to-have). **Risk:** Low-Medium. **Testing:** enqueue→retry→resolve; backup verify detects a corrupt/missing file.
+- **Delivered:** `failed_jobs` table + `server/failures.js` (`recordFailure` dedups by kind+ref and bumps `retry_count`; `listFailures`/`failureCounts`/`resolveFailure`). Wired into the previously-silent bulk-text and scheduled-text failure paths, and into the daily backup. **Backup verification:** `verifyBackupFile()` opens each backup read-only, runs `PRAGMA integrity_check`, and confirms core data is queryable ("job ran" ≠ "usable backup"); `getBackupHealth()` reports newest/age/verified/stale; a failed/unverified backup records a failure. Admin **System Health** tab surfaces backup health + open failures with resolve. `/api/admin/health|failures`. 7 tests. *(Deliberately visibility-first — no auto-retry of SMS sends, which could double-text; safe retry can be layered on later.)*
 
 ### P0-4 · DB health diagnostics + Postgres plan doc (Phase 2)
 - **Work:** `/api/admin/db-health` (size, backup age, migration count, integrity_check, lock errors); author `POSTGRES-MIGRATION-PLAN.md` (no automatic migration). **Risk:** Low.

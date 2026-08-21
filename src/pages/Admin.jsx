@@ -8,6 +8,7 @@ const TABS = [
   ['roles', '🛡 Roles & Permissions'],
   ['team', '📇 Team Directory'],
   ['email', '✉ Email Inboxes'],
+  ['health', '🩺 System Health'],
   ['audit', '📜 Audit Log'],
 ]
 const ROLE_LABEL = {
@@ -33,6 +34,7 @@ export default function Admin() {
       {tab === 'roles' && <RolesPanel />}
       {tab === 'team' && <TeamPanel />}
       {tab === 'email' && <EmailPanel />}
+      {tab === 'health' && <HealthPanel />}
       {tab === 'audit' && <AuditPanel />}
     </div>
   )
@@ -261,6 +263,68 @@ function EmailPanel() {
         <button className="btn btn-primary" disabled={busy}>{busy ? 'Connecting…' : '+ Connect inbox'}</button>
         {msg && <span style={{ fontSize: 12.5, color: msg.startsWith('✓') ? '#10b981' : '#b45309' }}>{msg}</span>}
       </form>
+    </div>
+  )
+}
+
+// ---------------- System Health (backups + failures) ----------------
+function HealthPanel() {
+  const [health, setHealth] = useState(null)
+  const [failures, setFailures] = useState([])
+  const [err, setErr] = useState('')
+  const load = useCallback(() => {
+    authFetch('/api/admin/health').then(r => r.json()).then(d => d.error ? setErr(d.error) : setHealth(d)).catch(() => setErr('Failed to load'))
+    authFetch('/api/admin/failures?state=open').then(r => r.json()).then(d => setFailures(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
+  useEffect(() => { load() }, [load])
+  const resolve = async (id) => { await authFetch(`/api/admin/failures/${id}/resolve`, { method: 'POST' }); load() }
+  const resolveAll = async () => { if (!confirm('Mark all open failures resolved?')) return; await authFetch('/api/admin/failures/resolve-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); load() }
+  if (err) return <div className="detail-section"><h4>System Health</h4><div style={{ color: '#ef4444', fontSize: 13 }}>{err}</div></div>
+  const b = health?.backup
+  const badge = (ok, okText, badText) => <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
+  return (
+    <div>
+      {/* Backups */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <h4>Backups</h4>
+        {!b ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div> : (
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(b.ok, '✓ Healthy', '⚠ Attention')}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Newest backup</div>{b.newest ? `${b.newest.name.replace('realestate-hub.db.', '')} · ${b.newest.sizeKb} KB` : '— none —'}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Age</div>{b.age_hours != null ? `${b.age_hours}h ` : '—'}{badge(!b.stale, 'fresh', 'stale')}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Verified usable</div>{badge(b.verified, `✓ integrity ok${b.verify?.clients != null ? ` · ${b.verify.clients} clients` : ''}`, '⚠ not verified')}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total on disk</div>{b.count}</div>
+          </div>
+        )}
+        <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>Each backup is opened and integrity-checked, so “verified usable” means a real, restorable database — not just that the backup job ran.</p>
+      </div>
+
+      {/* Failures */}
+      <div className="detail-section">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h4 style={{ margin: 0 }}>Open failures ({failures.length})</h4>
+          {failures.length > 0 && <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={resolveAll}>Resolve all</button>}
+          <button className="btn btn-sm" onClick={load}>↻ Refresh</button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 8px' }}>Failed sends, backups, and background jobs — nothing is silently lost.</p>
+        {failures.length === 0 ? (
+          <div style={{ color: '#10b981', fontSize: 13 }}>✓ No open failures.</div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {failures.map(f => (
+              <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,.12)', color: '#ef4444' }}>{f.kind}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{f.summary || '(no summary)'}{f.retry_count > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}> · recurred {f.retry_count}×</span>}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.last_error}</div>
+                </div>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{f.updated_at ? new Date(f.updated_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
+                <button className="btn btn-sm" onClick={() => resolve(f.id)}>Resolve</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

@@ -8,6 +8,7 @@ import db from './database.js'
 
 import authRouter, { requireAuth } from './routes/auth.js'
 import usersRouter, { ensureOwnerSeed } from './routes/users.js'
+import adminRouter from './routes/admin.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import { startScheduler } from './scheduler.js'
 import { purgeStopStatusEnrollments } from './lead-sequences.js'
@@ -219,6 +220,7 @@ async function start() {
   app.use(requireAuth)
   // Protected routers (req.user is populated by requireAuth above).
   app.use('/api/users', usersRouter)
+  app.use('/api/admin', adminRouter)
 
   // Recent crashes captured by the process handlers (most recent first).
   app.get('/api/crash-log', (_req, res) => {
