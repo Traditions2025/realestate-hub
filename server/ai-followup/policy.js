@@ -5,6 +5,7 @@
 // decision object with an auditable reason.
 import db from '../database.js'
 import { isStopStatus } from '../lead-sequences.js'
+import { inQuietHours } from './flags.js'
 
 const nowIso = () => new Date().toISOString()
 export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
@@ -64,6 +65,46 @@ export function canSendSms(client, context = {}) {
     if (st && ['HUMAN_TAKEOVER', 'DO_NOT_TEXT', 'NOT_INTERESTED', 'AI_DISABLED', 'CLOSED_CONVERTED'].includes(st.ai_state)) return deny('AI state ' + st.ai_state)
   }
   return { ok: true, reason: `${channel} send allowed` }
+}
+
+// COLLISION GUARD (Phase 17 / P0-2). The single gate EVERY automated text path
+// (drip, automation, bulk) must consult before sending, so nothing talks over the AI,
+// over a human, or stacks a duplicate on top of a message just sent. Layers on the
+// hard compliance in canSendSms. Returns { ok, reason }.
+//
+//   source: 'drip' | 'automation' | 'bulk' | 'ai'
+//   dedupMinutes: suppress if any outgoing text was sent within this window (0 = off)
+//   respectQuietHours: block during configured quiet hours (agent-initiated bulk may pass false)
+const AI_ACTIVE_STATES = ['AI_CONVERSATION_ACTIVE', 'AI_ENGAGED', 'AI_WAITING_FOR_REPLY', 'AI_HIGH_INTENT']
+export function canAutomatedSend(client, { source = 'automation', dedupMinutes = 60, respectQuietHours = true } = {}) {
+  if (!client) return deny('no client')
+  const cid = client.id
+  // 1) Hard compliance (STOP / do_not_text / opted-out / DNC status).
+  const base = canSendSms(client, { channel: 'automation' })
+  if (!base.ok) return base
+  const st = db.get('SELECT ai_state, ai_managed FROM ai_lead_state WHERE client_id=?', [cid])
+  // 2) A human owns the conversation → automated systems back off.
+  if (st && ['HUMAN_TAKEOVER', 'HUMAN_HANDOFF_REQUIRED'].includes(st.ai_state)) return deny('a human is handling this lead')
+  // 3) The AI is actively conversing → do not talk over it (unless WE are the AI).
+  if (source !== 'ai') {
+    if (db.get("SELECT id FROM ai_scheduled_actions WHERE client_id=? AND state='pending' LIMIT 1", [cid])) return deny('AI has a pending action for this lead')
+    if (st && st.ai_managed === 1 && AI_ACTIVE_STATES.includes(st.ai_state)) return deny('AI is actively conversing with this lead')
+  }
+  // 4) An active human 1:1 conversation is in progress (recent human send after a reply).
+  const lastOut = db.get("SELECT sent_by_type, occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' ORDER BY occurred_at DESC LIMIT 1", [cid])
+  if (lastOut && (lastOut.sent_by_type === 'human' || lastOut.sent_by_type == null)) {
+    const lastIn = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' ORDER BY occurred_at DESC LIMIT 1", [cid])
+    const recent = new Date(lastOut.occurred_at).getTime() > Date.now() - 12 * 3600 * 1000
+    if (recent && lastIn) return deny('an active human conversation is in progress')
+  }
+  // 5) Duplicate / stacking guard — a text already went out very recently.
+  if (dedupMinutes > 0) {
+    const since = new Date(Date.now() - dedupMinutes * 60000).toISOString()
+    if (db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' AND occurred_at >= ? LIMIT 1", [cid, since])) return deny(`another text was sent in the last ${dedupMinutes} min`)
+  }
+  // 6) Quiet hours.
+  if (respectQuietHours && inQuietHours()) return deny('quiet hours')
+  return { ok: true, reason: `${source} send allowed` }
 }
 
 // Decision for an outbound VOICE call. Independent of texting permission.

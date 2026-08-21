@@ -552,9 +552,11 @@ router.post('/bulk-text', async (req, res) => {
   // is almost certainly an accidental re-submit.
   const dupCampaign = db.get("SELECT id FROM text_campaigns WHERE ((name IS NOT NULL AND name = ?) OR body = ?) AND created_at >= datetime('now','-120 seconds') LIMIT 1", [name || null, msg])
   if (dupCampaign && !req.body?.force) return res.status(409).json({ error: 'An identical campaign was just launched moments ago. Re-send anyway?', duplicate: true })
-  // Resolve the recipient list synchronously: dedup by phone, drop no-phone + STOP + Do Not Contact.
+  // Resolve the recipient list synchronously: dedup by phone, drop no-phone + STOP + Do Not Contact,
+  // and skip anyone the AI or a human is actively handling / who was just texted (collision guard).
+  const { canAutomatedSend } = await import('../ai-followup/policy.js')
   const seen = new Set(); const recipients = []
-  let noPhone = 0, optedOut = 0, duplicates = 0, doNotContact = 0
+  let noPhone = 0, optedOut = 0, duplicates = 0, doNotContact = 0, collision = 0
   for (const cid of client_ids) {
     const c = db.get('SELECT * FROM clients WHERE id=?', [Number(cid)])
     const key = c && c.phone ? String(c.phone).replace(/\D/g, '').slice(-10) : ''
@@ -563,6 +565,10 @@ router.post('/bulk-text', async (req, res) => {
     seen.add(key)
     if (c.hub_text_opt_out) { optedOut++; continue }   // STOP-to-our-number
     if (isStopStatus(c.status)) { doNotContact++; continue }   // Do Not Contact / Junk — no campaign blasts
+    // Agent-initiated blast: honor the chosen time (no quiet-hours block), but never
+    // stack on an active AI/human conversation or a text we just sent.
+    const gate = canAutomatedSend(c, { source: 'bulk', dedupMinutes: 60, respectQuietHours: false })
+    if (!gate.ok) { collision++; continue }
     recipients.push(c)
   }
   // Record the campaign up front for auditing.
@@ -588,7 +594,7 @@ router.post('/bulk-text', async (req, res) => {
     db.run("UPDATE text_campaigns SET status='sent', queued=?, completed_at=? WHERE id=?", [sent, nowIso(), campaignId])
     console.log(`[bulk-text] campaign ${campaignId} done: sent ${sent}`)
   })()
-  res.json({ campaign_id: campaignId, queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, do_not_contact: doNotContact, duplicate_number: duplicates }, total: client_ids.length })
+  res.json({ campaign_id: campaignId, queued: recipients.length, excluded: { no_phone: noPhone, opted_out_stop: optedOut, do_not_contact: doNotContact, duplicate_number: duplicates, active_conversation: collision }, total: client_ids.length })
 })
 
 // ---- bulk campaign list + per-campaign live counts (delivered/failed/replies/opt-outs) ----

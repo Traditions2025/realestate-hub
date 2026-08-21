@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T21:46:53.671Z",
-  "count": 442,
+  "generated_at": "2026-08-21T21:55:01.707Z",
+  "count": 443,
   "entries": [
+    {
+      "hash": "b9ad421",
+      "date": "2026-08-21T16:47:17-05:00",
+      "subject": "Add logout + Dashboard greeting + editable name/email in Admin",
+      "title": "logout + Dashboard greeting + editable name/email in Admin",
+      "body": "- Log Out button in the sidebar footer (revokes the session, clears token, returns\n  to sign-in); shows 'Signed in as <name>' for per-user logins.\n- Dashboard header greets 'Welcome, <FirstName>!' from /api/auth/me (falls back to\n  'Welcome!' for the shared team login).\n- Admin Users: inline Edit for name & email (backend PUT now validates + de-dupes email).\n\n96 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "6fa6d9f",
       "date": "2026-08-21T16:39:28-05:00",

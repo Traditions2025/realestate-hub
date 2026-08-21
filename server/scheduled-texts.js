@@ -24,6 +24,14 @@ export async function runDueScheduledTexts() {
       if (!phone || last10(phone).length < 10) { db.run("UPDATE scheduled_texts SET status='failed', error=? WHERE id=?", ['no valid phone', s.id]); continue }
       // Compliance re-check at send time.
       if (c && (c.hub_text_opt_out || isStopStatus(c.status))) { db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?", ['recipient opted out / Do Not Contact at send time', s.id]); continue }
+      // Collision guard (light): don't fire a scheduled text over a live AI/human handoff.
+      if (c) {
+        const st = db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [c.id])
+        const pendingAi = db.get("SELECT id FROM ai_scheduled_actions WHERE client_id=? AND state='pending' LIMIT 1", [c.id])
+        if ((st && ['HUMAN_TAKEOVER', 'HUMAN_HANDOFF_REQUIRED'].includes(st.ai_state)) || pendingAi) {
+          db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?", ['skipped: AI or a human is actively handling this lead', s.id]); continue
+        }
+      }
       const media = (() => { try { return JSON.parse(s.media_url || '[]') } catch { return [] } })()
       const outText = c ? fillTemplate(s.body || '', c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim() : String(s.body || '').trim()
       if (!outText && !media.length) { db.run("UPDATE scheduled_texts SET status='failed', error=? WHERE id=?", ['empty message', s.id]); continue }

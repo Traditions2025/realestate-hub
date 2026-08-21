@@ -23,11 +23,9 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 - **Risk:** High (touches auth) → mitigated by keeping the shared-password path working and NOT gating routes in increment 1.
 - **Testing:** hash/verify round-trip; `can()` matrix; legacy token still authorizes; per-user token carries role; audit rows written on login.
 
-### P0-2 · Unified automated-communication collision guard (Phase 17)
-- **Why:** prevents AI + drip + automation + bulk from texting the same lead at once.
-- **Current:** per-lead `canSendSms`; not consulted uniformly by every automated path.
-- **Work:** `canAutomatedCommunicationSend(lead, channel, source, context)` wrapping opt-out + AI-active-conversation + human-takeover + quiet-hours + recent-duplicate + representation + exclusions; route drips/automations/bulk/AI through it; log suppressions.
-- **Dependencies:** builds on `policy.js`. **Risk:** Medium. **Testing:** collision scenarios (AI active blocks drip; recent duplicate suppressed; STOP always blocks).
+### P0-2 · Unified automated-communication collision guard (Phase 17) — ✅ DONE
+- **Why:** prevents AI + automation + bulk from texting the same lead at once.
+- **Delivered:** `policy.canAutomatedSend(client, { source, dedupMinutes, respectQuietHours })` layering on `canSendSms` and blocking: hard compliance (STOP/DNT/DNC), human takeover/handoff, an active AI conversation or pending AI action (unless source==='ai'), an active human 1:1, a duplicate within the dedup window, and quiet hours. Wired into the **automation `send_text`** action, **bulk-text** (per-recipient, reported as `excluded.active_conversation`), and a light variant into **scheduled 1:1 texts**. Drips are email-only, so not a texting-collision path. 8 tests in `test/collision-guard.test.mjs`.
 
 ### P0-3 · Failure/retry queue + backup verification (Phase 16 + Phase 2)
 - **Why:** stop silently losing failed sends/actions; guarantee a *usable* backup.

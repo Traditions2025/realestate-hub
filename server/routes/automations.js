@@ -273,8 +273,12 @@ async function runAction(node, client, ctx) {
       return '__END__'
     case 'send_text': {
       if (!client.phone) throw new Error('contact has no phone')
-      // Same compliance as manual texting: only a STOP-to-our-number blocks it.
-      if (client.hub_text_opt_out) return 'skipped (replied STOP to our number)'
+      // Collision guard: never talk over the AI/a human, never stack a duplicate.
+      try {
+        const { canAutomatedSend } = await import('../ai-followup/policy.js')
+        const gate = canAutomatedSend(client, { source: 'automation', dedupMinutes: 60, respectQuietHours: true })
+        if (!gate.ok) return `skipped (${gate.reason})`
+      } catch (e) { if (client.hub_text_opt_out) return 'skipped (replied STOP to our number)' }
       let body = cfg.body
       if (cfg.template_id) { const t = db.get('SELECT body FROM templates WHERE id = ?', [Number(cfg.template_id)]); if (t) body = body || t.body }
       if (!body) throw new Error('text missing body/template')
