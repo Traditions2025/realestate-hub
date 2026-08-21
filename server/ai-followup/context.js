@@ -35,6 +35,20 @@ export function buildLeadAiContext(clientId) {
     behavior = db.all(`SELECT event_type, listing_mls, page_title, created_at FROM lead_activity WHERE client_id=? ORDER BY id DESC LIMIT 6`, [cid])
       .map(a => `${a.event_type}${a.listing_mls ? ' ' + a.listing_mls : ''}${a.page_title ? ' (' + clip(a.page_title, 40) + ')' : ''}`)
   } catch {}
+  // FUB property views (the freshest interest signal) → city of search + last property.
+  let fubViews = []
+  try { fubViews = db.all(`SELECT prop_street, prop_city, prop_mls, occurred_at FROM fub_activity WHERE client_id=? ORDER BY occurred_at DESC, id DESC LIMIT 5`, [cid]) } catch {}
+  const lastViewed = fubViews[0]
+  const searchCity = (lastViewed && lastViewed.prop_city) || (String(li.preferred_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || client.city || null
+  const lastViewedProperty = lastViewed ? [lastViewed.prop_street, lastViewed.prop_city].filter(Boolean).join(', ') : (li.last_property_discussed || null)
+  // Time-of-day greeting in the lead's / team's timezone.
+  const timeGreeting = (() => {
+    try {
+      const tz = client.timezone || 'America/Chicago'
+      const h = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, hour: '2-digit' }).format(new Date()), 10)
+      return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+    } catch { return 'Hi' }
+  })()
 
   const facts = {
     contact: { name: `${client.first_name || ''} ${client.last_name || ''}`.trim(), city: client.city || null, type: client.type || null },
@@ -61,6 +75,10 @@ export function buildLeadAiContext(clientId) {
     now: new Date().toISOString(),
     team_area: 'Cedar Rapids / Marion, Iowa (Linn County)',
     is_first_text: isFirstText,
+    time_greeting: timeGreeting,
+    search_city: searchCity,
+    last_viewed_property: lastViewedProperty,
+    recent_properties_viewed: fubViews.map(v => [v.prop_street, v.prop_city, v.prop_mls].filter(Boolean).join(' ')).filter(Boolean),
   }
   return { client, state, intelligence: li, lead_type: li.lead_type || client.type || 'buyer', persona: cfg.ai_persona, facts, transcript, latestInbound: latestInbound ? (latestInbound.body || latestInbound.preview) : '' }
 }

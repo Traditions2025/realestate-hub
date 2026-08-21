@@ -46,6 +46,7 @@ export async function runDueAiActions() {
       const payload = (() => { try { return JSON.parse(a.payload_json || '{}') } catch { return {} } })()
       let res
       if (a.action_type === 'AI_INITIAL_OUTREACH') { res = await orch.handleProactive(a.client_id); if (res?.sent) scheduleNurture(a.client_id, 0) }
+      else if (a.action_type === 'AI_FOLLOWUP') { res = await orch.handleFollowup(a.client_id) }   // 10-min no-reply qualifying follow-up
       else if (a.action_type === 'AI_NURTURE_TOUCH') { const step = payload.step || 0; res = await orch.handleNurture(a.client_id, { attempt: step + 1 }); if (res?.sent) scheduleNurture(a.client_id, step + 1) }
       else if (a.action_type === 'AI_REENGAGE') { res = await orch.handleNurture(a.client_id, { reengage: true }) }
       finish(a.id, res?.sent ? 'completed' : (res?.ok ? 'completed' : 'failed'), res?.reason || null)

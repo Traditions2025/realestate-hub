@@ -19,6 +19,7 @@ export function autopilotOn() { return db.getSetting('ai_autopilot', '0') === '1
 
 export const AI_CONFIG_DEFAULTS = {
   ai_new_lead_delay_minutes: '5',
+  ai_first_followup_minutes: '10',   // if no reply to the opener, send a qualifying follow-up after this many minutes
   ai_followup_max_per_day: '4',
   ai_quiet_hours_start: '21:00',
   ai_quiet_hours_end: '08:00',

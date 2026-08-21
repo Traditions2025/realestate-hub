@@ -195,10 +195,20 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
 export async function handleProactive(clientId, { force = false } = {}) {
   const cid = Number(clientId)
   const ctx0 = db.get('SELECT source FROM clients WHERE id=?', [cid]) || {}
-  return runOutbound(cid, {
+  const res = await runOutbound(cid, {
     actionType: 'PROACTIVE', flagKey: 'ai_proactive_text_enabled', force, nextState: 'AI_WAITING_FOR_REPLY',
-    instruction: `This is a lead the team has NOT texted yet. Lead source: ${ctx0.source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.`,
+    instruction: `This is a lead the team has NOT texted yet. Lead source: ${ctx0.source || 'unknown'}. Write a short, warm, welcoming opening SMS (see the FIRST MESSAGE rules). Give a real, contextual reason for reaching out. Do not force an appointment.`,
   })
+  // If the opener sent, schedule ONE qualifying follow-up in case they don't reply.
+  if (res?.sent) {
+    try {
+      const mins = Number(getConfig().ai_first_followup_minutes) || 10
+      const when = new Date(Date.now() + mins * 60000).toISOString()
+      const { scheduleAiAction } = await import('./scheduler.js')
+      scheduleAiAction(cid, 'AI_FOLLOWUP', when, { reason: `no-reply follow-up (${mins}m)`, dedupKey: `firstfollowup_${cid}` })
+    } catch {}
+  }
+  return res
 }
 
 // Preview the message the AI would send next — WITHOUT sending, logging a send, or
@@ -231,7 +241,9 @@ export async function previewMessage(clientId) {
 export async function handleFollowup(clientId, { force = false } = {}) {
   const cid = Number(clientId)
   return runOutbound(cid, {
-    actionType: 'FOLLOWUP', flagKey: 'ai_proactive_text_enabled', force, nextState: 'AI_CONVERSATION_ACTIVE',
+    // No sub-flag: a follow-up to an already-enrolled lead only needs the master switch
+    // + enrollment + compliance (it is not cold outreach).
+    actionType: 'FOLLOWUP', flagKey: null, force, nextState: 'AI_CONVERSATION_ACTIVE',
     instruction: `You've already been in touch with this person and are getting to know them. Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area/part of town, then price range, then property type (single-family home or condo), then home style (ranch, two-story, or something else), then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
   })
 }

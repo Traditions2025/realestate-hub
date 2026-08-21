@@ -994,16 +994,33 @@ async function start() {
     const cid = Number(req.params.clientId)
     const client = db.get('SELECT id, first_name, last_name, email, phone, fub_person_id FROM clients WHERE id=?', [cid])
     if (!client) return res.status(404).json({ error: 'client not found' })
-    if (client.fub_person_id) return res.json({ linked: true, already: true, fub_person_id: client.fub_person_id })
     try {
       const { fubGet, fubConfigured } = await import('./fub-helper.js')
       if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
-      let person = null, matchedOn = null
-      if (client.email) { const d = await fubGet('/people', { email: client.email }); person = (d?.people || [])[0]; if (person) matchedOn = 'email' }
-      if (!person && client.phone) { const d = await fubGet('/people', { phone: client.phone }); person = (d?.people || [])[0]; if (person) matchedOn = 'phone' }
-      if (!person) return res.json({ linked: false, reason: 'no matching FUB profile found by email or phone' })
-      db.run('UPDATE clients SET fub_person_id=?, updated_at=? WHERE id=?', [person.id, new Date().toISOString(), cid])
-      res.json({ linked: true, fub_person_id: person.id, matched_on: matchedOn, fub_name: `${person.firstName || ''} ${person.lastName || ''}`.trim() })
+      let pid = client.fub_person_id, matchedOn = client.fub_person_id ? 'already' : null, fubName = ''
+      if (!pid) {
+        let person = null
+        if (client.email) { const d = await fubGet('/people', { email: client.email }); person = (d?.people || [])[0]; if (person) matchedOn = 'email' }
+        if (!person && client.phone) { const d = await fubGet('/people', { phone: client.phone }); person = (d?.people || [])[0]; if (person) matchedOn = 'phone' }
+        if (!person) return res.json({ linked: false, reason: 'no matching FUB profile found by email or phone' })
+        pid = person.id; fubName = `${person.firstName || ''} ${person.lastName || ''}`.trim()
+        db.run('UPDATE clients SET fub_person_id=?, updated_at=? WHERE id=?', [pid, new Date().toISOString(), cid])
+      }
+      // Backfill their FUB web activity (property views) into fub_activity so the AI + the
+      // "Homes They Viewed" panel can use it immediately (not just on the next hourly sync).
+      let stored = 0
+      try {
+        const data = await fubGet('/events', { personId: pid, limit: 100, sort: '-created' })
+        for (const e of (data?.events || [])) {
+          const prop = e.property
+          if (!prop || !prop.mlsNumber) continue
+          if (db.get('SELECT id FROM fub_activity WHERE fub_event_id = ?', [e.id])) continue
+          db.run(`INSERT INTO fub_activity (fub_event_id, client_id, fub_person_id, type, page_title, page_url, prop_street, prop_city, prop_state, prop_zip, prop_mls, prop_price, occurred_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [e.id, cid, pid, e.type || null, e.pageTitle || null, e.pageUrl || null, prop.street || null, prop.city || null, prop.state || null, prop.code || null, prop.mlsNumber || null, (prop.price != null ? String(prop.price) : null), e.occurred || e.created])
+          stored++
+        }
+      } catch {}
+      res.json({ linked: true, fub_person_id: pid, matched_on: matchedOn, fub_name: fubName || undefined, activity_stored: stored })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 

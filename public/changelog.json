@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T14:01:11.927Z",
-  "count": 420,
+  "generated_at": "2026-08-21T14:28:24.814Z",
+  "count": 421,
   "entries": [
+    {
+      "hash": "eca20ed",
+      "date": "2026-08-21T09:01:24-05:00",
+      "subject": "AI: quiet hours apply to ALL AI sends including manual Send-AI-now (revert force bypass); card surfaces 'quiet hours' when blocked; +boundary tests",
+      "title": "AI: quiet hours apply to ALL AI sends including manual Send-AI-now (revert force bypass); card surfaces 'quiet hours' when blocked; +boundary tests",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e00cd22",
       "date": "2026-08-21T08:58:23-05:00",
