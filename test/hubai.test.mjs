@@ -156,6 +156,14 @@ test('a lead reply cancels pending scheduled AI touches', async () => {
   assert.equal(db.get("SELECT state FROM ai_scheduled_actions WHERE dedup_key='dk_test'").state, 'canceled')
 })
 
+test('greeting is strictly Central time (never UTC / contact tz)', async () => {
+  const { centralGreeting } = await import('../server/ai-followup/context.js')
+  assert.equal(centralGreeting(new Date('2026-08-21T14:00:00Z')), 'Good morning')    // 9:00 AM CDT
+  assert.equal(centralGreeting(new Date('2026-08-21T18:00:00Z')), 'Good afternoon')  // 1:00 PM CDT
+  assert.equal(centralGreeting(new Date('2026-08-22T00:00:00Z')), 'Good evening')    // 7:00 PM CDT
+  assert.equal(centralGreeting(new Date('2026-01-15T15:00:00Z')), 'Good morning')    // 9:00 AM CST
+})
+
 test('system prompt carries Fair Housing + prompt-injection guardrails + JSON contract', () => {
   const p = buildSystemPrompt({ persona: 'a helpful assistant', lead_type: 'buyer' })
   assert.match(p, /FAIR HOUSING/)

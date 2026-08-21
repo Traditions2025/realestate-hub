@@ -6,7 +6,7 @@ import { getAiClient, AI_MODEL } from '../routes/followup.js'
 import { canSendSms } from './policy.js'
 import { flag, getConfig, inQuietHours } from './flags.js'
 import { ensureState, transitionAiState, markInbound, markOutbound, aiManages } from './state.js'
-import { buildLeadAiContext } from './context.js'
+import { buildLeadAiContext, centralGreeting } from './context.js'
 import { computeIntent, saveIntent, getIntent, levelFor } from './intent.js'
 import { applyMemory } from './memory.js'
 import { createAiHandoff } from './handoff.js'
@@ -29,9 +29,15 @@ const noHey = (s) => String(s == null ? '' : s).replace(/^(\s*)hey\b([,!]*)/i, '
 const latestMsgId = (cid) => db.get('SELECT MAX(id) m FROM communications WHERE client_id=?', [cid])?.m || 0
 // Is this the first text we've ever sent this contact?
 const isFirstOutboundText = (cid) => !db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [cid])
-// Guarantee the website on the FIRST text even if the model omits it.
+// Finalize a FIRST text: FORCE the correct Central time-of-day greeting (the model
+// is not trusted with the time) and guarantee the website.
 function withSiteIfFirst(cid, message) {
-  if (isFirstOutboundText(cid) && !/mattsmithteam\.com/i.test(message)) return (message.trim() + ' MattSmithTeam.com').slice(0, 640)
+  if (!isFirstOutboundText(cid)) return message
+  const g = centralGreeting()
+  // Replace whatever greeting the model opened with (Good morning/afternoon/evening,
+  // or Hi/Hello) with the correct Central-time greeting.
+  message = message.replace(/^\s*(good\s+(morning|afternoon|evening)|hello|hi)\b/i, g)
+  if (!/mattsmithteam\.com/i.test(message)) message = (message.trim() + ' MattSmithTeam.com').slice(0, 640)
   return message
 }
 

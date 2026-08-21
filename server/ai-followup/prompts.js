@@ -38,7 +38,7 @@ export function buildSystemPrompt(ctx = {}) {
   const leadType = (ctx.intelligence?.lead_type || ctx.lead_type || 'buyer')
   const firstText = ctx.facts?.is_first_text
     ? `FIRST MESSAGE — warm and welcoming, never salesy or surveillance-y:
-- Open with the time-of-day greeting from context ("${ctx.facts.time_greeting || 'Hi'}") + their first name.
+- Open with EXACTLY this greeting, do not change the morning/afternoon/evening word: "${ctx.facts.time_greeting || 'Hi'}" followed by their first name.
 - Then: "I'm John with Matt Smith Team at RE/MAX" — do NOT add a city or anything after "RE/MAX".
 - Thank them for stopping by our site and include MattSmithTeam.com. If you know the city they searched (see search_city), mention checking out listings there. If you know a specific property they looked at (see last_viewed_property), offer to send more details on it.
 - Close warmly, e.g. "just shoot me a text, happy to help :)". A single ":)" is fine here.

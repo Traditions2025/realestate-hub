@@ -5,6 +5,15 @@ import { ensureState } from './state.js'
 import { getIntent } from './intent.js'
 import { getConfig } from './flags.js'
 
+// The team's time-of-day greeting, strictly in Central time (CST/CDT).
+export function centralGreeting(now = new Date()) {
+  try {
+    let h = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit' }).format(now), 10)
+    if (h === 24) h = 0
+    return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+  } catch { return 'Hi' }
+}
+
 const stripHtml = (s) => String(s == null ? '' : s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 const clip = (s, n) => { const t = String(s == null ? '' : s); return t.length > n ? t.slice(0, n) + '…' : t }
 
@@ -41,14 +50,9 @@ export function buildLeadAiContext(clientId) {
   const lastViewed = fubViews[0]
   const searchCity = (lastViewed && lastViewed.prop_city) || (String(li.preferred_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || client.city || null
   const lastViewedProperty = lastViewed ? [lastViewed.prop_street, lastViewed.prop_city].filter(Boolean).join(', ') : (li.last_property_discussed || null)
-  // Time-of-day greeting in the lead's / team's timezone.
-  const timeGreeting = (() => {
-    try {
-      const tz = client.timezone || 'America/Chicago'
-      const h = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: tz, hour12: false, hour: '2-digit' }).format(new Date()), 10)
-      return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
-    } catch { return 'Hi' }
-  })()
+  // Time-of-day greeting — ALWAYS Central (America/Chicago = CST/CDT). Never the
+  // contact's timezone, never server UTC. The team + leads are all Central.
+  const timeGreeting = centralGreeting()
 
   const facts = {
     contact: { name: `${client.first_name || ''} ${client.last_name || ''}`.trim(), city: client.city || null, type: client.type || null },

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T14:28:24.814Z",
-  "count": 421,
+  "generated_at": "2026-08-21T14:36:44.486Z",
+  "count": 422,
   "entries": [
+    {
+      "hash": "6f2bc7e",
+      "date": "2026-08-21T09:28:36-05:00",
+      "subject": "AI text refinements: warm time-of-day greeting on first text, no 'saw you browsing' (thanks for stopping by), no city after RE/MAX intro, reference search city + viewed property; 10-min no-reply follow-up; FUB link now backfills web activity",
+      "title": "AI text refinements: warm time-of-day greeting on first text, no 'saw you browsing' (thanks for stopping by), no city after RE/MAX intro, reference search city + viewed property; 10-min no-reply follow-up; FUB link now backfills web activity",
+      "body": "- prompts: first-message rewrite (time greeting, thank for visiting, MattSmithTeam.com + search_city + last_viewed_property, no surveillance phrasing); STYLE bans 'I saw you browsing'\n- context: adds time_greeting, search_city, last_viewed_property, recent_properties_viewed (from fub_activity)\n- opener schedules ONE AI_FOLLOWUP at +10min (ai_first_followup_minutes); scheduler drains it; handleFollowup needs only master+enrollment (no sub-flag); reply cancels it\n- /api/fub/link backfills the lead's FUB property views into fub_activity\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "eca20ed",
       "date": "2026-08-21T09:01:24-05:00",
