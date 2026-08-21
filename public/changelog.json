@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T15:30:06.125Z",
-  "count": 426,
+  "generated_at": "2026-08-21T15:44:26.262Z",
+  "count": 427,
   "entries": [
+    {
+      "hash": "4eb8611",
+      "date": "2026-08-21T10:30:18-05:00",
+      "subject": "Team agent directory: team_agents table (seeded Matt/Hunter/John) + /api/agents CRUD; loop a teammate into a client text (inline composer 'Loop in a teammate' + raw-phone send path); Settings 'Team Agents' management; assignment list uses the directory",
+      "title": "Team agent directory: team_agents table (seeded Matt/Hunter/John) + /api/agents CRUD; loop a teammate into a client text (inline composer 'Loop in a teammate' + raw-phone send path); Settings 'Team Agents' management; assignment list uses the directory",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8b32507",
       "date": "2026-08-21T10:03:38-05:00",

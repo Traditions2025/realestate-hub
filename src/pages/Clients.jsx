@@ -3572,7 +3572,19 @@ function InlineTextComposer({ client, onClose, onSent }) {
   const [scheduled, setScheduled] = React.useState([])
   const fileRef = React.useRef(null)
   const [agents, setAgents] = React.useState([])
+  const [ai, setAi] = React.useState(null)          // { ok, kind, message, eligible, block_reason }
+  const [aiBusy, setAiBusy] = React.useState(false)
   React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}); authFetch('/api/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  // Text-native AI suggestion: drafts the right SMS for where this conversation is
+  // (first text / reply / follow-up), strict-Central greeting + compliance-aware.
+  const recommendText = React.useCallback(async () => {
+    setAiBusy(true)
+    try { const r = await authFetch(`/api/ai/lead/${client.id}/preview`, { method: 'POST' }); setAi(await r.json()) }
+    catch (e) { setAi({ ok: false, reason: e.message }) } finally { setAiBusy(false) }
+  }, [client.id])
+  // Auto-draft one suggestion when the composer opens (only if we can actually text this lead).
+  React.useEffect(() => { if (client.phone && !client.hub_text_opt_out) recommendText() }, [client.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  const useAiText = () => { if (ai?.message) { setBody(ai.message); setAi(a => ({ ...a, used: true })) } }
   const addAgent = (a) => { const key = 'agent:' + a.id; if (!recips.find(r => r.id === key)) setRecips(rs => [...rs, { id: key, agent: true, name: a.name, phone: a.phone }]) }
   const loadScheduled = React.useCallback(() => { authFetch('/api/inbox/scheduled?client_id=' + client.id).then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {}) }, [client.id])
   React.useEffect(() => { loadScheduled() }, [loadScheduled])
@@ -3692,6 +3704,29 @@ function InlineTextComposer({ client, onClose, onSent }) {
               <button onClick={() => cancelScheduled(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }} title="Cancel">✕</button>
             </div>
           ))}
+        </div>
+      )}
+      {/* ===== AI text suggestion ===== */}
+      {client.phone && !client.hub_text_opt_out && (
+        <div style={{ marginBottom: 8, border: '1px solid rgba(16,185,129,.35)', borderRadius: 8, padding: 10, background: 'rgba(16,185,129,.06)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: ai?.ok ? 6 : 0 }}>
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>✨ AI text suggestion</span>
+            {ai?.ok && ai.kind && <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' }}>{ai.kind}</span>}
+            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={aiBusy} onClick={recommendText} title="Draft a fresh suggestion">{aiBusy ? '…' : (ai ? '↻ Regenerate' : '✨ Suggest')}</button>
+          </div>
+          {aiBusy && !ai && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Drafting…</div>}
+          {ai && !ai.ok && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Couldn’t draft a suggestion{ai.reason ? ` (${ai.reason})` : ''}.</div>}
+          {ai?.ok && (
+            <>
+              <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>{ai.message}</div>
+              {!ai.eligible && ai.block_reason && <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 5 }}>⚠ AI auto-send is blocked for this lead ({ai.block_reason}) — you can still send this manually.</div>}
+              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                <button className="btn btn-primary btn-sm" onClick={useAiText}>Use this ↓</button>
+                <button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(ai.message) }}>Copy</button>
+                <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)', alignSelf: 'center' }}>{(ai.message || '').length} chars</span>
+              </div>
+            </>
+          )}
         </div>
       )}
       <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={3} maxLength={1000} placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }} style={{ ...fld, resize: 'vertical', lineHeight: 1.5 }} />
