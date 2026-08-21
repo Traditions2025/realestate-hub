@@ -216,8 +216,9 @@ async function start() {
 
   // Auth
   app.use('/api/auth', authRouter)
-  app.use('/api/users', usersRouter)
   app.use(requireAuth)
+  // Protected routers (req.user is populated by requireAuth above).
+  app.use('/api/users', usersRouter)
 
   // Recent crashes captured by the process handlers (most recent first).
   app.get('/api/crash-log', (_req, res) => {
