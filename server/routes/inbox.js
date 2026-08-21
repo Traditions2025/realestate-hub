@@ -444,6 +444,9 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     // STOP/START flows through the centralized policy so hub_text_opt_out AND the
     // normalized communication_preferences stay in sync (do_not_call untouched).
     if (kw && client) { try { const { applyOptOut } = await import('../ai-followup/policy.js'); applyOptOut(client.id, kw, 'sms_reply') } catch { db.run('UPDATE clients SET hub_text_opt_out = ?, updated_at = ? WHERE id = ?', [kw === 'stop' ? 1 : 0, new Date().toISOString(), client.id]) } }
+    // Natural-language opt-out ("stop texting me", "take me off your list") — only when
+    // it's NOT already a literal keyword. Blocks TEXT only (calling stays independent).
+    else if (!kw && client) { try { const { isNaturalOptOut, applyOptOut } = await import('../ai-followup/policy.js'); if (isNaturalOptOut(body)) applyOptOut(client.id, 'stop', 'sms_reply_nl') } catch {} }
     // Store the message whether or not the sender is a known client. Unknown
     // senders land in the Unknown queue (client_id NULL) so no inbound lead is lost.
     const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)

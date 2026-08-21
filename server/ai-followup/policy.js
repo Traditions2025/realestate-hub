@@ -9,6 +9,18 @@ import { isStopStatus } from '../lead-sequences.js'
 const nowIso = () => new Date().toISOString()
 export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
 
+// Natural-language opt-out (training book §83). Twilio + optKeyword() only catch a
+// message that IS a single keyword ("STOP"). This catches conversational revocations
+// like "stop texting me", "take me off your list", "don't message me again".
+// Deliberately CONSERVATIVE: an opt-out verb must sit next to a messaging word, so
+// "stop by the house" or "stop sending me listings in that range" do NOT match.
+const NL_OPTOUT_RE = /(?:\b(?:stop|quit|cease|no more|don'?t|do not|please stop|please no)\b[^.!?\n]{0,24}\b(?:text|texts|texting|messag(?:e|es|ing)|contact(?:ing)?|sms|reach(?:ing)? out)\b)|\btake me off\b|\bremove me\b|\bunsubscribe me\b|\bleave me alone\b|\blose my number\b|\bstop bothering me\b/i
+export function isNaturalOptOut(body) {
+  const s = String(body || '').trim()
+  if (!s) return false
+  return NL_OPTOUT_RE.test(s)
+}
+
 // Ensure a communication_preferences row exists; seed it from the client record.
 export function ensurePrefs(client) {
   const cid = client?.id

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T16:47:32.591Z",
-  "count": 429,
+  "generated_at": "2026-08-21T17:26:02.897Z",
+  "count": 430,
   "entries": [
+    {
+      "hash": "2461fa4",
+      "date": "2026-08-21T11:47:58-05:00",
+      "subject": "Clients bulk actions: Send AI (bulk first-text / follow-up)",
+      "title": "Clients bulk actions: Send AI (bulk first-text / follow-up)",
+      "body": "Adds a bulk 'Send AI' action to the Clients bulk-actions menu. New endpoint\nPOST /api/ai/bulk-send-now routes each selected lead through the same per-lead\nlogic as /send-now (opener / reply / next qualifying follow-up), enrolls them as\nAI-managed, and honors quiet hours + STOP/opt-out compliance server-side.\n\nSafety: bulk SKIPS autopilot-excluded prospecting leads (FSBO / MLS Expired /\nMLS Cancelled / configured exclusions) so a bulk send can never accidentally blast\na walled-off list; those can still be enabled one-by-one from a profile. Returns a\nsent / skipped / blocked summary shown to the agent.\n\n27 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "99084b5",
       "date": "2026-08-21T11:02:47-05:00",
