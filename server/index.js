@@ -578,6 +578,11 @@ async function start() {
       res.json(await a2pStatus(req.query.number || null))
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
+  // Text "reputation": A2P brand trust score + campaign + recent outbound delivery/error rates.
+  app.get('/api/comms/twilio-reputation', async (_req, res) => {
+    try { const { twilioReputation } = await import('./twilio.js'); res.json(await twilioReputation()) }
+    catch (e) { res.status(500).json({ error: e.message }) }
+  })
 
   // ===================== VOICE (browser softphone) =====================
   const HUB_BASE = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'

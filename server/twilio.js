@@ -204,6 +204,49 @@ export async function a2pStatus(numberE164) {
   return { ok: true, ...out }
 }
 
+// Read-only "text reputation" snapshot: A2P brand trust score + campaign status, and
+// the delivery / error breakdown of recent OUTBOUND messages (spam-filter rate, etc.).
+export async function twilioReputation() {
+  const c = twilioConfig()
+  if (!c.sid || !c.token) return { ok: false, error: 'Twilio not connected.' }
+  const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+  const get = async (u) => { try { const r = await fetch(u, { headers: { Authorization: auth } }); const j = await r.json().catch(() => ({})); return { ok: r.ok, status: r.status, j } } catch (e) { return { ok: false, error: e.message, j: {} } } }
+  const a2p = await a2pStatus(c.from)
+  // Brand trust score (detail call — the list endpoint omits it).
+  let brandScore = null
+  const bsid = a2p.brands?.[0]?.sid
+  if (bsid) { const bd = await get(`https://messaging.twilio.com/v1/a2p/BrandRegistrations/${bsid}`); if (bd.ok) brandScore = bd.j.brand_score ?? bd.j.tcr_brand_score ?? bd.j.score ?? null }
+  // Recent outbound message outcomes (most recent 1000).
+  const ERR = { '30007': 'Carrier filtered / flagged as spam', '30008': 'Unknown error (often a carrier block)', '30034': 'A2P: number/campaign not registered', '30006': 'Landline or unreachable carrier', '21610': 'Recipient opted out (STOP)', '30003': 'Unreachable handset', '30005': 'Unknown/off destination handset', '30002': 'Account suspended', '30001': 'Queue overflow', '30410': 'Provider/carrier timeout' }
+  const msgs = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Messages.json?PageSize=1000`)
+  const t = { sampled: 0, outbound: 0, by_status: {}, errors: {}, oldest: null, newest: null }
+  for (const m of (msgs.j.messages || [])) {
+    t.sampled++
+    if (!String(m.direction || '').startsWith('outbound')) continue
+    t.outbound++
+    const st = m.status || 'unknown'; t.by_status[st] = (t.by_status[st] || 0) + 1
+    if (m.error_code) { const k = String(m.error_code); t.errors[k] = (t.errors[k] || 0) + 1 }
+    const d = m.date_sent || m.date_created
+    if (d) { if (!t.newest || new Date(d) > new Date(t.newest)) t.newest = d; if (!t.oldest || new Date(d) < new Date(t.oldest)) t.oldest = d }
+  }
+  const denom = t.outbound || 1
+  const delivered = t.by_status.delivered || 0
+  const undeliveredish = (t.by_status.undelivered || 0) + (t.by_status.failed || 0)
+  const errors = Object.entries(t.errors).map(([code, n]) => ({ code, label: ERR[code] || 'see Twilio error docs', count: n, pct: Math.round((n / denom) * 1000) / 10 })).sort((a, b) => b.count - a.count)
+  return {
+    ok: true, number: c.from,
+    brand: { status: a2p.brands?.[0]?.status || null, identity: a2p.brands?.[0]?.identity_status || null, type: a2p.brands?.[0]?.brand_type || null, trust_score: brandScore },
+    campaign: (a2p.services?.find(s => s.has_our_number)?.us_a2p?.[0]) || null,
+    messaging_service: a2p.services?.find(s => s.has_our_number)?.name || null,
+    outbound: {
+      window: { oldest: t.oldest, newest: t.newest }, count: t.outbound, by_status: t.by_status,
+      delivered_rate_pct: Math.round((delivered / denom) * 1000) / 10,
+      undelivered_rate_pct: Math.round((undeliveredish / denom) * 1000) / 10,
+      errors,
+    },
+  }
+}
+
 // Read-only credential check — used by Settings "Test connection".
 export async function twilioVerify() {
   const c = twilioConfig()
