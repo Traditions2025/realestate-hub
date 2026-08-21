@@ -67,11 +67,13 @@ function principalFor(payload) {
 // Login: accepts { email, password } for a per-user account, OR { password } for the
 // legacy shared team password. Both issue a 30-day token.
 router.post('/login', (req, res) => {
-  const { email, password } = req.body || {}
-  if (email) {
-    const u = db.get('SELECT * FROM users WHERE lower(email)=lower(?)', [String(email).trim()])
+  const { username, email, password } = req.body || {}
+  // A per-user identifier can be a username OR an email.
+  const ident = String(username || email || '').trim()
+  if (ident) {
+    const u = db.get('SELECT * FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)', [ident, ident])
     const ok = u && u.status === 'active' && u.password_hash && verifyPassword(password, u.password_hash)
-    if (!ok) { logAudit({ actor: String(email).trim(), action: 'login.failed', metadata: { email: String(email).trim() }, req }); return res.status(401).json({ success: false, error: 'Wrong email or password' }) }
+    if (!ok) { logAudit({ actor: ident, action: 'login.failed', metadata: { ident }, req }); return res.status(401).json({ success: false, error: 'Wrong username or password' }) }
     try { db.run('UPDATE users SET last_login_at=datetime(\'now\') WHERE id=?', [u.id]) } catch {}
     const token = generateUserToken(u, req)
     logAudit({ user_id: u.id, actor: u.email, action: 'login', req })

@@ -841,6 +841,7 @@ export async function initDb() {
     CREATE TABLE IF NOT EXISTS users (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT NOT NULL,
+      username TEXT,
       email TEXT UNIQUE NOT NULL,
       phone TEXT,
       password_hash TEXT,                       -- null = invited, password not set yet
@@ -882,6 +883,10 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)') } catch {}
+  // Add username to an already-created users table (idempotent). SQLite unique
+  // indexes treat NULLs as distinct, so accounts without a username coexist.
+  try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}
+  try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)') } catch {}
 
   // =====================================================================
   // HUB AI ISA — foundation tables (Stage 1). No autonomous behavior until

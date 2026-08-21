@@ -9,7 +9,8 @@ import { logAudit, recentAudit } from '../auth/audit.js'
 import { requirePermission } from './auth.js'
 
 const router = Router()
-const pub = (u) => u && ({ id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, status: u.status, two_factor_enabled: !!u.two_factor_enabled, last_login_at: u.last_login_at, created_at: u.created_at })
+const pub = (u) => u && ({ id: u.id, name: u.name, username: u.username || null, email: u.email, phone: u.phone, role: u.role, status: u.status, two_factor_enabled: !!u.two_factor_enabled, last_login_at: u.last_login_at, created_at: u.created_at })
+const takenUsername = (username, exceptId = null) => db.get('SELECT id FROM users WHERE lower(username)=lower(?)' + (exceptId ? ' AND id<>?' : ''), exceptId ? [username, exceptId] : [username])
 
 // Reference data for the UI, including the full role -> permission matrix.
 router.get('/roles', requirePermission('users.manage'), (_req, res) => {
@@ -23,16 +24,19 @@ router.get('/audit', requirePermission('audit.view'), (req, res) => res.json(rec
 router.get('/', requirePermission('users.manage'), (_req, res) => res.json(db.all('SELECT * FROM users ORDER BY name').map(pub)))
 
 router.post('/', requirePermission('users.manage'), (req, res) => {
-  const { name, email, phone, role, password } = req.body || {}
+  const { name, email, username, phone, role, password } = req.body || {}
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Name is required.' })
   if (!email || !/^\S+@\S+\.\S+$/.test(String(email))) return res.status(400).json({ error: 'A valid email is required.' })
   const r = (role && isValidRole(role)) ? String(role).toLowerCase() : 'agent'
+  const un = username ? String(username).trim() : null
+  if (un && !/^[a-zA-Z0-9._-]{3,30}$/.test(un)) return res.status(400).json({ error: 'Username must be 3-30 characters (letters, numbers, . _ -).' })
   if (db.get('SELECT id FROM users WHERE lower(email)=lower(?)', [String(email).trim()])) return res.status(409).json({ error: 'A user with that email already exists.' })
+  if (un && takenUsername(un)) return res.status(409).json({ error: 'That username is already taken.' })
   let hash = null, status = 'invited'
   if (password) { try { hash = hashPassword(password) } catch (e) { return res.status(400).json({ error: e.message }) } status = 'active' }
-  const out = db.run('INSERT INTO users (name, email, phone, password_hash, role, status, password_changed_at) VALUES (?,?,?,?,?,?,?)',
-    [String(name).trim(), String(email).trim(), phone ? String(phone).trim() : null, hash, r, status, hash ? new Date().toISOString() : null])
-  logAudit({ action: 'user.created', entity_type: 'user', entity_id: out.lastInsertRowid, metadata: { email: String(email).trim(), role: r }, req })
+  const out = db.run('INSERT INTO users (name, username, email, phone, password_hash, role, status, password_changed_at) VALUES (?,?,?,?,?,?,?,?)',
+    [String(name).trim(), un, String(email).trim(), phone ? String(phone).trim() : null, hash, r, status, hash ? new Date().toISOString() : null])
+  logAudit({ action: 'user.created', entity_type: 'user', entity_id: out.lastInsertRowid, metadata: { email: String(email).trim(), username: un, role: r }, req })
   res.json({ success: true, id: out.lastInsertRowid })
 })
 
@@ -42,6 +46,12 @@ router.put('/:id', requirePermission('users.manage'), (req, res) => {
   const b = req.body || {}
   const sets = [], vals = [], changed = {}
   if (b.name !== undefined) { sets.push('name=?'); vals.push(String(b.name).trim()); changed.name = String(b.name).trim() }
+  if (b.username !== undefined) {
+    const un = b.username ? String(b.username).trim() : null
+    if (un && !/^[a-zA-Z0-9._-]{3,30}$/.test(un)) return res.status(400).json({ error: 'Username must be 3-30 characters (letters, numbers, . _ -).' })
+    if (un && takenUsername(un, id)) return res.status(409).json({ error: 'That username is already taken.' })
+    sets.push('username=?'); vals.push(un); changed.username = un
+  }
   if (b.phone !== undefined) { sets.push('phone=?'); vals.push(b.phone ? String(b.phone).trim() : null) }
   if (b.role !== undefined) { if (!isValidRole(b.role)) return res.status(400).json({ error: 'Invalid role.' }); sets.push('role=?'); vals.push(String(b.role).toLowerCase()); changed.role = String(b.role).toLowerCase() }
   if (b.status !== undefined) { if (!['active', 'disabled', 'invited'].includes(b.status)) return res.status(400).json({ error: 'Invalid status.' }); sets.push('status=?'); vals.push(b.status); changed.status = b.status }

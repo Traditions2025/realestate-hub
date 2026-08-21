@@ -94,3 +94,14 @@ test('schema: users / user_sessions / audit_log tables exist', () => {
     assert.equal(row?.name, t, `${t} table missing`)
   }
 })
+test('schema: users.username exists and is unique; login lookup matches username OR email', () => {
+  const cols = db.all('PRAGMA table_info(users)').map(c => c.name)
+  assert.ok(cols.includes('username'), 'username column missing')
+  db.run("INSERT INTO users (name, email, role, status, username) VALUES ('Jane','jane@x.com','agent','active','jsmith')")
+  // Duplicate username is rejected by the unique index.
+  assert.throws(() => db.run("INSERT INTO users (name, email, role, status, username) VALUES ('Jim','jim@x.com','agent','active','jsmith')"))
+  // The login query resolves by username OR email.
+  const byUser = db.get('SELECT id FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)', ['jsmith', 'jsmith'])
+  const byEmail = db.get('SELECT id FROM users WHERE lower(username)=lower(?) OR lower(email)=lower(?)', ['jane@x.com', 'jane@x.com'])
+  assert.ok(byUser && byEmail && byUser.id === byEmail.id)
+})

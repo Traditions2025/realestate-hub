@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T21:19:23.484Z",
-  "count": 439,
+  "generated_at": "2026-08-21T21:29:14.995Z",
+  "count": 440,
   "entries": [
+    {
+      "hash": "0b712dd",
+      "date": "2026-08-21T16:19:49-05:00",
+      "subject": "Admin tab: users & access, roles/permissions matrix, team directory, email inboxes, audit log",
+      "title": "Admin tab: users & access, roles/permissions matrix, team directory, email inboxes, audit log",
+      "body": "New /admin page (owner/admin) with five sections:\n- Users & Access: add users (name/email/phone/role/password), inline role change,\n  enable/disable, reset password, revoke sessions.\n- Roles & Permissions: live role->permission matrix (from /api/users/roles).\n- Team Directory: manage team_agents (loop-in/assignment contacts).\n- Email Inboxes: connect/test/disconnect Gmail app-password mailboxes.\n- Audit Log: recent system events.\nNav item added under SYSTEM; /api/users/roles now returns the permission matrix.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1d3f2d3",
       "date": "2026-08-21T16:08:00-05:00",
