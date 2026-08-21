@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T21:39:06.132Z",
-  "count": 441,
+  "generated_at": "2026-08-21T21:46:53.671Z",
+  "count": 442,
   "entries": [
+    {
+      "hash": "6fa6d9f",
+      "date": "2026-08-21T16:39:28-05:00",
+      "subject": "Use email for login (drop username from UI)",
+      "title": "Use email for login (drop username from UI)",
+      "body": "Login screen and Admin user management are email-only again. The inert username\ncolumn stays in the schema (harmless, unused) but is no longer surfaced. Login\nresolves accounts by email.\n\n96 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "34459bc",
       "date": "2026-08-21T16:29:24-05:00",

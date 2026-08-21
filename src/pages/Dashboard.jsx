@@ -16,6 +16,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false) // never show full-page loader if we have cached data
   const [refreshing, setRefreshing] = useState(false)
   const [leadActivity, setLeadActivity] = useState([])
+  const [me, setMe] = useState(null)
+  useEffect(() => { authFetch('/api/auth/me').then(r => r.json()).then(d => setMe(d?.user || null)).catch(() => {}) }, [])
+  const firstName = me && !me.team && me.name ? me.name.split(' ')[0] : ''
 
   const load = () => {
     setRefreshing(true)
@@ -76,7 +79,7 @@ export default function Dashboard() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>Dashboard {refreshing && <span style={{fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>· refreshing...</span>}</h1>
+          <h1>{firstName ? `Welcome, ${firstName}!` : 'Welcome!'} {refreshing && <span style={{fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>· refreshing...</span>}</h1>
           <p className="page-subtitle">Matt Smith Team Command Center</p>
         </div>
       </div>

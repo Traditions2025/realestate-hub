@@ -68,6 +68,14 @@ function UsersAdmin() {
     if (d.error) alert(d.error); else { alert('Password updated. Existing sessions for this user were signed out.'); load() }
   }
   const revoke = async (u) => { if (!confirm(`Sign ${u.email} out of all devices?`)) return; await authFetch(`/api/users/${u.id}/revoke-sessions`, { method: 'POST' }); alert('All sessions revoked.') }
+  const [editing, setEditing] = useState(null)   // { id, name, email }
+  const saveEdit = async () => {
+    const body = { name: (editing.name || '').trim(), email: (editing.email || '').trim() }
+    if (!body.name || !body.email) { alert('Name and email are required.'); return }
+    const d = await authFetch(`/api/users/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json())
+    if (d.error) { alert(d.error); return }
+    setEditing(null); load()
+  }
 
   const roleOpts = roles.length ? roles : Object.keys(ROLE_LABEL)
   return (
@@ -99,8 +107,16 @@ function UsersAdmin() {
             <tbody>
               {users.map(u => (
                 <tr key={u.id} style={{ borderTop: '1px solid var(--border)' }}>
-                  <td style={{ padding: '7px 8px', fontWeight: 600 }}>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 11 }}>🔐</span> : null}</td>
-                  <td style={{ padding: '7px 8px', color: 'var(--text-secondary)' }}>{u.email}</td>
+                  <td style={{ padding: '7px 8px', fontWeight: 600 }}>
+                    {editing?.id === u.id
+                      ? <input value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} style={{ ...fld, padding: '4px 6px' }} />
+                      : <>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 11 }}>🔐</span> : null}</>}
+                  </td>
+                  <td style={{ padding: '7px 8px', color: 'var(--text-secondary)' }}>
+                    {editing?.id === u.id
+                      ? <input type="email" value={editing.email} onChange={e => setEditing(s => ({ ...s, email: e.target.value }))} style={{ ...fld, padding: '4px 6px' }} />
+                      : u.email}
+                  </td>
                   <td style={{ padding: '7px 8px' }}>
                     <select value={u.role} onChange={e => patch(u.id, { role: e.target.value })} style={{ ...fld, width: 'auto', fontSize: 12, padding: '4px 6px' }}>
                       {roleOpts.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}
@@ -111,11 +127,21 @@ function UsersAdmin() {
                   </td>
                   <td style={{ padding: '7px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
                   <td style={{ padding: '7px 8px', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm" onClick={() => resetPw(u)} title="Set / reset password">🔑 Password</button>{' '}
-                    {u.status === 'active'
-                      ? <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'disabled' })} title="Disable login">Disable</button>
-                      : <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'active' })} title="Enable login">Enable</button>}{' '}
-                    <button className="btn btn-sm" onClick={() => revoke(u)} title="Sign out everywhere">Revoke</button>
+                    {editing?.id === u.id ? (
+                      <>
+                        <button className="btn btn-primary btn-sm" onClick={saveEdit}>Save</button>{' '}
+                        <button className="btn btn-sm" onClick={() => setEditing(null)}>Cancel</button>
+                      </>
+                    ) : (
+                      <>
+                        <button className="btn btn-sm" onClick={() => setEditing({ id: u.id, name: u.name, email: u.email })} title="Edit name & email">✎ Edit</button>{' '}
+                        <button className="btn btn-sm" onClick={() => resetPw(u)} title="Set / reset password">🔑 Password</button>{' '}
+                        {u.status === 'active'
+                          ? <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'disabled' })} title="Disable login">Disable</button>
+                          : <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'active' })} title="Enable login">Enable</button>}{' '}
+                        <button className="btn btn-sm" onClick={() => revoke(u)} title="Sign out everywhere">Revoke</button>
+                      </>
+                    )}
                   </td>
                 </tr>
               ))}

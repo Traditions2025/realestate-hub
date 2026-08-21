@@ -114,6 +114,8 @@ export default function App() {
   }
   const canInstall = !isStandalone && (!!installPrompt || isIos)
 
+  // Who is signed in (per-user account, or the shared team login).
+  const [me, setMe] = useState(null)
   useEffect(() => {
     const token = localStorage.getItem('mst_token')
     if (!token) return
@@ -121,7 +123,15 @@ export default function App() {
     fetch('/api/auth/verify', { headers: { 'x-auth-token': token } })
       .then(r => { if (!r.ok) { localStorage.removeItem('mst_token'); setAuthed(false) } })
       .catch(() => {})
-  }, [])
+    fetch('/api/auth/me', { headers: { 'x-auth-token': token } })
+      .then(r => r.ok ? r.json() : null).then(d => setMe(d?.user || null)).catch(() => {})
+  }, [authed])
+
+  const logout = () => {
+    const token = localStorage.getItem('mst_token')
+    fetch('/api/auth/logout', { method: 'POST', headers: { 'x-auth-token': token } }).catch(() => {})
+    localStorage.removeItem('mst_token'); setMe(null); setAuthed(false)
+  }
 
   // Close sidebar on navigation (mobile)
   const closeSidebar = () => {
@@ -188,6 +198,10 @@ export default function App() {
           >
             <span style={{ fontVariantEmoji: 'text' }}>{theme === 'dark' ? '☼ Light Mode' : '☾ Dark Mode'}</span>
           </button>
+          <button className="theme-toggle" onClick={logout} title="Log out and return to the sign-in screen">
+            <span style={{ fontVariantEmoji: 'text' }}>⎋ Log Out</span>
+          </button>
+          {me && !me.team && <div className="team-sub" style={{ marginTop: 6 }}>Signed in as {me.name}</div>}
           <div className="team-sub">RE/MAX Concepts &middot; Cedar Rapids IA</div>
         </div>
       </aside>

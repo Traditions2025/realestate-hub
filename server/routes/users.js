@@ -45,7 +45,13 @@ router.put('/:id', requirePermission('users.manage'), (req, res) => {
   const u = db.get('SELECT * FROM users WHERE id=?', [id]); if (!u) return res.status(404).json({ error: 'User not found.' })
   const b = req.body || {}
   const sets = [], vals = [], changed = {}
-  if (b.name !== undefined) { sets.push('name=?'); vals.push(String(b.name).trim()); changed.name = String(b.name).trim() }
+  if (b.name !== undefined) { if (!String(b.name).trim()) return res.status(400).json({ error: 'Name is required.' }); sets.push('name=?'); vals.push(String(b.name).trim()); changed.name = String(b.name).trim() }
+  if (b.email !== undefined) {
+    const em = String(b.email || '').trim()
+    if (!/^\S+@\S+\.\S+$/.test(em)) return res.status(400).json({ error: 'A valid email is required.' })
+    if (db.get('SELECT id FROM users WHERE lower(email)=lower(?) AND id<>?', [em, id])) return res.status(409).json({ error: 'That email is already in use.' })
+    sets.push('email=?'); vals.push(em); changed.email = em
+  }
   if (b.username !== undefined) {
     const un = b.username ? String(b.username).trim() : null
     if (un && !/^[a-zA-Z0-9._-]{3,30}$/.test(un)) return res.status(400).json({ error: 'Username must be 3-30 characters (letters, numbers, . _ -).' })
