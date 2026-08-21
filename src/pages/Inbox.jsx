@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import RichTextEditor from '../components/RichTextEditor'
@@ -94,6 +95,7 @@ const fmtDate = (iso) => {
 }
 
 export default function Inbox() {
+  const navigate = useNavigate()
   const [folder, setFolder] = useState('inbox')
   const [unreadOnly, setUnreadOnly] = useState(true)
   const [channels, setChannels] = useState(['email', 'text', 'call'])
@@ -383,6 +385,7 @@ export default function Inbox() {
             <>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontWeight: 700 }}>{selConvo?.contact_name || 'Conversation'}</div>
+                <button className="btn btn-sm btn-secondary" onClick={() => navigate('/clients?open=' + sel)} title="Open this lead's full profile in Clients">◉ View profile</button>
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
                   style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
                   <option value="">Unassigned</option>

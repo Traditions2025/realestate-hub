@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T14:45:17.665Z",
-  "count": 423,
+  "generated_at": "2026-08-21T14:57:01.414Z",
+  "count": 424,
   "entries": [
+    {
+      "hash": "435b8e3",
+      "date": "2026-08-21T09:45:20-05:00",
+      "subject": "AI: correct/strip time-of-day greeting on EVERY message (not just first) — model never overrides Central time; follow-ups open with Hi/Hello, no time greeting",
+      "title": "AI: correct/strip time-of-day greeting on EVERY message (not just first) — model never overrides Central time; follow-ups open with Hi/Hello, no time greeting",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7363a04",
       "date": "2026-08-21T09:36:47-05:00",

@@ -800,6 +800,13 @@ export default function Clients() {
     authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
   }
 
+  // Deep-link: /clients?open=<id> (e.g. "View profile" from the Inbox) opens that lead.
+  React.useEffect(() => {
+    const id = Number(new URLSearchParams(window.location.search).get('open'))
+    if (id) { openDetail(id); window.history.replaceState({}, '', '/clients') }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   // Remove a lead from a running plan (drip or automation) from the profile.
   const removePlan = async (kind, enrollmentId) => {
     const url = kind === 'drip'
