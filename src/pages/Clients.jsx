@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge'
 import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
 import EmailToolbar from '../components/EmailToolbar'
 import RichTextEditor, { MERGE_FIELDS } from '../components/RichTextEditor'
+import TemplatePicker from '../components/TemplatePicker'
 
 // Turn a bare mattsmithteam.com property link (pasted into an email) into a rich
 // listing card — photo + address + MLS — like the listing previews. URLs already
@@ -3490,10 +3491,7 @@ function TextComposerModal({ client, onClose, onSent }) {
       <div className="form">
         <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>To <strong>{client.phone}</strong> · from your Hub number (319) 343-1562</p>
         <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <select value="" onChange={e => { const t = templates.find(x => String(x.id) === e.target.value); if (t) insert(stripHtml(t.body)); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
-            <option value="">Insert template…</option>
-            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <TemplatePicker templates={templates} onPick={t => insert(stripHtml(t.body))} />
           <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
             <option value="">+ Merge field…</option>
             {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
@@ -3751,10 +3749,7 @@ function InlineTextComposer({ client, onClose, onSent }) {
         )}
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-        <select value="" onChange={e => { const t = templates.find(x => String(x.id) === e.target.value); if (t) insert(stripHtml(t.body)); e.target.value = '' }} style={{ ...fld, width: 'auto', fontSize: 12, padding: '5px 6px' }}>
-          <option value="">Insert template…</option>
-          {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-        </select>
+        <TemplatePicker templates={templates} onPick={t => insert(stripHtml(t.body))} />
         <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ ...fld, width: 'auto', fontSize: 12, padding: '5px 6px' }}>
           <option value="">+ Merge field…</option>
           {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
@@ -3845,7 +3840,7 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
   const [name, setName] = React.useState('')
   const [templates, setTemplates] = React.useState([])
   const [sending, setSending] = React.useState(false)
-  React.useEffect(() => { authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
   const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
   const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
   const doSend = async (force) => {
@@ -3869,10 +3864,7 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
         <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Sends from your Hub number (319) 343-1562. Merge fields fill per contact; anyone who replied STOP or is Do Not Contact is excluded.</p>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Campaign name (optional, for reporting)" style={{ width: '100%', padding: '7px 9px', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
         <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <select value="" onChange={e => { const t = templates.find(x => String(x.id) === e.target.value); if (t) insert(stripHtml(t.body)); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
-            <option value="">Insert template…</option>
-            {templates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+          <TemplatePicker templates={templates} onPick={t => insert(stripHtml(t.body))} />
           <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
             <option value="">+ Merge field…</option>
             {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}

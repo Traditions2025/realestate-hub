@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-21T19:11:29.601Z",
-  "count": 433,
+  "generated_at": "2026-08-21T20:35:55.117Z",
+  "count": 436,
   "entries": [
+    {
+      "hash": "ac02c90",
+      "date": "2026-08-21T14:31:23-05:00",
+      "subject": "comms: add Twilio text-reputation endpoint (brand trust score + delivery/error rates)",
+      "title": "comms: add Twilio text-reputation endpoint (brand trust score + delivery/error rates)",
+      "body": "GET /api/comms/twilio-reputation returns A2P brand trust score, campaign status, and\nthe delivery/error breakdown of recent outbound messages (spam-filter rate via error\n30007, undelivered rate, etc.). Read-only.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "20291b6",
+      "date": "2026-08-21T14:25:59-05:00",
+      "subject": "AI: disable same-day no-reply second text by default (ai_first_followup_enabled=0)",
+      "title": "AI: disable same-day no-reply second text by default (ai_first_followup_enabled=0)",
+      "body": "A second automated text to a lead who hasn't replied is a carrier spam trigger, so\nthe no-reply nudge is now OFF by default and gated behind ai_first_followup_enabled.\nThe opener still sends; inbound replies are still answered by the responsive flow.\nCan be re-enabled per preference later.\n\n84 tests pass.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f92017a",
+      "date": "2026-08-21T14:11:47-05:00",
+      "subject": "AI follow-up delay 10->30 min; Inbox auto-opens most recent conversation",
+      "title": "AI follow-up delay 10->30 min; Inbox auto-opens most recent conversation",
+      "body": "- No-reply follow-up now waits 30 minutes (was 10) to avoid the rapid double-text\n  pattern carriers flag as spam. Default + live setting updated.\n- Inbox auto-opens the most recent conversation on load so the blue/white chat shows\n  without a click (once per mount; a manual Close still sticks).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9e9b972",
       "date": "2026-08-21T14:03:38-05:00",

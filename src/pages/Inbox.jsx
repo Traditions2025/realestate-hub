@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import RichTextEditor from '../components/RichTextEditor'
+import TemplatePicker from '../components/TemplatePicker'
 
 const CHANNELS = [
   { key: 'email', label: 'Emails', icon: '✉', color: '#2563eb' },
@@ -501,10 +502,7 @@ export default function Inbox() {
 
                   {/* Template + photo toolbar */}
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                    <select value="" onChange={e => { insertTemplate(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }}>
-                      <option value="">Insert template…</option>
-                      {replyTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                    </select>
+                    <TemplatePicker templates={replyTemplates} onPick={t => insertTemplate(t.id)} />
                     {replyChannel === 'text' && <>
                       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
                       <button className="btn btn-sm btn-secondary" disabled={uploadingPhoto} onClick={() => fileRef.current?.click()}>{uploadingPhoto ? 'Uploading…' : '📷 Insert photo'}</button>
