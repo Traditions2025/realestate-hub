@@ -14,6 +14,12 @@ router.get('/health', requirePermission('settings.view'), async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Database diagnostics (integrity, size, journal mode, migrations, sync errors).
+router.get('/db-health', requirePermission('settings.view'), async (_req, res) => {
+  try { const { getDbHealth } = await import('../database.js'); res.json(getDbHealth()) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/failures', requirePermission('settings.view'), (req, res) => {
   res.json(listFailures({ state: req.query.state || 'open', limit: Number(req.query.limit) || 100 }))
 })

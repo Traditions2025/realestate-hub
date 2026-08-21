@@ -31,8 +31,10 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 - **Why:** stop silently losing failed sends/actions; guarantee a *usable* backup.
 - **Delivered:** `failed_jobs` table + `server/failures.js` (`recordFailure` dedups by kind+ref and bumps `retry_count`; `listFailures`/`failureCounts`/`resolveFailure`). Wired into the previously-silent bulk-text and scheduled-text failure paths, and into the daily backup. **Backup verification:** `verifyBackupFile()` opens each backup read-only, runs `PRAGMA integrity_check`, and confirms core data is queryable ("job ran" ≠ "usable backup"); `getBackupHealth()` reports newest/age/verified/stale; a failed/unverified backup records a failure. Admin **System Health** tab surfaces backup health + open failures with resolve. `/api/admin/health|failures`. 7 tests. *(Deliberately visibility-first — no auto-retry of SMS sends, which could double-text; safe retry can be layered on later.)*
 
-### P0-4 · DB health diagnostics + Postgres plan doc (Phase 2)
-- **Work:** `/api/admin/db-health` (size, backup age, migration count, integrity_check, lock errors); author `POSTGRES-MIGRATION-PLAN.md` (no automatic migration). **Risk:** Low.
+### P0-4 · DB health diagnostics + Postgres plan doc (Phase 2) — ✅ DONE
+- **Delivered:** `getDbHealth()` + `GET /api/admin/db-health` (size, `PRAGMA quick_check` integrity, journal mode, page/freelist counts, table + migration counts, client count, 24h scheduler sync errors) surfaced as the **Database** card in the Admin System Health tab. `POSTGRES-MIGRATION-PLAN.md` authored (planning only — the sync-API rewrite is the core cost; recommends a data-access abstraction first; no migration executed). 1 test.
+
+**→ P0 band (security / data integrity) is COMPLETE.** Next work moves to **P1** (core CRM / AI production readiness): P1-1 model-scored AI regression suite, P1-2 conversation classifier + structured memory, P1-3 behavioral events + intent decay, P1-4 AI Opportunities 2.0, P1-5 Smart Audiences engine, P1-6 lead routing. Also available as a small follow-on: rolling `requirePermission` enforcement across existing routes (P0-1 increment 2) and the Owner/Admin split.
 
 ---
 

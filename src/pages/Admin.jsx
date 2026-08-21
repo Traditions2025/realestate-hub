@@ -270,10 +270,12 @@ function EmailPanel() {
 // ---------------- System Health (backups + failures) ----------------
 function HealthPanel() {
   const [health, setHealth] = useState(null)
+  const [dbh, setDbh] = useState(null)
   const [failures, setFailures] = useState([])
   const [err, setErr] = useState('')
   const load = useCallback(() => {
     authFetch('/api/admin/health').then(r => r.json()).then(d => d.error ? setErr(d.error) : setHealth(d)).catch(() => setErr('Failed to load'))
+    authFetch('/api/admin/db-health').then(r => r.json()).then(d => setDbh(d && !d.error ? d : null)).catch(() => {})
     authFetch('/api/admin/failures?state=open').then(r => r.json()).then(d => setFailures(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
   useEffect(() => { load() }, [load])
@@ -284,6 +286,23 @@ function HealthPanel() {
   const badge = (ok, okText, badText) => <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
   return (
     <div>
+      {/* Database */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <h4>Database</h4>
+        {!dbh ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div> : (
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Integrity</div>{badge(dbh.integrity_ok, `✓ ${dbh.quick_check}`, `⚠ ${dbh.quick_check || 'unknown'}`)}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Size</div>{dbh.size_mb} MB</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Persistent</div>{badge(dbh.is_persistent, 'yes (disk)', 'no (ephemeral)')}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Journal</div>{dbh.journal_mode || '—'}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tables</div>{dbh.tables ?? '—'}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Migrations</div>{dbh.migrations ?? '—'}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clients</div>{dbh.clients?.toLocaleString?.() ?? '—'}</div>
+            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sync errors (24h)</div>{badge(!dbh.recent_sync_errors, '0', String(dbh.recent_sync_errors))}</div>
+          </div>
+        )}
+      </div>
+
       {/* Backups */}
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <h4>Backups</h4>

@@ -16,6 +16,7 @@ db.run("INSERT INTO clients (first_name,last_name,phone,type,status) VALUES ('Ba
 
 const { recordFailure, listFailures, failureCounts, resolveFailure } = await import('../server/failures.js')
 const { backupDbToDisk, verifyBackupFile, getBackupHealth } = await import('../server/backup.js')
+const { getDbHealth } = await import('../server/database.js')
 
 // ---------- failure log ----------
 test('failures: record + list open', () => {
@@ -65,5 +66,15 @@ test('backup: health snapshot reports a fresh, verified, non-stale backup', () =
   assert.ok(h.count >= 1)
   assert.equal(h.stale, false, 'a just-made backup is not stale')
   assert.equal(h.verified, true)
+  assert.equal(h.ok, true)
+})
+
+// ---------- db health (P0-4) ----------
+test('db-health: reports integrity ok, tables, migrations, and clients', () => {
+  const h = getDbHealth()
+  assert.equal(h.integrity_ok, true, 'quick_check: ' + h.quick_check)
+  assert.ok(h.tables > 10, 'schema has many tables')
+  assert.ok(h.clients >= 1)
+  assert.equal(typeof h.migrations, 'number')
   assert.equal(h.ok, true)
 })

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T22:01:00.789Z",
-  "count": 444,
+  "generated_at": "2026-08-21T22:05:48.923Z",
+  "count": 445,
   "entries": [
+    {
+      "hash": "d0bbc85",
+      "date": "2026-08-21T17:01:04-05:00",
+      "subject": "P0-3: failure visibility log + backup verification + admin System Health",
+      "title": "P0-3: failure visibility log + backup verification + admin System Health",
+      "body": "- failed_jobs table + server/failures.js (recordFailure dedups by kind+ref & bumps\n  retry_count; list/counts/resolve). Wired into the previously-silent bulk-text and\n  scheduled-text failure paths + the daily backup.\n- backup.js: verifyBackupFile() opens each backup read-only, runs PRAGMA\n  integrity_check and confirms data is queryable; getBackupHealth() reports\n  newest/age/verified/stale; a failed/unverified backup is recorded as a failure.\n- routes/admin.js (owner/admin): /api/admin/health + /failures (+resolve).\n- Admin tab: new 'System Health' section (backup status + open failures).\n\nVisibility-first (no auto-retry of SMS to avoid double-texting). 7 new tests;\n111 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fdca95f",
       "date": "2026-08-21T16:55:09-05:00",

@@ -2043,6 +2043,27 @@ export function getDbStatus() {
   }
 }
 
+// Richer DB diagnostics for the admin System Health panel (Phase 15 / P0-4):
+// integrity, journal mode, size, migration count, and recent scheduler write errors.
+// Uses PRAGMA quick_check (fast) on the live file; full integrity is checked on backups.
+export function getDbHealth() {
+  const status = getDbStatus()
+  const out = { ...status, size_mb: Math.round((status.file_size_kb / 1024) * 100) / 100 }
+  const pragma = (name) => { try { const r = get(`PRAGMA ${name}`); return r ? Object.values(r)[0] : null } catch { return null } }
+  out.quick_check = (() => { try { const r = get('PRAGMA quick_check'); return r ? Object.values(r)[0] : null } catch (e) { return 'error: ' + e.message } })()
+  out.integrity_ok = out.quick_check === 'ok'
+  out.journal_mode = pragma('journal_mode')
+  out.page_count = pragma('page_count')
+  out.page_size = pragma('page_size')
+  out.freelist_count = pragma('freelist_count')
+  try { out.migrations = get('SELECT COUNT(*) n FROM _migrations')?.n ?? null } catch { out.migrations = null }
+  try { out.tables = get("SELECT COUNT(*) n FROM sqlite_master WHERE type='table'")?.n ?? null } catch { out.tables = null }
+  try { out.clients = get('SELECT COUNT(*) n FROM clients')?.n ?? null } catch { out.clients = null }
+  try { out.recent_sync_errors = get("SELECT COUNT(*) n FROM sierra_sync_log WHERE errors IS NOT NULL AND errors != '' AND synced_at >= datetime('now','-1 day')")?.n ?? 0 } catch { out.recent_sync_errors = null }
+  out.ok = out.file_exists && out.integrity_ok
+  return out
+}
+
 export function all(sql, params = []) { return db.all(sql, params) }
 
 export function get(sql, params = []) { return db.get(sql, params) }
