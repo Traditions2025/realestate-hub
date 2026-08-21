@@ -29,15 +29,21 @@ const noHey = (s) => String(s == null ? '' : s).replace(/^(\s*)hey\b([,!]*)/i, '
 const latestMsgId = (cid) => db.get('SELECT MAX(id) m FROM communications WHERE client_id=?', [cid])?.m || 0
 // Is this the first text we've ever sent this contact?
 const isFirstOutboundText = (cid) => !db.get("SELECT id FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [cid])
-// Finalize a FIRST text: FORCE the correct Central time-of-day greeting (the model
-// is not trusted with the time) and guarantee the website.
-function withSiteIfFirst(cid, message) {
-  if (!isFirstOutboundText(cid)) return message
+// Finalize any AI text. The model is NOT trusted with the time of day:
+//  - FIRST text: force the opening greeting to the correct Central time-of-day + guarantee the website.
+//  - Follow-ups: strip any time-of-day greeting the model added (they should just say Hi/Hello).
+//  - Belt-and-suspenders: correct any remaining wrong "good morning/afternoon/evening" to Central.
+function finalizeAiText(cid, message) {
   const g = centralGreeting()
-  // Replace whatever greeting the model opened with (Good morning/afternoon/evening,
-  // or Hi/Hello) with the correct Central-time greeting.
-  message = message.replace(/^\s*(good\s+(morning|afternoon|evening)|hello|hi)\b/i, g)
-  if (!/mattsmithteam\.com/i.test(message)) message = (message.trim() + ' MattSmithTeam.com').slice(0, 640)
+  const first = isFirstOutboundText(cid)
+  if (first) {
+    message = message.replace(/^\s*(good\s+(morning|afternoon|evening)|hello|hi)\b/i, g)
+  } else {
+    message = message.replace(/\bgood\s+(morning|afternoon|evening)\b[!,.]?\s*/gi, '')
+  }
+  message = message.replace(/\bgood\s+(morning|afternoon|evening)\b/gi, g)
+  message = message.replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim()
+  if (first && !/mattsmithteam\.com/i.test(message)) message = (message.trim() + ' MattSmithTeam.com').slice(0, 640)
   return message
 }
 
@@ -125,7 +131,7 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
     const g2 = canSendSms(fresh, { channel: 'ai', mode: 'responsive', force })
     if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
     try {
-      const finalMsg = withSiteIfFirst(cid, message)
+      const finalMsg = finalizeAiText(cid, message)
       const actionId = logAiAction({ client_id: cid, action_type: 'SEND_TEXT', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: 'responsive reply', context_summary: ctx.intelligence?.ai_summary || '', output_text: finalMsg, intent_before: intentBefore, intent_after: intent.score, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
       await sendAiSms(fresh, finalMsg, actionId)
       sent = true
@@ -188,7 +194,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
   try {
     if (decision?.memory || decision?.summary) { try { applyMemory(cid, decision.memory || {}, decision.summary) } catch {} }
-    const finalMsg = withSiteIfFirst(cid, message)
+    const finalMsg = finalizeAiText(cid, message)
     const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: finalMsg, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
     await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), finalMsg, actionId)
     markOutbound(cid)
@@ -235,7 +241,7 @@ export async function previewMessage(clientId) {
   try { const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] }); usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '') }
   catch (e) { return { ok: false, reason: e.message } }
   let message = noHey(noDash(String(decision?.message || '').trim())).slice(0, 640)
-  if (message) message = withSiteIfFirst(cid, message)
+  if (message) message = finalizeAiText(cid, message)
   const elig = canSendSms(client, { channel: 'ai', mode: 'responsive', force: true })
   logAiAction({ client_id: cid, action_type: 'PREVIEW', model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: 'preview ' + kind, output_text: message, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, status: 'success' })
   return { ok: true, kind, message: message || '(the AI would not send here — nothing to say)', eligible: elig.ok, block_reason: elig.ok ? null : elig.reason }
@@ -250,7 +256,7 @@ export async function handleFollowup(clientId, { force = false } = {}) {
     // No sub-flag: a follow-up to an already-enrolled lead only needs the master switch
     // + enrollment + compliance (it is not cold outreach).
     actionType: 'FOLLOWUP', flagKey: null, force, nextState: 'AI_CONVERSATION_ACTIVE',
-    instruction: `You've already been in touch with this person and are getting to know them. Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area/part of town, then price range, then property type (single-family home or condo), then home style (ranch, two-story, or something else), then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
+    instruction: `You've already been in touch with this person and are getting to know them. Open with "Hi" or "Hello" (NOT a time-of-day greeting like "good morning"). Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area/part of town, then price range, then property type (single-family home or condo), then home style (ranch, two-story, or something else), then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
   })
 }
 

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T14:36:44.486Z",
-  "count": 422,
+  "generated_at": "2026-08-21T14:45:17.665Z",
+  "count": 423,
   "entries": [
+    {
+      "hash": "7363a04",
+      "date": "2026-08-21T09:36:47-05:00",
+      "subject": "AI: greeting strictly Central (America/Chicago), model-proof — server forces the correct time-of-day greeting on the first text; +test",
+      "title": "AI: greeting strictly Central (America/Chicago), model-proof — server forces the correct time-of-day greeting on the first text; +test",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6f2bc7e",
       "date": "2026-08-21T09:28:36-05:00",
