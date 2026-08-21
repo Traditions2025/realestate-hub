@@ -112,7 +112,7 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   let sent = false
   const shouldSend = action === 'SEND_TEXT' && message
   if (shouldSend) {
-    if (inQuietHours()) return logNo(cid, 'quiet hours', { intentBefore, intentAfter: intent.score })
+    if (!force && inQuietHours()) return logNo(cid, 'quiet hours', { intentBefore, intentAfter: intent.score })
     if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale send (new message arrived)', { intentBefore, intentAfter: intent.score })
     // re-check eligibility right before sending
     const fresh = db.get('SELECT * FROM clients WHERE id=?', [cid])
