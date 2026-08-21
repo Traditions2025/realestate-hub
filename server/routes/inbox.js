@@ -182,6 +182,16 @@ router.get('/stream', (req, res) => {
   req.on('close', () => clearInterval(tick))
 })
 
+// ---- pull a contact's FULL email history straight from the mailboxes (All Mail,
+// both directions) using the stored app passwords. For reconstructing complete
+// threads that predate the inbox poller. Read-only. ----
+router.get('/contact-emails', async (req, res) => {
+  const email = String(req.query.email || '').trim()
+  if (!email) return res.status(400).json({ error: 'email is required' })
+  try { const { searchMailboxesForContact } = await import('../gmail-inbox.js'); res.json(await searchMailboxesForContact(email, { max: Number(req.query.max) || 600 })) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ---- one contact's full thread ----
 router.get('/thread/:clientId', (req, res) => {
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [Number(req.params.clientId)])

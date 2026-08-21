@@ -193,6 +193,56 @@ export async function testMailbox(id) {
   return { connected: m.connected, last_error: m.last_error || '' }
 }
 
+// Pull the FULL email history with one contact across every configured mailbox,
+// searching Gmail's "All Mail" (which contains BOTH sent and received), so we can
+// reconstruct a complete two-way thread even for mail that predates the inbox poll
+// (the poller only stores incoming mail after it was connected). Read-only.
+export async function searchMailboxesForContact(email, { max = 600 } = {}) {
+  const target = String(email || '').trim().toLowerCase()
+  if (!target) return { email: target, messages: [], mailboxes: [] }
+  const boxes = getMailboxes().filter(m => m.enabled !== false && m.app_password)
+  const out = []
+  const boxInfo = []
+  for (const m of boxes) {
+    const pass = String(m.app_password || '').replace(/\s+/g, '')
+    const client = new ImapFlow({ host: m.host || 'imap.gmail.com', port: m.port || 993, secure: true, auth: { user: m.user, pass }, logger: false, greetingTimeout: 12000, socketTimeout: 60000 })
+    client.on('error', () => {})
+    try {
+      await client.connect()
+      // Find Gmail's "All Mail" (special-use \All) which holds sent + received.
+      let folder = 'INBOX'
+      try { const list = await client.list(); const all = list.find(b => b.specialUse === '\\All') || list.find(b => /all mail/i.test(b.path)); if (all) folder = all.path } catch {}
+      const lock = await client.getMailboxLock(folder)
+      let found = 0
+      try {
+        const uids = await client.search({ or: [{ from: target }, { to: target }, { cc: target }] }, { uid: true }) || []
+        const pick = uids.slice(-max)
+        for await (const msg of client.fetch(pick, { uid: true, source: true, internalDate: true }, { uid: true })) {
+          let p; try { p = await simpleParser(msg.source) } catch { continue }
+          const from = (p.from?.value?.[0]?.address || '').toLowerCase()
+          const dir = from === target ? 'incoming' : 'outgoing'
+          const body = String(p.text || (p.html ? p.html.replace(/<[^>]+>/g, ' ') : '')).replace(/ /g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+          out.push({
+            mailbox: m.user, direction: dir,
+            date: (msg.internalDate || p.date || new Date()).toISOString(),
+            from: p.from?.text || '', to: p.to?.text || '', subject: p.subject || '(no subject)',
+            messageId: p.messageId || `${m.user}_${msg.uid}`,
+            body: body.slice(0, 6000),
+          })
+          found++
+        }
+      } finally { lock.release() }
+      boxInfo.push({ mailbox: m.user, folder, matched: found })
+      await client.logout()
+    } catch (e) { boxInfo.push({ mailbox: m.user, error: e.message }); try { await client.logout() } catch {} }
+  }
+  // Dedup by messageId, then sort oldest -> newest.
+  const seen = new Set(); const dedup = []
+  for (const x of out) { if (seen.has(x.messageId)) continue; seen.add(x.messageId); dedup.push(x) }
+  dedup.sort((a, b) => new Date(a.date) - new Date(b.date))
+  return { email: target, count: dedup.length, mailboxes: boxInfo, messages: dedup }
+}
+
 // legacy status helper (kept so any old caller keeps working)
 export function gmailStatus() {
   const boxes = mailboxesPublic()
