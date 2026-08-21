@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T14:57:01.414Z",
-  "count": 424,
+  "generated_at": "2026-08-21T15:03:28.018Z",
+  "count": 425,
   "entries": [
+    {
+      "hash": "03b5b45",
+      "date": "2026-08-21T09:57:10-05:00",
+      "subject": "Inbox: 'View profile' button in the thread header jumps to the lead's full profile in Clients (/clients?open=<id> deep-link)",
+      "title": "Inbox: 'View profile' button in the thread header jumps to the lead's full profile in Clients (/clients?open=<id> deep-link)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "435b8e3",
       "date": "2026-08-21T09:45:20-05:00",

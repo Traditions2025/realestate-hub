@@ -326,6 +326,7 @@ export default function Clients() {
   const [detail, setDetail] = useState(null)
   const [textComposeClient, setTextComposeClient] = useState(null)  // lead-profile SMS composer (bulk/legacy)
   const [textPanelOpen, setTextPanelOpen] = useState(false)         // inline text box on the lead profile
+  const [dialerOpen, setDialerOpen] = useState(false)               // manual dial-any-number pad
   const [sierraStatus, setSierraStatus] = useState(null) // null = not started, 'syncing', { added, updated, total_synced, error }
   const [syncLog, setSyncLog] = useState(null)
   const [batchRefreshState, setBatchRefreshState] = useState(null)
@@ -1420,6 +1421,7 @@ export default function Clients() {
           <p className="page-subtitle">All leads (buyers + sellers) synced from Sierra Interactive</p>
         </div>
         <div className="header-actions">
+          <button className="btn btn-secondary" onClick={() => setDialerOpen(true)} title="Dial any number (even one not in the database)">☎ Dialer</button>
           <div className="view-toggle">
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
             <button className={view === 'card' ? 'active' : ''} onClick={() => setView('card')}>Cards</button>
@@ -1986,6 +1988,8 @@ export default function Clients() {
           onClose={() => setTextComposeClient(null)}
           onSent={() => { if (detail?.id === textComposeClient.id) openDetail(textComposeClient.id) }} />
       )}
+
+      {dialerOpen && <ManualDialer onClose={() => setDialerOpen(false)} />}
 
       {bulkTextOpen && (
         <BulkTextModal clientIds={[...selectedIds]} onClose={() => setBulkTextOpen(false)}
@@ -3426,6 +3430,52 @@ function TextComposerModal({ client, onClose, onSent }) {
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Sending…' : 'Send Text'}</button>
         </div>
+      </div>
+    </Modal>
+  )
+}
+
+// --- Manual dialer: type/keypad any phone number (not necessarily in the CRM) and
+// call it through the Hub softphone. Also does a quick lookup so a known contact's
+// name shows on the call. ---
+function ManualDialer({ onClose }) {
+  const [num, setNum] = React.useState('')
+  const [match, setMatch] = React.useState(null)
+  const digits = num.replace(/\D/g, '')
+  React.useEffect(() => {
+    if (digits.length < 10) { setMatch(null); return }
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(digits.slice(-10))).then(r => r.json()).then(a => setMatch(Array.isArray(a) && a[0] ? a[0] : null)).catch(() => {}), 250)
+    return () => clearTimeout(t)
+  }, [digits])
+  const fmt = (d) => d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (d.length === 11 && d[0] === '1' ? `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : num)
+  const press = (k) => setNum(n => (n + k).slice(0, 20))
+  const back = () => setNum(n => n.slice(0, -1))
+  const call = () => {
+    if (digits.length < 10) { alert('Enter a valid phone number.'); return }
+    const name = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : ''
+    if (window.hubCall) { window.hubCall(digits.length >= 11 ? '+' + digits : digits, name); onClose() }
+    else alert('The Hub phone isn’t connected yet. Keep the Hub open in a tab to place calls.')
+  }
+  const keyStyle = { padding: '14px 0', fontSize: 20, fontWeight: 600, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }
+  return (
+    <Modal open onClose={onClose} title="Dialer">
+      <div style={{ maxWidth: 300, margin: '0 auto' }}>
+        <input value={fmt(digits)} onChange={e => setNum(e.target.value)} autoFocus placeholder="Enter a phone number"
+          onKeyDown={e => { if (e.key === 'Enter') call() }}
+          style={{ width: '100%', textAlign: 'center', fontSize: 24, padding: '10px 8px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', letterSpacing: 1 }} />
+        <div style={{ textAlign: 'center', fontSize: 12, color: match ? '#10b981' : 'var(--text-muted)', minHeight: 18, marginTop: 4 }}>
+          {match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() + ' (in database)' : (digits.length >= 10 ? 'Not in database — will dial as a new number' : ' ')}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8, marginTop: 10 }}>
+          {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(k => (
+            <button key={k} onClick={() => press(k)} style={keyStyle}>{k}</button>
+          ))}
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+          <button className="btn btn-secondary" onClick={back} disabled={!digits} title="Delete">⌫</button>
+          <button className="btn btn-primary" style={{ flex: 1, background: '#10b981', fontSize: 16, padding: '11px 0' }} onClick={call} disabled={digits.length < 10}>📞 Call</button>
+        </div>
+        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>Calls from your Hub number (319) 343-1562. Keep the Hub open to talk.</div>
       </div>
     </Modal>
   )
