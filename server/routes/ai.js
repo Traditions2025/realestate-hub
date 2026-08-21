@@ -3,7 +3,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { AI_FLAGS, AI_CONFIG_DEFAULTS, getFlags, getConfig, flag } from '../ai-followup/flags.js'
-import { ensureState, getState, transitionAiState, pauseAi, resumeAi, humanTakeover, setEnabled, setManaged, AI_STATES } from '../ai-followup/state.js'
+import { ensureState, getState, transitionAiState, pauseAi, resumeAi, humanTakeover, setEnabled, setManaged, isExcludedFromAutopilot, AI_STATES } from '../ai-followup/state.js'
 import { getIntent } from '../ai-followup/intent.js'
 import { recentAiActions } from '../ai-followup/audit.js'
 import { ensurePrefs } from '../ai-followup/policy.js'
@@ -86,6 +86,42 @@ router.post('/lead/:id/send-now', async (req, res) => {
     }
     res.json(result)
   } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ---- BULK "Send AI now" across selected leads. Same per-lead routing + compliance
+// as /send-now, but SKIPS autopilot-excluded prospecting leads (FSBO / expired /
+// cancelled / configured exclusions) so a bulk action can never accidentally blast a
+// list the team walled off. Those can still be enabled one-by-one from a profile. ----
+router.post('/bulk-send-now', async (req, res) => {
+  const ids = Array.isArray(req.body?.client_ids) ? req.body.client_ids.map(Number).filter(Boolean) : []
+  const includeExcluded = req.body?.include_excluded === true
+  if (!ids.length) return res.status(400).json({ error: 'Select at least one lead.' })
+  if (ids.length > 500) return res.status(400).json({ error: 'Too many at once — select 500 or fewer.' })
+  const m = await import('../ai-followup/orchestrator.js')
+  const out = { total: ids.length, sent: 0, skipped: 0, blocked: 0, results: [] }
+  for (const cid of ids) {
+    try {
+      const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+      if (!client) { out.skipped++; out.results.push({ client_id: cid, ok: false, skipped: true, reason: 'no client' }); continue }
+      const nm = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+      if (!includeExcluded && isExcludedFromAutopilot(client)) {
+        out.skipped++; out.results.push({ client_id: cid, name: nm, ok: false, skipped: true, reason: 'excluded prospecting lead (FSBO/expired/cancelled or matched an exclusion)' }); continue
+      }
+      setManaged(cid, true)   // a manual Send AI enrolls the lead, same as per-lead
+      const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
+      const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
+      let result
+      if (!lastText) result = await m.handleProactive(cid, { force: true })
+      else if (lastText.direction === 'incoming' && lastIn) result = await m.handleInboundText(cid, lastIn.body, { force: true })
+      else result = await m.handleFollowup(cid, { force: true })
+      if (result && result.ok && !result.sent && !/blocked|STOP|opt|quiet/i.test(result.reason || '')) {
+        const p = await m.handleFollowup(cid, { force: true }); if (p?.sent) result = p
+      }
+      if (result?.sent) { out.sent++; out.results.push({ client_id: cid, name: nm, ok: true }) }
+      else { out.blocked++; out.results.push({ client_id: cid, name: nm, ok: false, reason: result?.reason || 'nothing to send' }) }
+    } catch (e) { out.blocked++; out.results.push({ client_id: cid, ok: false, reason: e.message }) }
+  }
+  res.json(out)
 })
 
 // ---- AI Opportunities (handoff queue) ----

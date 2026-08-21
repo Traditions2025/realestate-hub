@@ -502,6 +502,28 @@ export default function Clients() {
       alert('Failed: ' + (d.error || 'unknown error'))
     }
   }
+  // Bulk "Send AI now" — routes each selected lead through the AI (opener / reply /
+  // qualifying follow-up). Skips excluded prospecting leads and honors quiet hours +
+  // compliance server-side. Reports a sent / skipped / blocked summary.
+  const [bulkAiRunning, setBulkAiRunning] = useState(false)
+  const bulkSendAI = async () => {
+    if (selectedIds.size === 0) return
+    const n = selectedIds.size
+    if (n > 500) { alert('Select 500 or fewer leads for a bulk AI send.'); return }
+    if (!confirm(`Send an AI text to ${n} selected lead${n === 1 ? '' : 's'}?\n\n• Each gets a personalized message (opener, reply, or next qualifying question).\n• Prospecting leads (FSBO / MLS Expired / MLS Cancelled) are skipped automatically.\n• Quiet hours and STOP opt-outs are respected.\n• These leads become AI-managed.`)) return
+    setBulkActionsOpen(false); setBulkAiRunning(true)
+    try {
+      const r = await authFetch('/api/ai/bulk-send-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: [...selectedIds] }) })
+      const d = await r.json()
+      if (d.error) { alert('Bulk AI send failed: ' + d.error); return }
+      const blockedReasons = (d.results || []).filter(x => !x.ok && !x.skipped).map(x => x.reason)
+      const quiet = blockedReasons.some(r => /quiet/i.test(r || ''))
+      let msg = `AI send complete:\n\n✓ Sent: ${d.sent}\n⤼ Skipped (excluded prospecting): ${d.skipped}\n⛔ Not sent (blocked/nothing to say): ${d.blocked}`
+      if (quiet) msg += `\n\nNote: some were held for quiet hours — they'll need to be re-sent after quiet hours end, or enable them individually.`
+      alert(msg)
+      load()
+    } catch (e) { alert('Bulk AI send failed: ' + e.message) } finally { setBulkAiRunning(false) }
+  }
   const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
@@ -2049,11 +2071,13 @@ export default function Clients() {
               <button
                 className="btn btn-primary btn-sm"
                 onClick={() => setBulkActionsOpen(o => !o)}
-                disabled={batchRefreshState?.running}
+                disabled={batchRefreshState?.running || bulkAiRunning}
               >
                 {batchRefreshState?.running
                   ? `↻ Refreshing ${batchRefreshState.done}/${batchRefreshState.total}...`
-                  : `Bulk Actions ▾`}
+                  : bulkAiRunning
+                    ? `🤖 Sending AI…`
+                    : `Bulk Actions ▾`}
               </button>
               {bulkActionsOpen && (
                 <div className="bulk-actions-menu">
@@ -2062,6 +2086,9 @@ export default function Clients() {
                   </button>
                   <button onClick={() => { setBulkActionsOpen(false); setBulkTextOpen(true) }}>
                     💬 Text Selected
+                  </button>
+                  <button onClick={bulkSendAI} title="Have the AI text each selected lead (opener / reply / next qualifying question). Skips prospecting leads; respects quiet hours + opt-outs.">
+                    🤖 Send AI (First Text / Follow-Up)
                   </button>
                   <button onClick={() => { setBulkActionsOpen(false); if (selectedIds.size) window.location.assign('/dialer?client_ids=' + [...selectedIds].join(',')) }}>
                     ☎ Call Leads (Power Dialer)

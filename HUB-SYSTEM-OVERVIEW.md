@@ -3,7 +3,7 @@
 **Real Estate Command Center** for the Matt Smith Team (RE/MAX Real Estate Concepts, Cedar Rapids / Marion, Iowa).
 This is the single source of truth for how the Hub is built, what it does, the tools it depends on, and every moving part.
 
-- **Live app:** https://realestate-hub.onrender.com
+- **Live app:** https://realestate-hub-1rzu.onrender.com
 - **Repo:** github.com/Traditions2025/realestate-hub
 - **Version:** 2.0.0
 - **Last documented:** 2026-08-21

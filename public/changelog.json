@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T16:01:38.911Z",
-  "count": 428,
+  "generated_at": "2026-08-21T16:47:32.591Z",
+  "count": 429,
   "entries": [
+    {
+      "hash": "99084b5",
+      "date": "2026-08-21T11:02:47-05:00",
+      "subject": "AI text suggestion: on-demand + context; record all calls; comm history on profile",
+      "title": "AI text suggestion: on-demand + context; record all calls; comm history on profile",
+      "body": "AI text suggestion (Clients text composer):\n- No longer auto-generates; shows a 'View suggested reply' button, drafts only on click.\n- Adds an agent context input that improves/steers the draft (previewMessage now\n  accepts { context } and folds it in, mirroring the email refine flow).\n\nCall recording:\n- twilio_record_calls now defaults ON; inbound + forward-to-mobile Dials record too\n  (outbound already did). Recordings attach to the timeline via /api/voice/recording.\n\nCommunication history on the client profile:\n- New 'Communication History' section lists every text, call, voicemail and logged\n  email (newest first) from /api/inbox/thread/:id, with duration, disposition,\n  transcript, and an inline recording player (proxied via /api/inbox/recording/:id).\n\n27 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9425e6a",
       "date": "2026-08-21T10:44:38-05:00",
