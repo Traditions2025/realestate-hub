@@ -813,6 +813,23 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // Team agent directory — used for conversation assignment and to add a teammate
+  // to a client text. Seeded once with the current roster.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS team_agents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      phone TEXT,
+      title TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try {
+    if ((db.get('SELECT COUNT(*) n FROM team_agents')?.n || 0) === 0) {
+      for (const a of [['Matt Smith', '319-431-5859', 'Broker Associate'], ['Hunter Caves', '319-447-7337', 'Realtor'], ['John Solamo', '319-343-1562', '']])
+        db.run('INSERT INTO team_agents (name, phone, title) VALUES (?,?,?)', a)
+    }
+  } catch {}
 
   // =====================================================================
   // HUB AI ISA — foundation tables (Stage 1). No autonomous behavior until

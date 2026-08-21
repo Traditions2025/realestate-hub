@@ -190,8 +190,10 @@ router.get('/thread/:clientId', (req, res) => {
 
 // ---- team agents (for assignment); configurable via the inbox_agents setting ----
 router.get('/agents', (_req, res) => {
-  const raw = db.getSetting('inbox_agents', 'Matt,John,Hunter') || ''
-  res.json(raw.split(',').map(s => s.trim()).filter(Boolean))
+  let names = []
+  try { names = db.all('SELECT name FROM team_agents ORDER BY name').map(a => String(a.name).split(' ')[0]) } catch {}
+  if (!names.length) names = (db.getSetting('inbox_agents', 'Matt,John,Hunter') || '').split(',').map(s => s.trim()).filter(Boolean)
+  res.json([...new Set(names)])
 })
 // ---- assign / reassign a conversation to an agent (owner = clients.agent_assigned) ----
 router.post('/thread/:clientId/assign', (req, res) => {
@@ -661,10 +663,13 @@ router.get('/contacts', (req, res) => {
 
 // ---- compose + send (Email now; Text arrives with Twilio) ----
 router.post('/send', async (req, res) => {
-  const { channel, client_ids, subject, body } = req.body || {}
+  const { channel, subject, body } = req.body || {}
+  const client_ids = Array.isArray(req.body?.client_ids) ? req.body.client_ids : []
+  // Raw phone recipients (e.g. team agents not in the CRM): [{ phone, name }] or ["+1..."].
+  const rawPhones = Array.isArray(req.body?.phones) ? req.body.phones.map(p => (typeof p === 'string' ? { phone: p } : p)).filter(p => p && p.phone) : []
   // media: array of public https URLs (from /upload-media) to attach as MMS
   const media = Array.isArray(req.body?.media) ? req.body.media.filter(Boolean).slice(0, 10) : []
-  if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Add at least one recipient.' })
+  if (!client_ids.length && !rawPhones.length) return res.status(400).json({ error: 'Add at least one recipient.' })
   if (!body && !(channel === 'text' && media.length)) return res.status(400).json({ error: 'A message is required.' })
 
   // ---- TEXT (Twilio) ----
@@ -692,6 +697,19 @@ router.post('/send', async (req, res) => {
         if (db.get('SELECT client_id FROM ai_lead_state WHERE client_id=?', [c.id])) { try { const { humanTakeover } = await import('../ai-followup/state.js'); humanTakeover(c.id, 'agent sent a text') } catch {} }
         results.push({ client_id: cid, ok: true })
       } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
+    }
+    // Raw phone recipients (team agents etc.) — no CRM record, no consumer compliance gate.
+    for (const rp of rawPhones) {
+      const outText = String(body || '').replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+      if (!outText && !media.length) { results.push({ phone: rp.phone, ok: false, error: 'empty message' }); continue }
+      try {
+        const r = await sendSms(rp.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status', mediaUrls: media })
+        const p10 = String(rp.phone).replace(/\D/g, '').slice(-10)
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, sent_by_type, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', null, rp.name || fmtPhone(rp.phone), '', rp.phone, (outText || `[${media.length} photo]`).slice(0, 160), outText, 'twilio_' + r.sid, `u_${p10}`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
+        results.push({ phone: rp.phone, ok: true })
+      } catch (e) { results.push({ phone: rp.phone, ok: false, error: e.message }) }
     }
     return res.json({ sent: results.filter(r => r.ok).length, results })
   }

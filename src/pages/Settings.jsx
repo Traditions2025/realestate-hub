@@ -256,6 +256,8 @@ export default function Settings() {
 
           <CommsDiagnostics />
 
+          <TeamAgents />
+
           <AiFollowUpSettings />
 
           <VoiceRouting />
@@ -447,6 +449,41 @@ function AiFollowUpSettings() {
           <span style={{ color: 'var(--text-muted)' }}>prompt {diag.prompt_version}</span>
         </div>
       )}
+    </section>
+  )
+}
+
+// Team agent directory — the roster used for conversation assignment and for looping
+// a teammate into a client text.
+function TeamAgents() {
+  const [list, setList] = React.useState([])
+  const [name, setName] = React.useState(''); const [phone, setPhone] = React.useState(''); const [title, setTitle] = React.useState('')
+  const load = () => authFetch('/api/agents').then(r => r.json()).then(a => setList(Array.isArray(a) ? a : [])).catch(() => {})
+  React.useEffect(() => { load() }, [])
+  const add = async () => { if (!name.trim()) return; await authFetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, phone, title }) }).catch(() => {}); setName(''); setPhone(''); setTitle(''); load() }
+  const del = async (id) => { if (!confirm('Remove this agent from the directory?')) return; await authFetch('/api/agents/' + id, { method: 'DELETE' }).catch(() => {}); load() }
+  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  return (
+    <section className="detail-section">
+      <h4 style={{ margin: '0 0 6px' }}>Team Agents</h4>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>Your team roster — used to assign conversations and to loop a teammate into a client text.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
+        {list.map(a => (
+          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px', fontSize: 13, flexWrap: 'wrap' }}>
+            <span style={{ fontWeight: 600, minWidth: 140 }}>{a.name}</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{a.phone || '(no phone)'}</span>
+            {a.title && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{a.title}</span>}
+            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => del(a.id)}>Remove</button>
+          </div>
+        ))}
+        {list.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No agents yet.</div>}
+      </div>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ ...inp, width: 170 }} />
+        <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="Phone" style={{ ...inp, width: 150 }} />
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Title (optional)" style={{ ...inp, width: 160 }} />
+        <button className="btn btn-primary btn-sm" disabled={!name.trim()} onClick={add}>+ Add agent</button>
+      </div>
     </section>
   )
 }

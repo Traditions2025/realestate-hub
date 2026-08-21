@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T15:03:28.018Z",
-  "count": 425,
+  "generated_at": "2026-08-21T15:30:06.125Z",
+  "count": 426,
   "entries": [
+    {
+      "hash": "8b32507",
+      "date": "2026-08-21T10:03:38-05:00",
+      "subject": "Clients: 'Dialer' button — dial-pad to call ANY number (not just DB contacts) via the Hub softphone; shows a match if the number is a known contact",
+      "title": "Clients: 'Dialer' button — dial-pad to call ANY number (not just DB contacts) via the Hub softphone; shows a match if the number is a known contact",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "03b5b45",
       "date": "2026-08-21T09:57:10-05:00",

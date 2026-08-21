@@ -3571,7 +3571,9 @@ function InlineTextComposer({ client, onClose, onSent }) {
   const [sendAt, setSendAt] = React.useState('')
   const [scheduled, setScheduled] = React.useState([])
   const fileRef = React.useRef(null)
-  React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  const [agents, setAgents] = React.useState([])
+  React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}); authFetch('/api/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const addAgent = (a) => { const key = 'agent:' + a.id; if (!recips.find(r => r.id === key)) setRecips(rs => [...rs, { id: key, agent: true, name: a.name, phone: a.phone }]) }
   const loadScheduled = React.useCallback(() => { authFetch('/api/inbox/scheduled?client_id=' + client.id).then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {}) }, [client.id])
   React.useEffect(() => { loadScheduled() }, [loadScheduled])
   const scheduleText = async () => {
@@ -3608,7 +3610,9 @@ function InlineTextComposer({ client, onClose, onSent }) {
     if (!recips.length) { alert('Add at least one recipient.'); return }
     setSending(true)
     try {
-      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids: recips.map(c => c.id), body: body.trim(), media: media.map(m => m.url) }) })
+      const client_ids = recips.filter(r => !r.agent).map(r => r.id)
+      const phones = recips.filter(r => r.agent).map(r => ({ phone: r.phone, name: r.name }))
+      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids, phones, body: body.trim(), media: media.map(m => m.url) }) })
       const d = await r.json()
       if (d.sent >= 1) {
         setBody(''); setMedia([]); onSent && onSent()
@@ -3628,12 +3632,21 @@ function InlineTextComposer({ client, onClose, onSent }) {
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
         {recips.map(r => (
-          <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 12 }}>
-            {`${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone}
+          <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: r.agent ? 'rgba(37,99,235,.1)' : 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 12 }}>
+            {r.agent && <span title="Team agent" style={{ fontSize: 10 }}>👤</span>}
+            {r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone}
             {recips.length > 1 && <button onClick={() => removeRecip(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>}
           </span>
         ))}
       </div>
+      {agents.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Loop in a teammate:</span>
+          {agents.filter(a => a.phone && !recips.find(r => r.id === 'agent:' + a.id)).map(a => (
+            <button key={a.id} onClick={() => addAgent(a)} className="btn btn-sm btn-secondary" title={`${a.phone}${a.title ? ' · ' + a.title : ''}`}>+ {a.name}</button>
+          ))}
+        </div>
+      )}
       <div style={{ position: 'relative', marginBottom: 8 }}>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="+ Add another recipient (name or phone)…" style={fld} />
         {results.length > 0 && (
