@@ -11,8 +11,8 @@ export default function LoginScreen({ onLogin }) {
     setError('')
     setLoading(true)
     try {
-      // With a username/email → per-user login. Without → legacy shared team password.
-      const body = identifier.trim() ? { username: identifier.trim(), password } : { password }
+      // With an email → per-user login. Without → legacy shared team password.
+      const body = identifier.trim() ? { email: identifier.trim(), password } : { password }
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -23,7 +23,7 @@ export default function LoginScreen({ onLogin }) {
         localStorage.setItem('mst_token', data.token)
         onLogin(data.token)
       } else {
-        setError(identifier.trim() ? 'Wrong username or password.' : 'Wrong password. Try again.')
+        setError(identifier.trim() ? 'Wrong email or password.' : 'Wrong password. Try again.')
       }
     } catch (err) {
       setError('Connection error. Try again.')
@@ -39,11 +39,11 @@ export default function LoginScreen({ onLogin }) {
         <p>Sign in to continue</p>
         <form onSubmit={handleSubmit}>
           <input
-            type="text"
-            placeholder="Username or email"
+            type="email"
+            placeholder="Email"
             value={identifier}
             onChange={e => setIdentifier(e.target.value)}
-            autoComplete="username"
+            autoComplete="email"
             autoFocus
           />
           <input

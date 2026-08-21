@@ -44,7 +44,7 @@ function UsersAdmin() {
   const [roles, setRoles] = useState([])
   const [err, setErr] = useState('')
   const [busy, setBusy] = useState(false)
-  const [form, setForm] = useState({ name: '', username: '', email: '', phone: '', role: 'agent', password: '' })
+  const [form, setForm] = useState({ name: '', email: '', phone: '', role: 'agent', password: '' })
   const load = useCallback(() => {
     authFetch('/api/users').then(r => r.json()).then(d => Array.isArray(d) ? setUsers(d) : setErr(d.error || 'Not permitted')).catch(() => setErr('Failed to load users'))
     authFetch('/api/users/roles').then(r => r.json()).then(d => setRoles(d.roles || [])).catch(() => {})
@@ -57,7 +57,7 @@ function UsersAdmin() {
       const r = await authFetch('/api/users', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       const d = await r.json()
       if (d.error) setErr(d.error)
-      else { setForm({ name: '', username: '', email: '', phone: '', role: 'agent', password: '' }); load() }
+      else { setForm({ name: '', email: '', phone: '', role: 'agent', password: '' }); load() }
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
   const patch = async (id, body) => { await authFetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(d => { if (d.error) alert(d.error) }); load() }
@@ -68,7 +68,6 @@ function UsersAdmin() {
     if (d.error) alert(d.error); else { alert('Password updated. Existing sessions for this user were signed out.'); load() }
   }
   const revoke = async (u) => { if (!confirm(`Sign ${u.email} out of all devices?`)) return; await authFetch(`/api/users/${u.id}/revoke-sessions`, { method: 'POST' }); alert('All sessions revoked.') }
-  const editUsername = (u) => { const un = window.prompt(`Set a login username for ${u.name} (3-30 chars: letters, numbers, . _ -). Leave blank to remove:`, u.username || ''); if (un === null) return; patch(u.id, { username: un.trim() }) }
 
   const roleOpts = roles.length ? roles : Object.keys(ROLE_LABEL)
   return (
@@ -80,7 +79,6 @@ function UsersAdmin() {
         <h4>Add a user</h4>
         <form onSubmit={add} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, alignItems: 'end' }}>
           <label style={{ fontSize: 12 }}>Name<input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={fld} /></label>
-          <label style={{ fontSize: 12 }}>Username<input value={form.username} onChange={e => setForm(f => ({ ...f, username: e.target.value }))} placeholder="login username (optional)" style={fld} /></label>
           <label style={{ fontSize: 12 }}>Email<input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={fld} /></label>
           <label style={{ fontSize: 12 }}>Phone<input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={fld} /></label>
           <label style={{ fontSize: 12 }}>Role<select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={fld}>{roleOpts.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}</select></label>
@@ -96,13 +94,12 @@ function UsersAdmin() {
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>
-              <th style={{ padding: '6px 8px' }}>Name</th><th style={{ padding: '6px 8px' }}>Username</th><th style={{ padding: '6px 8px' }}>Email</th><th style={{ padding: '6px 8px' }}>Role</th><th style={{ padding: '6px 8px' }}>Status</th><th style={{ padding: '6px 8px' }}>Last login</th><th style={{ padding: '6px 8px' }}>Actions</th>
+              <th style={{ padding: '6px 8px' }}>Name</th><th style={{ padding: '6px 8px' }}>Email</th><th style={{ padding: '6px 8px' }}>Role</th><th style={{ padding: '6px 8px' }}>Status</th><th style={{ padding: '6px 8px' }}>Last login</th><th style={{ padding: '6px 8px' }}>Actions</th>
             </tr></thead>
             <tbody>
               {users.map(u => (
                 <tr key={u.id} style={{ borderTop: '1px solid var(--border)' }}>
                   <td style={{ padding: '7px 8px', fontWeight: 600 }}>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 11 }}>🔐</span> : null}</td>
-                  <td style={{ padding: '7px 8px', color: 'var(--text-secondary)' }}>{u.username || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                   <td style={{ padding: '7px 8px', color: 'var(--text-secondary)' }}>{u.email}</td>
                   <td style={{ padding: '7px 8px' }}>
                     <select value={u.role} onChange={e => patch(u.id, { role: e.target.value })} style={{ ...fld, width: 'auto', fontSize: 12, padding: '4px 6px' }}>
@@ -114,7 +111,6 @@ function UsersAdmin() {
                   </td>
                   <td style={{ padding: '7px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
                   <td style={{ padding: '7px 8px', whiteSpace: 'nowrap' }}>
-                    <button className="btn btn-sm" onClick={() => editUsername(u)} title="Set / change username">👤 Username</button>{' '}
                     <button className="btn btn-sm" onClick={() => resetPw(u)} title="Set / reset password">🔑 Password</button>{' '}
                     {u.status === 'active'
                       ? <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'disabled' })} title="Disable login">Disable</button>
@@ -123,7 +119,7 @@ function UsersAdmin() {
                   </td>
                 </tr>
               ))}
-              {users.length === 0 && !err && <tr><td colSpan={7} style={{ padding: 12, color: 'var(--text-muted)' }}>No users yet.</td></tr>}
+              {users.length === 0 && !err && <tr><td colSpan={6} style={{ padding: 12, color: 'var(--text-muted)' }}>No users yet.</td></tr>}
             </tbody>
           </table>
         </div>

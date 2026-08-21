@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T21:29:14.995Z",
-  "count": 440,
+  "generated_at": "2026-08-21T21:39:06.132Z",
+  "count": 441,
   "entries": [
+    {
+      "hash": "34459bc",
+      "date": "2026-08-21T16:29:24-05:00",
+      "subject": "Add username: set + log in with username or email",
+      "title": "username: set + log in with username or email",
+      "body": "- users.username column (idempotent ALTER + unique index; NULLs allowed).\n- Login accepts { username | email, password }; resolves by username OR email.\n- User create/update accept + validate username (3-30, unique).\n- Admin UI: username in add form, table column, and edit action.\n- Login screen: username-or-email + password (shared password still works when\n  the identifier is left blank).\n96 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "0b712dd",
       "date": "2026-08-21T16:19:49-05:00",
