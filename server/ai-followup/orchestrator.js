@@ -112,7 +112,7 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   let sent = false
   const shouldSend = action === 'SEND_TEXT' && message
   if (shouldSend) {
-    if (!force && inQuietHours()) return logNo(cid, 'quiet hours', { intentBefore, intentAfter: intent.score })
+    if (inQuietHours()) return logNo(cid, 'quiet hours', { intentBefore, intentAfter: intent.score })   // quiet hours apply even to a manual Send-AI-now
     if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale send (new message arrived)', { intentBefore, intentAfter: intent.score })
     // re-check eligibility right before sending
     const fresh = db.get('SELECT * FROM clients WHERE id=?', [cid])
@@ -161,7 +161,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   const mode = force ? 'responsive' : 'proactive'
   const gate = canSendSms(client, { channel: 'ai', mode, force })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
-  if (!force && inQuietHours()) return logNo(cid, 'quiet hours')
+  if (inQuietHours()) return logNo(cid, 'quiet hours')   // quiet hours apply even to a manual Send-AI-now
   // daily cap
   const cap = Number(getConfig().ai_followup_max_per_day) || 4
   const sentToday = db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND sent_by_type='ai' AND occurred_at >= datetime('now','-1 day')", [cid])?.n || 0

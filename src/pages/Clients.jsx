@@ -3435,6 +3435,17 @@ function AiIsaCard({ clientId }) {
   React.useEffect(() => { setPreview(null) }, [clientId])
   const act = async (path, body) => { setBusy(true); try { await authFetch('/api/ai/lead/' + clientId + '/' + path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined }) } finally { setBusy(false); load() } }
   const doPreview = async () => { setBusy(true); setPreview({ loading: true }); try { const r = await authFetch('/api/ai/lead/' + clientId + '/preview', { method: 'POST' }); setPreview(await r.json()) } catch (e) { setPreview({ ok: false, reason: e.message }) } finally { setBusy(false) } }
+  const sendNow = async (enableFirst) => {
+    if (!confirm(enableFirst ? 'Enable AI for this lead and send a message now?' : 'Have HUB AI send a message to this contact now? It still follows all rules (STOP, opt-outs, quiet hours).')) return
+    setBusy(true)
+    try {
+      const r = await authFetch('/api/ai/lead/' + clientId + '/send-now', { method: 'POST' })
+      const d = await r.json()
+      if (d.sent) alert('AI message sent.')
+      else if (/quiet/i.test(d.reason || '')) alert('Not sent — quiet hours are on. It will send after quiet hours end (8 AM). You can change quiet hours in Settings.')
+      else alert('Not sent: ' + (d.reason || d.error || 'the AI chose not to send right now'))
+    } catch (e) { alert(e.message) } finally { setBusy(false); load() }
+  }
   if (!d) return null
   const LEVEL = { URGENT: '#ef4444', HIGH: '#f59e0b', ENGAGED: '#10b981', NURTURE: '#2563eb', LOW: '#64748b' }
   const managed = d.ai_managed || (d.global?.autopilot && d.ai_enabled)
@@ -3473,13 +3484,13 @@ function AiIsaCard({ clientId }) {
               ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('resume')}>Resume AI</button>
               : <button className="btn btn-sm" disabled={busy} onClick={() => act('pause', { duration: 'today' })}>Pause today</button>}
             <button className="btn btn-sm" disabled={busy} onClick={() => act('takeover')}>Take over</button>
-            <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Have HUB AI send a message to this contact now? It still honors all compliance rules (STOP, opt-outs, quiet hours).')) act('send-now') }}>Send AI now</button>
+            <button className="btn btn-sm" disabled={busy} onClick={() => sendNow(false)}>Send AI now</button>
             <button className="btn btn-sm" disabled={busy} style={{ color: '#ef4444' }} onClick={() => { if (confirm('Turn AI off for this contact?')) act('stop') }}>Stop AI</button>
           </>
         ) : (
           <>
             <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('enable')}>Enable AI for this lead</button>
-            <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Enable AI for this lead and send a message now?')) act('send-now') }}>Send AI now</button>
+            <button className="btn btn-sm" disabled={busy} onClick={() => sendNow(true)}>Send AI now</button>
           </>
         )}
       </div>

@@ -95,6 +95,11 @@ test('quiet hours wrap past midnight (21:00 to 08:00 Central)', () => {
   db.setSetting('ai_quiet_hours_start', '21:00'); db.setSetting('ai_quiet_hours_end', '08:00')
   assert.equal(inQuietHours(new Date('2026-01-15T04:00:00Z')), true)   // ~22:00 CT
   assert.equal(inQuietHours(new Date('2026-01-15T18:00:00Z')), false)  // ~12:00 CT
+  // boundaries (Central = UTC-6 in January)
+  assert.equal(inQuietHours(new Date('2026-01-15T14:00:00Z')), false)  // 08:00 CT — allowed
+  assert.equal(inQuietHours(new Date('2026-01-15T13:59:00Z')), true)   // 07:59 CT — quiet
+  assert.equal(inQuietHours(new Date('2026-01-16T03:00:00Z')), true)   // 21:00 CT — quiet
+  assert.equal(inQuietHours(new Date('2026-01-16T02:59:00Z')), false)  // 20:59 CT — allowed
 })
 
 test('autopilot never auto-manages excluded imports (expired/cancelled/FSBO); manual enable overrides', async () => {

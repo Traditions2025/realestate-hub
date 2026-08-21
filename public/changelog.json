@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-08-20T22:38:07.568Z",
-  "count": 416,
+  "generated_at": "2026-08-21T14:01:11.927Z",
+  "count": 420,
   "entries": [
+    {
+      "hash": "e00cd22",
+      "date": "2026-08-21T08:58:23-05:00",
+      "subject": "AI: manual Send-AI-now bypasses quiet hours too (agent override); autonomous still respects them",
+      "title": "AI: manual Send-AI-now bypasses quiet hours too (agent override); autonomous still respects them",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "92299e9",
+      "date": "2026-08-21T08:49:26-05:00",
+      "subject": "FUB: POST /api/fub/link/:clientId — match a Hub lead to its FUB profile by email/phone (sets fub_person_id so web activity flows in)",
+      "title": "FUB: POST /api/fub/link/:clientId — match a Hub lead to its FUB profile by email/phone (sets fub_person_id so web activity flows in)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5d8fa46",
+      "date": "2026-08-20T17:41:34-05:00",
+      "subject": "templates: handle unclosed FUB tokens (%greeting_time) + 'Good %greeting_time'; re-import refreshes existing imported:fub templates",
+      "title": "templates: handle unclosed FUB tokens (%greeting_time) + 'Good %greeting_time'; re-import refreshes existing imported:fub templates",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "413e9c3",
+      "date": "2026-08-20T17:38:10-05:00",
+      "subject": "templates: skip FUB templates that use a Ylopo link entirely (not just strip the token)",
+      "title": "templates: skip FUB templates that use a Ylopo link entirely (not just strip the token)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8c7c75e",
       "date": "2026-08-20T17:35:58-05:00",
