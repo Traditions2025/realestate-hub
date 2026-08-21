@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-21T17:26:02.897Z",
-  "count": 430,
+  "generated_at": "2026-08-21T19:11:29.601Z",
+  "count": 433,
   "entries": [
+    {
+      "hash": "9e9b972",
+      "date": "2026-08-21T14:03:38-05:00",
+      "subject": "AI follow-up: no-reply nudge continues the opener (no re-greet, no surveillance)",
+      "title": "AI follow-up: no-reply nudge continues the opener (no re-greet, no surveillance)",
+      "body": "The 10-min no-reply follow-up went through handleFollowup, whose instruction told it\nto open with Hi/Hello and ask a brand-new question — so it re-greeted ('Hi Robert!'),\njumped topics, and leaked surveillance framing ('I noticed you've been looking').\n\nNow handleFollowup branches: if the lead has NEVER replied, it sends a same-thread\ncontinuation of the opener (no greeting, no re-intro, no new subject, one light\nquestion, never implies watching activity). If they have replied, it's a normal\nfollow-up that also no longer re-greets. runOutbound gains stripGreeting to remove\nany leading 'Hi <name>' as a belt-and-suspenders.\n\n84 tests pass.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f08a203",
+      "date": "2026-08-21T12:50:46-05:00",
+      "subject": "inbox: pull a contact's full email history from mailboxes (All Mail, both directions)",
+      "title": "inbox: pull a contact's full email history from mailboxes (All Mail, both directions)",
+      "body": "Adds searchMailboxesForContact() + GET /api/inbox/contact-emails?email=. Uses the\nstored Gmail app passwords to search All Mail across configured mailboxes and return\nthe complete two-way thread with a contact, including mail that predates the inbox\npoller (which only stores incoming mail after connection). Read-only.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "15c55ad",
+      "date": "2026-08-21T12:26:30-05:00",
+      "subject": "AI training book: reference doc, prompt reinforcement, regression suite",
+      "title": "AI training book: reference doc, prompt reinforcement, regression suite",
+      "body": "From the team's HUB AI Conversation Training Book:\n\n1) Canonical reference saved at docs/HUB-AI-TRAINING-BOOK.md (marks the truncation\n   point in Part XXII + an implementation-status changelog).\n\n2) prompts.js strengthened (version -> hubai-2026.08.21-1):\n   - REASONING: respond-to-conversation-first, don't-mirror, stay-on-property,\n     never re-ask known info, no fixed checklist.\n   - SITUATIONS: objection/topic playbooks (commission, Zillow/pricing, as-is,\n     repairs, disclosures, FSBO/expired, payments/rates, 'what will they take').\n   - ACCURACY: VERIFIED/INFERRED/UNKNOWN framing, 'I don't want to guess'.\n\n3) Natural-language opt-out (book §83): policy.isNaturalOptOut() catches\n   'stop texting me' / 'take me off your list' etc. (conservative — 'stop by the\n   house' does NOT match), wired into the inbound webhook. Closes a real gap where\n   only single-word STOP was honored.\n\n4) HIGH_INTENT_RE broadened to catch 'show us this house', 'see it Saturday',\n   'what is my house worth', 'selling my house' (existing matches preserved).\n\n5) Regression suite test/hubai-scenarios.test.mjs (57 tests): intent detection,\n   literal + natural-language opt-out, exclusions, and that the training reached\n   the system prompt. Total suite now 84 tests, all passing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "2461fa4",
       "date": "2026-08-21T11:47:58-05:00",

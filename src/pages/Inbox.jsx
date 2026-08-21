@@ -177,6 +177,16 @@ export default function Inbox() {
   }
   const closeThread = (clientId) => authFetch(`/api/inbox/thread/${clientId}/close`, { method: 'POST' }).then(() => { setSel(null); load() })
 
+  // Open the most recent conversation automatically, so the full blue/white chat shows
+  // without needing a click. Runs once after the list first loads; a manual Close does
+  // NOT trigger a re-open (the ref stays set).
+  const autoOpenedRef = React.useRef(false)
+  useEffect(() => {
+    if (autoOpenedRef.current) return
+    if (sel || unknownSel) { autoOpenedRef.current = true; return }
+    if (Array.isArray(convos) && convos.length) { autoOpenedRef.current = true; openConvo(convos[0]) }
+  }, [convos, sel, unknownSel]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Generate/regenerate the AI suggestion. force=true overwrites the editor
   // (Regenerate / first open); otherwise it only fills an empty editor.
   const generateSuggestion = async (cid, force) => {
