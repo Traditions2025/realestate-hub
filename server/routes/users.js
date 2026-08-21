@@ -11,8 +11,11 @@ import { requirePermission } from './auth.js'
 const router = Router()
 const pub = (u) => u && ({ id: u.id, name: u.name, email: u.email, phone: u.phone, role: u.role, status: u.status, two_factor_enabled: !!u.two_factor_enabled, last_login_at: u.last_login_at, created_at: u.created_at })
 
-// Reference data for the UI.
-router.get('/roles', requirePermission('users.manage'), (_req, res) => res.json({ roles: ROLES, permissions: PERMISSIONS }))
+// Reference data for the UI, including the full role -> permission matrix.
+router.get('/roles', requirePermission('users.manage'), (_req, res) => {
+  const matrix = {}; for (const r of ROLES) matrix[r] = PERMISSIONS.filter(p => can(r, p))
+  res.json({ roles: ROLES, permissions: PERMISSIONS, matrix })
+})
 
 // System audit log (separate permission).
 router.get('/audit', requirePermission('audit.view'), (req, res) => res.json(recentAudit(Number(req.query.limit) || 200, { action: req.query.action || null })))

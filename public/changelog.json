@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-21T21:04:37.886Z",
-  "count": 437,
+  "generated_at": "2026-08-21T21:19:23.484Z",
+  "count": 439,
   "entries": [
+    {
+      "hash": "1d3f2d3",
+      "date": "2026-08-21T16:08:00-05:00",
+      "subject": "fix: mount /api/users after requireAuth so req.user is set (RBAC guard)",
+      "title": "fix: mount /api/users after requireAuth so req.user is set (RBAC guard)",
+      "body": "usersRouter was registered before app.use(requireAuth), so req.user was undefined\nand requirePermission denied everything. Moved it below requireAuth.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "523b714",
+      "date": "2026-08-21T16:05:25-05:00",
+      "subject": "Roadmap audit + P0-1: individual accounts, RBAC & audit log (backwards compatible)",
+      "title": "Roadmap audit + P0-1: individual accounts, RBAC & audit log (backwards compatible)",
+      "body": "Docs: HUB-ROADMAP-AUDIT.md (all 20 phases classified) + HUB-IMPLEMENTATION-ROADMAP.md\n(P0-P4). Updated HUB-SYSTEM-OVERVIEW.md auth section.\n\nP0-1 increment 1 (foundation, non-breaking):\n- New tables: users, user_sessions, audit_log (additive, idempotent).\n- server/auth/passwords.js (scrypt hash/verify, no deps), rbac.js (roles+can()),\n  audit.js (logAudit/recentAudit).\n- auth.js: per-user email+password login COEXISTS with the legacy shared password\n  (which still issues an owner token); tokens carry uid+role+jti with revocable\n  sessions; requireAuth attaches req.user; /me, /logout; requirePermission() guard.\n- routes/users.js: owner/admin user management + /roles + /audit; ensureOwnerSeed on boot.\n- Existing routes are NOT newly gated (zero regression); enforcement rolls out next.\n\n11 new tests (password/rbac/seed/audit/schema); 95 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cb47200",
       "date": "2026-08-21T15:36:07-05:00",

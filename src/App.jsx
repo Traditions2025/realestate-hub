@@ -23,6 +23,7 @@ const PowerDialer = lazy(() => import('./pages/PowerDialer'))
 const AiOpportunities = lazy(() => import('./pages/AiOpportunities'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Settings = lazy(() => import('./pages/Settings'))
+const Admin = lazy(() => import('./pages/Admin'))
 const Automations = lazy(() => import('./pages/Automations'))
 const Reporting = lazy(() => import('./pages/Reporting'))
 
@@ -60,6 +61,7 @@ const navSections = [
   { label: 'SYSTEM', items: [
     { path: '/reporting', label: 'Reporting', icon: '\u25a4' },
     { path: '/updates', label: 'Updates', icon: '\u27f3' },
+    { path: '/admin', label: 'Admin', icon: '\u26ed' },
     { path: '/settings', label: 'Settings', icon: '\u2699' },
   ]},
 ]
@@ -212,6 +214,7 @@ export default function App() {
             <Route path="/templates" element={<Templates />} />
             <Route path="/updates" element={<Updates />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/admin" element={<Admin />} />
             <Route path="/automations" element={<Automations />} />
             <Route path="/reporting" element={<Reporting />} />
           </Routes>
