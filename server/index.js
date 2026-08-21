@@ -7,6 +7,7 @@ import { initDb, getDbStatus } from './database.js'
 import db from './database.js'
 
 import authRouter, { requireAuth } from './routes/auth.js'
+import usersRouter, { ensureOwnerSeed } from './routes/users.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import { startScheduler } from './scheduler.js'
 import { purgeStopStatusEnrollments } from './lead-sequences.js'
@@ -198,6 +199,8 @@ async function start() {
   autoSeedOnBoot()
   // Migrate built-in email templates into the editable templates table (idempotent)
   seedEmailTemplates()
+  // Seed the initial OWNER account if none exists (legacy shared login still works)
+  ensureOwnerSeed()
 
   const app = express()
   const PORT = process.env.PORT || 3001
@@ -213,6 +216,7 @@ async function start() {
 
   // Auth
   app.use('/api/auth', authRouter)
+  app.use('/api/users', usersRouter)
   app.use(requireAuth)
 
   // Recent crashes captured by the process handlers (most recent first).

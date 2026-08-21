@@ -80,11 +80,21 @@ External: Sierra · FUB · Twilio · SendGrid · Gmail IMAP · Google Calendar �
 
 ---
 
-## 5. Authentication
+## 5. Authentication & Access Control
 
-- Single shared team password (`TEAM_PASSWORD`), exchanged for a signed token (`TOKEN_SECRET`).
+**Two coexisting login paths (backwards compatible):**
+- **Legacy shared login** — the single `TEAM_PASSWORD` still works and issues a stateless owner-scoped "team" token (`TOKEN_SECRET`, HMAC-SHA256, 30-day expiry).
+- **Individual user accounts** (Phase 1, `server/auth/*` + `server/routes/users.js`) — per-user email + password login. Passwords hashed with **scrypt** (`server/auth/passwords.js`, no plaintext). Per-user tokens carry `uid`+`role`+`jti` and are tied to a **revocable session** (`user_sessions`).
 - Frontend stores the token and sends it as `x-auth-token` on every request via `authFetch`.
-- `requireAuth` middleware guards the API. Public exceptions: inbound Twilio/SendGrid webhooks and tracking pixels.
+- `requireAuth` verifies the token and attaches **`req.user`** (`{id, role, name, email}`; a legacy team token resolves to a full-access `owner` principal). Public exceptions: inbound Twilio/SendGrid webhooks, tracking pixels, and query-token media/recording/stream proxies.
+
+**RBAC** (`server/auth/rbac.js`): roles = owner / admin / agent / transaction_coordinator / isa / marketing / read_only, each mapped to a permission set. Central `can(role, permission)` is the single authorization source; `requirePermission(perm)` guards routes (applied to `/api/users` now; rolled out to other routes incrementally).
+
+**Audit log** (`server/auth/audit.js`, `audit_log` table): system actions — logins (success/failed/shared), user created/updated, role/status change, password reset, session revoke, permission-denied — captured with actor, IP, and user-agent. Communication content stays in its own tables, not here.
+
+**User management** (`/api/users`, owner/admin only): list/create/update users, set roles, reset passwords, disable, revoke sessions; `/api/users/roles` and `/api/users/audit` for the UI. An initial OWNER is seeded on boot (`OWNER_EMAIL`/`OWNER_PASSWORD`, else the primary account + shared password) if the users table is empty.
+
+*Follow-on increments: per-route permission enforcement everywhere, session-management UI (logout/revoke-all/login history), optional TOTP 2FA + recovery codes.*
 
 ---
 

@@ -832,6 +832,58 @@ export async function initDb() {
   } catch {}
 
   // =====================================================================
+  // Individual user accounts + RBAC + system audit log (Phase 1 foundation).
+  // Additive and backwards compatible: the legacy shared TEAM_PASSWORD login
+  // keeps working (issues an owner-scoped team token). Per-user accounts add
+  // attributable identity + least-privilege on top. Never store plaintext.
+  // =====================================================================
+  db.run(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      email TEXT UNIQUE NOT NULL,
+      phone TEXT,
+      password_hash TEXT,                       -- null = invited, password not set yet
+      role TEXT NOT NULL DEFAULT 'agent',       -- owner|admin|agent|transaction_coordinator|isa|marketing|read_only
+      status TEXT NOT NULL DEFAULT 'active',    -- active|disabled|invited
+      two_factor_enabled INTEGER DEFAULT 0,
+      two_factor_secret TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now')),
+      last_login_at TEXT,
+      password_changed_at TEXT
+    )
+  `)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS user_sessions (
+      id TEXT PRIMARY KEY,                       -- session id (jti carried in the token)
+      user_id INTEGER NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      last_seen_at TEXT,
+      expires_at TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      revoked_at TEXT
+    )
+  `)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER,
+      actor TEXT,                                -- display label: email/name, or 'team' for legacy shared login
+      action TEXT NOT NULL,
+      entity_type TEXT,
+      entity_id TEXT,
+      metadata_json TEXT,
+      ip_address TEXT,
+      user_agent TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id)') } catch {}
+
+  // =====================================================================
   // HUB AI ISA — foundation tables (Stage 1). No autonomous behavior until
   // the feature flags are turned on. AI state is SEPARATE from CRM status.
   // =====================================================================

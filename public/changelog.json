@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T20:35:55.117Z",
-  "count": 436,
+  "generated_at": "2026-08-21T21:04:37.886Z",
+  "count": 437,
   "entries": [
+    {
+      "hash": "cb47200",
+      "date": "2026-08-21T15:36:07-05:00",
+      "subject": "Searchable template picker for all texting composers",
+      "title": "Searchable template picker for all texting composers",
+      "body": "New reusable TemplatePicker (search by name + body) replaces the plain\n'Insert template' <select> in: lead-profile text composer, bulk-text modal,\ninbox reply, and the shared composer. Also fixes BulkTextModal loading email\ntemplates instead of text templates.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ac02c90",
       "date": "2026-08-21T14:31:23-05:00",
