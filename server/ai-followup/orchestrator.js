@@ -165,7 +165,7 @@ async function sendAiSms(client, text, aiActionId) {
 // Shared outbound generator (proactive / nurture / re-engage). HUB-gated, compliance
 // re-checked, race-guarded, daily-capped, quiet-hours aware. force=true (manual "Send
 // AI now") bypasses only the per-mode global flag, never compliance.
-async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false }) {
+async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false }) {
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
@@ -194,7 +194,9 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
   try {
     if (decision?.memory || decision?.summary) { try { applyMemory(cid, decision.memory || {}, decision.summary) } catch {} }
-    const finalMsg = finalizeAiText(cid, message)
+    let finalMsg = finalizeAiText(cid, message)
+    // A same-thread nudge must not re-greet — strip a leading "Hi Robert!/Hello there,".
+    if (stripGreeting) finalMsg = finalMsg.replace(/^\s*(?:hi|hello|hey)\b[^\n]*?[,!]\s+/i, '').replace(/^\s*([a-z])/, (m, c) => c.toUpperCase())
     const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: finalMsg, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
     await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), finalMsg, actionId)
     markOutbound(cid)
@@ -258,11 +260,18 @@ export async function previewMessage(clientId, { context = '' } = {}) {
 // for buyers; address, timeframe, motivation for sellers). One question, no re-intro.
 export async function handleFollowup(clientId, { force = false } = {}) {
   const cid = Number(clientId)
+  // Has this lead ever replied? If NOT, this is a no-reply nudge that must CONTINUE the
+  // opener in the same thread (no re-greeting, no re-intro, no new topic). If they HAVE
+  // replied, it is a normal conversational follow-up.
+  const hasInbound = !!db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' LIMIT 1", [cid])
+  const opener = db.get("SELECT body FROM communications WHERE client_id=? AND direction='outgoing' AND channel='text' ORDER BY occurred_at ASC LIMIT 1", [cid])
+  const noReplyNudge = !hasInbound
+  const instruction = noReplyNudge
+    ? `You texted this person a first message a little earlier and they have NOT replied yet. Your first message was: "${(opener?.body || '').replace(/\s+/g, ' ').slice(0, 300)}". Send ONE short, friendly nudge that reads as a natural CONTINUATION of that same message, as if you were adding a second thought a moment later. HARD RULES: do NOT greet them again (no "Hi", "Hello", "Hey", or their name at the start), do NOT re-introduce yourself, do NOT start a new subject, and do NOT restate what you already said. Stay on the SAME thing you already mentioned (the home or area they were looking at) and add ONE light, low-pressure question to make it easy to reply. NEVER imply you are watching their activity (never say "I noticed you've been looking", "I saw you viewed", etc.). Keep it casual and human.`
+    : `You've already been talking with this person and are getting to know them. Do NOT greet them again and do NOT re-introduce yourself. Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area/part of town, then price range, then property type (single-family home or condo), then home style (ranch, two-story, or something else), then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not repeat your previous message, and never say "just following up" or "checking in".`
   return runOutbound(cid, {
-    // No sub-flag: a follow-up to an already-enrolled lead only needs the master switch
-    // + enrollment + compliance (it is not cold outreach).
     actionType: 'FOLLOWUP', flagKey: null, force, nextState: 'AI_CONVERSATION_ACTIVE',
-    instruction: `You've already been in touch with this person and are getting to know them. Open with "Hi" or "Hello" (NOT a time-of-day greeting like "good morning"). Using what you already know (context), send ONE short, natural follow-up that moves things forward by asking the single most useful thing you do NOT know yet. For a BUYER, prioritize in this order: the area/part of town, then price range, then property type (single-family home or condo), then home style (ranch, two-story, or something else), then beds/baths, then timeframe, then financing (pre-approved?). For a SELLER: the property address, then timeframe, then reason for selling. Ask exactly ONE question. Do not re-introduce yourself, do not repeat your previous message, and never say "just following up" or "checking in".`,
+    stripGreeting: true, instruction,
   })
 }
 
