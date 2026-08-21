@@ -988,6 +988,25 @@ async function start() {
     res.json({ updated, total: rows.length })
   })
 
+  // Link a Hub lead to its FUB profile by email (then phone) so FUB web activity
+  // flows in. Many Sierra-origin leads have a FUB profile but no fub_person_id.
+  app.post('/api/fub/link/:clientId', async (req, res) => {
+    const cid = Number(req.params.clientId)
+    const client = db.get('SELECT id, first_name, last_name, email, phone, fub_person_id FROM clients WHERE id=?', [cid])
+    if (!client) return res.status(404).json({ error: 'client not found' })
+    if (client.fub_person_id) return res.json({ linked: true, already: true, fub_person_id: client.fub_person_id })
+    try {
+      const { fubGet, fubConfigured } = await import('./fub-helper.js')
+      if (!fubConfigured()) return res.status(400).json({ error: 'Follow Up Boss API key not configured' })
+      let person = null, matchedOn = null
+      if (client.email) { const d = await fubGet('/people', { email: client.email }); person = (d?.people || [])[0]; if (person) matchedOn = 'email' }
+      if (!person && client.phone) { const d = await fubGet('/people', { phone: client.phone }); person = (d?.people || [])[0]; if (person) matchedOn = 'phone' }
+      if (!person) return res.json({ linked: false, reason: 'no matching FUB profile found by email or phone' })
+      db.run('UPDATE clients SET fub_person_id=?, updated_at=? WHERE id=?', [person.id, new Date().toISOString(), cid])
+      res.json({ linked: true, fub_person_id: person.id, matched_on: matchedOn, fub_name: `${person.firstName || ''} ${person.lastName || ''}`.trim() })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   // Lazy-load a client's full web-activity timeline LIVE from FUB (no bulk storage).
   // Falls back to any stored fub_activity rows if the client isn't linked to a FUB person.
   app.get('/api/fub/activity/live', async (req, res) => {
