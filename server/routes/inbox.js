@@ -757,6 +757,72 @@ router.post('/send', async (req, res) => {
   res.json({ sent: results.filter(r => r.ok).length, results })
 })
 
+// ===================== GROUP TEXTING (Twilio Conversations / group MMS) =====================
+// Readiness check: is the account/number able to do true group MMS?
+router.get('/group-status', async (_req, res) => {
+  try { const { conversationsStatus } = await import('../twilio-conversations.js'); res.json(await conversationsStatus()) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+// One-time setup: provision the Conversations service + point its webhook at the Hub.
+router.post('/group-setup', async (_req, res) => {
+  try {
+    const { ensureConversationsWebhook } = await import('../twilio-conversations.js')
+    const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    res.json({ service_sid: await ensureConversationsWebhook(hub), webhook: hub + '/api/inbox/conversations-webhook' })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+// Send a group text: one real group-MMS conversation to all recipients.
+// recipients: [{ client_id?, phone, name }]  — compliance-checked for known clients.
+router.post('/group-text', async (req, res) => {
+  const body = String(req.body?.body || '').trim()
+  const raw = Array.isArray(req.body?.recipients) ? req.body.recipients : []
+  if (!body) return res.status(400).json({ error: 'A message is required.' })
+  // Resolve + compliance-check known clients; keep raw phones (team agents) as-is.
+  const recipients = [], blocked = []
+  for (const r of raw) {
+    if (r.client_id) {
+      const c = db.get('SELECT * FROM clients WHERE id=?', [Number(r.client_id)])
+      if (!c || !c.phone) { blocked.push({ ...r, reason: 'no phone' }); continue }
+      if (c.hub_text_opt_out) { blocked.push({ name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), reason: 'replied STOP' }); continue }
+      recipients.push({ phone: c.phone, name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, client_id: c.id })
+    } else if (r.phone) {
+      recipients.push({ phone: r.phone, name: r.name || null })
+    }
+  }
+  if (recipients.length < 2) return res.status(400).json({ error: 'A group text needs at least 2 eligible recipients.', blocked })
+  try {
+    const { createGroupText } = await import('../twilio-conversations.js')
+    const out = await createGroupText({ recipients, body })
+    const meta = JSON.stringify({ participants: out.participants.map(p => ({ phone: p.phone, name: p.name })) })
+    const names = out.participants.map(p => p.name || p.phone).join(', ')
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, group_meta, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['text', 'outgoing', null, `Group: ${names}`.slice(0, 120), '', '', body.replace(/\s+/g, ' ').slice(0, 160), body, 'conv_' + out.messageSid, 'grp_' + out.conversationSid, 'read', 'human', out.conversationSid, meta, nowIso()])
+    res.json({ success: true, conversation_sid: out.conversationSid, sent_to: out.participants.length, skipped: out.skipped, blocked })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+// Inbound: Twilio Conversations onMessageAdded webhook (group replies). Public.
+router.post('/conversations-webhook', async (req, res) => {
+  try {
+    const b = req.body || {}
+    const source = String(b.Source || '')
+    const author = String(b.Author || '')
+    // Only store INBOUND replies (from an SMS participant), not our own API sends.
+    const isInbound = source.toUpperCase() === 'SMS' || /^\+?\d{6,}$/.test(author)
+    if (isInbound && b.ConversationSid && b.Body) {
+      const ext = 'conv_' + (b.MessageSid || `${b.ConversationSid}_${Date.now()}`)
+      if (!db.get('SELECT id FROM communications WHERE external_id=?', [ext])) {
+        const match = matchClient('text', author)
+        const name = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : fmtPhone(author)
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, conversation_sid, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'incoming', match ? match.id : null, name, author, '', String(b.Body).replace(/\s+/g, ' ').slice(0, 160), String(b.Body), ext, 'grp_' + b.ConversationSid, 'unread', b.ConversationSid, nowIso()])
+      }
+    }
+  } catch (e) { console.error('[conversations-webhook]', e.message) }
+  res.sendStatus(204)
+})
+
 // ---- REAL-TIME inbound receiver (SendGrid Inbound Parse posts here) ----
 // Public route (SendGrid can't send an auth token). Only stores the message if
 // the sender matches a hub client. Always 200 so SendGrid doesn't retry.

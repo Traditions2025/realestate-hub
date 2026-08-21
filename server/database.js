@@ -900,6 +900,11 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_failed_state ON failed_jobs(state, kind)') } catch {}
+  // Group texting via Twilio Conversations (true group MMS). A group message and every
+  // reply share a conversation_sid, so the Inbox can render them as ONE thread.
+  try { db.run('ALTER TABLE communications ADD COLUMN conversation_sid TEXT') } catch {}
+  try { db.run('ALTER TABLE communications ADD COLUMN group_meta TEXT') } catch {}   // JSON: { participants:[{phone,name}] }
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_conversation ON communications(conversation_sid)') } catch {}
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}
