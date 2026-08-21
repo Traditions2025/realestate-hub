@@ -19,7 +19,8 @@ export function autopilotOn() { return db.getSetting('ai_autopilot', '0') === '1
 
 export const AI_CONFIG_DEFAULTS = {
   ai_new_lead_delay_minutes: '5',
-  ai_first_followup_minutes: '30',   // if no reply to the opener, send ONE same-thread nudge after this many minutes (spaced out to avoid carrier spam filtering of rapid double-texts)
+  ai_first_followup_enabled: '0',    // OFF: do NOT auto-send a same-day second text if the lead hasn't replied (avoids carrier spam filtering). Replies still get answered by the responsive flow.
+  ai_first_followup_minutes: '30',   // if the no-reply nudge is enabled, how long after the opener to send it
   ai_followup_max_per_day: '4',
   ai_quiet_hours_start: '21:00',
   ai_quiet_hours_end: '08:00',

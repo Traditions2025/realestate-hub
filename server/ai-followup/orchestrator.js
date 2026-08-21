@@ -213,10 +213,13 @@ export async function handleProactive(clientId, { force = false } = {}) {
     actionType: 'PROACTIVE', flagKey: 'ai_proactive_text_enabled', force, nextState: 'AI_WAITING_FOR_REPLY',
     instruction: `This is a lead the team has NOT texted yet. Lead source: ${ctx0.source || 'unknown'}. Write a short, warm, welcoming opening SMS (see the FIRST MESSAGE rules). Give a real, contextual reason for reaching out. Do not force an appointment.`,
   })
-  // If the opener sent, schedule ONE qualifying follow-up in case they don't reply.
-  if (res?.sent) {
+  // If enabled, schedule ONE same-thread nudge in case they don't reply. OFF by default:
+  // a second same-day text to a non-responder is a carrier spam trigger, so we only do
+  // this when ai_first_followup_enabled is turned on. Replies are always answered by the
+  // responsive flow regardless.
+  if (res?.sent && getConfig().ai_first_followup_enabled === '1') {
     try {
-      const mins = Number(getConfig().ai_first_followup_minutes) || 10
+      const mins = Number(getConfig().ai_first_followup_minutes) || 30
       const when = new Date(Date.now() + mins * 60000).toISOString()
       const { scheduleAiAction } = await import('./scheduler.js')
       scheduleAiAction(cid, 'AI_FOLLOWUP', when, { reason: `no-reply follow-up (${mins}m)`, dedupKey: `firstfollowup_${cid}` })
