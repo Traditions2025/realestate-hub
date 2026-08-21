@@ -682,6 +682,7 @@ export default function Clients() {
   const [fuEmailBusy, setFuEmailBusy] = useState('')
   const [fuContext, setFuContext] = useState('')        // agent-typed context to refine the email
   const [emailHistory, setEmailHistory] = useState([])
+  const [commHistory, setCommHistory] = useState([])    // unified texts + calls + voicemails + emails
   const [emailModalOpen, setEmailModalOpen] = useState(false)
   const [emailForm, setEmailForm] = useState({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
   const singleEmailBodyRef = useRef(null)
@@ -757,6 +758,7 @@ export default function Clients() {
     setSierraActivity(null)
     setListingInterest(null)
     setEmailHistory([])
+    setCommHistory([])
     setHubActivity(null)
     setFubActivity(null)
     setSequences(null)
@@ -799,6 +801,9 @@ export default function Clients() {
     }
     // Load email history
     authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
+    // Unified communication history — every text, call, voicemail (and logged email)
+    // on this lead, newest first, so past conversations + call logs are reviewable.
+    authFetch(`/api/inbox/thread/${id}`).then(r => r.json()).then(rows => setCommHistory(Array.isArray(rows) ? rows.slice().reverse() : [])).catch(() => setCommHistory([]))
   }
 
   // Deep-link: /clients?open=<id> (e.g. "View profile" from the Inbox) opens that lead.
@@ -2903,6 +2908,40 @@ export default function Clients() {
 
             {detail.notes && <div className="detail-section"><h4>Notes</h4><p>{detail.notes}</p></div>}
 
+            {/* ===== Communication History — every text, call, voicemail & logged email ===== */}
+            <div className="detail-section">
+              <h4>Communication History{commHistory.length ? ` (${commHistory.length})` : ''}</h4>
+              {commHistory.length === 0 ? (
+                <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>No texts, calls, or voicemails logged yet. Everything sent or received here is recorded automatically.</div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 360, overflowY: 'auto', paddingRight: 4 }}>
+                  {commHistory.map(m => {
+                    const meta = COMM_META[m.channel] || { icon: '•', label: m.channel, color: 'var(--text-muted)' }
+                    const out = m.direction === 'outgoing'
+                    const missed = m.channel === 'call' && String(m.delivery_status || '').toLowerCase() === 'missed'
+                    const isCallish = m.channel === 'call' || m.channel === 'voicemail'
+                    const text = m.body || m.preview || m.subject || ''
+                    return (
+                      <div key={m.id} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text-muted)', marginBottom: text || isCallish ? 3 : 0 }}>
+                          <span style={{ color: meta.color, fontWeight: 700 }}>{meta.icon} {meta.label}</span>
+                          <span title={out ? 'Outgoing' : 'Incoming'}>{out ? '↗ sent' : '↙ received'}</span>
+                          {m.duration_sec ? <span>· {fmtDur(m.duration_sec)}</span> : null}
+                          {m.disposition ? <span>· {m.disposition}</span> : null}
+                          {missed ? <span style={{ color: '#ef4444', fontWeight: 700 }}>· Missed</span> : null}
+                          {m.agent ? <span>· {m.agent}</span> : null}
+                          <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
+                        </div>
+                        {text && <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
+                        {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
+                        {m.transcript && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
             {/* Email history — composing now happens via the Email button at the top. */}
             {emailHistory.length > 0 && (
               <div className="detail-section">
@@ -3389,6 +3428,17 @@ function InlineName({ detail, onSaved }) {
 
 // --- Text (SMS) composer for the lead profile — sends via the Hub/Twilio number ---
 const TEXT_MERGE_FIELDS = [['{{first_name}}', 'First name'], ['{{last_name}}', 'Last name'], ['{{full_name}}', 'Full name'], ['{{city}}', 'City'], ['{{address}}', 'Address'], ['{{agent}}', 'Agent name'], ['{{price_range}}', 'Price range']]
+
+// ---- communication-history helpers (mirrors the Inbox) ----
+const recUrl = (id) => `/api/inbox/recording/${id}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
+const fmtDur = (s) => { s = Number(s) || 0; const m = Math.floor(s / 60), r = s % 60; return m ? `${m}m ${r}s` : `${r}s` }
+const COMM_META = {
+  text: { icon: '💬', label: 'Text', color: '#10b981' },
+  call: { icon: '☎', label: 'Call', color: '#8b5cf6' },
+  voicemail: { icon: '🎙', label: 'Voicemail', color: '#f59e0b' },
+  email: { icon: '✉', label: 'Email', color: '#3b82f6' },
+}
+const fmtCommWhen = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
 function TextComposerModal({ client, onClose, onSent }) {
   const [body, setBody] = React.useState('')
   const [sending, setSending] = React.useState(false)
@@ -3574,16 +3624,17 @@ function InlineTextComposer({ client, onClose, onSent }) {
   const [agents, setAgents] = React.useState([])
   const [ai, setAi] = React.useState(null)          // { ok, kind, message, eligible, block_reason }
   const [aiBusy, setAiBusy] = React.useState(false)
+  const [aiOpen, setAiOpen] = React.useState(false) // suggestions only generate when opened
+  const [aiContext, setAiContext] = React.useState('')
   React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}); authFetch('/api/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
   // Text-native AI suggestion: drafts the right SMS for where this conversation is
   // (first text / reply / follow-up), strict-Central greeting + compliance-aware.
+  // Only runs on demand (View suggested reply / Regenerate) — never auto-fires.
   const recommendText = React.useCallback(async () => {
-    setAiBusy(true)
-    try { const r = await authFetch(`/api/ai/lead/${client.id}/preview`, { method: 'POST' }); setAi(await r.json()) }
+    setAiOpen(true); setAiBusy(true)
+    try { const r = await authFetch(`/api/ai/lead/${client.id}/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: aiContext.trim() }) }); setAi(await r.json()) }
     catch (e) { setAi({ ok: false, reason: e.message }) } finally { setAiBusy(false) }
-  }, [client.id])
-  // Auto-draft one suggestion when the composer opens (only if we can actually text this lead).
-  React.useEffect(() => { if (client.phone && !client.hub_text_opt_out) recommendText() }, [client.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [client.id, aiContext])
   const useAiText = () => { if (ai?.message) { setBody(ai.message); setAi(a => ({ ...a, used: true })) } }
   const addAgent = (a) => { const key = 'agent:' + a.id; if (!recips.find(r => r.id === key)) setRecips(rs => [...rs, { id: key, agent: true, name: a.name, phone: a.phone }]) }
   const loadScheduled = React.useCallback(() => { authFetch('/api/inbox/scheduled?client_id=' + client.id).then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {}) }, [client.id])
@@ -3706,28 +3757,42 @@ function InlineTextComposer({ client, onClose, onSent }) {
           ))}
         </div>
       )}
-      {/* ===== AI text suggestion ===== */}
+      {/* ===== AI text suggestion (on-demand only) ===== */}
       {client.phone && !client.hub_text_opt_out && (
-        <div style={{ marginBottom: 8, border: '1px solid rgba(16,185,129,.35)', borderRadius: 8, padding: 10, background: 'rgba(16,185,129,.06)' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: ai?.ok ? 6 : 0 }}>
-            <span style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>✨ AI text suggestion</span>
-            {ai?.ok && ai.kind && <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' }}>{ai.kind}</span>}
-            <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={aiBusy} onClick={recommendText} title="Draft a fresh suggestion">{aiBusy ? '…' : (ai ? '↻ Regenerate' : '✨ Suggest')}</button>
+        !aiOpen ? (
+          <div style={{ marginBottom: 8 }}>
+            <button className="btn btn-sm" onClick={recommendText} style={{ color: '#10b981', borderColor: 'rgba(16,185,129,.4)' }} title="Let AI draft a text for where this conversation is">✨ View suggested reply</button>
           </div>
-          {aiBusy && !ai && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Drafting…</div>}
-          {ai && !ai.ok && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Couldn’t draft a suggestion{ai.reason ? ` (${ai.reason})` : ''}.</div>}
-          {ai?.ok && (
-            <>
-              <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>{ai.message}</div>
-              {!ai.eligible && ai.block_reason && <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 5 }}>⚠ AI auto-send is blocked for this lead ({ai.block_reason}) — you can still send this manually.</div>}
-              <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-                <button className="btn btn-primary btn-sm" onClick={useAiText}>Use this ↓</button>
-                <button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(ai.message) }}>Copy</button>
-                <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)', alignSelf: 'center' }}>{(ai.message || '').length} chars</span>
-              </div>
-            </>
-          )}
-        </div>
+        ) : (
+          <div style={{ marginBottom: 8, border: '1px solid rgba(16,185,129,.35)', borderRadius: 8, padding: 10, background: 'rgba(16,185,129,.06)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>✨ AI text suggestion</span>
+              {ai?.ok && ai.kind && <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' }}>{ai.kind}</span>}
+              <button onClick={() => { setAiOpen(false); setAi(null) }} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14 }} title="Hide">✕</button>
+            </div>
+            {/* Optional steer for the AI — a fact to fold into the text */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
+              <input value={aiContext} onChange={e => setAiContext(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !aiBusy) recommendText() }}
+                placeholder="Add context to improve it (e.g. this home just went pending, push a Saturday tour)…"
+                style={{ ...fld, flex: 1, minWidth: 0, fontSize: 12.5 }} />
+              <button className="btn btn-primary btn-sm" disabled={aiBusy} onClick={recommendText} title="Draft / redraft with this context">{aiBusy ? '…' : (ai ? '↻ Regenerate' : 'Draft')}</button>
+            </div>
+            {aiBusy && !ai && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Drafting…</div>}
+            {ai && !ai.ok && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Couldn’t draft a suggestion{ai.reason ? ` (${ai.reason})` : ''}.</div>}
+            {ai?.ok && (
+              <>
+                <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>{ai.message}</div>
+                {!ai.eligible && ai.block_reason && <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 5 }}>⚠ AI auto-send is blocked for this lead ({ai.block_reason}) — you can still send this manually.</div>}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                  <button className="btn btn-primary btn-sm" onClick={useAiText}>Use this ↓</button>
+                  <button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(ai.message) }}>Copy</button>
+                  <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)', alignSelf: 'center' }}>{(ai.message || '').length} chars</span>
+                </div>
+              </>
+            )}
+          </div>
+        )
       )}
       <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={3} maxLength={1000} placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }} style={{ ...fld, resize: 'vertical', lineHeight: 1.5 }} />
       {schedOpen && (

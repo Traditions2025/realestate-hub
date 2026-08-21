@@ -225,7 +225,7 @@ export async function handleProactive(clientId, { force = false } = {}) {
 
 // Preview the message the AI would send next — WITHOUT sending, logging a send, or
 // changing state. Picks first-touch / reply / follow-up based on the conversation.
-export async function previewMessage(clientId) {
+export async function previewMessage(clientId, { context = '' } = {}) {
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
@@ -236,7 +236,13 @@ export async function previewMessage(clientId) {
   if (!lastText) { kind = 'first text'; instruction = `This is a lead the team has NOT texted yet. Lead source: ${ctx.facts.lead_source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.` }
   else if (lastText.direction === 'incoming') { kind = 'reply'; instruction = null }
   else { kind = 'follow-up'; instruction = `You've already been in touch and are getting to know this lead. Send ONE short, natural follow-up asking the single most useful thing you do NOT know yet (buyer: area, then price, then property type (single-family or condo), then style (ranch, two-story, or something else), then beds, then timeframe, then financing; seller: address, then timeframe, then motivation). One question, no re-intro, do not repeat prior messages.` }
-  const userContent = instruction ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` : buildUserMessage(ctx)
+  // Agent-supplied context: a fact/steer the AI must fold into the text (e.g. "this
+  // home just went pending", "they mentioned they have a dog", "push a Saturday tour").
+  const ctxNote = String(context || '').trim()
+  const ctxBlock = ctxNote ? `\n\nIMPORTANT — the agent added this context; naturally work it into the message (do not quote it verbatim, do not mention "the agent"):\n${ctxNote.slice(0, 500)}` : ''
+  const userContent = instruction
+    ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}${ctxBlock}\n\nReturn the JSON now.`
+    : buildUserMessage(ctx) + ctxBlock
   let decision, usage = {}
   try { const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] }); usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '') }
   catch (e) { return { ok: false, reason: e.message } }

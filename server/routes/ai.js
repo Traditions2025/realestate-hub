@@ -38,7 +38,7 @@ router.get('/lead/:id', (req, res) => {
 router.get('/lead/:id/history', (req, res) => res.json(recentAiActions(Number(req.params.id), 60)))
 // Preview the next AI message WITHOUT sending it.
 router.post('/lead/:id/preview', async (req, res) => {
-  try { const m = await import('../ai-followup/orchestrator.js'); res.json(await m.previewMessage(Number(req.params.id))) }
+  try { const m = await import('../ai-followup/orchestrator.js'); res.json(await m.previewMessage(Number(req.params.id), { context: req.body?.context || '' })) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 

@@ -162,7 +162,7 @@ export async function commsHealth() {
   // voice infra + settings
   const voiceReady = !!(db.getSetting('twilio_api_key_sid', '') && db.getSetting('twilio_twiml_app_sid', ''))
   const sigMode = db.getSetting('twilio_signature_mode', 'monitor')
-  const recOn = db.getSetting('twilio_record_calls', '0') === '1'
+  const recOn = db.getSetting('twilio_record_calls', '1') === '1'
   add('Browser calling', voiceReady ? 'ok' : 'missing', voiceReady ? 'API key + TwiML app configured' : 'Run voice setup')
   add('Webhook signature check', sigMode === 'enforce' ? 'ok' : 'attention', `Mode: ${sigMode} (flip to enforce once monitored)`)
   add('Call recording', recOn ? 'ok' : 'attention', recOn ? 'Enabled' : 'Off (opt-in)')

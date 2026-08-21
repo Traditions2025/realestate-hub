@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T15:44:26.262Z",
-  "count": 427,
+  "generated_at": "2026-08-21T16:01:38.911Z",
+  "count": 428,
   "entries": [
+    {
+      "hash": "9425e6a",
+      "date": "2026-08-21T10:44:38-05:00",
+      "subject": "Clients: AI text suggestion in the text composer",
+      "title": "Clients: AI text suggestion in the text composer",
+      "body": "Surfaces an SMS-native AI draft inside InlineTextComposer, mirroring the\nemail Suggested Follow-Up but appropriate for texting. Auto-drafts on open\n(first text / reply / follow-up aware), with Use this / Regenerate / Copy.\nUses the existing POST /api/ai/lead/:id/preview (strict-Central greeting,\ncompliance-aware). Shows a soft note when AI auto-send is blocked; manual\nsend still allowed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4eb8611",
       "date": "2026-08-21T10:30:18-05:00",

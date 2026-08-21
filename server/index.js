@@ -530,7 +530,7 @@ async function start() {
       last_invalid_at: db.getSetting('twilio_sig_last_invalid_at', null),
       last_invalid_path: db.getSetting('twilio_sig_last_invalid_path', null),
       ready_to_enforce: valid > 0 && invalid === 0,
-      record_calls: db.getSetting('twilio_record_calls', '0') === '1',
+      record_calls: db.getSetting('twilio_record_calls', '1') === '1',
       missed_call_textback_enabled: db.getSetting('missed_call_textback_enabled', '1') === '1',
       missed_call_textback_message: db.getSetting('missed_call_textback_message', 'Sorry we missed your call! This is the Matt Smith Team. How can we help? You can reply right here.'),
     })
@@ -545,7 +545,7 @@ async function start() {
     res.json({
       success: true,
       signature_mode: db.getSetting('twilio_signature_mode', 'monitor'),
-      record_calls: db.getSetting('twilio_record_calls', '0'),
+      record_calls: db.getSetting('twilio_record_calls', '1'),
       missed_call_textback_enabled: db.getSetting('missed_call_textback_enabled', '1'),
     })
   })
@@ -686,7 +686,7 @@ async function start() {
     const from = twilioConfig().from
     if (!to) return xml(res, `<Say>No number was provided.</Say>`)
     upsertCall('call', 'outgoing', to, { sid: req.body?.CallSid, delivery_status: 'initiated' })
-    const rec = (db.getSetting && db.getSetting('twilio_record_calls', '0')) === '1'
+    const rec = (db.getSetting && db.getSetting('twilio_record_calls', '1')) === '1'
     const recAttr = rec ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
     // statusCallback on the callee leg lets us capture its CallSid for voicemail drop.
     const cb = ` statusCallbackEvent="initiated ringing answered completed" statusCallback="${HUB_BASE}/api/voice/child-status" statusCallbackMethod="POST"`
@@ -717,7 +717,9 @@ async function start() {
       missedCallTextBack(from, req.body?.CallSid)
       return xml(res, voicemailTwiml(db.getSetting('voice_afterhours_message', AFTERHOURS_DEFAULT)))
     }
-    xml(res, `<Dial answerOnBridge="true" timeout="20" action="${HUB_BASE}/api/voice/dial-complete" callerId="${escXml(from)}"><Client>hub</Client></Dial>`)
+    const recIn = db.getSetting('twilio_record_calls', '1') === '1'
+    const recInAttr = recIn ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
+    xml(res, `<Dial answerOnBridge="true" timeout="20" action="${HUB_BASE}/api/voice/dial-complete" callerId="${escXml(from)}"${recInAttr}><Client>hub</Client></Dial>`)
   })
   // After the browser Dial finishes: answered → log completed; missed → optionally
   // forward to a mobile, else take a voicemail.
@@ -734,7 +736,9 @@ async function start() {
     const fwd = db.getSetting('voice_forward_number', '')
     if (fwd && db.getSetting('voice_forward_on_missed', '0') === '1') {
       const { toE164 } = await import('./twilio.js'); const to = toE164(fwd)
-      if (to) return xml(res, `<Dial answerOnBridge="true" timeout="20" callerId="${escXml(from)}" action="${HUB_BASE}/api/voice/voicemail-fallback"><Number>${escXml(to)}</Number></Dial>`)
+      const recFwd = db.getSetting('twilio_record_calls', '1') === '1'
+      const recFwdAttr = recFwd ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
+      if (to) return xml(res, `<Dial answerOnBridge="true" timeout="20" callerId="${escXml(from)}"${recFwdAttr} action="${HUB_BASE}/api/voice/voicemail-fallback"><Number>${escXml(to)}</Number></Dial>`)
     }
     xml(res, voicemailTwiml('Sorry we missed you. Please leave a message after the tone.'))
   })
