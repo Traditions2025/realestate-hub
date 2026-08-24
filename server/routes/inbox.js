@@ -455,6 +455,8 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     const media = []
     for (let i = 0; i < numMedia; i++) { const u = b['MediaUrl' + i]; if (u) media.push({ url: u, type: b['MediaContentType' + i] || '' }) }
     const client = matchClient('text', from)
+    // An inbound text proves the number can receive SMS → clear any stale "undeliverable" flag.
+    if (client) { try { db.run('UPDATE clients SET sms_undeliverable=0, sms_undeliverable_reason=NULL WHERE id=? AND sms_undeliverable=1', [client.id]) } catch {} }
     // STOP / START compliance for OUR Hub number. This sets hub_text_opt_out (the only
     // thing that blocks outbound texting) — NOT the informational, Sierra-synced
     // text_opt_out. Calling is never blocked. START clears it.
@@ -504,6 +506,14 @@ router.post('/twilio-status', twilioWebhookGuard, (req, res) => {
     if (sid && status) {
       const err = (status === 'failed' || status === 'undelivered') ? twilioErrorText(errCode) : null
       db.run("UPDATE communications SET delivery_status=?, error_message=? WHERE external_id=? AND direction='outgoing'", [status, err, 'twilio_' + sid])
+      // Landline / number-can't-receive-SMS codes → mark the contact so automated texts skip
+      // it (30006 landline/unreachable carrier, 30005 unknown destination handset).
+      if ((status === 'failed' || status === 'undelivered') && ['30006', '30005'].includes(String(errCode))) {
+        const row = db.get("SELECT client_id FROM communications WHERE external_id=? AND direction='outgoing'", ['twilio_' + sid])
+        if (row?.client_id && !db.get('SELECT sms_undeliverable FROM clients WHERE id=?', [row.client_id])?.sms_undeliverable) {
+          db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason=?, sms_undeliverable_at=? WHERE id=?", [err || ('Twilio ' + errCode), new Date().toISOString(), row.client_id])
+        }
+      }
     }
   } catch {}
   res.sendStatus(204)

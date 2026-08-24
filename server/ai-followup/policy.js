@@ -51,6 +51,8 @@ export function canSendSms(client, context = {}) {
   if (p?.sms_status === 'blocked') return deny('SMS blocked')
   // Campaign-style + AI channels also exclude Do Not Contact / Junk status:
   if (channel !== 'manual' && isStopStatus(client.status)) return deny(`lead status ${client.status}`)
+  // ...and numbers a prior send hard-failed as landline / can't-receive-SMS (auto-cleared if they text us).
+  if (channel !== 'manual' && client.sms_undeliverable) return deny('number is undeliverable (likely a landline)')
   // AI-specific gates — skipped for a manual agent-triggered send (context.force),
   // which only needs the hard compliance blocks above (STOP / opt-out / status).
   if (channel === 'ai' && !context.force) {

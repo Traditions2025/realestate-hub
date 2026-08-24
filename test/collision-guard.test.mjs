@@ -13,7 +13,7 @@ process.env.ANTHROPIC_API_KEY = ''
 const { initDb } = await import('../server/database.js')
 await initDb()
 const db = (await import('../server/database.js')).default
-const { canAutomatedSend } = await import('../server/ai-followup/policy.js')
+const { canAutomatedSend, canSendSms } = await import('../server/ai-followup/policy.js')
 
 let seq = 5550000
 const mkClient = (over = {}) => {
@@ -64,6 +64,15 @@ test('collision: a recently-sent text suppresses stacking (dedup window)', () =>
   db.run("INSERT INTO communications (channel, direction, client_id, occurred_at) VALUES ('text','outgoing',?,?)", [c.id, new Date().toISOString()])
   assert.equal(canAutomatedSend(c, { source: 'automation', dedupMinutes: 60, respectQuietHours: false }).ok, false)
   assert.equal(canAutomatedSend(c, { source: 'automation', dedupMinutes: 0, respectQuietHours: false }).ok, true, 'dedup off allows it')
+})
+
+test('landline: an undeliverable number is skipped for automated sends but not manual', () => {
+  const c = mkClient()
+  db.run('UPDATE clients SET sms_undeliverable=1 WHERE id=?', [c.id])
+  const fresh = db.get('SELECT * FROM clients WHERE id=?', [c.id])
+  assert.equal(canAutomatedSend(fresh, NO_TIME).ok, false)
+  assert.equal(canSendSms(fresh, { channel: 'automation' }).ok, false)
+  assert.equal(canSendSms(fresh, { channel: 'manual' }).ok, true, 'a human can still try manually')
 })
 
 test('collision: quiet hours block only when respectQuietHours is true', () => {

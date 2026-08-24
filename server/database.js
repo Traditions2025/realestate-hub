@@ -905,6 +905,11 @@ export async function initDb() {
   try { db.run('ALTER TABLE communications ADD COLUMN conversation_sid TEXT') } catch {}
   try { db.run('ALTER TABLE communications ADD COLUMN group_meta TEXT') } catch {}   // JSON: { participants:[{phone,name}] }
   try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_conversation ON communications(conversation_sid)') } catch {}
+  // Landline / undeliverable SMS: set when a send hard-fails (carrier landline/unknown
+  // handset). Automated texts skip these; cleared automatically if the contact ever texts us.
+  try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable INTEGER DEFAULT 0') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable_reason TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable_at TEXT') } catch {}
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:01:18.971Z",
-  "count": 450,
+  "generated_at": "2026-08-24T15:27:55.797Z",
+  "count": 451,
   "entries": [
+    {
+      "hash": "f3ffd02",
+      "date": "2026-08-24T10:01:21-05:00",
+      "subject": "Gdrive backup: self-service OAuth client setup in Admin (no Render-env editing)",
+      "title": "Gdrive backup: self-service OAuth client setup in Admin (no Render-env editing)",
+      "body": "POST /api/gdrive/config stores the Google OAuth client id/secret in settings; Admin\nSystem Health shows a guided setup (enable Drive API, create Web OAuth client, redirect\nURI, test user) with paste-in fields, then Connect. Build clean.",
+      "category": "other"
+    },
     {
       "hash": "8322a77",
       "date": "2026-08-24T09:59:34-05:00",

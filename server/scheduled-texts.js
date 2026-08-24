@@ -24,6 +24,7 @@ export async function runDueScheduledTexts() {
       if (!phone || last10(phone).length < 10) { db.run("UPDATE scheduled_texts SET status='failed', error=? WHERE id=?", ['no valid phone', s.id]); continue }
       // Compliance re-check at send time.
       if (c && (c.hub_text_opt_out || isStopStatus(c.status))) { db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?", ['recipient opted out / Do Not Contact at send time', s.id]); continue }
+      if (c && c.sms_undeliverable) { db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?", ['number is undeliverable (likely a landline)', s.id]); continue }
       // Collision guard (light): don't fire a scheduled text over a live AI/human handoff.
       if (c) {
         const st = db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [c.id])
