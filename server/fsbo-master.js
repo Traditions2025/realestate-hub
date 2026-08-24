@@ -57,22 +57,45 @@ export async function fetchFsboMasterRows() {
   if (!rows.length) return []
   const header = rows[0].map(h => String(h || '').trim())
   const idx = (name) => header.findIndex(h => h.toLowerCase() === name.toLowerCase())
-  const iPhone = idx('Phone 1'), iStatus = idx('FSBO Status'), iName = idx('Name'), iAddr = idx('Street Address'), iCity = idx('City'), iZip = idx('Zipcode')
+  const iPhone = idx('Phone 1'), iStatus = idx('FSBO Status'), iName = idx('Name'), iAddr = idx('Street Address')
+  const iCity = idx('City'), iState = idx('State'), iZip = idx('Zipcode'), iEmail = idx('Email'), iSource = idx('Source'), iTags = idx('Tags')
+  const cell = (row, i) => i >= 0 ? String(row[i] || '').trim() : ''
   const out = []
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]
-    const phone = iPhone >= 0 ? row[iPhone] : ''
-    const status = normStatus(iStatus >= 0 ? row[iStatus] : '')
+    const phone = cell(row, iPhone)
+    const status = normStatus(cell(row, iStatus))
     if (!last10(phone) || !status) continue
-    out.push({ phone, status, name: iName >= 0 ? row[iName] : '', address: iAddr >= 0 ? row[iAddr] : '', city: iCity >= 0 ? row[iCity] : '', zip: iZip >= 0 ? row[iZip] : '' })
+    out.push({
+      phone, status,
+      name: cell(row, iName), address: cell(row, iAddr), city: cell(row, iCity),
+      state: cell(row, iState) || 'IA', zip: cell(row, iZip), email: cell(row, iEmail),
+      source: cell(row, iSource), tags: cell(row, iTags),
+    })
   }
   return out
+}
+
+// Split a sheet "Name" (person, trust, or company) into first/last, never blank.
+function splitName(name) {
+  const s = String(name || '').trim()
+  if (!s) return { first: 'FSBO', last: '(no name)' }
+  const parts = s.split(/\s+/)
+  if (parts.length === 1) return { first: parts[0], last: '(FSBO)' }
+  return { first: parts[0], last: parts.slice(1).join(' ') }
+}
+
+// Master "FSBO NEW,FSBO ACTIVE" -> JSON tags array (always includes a stable marker).
+function tagsJson(raw) {
+  const t = String(raw || '').split(',').map(x => x.trim()).filter(Boolean)
+  if (!t.some(x => /^fsbo master$/i.test(x))) t.push('FSBO Master')
+  return JSON.stringify(t)
 }
 
 // Sync the sheet onto clients. Returns a reconciliation report.
 export async function syncFsboMaster() {
   const rows = await fetchFsboMasterRows()
-  const report = { sheet_rows: rows.length, matched: 0, updated: 0, in_list_now: 0, unmatched: [], counts: { Available: 0, 'Off Market': 0 } }
+  const report = { sheet_rows: rows.length, matched: 0, updated: 0, created: 0, in_list_now: 0, unmatched: [], counts: { Available: 0, 'Off Market': 0 } }
   const now = nowIso()
   // Phones in the DB are stored formatted ("(319) 531-0905"), so a raw-digit LIKE never
   // matches. Build a normalized last-10 -> client index once. On a shared number, prefer
@@ -90,7 +113,20 @@ export async function syncFsboMaster() {
     const key = last10(row.phone)
     report.counts[row.status] = (report.counts[row.status] || 0) + 1
     const match = key ? index.get(key) : null
-    if (!match) { report.unmatched.push({ name: row.name, phone: row.phone, address: row.address, city: row.city, status: row.status }); continue }
+    if (!match) {
+      // The FSBO master file is the source of truth: create a Hub record so every FSBO
+      // (Available AND Off Market) lands on the list. On re-sync it matches by phone.
+      const { first, last } = splitName(row.name)
+      const info = db.run(
+        `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [first, last, row.phone, row.email || null, 'seller', 'watch', row.source || 'FSBO Master',
+         row.address || null, row.city || null, row.state || 'IA', row.zip || null, tagsJson(row.tags), row.status, now, now, now])
+      report.created++
+      // Register in the index so duplicate-phone sheet rows update this same record.
+      if (key) index.set(key, { id: info.lastInsertRowid, phone: row.phone, tags: tagsJson(row.tags), fsbo_status: row.status })
+      continue
+    }
     report.matched++
     if (match.fsbo_status !== row.status) {
       db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, updated_at=? WHERE id=?', [row.status, now, now, match.id])
@@ -98,6 +134,7 @@ export async function syncFsboMaster() {
     } else {
       db.run('UPDATE clients SET fsbo_status_at=? WHERE id=?', [now, match.id])
     }
+    match.fsbo_status = row.status
   }
   // How many FSBO-master clients now sit in the live FSBO list (fsbo_status set).
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
