@@ -54,8 +54,9 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 - Morning-intelligence roll-up + prioritized action queue with evidence + recommended action + suggested message. Dependencies: P1-3 (behavior/intent). Risk: Low-Medium.
 - Shipped: `GET /api/ai/intelligence` (summary + top-50 decayed-intent action queue, reply-needed detection, recommended action) surfaced above the handoff cards on the AI Opportunities page with call + deep-link-to-profile actions.
 
-### P1-5 · Smart Audiences behavioral engine (Phase 3)
+### P1-5 · Smart Audiences behavioral engine (Phase 3) — ✅ DONE
 - Extend `client_lists` into an AND/OR condition engine adding intent, last-human-contact, repeat-view, Realist-score, AI-managed, handoff-pending, overdue-next-action, with count preview. **Segmentation only — never auto-sends.** Dependencies: P1-3. Risk: Medium (query perf → indexes).
+- Shipped: `server/smart-audience.js` compiles a recursive AND/OR condition tree into safe parameterized SQL over `clients` (whitelisted field registry + operators; behavioral fields via correlated subqueries — intent, peak_intent, conversation_type, ai_managed, handoff_pending, overdue_next_action, last_human_contact_days, repeat_views_14d, realist_sell_score). `GET /api/lists/smart/fields` + `POST /api/lists/smart/preview`; v2 trees save as dynamic `client_lists` (back-compat with legacy flat filters). New Smart Audiences page (visual builder + live count + sample). 6 tests incl. injection safety. Segmentation only — never sends.
 
 ### P1-6 · Advanced lead routing (Phase 4)
 - `routing_rules` + engine (round-robin/weighted/geo/price/source/availability) + `routing_history`; manual reassignment is sticky. Dependencies: P0-1 (users/roles). Risk: Medium.

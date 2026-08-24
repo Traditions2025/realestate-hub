@@ -16,6 +16,7 @@ const Vendors = lazy(() => import('./pages/Vendors'))
 const Partners = lazy(() => import('./pages/Partners'))
 const SocialMedia = lazy(() => import('./pages/SocialMedia'))
 const CampaignMatch = lazy(() => import('./pages/CampaignMatch'))
+const SmartAudiences = lazy(() => import('./pages/SmartAudiences'))
 const BlogPosts = lazy(() => import('./pages/BlogPosts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Updates = lazy(() => import('./pages/Updates'))
@@ -51,6 +52,7 @@ const navSections = [
   { label: 'MARKETING', items: [
     { path: '/marketing', label: 'Campaigns', icon: '\u25C8' },
     { path: '/campaign-match', label: 'AI Campaign Match', icon: '\u25CE' },
+    { path: '/smart-audiences', label: 'Smart Audiences', icon: '\u25D1' },
     { path: '/templates', label: 'Templates', icon: '\u2709' },
     { path: '/social-media', label: 'Social Media', icon: '\u2600' },
     { path: '/blog-posts', label: 'Blog Posts', icon: '\u270E' },
@@ -226,6 +228,7 @@ export default function App() {
             <Route path="/partners" element={<Partners />} />
             <Route path="/social-media" element={<SocialMedia />} />
             <Route path="/campaign-match" element={<CampaignMatch />} />
+            <Route path="/smart-audiences" element={<SmartAudiences />} />
             <Route path="/blog-posts" element={<BlogPosts />} />
             <Route path="/calendar" element={<Calendar />} />
             <Route path="/templates" element={<Templates />} />

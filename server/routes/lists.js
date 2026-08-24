@@ -1,8 +1,20 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { compileAudience, previewAudience, fieldMeta } from '../smart-audience.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
+
+// A dynamic list's filter_criteria is one of two shapes:
+//  - legacy flat filter (buildClientFilterForList)  — {type, status, tags_include, ...}
+//  - v2 smart-audience tree                          — {version:2, tree:{all|any:[...]}}
+// resolveDynamic returns { where, params } for either. Both are used against
+// `FROM clients c`; the legacy filter's unqualified column names resolve fine under
+// the alias, and the smart compiler emits c.-qualified expressions.
+function resolveDynamic(filter) {
+  if (filter && filter.version === 2 && filter.tree) return compileAudience(filter.tree)
+  return buildClientFilterForList(filter)
+}
 
 // List all saved client lists
 router.get('/', (req, res) => {
@@ -13,8 +25,8 @@ router.get('/', (req, res) => {
     if (l.is_dynamic && l.filter_criteria) {
       try {
         const filter = JSON.parse(l.filter_criteria)
-        const { where, params } = buildClientFilterForList(filter)
-        count = db.get(`SELECT COUNT(*) as c FROM clients${where}`, params).c
+        const { where, params } = resolveDynamic(filter)
+        count = db.get(`SELECT COUNT(*) as c FROM clients c${where}`, params).c
       } catch {}
     } else if (l.client_ids) {
       try { count = JSON.parse(l.client_ids).length } catch {}
@@ -33,8 +45,8 @@ router.get('/:id', (req, res) => {
   if (list.is_dynamic && list.filter_criteria) {
     try {
       const filter = JSON.parse(list.filter_criteria)
-      const { where, params } = buildClientFilterForList(filter)
-      clientIds = db.all(`SELECT id FROM clients${where}`, params).map(r => r.id)
+      const { where, params } = resolveDynamic(filter)
+      clientIds = db.all(`SELECT c.id FROM clients c${where}`, params).map(r => r.id)
     } catch {}
   } else if (list.client_ids) {
     try { clientIds = JSON.parse(list.client_ids) } catch {}
@@ -70,6 +82,17 @@ router.put('/:id', (req, res) => {
   params.push(Number(req.params.id))
   db.run(`UPDATE client_lists SET ${fields.join(', ')} WHERE id = ?`, params)
   res.json({ success: true })
+})
+
+// Smart Audiences (P1-5): the field catalog the condition builder offers.
+router.get('/smart/fields', (_req, res) => res.json(fieldMeta()))
+
+// Smart Audiences: preview a condition tree (count + sample). Segmentation only — never sends.
+router.post('/smart/preview', (req, res) => {
+  try {
+    const tree = req.body?.tree ?? req.body ?? {}
+    res.json(previewAudience(db, tree, { limit: Math.min(Number(req.body?.limit) || 25, 100) }))
+  } catch (e) { res.status(400).json({ error: e.message }) }
 })
 
 // Delete a list

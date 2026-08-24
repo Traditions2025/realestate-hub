@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:53:57.212Z",
-  "count": 455,
+  "generated_at": "2026-08-24T15:59:04.614Z",
+  "count": 456,
   "entries": [
+    {
+      "hash": "4c2bc30",
+      "date": "2026-08-24T10:54:16-05:00",
+      "subject": "P1-2: conversation classifier + structured memory provenance",
+      "title": "P1-2: conversation classifier + structured memory provenance",
+      "body": "- conversation_type (buyer/seller/both/investor/renter/past_client/unknown)\n  rides on the existing single AI call — new output-JSON key + a\n  lead_intelligence.conversation_type column, no extra round-trip.\n- lead_memory_fields table: per-field source/confidence/timestamp trail.\n  applyMemory is now confidence-gated so a weak AI guess never overwrites a\n  stronger human/import fact; supports a per-field confidence map.\n- Exposed via /api/ai/lead/:id (conversation_type + memory_fields) and shown\n  on the client profile (type badge + 'What HUB AI has learned' list) and in\n  the AI Opportunities queue label. 4 new tests (125 total).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "940ee52",
       "date": "2026-08-24T10:47:13-05:00",
