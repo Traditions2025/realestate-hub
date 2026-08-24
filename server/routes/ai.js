@@ -4,9 +4,10 @@ import { Router } from 'express'
 import db from '../database.js'
 import { AI_FLAGS, AI_CONFIG_DEFAULTS, getFlags, getConfig, flag } from '../ai-followup/flags.js'
 import { ensureState, getState, transitionAiState, pauseAi, resumeAi, humanTakeover, setEnabled, setManaged, isExcludedFromAutopilot, AI_STATES } from '../ai-followup/state.js'
-import { getIntent } from '../ai-followup/intent.js'
+import { getIntent, applyDecay, levelFor } from '../ai-followup/intent.js'
 import { recentAiActions } from '../ai-followup/audit.js'
 import { ensurePrefs } from '../ai-followup/policy.js'
+import { isStopStatus } from '../lead-sequences.js'
 
 const router = Router()
 const nowIso = () => new Date().toISOString()
@@ -122,6 +123,57 @@ router.post('/bulk-send-now', async (req, res) => {
     } catch (e) { out.blocked++; out.results.push({ client_id: cid, ok: false, reason: e.message }) }
   }
   res.json(out)
+})
+
+// ---- Today's Intelligence: morning summary + prioritized action queue (P1-4) ----
+// A "what needs attention today" view driven by decayed intent + recent behavior.
+router.get('/intelligence', (_req, res) => {
+  try {
+    const handoffs_pending = db.get("SELECT COUNT(*) n FROM ai_handoffs WHERE status='open'")?.n || 0
+    const rows = db.all(`SELECT li.client_id, li.intent_score, li.intent_reason_json, li.updated_at, li.peak_intent, li.ai_summary,
+        c.first_name, c.last_name, c.phone, c.type, c.source, c.status, c.hub_text_opt_out, c.sms_undeliverable, c.agent_assigned, c.lead_score
+      FROM lead_intelligence li JOIN clients c ON c.id = li.client_id
+      WHERE li.intent_score > 0 AND c.phone IS NOT NULL AND c.phone != ''
+      ORDER BY li.intent_score DESC LIMIT 400`)
+    const queue = []
+    for (const r of rows) {
+      if (r.hub_text_opt_out || r.sms_undeliverable || isStopStatus(r.status)) continue
+      const intent = applyDecay(r.intent_score, r.updated_at)
+      if (intent < 25) continue   // below NURTURE
+      let reasons = []; try { reasons = JSON.parse(r.intent_reason_json || '[]') } catch {}
+      const lastOut = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' ORDER BY occurred_at DESC LIMIT 1", [r.client_id])?.occurred_at || null
+      const lastIn = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' ORDER BY occurred_at DESC LIMIT 1", [r.client_id])?.occurred_at || null
+      const needsReply = !!(lastIn && (!lastOut || lastIn > lastOut))
+      const level = levelFor(intent)
+      let action = 'Follow up'
+      if (needsReply) action = 'Reply — they responded'
+      else if (level === 'URGENT' || level === 'HIGH') action = 'Call now'
+      else if (!lastOut) action = 'Reach out'
+      queue.push({
+        client_id: r.client_id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone, phone: r.phone,
+        type: r.type, source: r.source, intent, peak: r.peak_intent || r.intent_score, level, reasons: reasons.slice(0, 4),
+        summary: r.ai_summary || '', last_outbound: lastOut, last_inbound: lastIn, needs_reply: needsReply,
+        recommended_action: action, assigned_to: r.agent_assigned || null,
+      })
+    }
+    queue.sort((a, b) => (b.needs_reply - a.needs_reply) || (b.intent - a.intent))
+    const top = queue.slice(0, 50)
+    // Behavioral signals (approximate, from what we have)
+    const reengaged = db.get(`SELECT COUNT(DISTINCT la.client_id) n FROM lead_activity la
+      WHERE la.created_at >= datetime('now','-3 days')
+      AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id=la.client_id AND co.direction='outgoing' AND co.occurred_at >= datetime('now','-14 days'))`)?.n || 0
+    const repeat_views = db.get(`SELECT COUNT(*) n FROM (SELECT client_id FROM lead_activity WHERE created_at >= datetime('now','-14 days') GROUP BY client_id HAVING COUNT(*) >= 3)`)?.n || 0
+    const seller_opps = db.get(`SELECT COUNT(*) n FROM clients WHERE (type IN ('seller','both')) AND CAST(lead_score AS INTEGER) >= 600`)?.n || 0
+    res.json({
+      summary: {
+        needs_reply: top.filter(q => q.needs_reply).length,
+        high_intent: top.filter(q => q.intent >= 70).length,
+        in_queue: queue.length,
+        handoffs_pending, reengaged, repeat_views, seller_opps,
+      },
+      queue: top,
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 // ---- AI Opportunities (handoff queue) ----

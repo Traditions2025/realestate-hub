@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:39:18.357Z",
-  "count": 453,
+  "generated_at": "2026-08-24T15:46:57.967Z",
+  "count": 454,
   "entries": [
+    {
+      "hash": "c9b609e",
+      "date": "2026-08-24T10:39:37-05:00",
+      "subject": "P1-6: lead routing engine + Admin UI (built INERT, off by default)",
+      "title": "P1-6: lead routing engine + Admin UI (built INERT, off by default)",
+      "body": "- routing_rules + routing_history tables; server/routing.js engine: rules evaluated by\n  priority, first match wins; round-robin / weighted / specific agent selection; manual\n  assignment is sticky (never auto-reassigned). Gated behind routing_enabled (default off);\n  NO auto-trigger wired, so nothing routes until an owner configures rules + turns it on.\n- routes/routing.js: rules CRUD, settings on/off, history, and a manual 'run on unassigned'\n  (preview / apply). Owner/admin only, audited.\n- Admin → Lead Routing tab: master toggle, rule editor (conditions: source/city/zip/type/\n  status/tags/price; targets with weights), preview/apply, and routing history.\n\n6 new tests; 121 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c732c64",
       "date": "2026-08-24T10:32:10-05:00",

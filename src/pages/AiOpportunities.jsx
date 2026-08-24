@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 
 const fmtPhone = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
@@ -7,8 +8,14 @@ const LEVEL_COLOR = { URGENT: '#ef4444', HIGH: '#f59e0b', ENGAGED: '#10b981', NU
 
 export default function AiOpportunities() {
   const [rows, setRows] = useState(null)
+  const [intel, setIntel] = useState(null)
   const [filter, setFilter] = useState('all')   // all | mine | unassigned | urgent
   const myAgent = localStorage.getItem('mst_agent') || ''
+  const navigate = useNavigate()
+  useEffect(() => {
+    const f = () => authFetch('/api/ai/intelligence').then(r => r.json()).then(d => setIntel(d && !d.error ? d : null)).catch(() => {})
+    f(); const t = setInterval(f, 60000); return () => clearInterval(t)
+  }, [])
   const load = useCallback(() => {
     const p = new URLSearchParams({ status: 'open' })
     if (filter === 'mine' && myAgent) p.set('assigned', myAgent)
@@ -28,7 +35,49 @@ export default function AiOpportunities() {
       <div className="page-header">
         <div><h1>AI Opportunities</h1><p className="page-subtitle">High-intent leads HUB AI has surfaced for a human. Sorted by urgency and intent.</p></div>
       </div>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+      {/* Today's Intelligence */}
+      {intel && (
+        <>
+          <div className="detail-section" style={{ marginBottom: 14 }}>
+            <h4 style={{ marginTop: 0 }}>Today's Intelligence</h4>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+              {[['🔥', 'High-intent', intel.summary.high_intent], ['↩️', 'Need a reply', intel.summary.needs_reply], ['🤖', 'AI handoffs', intel.summary.handoffs_pending], ['📈', 'Re-engaged', intel.summary.reengaged], ['🏠', 'Repeat viewers', intel.summary.repeat_views], ['🏷', 'Seller opps', intel.summary.seller_opps]].map(([icon, label, n]) => (
+                <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', minWidth: 108 }}>
+                  <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{icon} {n}</div>
+                  <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {intel.queue.length > 0 && (
+            <div className="detail-section" style={{ marginBottom: 18 }}>
+              <h4 style={{ marginTop: 0 }}>Priority action queue ({intel.queue.length})</h4>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {intel.queue.map(q => (
+                  <div key={q.client_id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderLeft: `4px solid ${LEVEL_COLOR[q.level] || '#64748b'}`, borderRadius: 8, padding: '8px 12px' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <span style={{ fontWeight: 700 }}>{q.name}</span>
+                        <span style={{ fontSize: 11.5, fontWeight: 700, color: LEVEL_COLOR[q.level] || '#64748b' }}>intent {q.intent}{q.peak > q.intent ? ` (peak ${q.peak})` : ''}</span>
+                        {q.needs_reply && <span style={{ fontSize: 10, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 6px', borderRadius: 4 }}>REPLIED</span>}
+                        <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{fmtPhone(q.phone)} · {q.type || 'lead'}</span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <b style={{ color: '#b45309' }}>{q.recommended_action}.</b> {q.reasons.join(' · ')}{q.summary ? ` — ${q.summary}` : ''}
+                      </div>
+                    </div>
+                    <button className="btn btn-sm" onClick={() => call(q)} title="Call">📞</button>
+                    <button className="btn btn-sm" onClick={() => navigate('/clients?open=' + q.client_id)}>Open</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginRight: 4 }}>Handoffs:</span>
         {[['all', 'All'], ['mine', 'Mine'], ['unassigned', 'Unassigned'], ['urgent', 'Urgent']].map(([k, l]) => (
           <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(k)}>{l}</button>
         ))}
