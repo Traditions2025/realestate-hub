@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-21T22:25:59.471Z",
-  "count": 447,
+  "generated_at": "2026-08-24T14:45:57.521Z",
+  "count": 448,
   "entries": [
+    {
+      "hash": "478e01f",
+      "date": "2026-08-21T17:26:23-05:00",
+      "subject": "Group texting: send group MMS from composer + grouped thread in Inbox",
+      "title": "Group texting: send group MMS from composer + grouped thread in Inbox",
+      "body": "- Composer: 2+ recipients (no photo) now sends ONE true group MMS via Twilio\n  Conversations instead of separate individual texts.\n- Inbox: group threads render as a single 'Group: names' conversation; new GroupPane\n  shows the send + all replies and lets you reply back into the group\n  (POST /api/inbox/group-reply). List groups by conversation_sid.\n- Backend: sendConversationMessage() + group-reply route.\n\n112 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "51bbeae",
       "date": "2026-08-21T17:20:18-05:00",

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react'
 import { Routes, Route, NavLink } from 'react-router-dom'
 import LoginScreen from './components/LoginScreen'
+import ResetPassword from './components/ResetPassword'
 import CallWidget from './components/CallWidget'
 
 // Lazy load pages so initial bundle is smaller
@@ -138,6 +139,8 @@ export default function App() {
     if (window.innerWidth <= 768) setSidebarOpen(false)
   }
 
+  // Public reset-password page (reached from the emailed link), before the auth gate.
+  if (typeof window !== 'undefined' && window.location.pathname === '/reset-password') return <ResetPassword />
   if (!authed) return <LoginScreen onLogin={() => setAuthed(true)} />
 
   return (

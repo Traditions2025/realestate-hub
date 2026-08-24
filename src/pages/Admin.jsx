@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../api'
+import PasswordField from '../components/PasswordField'
 
 // Admin command center: everything an owner/admin sets up — users & access, roles &
 // permissions, the team directory, connected email inboxes, and the system audit log.
@@ -63,11 +64,17 @@ function UsersAdmin() {
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
   const patch = async (id, body) => { await authFetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(d => { if (d.error) alert(d.error) }); load() }
-  const resetPw = async (u) => {
-    const pw = window.prompt(`Set a new password for ${u.email} (min 8 characters):`)
-    if (!pw) return
-    const d = await authFetch(`/api/users/${u.id}/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pw }) }).then(r => r.json())
-    if (d.error) alert(d.error); else { alert('Password updated. Existing sessions for this user were signed out.'); load() }
+  const [pwModal, setPwModal] = useState(null)   // the user we're setting a password for
+  const [newPw, setNewPw] = useState('')
+  const [pwBusy, setPwBusy] = useState(false)
+  const savePw = async () => {
+    if (newPw.length < 8) { alert('Password must be at least 8 characters.'); return }
+    setPwBusy(true)
+    try {
+      const d = await authFetch(`/api/users/${pwModal.id}/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: newPw }) }).then(r => r.json())
+      if (d.error) { alert(d.error); return }
+      setPwModal(null); setNewPw(''); alert('Password updated. Existing sessions for this user were signed out.'); load()
+    } finally { setPwBusy(false) }
   }
   const revoke = async (u) => { if (!confirm(`Sign ${u.email} out of all devices?`)) return; await authFetch(`/api/users/${u.id}/revoke-sessions`, { method: 'POST' }); alert('All sessions revoked.') }
   const [editing, setEditing] = useState(null)   // { id, name, email }
@@ -84,6 +91,22 @@ function UsersAdmin() {
     <div>
       {err && <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 13 }}>{err}</div>}
 
+      {/* Set-password modal (with show/hide toggle) */}
+      {pwModal && (
+        <div onClick={() => setPwModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, width: 380, maxWidth: '90vw' }}>
+            <h4 style={{ marginTop: 0 }}>Set password</h4>
+            <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '2px 0 10px' }}>{pwModal.name} · {pwModal.email}</p>
+            <PasswordField value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="New password (min 8 characters)" autoComplete="new-password" autoFocus inputStyle={fld} onKeyDown={e => { if (e.key === 'Enter') savePw() }} />
+            <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+              <button className="btn btn-sm" onClick={() => setPwModal(null)}>Cancel</button>
+              <button className="btn btn-primary btn-sm" onClick={savePw} disabled={pwBusy}>{pwBusy ? '…' : 'Set password'}</button>
+            </div>
+            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>Setting a password signs this user out of all devices.</p>
+          </div>
+        </div>
+      )}
+
       {/* Add user */}
       <div className="detail-section" style={{ marginBottom: 18 }}>
         <h4>Add a user</h4>
@@ -92,7 +115,7 @@ function UsersAdmin() {
           <label style={{ fontSize: 12 }}>Email<input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={fld} /></label>
           <label style={{ fontSize: 12 }}>Phone<input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={fld} /></label>
           <label style={{ fontSize: 12 }}>Role<select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={fld}>{roleOpts.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}</select></label>
-          <label style={{ fontSize: 12 }}>Password (optional)<input type="text" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="min 8 chars, or leave blank to invite" style={fld} /></label>
+          <label style={{ fontSize: 12 }}>Password (optional)<PasswordField value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="min 8 chars, or leave blank to invite" autoComplete="new-password" inputStyle={fld} /></label>
           <button className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : '+ Add user'}</button>
         </form>
         <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Leave the password blank to create an “invited” account, then set a password later. Passwords are stored hashed (scrypt) — never in plain text.</p>
@@ -137,7 +160,7 @@ function UsersAdmin() {
                     ) : (
                       <>
                         <button className="btn btn-sm" onClick={() => setEditing({ id: u.id, name: u.name, email: u.email })} title="Edit name & email">✎ Edit</button>{' '}
-                        <button className="btn btn-sm" onClick={() => resetPw(u)} title="Set / reset password">🔑 Password</button>{' '}
+                        <button className="btn btn-sm" onClick={() => { setPwModal(u); setNewPw('') }} title="Set / reset password">🔑 Password</button>{' '}
                         {u.status === 'active'
                           ? <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'disabled' })} title="Disable login">Disable</button>
                           : <button className="btn btn-sm" onClick={() => patch(u.id, { status: 'active' })} title="Enable login">Enable</button>}{' '}

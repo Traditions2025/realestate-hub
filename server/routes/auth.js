@@ -1,8 +1,10 @@
 import { Router } from 'express'
 import crypto from 'crypto'
 import db from '../database.js'
-import { verifyPassword } from '../auth/passwords.js'
+import { verifyPassword, hashPassword } from '../auth/passwords.js'
 import { logAudit } from '../auth/audit.js'
+
+const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
 
 const router = Router()
 
@@ -61,7 +63,17 @@ function principalFor(payload) {
     return { id: u.id, name: u.name, email: u.email, role: u.role, jti: payload.jti }
   }
   // Legacy shared login = full-access owner principal (backwards compatible).
-  return { id: null, name: 'Team', email: null, role: 'owner', team: true }
+  if (payload.t === 'team') return { id: null, name: 'Team', email: null, role: 'owner', team: true }
+  // Any other token type (e.g. a password-reset token) is NOT a valid auth principal.
+  return null
+}
+
+// Short-lived, single-purpose token for password reset (distinct type so it can never
+// authenticate a session — principalFor() rejects t !== 'team'|'user').
+function signResetToken(uid) {
+  const body = { t: 'reset', uid, iat: Date.now(), exp: Date.now() + 60 * 60 * 1000 } // 1 hour
+  const p = Buffer.from(JSON.stringify(body)).toString('base64url')
+  return `${p}.${crypto.createHmac('sha256', TOKEN_SECRET).update(p).digest('base64url')}`
 }
 
 // Login: accepts { email, password } for a per-user account, OR { password } for the
@@ -102,6 +114,43 @@ router.get('/me', (req, res) => res.json({ user: req.user || null }))
 router.post('/logout', (req, res) => {
   const p = decodeToken(req.headers['x-auth-token'])
   if (p?.jti) { try { db.run('UPDATE user_sessions SET revoked_at=datetime(\'now\') WHERE id=?', [p.jti]) } catch {} logAudit({ user_id: p.uid, action: 'logout', req }) }
+  res.json({ success: true })
+})
+
+// Forgot password: email a reset link to the matching account. Always returns success
+// (never reveals whether an email is on file).
+router.post('/forgot-password', async (req, res) => {
+  const email = String(req.body?.email || '').trim()
+  try {
+    const u = email ? db.get('SELECT id, name, email, status FROM users WHERE lower(email)=lower(?)', [email]) : null
+    if (u && u.status === 'active') {
+      const token = signResetToken(u.id)
+      const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+      const link = `${hub.replace(/\/+$/, '')}/reset-password?token=${encodeURIComponent(token)}`
+      const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.6">
+        <p>Hi ${esc(u.name || '')},</p>
+        <p>We received a request to reset your Matt Smith Team Hub password. Click below to set a new one — this link expires in 1 hour:</p>
+        <p><a href="${link}" style="display:inline-block;background:#2563eb;color:#fff;padding:11px 20px;border-radius:8px;text-decoration:none;font-weight:600">Reset my password</a></p>
+        <p style="color:#64748b;font-size:12px">If you didn't request this, you can safely ignore this email — your password won't change.</p></div>`
+      const { sendViaSendGrid } = await import('./email.js')
+      await sendViaSendGrid(u.email, 'Matt Smith Team', 'Reset your Hub password', html, null, [], [], [], 'password_reset').catch(() => {})
+      logAudit({ user_id: u.id, actor: u.email, action: 'password.reset_requested', req })
+    }
+  } catch (e) { console.error('[forgot-password]', e.message) }
+  res.json({ success: true })
+})
+
+// Complete a reset with the emailed token.
+router.post('/reset-password', (req, res) => {
+  const { token, password } = req.body || {}
+  const p = decodeToken(token)
+  if (!p || p.t !== 'reset' || !p.uid) return res.status(400).json({ error: 'This reset link is invalid or has expired. Request a new one.' })
+  const u = db.get('SELECT id, email, status FROM users WHERE id=?', [p.uid])
+  if (!u || u.status !== 'active') return res.status(400).json({ error: 'Account not found or inactive.' })
+  let hash; try { hash = hashPassword(password) } catch (e) { return res.status(400).json({ error: e.message }) }
+  db.run("UPDATE users SET password_hash=?, password_changed_at=datetime('now'), updated_at=datetime('now') WHERE id=?", [hash, u.id])
+  try { db.run("UPDATE user_sessions SET revoked_at=datetime('now') WHERE user_id=? AND revoked_at IS NULL", [u.id]) } catch {}
+  logAudit({ user_id: u.id, actor: u.email, action: 'password.reset_completed', req })
   res.json({ success: true })
 })
 
