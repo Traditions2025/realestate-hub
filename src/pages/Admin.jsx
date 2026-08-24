@@ -305,6 +305,12 @@ function HealthPanel() {
   const resolve = async (id) => { await authFetch(`/api/admin/failures/${id}/resolve`, { method: 'POST' }); load() }
   const resolveAll = async () => { if (!confirm('Mark all open failures resolved?')) return; await authFetch('/api/admin/failures/resolve-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); load() }
   const [gBusy, setGBusy] = useState(false)
+  const [gcid, setGcid] = useState('')
+  const [gcsec, setGcsec] = useState('')
+  const saveGConfig = async () => {
+    const d = await authFetch('/api/gdrive/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: gcid.trim(), client_secret: gcsec.trim() }) }).then(r => r.json())
+    if (d.error) alert(d.error); else { setGcid(''); setGcsec(''); load() }
+  }
   const gdriveBackupNow = async () => {
     setGBusy(true)
     try { const d = await authFetch('/api/gdrive/backup-now', { method: 'POST' }).then(r => r.json()); if (d.error) alert('Backup failed: ' + d.error); else if (d.skipped) alert('Skipped: ' + d.skipped); else alert(`Backed up ${d.uploaded} (${d.sizeKb} KB) to Google Drive → Matt Smith Team Hub / Render.`); load() }
@@ -353,7 +359,23 @@ function HealthPanel() {
         {(() => {
           const g = health?.gdrive
           if (!g) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
-          if (!g.oauth_configured) return <div style={{ fontSize: 13, color: '#b45309' }}>⚠ Not set up yet. An owner needs to add a Google OAuth client (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET) on the server, then the “Connect Google Drive” button appears here.</div>
+          if (!g.oauth_configured) return (
+            <div style={{ fontSize: 13 }}>
+              <div style={{ color: '#b45309', marginBottom: 8 }}>⚠ Not set up yet. Create a Google OAuth client, then paste it here (one-time).</div>
+              <ol style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.7, margin: '0 0 10px 18px' }}>
+                <li>Google Cloud Console → APIs &amp; Services → <b>Enable the Google Drive API</b>.</li>
+                <li>Credentials → Create OAuth client ID → type <b>Web application</b>.</li>
+                <li>Add this Authorized redirect URI: <code style={{ background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 4 }}>{window.location.origin}/api/gdrive/callback</code></li>
+                <li>OAuth consent screen → add your Google account as a <b>Test user</b>.</li>
+                <li>Paste the Client ID &amp; Secret below, Save, then click Connect.</li>
+              </ol>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <input value={gcid} onChange={e => setGcid(e.target.value)} placeholder="Client ID" style={{ ...fld, flex: '1 1 240px', width: 'auto' }} />
+                <input value={gcsec} onChange={e => setGcsec(e.target.value)} placeholder="Client Secret" style={{ ...fld, flex: '1 1 200px', width: 'auto' }} />
+                <button className="btn btn-primary btn-sm" onClick={saveGConfig} disabled={!gcid.trim() || !gcsec.trim()}>Save</button>
+              </div>
+            </div>
+          )
           if (!g.connected) return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Not connected. Backups go to <b>{g.folder}</b>.</span>

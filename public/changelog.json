@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T14:59:06.571Z",
-  "count": 449,
+  "generated_at": "2026-08-24T15:01:18.971Z",
+  "count": 450,
   "entries": [
+    {
+      "hash": "8322a77",
+      "date": "2026-08-24T09:59:34-05:00",
+      "subject": "Off-site backups to Google Drive + self-text guard (owner=admin already)",
+      "title": "Off-site backups to Google Drive + self-text guard (owner=admin already)",
+      "body": "- gdrive-backup.js: OAuth (drive.file) refresh-token flow; ensures 'Matt Smith Team\n  Hub / Render' folders; gzips + resumable-uploads the DB; prunes to newest 30.\n  Inert until connected. Wired as backup layer 3 in runDailyBackup (records a failure\n  if it errors while connected).\n- routes/gdrive.js: public /connect + /callback (one-click OAuth), admin /status +\n  /backup-now. Admin System Health gains a Google Drive card (Connect / Back up now /\n  last off-site backup). requireAuth exempts the two OAuth browser redirects.\n- Group texting drops our own Hub number automatically (fixes the John-Solamo\n  self-text: a directory entry pointing at the Hub line can't text itself).\n- Owner and Admin already share the full permission set (confirmed, no change).\n\nNeeds a one-time Google OAuth client (env) + an owner clicking Connect. 112 tests pass.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ca47520",
       "date": "2026-08-24T09:46:34-05:00",
