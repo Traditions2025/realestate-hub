@@ -75,6 +75,7 @@ Example shape (ADAPT to their real details, do not copy verbatim, do not invent 
   "intent_delta": integer from -20 to 40 (how this exchange changed buying/selling intent),
   "intent_signals": ["short reasons for the intent change"],
   "handoff": { "required": boolean, "reason": "short", "urgency": "high" | "urgent" },
+  "conversation_type": "buyer" | "seller" | "both" | "investor" | "renter" | "past_client" | "unknown",  // what this lead is, based on the whole conversation
   "memory": { "buyer": {}, "seller": {}, "general": {} },  // ONLY fields you newly learned this turn, real values; omit unknowns
   "summary": "updated 1 to 3 sentence rolling summary of who this lead is and what they want",
   "next_state": "AI_CONVERSATION_ACTIVE" | "AI_ENGAGED" | "AI_HIGH_INTENT" | "HUMAN_HANDOFF_REQUIRED" | "NOT_INTERESTED"

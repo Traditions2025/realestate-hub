@@ -1037,6 +1037,24 @@ export async function initDb() {
   // Intent decay (P1-3): remember the historical peak so a lead hot months ago but quiet
   // since shows a decayed CURRENT intent while its peak stays visible for context.
   try { db.run('ALTER TABLE lead_intelligence ADD COLUMN peak_intent INTEGER') } catch {}
+  // Conversation classifier (P1-2): a single-word classification of what this lead is
+  // in the conversation (buyer/seller/both/investor/renter/past_client/unknown), written
+  // by the same model call that produces memory — no extra API round-trip.
+  try { db.run('ALTER TABLE lead_intelligence ADD COLUMN conversation_type TEXT') } catch {}
+  // Per-field structured memory provenance (P1-2): each learned fact records where it came
+  // from, how confident we are, and when. lead_intelligence holds the current value; this
+  // holds the evidence trail so a low-confidence guess never silently overwrites a hard fact.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS lead_memory_fields (
+      client_id INTEGER NOT NULL,
+      field TEXT NOT NULL,
+      value TEXT,
+      source TEXT DEFAULT 'ai',          -- ai | deterministic | import | human
+      confidence REAL DEFAULT 0.6,       -- 0..1
+      updated_at TEXT DEFAULT (datetime('now')),
+      PRIMARY KEY (client_id, field)
+    )
+  `)
   // Normalized lead-event log (CRM + website + comms events the AI reacts to).
   db.run(`
     CREATE TABLE IF NOT EXISTS lead_events (

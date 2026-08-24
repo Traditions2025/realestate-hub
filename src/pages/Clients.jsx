@@ -3589,6 +3589,7 @@ function AiIsaCard({ clientId }) {
         <h4 style={{ margin: 0, color: '#2563eb' }}>🤖 HUB AI</h4>
         <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: '#2563eb', padding: '2px 7px', borderRadius: 4 }}>{st.replace(/_/g, ' ')}</span>
         {d.intent && <span style={{ fontSize: 12, fontWeight: 700, color: LEVEL[d.intent.level] || '#64748b' }}>intent {d.intent.score} · {d.intent.level}</span>}
+        {d.conversation_type && <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,0.12)', padding: '2px 7px', borderRadius: 4 }}>{d.conversation_type.replace(/_/g, ' ')}</span>}
         <span style={{ marginLeft: 'auto', fontSize: 11, color: managed ? '#10b981' : 'var(--text-muted)' }}>{managed ? 'AI managing this lead' : 'AI not enabled here'}</span>
       </div>
       {!d.global?.master && <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>AI is off globally. Turn on HUB AI Follow-Up in Settings for it to run.</div>}
@@ -3596,6 +3597,20 @@ function AiIsaCard({ clientId }) {
       {d.prefs?.hub_text_opt_out && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>This contact replied STOP — AI texting is blocked.</div>}
       {d.summary && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8, lineHeight: 1.45, fontStyle: 'italic', borderLeft: '2px solid rgba(37,99,235,0.4)', paddingLeft: 8 }}>{d.summary}</div>}
       {d.intent?.reasons?.length > 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Signals: {d.intent.reasons.join(' · ')}</div>}
+      {Array.isArray(d.memory_fields) && d.memory_fields.length > 0 && (
+        <details style={{ marginTop: 8 }}>
+          <summary style={{ fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>What HUB AI has learned ({d.memory_fields.length})</summary>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
+            {d.memory_fields.map(f => (
+              <div key={f.field} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
+                <span style={{ minWidth: 130, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{f.field.replace(/_/g, ' ')}</span>
+                <span style={{ fontWeight: 600, flex: 1 }}>{f.value}</span>
+                <span style={{ fontSize: 10, color: f.source === 'human' ? '#10b981' : 'var(--text-muted)', textTransform: 'uppercase' }}>{f.source}{f.confidence != null ? ` · ${Math.round(f.confidence * 100)}%` : ''}</span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       {d.open_handoff && <div style={{ fontSize: 12.5, color: '#b45309', marginTop: 6, fontWeight: 600 }}>⚑ Open handoff: {d.open_handoff.reason}</div>}
       {d.ai_next_action_at && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Next AI action: {fmt(d.ai_next_action_at)}</div>}
       {preview && (

@@ -43,14 +43,16 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 ### P1-1 · Model-scored AI regression suite (Phase 7)
 - 50 buyer + 50 seller scenarios, 0–2 rubric, auto-fail on hallucination/steering/ignored-STOP, saved runs, prompt/model-version diff. **Gate before broad Autopilot.** Dependencies: AI stack. Risk: Low (offline eval). Testing: the harness IS the test.
 
-### P1-2 · Conversation classifier + structured memory fields (Phase 6)
+### P1-2 · Conversation classifier + structured memory fields (Phase 6) — ✅ DONE
 - Add a classifier stage writing `conversation_type` (buyer/seller enums) + per-field memory `source/confidence/timestamp`. Extend `lead_intelligence`. Dependencies: prompts/orchestrator. Risk: Medium (prompt behavior) → keep single model call, add a light classify pass. Testing: classifier scenarios + regression suite.
+- Shipped: `conversation_type` rides on the existing single model call (added to the output JSON schema + `lead_intelligence.conversation_type` column, no extra API round-trip). New `lead_memory_fields` table records per-field `source/confidence/timestamp`; `applyMemory` is confidence-gated so a weak AI guess never overwrites a stronger human/import fact. Surfaced on the client profile (conversation-type badge + "What HUB AI has learned" provenance list) and in the AI Opportunities queue label. 4 classifier tests.
 
 ### P1-3 · Behavioral events + intent decay (Phase 8)
 - Normalized `behavioral_events` (typed, weighted); intent **decay** over time with `current/peak/previous/delta`; feed audiences + opportunities + NBA. Dependencies: fub/tracking. Risk: Medium. Testing: decay math; peak retention; event weighting.
 
-### P1-4 · AI Opportunities 2.0 (Phase 5)
+### P1-4 · AI Opportunities 2.0 (Phase 5) — ✅ DONE
 - Morning-intelligence roll-up + prioritized action queue with evidence + recommended action + suggested message. Dependencies: P1-3 (behavior/intent). Risk: Low-Medium.
+- Shipped: `GET /api/ai/intelligence` (summary + top-50 decayed-intent action queue, reply-needed detection, recommended action) surfaced above the handoff cards on the AI Opportunities page with call + deep-link-to-profile actions.
 
 ### P1-5 · Smart Audiences behavioral engine (Phase 3)
 - Extend `client_lists` into an AND/OR condition engine adding intent, last-human-contact, repeat-view, Realist-score, AI-managed, handoff-pending, overdue-next-action, with count preview. **Segmentation only — never auto-sends.** Dependencies: P1-3. Risk: Medium (query perf → indexes).

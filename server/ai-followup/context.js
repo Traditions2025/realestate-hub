@@ -64,6 +64,7 @@ export function buildLeadAiContext(clientId) {
     intent: { score: intent.score, level: intent.level, reasons: intent.reasons },
     intelligence: {
       lead_type: li.lead_type || client.type || null,
+      conversation_type: li.conversation_type || null,
       price_min: li.price_min || null, price_max: li.price_max || null,
       preferred_cities: li.preferred_cities || null, bedrooms_min: li.bedrooms_min || null,
       bathrooms_min: li.bathrooms_min || null, property_types: li.property_types || null,

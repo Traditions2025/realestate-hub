@@ -7,6 +7,7 @@ import { ensureState, getState, transitionAiState, pauseAi, resumeAi, humanTakeo
 import { getIntent, applyDecay, levelFor } from '../ai-followup/intent.js'
 import { recentAiActions } from '../ai-followup/audit.js'
 import { ensurePrefs } from '../ai-followup/policy.js'
+import { memoryFields } from '../ai-followup/memory.js'
 import { isStopStatus } from '../lead-sequences.js'
 
 const router = Router()
@@ -27,7 +28,8 @@ router.get('/lead/:id', (req, res) => {
     ai_enabled: state?.ai_enabled === 1, ai_state: state?.ai_state, ai_state_changed_at: state?.ai_state_changed_at,
     ai_last_action_at: state?.ai_last_action_at, ai_next_action_at: state?.ai_next_action_at,
     ai_pause_until: state?.ai_pause_until, ai_pause_reason: state?.ai_pause_reason, ai_owner: state?.ai_owner || client.agent_assigned,
-    intent, summary: li.ai_summary || null, lead_type: li.lead_type || client.type,
+    intent, summary: li.ai_summary || null, lead_type: li.lead_type || client.type, conversation_type: li.conversation_type || null,
+    memory_fields: memoryFields(cid),
     prefs: { do_not_text: !!prefs?.do_not_text, do_not_call: !!prefs?.do_not_call, ai_text_enabled: prefs?.ai_text_enabled !== 0, ai_voice_enabled: prefs?.ai_voice_enabled === 1, sms_status: prefs?.sms_status, hub_text_opt_out: !!client.hub_text_opt_out },
     last_consumer_message: lastConsumer ? { text: lastConsumer.body, at: lastConsumer.occurred_at } : null,
     open_handoff: openHandoff || null,
@@ -130,7 +132,7 @@ router.post('/bulk-send-now', async (req, res) => {
 router.get('/intelligence', (_req, res) => {
   try {
     const handoffs_pending = db.get("SELECT COUNT(*) n FROM ai_handoffs WHERE status='open'")?.n || 0
-    const rows = db.all(`SELECT li.client_id, li.intent_score, li.intent_reason_json, li.updated_at, li.peak_intent, li.ai_summary,
+    const rows = db.all(`SELECT li.client_id, li.intent_score, li.intent_reason_json, li.updated_at, li.peak_intent, li.ai_summary, li.conversation_type,
         c.first_name, c.last_name, c.phone, c.type, c.source, c.status, c.hub_text_opt_out, c.sms_undeliverable, c.agent_assigned, c.lead_score
       FROM lead_intelligence li JOIN clients c ON c.id = li.client_id
       WHERE li.intent_score > 0 AND c.phone IS NOT NULL AND c.phone != ''
@@ -151,7 +153,7 @@ router.get('/intelligence', (_req, res) => {
       else if (!lastOut) action = 'Reach out'
       queue.push({
         client_id: r.client_id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone, phone: r.phone,
-        type: r.type, source: r.source, intent, peak: r.peak_intent || r.intent_score, level, reasons: reasons.slice(0, 4),
+        type: r.conversation_type || r.type, source: r.source, intent, peak: r.peak_intent || r.intent_score, level, reasons: reasons.slice(0, 4),
         summary: r.ai_summary || '', last_outbound: lastOut, last_inbound: lastIn, needs_reply: needsReply,
         recommended_action: action, assigned_to: r.agent_assigned || null,
       })

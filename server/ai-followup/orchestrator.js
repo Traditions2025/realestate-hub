@@ -105,7 +105,7 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   const cfg = getConfig()
 
   // ---- memory + intent (always safe to update) ----
-  try { if (decision?.memory || decision?.summary) applyMemory(cid, decision.memory || {}, decision.summary) } catch {}
+  try { if (decision?.memory || decision?.summary || decision?.conversation_type) applyMemory(cid, decision.memory || {}, decision.summary, { source: 'ai', conversationType: decision.conversation_type }) } catch {}
   let intent = computeIntent(cid)
   const delta = Math.max(-20, Math.min(40, Number(decision?.intent_delta) || 0))
   intent.score = Math.max(0, Math.min(100, intent.score + delta))

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:46:57.967Z",
-  "count": 454,
+  "generated_at": "2026-08-24T15:53:57.212Z",
+  "count": 455,
   "entries": [
+    {
+      "hash": "940ee52",
+      "date": "2026-08-24T10:47:13-05:00",
+      "subject": "P1-4: AI Opportunities 2.0 — Today's Intelligence + priority action queue",
+      "title": "P1-4: AI Opportunities 2.0 — Today's Intelligence + priority action queue",
+      "body": "Adds GET /api/ai/intelligence: morning summary (high-intent, need-a-reply,\nAI handoffs, re-engaged, repeat viewers, seller opps) plus a prioritized\naction queue of the top 50 leads by decayed intent, each with a recommended\naction, reasons, and reply-needed detection. Surfaces above the handoff\ncards on the AI Opportunities page with call + deep-link-to-profile actions.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c9b609e",
       "date": "2026-08-24T10:39:37-05:00",
