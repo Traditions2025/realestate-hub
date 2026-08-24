@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { compileAudience, previewAudience, fieldMeta } from '../smart-audience.js'
+import { syncFsboMaster, ensureFsboListIncludesMaster, fsboMasterCsvUrl } from '../fsbo-master.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -84,6 +85,20 @@ router.put('/:id', (req, res) => {
   res.json({ success: true })
 })
 
+// FSBO master-file sync: pull the FSBO master Google Sheet onto clients (fsbo_status),
+// and guarantee the FSBO list includes every master FSBO. Returns a reconciliation report.
+router.post('/fsbo/sync', async (_req, res) => {
+  try {
+    const report = await syncFsboMaster()
+    const listFix = ensureFsboListIncludesMaster()
+    res.json({ ok: true, source: fsboMasterCsvUrl(), ...report, list: listFix })
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+})
+router.get('/fsbo/status', (_req, res) => {
+  const counts = db.all("SELECT fsbo_status s, COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' GROUP BY fsbo_status")
+  res.json({ last_sync: db.getSetting?.('fsbo_master_last_sync') || null, source: fsboMasterCsvUrl(), counts })
+})
+
 // Smart Audiences (P1-5): the field catalog the condition builder offers.
 router.get('/smart/fields', (_req, res) => res.json(fieldMeta()))
 
@@ -140,6 +155,11 @@ function buildClientFilterForList(q) {
   if (q.sources_include?.length) {
     where += ' AND source IN (' + q.sources_include.map(() => '?').join(',') + ')'
     params.push(...q.sources_include)
+  }
+  if (q.has_fsbo_status) where += " AND fsbo_status IS NOT NULL AND fsbo_status != ''"
+  if (q.fsbo_statuses_include?.length) {
+    where += ' AND fsbo_status IN (' + q.fsbo_statuses_include.map(() => '?').join(',') + ')'
+    params.push(...q.fsbo_statuses_include)
   }
   if (q.has_email) where += " AND email IS NOT NULL AND email != ''"
   if (q.exclude_optouts) where += ' AND (marketing_email_opt_out IS NULL OR marketing_email_opt_out = 0)'

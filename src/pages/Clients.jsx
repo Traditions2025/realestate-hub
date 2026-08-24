@@ -385,6 +385,8 @@ export default function Clients() {
     in_drip: '',   // '' (any) | '1' (in a drip) | '0' (not in a drip)
     drip_id: '',   // '' (any campaign) | a specific drip campaign id
     has_address: '', // '' (any) | '1' (has address) | '0' (no address)
+    has_fsbo_status: '', // '' (any) | '1' (in the FSBO master file)
+    fsbo_statuses_include: [], // ['Available','Off Market']
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -581,6 +583,8 @@ export default function Clients() {
       if (advFilters.drip_id) params.drip_id = advFilters.drip_id
     }
     if (advFilters.has_address) params.has_address = advFilters.has_address
+    if (advFilters.has_fsbo_status) params.has_fsbo_status = advFilters.has_fsbo_status === true ? '1' : advFilters.has_fsbo_status
+    if (advFilters.fsbo_statuses_include?.length) params.fsbo_statuses_include = advFilters.fsbo_statuses_include.join(',')
     params.sort = sortBy
     return params
   }
@@ -1063,6 +1067,8 @@ export default function Clients() {
           in_drip: f.in_drip || '',
           drip_id: f.drip_id || '',
           has_address: f.has_address || '',
+          has_fsbo_status: (f.has_fsbo_status === true || f.has_fsbo_status === 1 || f.has_fsbo_status === '1') ? '1' : '',
+          fsbo_statuses_include: f.fsbo_statuses_include || [],
         })
         setTab('all')
         if (f.search) setSearch(f.search)
@@ -2125,8 +2131,17 @@ export default function Clients() {
         // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
         const gridTemplate = `30px ${visibleColumns.map(c => `minmax(0, ${c.fr})`).join(' ')}`
 
+        // In the FSBO list the "Visits" column is repurposed as "FSBO Status"
+        // (Available / Off Market) from the FSBO master file.
+        const isFsboList = (savedLists.find(l => l.id === activeListId)?.name || '').toUpperCase() === 'FSBO'
+
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
+          if (isFsboList && col.key === 'visits') {
+            const isSorted = sortBy === 'fsbo_available_first' || sortBy === 'fsbo_offmarket_first'
+            const arrow = sortBy === 'fsbo_offmarket_first' ? '▼' : sortBy === 'fsbo_available_first' ? '▲' : '⇅'
+            return <div key="visits" className="cl-visits sortable" onClick={() => setSortBy(sortBy === 'fsbo_available_first' ? 'fsbo_offmarket_first' : 'fsbo_available_first')} title="Click to sort by FSBO status">FSBO Status {arrow}</div>
+          }
           // These column headers double as click-to-filter dropdowns.
           if (col.key === 'type') {
             return <ColumnFilterHeader key="type" className="cl-type" label="Type" value={filter.type}
@@ -2246,6 +2261,13 @@ export default function Clients() {
                   : '—'}
               </div>
             case 'visits':
+              if (isFsboList) {
+                const fs = item.fsbo_status
+                const color = fs === 'Available' ? '#10b981' : fs === 'Off Market' ? '#ef4444' : 'var(--text-muted)'
+                return <div key="visits" className="cl-visits" title="FSBO status (master file)">
+                  {fs ? <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: color, padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{fs}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </div>
+              }
               return <div key="visits" className="cl-visits">{item.visits || 0}</div>
             case 'source':
               return <div key="source" className="cl-source">{item.source || '—'}</div>

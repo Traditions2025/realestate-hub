@@ -1724,6 +1724,10 @@ export async function initDb() {
       // is never blocked by any opt-out.
       ['hub_text_opt_out', 'INTEGER DEFAULT 0'],
       ['ealert_opt_out', 'INTEGER DEFAULT 0'],
+      // FSBO master-file status (Available | Off Market), synced from the FSBO master
+      // Google Sheet by phone match. Drives the Hub FSBO list + its status column.
+      ['fsbo_status', 'TEXT'],
+      ['fsbo_status_at', 'TEXT'],
       ['short_summary', 'TEXT'],
       ['tags', 'TEXT'],
       ['lender_name', 'TEXT'],

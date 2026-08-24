@@ -19,6 +19,7 @@ const FIELDS = {
   source:            { sql: 'c.source', type: 'text', label: 'Source', group: 'Contact' },
   agent:             { sql: 'c.agent_assigned', type: 'text', label: 'Assigned agent', group: 'Contact' },
   tag:               { sql: 'c.tags', type: 'tag', label: 'Tag', group: 'Contact' },
+  fsbo_status:       { sql: 'c.fsbo_status', type: 'text', label: 'FSBO status', group: 'Contact' },
   lead_score:        { sql: 'CAST(c.lead_score AS INTEGER)', type: 'num', label: 'Lead score', group: 'Scores' },
   realist_sell_score:{ sql: 'c.realist_sell_score', type: 'num', label: 'Realist sell score', group: 'Scores' },
   has_email:         { sql: "(CASE WHEN c.email IS NOT NULL AND c.email != '' THEN 1 ELSE 0 END)", type: 'bool', label: 'Has email', group: 'Contact' },

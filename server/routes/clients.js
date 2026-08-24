@@ -318,6 +318,17 @@ export function buildClientFilter(q) {
   if (q.has_realist === '1') {
     where += ' AND realist_property_id IS NOT NULL'
   }
+  // FSBO master file: only clients carrying an fsbo_status (Available / Off Market).
+  if (q.has_fsbo_status === '1' || q.has_fsbo_status === 1 || q.has_fsbo_status === true) {
+    where += " AND fsbo_status IS NOT NULL AND fsbo_status != ''"
+  }
+  const fsboStatuses = q.fsbo_statuses_include
+    ? (Array.isArray(q.fsbo_statuses_include) ? q.fsbo_statuses_include : String(q.fsbo_statuses_include).split(',').filter(Boolean))
+    : []
+  if (fsboStatuses.length) {
+    where += ' AND fsbo_status IN (' + fsboStatuses.map(() => '?').join(',') + ')'
+    fsboStatuses.forEach(s => params.push(s))
+  }
   // Property types (any-of)
   const searchTypes = q.search_property_types
     ? (Array.isArray(q.search_property_types) ? q.search_property_types : String(q.search_property_types).split(',').filter(Boolean))
@@ -355,6 +366,8 @@ const SORT_OPTIONS = {
   recent_added: "COALESCE(NULLIF(register_date,''), sierra_creation_date) DESC NULLS LAST",
   most_visits: 'visits DESC',
   least_visits: 'visits ASC',
+  fsbo_available_first: "CASE fsbo_status WHEN 'Available' THEN 0 WHEN 'Off Market' THEN 1 ELSE 2 END ASC, updated_at DESC",
+  fsbo_offmarket_first: "CASE fsbo_status WHEN 'Off Market' THEN 0 WHEN 'Available' THEN 1 ELSE 2 END ASC, updated_at DESC",
   highest_score: 'CAST(lead_score AS INTEGER) DESC NULLS LAST',
   lowest_score: 'CAST(lead_score AS INTEGER) ASC NULLS LAST',
   name_az: 'last_name ASC, first_name ASC',

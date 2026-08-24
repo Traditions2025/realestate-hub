@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T16:06:32.363Z",
-  "count": 457,
+  "generated_at": "2026-08-24T17:23:30.527Z",
+  "count": 458,
   "entries": [
+    {
+      "hash": "fd847be",
+      "date": "2026-08-24T11:07:13-05:00",
+      "subject": "P1-1: model-scored AI regression suite (framework + seed)",
+      "title": "P1-1: model-scored AI regression suite (framework + seed)",
+      "body": "- server/ai-eval/score.js: pure 0/1/2 rubric scorer with hard auto-fails\n  (ignored STOP, hallucinated price/valuation, steering, fair-housing) plus\n  global guardrail bans applied to every scenario. Fully unit-tested offline.\n- server/ai-eval/scenarios.js: seed suite (12 buyer + 12 seller) exercising\n  every auto-fail path and rubric dimension (handoff timing, defer-to-lender,\n  no-valuation, stay-on-topic, honest self-ID, FSBO/other-agent respect).\n  Extensible toward the 50+50 target — runner/scorer scale automatically.\n- server/ai-eval/run.js: live-model runner reusing the production prompt\n  builders, batched (concurrency 4), persists runs + per-scenario results\n  with prompt/model version for diffing.\n- Endpoints GET /api/ai/eval/scenarios|runs|runs/:id + POST /api/ai/eval/run.\n- Settings -> AI: 'AI Regression Eval' panel (run buyer/seller/full, saved-run\n  history with pass-rate + auto-fail count, per-scenario drilldown).\n- 10 new offline scorer tests (140 total). Gate before broad Autopilot.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "152dc22",
       "date": "2026-08-24T10:59:26-05:00",

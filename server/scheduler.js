@@ -135,6 +135,20 @@ async function syncSierraIncremental() {
     if (total > 0) {
       console.log(`[scheduler] Sierra incremental: ${total} leads (${added} new, ${updated} updated)`)
     }
+
+    // FSBO master-file refresh — throttled to ~hourly, fully isolated so a sheet/network
+    // hiccup can never affect the Sierra sync above.
+    try {
+      const last = db.getSetting?.('fsbo_master_last_sync')
+      const stale = !last || (Date.now() - new Date(last).getTime()) > 60 * 60 * 1000
+      if (stale) {
+        const { syncFsboMaster, ensureFsboListIncludesMaster } = await import('./fsbo-master.js')
+        const rep = await syncFsboMaster()
+        ensureFsboListIncludesMaster()
+        console.log(`[scheduler] FSBO master: ${rep.matched}/${rep.sheet_rows} matched, ${rep.updated} updated, ${rep.unmatched.length} unmatched`)
+      }
+    } catch (e) { console.error('[scheduler] FSBO master sync error (non-fatal):', e.message) }
+
     return { success: true, total, added, updated, since: sinceFormatted }
   } catch (err) {
     console.error('[scheduler] Sierra sync error:', err.message)
