@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-24T17:23:30.527Z",
-  "count": 458,
+  "generated_at": "2026-08-24T22:50:24.021Z",
+  "count": 461,
   "entries": [
+    {
+      "hash": "1c8a60b",
+      "date": "2026-08-24T16:44:13-05:00",
+      "subject": "FSBO master: create Hub records for master FSBOs not yet in the Hub",
+      "title": "FSBO master: create Hub records for master FSBOs not yet in the Hub",
+      "body": "The FSBO master file is the source of truth. On no phone match, insert a Hub\nclient from the sheet (name split, seller/watch, FSBO tags + 'FSBO Master'\nmarker, address/city/state/zip, fsbo_status) so every FSBO — Available AND\nOff Market — lands on the list. Duplicate-phone sheet rows update the same\nnew record. Report now includes 'created'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6904093",
+      "date": "2026-08-24T12:26:30-05:00",
+      "subject": "FSBO sync: match phones via normalized last-10 index (DB stores formatted phones)",
+      "title": "FSBO sync: match phones via normalized last-10 index (DB stores formatted phones)",
+      "body": "Fixes 0/61 match: clients store phones like '(319) 531-0905', so a raw\ndigit-string LIKE never matched. Build a last-10 -> client index in JS once,\npreferring an FSBO-tagged client on shared numbers.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "328c153",
+      "date": "2026-08-24T12:24:19-05:00",
+      "subject": "FSBO list: sync master file (Available/Off Market) + show FSBO Status column",
+      "title": "FSBO list: sync master file (Available/Off Market) + show FSBO Status column",
+      "body": "- clients.fsbo_status / fsbo_status_at columns.\n- server/fsbo-master.js: reads the FSBO master Google Sheet (CSV), matches\n  each row to a Hub client by phone (last 10), writes Available/Off Market.\n  RFC-4180 CSV parser handles the quoted multi-line Zillow Notes blob.\n  ensureFsboListIncludesMaster() points the saved FSBO list at the master file\n  (has_fsbo_status) so every Available/Off Market FSBO is guaranteed in the list;\n  prior tag+status criteria preserved under _legacy for revert.\n- POST /api/lists/fsbo/sync (reconcile + report), GET /api/lists/fsbo/status.\n  Scheduler refreshes hourly, fully isolated from the Sierra sync.\n- has_fsbo_status / fsbo_statuses_include filters in clients + lists routes;\n  fsbo_available_first / fsbo_offmarket_first sorts; fsbo_status smart-audience field.\n- Clients UI: in the FSBO list, the Visits column becomes 'FSBO Status'\n  (Available green / Off Market red badge), sortable.\n- CSV parser tests (142 total).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fd847be",
       "date": "2026-08-24T11:07:13-05:00",

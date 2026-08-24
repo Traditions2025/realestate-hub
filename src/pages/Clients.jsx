@@ -527,6 +527,27 @@ export default function Clients() {
       load()
     } catch (e) { alert('Bulk AI send failed: ' + e.message) } finally { setBulkAiRunning(false) }
   }
+
+  // Bulk "Export to CSV" — downloads the selected leads as a CSV (export is always CSV).
+  // Works across the full selection, not just the loaded page, since the server pulls by id.
+  const [bulkExporting, setBulkExporting] = useState(false)
+  const exportSelectedCsv = async () => {
+    setBulkActionsOpen(false)
+    const ids = [...selectedIds]
+    if (!ids.length) return
+    setBulkExporting(true)
+    try {
+      const r = await authFetch('/api/clients/export', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids }) })
+      if (!r.ok) throw new Error('server returned ' + r.status)
+      const blob = await r.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `clients-export-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) { alert('Could not export CSV: ' + e.message) } finally { setBulkExporting(false) }
+  }
   const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
@@ -2099,6 +2120,10 @@ export default function Clients() {
                   </button>
                   <button onClick={() => { setBulkActionsOpen(false); if (selectedIds.size) window.location.assign('/dialer?client_ids=' + [...selectedIds].join(',')) }}>
                     ☎ Call Leads (Power Dialer)
+                  </button>
+                  <div className="bulk-actions-divider" />
+                  <button onClick={exportSelectedCsv} disabled={bulkExporting} title="Download the selected leads as a CSV file">
+                    ⬇ {bulkExporting ? 'Exporting…' : 'Export to CSV'}
                   </button>
                   <div className="bulk-actions-divider" />
                   <div className="bulk-actions-section-label">Enroll</div>

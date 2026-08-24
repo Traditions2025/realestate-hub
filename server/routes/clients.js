@@ -409,6 +409,48 @@ router.get('/', (req, res) => {
   res.json(rows)
 })
 
+// ---- CSV export ----
+// Export selected leads (by id) OR the current filter as a CSV download. Export is
+// always CSV. Body: { ids: [...] } for a selection, or the same filter params the list
+// uses to export a whole list.
+const EXPORT_COLUMNS = [
+  ['first_name', 'First Name'], ['last_name', 'Last Name'], ['email', 'Email'], ['phone', 'Phone'],
+  ['type', 'Type'], ['status', 'Status'], ['source', 'Source'], ['agent_assigned', 'Agent'],
+  ['address', 'Address'], ['city', 'City'], ['state', 'State'], ['zip', 'Zip'],
+  ['lead_score', 'Lead Score'], ['lead_grade', 'Grade'], ['fsbo_status', 'FSBO Status'],
+  ['tags', 'Tags'], ['register_date', 'Registered'], ['created_at', 'Added'],
+]
+const csvEscape = (v) => {
+  let s = v == null ? '' : String(v)
+  // tags are stored as a JSON array string — flatten to a readable "a; b; c"
+  if (s.startsWith('[') && s.endsWith(']')) { try { const a = JSON.parse(s); if (Array.isArray(a)) s = a.join('; ') } catch {} }
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s
+}
+function clientsToCsv(rows) {
+  const head = EXPORT_COLUMNS.map(c => c[1]).join(',')
+  const body = rows.map(r => EXPORT_COLUMNS.map(([k]) => csvEscape(r[k])).join(',')).join('\r\n')
+  return head + '\r\n' + body + (body ? '\r\n' : '')
+}
+router.post('/export', (req, res) => {
+  const ids = Array.isArray(req.body?.ids) ? [...new Set(req.body.ids.map(Number).filter(Boolean))] : []
+  let rows = []
+  if (ids.length) {
+    // Chunk the IN() to stay well under SQLite's bound-parameter limit.
+    for (let i = 0; i < ids.length; i += 900) {
+      const chunk = ids.slice(i, i + 900)
+      rows.push(...db.all(`SELECT * FROM clients WHERE id IN (${chunk.map(() => '?').join(',')})`, chunk))
+    }
+  } else {
+    const { where, params } = buildClientFilter(req.body || {})
+    const orderBy = SORT_OPTIONS[req.body?.sort] || SORT_OPTIONS.recent_activity
+    rows = db.all(`SELECT * FROM clients${where} ORDER BY ${orderBy} LIMIT 100000`, params)
+  }
+  const stamp = new Date().toISOString().slice(0, 10)
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8')
+  res.setHeader('Content-Disposition', `attachment; filename="clients-export-${stamp}.csv"`)
+  res.send(clientsToCsv(rows))
+})
+
 // Get distinct values for filter dropdowns (zips, cities, sources)
 router.get('/filter-options', (req, res) => {
   const zips = db.all("SELECT DISTINCT zip FROM clients WHERE zip IS NOT NULL AND zip != '' ORDER BY zip").map(r => r.zip)
