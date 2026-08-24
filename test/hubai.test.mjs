@@ -16,7 +16,7 @@ await initDb()
 const db = (await import('../server/database.js')).default
 const { canSendSms, canAiCall, applyOptOut, ensurePrefs } = await import('../server/ai-followup/policy.js')
 const { transitionAiState, humanTakeover, getState, AI_STATES } = await import('../server/ai-followup/state.js')
-const { levelFor, HIGH_INTENT_RE } = await import('../server/ai-followup/intent.js')
+const { levelFor, HIGH_INTENT_RE, applyDecay, saveIntent, getIntent } = await import('../server/ai-followup/intent.js')
 const { inQuietHours } = await import('../server/ai-followup/flags.js')
 const { buildSystemPrompt } = await import('../server/ai-followup/prompts.js')
 
@@ -82,6 +82,21 @@ test('human takeover cancels pending scheduled AI actions', () => {
 test('intent levels map to the right bands', () => {
   assert.equal(levelFor(10), 'LOW'); assert.equal(levelFor(30), 'NURTURE'); assert.equal(levelFor(55), 'ENGAGED')
   assert.equal(levelFor(75), 'HIGH'); assert.equal(levelFor(90), 'URGENT')
+})
+
+test('intent decay: halves every 30 days of inactivity, fresh does not decay', () => {
+  const now = new Date().toISOString()
+  assert.equal(applyDecay(80, now), 80)
+  assert.equal(applyDecay(80, new Date(Date.now() - 30 * 86400000).toISOString()), 40)
+  assert.equal(applyDecay(80, new Date(Date.now() - 60 * 86400000).toISOString()), 20)
+  assert.equal(applyDecay(0, new Date(Date.now() - 60 * 86400000).toISOString()), 0)
+})
+test('intent: historical peak is retained across saves; getIntent exposes raw + peak', () => {
+  saveIntent(cid, { score: 90, level: 'URGENT', reasons: [] })
+  saveIntent(cid, { score: 20, level: 'LOW', reasons: [] })
+  const g = getIntent(cid)
+  assert.equal(g.peak, 90)
+  assert.equal(g.raw, 20)
 })
 
 test('high-intent phrases are detected', () => {

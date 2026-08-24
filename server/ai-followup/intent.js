@@ -39,20 +39,38 @@ export function computeIntent(clientId) {
   return { score, level: levelFor(score), reasons }
 }
 
+// Exponential intent decay: intent halves for every HALF_LIFE_DAYS of inactivity since it
+// was last updated. Keeps the score honest when a once-hot lead goes quiet, without a
+// scheduled sweep (applied at read time). URGENT/HIGH signals from a fresh recompute reset
+// updated_at, so genuinely active leads never decay.
+const HALF_LIFE_DAYS = 30
+export function applyDecay(score, updatedAt) {
+  const s = Number(score) || 0
+  if (s <= 0 || !updatedAt) return s
+  const days = (Date.now() - new Date((updatedAt || '').replace(' ', 'T') + (String(updatedAt).includes('Z') ? '' : 'Z')).getTime()) / 86400000
+  if (!(days > 0)) return s
+  const factor = Math.pow(0.5, days / HALF_LIFE_DAYS)
+  return Math.max(0, Math.round(s * factor))
+}
+
 export function getIntent(clientId) {
-  const li = db.get('SELECT intent_score, intent_level, intent_reason_json FROM lead_intelligence WHERE client_id=?', [Number(clientId)])
-  if (!li) return { score: 0, level: 'LOW', reasons: [] }
+  const li = db.get('SELECT intent_score, intent_level, intent_reason_json, updated_at, peak_intent FROM lead_intelligence WHERE client_id=?', [Number(clientId)])
+  if (!li) return { score: 0, level: 'LOW', reasons: [], peak: 0, raw: 0 }
   let reasons = []; try { reasons = JSON.parse(li.intent_reason_json || '[]') } catch {}
-  return { score: li.intent_score || 0, level: li.intent_level || 'LOW', reasons }
+  const raw = li.intent_score || 0
+  const score = applyDecay(raw, li.updated_at)
+  return { score, raw, peak: li.peak_intent || raw, level: levelFor(score), reasons, decayed: score < raw }
 }
 
 export function saveIntent(clientId, { score, level, reasons }, source = 'deterministic') {
   const cid = Number(clientId)
-  db.run(`INSERT INTO lead_intelligence (client_id, intent_score, intent_level, intent_reason_json, updated_at)
-          VALUES (?,?,?,?,datetime('now'))
-          ON CONFLICT(client_id) DO UPDATE SET intent_score=excluded.intent_score, intent_level=excluded.intent_level, intent_reason_json=excluded.intent_reason_json, updated_at=datetime('now')`,
-    [cid, score, level, JSON.stringify(reasons || [])])
+  const prevPeak = db.get('SELECT peak_intent FROM lead_intelligence WHERE client_id=?', [cid])?.peak_intent || 0
+  const peak = Math.max(prevPeak, Number(score) || 0)
+  db.run(`INSERT INTO lead_intelligence (client_id, intent_score, intent_level, intent_reason_json, peak_intent, updated_at)
+          VALUES (?,?,?,?,?,datetime('now'))
+          ON CONFLICT(client_id) DO UPDATE SET intent_score=excluded.intent_score, intent_level=excluded.intent_level, intent_reason_json=excluded.intent_reason_json, peak_intent=excluded.peak_intent, updated_at=datetime('now')`,
+    [cid, score, level, JSON.stringify(reasons || []), peak])
   db.run('INSERT INTO ai_intent_history (client_id, score, level, reasons_json, source, created_at) VALUES (?,?,?,?,?,?)',
     [cid, score, level, JSON.stringify(reasons || []), source, nowIso()])
-  return { score, level, reasons }
+  return { score, level, reasons, peak }
 }

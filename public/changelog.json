@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:27:55.797Z",
-  "count": 451,
+  "generated_at": "2026-08-24T15:32:04.310Z",
+  "count": 452,
   "entries": [
+    {
+      "hash": "fe0516c",
+      "date": "2026-08-24T10:28:00-05:00",
+      "subject": "Landline-skip: mark undeliverable numbers, skip them on automated sends",
+      "title": "Landline-skip: mark undeliverable numbers, skip them on automated sends",
+      "body": "- clients +sms_undeliverable(+reason,+at). When a send hard-fails with 30006 (landline/\n  unreachable carrier) or 30005 (unknown handset), the delivery-status webhook flags the\n  contact. Auto-cleared when they ever text us (proves the number receives SMS).\n- canSendSms skips flagged numbers for non-manual channels (so AI/drip/automation/bulk\n  all skip them via the collision guard); scheduled 1:1 texts skip too. Manual still allowed.\n- Stops repeatedly texting landlines (the 30006 waste seen in the Twilio reputation check).\n\n1 new test; 113 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f3ffd02",
       "date": "2026-08-24T10:01:21-05:00",

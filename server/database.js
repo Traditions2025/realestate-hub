@@ -1004,6 +1004,9 @@ export async function initDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // Intent decay (P1-3): remember the historical peak so a lead hot months ago but quiet
+  // since shows a decayed CURRENT intent while its peak stays visible for context.
+  try { db.run('ALTER TABLE lead_intelligence ADD COLUMN peak_intent INTEGER') } catch {}
   // Normalized lead-event log (CRM + website + comms events the AI reacts to).
   db.run(`
     CREATE TABLE IF NOT EXISTS lead_events (
