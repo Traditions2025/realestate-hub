@@ -10,7 +10,8 @@ const router = Router()
 router.get('/health', requirePermission('settings.view'), async (_req, res) => {
   try {
     const { getBackupHealth } = await import('../backup.js')
-    res.json({ failures: failureCounts(), backup: getBackupHealth() })
+    const { gdriveStatus } = await import('../gdrive-backup.js')
+    res.json({ failures: failureCounts(), backup: getBackupHealth(), gdrive: gdriveStatus() })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 

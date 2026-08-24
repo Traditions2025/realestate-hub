@@ -304,6 +304,12 @@ function HealthPanel() {
   useEffect(() => { load() }, [load])
   const resolve = async (id) => { await authFetch(`/api/admin/failures/${id}/resolve`, { method: 'POST' }); load() }
   const resolveAll = async () => { if (!confirm('Mark all open failures resolved?')) return; await authFetch('/api/admin/failures/resolve-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); load() }
+  const [gBusy, setGBusy] = useState(false)
+  const gdriveBackupNow = async () => {
+    setGBusy(true)
+    try { const d = await authFetch('/api/gdrive/backup-now', { method: 'POST' }).then(r => r.json()); if (d.error) alert('Backup failed: ' + d.error); else if (d.skipped) alert('Skipped: ' + d.skipped); else alert(`Backed up ${d.uploaded} (${d.sizeKb} KB) to Google Drive → Matt Smith Team Hub / Render.`); load() }
+    catch (e) { alert('Backup failed: ' + e.message) } finally { setGBusy(false) }
+  }
   if (err) return <div className="detail-section"><h4>System Health</h4><div style={{ color: '#ef4444', fontSize: 13 }}>{err}</div></div>
   const b = health?.backup
   const badge = (ok, okText, badText) => <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
@@ -339,6 +345,31 @@ function HealthPanel() {
           </div>
         )}
         <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>Each backup is opened and integrity-checked, so “verified usable” means a real, restorable database — not just that the backup job ran.</p>
+      </div>
+
+      {/* Off-site backup: Google Drive */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <h4>Off-site backup — Google Drive</h4>
+        {(() => {
+          const g = health?.gdrive
+          if (!g) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
+          if (!g.oauth_configured) return <div style={{ fontSize: 13, color: '#b45309' }}>⚠ Not set up yet. An owner needs to add a Google OAuth client (GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET) on the server, then the “Connect Google Drive” button appears here.</div>
+          if (!g.connected) return (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Not connected. Backups go to <b>{g.folder}</b>.</span>
+              <a className="btn btn-primary btn-sm" href="/api/gdrive/connect">🔗 Connect Google Drive</a>
+            </div>
+          )
+          return (
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13, alignItems: 'center' }}>
+              <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(true, '✓ Connected', '')}</div>
+              <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Folder</div>{g.folder}</div>
+              <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Last off-site backup</div>{g.last_backup_at ? `${new Date(g.last_backup_at).toLocaleString()}${g.last_backup_kb ? ` · ${g.last_backup_kb} KB` : ''}` : '— none yet —'}</div>
+              <button className="btn btn-sm" onClick={gdriveBackupNow} disabled={gBusy}>{gBusy ? 'Backing up…' : '⤒ Back up now'}</button>
+              <a className="btn btn-sm" href="/api/gdrive/connect" title="Reconnect a different Google account">Reconnect</a>
+            </div>
+          )
+        })()}
       </div>
 
       {/* Failures */}

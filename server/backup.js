@@ -261,6 +261,15 @@ export async function runDailyBackup() {
   } catch (err) {
     result.emailError = err.message
   }
+  // Off-site to Google Drive (Matt Smith Team Hub / Render) — only if connected. This is
+  // the reliable off-Render copy now that the DB exceeds the 25 MB email attachment cap.
+  try {
+    const { backupDbToGDrive, gdriveConnected } = await import('./gdrive-backup.js')
+    if (gdriveConnected()) result.gdrive = await backupDbToGDrive()
+  } catch (err) {
+    result.gdriveError = err.message
+    try { const { recordFailure } = await import('./failures.js'); recordFailure('backup', { ref: 'gdrive', summary: 'Google Drive off-site backup failed', error: err.message }) } catch {}
+  }
   result.finishedAt = new Date().toISOString()
   console.log('[backup] daily run:', JSON.stringify(result))
   // Alert (via the failure log) if the disk backup didn't produce a usable file.

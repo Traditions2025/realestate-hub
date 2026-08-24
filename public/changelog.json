@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T14:45:57.521Z",
-  "count": 448,
+  "generated_at": "2026-08-24T14:59:06.571Z",
+  "count": 449,
   "entries": [
+    {
+      "hash": "ca47520",
+      "date": "2026-08-24T09:46:34-05:00",
+      "subject": "Auth: show-password toggle everywhere + forgot-password email reset flow",
+      "title": "Auth: show-password toggle everywhere + forgot-password email reset flow",
+      "body": "- PasswordField component (eye toggle) used on login, the reset page, the Admin\n  add-user form, and a new Admin set-password modal (replaces the plain prompt).\n- Forgot password: login screen -> email -> POST /api/auth/forgot-password sends a\n  1-hour reset link to the matching account (always returns success; no email\n  enumeration). Public /reset-password page (ResetPassword) completes it via\n  POST /api/auth/reset-password, then revokes that user's sessions.\n- SECURITY: reset tokens use a distinct 'reset' type; principalFor() now only accepts\n  'team'/'user' tokens, so a reset token can never authenticate a session.\n\n112 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "478e01f",
       "date": "2026-08-21T17:26:23-05:00",
