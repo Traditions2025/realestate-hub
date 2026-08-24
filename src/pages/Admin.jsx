@@ -9,6 +9,7 @@ const TABS = [
   ['roles', '🛡 Roles & Permissions'],
   ['team', '📇 Team Directory'],
   ['email', '✉ Email Inboxes'],
+  ['routing', '🎯 Lead Routing'],
   ['health', '🩺 System Health'],
   ['audit', '📜 Audit Log'],
 ]
@@ -35,6 +36,7 @@ export default function Admin() {
       {tab === 'roles' && <RolesPanel />}
       {tab === 'team' && <TeamPanel />}
       {tab === 'email' && <EmailPanel />}
+      {tab === 'routing' && <RoutingPanel />}
       {tab === 'health' && <HealthPanel />}
       {tab === 'audit' && <AuditPanel />}
     </div>
@@ -286,6 +288,165 @@ function EmailPanel() {
         <button className="btn btn-primary" disabled={busy}>{busy ? 'Connecting…' : '+ Connect inbox'}</button>
         {msg && <span style={{ fontSize: 12.5, color: msg.startsWith('✓') ? '#10b981' : '#b45309' }}>{msg}</span>}
       </form>
+    </div>
+  )
+}
+
+// ---------------- Lead Routing ----------------
+const METHOD_LABEL = { round_robin: 'Round robin', weighted: 'Weighted', specific: 'Specific agent' }
+const csv = (arr) => (Array.isArray(arr) ? arr.join(', ') : '')
+const fromCsv = (s) => String(s || '').split(',').map(x => x.trim()).filter(Boolean)
+
+function RoutingPanel() {
+  const [enabled, setEnabled] = useState(false)
+  const [rules, setRules] = useState([])
+  const [agents, setAgents] = useState([])
+  const [history, setHistory] = useState([])
+  const [editing, setEditing] = useState(null)
+  const [runResult, setRunResult] = useState(null)
+  const load = useCallback(() => {
+    authFetch('/api/routing/settings').then(r => r.json()).then(d => setEnabled(!!d.enabled)).catch(() => {})
+    authFetch('/api/routing/rules').then(r => r.json()).then(d => setRules(Array.isArray(d) ? d : [])).catch(() => {})
+    authFetch('/api/routing/history?limit=40').then(r => r.json()).then(d => setHistory(Array.isArray(d) ? d : [])).catch(() => {})
+  }, [])
+  useEffect(() => { load(); authFetch('/api/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [load])
+  const toggle = async () => { await authFetch('/api/routing/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !enabled }) }); load() }
+  const del = async (id) => { if (!confirm('Delete this rule?')) return; await authFetch('/api/routing/rules/' + id, { method: 'DELETE' }); load() }
+  const toggleRule = async (r) => { await authFetch('/api/routing/rules/' + r.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !r.enabled }) }); load() }
+  const run = async (apply) => { const d = await authFetch('/api/routing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apply }) }).then(r => r.json()); setRunResult(d); load() }
+
+  return (
+    <div>
+      {/* Master switch */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <h4 style={{ margin: 0 }}>Automatic lead routing</h4>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: enabled ? 'rgba(16,185,129,.12)' : 'rgba(107,114,128,.15)', color: enabled ? '#10b981' : 'var(--text-muted)' }}>{enabled ? 'ON' : 'OFF'}</span>
+          <button className={`btn btn-sm ${enabled ? '' : 'btn-primary'}`} style={{ marginLeft: 'auto' }} onClick={toggle}>{enabled ? 'Turn off' : 'Turn on'}</button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
+          {enabled
+            ? 'ON — routing will assign matching leads per your rules when you run it. A lead that already has an agent is never reassigned automatically.'
+            : 'OFF — nothing is being routed. Configure your rules below, then turn this on when you’re ready. Rules only take effect while this is ON.'}
+        </p>
+      </div>
+
+      {/* Rules */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h4 style={{ margin: 0 }}>Routing rules ({rules.length})</h4>
+          <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setEditing({ name: '', priority: 100, method: 'round_robin', conditions: {}, targets: [] })}>+ Add rule</button>
+        </div>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>Evaluated top to bottom (lowest priority number first); the first match wins.</p>
+        {rules.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No rules yet.</div> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {rules.map(r => (
+              <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', opacity: r.enabled ? 1 : 0.55 }}>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 34 }}>#{r.priority}</span>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{METHOD_LABEL[r.method] || r.method} → {(r.targets || []).map(t => t.agent + (r.method === 'weighted' ? ` (${t.weight || 1})` : '')).join(', ') || '(no agents)'}</div>
+                </div>
+                <button className="btn btn-sm" onClick={() => toggleRule(r)}>{r.enabled ? 'Disable' : 'Enable'}</button>
+                <button className="btn btn-sm" onClick={() => setEditing(r)}>Edit</button>
+                <button className="btn btn-sm" onClick={() => del(r.id)}>Delete</button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Run */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <h4>Run on unassigned leads</h4>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 8px' }}>Preview shows what would happen without changing anything. Apply actually assigns (requires routing ON).</p>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button className="btn btn-sm" onClick={() => run(false)}>👁 Preview</button>
+          <button className="btn btn-primary btn-sm" onClick={() => run(true)} disabled={!enabled} title={enabled ? '' : 'Turn routing on first'}>Apply</button>
+        </div>
+        {runResult && (
+          <div style={{ marginTop: 10, fontSize: 12.5 }}>
+            {!runResult.ok ? <span style={{ color: '#b45309' }}>{runResult.reason}</span> : (
+              <>
+                <div>{runResult.dryRun ? 'Would route' : 'Routed'} <b>{runResult.routed}</b> of {runResult.considered} unassigned leads.</div>
+                {(runResult.sample || []).length > 0 && <ul style={{ margin: '6px 0 0 18px', color: 'var(--text-muted)' }}>{runResult.sample.map((s, i) => <li key={i}>{s.client} → <b>{s.agent}</b> <span style={{ opacity: .7 }}>({s.rule})</span></li>)}</ul>}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* History */}
+      <div className="detail-section">
+        <h4>Recent routing history</h4>
+        {history.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No routing has happened yet.</div> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 12.5 }}>
+            {history.map(h => (
+              <div key={h.id} style={{ display: 'flex', gap: 10, borderBottom: '1px solid var(--border)', padding: '4px 0' }}>
+                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h.created_at ? new Date(h.created_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
+                <span>#{h.client_id} → <b>{h.new_owner}</b></span>
+                <span style={{ color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.reason}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {editing && <RuleEditor rule={editing} agents={agents} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
+    </div>
+  )
+}
+
+function RuleEditor({ rule, agents, onClose, onSaved }) {
+  const [f, setF] = useState(() => ({
+    name: rule.name || '', priority: rule.priority ?? 100, method: rule.method || 'round_robin',
+    conditions: rule.conditions || {}, targets: rule.targets && rule.targets.length ? rule.targets : [{ agent: '', weight: 1 }],
+  }))
+  const setC = (k, v) => setF(s => ({ ...s, conditions: { ...s.conditions, [k]: v } }))
+  const save = async () => {
+    if (!f.name.trim()) { alert('Give the rule a name.'); return }
+    const targets = f.targets.filter(t => t.agent).map(t => ({ agent: t.agent, weight: Number(t.weight) || 1 }))
+    if (!targets.length) { alert('Add at least one agent.'); return }
+    const body = { name: f.name.trim(), priority: Number(f.priority) || 100, method: f.method, conditions: f.conditions, targets }
+    const url = rule.id ? '/api/routing/rules/' + rule.id : '/api/routing/rules'
+    const d = await authFetch(url, { method: rule.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json())
+    if (d.error) alert(d.error); else onSaved()
+  }
+  const inp = { ...fld }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, width: 560, maxWidth: '96vw', maxHeight: '90vh', overflowY: 'auto' }}>
+        <h4 style={{ marginTop: 0 }}>{rule.id ? 'Edit rule' : 'New routing rule'}</h4>
+        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr', gap: 8, marginBottom: 10 }}>
+          <label style={{ fontSize: 12 }}>Name<input value={f.name} onChange={e => setF(s => ({ ...s, name: e.target.value }))} style={inp} /></label>
+          <label style={{ fontSize: 12 }}>Priority<input type="number" value={f.priority} onChange={e => setF(s => ({ ...s, priority: e.target.value }))} style={inp} /></label>
+          <label style={{ fontSize: 12 }}>Method<select value={f.method} onChange={e => setF(s => ({ ...s, method: e.target.value }))} style={inp}>{Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+        </div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 6px' }}>Conditions (leave blank = matches anything)</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+          {[['sources', 'Sources'], ['cities', 'Cities'], ['zips', 'ZIP codes'], ['types', 'Types (buyer/seller/both)'], ['statuses', 'Statuses'], ['tags_any', 'Tags (any of)']].map(([k, label]) => (
+            <label key={k} style={{ fontSize: 12 }}>{label}<input value={csv(f.conditions[k])} onChange={e => setC(k, fromCsv(e.target.value))} placeholder="comma-separated" style={inp} /></label>
+          ))}
+          <label style={{ fontSize: 12 }}>Min price<input type="number" value={f.conditions.price_min || ''} onChange={e => setC('price_min', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
+          <label style={{ fontSize: 12 }}>Max price<input type="number" value={f.conditions.price_max || ''} onChange={e => setC('price_max', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
+        </div>
+        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '12px 0 6px' }}>Assign to</div>
+        {f.targets.map((t, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+            <select value={t.agent} onChange={e => setF(s => { const ts = [...s.targets]; ts[i] = { ...ts[i], agent: e.target.value }; return { ...s, targets: ts } })} style={{ ...inp, flex: 1 }}>
+              <option value="">Select agent…</option>
+              {agents.map(a => <option key={a.id} value={a.name}>{a.name}</option>)}
+            </select>
+            {f.method === 'weighted' && <input type="number" value={t.weight} onChange={e => setF(s => { const ts = [...s.targets]; ts[i] = { ...ts[i], weight: e.target.value }; return { ...s, targets: ts } })} placeholder="weight" style={{ ...inp, width: 90 }} />}
+            <button className="btn btn-sm" onClick={() => setF(s => ({ ...s, targets: s.targets.filter((_, j) => j !== i) }))}>✕</button>
+          </div>
+        ))}
+        <button className="btn btn-sm" onClick={() => setF(s => ({ ...s, targets: [...s.targets, { agent: '', weight: 1 }] }))}>+ Add agent</button>
+        <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+          <button className="btn btn-sm" onClick={onClose}>Cancel</button>
+          <button className="btn btn-primary btn-sm" onClick={save}>Save rule</button>
+        </div>
+      </div>
     </div>
   )
 }

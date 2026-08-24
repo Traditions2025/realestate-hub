@@ -10,6 +10,7 @@ import authRouter, { requireAuth } from './routes/auth.js'
 import usersRouter, { ensureOwnerSeed } from './routes/users.js'
 import adminRouter from './routes/admin.js'
 import gdriveRouter from './routes/gdrive.js'
+import routingRouter from './routes/routing.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import { startScheduler } from './scheduler.js'
 import { purgeStopStatusEnrollments } from './lead-sequences.js'
@@ -223,6 +224,7 @@ async function start() {
   app.use('/api/users', usersRouter)
   app.use('/api/admin', adminRouter)
   app.use('/api/gdrive', gdriveRouter)   // /connect + /callback are exempted in requireAuth (browser redirects)
+  app.use('/api/routing', routingRouter)
 
   // Recent crashes captured by the process handlers (most recent first).
   app.get('/api/crash-log', (_req, res) => {

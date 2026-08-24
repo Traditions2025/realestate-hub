@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:32:04.310Z",
-  "count": 452,
+  "generated_at": "2026-08-24T15:39:18.357Z",
+  "count": 453,
   "entries": [
+    {
+      "hash": "c732c64",
+      "date": "2026-08-24T10:32:10-05:00",
+      "subject": "P1-3: intent decay + historical peak",
+      "title": "P1-3: intent decay + historical peak",
+      "body": "- lead_intelligence +peak_intent (ALTER placed after the table's CREATE).\n- intent.applyDecay(): exponential decay, intent halves per 30 days of inactivity,\n  applied at read time in getIntent so a once-hot lead that went quiet reads honestly.\n  A fresh recompute (on engagement) resets the clock, so active leads never decay.\n- saveIntent tracks the historical peak; getIntent returns { score(decayed), raw, peak }.\n\n2 new tests; 115 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fe0516c",
       "date": "2026-08-24T10:28:00-05:00",

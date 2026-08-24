@@ -900,6 +900,36 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_failed_state ON failed_jobs(state, kind)') } catch {}
+  // Lead routing (P1-6). Built but INERT: routing_enabled defaults off and no trigger
+  // auto-routes, so nothing happens until an owner configures rules and turns it on.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS routing_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      enabled INTEGER DEFAULT 1,
+      priority INTEGER DEFAULT 100,        -- lower = evaluated first
+      conditions_json TEXT,                -- { sources:[],cities:[],zips:[],types:[],statuses:[],tags_any:[],price_min,price_max }
+      method TEXT DEFAULT 'round_robin',   -- round_robin | weighted | specific
+      targets_json TEXT,                   -- [{ agent:'Matt Smith', weight:1 }]
+      rr_cursor INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS routing_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      previous_owner TEXT,
+      new_owner TEXT,
+      rule_id INTEGER,
+      rule_name TEXT,
+      reason TEXT,
+      source TEXT,                         -- routing | user | system
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_routing_hist_client ON routing_history(client_id)') } catch {}
   // Group texting via Twilio Conversations (true group MMS). A group message and every
   // reply share a conversation_sid, so the Inbox can render them as ONE thread.
   try { db.run('ALTER TABLE communications ADD COLUMN conversation_sid TEXT') } catch {}
