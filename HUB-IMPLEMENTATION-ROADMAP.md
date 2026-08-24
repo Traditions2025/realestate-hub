@@ -40,8 +40,10 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 
 ## P1 — Core CRM / AI production readiness
 
-### P1-1 · Model-scored AI regression suite (Phase 7)
+### P1-1 · Model-scored AI regression suite (Phase 7) — ✅ DONE (framework + seed suite)
 - 50 buyer + 50 seller scenarios, 0–2 rubric, auto-fail on hallucination/steering/ignored-STOP, saved runs, prompt/model-version diff. **Gate before broad Autopilot.** Dependencies: AI stack. Risk: Low (offline eval). Testing: the harness IS the test.
+- Shipped: `server/ai-eval/` — pure `score.js` (0/1/2 rubric + hard auto-fails: ignored STOP, hallucinated price/valuation, steering, fair-housing), `scenarios.js` (seed suite of 12 buyer + 12 seller covering every auto-fail path and rubric dimension; extensible toward the 50+50 target), `run.js` (live-model runner reusing the production prompt builders, batched, persists to `ai_eval_runs`/`ai_eval_results` with prompt/model-version). Endpoints `GET /api/ai/eval/scenarios|runs|runs/:id` + `POST /api/ai/eval/run`. UI panel in Settings → AI (run buyer/seller/full, saved-run history with pass-rate + auto-fail count, per-scenario worst-first drilldown). 10 offline scorer tests (140 total).
+- **Note:** seed is 24 scenarios, not the full 50+50; the framework scales automatically as scenarios are added to the two arrays.
 
 ### P1-2 · Conversation classifier + structured memory fields (Phase 6) — ✅ DONE
 - Add a classifier stage writing `conversation_type` (buyer/seller enums) + per-field memory `source/confidence/timestamp`. Extend `lead_intelligence`. Dependencies: prompts/orchestrator. Risk: Medium (prompt behavior) → keep single model call, add a light classify pass. Testing: classifier scenarios + regression suite.

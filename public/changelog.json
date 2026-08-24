@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T15:59:04.614Z",
-  "count": 456,
+  "generated_at": "2026-08-24T16:06:32.363Z",
+  "count": 457,
   "entries": [
+    {
+      "hash": "152dc22",
+      "date": "2026-08-24T10:59:26-05:00",
+      "subject": "P1-5: Smart Audiences behavioral segmentation engine",
+      "title": "P1-5: Smart Audiences behavioral segmentation engine",
+      "body": "- server/smart-audience.js: recursive AND/OR condition tree -> safe\n  parameterized SQL over clients. Whitelisted field registry + operators\n  (no injection possible; values always bound). Behavioral fields resolved via\n  correlated subqueries: intent, peak_intent, conversation_type, ai_managed,\n  handoff_pending, overdue_next_action, last_human_contact_days (human = no\n  ai_action_id), repeat_views_14d, realist_sell_score.\n- GET /api/lists/smart/fields + POST /api/lists/smart/preview (count + sample).\n  Dynamic lists now accept a v2 tree in filter_criteria, back-compatible with\n  legacy flat filters (resolveDynamic).\n- New Smart Audiences page: visual builder, ALL/ANY match, live debounced\n  count + sample chips, save-as-dynamic-list. Nav under Marketing.\n- 6 engine tests incl. SQL-injection safety. 131 total.\n\nSEGMENTATION ONLY — never sends.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4c2bc30",
       "date": "2026-08-24T10:54:16-05:00",

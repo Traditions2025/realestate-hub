@@ -1117,6 +1117,41 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_handoff_queue ON ai_handoffs(status, urgency, created_at)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_handoff_agent ON ai_handoffs(assigned_to, status)') } catch {}
+  // AI regression eval (P1-1): saved runs of the scenario suite. Each run scores every
+  // scenario 0-2 against a rubric with hard auto-fails (ignored STOP, hallucination,
+  // steering, fair-housing). Gates broad Autopilot; supports prompt/model-version diff.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_eval_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      created_at TEXT DEFAULT (datetime('now')),
+      model TEXT,
+      prompt_version TEXT,
+      total INTEGER DEFAULT 0,
+      passed INTEGER DEFAULT 0,
+      failed INTEGER DEFAULT 0,
+      autofails INTEGER DEFAULT 0,
+      avg_score REAL DEFAULT 0,
+      pass_rate REAL DEFAULT 0,
+      notes TEXT,
+      status TEXT DEFAULT 'complete'         -- running|complete|error
+    )
+  `)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_eval_results (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      run_id INTEGER,
+      scenario_id TEXT,
+      segment TEXT,                          -- buyer|seller
+      title TEXT,
+      score INTEGER,                         -- 0|1|2
+      autofail TEXT,                         -- null or the failure reason
+      action TEXT,
+      message TEXT,
+      checks_json TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_eval_results_run ON ai_eval_results(run_id)') } catch {}
   // Durable scheduled AI actions (proactive/nurture) — restart-safe, idempotent.
   db.run(`
     CREATE TABLE IF NOT EXISTS ai_scheduled_actions (

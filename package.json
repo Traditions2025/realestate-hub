@@ -9,7 +9,7 @@
     "changelog": "node scripts/generate-changelog.mjs",
     "build": "node scripts/generate-changelog.mjs && vite build",
     "start": "node server/index.js",
-    "test": "node --test test/comms.test.mjs test/hubai.test.mjs test/hubai-scenarios.test.mjs test/auth-rbac.test.mjs test/collision-guard.test.mjs test/failures-backup.test.mjs test/routing.test.mjs test/memory-classifier.test.mjs test/smart-audience.test.mjs"
+    "test": "node --test test/comms.test.mjs test/hubai.test.mjs test/hubai-scenarios.test.mjs test/auth-rbac.test.mjs test/collision-guard.test.mjs test/failures-backup.test.mjs test/routing.test.mjs test/memory-classifier.test.mjs test/smart-audience.test.mjs test/ai-eval.test.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

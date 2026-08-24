@@ -198,6 +198,21 @@ router.get('/opportunities', (req, res) => {
 router.post('/opportunities/:id/ack', (req, res) => { db.run("UPDATE ai_handoffs SET status='acknowledged', acknowledged_at=? WHERE id=?", [nowIso(), Number(req.params.id)]); res.json({ success: true }) })
 router.post('/opportunities/:id/resolve', (req, res) => { db.run("UPDATE ai_handoffs SET status='resolved', completed_at=? WHERE id=?", [nowIso(), Number(req.params.id)]); res.json({ success: true }) })
 
+// ---- AI regression eval (P1-1): operator-triggered scenario suite + saved runs ----
+router.get('/eval/scenarios', async (_req, res) => {
+  const { ALL_SCENARIOS } = await import('../ai-eval/scenarios.js')
+  res.json(ALL_SCENARIOS.map(s => ({ id: s.id, segment: s.segment, title: s.title })))
+})
+router.get('/eval/runs', async (_req, res) => { const { listRuns } = await import('../ai-eval/run.js'); res.json(listRuns(30)) })
+router.get('/eval/runs/:id', async (req, res) => { const { getRun } = await import('../ai-eval/run.js'); const r = getRun(Number(req.params.id)); r ? res.json(r) : res.status(404).json({ error: 'run not found' }) })
+router.post('/eval/run', async (req, res) => {
+  try {
+    const { runEval } = await import('../ai-eval/run.js')
+    const out = await runEval({ segment: req.body?.segment, limit: req.body?.limit, model: req.body?.model })
+    out.ok ? res.json(out) : res.status(400).json(out)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ---- facets: distinct tags / statuses / sources for the exclusion picker ----
 let _facetCache = { at: 0, data: null }
 router.get('/facets', (_req, res) => {
