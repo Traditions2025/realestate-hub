@@ -74,12 +74,22 @@ export async function syncFsboMaster() {
   const rows = await fetchFsboMasterRows()
   const report = { sheet_rows: rows.length, matched: 0, updated: 0, in_list_now: 0, unmatched: [], counts: { Available: 0, 'Off Market': 0 } }
   const now = nowIso()
+  // Phones in the DB are stored formatted ("(319) 531-0905"), so a raw-digit LIKE never
+  // matches. Build a normalized last-10 -> client index once. On a shared number, prefer
+  // an FSBO-tagged client, else the lowest id.
+  const index = new Map()
+  for (const c of db.all("SELECT id, phone, tags, fsbo_status FROM clients WHERE phone IS NOT NULL AND phone != ''")) {
+    const k = last10(c.phone); if (!k) continue
+    const prev = index.get(k)
+    if (!prev) { index.set(k, c); continue }
+    const isFsbo = (x) => /fsbo/i.test(x.tags || '')
+    if (isFsbo(c) && !isFsbo(prev)) index.set(k, c)
+    else if (isFsbo(c) === isFsbo(prev) && c.id < prev.id) index.set(k, c)
+  }
   for (const row of rows) {
     const key = last10(row.phone)
     report.counts[row.status] = (report.counts[row.status] || 0) + 1
-    // Match by phone (last 10). If several clients share the number, take the FSBO-ish one.
-    const candidates = db.all("SELECT id, phone, fsbo_status, status FROM clients WHERE phone LIKE ?", ['%' + key])
-    const match = candidates.find(c => last10(c.phone) === key)
+    const match = key ? index.get(key) : null
     if (!match) { report.unmatched.push({ name: row.name, phone: row.phone, address: row.address, city: row.city, status: row.status }); continue }
     report.matched++
     if (match.fsbo_status !== row.status) {
