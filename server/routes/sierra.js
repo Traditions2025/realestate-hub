@@ -504,10 +504,12 @@ router.post('/create-lead', async (req, res) => {
   try { tags = JSON.parse(client.tags || '[]') } catch {}
   const digits = String(client.phone || '').replace(/\D/g, '').slice(-10)
   const sierraStatus = HUB_TO_SIERRA_STATUS[String(client.status || 'watch').toLowerCase()] || 'Watch'
-  // Sierra create-lead payload. Field names per the Sierra Interactive API.
+  // Sierra's POST /leads requires a password (each lead gets a portal account). The lead
+  // never uses it; generate a strong random one.
+  const password = 'Fsbo!' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6).toUpperCase()
   const payload = {
     firstName: client.first_name || '', lastName: client.last_name || '(FSBO)',
-    email: client.email || undefined,
+    email: client.email || undefined, password,
     cellPhone: digits || undefined,
     leadStatus: sierraStatus,
     source: client.source || 'FSBO Master',
@@ -515,13 +517,9 @@ router.post('/create-lead', async (req, res) => {
     state: client.state || 'IA', zipCode: client.zip || undefined,
     tags: tags.length ? tags : undefined,
   }
-  if (req.body?.dryRun) return res.json({ dryRun: true, payload })
+  if (req.body?.dryRun) return res.json({ dryRun: true, payload: { ...payload, password: '***' } })
 
-  const attempts = [
-    { path: '/leads/create', body: payload },
-    { path: '/leads', body: payload },
-    { path: '/leads/add', body: payload },
-  ]
+  const attempts = [{ path: '/leads', body: payload }]
   const errors = []
   for (const a of attempts) {
     try {
