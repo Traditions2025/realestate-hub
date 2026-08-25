@@ -492,6 +492,56 @@ router.post('/update-lead-status', async (req, res) => {
   })
 })
 
+// Create a Hub-native lead (e.g. a master-file FSBO with no sierra_lead_id) IN Sierra,
+// then link it back by storing the returned sierra_lead_id on the Hub record. dryRun:true
+// returns the payload without calling Sierra.
+router.post('/create-lead', async (req, res) => {
+  const client = db.get('SELECT * FROM clients WHERE id=?', [Number(req.body?.client_id)])
+  if (!client) return res.status(404).json({ error: 'client not found' })
+  if (client.sierra_lead_id) return res.status(400).json({ error: 'already in Sierra', sierra_lead_id: client.sierra_lead_id })
+
+  let tags = []
+  try { tags = JSON.parse(client.tags || '[]') } catch {}
+  const digits = String(client.phone || '').replace(/\D/g, '').slice(-10)
+  const sierraStatus = HUB_TO_SIERRA_STATUS[String(client.status || 'watch').toLowerCase()] || 'Watch'
+  // Sierra create-lead payload. Field names per the Sierra Interactive API.
+  const payload = {
+    firstName: client.first_name || '', lastName: client.last_name || '(FSBO)',
+    email: client.email || undefined,
+    cellPhone: digits || undefined,
+    leadStatus: sierraStatus,
+    source: client.source || 'FSBO Master',
+    streetAddress: client.address || undefined, city: client.city || undefined,
+    state: client.state || 'IA', zipCode: client.zip || undefined,
+    tags: tags.length ? tags : undefined,
+  }
+  if (req.body?.dryRun) return res.json({ dryRun: true, payload })
+
+  const attempts = [
+    { path: '/leads/create', body: payload },
+    { path: '/leads', body: payload },
+    { path: '/leads/add', body: payload },
+  ]
+  const errors = []
+  for (const a of attempts) {
+    try {
+      const result = await sierraPost(a.path, a.body)
+      const data = result?.data || result
+      const newId = data?.id || data?.leadId || data?.leadID
+      if (newId) {
+        db.run('UPDATE clients SET sierra_lead_id=?, updated_at=? WHERE id=?', [String(newId), new Date().toISOString(), client.id])
+        db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+          ['sierra_lead_created', 'client', client.id, `Created in Sierra (id ${newId}) via POST ${a.path}`])
+      }
+      return res.json({ success: true, endpoint_used: `POST ${a.path}`, sierra_lead_id: newId || null, sierra_response: data })
+    } catch (err) {
+      errors.push({ endpoint: `POST ${a.path}`, error: err.message })
+      if (!/40[045]/.test(err.message)) break   // only fall through on route-mismatch 404s
+    }
+  }
+  res.status(502).json({ success: false, error: 'Sierra create-lead failed', attempts: errors, payload })
+})
+
 // Push edited profile fields to Sierra so Hub edits STICK (otherwise the sync
 // overwrites them back to Sierra's values). Uses the documented PUT /leads/{id}
 // (partial update). Send only the fields you changed. Non-empty values only, so
