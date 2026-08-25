@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-25T20:30:42.681Z",
-  "count": 493,
+  "generated_at": "2026-08-25T20:56:22.882Z",
+  "count": 495,
   "entries": [
+    {
+      "hash": "06c41ea",
+      "date": "2026-08-25T15:41:52-05:00",
+      "subject": "FSBO follow-up greeting: no 'evening' (we never text then); 'Hello' at 4PM; window 9AM-4:59PM",
+      "title": "FSBO follow-up greeting: no 'evening' (we never text then); 'Hello' at 4PM; window 9AM-4:59PM",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4187c25",
+      "date": "2026-08-25T15:30:46-05:00",
+      "subject": "Templates: custom/merge field picker to insert fields into text (and email) template bodies",
+      "title": "Templates: custom/merge field picker to insert fields into text (and email) template bodies",
+      "body": "Adds a '+ Custom field' dropdown and quick-insert buttons (First name, Last name,\nAddress, City, ...) that insert {{merge}} tokens at the cursor in the text template\nbody and the email HTML editor.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "21deed0",
       "date": "2026-08-25T15:29:22-05:00",

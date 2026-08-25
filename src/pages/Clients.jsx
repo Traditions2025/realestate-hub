@@ -2345,7 +2345,20 @@ export default function Clients() {
                   checked={items.length > 0 && items.every(i => selectedIds.has(i.id))}
                   onChange={e => { if (e.target.checked) selectAllVisible(); else clearSelection() }} />
               </div>
-              {visibleColumns.map(renderHeaderCell)}
+              {visibleColumns.map(col => (
+                <div key={col.key} draggable
+                  onDragStart={e => { setDragColKey(col.key); e.dataTransfer.effectAllowed = 'move' }}
+                  onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
+                  onDrop={e => { e.preventDefault(); reorderColumn(dragColKey, col.key); setDragColKey(null) }}
+                  onDragEnd={() => setDragColKey(null)}
+                  className="cl-col-drag"
+                  style={{ display: 'flex', alignItems: 'center', minWidth: 0, cursor: 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
+                  onDragEnter={e => { if (dragColKey && dragColKey !== col.key) e.currentTarget.style.borderLeft = '2px solid var(--accent, #2563eb)' }}
+                  onDragLeave={e => { e.currentTarget.style.borderLeft = '2px solid transparent' }}
+                  title="Drag to move this column">
+                  {renderHeaderCell(col)}
+                </div>
+              ))}
             </div>
             {items.map(item => (
               <React.Fragment key={item.id}>
