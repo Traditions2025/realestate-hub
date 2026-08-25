@@ -11,7 +11,7 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 
 ## P0 — Security / Data Integrity
 
-### P0-1 · Individual accounts + roles + audit log (Phase 1, foundation) — **START HERE**
+### P0-1 · Individual accounts + roles + audit log (Phase 1, foundation) — ✅ DONE
 - **Why it matters:** replaces the single shared password with attributable identities and least-privilege; unblocks the audit log every sensitive action needs.
 - **Current state:** ⛔ shared `TEAM_PASSWORD` + stateless team token; no users/roles/audit.
 - **Required work (incremental):**
@@ -49,7 +49,7 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 - Add a classifier stage writing `conversation_type` (buyer/seller enums) + per-field memory `source/confidence/timestamp`. Extend `lead_intelligence`. Dependencies: prompts/orchestrator. Risk: Medium (prompt behavior) → keep single model call, add a light classify pass. Testing: classifier scenarios + regression suite.
 - Shipped: `conversation_type` rides on the existing single model call (added to the output JSON schema + `lead_intelligence.conversation_type` column, no extra API round-trip). New `lead_memory_fields` table records per-field `source/confidence/timestamp`; `applyMemory` is confidence-gated so a weak AI guess never overwrites a stronger human/import fact. Surfaced on the client profile (conversation-type badge + "What HUB AI has learned" provenance list) and in the AI Opportunities queue label. 4 classifier tests.
 
-### P1-3 · Behavioral events + intent decay (Phase 8)
+### P1-3 · Behavioral events + intent decay (Phase 8) — ✅ DONE
 - Normalized `behavioral_events` (typed, weighted); intent **decay** over time with `current/peak/previous/delta`; feed audiences + opportunities + NBA. Dependencies: fub/tracking. Risk: Medium. Testing: decay math; peak retention; event weighting.
 
 ### P1-4 · AI Opportunities 2.0 (Phase 5) — ✅ DONE
@@ -60,20 +60,20 @@ Priority bands: **P0** security/data integrity · **P1** core CRM/AI production 
 - Extend `client_lists` into an AND/OR condition engine adding intent, last-human-contact, repeat-view, Realist-score, AI-managed, handoff-pending, overdue-next-action, with count preview. **Segmentation only — never auto-sends.** Dependencies: P1-3. Risk: Medium (query perf → indexes).
 - Shipped: `server/smart-audience.js` compiles a recursive AND/OR condition tree into safe parameterized SQL over `clients` (whitelisted field registry + operators; behavioral fields via correlated subqueries — intent, peak_intent, conversation_type, ai_managed, handoff_pending, overdue_next_action, last_human_contact_days, repeat_views_14d, realist_sell_score). `GET /api/lists/smart/fields` + `POST /api/lists/smart/preview`; v2 trees save as dynamic `client_lists` (back-compat with legacy flat filters). New Smart Audiences page (visual builder + live count + sample). 6 tests incl. injection safety. Segmentation only — never sends.
 
-### P1-6 · Advanced lead routing (Phase 4)
+### P1-6 · Advanced lead routing (Phase 4) — ✅ DONE (built, inert until configured)
 - `routing_rules` + engine (round-robin/weighted/geo/price/source/availability) + `routing_history`; manual reassignment is sticky. Dependencies: P0-1 (users/roles). Risk: Medium.
 
 ---
 
 ## P2 — Intelligence / reporting / mobile
 
-- **P2-1 Conversion attribution + AI ROI funnel (Phase 9)** — funnel + source/agent/AI-vs-human/AI-managed breakdowns; correlation-not-causation framing. Dep: P1-3/P1-4.
-- **P2-2 Unified contact timeline (Phase 18)** — merge comms + notes + tasks + status/tags + AI actions + assignments + handoffs + transaction events into one filterable stream. Dep: P0-1 audit (for AI/assignment events).
-- **P2-3 Push notifications + mobile quick actions (Phase 10)** — web push for handoffs/new-lead/inbound-text/missed-call/showing/task/transaction; notification quick actions. Dep: P2-4.
-- **P2-4 Notification center (Phase 14)** — persistent `notifications` history. Dep: P0-1.
-- **P2-5 Universal search + safe dedupe/merge (Phase 14)** — cross-entity search; merge that never deletes history. Dep: none.
-- **P2-6 System-health dashboard (Phase 15)** — all integrations + backups + queues in one admin view. Dep: P0-3/P0-4.
-- **P2-7 Data export & recovery (Phase 19)** — owner export + safe backup download, no secrets. Dep: P0-1.
+- **P2-1 Conversion attribution + AI ROI funnel (Phase 9) — ✅ DONE** — funnel + source/agent/AI-vs-human/AI-managed breakdowns; correlation-not-causation framing. Dep: P1-3/P1-4.
+- **P2-2 Unified contact timeline (Phase 18) — ✅ DONE** — merge comms + notes + tasks + status/tags + AI actions + assignments + handoffs + transaction events into one filterable stream. Dep: P0-1 audit (for AI/assignment events).
+- **P2-3 Push notifications + mobile quick actions (Phase 10) — ✅ DONE** — web push for handoffs/new-lead/inbound-text/missed-call/showing/task/transaction; notification quick actions. Dep: P2-4.
+- **P2-4 Notification center (Phase 14) — ✅ DONE** — persistent `notifications` history. Dep: P0-1.
+- **P2-5 Universal search + safe dedupe/merge (Phase 14) — ✅ DONE** — cross-entity search; merge that never deletes history. Dep: none.
+- **P2-6 System-health dashboard (Phase 15) — ✅ DONE** — all integrations + backups + queues in one admin view. Dep: P0-3/P0-4.
+- **P2-7 Data export & recovery (Phase 19) — ✅ DONE** — owner export + safe backup download, no secrets. Dep: P0-1.
 
 ---
 

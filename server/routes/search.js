@@ -21,10 +21,10 @@ router.get('/', (req, res) => {
       results.push({ type: 'client', id: c.id, title: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, subtitle: [c.city, c.type, c.status].filter(Boolean).join(' · '), href: `/clients?open=${c.id}` })
 
     for (const t of db.all(
-      `SELECT id, property_address, buyer_name, seller_name, status FROM transactions
+      `SELECT id, property_address, buyer_name, seller_name, property_status FROM transactions
        WHERE property_address LIKE ? OR buyer_name LIKE ? OR seller_name LIKE ? ORDER BY updated_at DESC LIMIT ?`,
       [like, like, like, perType]))
-      results.push({ type: 'transaction', id: t.id, title: t.property_address || t.buyer_name || t.seller_name || `Transaction ${t.id}`, subtitle: [t.buyer_name || t.seller_name, t.status].filter(Boolean).join(' · '), href: `/transactions?open=${t.id}` })
+      results.push({ type: 'transaction', id: t.id, title: t.property_address || t.buyer_name || t.seller_name || `Transaction ${t.id}`, subtitle: [t.buyer_name || t.seller_name, t.property_status].filter(Boolean).join(' · '), href: `/transactions?open=${t.id}` })
 
     for (const t of db.all(
       `SELECT id, title, status, due_date FROM tasks WHERE title LIKE ? OR description LIKE ? ORDER BY created_at DESC LIMIT ?`,

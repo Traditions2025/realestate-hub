@@ -416,14 +416,24 @@ router.get('/', (req, res) => {
 router.get('/duplicates', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500)
   // Phone groups: same last-10 digits, more than one live (non-merged) client.
+  // Cap the group size at 4 — a real household duplicate is 2-4 records; a number on
+  // many contacts is a SHARED / brokerage / placeholder line (e.g. 555-5555) and must
+  // never be merged (per the contact-cleanup rule). Also reject placeholder patterns.
+  const isPlaceholder = (pk) => {
+    const last7 = pk.slice(-7)
+    if (/^(\d)\1{6}$/.test(last7)) return true          // all same digit
+    if (last7 === '5555555' || last7 === '1234567' || last7 === '0000000') return true
+    if (/5{4,}$/.test(pk)) return true                   // …5555 fake tails
+    return false
+  }
   const phoneRows = db.all(`
     SELECT substr(replace(replace(replace(replace(replace(phone,'(',''),')',''),'-',''),' ',''),'+',''), -10) AS pk,
            COUNT(*) n, GROUP_CONCAT(id) ids
     FROM clients
     WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL
-    GROUP BY pk HAVING n > 1 AND length(pk) = 10
+    GROUP BY pk HAVING n > 1 AND n <= 4 AND length(pk) = 10
     ORDER BY n DESC LIMIT ?`, [limit])
-  const groups = phoneRows.map(g => {
+  const groups = phoneRows.filter(g => !isPlaceholder(g.pk)).map(g => {
     const ids = String(g.ids).split(',').map(Number)
     const members = db.all(`SELECT id, first_name, last_name, phone, email, address, city, status, source, type, sierra_lead_id,
       (SELECT COUNT(*) FROM communications co WHERE co.client_id=clients.id) comms
