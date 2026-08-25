@@ -94,16 +94,28 @@ function tagsJson(raw) {
   return JSON.stringify(t)
 }
 
+// Do the sheet FSBO name and an existing Hub lead look like the SAME party? Guards against
+// phone collisions (two different people/companies sharing a number).
+function sameName(sheetName, c) {
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
+  const a = norm(sheetName), b = norm(`${c.first_name || ''} ${c.last_name || ''}`)
+  if (!a.length || !b.length) return false
+  if (a.join(' ') === b.join(' ')) return true
+  return a[a.length - 1] === b[b.length - 1] && a[0] === b[0]   // same first + last token
+}
+const isJunkish = (status) => ['junk', 'donotcontact', 'archived', 'closed'].includes(String(status || '').toLowerCase())
+
 // Sync the sheet onto clients. Returns a reconciliation report.
 export async function syncFsboMaster() {
   const rows = await fetchFsboMasterRows()
-  const report = { sheet_rows: rows.length, matched: 0, updated: 0, created: 0, in_list_now: 0, unmatched: [], counts: { Available: 0, 'Off Market': 0 } }
+  const report = { sheet_rows: rows.length, matched: 0, updated: 0, created: 0, collisions: 0, pruned: 0, in_list_now: 0, unmatched: [], counts: { Available: 0, 'Off Market': 0 } }
   const now = nowIso()
   // Phones in the DB are stored formatted ("(319) 531-0905"), so a raw-digit LIKE never
   // matches. Build a normalized last-10 -> client index once. On a shared number, prefer
   // an FSBO-tagged client, else the lowest id.
   const index = new Map()
-  for (const c of db.all("SELECT id, phone, tags, fsbo_status FROM clients WHERE phone IS NOT NULL AND phone != ''")) {
+  const sheetPhones = new Set()
+  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != ''")) {
     const k = last10(c.phone); if (!k) continue
     const prev = index.get(k)
     if (!prev) { index.set(k, c); continue }
@@ -111,22 +123,34 @@ export async function syncFsboMaster() {
     if (isFsbo(c) && !isFsbo(prev)) index.set(k, c)
     else if (isFsbo(c) === isFsbo(prev) && c.id < prev.id) index.set(k, c)
   }
+  const createNew = (row, key) => {
+    const { first, last } = splitName(row.name)
+    const info = db.run(
+      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [first, last, row.phone, row.email || null, 'seller', 'watch', row.source || 'FSBO Master',
+       row.address || null, row.city || null, row.state || 'IA', row.zip || null, tagsJson(row.tags), row.status, now, row.list_date || null, row.dom || null, row.notes || null, row.link || null, now, now])
+    report.created++
+    if (key) index.set(key, { id: info.lastInsertRowid, phone: row.phone, tags: tagsJson(row.tags), fsbo_status: row.status, status: 'watch', first_name: first, last_name: last })
+  }
   for (const row of rows) {
     const key = last10(row.phone)
+    if (key) sheetPhones.add(key)
     report.counts[row.status] = (report.counts[row.status] || 0) + 1
     const match = key ? index.get(key) : null
+    // Phone COLLISION: the number matches an existing DEAD lead of a clearly different name.
+    // Don't stamp the FSBO onto the wrong lead — clear any wrong stamp and create the FSBO
+    // its own record.
+    if (match && isJunkish(match.status) && !sameName(row.name, match)) {
+      db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL WHERE id=?', [match.id])
+      report.collisions++
+      createNew(row, key)
+      continue
+    }
     if (!match) {
       // The FSBO master file is the source of truth: create a Hub record so every FSBO
       // (Available AND Off Market) lands on the list. On re-sync it matches by phone.
-      const { first, last } = splitName(row.name)
-      const info = db.run(
-        `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [first, last, row.phone, row.email || null, 'seller', 'watch', row.source || 'FSBO Master',
-         row.address || null, row.city || null, row.state || 'IA', row.zip || null, tagsJson(row.tags), row.status, now, row.list_date || null, row.dom || null, row.notes || null, row.link || null, now, now])
-      report.created++
-      // Register in the index so duplicate-phone sheet rows update this same record.
-      if (key) index.set(key, { id: info.lastInsertRowid, phone: row.phone, tags: tagsJson(row.tags), fsbo_status: row.status })
+      createNew(row, key)
       continue
     }
     report.matched++
@@ -137,6 +161,13 @@ export async function syncFsboMaster() {
       db.run('UPDATE clients SET fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_notes=?, fsbo_link=? WHERE id=?', [now, row.list_date || null, row.dom || null, row.notes || null, row.link || null, match.id])
     }
     match.fsbo_status = row.status
+  }
+  // Prune stragglers: a client carrying an fsbo_status whose phone is no longer in the
+  // sheet is no longer an FSBO (the master file is the source of truth). Clear the FSBO
+  // fields so they drop off the list. Their lead status (e.g. junk) is left untouched.
+  for (const c of db.all("SELECT id, phone FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''")) {
+    const k = last10(c.phone)
+    if (!k || !sheetPhones.has(k)) { db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL WHERE id=?', [c.id]); report.pruned++ }
   }
   // How many FSBO-master clients now sit in the live FSBO list (fsbo_status set).
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
