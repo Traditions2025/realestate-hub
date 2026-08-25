@@ -566,11 +566,22 @@ router.post('/create-lead', async (req, res) => {
   ].filter(Boolean).join('  ').trim()
   if (req.body?.dryRun) return res.json({ dryRun: true, payload: { ...payload, password: '***' }, note: noteText })
 
-  let created = null, noteResult = null
+  let created = null, noteResult = null, emailReplaced = false
+  const doCreate = async (body) => { const r = await sierraPost('/leads', body); const d = r?.data || r; return { d, id: d?.id || d?.leadId || d?.leadID } }
   try {
-    const result = await sierraPost('/leads', payload)
-    const data = result?.data || result
-    const newId = data?.id || data?.leadId || data?.leadID
+    let out
+    try {
+      out = await doCreate(payload)
+    } catch (e1) {
+      // A real email that already belongs to another Sierra lead blocks creation. This FSBO
+      // is a distinct listing, so retry once with a non-routable placeholder email.
+      if (/email.*(exist|taken|use)/i.test(e1.message) && !/notvalidemail\.com/.test(payload.email)) {
+        emailReplaced = true
+        payload.email = `noemail-${Math.random().toString(36).slice(2, 12)}@notvalidemail.com`
+        out = await doCreate(payload)
+      } else throw e1
+    }
+    const data = out.d, newId = out.id
     if (!newId) return res.status(502).json({ success: false, error: 'created but no lead id returned', sierra_response: data })
     db.run('UPDATE clients SET sierra_lead_id=?, updated_at=? WHERE id=?', [String(newId), new Date().toISOString(), client.id])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
@@ -581,7 +592,7 @@ router.post('/create-lead', async (req, res) => {
     // Belt-and-suspenders: PUT the phone (some create paths ignore it) via the proven path.
     if (client.phone) { try { await sierraPut(`/leads/${newId}`, { phone: client.phone }) } catch {} }
     if (noteText) noteResult = await pushSierraNote(newId, noteText)
-    return res.json({ success: true, sierra_lead_id: created, phone_sent: client.phone || null, note: noteResult })
+    return res.json({ success: true, sierra_lead_id: created, phone_sent: client.phone || null, note: noteResult, email_replaced: emailReplaced })
   } catch (err) {
     return res.status(502).json({ success: false, error: err.message, payload: { ...payload, password: '***' } })
   }
