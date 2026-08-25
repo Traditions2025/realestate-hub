@@ -103,7 +103,7 @@ router.get('/fsbo/status', (_req, res) => {
 router.get('/fsbo/followup', (_req, res) => {
   const byStep = db.all("SELECT step, COUNT(*) n FROM fsbo_followups WHERE status='active' GROUP BY step")
   const totals = {
-    enabled: db.getSetting?.('fsbo_followup_enabled') !== '0',
+    enabled: db.getSetting?.('fsbo_followup_enabled') === '1',
     enrolled: db.get("SELECT COUNT(*) n FROM fsbo_followups WHERE status='active'")?.n || 0,
     by_step: Object.fromEntries(byStep.map(r => [`step_${r.step}`, r.n])),
     replied: db.get("SELECT COUNT(*) n FROM fsbo_followups WHERE replied=1")?.n || 0,
@@ -112,7 +112,7 @@ router.get('/fsbo/followup', (_req, res) => {
   }
   res.json(totals)
 })
-router.post('/fsbo/followup/toggle', (req, res) => { db.setSetting('fsbo_followup_enabled', req.body?.enabled === false ? '0' : '1'); res.json({ enabled: req.body?.enabled !== false }) })
+router.post('/fsbo/followup/toggle', (req, res) => { const on = req.body?.enabled === true || req.body?.enabled === '1'; db.setSetting('fsbo_followup_enabled', on ? '1' : '0'); res.json({ enabled: on }) })
 router.post('/fsbo/followup/run', async (_req, res) => {
   try { const m = await import('../fsbo-followup.js'); res.json(await m.runFsboFollowups()) } catch (e) { res.status(500).json({ error: e.message }) }
 })

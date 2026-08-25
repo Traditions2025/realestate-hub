@@ -10,7 +10,7 @@ import db from './database.js'
 const nowIso = () => new Date().toISOString()
 const HUB = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
 
-export function fsboEnabled() { return db.getSetting?.('fsbo_followup_enabled') !== '0' }   // on unless explicitly disabled
+export function fsboEnabled() { return db.getSetting?.('fsbo_followup_enabled') === '1' }   // OFF until explicitly turned on (prevents an accidental mass-text)
 
 // Central-time parts.
 function chi() {
