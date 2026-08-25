@@ -18,19 +18,20 @@ function chi() {
   const g = (t) => p.find(x => x.type === t)?.value
   return { weekday: g('weekday'), hour: Number(g('hour')) === 24 ? 0 : Number(g('hour')), minute: Number(g('minute')) }
 }
-// Weekday 9:00-15:59 Central (last proactive send starts before 4PM).
+// Weekday 9AM-4PM Central (through the 4 o'clock hour).
 function inProactiveWindow() {
   const c = chi()
   if (['Sat', 'Sun'].includes(c.weekday)) return false
-  return c.hour >= 9 && c.hour < 16
+  return c.hour >= 9 && c.hour < 17
 }
-function timeOfDay() { const h = chi().hour; return h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening' }
+// Greeting: never "evening" (we don't text then). At 4PM+ just "Hello".
+function greeting() { const h = chi().hour; return h < 12 ? 'Good morning' : h < 16 ? 'Good afternoon' : 'Hello' }
 const dom = (c) => { const n = parseInt(String(c.fsbo_dom || '').replace(/[^0-9]/g, ''), 10); return isNaN(n) ? 0 : n }
 const daysSince = (ts) => ts ? (Date.now() - new Date(String(ts).replace(' ', 'T') + (String(ts).includes('Z') ? '' : 'Z')).getTime()) / 86400000 : 999
 
 // ---- message templates ----
 function street(c) { return c.address || 'your home' }
-function msgStep1(c) { return `Good ${timeOfDay()}, I'm John with Matt Smith Team at RE/MAX. Our team noticed your place on ${street(c)} for sale, beautiful home. Just want to make sure it's still available? MattSmithTeam.com` }
+function msgStep1(c) { return `${greeting()}, I'm John with Matt Smith Team at RE/MAX. Our team noticed your place on ${street(c)} for sale, beautiful home. Just want to make sure it's still available? MattSmithTeam.com` }
 const MSG_EMAIL_ASK = "Hope to be in touch soon. What's the best email we can reach you at?"
 const MSG_POSITIVE = 'Very good, thanks for letting me know'
 const MSG_BUYER_Q = "At this time, we're just checking it's availability :)"
