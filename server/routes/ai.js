@@ -55,9 +55,15 @@ router.post('/sandbox', async (req, res) => {
   // inbound message. Mirrors handleProactive's instruction (contextual reason, never
   // "I saw you browsing").
   const proactiveInstruction = `This is a lead the team has NOT texted yet. They have been active online: ${activity.description || 'browsing our website'}. Lead source: ${facts.lead_source}. Write a short, warm, welcoming opening SMS (follow the FIRST MESSAGE rules). Give a real, contextual reason for reaching out tied to what they were looking at (the city/area or a property, from the context) and end with ONE easy, low-pressure question. NEVER imply you are watching their activity (never say "I saw you viewed/browsing"); say "thanks for stopping by" instead. Return action SEND_TEXT with the message.`
-  const userContent = proactive
+  let userContent = proactive
     ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
     : buildUserMessage(ctx)
+  // Refinement loop: the agent clicked a reply and asked for an improvement. Feed the prior
+  // draft + their instruction so the model rewrites it (still following every rule).
+  const refine = b.refine
+  if (refine && String(refine.instruction || '').trim()) {
+    userContent += `\n\nREVISION REQUEST — a team member reviewed your draft and wants it improved. Your previous draft was:\n"${String(refine.previous || '').slice(0, 600)}"\nRewrite the message per this instruction: "${String(refine.instruction).slice(0, 400)}". Keep EVERY rule (greeting, don't repeat their name, intro + website on a first text, etc.). Return the improved message in the same JSON format.`
+  }
   const t0 = Date.now()
   try {
     const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 900, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] })

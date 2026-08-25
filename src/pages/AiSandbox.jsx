@@ -41,6 +41,8 @@ export default function AiSandbox() {
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
+  const [refiningIdx, setRefiningIdx] = useState(null)
+  const [refineText, setRefineText] = useState('')
   const scrollRef = useRef(null)
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight) }, [messages, busy])
 
@@ -54,16 +56,33 @@ export default function AiSandbox() {
     const history = messages.filter(m => m.role === 'agent' || m.role === 'lead').map(m => ({ role: m.role, text: m.text }))
     const next = [...messages, { role: 'lead', text: t }]
     setMessages(next); setInput(''); setBusy(true)
+    const req = { lead: { name: leadName, type, city: leadCity }, messages: history, latest: t, intent }
     try {
       const r = await authFetch('/api/ai/sandbox', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead: { name: leadName, type, city: leadCity }, messages: history, latest: t, intent }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req),
       })
       const d = await r.json()
       if (d.error) { setErr(d.error); setBusy(false); return }
       setIntent(d.intent_after)
-      setMessages(m => [...m, { role: 'agent', text: d.message || '(no message — the AI chose not to reply)', work: d }])
+      setMessages(m => [...m, { role: 'agent', text: d.message || '(no message — the AI chose not to reply)', work: d, req }])
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  // Re-generate one AI response with a refinement instruction, replacing it in place.
+  const refineMessage = async (idx, instruction) => {
+    const m = messages[idx]
+    if (!m || !m.req || !instruction.trim() || busy) return
+    setBusy(true); setErr('')
+    try {
+      const r = await authFetch('/api/ai/sandbox', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...m.req, refine: { previous: m.text, instruction: instruction.trim() } }),
+      })
+      const d = await r.json()
+      if (d.error) { setErr(d.error); return }
+      setMessages(ms => ms.map((x, j) => j === idx ? { ...x, text: d.message || x.text, work: d } : x))
+      if (idx === messages.length - 1) setIntent(d.intent_after)
+    } catch (e) { setErr(e.message) } finally { setBusy(false); setRefiningIdx(null); setRefineText('') }
   }
 
   const startLeadMessage = (a) => { reset(); setLeadType(a.type); setTimeout(() => send(a.text, a.type), 0) }
@@ -82,10 +101,11 @@ export default function AiSandbox() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ lead: { name: leadName, type: a.type, city }, mode: 'proactive', activity: a.activity, messages: [], intent: 0 }),
       })
+      const req = { lead: { name: leadName, type: a.type, city }, mode: 'proactive', activity: a.activity, messages: [], intent: 0 }
       const d = await r.json()
       if (d.error) { setErr(d.error); setBusy(false); return }
       setIntent(d.intent_after)
-      setMessages([marker, { role: 'agent', text: d.message || '(the AI chose not to reach out)', work: d }])
+      setMessages([marker, { role: 'agent', text: d.message || '(the AI chose not to reach out)', work: d, req }])
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
@@ -140,7 +160,27 @@ export default function AiSandbox() {
             <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '80%', background: '#2563eb', color: '#fff', padding: '8px 12px', borderRadius: '12px 12px 2px 12px', fontSize: 14 }}>{m.text}</div>
           ) : (
             <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '88%' }}>
-              <div style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', padding: '8px 12px', borderRadius: '12px 12px 12px 2px', fontSize: 14 }}>{m.text}</div>
+              <div onClick={() => m.req && setRefiningIdx(refiningIdx === i ? null : i)}
+                style={{ background: 'var(--bg-secondary)', border: `1px solid ${refiningIdx === i ? 'var(--accent, #2563eb)' : 'var(--border)'}`, padding: '8px 12px', borderRadius: '12px 12px 12px 2px', fontSize: 14, cursor: m.req ? 'pointer' : 'default', position: 'relative' }}
+                title={m.req ? 'Click to refine this reply' : undefined}>
+                {m.text}
+                {m.req && <span style={{ position: 'absolute', top: 4, right: 8, fontSize: 10, color: 'var(--text-muted)' }}>✎</span>}
+              </div>
+              {refiningIdx === i && (
+                <div style={{ marginTop: 6, background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.25)', borderRadius: 8, padding: '8px 10px' }}>
+                  <div style={{ fontSize: 11.5, fontWeight: 600, color: '#2563eb', marginBottom: 6 }}>Refine this reply — tell the AI what to change</div>
+                  <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
+                    {['Make it shorter', 'Warmer and more personal', "Don't use their name", 'Add our website', 'Ask one clear question', 'Less salesy'].map(s => (
+                      <button key={s} className="btn btn-sm btn-secondary" style={{ fontSize: 11, padding: '2px 7px' }} disabled={busy} onClick={() => refineMessage(i, s)}>{s}</button>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input className="input" style={{ flex: 1, fontSize: 13 }} placeholder="or type your own instruction…" value={refineText}
+                      onChange={e => setRefineText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && refineText.trim()) refineMessage(i, refineText) }} disabled={busy} autoFocus />
+                    <button className="btn btn-primary btn-sm" disabled={busy || !refineText.trim()} onClick={() => refineMessage(i, refineText)}>{busy ? '…' : 'Update'}</button>
+                  </div>
+                </div>
+              )}
               {m.work && <WorkPanel work={m.work} />}
             </div>
           ))}

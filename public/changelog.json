@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-25T21:03:05.171Z",
-  "count": 496,
+  "generated_at": "2026-08-25T23:25:37.065Z",
+  "count": 498,
   "entries": [
+    {
+      "hash": "aad58ff",
+      "date": "2026-08-25T17:57:44-05:00",
+      "subject": "FSBO sync: fix phone-collision mis-attach + prune stragglers",
+      "title": "FSBO sync: fix phone-collision mis-attach + prune stragglers",
+      "body": "- On a phone match to a DEAD lead (junk/archived) whose name clearly differs from the\n  sheet FSBO, treat as a collision: clear the wrongly-stamped fsbo_status and create the\n  FSBO its own record (fixes 'Renofixation LLC' being glued onto junk 'Mark Facion').\n  Same-name matches and live leads still attach normally.\n- Prune: clear fsbo_status for any client whose phone is no longer in the sheet (removes\n  stragglers like Logan Timm from the list; lead status left untouched).\n- Report adds collisions + pruned counts.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "81f50fa",
+      "date": "2026-08-25T16:03:13-05:00",
+      "subject": "FSBO list: sortable DOM column + click-to-filter FSBO Status (Available/Off Market)",
+      "title": "FSBO list: sortable DOM column + click-to-filter FSBO Status (Available/Off Market)",
+      "body": "- Backend fsbo_dom_high/low sorts (CAST fsbo_dom AS INTEGER).\n- DOM header is now a sort toggle; FSBO Status header is a filter dropdown\n  (All / Available / Off Market) via the existing fsbo_statuses_include filter.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bcd1d24",
       "date": "2026-08-25T15:56:40-05:00",
