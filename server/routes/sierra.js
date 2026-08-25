@@ -492,6 +492,46 @@ router.post('/update-lead-status', async (req, res) => {
   })
 })
 
+// Add a note to a Sierra lead, trying the known endpoint/body shapes until one sticks.
+// Returns { ok, via } or { ok:false, attempts }.
+async function pushSierraNote(leadId, text) {
+  const shapes = [
+    { m: 'POST', path: `/leads/edit/${leadId}`, body: { note: text } },
+    { m: 'POST', path: `/leads/edit/${leadId}`, body: { notes: text } },
+    { m: 'POST', path: `/leads/${leadId}/notes`, body: { note: text } },
+    { m: 'POST', path: `/leads/${leadId}/note`, body: { note: text } },
+    { m: 'POST', path: `/notes/create`, body: { leadId, note: text } },
+    { m: 'POST', path: `/notes/add`, body: { leadId, note: text } },
+    { m: 'PUT', path: `/notes/${leadId}`, body: { note: text } },
+  ]
+  const attempts = []
+  for (const s of shapes) {
+    try {
+      const r = s.m === 'PUT' ? await sierraPut(s.path, s.body) : await sierraPost(s.path, s.body)
+      const ok = r && (r.success !== false)
+      if (ok) return { ok: true, via: `${s.m} ${s.path}` }
+      attempts.push({ endpoint: `${s.m} ${s.path}`, error: (r && r.errorMessage) || 'success:false' })
+    } catch (e) { attempts.push({ endpoint: `${s.m} ${s.path}`, error: String(e.message).slice(0, 120) }) }
+  }
+  return { ok: false, attempts }
+}
+
+// Test/repair: push the FSBO note to a lead that's ALREADY in Sierra.
+router.post('/add-fsbo-note', async (req, res) => {
+  const client = db.get('SELECT * FROM clients WHERE id=?', [Number(req.body?.client_id)])
+  if (!client) return res.status(404).json({ error: 'not found' })
+  if (!client.sierra_lead_id) return res.status(400).json({ error: 'not in Sierra' })
+  const noteText = [
+    client.address ? `FSBO: ${client.address}, ${client.city || ''} ${client.zip || ''}`.trim() : 'FSBO',
+    client.fsbo_status ? `Status: ${client.fsbo_status}` : '',
+    client.fsbo_list_date ? `Listed: ${client.fsbo_list_date}` : '',
+    client.fsbo_dom ? `Days on market: ${client.fsbo_dom}` : '',
+    client.fsbo_link ? `Link: ${client.fsbo_link}` : '',
+    client.fsbo_notes ? `\n${client.fsbo_notes}` : '',
+  ].filter(Boolean).join('  ').trim()
+  res.json(await pushSierraNote(client.sierra_lead_id, noteText))
+})
+
 // Create a Hub-native lead (e.g. a master-file FSBO with no sierra_lead_id) IN Sierra,
 // then link it back by storing the returned sierra_lead_id on the Hub record. dryRun:true
 // returns the payload without calling Sierra.
@@ -541,15 +581,11 @@ router.post('/create-lead', async (req, res) => {
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['sierra_lead_created', 'client', client.id, `Created in Sierra (id ${newId})`])
     created = newId
+    // Keep the Hub record's tags in sync with what we sent Sierra (no FSBO Master marker).
+    db.run('UPDATE clients SET tags=? WHERE id=?', [JSON.stringify(tags), client.id])
     // Belt-and-suspenders: PUT the phone (some create paths ignore it) via the proven path.
     if (client.phone) { try { await sierraPut(`/leads/${newId}`, { phone: client.phone }) } catch {} }
-    // Attach the FSBO note. Try the known Sierra note shapes.
-    if (noteText) {
-      for (const n of [{ path: `/leads/${newId}/notes`, body: { message: noteText } }, { path: '/notes/create', body: { leadId: newId, message: noteText } }, { path: `/notes/${newId}`, body: { message: noteText } }]) {
-        try { noteResult = await sierraPost(n.path, n.body); noteResult = { ok: true, via: n.path }; break }
-        catch (e) { noteResult = { ok: false, error: e.message }; if (!/40[045]/.test(e.message)) break }
-      }
-    }
+    if (noteText) noteResult = await pushSierraNote(newId, noteText)
     return res.json({ success: true, sierra_lead_id: created, phone_sent: client.phone || null, note: noteResult })
   } catch (err) {
     return res.status(502).json({ success: false, error: err.message, payload: { ...payload, password: '***' } })
