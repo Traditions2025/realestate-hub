@@ -1055,6 +1055,24 @@ export async function initDb() {
       PRIMARY KEY (client_id, field)
     )
   `)
+  // P1-3: normalized behavioral events (typed + weighted). Each row is one scored signal
+  // (property view, saved search, inbound text, tour request, email click, …) with a
+  // weight; the intent scorer sums these time-decayed. Deduped by dedup_key.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS behavioral_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      event_type TEXT NOT NULL,
+      weight REAL NOT NULL DEFAULT 1,
+      source TEXT,
+      occurred_at TEXT DEFAULT (datetime('now')),
+      metadata_json TEXT,
+      dedup_key TEXT UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_beh_events_client ON behavioral_events(client_id, occurred_at DESC)') } catch {}
+
   // Normalized lead-event log (CRM + website + comms events the AI reacts to).
   db.run(`
     CREATE TABLE IF NOT EXISTS lead_events (

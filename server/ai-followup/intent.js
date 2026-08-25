@@ -1,6 +1,7 @@
 // HUB AI intent scoring — explainable, deterministic base (0-100) combined with
 // optional AI deltas from the orchestrator. Never LLM-only. Stores history.
 import db from '../database.js'
+import { behavioralScore } from './behavioral.js'
 const nowIso = () => new Date().toISOString()
 
 export function levelFor(score) {
@@ -33,6 +34,13 @@ export function computeIntent(clientId) {
   const tf = String(li.buying_timeframe || li.selling_timeframe || '')
   if (/\b(0-?30|30|60|asap|immediately|this month|few weeks|1-?2 ?month)/i.test(tf)) { score += 15; reasons.push('Short timeframe') }
   if (li.seller_property_address) { score += 8; reasons.push('Seller with a property address') }
+  // P1-3: typed, weighted behavioral events (property views, saved searches, tour/offer
+  // signals, email clicks…), time-decayed. Bounded so behavior enriches but never
+  // dominates the explainable base.
+  try {
+    const beh = behavioralScore(cid, { cap: 35 })
+    if (beh.score > 0) { score += beh.score; if (beh.reasons.length) reasons.push('Behavior: ' + beh.reasons.join(', ')) }
+  } catch {}
   const c = db.get('SELECT status FROM clients WHERE id=?', [cid]) || {}
   if (['junk', 'donotcontact'].includes(String(c.status || '').toLowerCase())) { score = Math.min(score, 5); reasons.push('Do Not Contact / Junk') }
   score = Math.max(0, Math.min(100, score))
@@ -54,12 +62,16 @@ export function applyDecay(score, updatedAt) {
 }
 
 export function getIntent(clientId) {
-  const li = db.get('SELECT intent_score, intent_level, intent_reason_json, updated_at, peak_intent FROM lead_intelligence WHERE client_id=?', [Number(clientId)])
-  if (!li) return { score: 0, level: 'LOW', reasons: [], peak: 0, raw: 0 }
+  const cid = Number(clientId)
+  const li = db.get('SELECT intent_score, intent_level, intent_reason_json, updated_at, peak_intent FROM lead_intelligence WHERE client_id=?', [cid])
+  if (!li) return { score: 0, level: 'LOW', reasons: [], peak: 0, raw: 0, previous: 0, delta: 0 }
   let reasons = []; try { reasons = JSON.parse(li.intent_reason_json || '[]') } catch {}
   const raw = li.intent_score || 0
   const score = applyDecay(raw, li.updated_at)
-  return { score, raw, peak: li.peak_intent || raw, level: levelFor(score), reasons, decayed: score < raw }
+  // previous/delta from the intent history (the value before the most recent save).
+  const prevRow = db.get('SELECT score FROM ai_intent_history WHERE client_id=? ORDER BY id DESC LIMIT 1 OFFSET 1', [cid])
+  const previous = prevRow ? (prevRow.score || 0) : 0
+  return { score, raw, peak: li.peak_intent || raw, previous, delta: raw - previous, level: levelFor(score), reasons, decayed: score < raw }
 }
 
 export function saveIntent(clientId, { score, level, reasons }, source = 'deterministic') {

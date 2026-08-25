@@ -13,6 +13,7 @@
 // =====================================================================
 import { Router } from 'express'
 import db from '../database.js'
+import { recordBehavioralEvent } from '../ai-followup/behavioral.js'
 
 const router = Router()
 
@@ -66,6 +67,13 @@ function flushBuffer() {
           [clientId, e.sierra_lead_id || null, e.sierra_email || null, e.event_type,
            e.page_url || null, e.page_title || null, e.referrer || null,
            e.listing_mls || null, e.duration_sec || null, e.ip_address || null, e.user_agent || null])
+        // P1-3: mirror matched web activity into the weighted behavioral event log.
+        if (clientId) {
+          try {
+            const bt = e.listing_mls ? 'property_view' : (/search/i.test(e.event_type || '') ? 'saved_search_created' : 'website_return')
+            recordBehavioralEvent(clientId, bt, { source: 'website', metadata: { mls: e.listing_mls, url: e.page_url }, ref: e.listing_mls || e.event_type || '' })
+          } catch {}
+        }
       }
     } finally {
       db.endBulk?.()  // single saveDb at the end
