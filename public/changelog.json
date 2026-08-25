@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-25T16:02:56.850Z",
-  "count": 469,
+  "generated_at": "2026-08-25T16:09:53.364Z",
+  "count": 472,
   "entries": [
+    {
+      "hash": "70ee27a",
+      "date": "2026-08-25T11:08:22-05:00",
+      "subject": "Dedupe: only surface groups that share a last name or address (never shared lines)",
+      "title": "Dedupe: only surface groups that share a last name or address (never shared lines)",
+      "body": "A shared phone with all-different names is a household/brokerage/shared line, not a\nduplicate. Require >=2 members share a normalized last name OR street address before\noffering a merge.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "032b299",
+      "date": "2026-08-25T11:06:28-05:00",
+      "subject": "Fix P2-5: search transactions column (property_status); dedupe excludes shared/placeholder phone lines",
+      "title": "P2-5: search transactions column (property_status); dedupe excludes shared/placeholder phone lines",
+      "body": "- Universal search used transactions.status (doesn't exist) -> property_status.\n- Duplicate finder now caps group size at 4 and rejects placeholder/shared numbers\n  (555-5555, all-same-digit) so brokerage/placeholder lines are never offered to merge,\n  per the contact-cleanup rule.\n- Roadmap: P0-1, P1-3, P1-6, and all of P2 marked done.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "fb3abd3",
+      "date": "2026-08-25T11:03:22-05:00",
+      "subject": "P2-6 system-health dashboard + P2-7 data export",
+      "title": "P2-6 system-health dashboard + P2-7 data export",
+      "body": "- GET /api/admin/integrations: every integration (Sierra/Twilio/SendGrid/Anthropic/\n  GDrive/web-push) with status, sync queue depths, last sync error. Rendered as\n  Integrations + Queues panels in Admin > System Health.\n- GET /api/admin/export/:table: owner CSV export of whitelisted data tables\n  (clients/transactions/tasks/notes/communications). Secrets/auth/push tables can\n  never be exported; audited. Data Export buttons in System Health.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "91994ee",
       "date": "2026-08-25T11:01:05-05:00",

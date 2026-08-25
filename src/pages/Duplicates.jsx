@@ -10,10 +10,17 @@ export default function Duplicates() {
   const load = () => authFetch('/api/clients/duplicates').then(r => r.json()).then(d => setGroups(d.groups || [])).catch(() => setGroups([]))
   useEffect(() => { load() }, [])
 
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
   const merge = async (group, primaryId) => {
-    const dupIds = group.members.map(m => m.id).filter(id => id !== primaryId)
-    if (!dupIds.length) return
-    if (!confirm(`Merge ${dupIds.length} duplicate${dupIds.length === 1 ? '' : 's'} into "${group.members.find(m => m.id === primaryId).first_name} ${group.members.find(m => m.id === primaryId).last_name}"?\n\nAll calls, texts, notes, tasks and history move to the primary. The others are archived (not deleted).`)) return
+    const primary = group.members.find(m => m.id === primaryId)
+    // Only merge records that are the SAME person as the primary — matching last name OR
+    // address. Protects mixed shared-line groups from a merge-all mistake.
+    const dupIds = group.members.filter(m => m.id !== primaryId && (
+      (norm(m.last_name) && norm(m.last_name) === norm(primary.last_name)) ||
+      (norm(m.address) && norm(m.address) === norm(primary.address))
+    )).map(m => m.id)
+    if (!dupIds.length) { alert('No other record shares this person’s last name or address — nothing safe to merge here.'); return }
+    if (!confirm(`Merge ${dupIds.length} record${dupIds.length === 1 ? '' : 's'} into "${primary.first_name} ${primary.last_name}"?\n\nOnly records matching this last name/address are merged. All calls, texts, notes, tasks and history move to the primary. The others are archived (not deleted).`)) return
     setBusy(group.key); setMsg('')
     try {
       const r = await authFetch('/api/clients/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primary_id: primaryId, duplicate_ids: dupIds }) })
