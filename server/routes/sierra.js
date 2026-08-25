@@ -496,13 +496,8 @@ router.post('/update-lead-status', async (req, res) => {
 // Returns { ok, via } or { ok:false, attempts }.
 async function pushSierraNote(leadId, text) {
   const shapes = [
-    { m: 'POST', path: `/leads/edit/${leadId}`, body: { note: text } },
-    { m: 'POST', path: `/leads/edit/${leadId}`, body: { notes: text } },
-    { m: 'POST', path: `/leads/${leadId}/notes`, body: { note: text } },
+    { m: 'POST', path: `/leads/${leadId}/note`, body: { message: text } },   // confirmed shape
     { m: 'POST', path: `/leads/${leadId}/note`, body: { note: text } },
-    { m: 'POST', path: `/notes/create`, body: { leadId, note: text } },
-    { m: 'POST', path: `/notes/add`, body: { leadId, note: text } },
-    { m: 'PUT', path: `/notes/${leadId}`, body: { note: text } },
   ]
   const attempts = []
   for (const s of shapes) {
