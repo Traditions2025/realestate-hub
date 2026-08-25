@@ -50,6 +50,8 @@ router.get('/breakdown', (req, res) => {
 export function buildClientFilter(q) {
   let where = ' WHERE 1=1'
   const params = []
+  // Hide records that were merged into another client (kept for history, not shown).
+  if (!q.include_merged) where += ' AND merged_into IS NULL'
 
   // Type filter: 'buyer' / 'seller' includes 'both' (clients flagged as both buyer & seller match either filter)
   if (q.type === 'buyer') {
@@ -407,6 +409,67 @@ router.get('/', (req, res) => {
   res.set('X-Page-Limit', String(limit))
   res.set('X-Page-Offset', String(offset))
   res.json(rows)
+})
+
+// ---- P2-5: duplicate detection + safe merge ----
+// Find likely duplicate clients grouped by normalized phone (last 10) or exact name+zip.
+router.get('/duplicates', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500)
+  // Phone groups: same last-10 digits, more than one live (non-merged) client.
+  const phoneRows = db.all(`
+    SELECT substr(replace(replace(replace(replace(replace(phone,'(',''),')',''),'-',''),' ',''),'+',''), -10) AS pk,
+           COUNT(*) n, GROUP_CONCAT(id) ids
+    FROM clients
+    WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL
+    GROUP BY pk HAVING n > 1 AND length(pk) = 10
+    ORDER BY n DESC LIMIT ?`, [limit])
+  const groups = phoneRows.map(g => {
+    const ids = String(g.ids).split(',').map(Number)
+    const members = db.all(`SELECT id, first_name, last_name, phone, email, address, city, status, source, type, sierra_lead_id,
+      (SELECT COUNT(*) FROM communications co WHERE co.client_id=clients.id) comms
+      FROM clients WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY comms DESC, id ASC`, ids)
+    return { key: g.pk, match: 'phone', count: g.n, members }
+  })
+  res.json({ groups, total: groups.length })
+})
+
+// Merge duplicates into a primary. Reassigns ALL child records to the primary (nothing is
+// lost), fills the primary's blank fields from the dupes, then archives each dupe with a
+// merged_into pointer so the merge is reversible. Never hard-deletes.
+router.post('/merge', (req, res) => {
+  const primaryId = Number(req.body?.primary_id)
+  const dupIds = (Array.isArray(req.body?.duplicate_ids) ? req.body.duplicate_ids : []).map(Number).filter(x => x && x !== primaryId)
+  if (!primaryId || !dupIds.length) return res.status(400).json({ error: 'primary_id and duplicate_ids required' })
+  const primary = db.get('SELECT * FROM clients WHERE id=?', [primaryId])
+  if (!primary) return res.status(404).json({ error: 'primary not found' })
+
+  // Tables keyed by client_id → reassign to primary (nothing is lost).
+  const reassignClientId = ['communications', 'ai_actions', 'behavioral_events', 'lead_events', 'ai_handoffs', 'showings', 'transactions', 'lead_activity']
+  const merged = []
+  for (const dupId of dupIds) {
+    const dup = db.get('SELECT * FROM clients WHERE id=?', [dupId])
+    if (!dup) continue
+    for (const tbl of reassignClientId) {
+      try { db.run(`UPDATE ${tbl} SET client_id=? WHERE client_id=?`, [primaryId, dupId]) } catch {}
+    }
+    // notes + tasks use related_type/related_id
+    try { db.run("UPDATE notes SET related_id=? WHERE related_type='client' AND related_id=?", [primaryId, dupId]) } catch {}
+    try { db.run("UPDATE tasks SET related_id=? WHERE related_type='client' AND related_id=?", [primaryId, dupId]) } catch {}
+    // Fill primary blanks from the dup (only when primary is empty).
+    const fillable = ['phone', 'email', 'address', 'city', 'state', 'zip', 'source', 'agent_assigned', 'sierra_lead_id', 'lead_score', 'lead_grade', 'fsbo_status']
+    const sets = [], vals = []
+    for (const f of fillable) {
+      const pv = primary[f], dv = dup[f]
+      if ((pv === null || pv === undefined || pv === '') && dv !== null && dv !== undefined && dv !== '') { sets.push(`${f}=?`); vals.push(dv) }
+    }
+    if (sets.length) { db.run(`UPDATE clients SET ${sets.join(', ')} WHERE id=?`, [...vals, primaryId]) }
+    // Archive the dup, point it at the survivor, snapshot it in the audit log (recoverable).
+    db.run("UPDATE clients SET status='archived', merged_into=?, updated_at=datetime('now') WHERE id=?", [primaryId, dupId])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['merged', 'client', dupId, `Merged into ${primaryId}. Snapshot: ${JSON.stringify({ id: dup.id, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email, address: dup.address, status: dup.status, source: dup.source }).slice(0, 900)}`])
+    merged.push(dupId)
+  }
+  res.json({ success: true, primary_id: primaryId, merged, count: merged.length })
 })
 
 // ---- P2-2: Unified contact timeline ----

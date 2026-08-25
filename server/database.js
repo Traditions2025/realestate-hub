@@ -1746,6 +1746,9 @@ export async function initDb() {
       // Google Sheet by phone match. Drives the Hub FSBO list + its status column.
       ['fsbo_status', 'TEXT'],
       ['fsbo_status_at', 'TEXT'],
+      // P2-5: when a duplicate is merged into another client, this points to the survivor.
+      // The row is kept (status archived) so a merge is reversible and never loses history.
+      ['merged_into', 'INTEGER'],
       ['short_summary', 'TEXT'],
       ['tags', 'TEXT'],
       ['lender_name', 'TEXT'],

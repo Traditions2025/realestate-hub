@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T15:51:13.652Z",
-  "count": 465,
+  "generated_at": "2026-08-25T15:55:13.124Z",
+  "count": 466,
   "entries": [
+    {
+      "hash": "5a258f3",
+      "date": "2026-08-25T10:51:26-05:00",
+      "subject": "P2-2: unified contact timeline",
+      "title": "P2-2: unified contact timeline",
+      "body": "GET /api/clients/:id/timeline merges communications, notes, tasks, AI actions,\nhandoffs, showings, behavioral events, transaction milestones, and audit into\none time-sorted stream. Collapsible, filterable Timeline section on the lead\nprofile (All / Comms / AI / Notes / Tasks / Activity).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6a7a3f1",
       "date": "2026-08-25T10:49:45-05:00",

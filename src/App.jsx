@@ -1,8 +1,66 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react'
-import { Routes, Route, NavLink } from 'react-router-dom'
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react'
+import { Routes, Route, NavLink, useNavigate } from 'react-router-dom'
 import LoginScreen from './components/LoginScreen'
 import ResetPassword from './components/ResetPassword'
 import CallWidget from './components/CallWidget'
+import { authFetch } from './api'
+
+// P2-5: global cross-entity search (clients, transactions, tasks, notes).
+const TYPE_ICON = { client: '◉', transaction: '⇄', task: '☑', note: '≡' }
+function GlobalSearch() {
+  const [q, setQ] = useState('')
+  const [res, setRes] = useState(null)
+  const [open, setOpen] = useState(false)
+  const [active, setActive] = useState(0)
+  const boxRef = useRef(null)
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (q.trim().length < 2) { setRes(null); return }
+    const t = setTimeout(() => {
+      authFetch('/api/search?q=' + encodeURIComponent(q.trim())).then(r => r.json())
+        .then(d => { setRes(d.results || []); setOpen(true); setActive(0) }).catch(() => setRes([]))
+    }, 220)
+    return () => clearTimeout(t)
+  }, [q])
+  useEffect(() => {
+    const h = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  const go = (r) => { setOpen(false); setQ(''); navigate(r.href) }
+  const onKey = (e) => {
+    if (!res || !res.length) return
+    if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, res.length - 1)) }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setActive(a => Math.max(a - 1, 0)) }
+    else if (e.key === 'Enter') { e.preventDefault(); go(res[active]) }
+    else if (e.key === 'Escape') setOpen(false)
+  }
+  return (
+    <div ref={boxRef} style={{ position: 'sticky', top: 0, zIndex: 40, padding: '10px 0 6px', background: 'var(--bg-primary, var(--bg))' }}>
+      <div style={{ position: 'relative', maxWidth: 560 }}>
+        <input value={q} onChange={e => setQ(e.target.value)} onFocus={() => res && setOpen(true)} onKeyDown={onKey}
+          placeholder="Search everything — people, transactions, tasks, notes…"
+          className="input" style={{ width: '100%', padding: '9px 12px 9px 32px' }} />
+        <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-muted)' }}>⌕</span>
+        {open && res && (
+          <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.18)', maxHeight: 380, overflowY: 'auto' }}>
+            {res.length === 0 ? <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>No matches</div>
+              : res.map((r, i) => (
+                <div key={r.type + r.id} onMouseEnter={() => setActive(i)} onClick={() => go(r)}
+                  style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '8px 12px', cursor: 'pointer', background: i === active ? 'var(--bg-secondary)' : 'transparent', borderBottom: '1px solid var(--rule-2, var(--border))' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{TYPE_ICON[r.type] || '•'}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                    {r.subtitle && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>}
+                  </div>
+                  <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.04em' }}>{r.type}</span>
+                </div>
+              ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
 
 // Lazy load pages so initial bundle is smaller
 const Dashboard = lazy(() => import('./pages/Dashboard'))
@@ -17,6 +75,7 @@ const Partners = lazy(() => import('./pages/Partners'))
 const SocialMedia = lazy(() => import('./pages/SocialMedia'))
 const CampaignMatch = lazy(() => import('./pages/CampaignMatch'))
 const SmartAudiences = lazy(() => import('./pages/SmartAudiences'))
+const Duplicates = lazy(() => import('./pages/Duplicates'))
 const BlogPosts = lazy(() => import('./pages/BlogPosts'))
 const Calendar = lazy(() => import('./pages/Calendar'))
 const Updates = lazy(() => import('./pages/Updates'))
@@ -64,6 +123,7 @@ const navSections = [
   { label: 'SYSTEM', items: [
     { path: '/reporting', label: 'Reporting', icon: '\u25a4' },
     { path: '/updates', label: 'Updates', icon: '\u27f3' },
+    { path: '/duplicates', label: 'Duplicates', icon: '\u29c9' },
     { path: '/admin', label: 'Admin', icon: '\u26ed' },
     { path: '/settings', label: 'Settings', icon: '\u2699' },
   ]},
@@ -212,6 +272,7 @@ export default function App() {
       </aside>
 
       <main className="main-content">
+        <GlobalSearch />
         <Suspense fallback={<div className="page-loading">Loading...</div>}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -235,6 +296,7 @@ export default function App() {
             <Route path="/updates" element={<Updates />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/admin" element={<Admin />} />
+            <Route path="/duplicates" element={<Duplicates />} />
             <Route path="/automations" element={<Automations />} />
             <Route path="/reporting" element={<Reporting />} />
           </Routes>
