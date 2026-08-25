@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-24T22:50:24.021Z",
-  "count": 461,
+  "generated_at": "2026-08-25T15:12:09.054Z",
+  "count": 462,
   "entries": [
+    {
+      "hash": "3f25bba",
+      "date": "2026-08-24T17:50:34-05:00",
+      "subject": "Clients bulk actions: Export to CSV (always CSV)",
+      "title": "Clients bulk actions: Export to CSV (always CSV)",
+      "body": "New POST /api/clients/export returns a CSV of the selected leads (by id, chunked\nunder the SQLite param limit) or the current filter. Bulk Actions menu gets an\n'Export to CSV' item that downloads the full selection (not just the loaded page).\nTags flatten to a readable list; standard CRM columns incl. FSBO Status.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1c8a60b",
       "date": "2026-08-24T16:44:13-05:00",

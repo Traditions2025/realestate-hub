@@ -2657,6 +2657,7 @@ export default function Clients() {
                   statusTag={detail.email_status && detail.email_status !== 'Unknown' ? <span className="email-status-tag">{detail.email_status}</span> : null} />
                 <InlineField label="Address" field="address" value={detail.address} clientId={detail.id} onSaved={() => openDetail(detail.id)} />
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
+                <InlineStatus detail={detail} onSaved={() => openDetail(detail.id)} />
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
                 {detail.register_date && <p><strong>Registered:</strong> {new Date(detail.register_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(from FUB)</span></p>}
@@ -3460,6 +3461,44 @@ function InlineField({ label, value, field, clientId, onSaved, statusTag = null,
             style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 4px' }}>✎</button>
         </>
       )}
+    </p>
+  )
+}
+
+// Lead status shown + editable on the profile. Changing it writes the Hub immediately
+// AND pushes the new status to Sierra (source of truth), so the next sync doesn't revert
+// it. Junk/DoNotContact also pull the lead out of active drips server-side.
+const STATUS_OPTIONS = ['new', 'watch', 'qualify', 'prime', 'active', 'pending', 'closed', 'archived', 'junk', 'donotcontact']
+const STATUS_LABEL = { new: 'New', watch: 'Watch', qualify: 'Qualify', prime: 'Prime', active: 'Active', pending: 'Pending', closed: 'Closed', archived: 'Archived', junk: 'Junk', donotcontact: 'Do Not Contact' }
+const STATUS_COLOR = { new: '#2563eb', watch: '#0891b2', qualify: '#7c3aed', prime: '#059669', active: '#10b981', pending: '#f59e0b', closed: '#64748b', archived: '#64748b', junk: '#ef4444', donotcontact: '#ef4444' }
+function InlineStatus({ detail, onSaved }) {
+  const [saving, setSaving] = React.useState(false)
+  const [msg, setMsg] = React.useState('')
+  const cur = String(detail.status || '').toLowerCase()
+  const change = async (next) => {
+    if (!next || next === cur) return
+    setSaving(true); setMsg('')
+    try {
+      await authFetch(`/api/clients/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: next }) })
+      let pushed = false
+      if (detail.sierra_lead_id) {
+        try { const r = await authFetch('/api/sierra/update-lead-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: detail.id, status: next }) }); pushed = !!(await r.json()).success } catch {}
+      }
+      setMsg(pushed ? '✓ Hub + Sierra' : (detail.sierra_lead_id ? '✓ Hub (Sierra push failed)' : '✓ Hub'))
+      onSaved && onSaved()
+    } catch (e) { alert('Could not change status: ' + e.message) }
+    finally { setSaving(false) }
+  }
+  return (
+    <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+      <strong>Status:</strong>
+      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: STATUS_COLOR[cur] || '#64748b', padding: '2px 8px', borderRadius: 4 }}>{STATUS_LABEL[cur] || detail.status || '—'}</span>
+      <select value={STATUS_OPTIONS.includes(cur) ? cur : ''} disabled={saving} onChange={e => change(e.target.value)} style={{ padding: '3px 6px', fontSize: 12 }} title="Change status (updates Hub and Sierra)">
+        {!STATUS_OPTIONS.includes(cur) && <option value="">{detail.status || 'Set status'}</option>}
+        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
+      </select>
+      {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>saving…</span>}
+      {msg && !saving && <span style={{ fontSize: 11, color: msg.includes('failed') ? '#b45309' : '#10b981' }}>{msg}</span>}
     </p>
   )
 }
