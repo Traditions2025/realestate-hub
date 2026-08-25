@@ -54,11 +54,13 @@ export default function Reporting() {
         <button className={`listing-tab ${tab === 'texting' ? 'active' : ''}`} onClick={() => setTab('texting')}>💬 Texting</button>
         <button className={`listing-tab ${tab === 'calls' ? 'active' : ''}`} onClick={() => setTab('calls')}>☎ Calls</button>
         <button className={`listing-tab ${tab === 'ai' ? 'active' : ''}`} onClick={() => setTab('ai')}>🤖 AI Follow-Up</button>
+        <button className={`listing-tab ${tab === 'attribution' ? 'active' : ''}`} onClick={() => setTab('attribution')}>📊 Attribution</button>
       </div>
 
       {tab === 'texting' && <CommsReport mode="texting" />}
       {tab === 'calls' && <CommsReport mode="calls" />}
       {tab === 'ai' && <AiReport />}
+      {tab === 'attribution' && <AttributionReport />}
 
       {tab === 'email' && !sendgrid && (
         <div className="sierra-banner warning" style={{ marginBottom: 12 }}>SendGrid API key not set on the server — sent counts show, but opens/clicks won't populate until it's configured.</div>
@@ -190,6 +192,55 @@ function PeopleList({ subject, date, metric, label, onClose }) {
 }
 
 // --- SMS + call analytics (Reporting → Texting & Calls) ---
+// P2-1: conversion attribution + AI ROI funnel.
+function AttributionReport() {
+  const [d, setD] = useState(null)
+  useEffect(() => { authFetch('/api/reporting/attribution').then(r => r.json()).then(setD).catch(() => setD({ error: true })) }, [])
+  if (!d) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
+  if (d.error) return <div style={{ color: '#ef4444' }}>Could not load attribution.</div>
+  const maxF = Math.max(1, ...d.funnel.map(f => f.count))
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div className="detail-section">
+        <h4 style={{ marginTop: 0 }}>Lead funnel</h4>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {d.funnel.map((f, i) => (
+            <div key={f.stage} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 220, fontSize: 13 }}>{f.stage}</div>
+              <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 4, height: 22, position: 'relative' }}>
+                <div style={{ width: `${(f.count / maxF) * 100}%`, background: ['#2563eb', '#0891b2', '#f59e0b', '#10b981'][i] || '#64748b', height: '100%', borderRadius: 4, minWidth: 2 }} />
+              </div>
+              <div style={{ width: 90, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{f.count.toLocaleString()}{i > 0 && d.funnel[0].count ? <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}> · {Math.round((f.count / d.funnel[0].count) * 100)}%</span> : ''}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="detail-section">
+        <h4 style={{ marginTop: 0 }}>AI vs. human</h4>
+        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+          {[['AI-managed leads', d.ai.managed], ['AI-managed closed', d.ai.managed_closed], ['AI-managed conversion', d.ai.managed_conversion + '%'], ['AI texts sent', d.ai.ai_texts_sent], ['Human texts sent', d.ai.human_texts_sent]].map(([l, v]) => (
+            <div key={l} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', minWidth: 130 }}>
+              <div style={{ fontSize: 22, fontWeight: 800 }}>{typeof v === 'number' ? v.toLocaleString() : v}</div>
+              <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 10, fontStyle: 'italic' }}>{d.note}</div>
+      </div>
+      <div className="detail-section" style={{ padding: 0, overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
+          <thead><tr><th style={th}>Source</th><th style={th}>Leads</th><th style={th}>Closed</th><th style={th}>Conversion</th></tr></thead>
+          <tbody>
+            {d.by_source.map(s => (
+              <tr key={s.source}><td style={td}>{s.source}</td><td style={td}>{s.leads.toLocaleString()}</td><td style={td}>{s.closed}</td><td style={td}>{s.conversion}%</td></tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 function AiReport() {
   const [days, setDays] = React.useState(30)
   const [d, setD] = React.useState(undefined)

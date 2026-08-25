@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T15:58:55.548Z",
-  "count": 467,
+  "generated_at": "2026-08-25T16:00:55.890Z",
+  "count": 468,
   "entries": [
+    {
+      "hash": "81aac7e",
+      "date": "2026-08-25T10:59:29-05:00",
+      "subject": "P2-4 notification center + P2-3 web push",
+      "title": "P2-4 notification center + P2-3 web push",
+      "body": "- notifications table + server/notifications.js (notify/list/unread/markRead);\n  routes /api/notifications (+read, read-all). Emitters: AI handoff, inbound text.\n- Bell in the top bar: unread badge, dropdown, mark-all-read; polls every 30s.\n- P2-3 web push: push_subscriptions table, server/web-push.js (VAPID via web-push\n  package, self-generating keys, prunes dead subs; no-op if package/keys absent),\n  subscribe/unsubscribe + vapid-public-key routes, service-worker push +\n  notificationclick handlers, 'Enable push' opt-in in the bell. web-push dep added.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cc1a222",
       "date": "2026-08-25T10:55:39-05:00",

@@ -4,6 +4,48 @@ import db from '../database.js'
 const router = Router()
 const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || ''
 
+// ---- P2-1: conversion attribution + AI ROI funnel ----
+// Descriptive only — these are correlations, not proof the AI caused the outcome.
+router.get('/attribution', (_req, res) => {
+  try {
+    const one = (sql, p = []) => db.get(sql, p)?.n || 0
+    const live = 'merged_into IS NULL'
+    const total = one(`SELECT COUNT(*) n FROM clients WHERE ${live}`)
+    const engaged = one(`SELECT COUNT(DISTINCT c.id) n FROM clients c WHERE ${live} AND (
+      EXISTS(SELECT 1 FROM communications co WHERE co.client_id=c.id AND co.direction='incoming')
+      OR EXISTS(SELECT 1 FROM lead_intelligence li WHERE li.client_id=c.id AND li.intent_score>=50))`)
+    const handoffs = one(`SELECT COUNT(DISTINCT client_id) n FROM ai_handoffs`)
+    const closed = one(`SELECT COUNT(*) n FROM clients WHERE ${live} AND lower(status)='closed'`)
+    const funnel = [
+      { stage: 'All leads', count: total },
+      { stage: 'Engaged (replied / high intent)', count: engaged },
+      { stage: 'AI handoff to human', count: handoffs },
+      { stage: 'Closed', count: closed },
+    ]
+    // By source: leads + closed + conversion %.
+    const bySource = db.all(`SELECT COALESCE(NULLIF(source,''),'(none)') source, COUNT(*) leads,
+        SUM(CASE WHEN lower(status)='closed' THEN 1 ELSE 0 END) closed
+      FROM clients WHERE ${live} GROUP BY source ORDER BY leads DESC LIMIT 15`)
+      .map(r => ({ ...r, conversion: r.leads ? Math.round((r.closed / r.leads) * 1000) / 10 : 0 }))
+    // AI-managed vs not (managed = ai_lead_state.ai_managed=1).
+    const aiManaged = one(`SELECT COUNT(*) n FROM ai_lead_state WHERE ai_managed=1`)
+    const aiManagedClosed = one(`SELECT COUNT(*) n FROM clients c WHERE ${live} AND lower(c.status)='closed'
+      AND EXISTS(SELECT 1 FROM ai_lead_state s WHERE s.client_id=c.id AND s.ai_managed=1)`)
+    const aiTexts = one(`SELECT COUNT(*) n FROM ai_actions WHERE action_type='SEND_TEXT' AND status='success'`)
+    const humanTexts = one(`SELECT COUNT(*) n FROM communications WHERE direction='outgoing' AND channel='text' AND ai_action_id IS NULL`)
+    res.json({
+      funnel,
+      by_source: bySource,
+      ai: {
+        managed: aiManaged, managed_closed: aiManagedClosed,
+        managed_conversion: aiManaged ? Math.round((aiManagedClosed / aiManaged) * 1000) / 10 : 0,
+        ai_texts_sent: aiTexts, human_texts_sent: humanTexts,
+      },
+      note: 'Correlational, not causal — leads are not randomly assigned to AI vs human.',
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Pull opens/clicks/bounces/unsubscribes for a campaign from SendGrid's category
 // stats (the campaign tags every send with its category). Summed across days.
 async function categoryStats(category, startDate) {
