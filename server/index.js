@@ -18,6 +18,7 @@ import { businessOpen } from './comms-logic.js'
 import transactionsRouter from './routes/transactions.js'
 import clientsRouter from './routes/clients.js'
 import searchRouter from './routes/search.js'
+import notificationsRouter from './routes/notifications.js'
 import tasksRouter from './routes/tasks.js'
 import projectsRouter from './routes/projects.js'
 import notesRouter from './routes/notes.js'
@@ -313,6 +314,7 @@ async function start() {
   app.use('/api/transactions', transactionsRouter)
   app.use('/api/clients', clientsRouter)
   app.use('/api/search', searchRouter)
+  app.use('/api/notifications', notificationsRouter)
   app.use('/api/tasks', tasksRouter)
   app.use('/api/projects', projectsRouter)
   app.use('/api/notes', notesRouter)

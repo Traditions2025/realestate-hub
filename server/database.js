@@ -1073,6 +1073,33 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_beh_events_client ON behavioral_events(client_id, occurred_at DESC)') } catch {}
 
+  // P2-4: notification center — persistent team notifications (handoffs, inbound texts,
+  // new leads, missed calls, showings, tasks). Team-wide read flag (small shared team).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT,
+      title TEXT NOT NULL,
+      body TEXT,
+      link TEXT,
+      client_id INTEGER,
+      read INTEGER DEFAULT 0,
+      dedup_key TEXT UNIQUE,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(read, created_at DESC)') } catch {}
+
+  // P2-3: web-push subscriptions (one row per browser/device that opted in).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      endpoint TEXT PRIMARY KEY,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
   // Normalized lead-event log (CRM + website + comms events the AI reacts to).
   db.run(`
     CREATE TABLE IF NOT EXISTS lead_events (

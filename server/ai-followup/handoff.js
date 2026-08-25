@@ -21,6 +21,8 @@ export function createAiHandoff(clientId, { reason, urgency = 'high', summary = 
   // Pause autonomous qualification; a human should take it from here.
   transitionAiState(cid, 'HUMAN_HANDOFF_REQUIRED', reason || 'high intent')
   notifyHandoff(c, { reason, urgency, summary, intent_score }).catch(() => {})
+  // P2-4: in-app notification for the handoff.
+  try { import('../notifications.js').then(m => m.notify({ type: 'handoff', title: `⚑ Handoff: ${`${c.first_name || ''} ${c.last_name || ''}`.trim() || 'lead'}`, body: reason || summary || 'High intent', link: `/clients?open=${cid}`, client_id: cid, dedupKey: 'handoff_' + r.lastInsertRowid })).catch(() => {}) } catch {}
   return r.lastInsertRowid
 }
 

@@ -62,6 +62,76 @@ function GlobalSearch() {
   )
 }
 
+// P2-4/P2-3: notification bell with unread badge, dropdown, and web-push opt-in.
+function urlB64ToUint8(base64) {
+  const pad = '='.repeat((4 - base64.length % 4) % 4)
+  const b64 = (base64 + pad).replace(/-/g, '+').replace(/_/g, '/')
+  const raw = atob(b64); const arr = new Uint8Array(raw.length)
+  for (let i = 0; i < raw.length; i++) arr[i] = raw.charCodeAt(i)
+  return arr
+}
+function NotificationBell() {
+  const [unread, setUnread] = useState(0)
+  const [open, setOpen] = useState(false)
+  const [items, setItems] = useState([])
+  const [pushOn, setPushOn] = useState(false)
+  const ref = useRef(null)
+  const navigate = useNavigate()
+  const poll = () => authFetch('/api/notifications/unread-count').then(r => r.json()).then(d => setUnread(d.unread || 0)).catch(() => {})
+  useEffect(() => { poll(); const t = setInterval(poll, 30000); return () => clearInterval(t) }, [])
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
+  }, [])
+  useEffect(() => { try { navigator.serviceWorker?.ready.then(reg => reg.pushManager.getSubscription()).then(s => setPushOn(!!s)).catch(() => {}) } catch {} }, [])
+  const openList = () => {
+    setOpen(o => !o)
+    if (!open) authFetch('/api/notifications?limit=30').then(r => r.json()).then(d => { setItems(d.items || []); setUnread(d.unread || 0) }).catch(() => {})
+  }
+  const go = (n) => { setOpen(false); if (n.id) authFetch(`/api/notifications/${n.id}/read`, { method: 'POST' }).catch(() => {}); if (n.link) navigate(n.link); poll() }
+  const markAll = () => { authFetch('/api/notifications/read-all', { method: 'POST' }).then(() => { setUnread(0); setItems(x => x.map(i => ({ ...i, read: 1 }))) }).catch(() => {}) }
+  const enablePush = async () => {
+    try {
+      const perm = await Notification.requestPermission(); if (perm !== 'granted') return
+      const reg = await navigator.serviceWorker.ready
+      const { key } = await (await authFetch('/api/notifications/vapid-public-key')).json()
+      if (!key) { alert('Push is not configured on the server yet.'); return }
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToUint8(key) })
+      const j = sub.toJSON()
+      await authFetch('/api/notifications/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(j) })
+      setPushOn(true)
+    } catch (e) { alert('Could not enable push: ' + e.message) }
+  }
+  const fmt = (iso) => { try { return new Date(String(iso).includes('Z') ? iso : iso + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return '' } }
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="theme-toggle" onClick={openList} title="Notifications" style={{ position: 'relative', padding: '8px 12px' }}>
+        <span style={{ fontVariantEmoji: 'text' }}>🔔</span>
+        {unread > 0 && <span style={{ position: 'absolute', top: 2, right: 4, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
+      </button>
+      {open && (
+        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 340, maxHeight: 460, overflowY: 'auto', background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 60 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
+            <strong style={{ fontSize: 13 }}>Notifications</strong>
+            <div style={{ display: 'flex', gap: 8 }}>
+              {!pushOn && <button className="btn-link" style={{ fontSize: 11.5 }} onClick={enablePush}>Enable push</button>}
+              <button className="btn-link" style={{ fontSize: 11.5 }} onClick={markAll}>Mark all read</button>
+            </div>
+          </div>
+          {items.length === 0 ? <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 13 }}>Nothing yet.</div>
+            : items.map(n => (
+              <div key={n.id} onClick={() => go(n)} style={{ padding: '9px 12px', borderBottom: '1px solid var(--rule-2, var(--border))', cursor: 'pointer', background: n.read ? 'transparent' : 'var(--bg-secondary)' }}>
+                <div style={{ fontSize: 13, fontWeight: n.read ? 500 : 700 }}>{n.title}</div>
+                {n.body && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(n.created_at)}</div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Lazy load pages so initial bundle is smaller
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
@@ -272,7 +342,10 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        <GlobalSearch />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 40, background: 'var(--bg-primary, var(--bg))' }}>
+          <div style={{ flex: 1 }}><GlobalSearch /></div>
+          <NotificationBell />
+        </div>
         <Suspense fallback={<div className="page-loading">Loading...</div>}>
           <Routes>
             <Route path="/" element={<Dashboard />} />

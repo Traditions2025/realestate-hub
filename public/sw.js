@@ -79,3 +79,26 @@ self.addEventListener('fetch', (event) => {
     }
   })())
 })
+
+// ---- P2-3: web push ----
+self.addEventListener('push', (event) => {
+  let d = {}
+  try { d = event.data ? event.data.json() : {} } catch { d = { title: 'Matt Smith Team Hub', body: event.data ? event.data.text() : '' } }
+  const title = d.title || 'Matt Smith Team Hub'
+  event.waitUntil(self.registration.showNotification(title, {
+    body: d.body || '',
+    tag: d.type || 'hub',
+    data: { link: d.link || '/' },
+    icon: '/logo.png',
+    badge: '/logo.png',
+  }))
+})
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close()
+  const link = (event.notification.data && event.notification.data.link) || '/'
+  event.waitUntil((async () => {
+    const all = await clients.matchAll({ type: 'window', includeUncontrolled: true })
+    for (const c of all) { if ('focus' in c) { c.navigate(link); return c.focus() } }
+    if (clients.openWindow) return clients.openWindow(link)
+  })())
+})

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T15:55:13.124Z",
-  "count": 466,
+  "generated_at": "2026-08-25T15:58:55.548Z",
+  "count": 467,
   "entries": [
+    {
+      "hash": "cc1a222",
+      "date": "2026-08-25T10:55:39-05:00",
+      "subject": "P2-5: universal search + safe dedupe/merge",
+      "title": "P2-5: universal search + safe dedupe/merge",
+      "body": "- GET /api/search: cross-entity search (clients, transactions, tasks, notes)\n  with a global search bar at the top of every page (keyboard nav, deep links).\n- GET /api/clients/duplicates: groups live contacts by normalized phone (last 10).\n- POST /api/clients/merge: reassigns ALL child records (comms, notes, tasks, AI\n  actions, handoffs, showings, transactions, activity, behavioral events) to the\n  primary, fills its blank fields from the dupes, archives each dupe with a\n  merged_into pointer + audit snapshot. Never hard-deletes. Merged records hidden\n  from lists (merged_into IS NULL default).\n- New Duplicates page under SYSTEM.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5a258f3",
       "date": "2026-08-25T10:51:26-05:00",

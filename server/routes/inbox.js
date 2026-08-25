@@ -484,6 +484,8 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         notifyInboundText(client, body || (media.length ? '[media]' : ''), from).catch(() => {})
         // P1-3: weighted behavioral event for the inbound text (feeds intent).
         try { import('../ai-followup/behavioral.js').then(m => m.recordBehavioralEvent(client.id, 'inbound_text', { source: 'sms', ref: externalId })).catch(() => {}) } catch {}
+        // P2-4: notification for the inbound text.
+        try { import('../notifications.js').then(m => m.notify({ type: 'inbound_text', title: `New text from ${name}`, body: (body || '[media]').slice(0, 160), link: `/clients?open=${client.id}`, client_id: client.id, dedupKey: 'inbound_' + externalId })).catch(() => {}) } catch {}
         // Automation triggers: incoming text (always) + text reply (if we've texted them before)
         import('./automations.js').then(m => {
           m.emitAutomationEvent('new_message_received', client.id, { body }, 'msg_' + externalId)
