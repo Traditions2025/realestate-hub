@@ -9,9 +9,63 @@ import { recentAiActions } from '../ai-followup/audit.js'
 import { ensurePrefs } from '../ai-followup/policy.js'
 import { memoryFields } from '../ai-followup/memory.js'
 import { isStopStatus } from '../lead-sequences.js'
+import { buildSystemPrompt, buildUserMessage, ALLOWED_ACTIONS } from '../ai-followup/prompts.js'
+import { getAiClient, AI_MODEL } from './followup.js'
+import { centralGreeting } from '../ai-followup/context.js'
 
 const router = Router()
 const nowIso = () => new Date().toISOString()
+
+function sandboxParseJson(text) {
+  let t = (text || '').trim()
+  const fence = t.match(/```(?:json)?\s*([\s\S]*?)```/i); if (fence) t = fence[1].trim()
+  const s = t.indexOf('{'), e = t.lastIndexOf('}'); if (s >= 0 && e > s) t = t.slice(s, e + 1)
+  return JSON.parse(t)
+}
+
+// ---- AI Sandbox: run the REAL AI brain against a simulated lead + conversation.
+// Pure model call — never sends a text, never touches a real lead or the DB. Returns the
+// AI's full decision (drafted reply, chosen action, intent delta + signals, extracted
+// memory, rolling summary, next state, handoff) so you can watch it think in real time.
+router.post('/sandbox', async (req, res) => {
+  const ai = getAiClient()
+  if (!ai) return res.status(400).json({ error: 'AI not configured (ANTHROPIC_API_KEY missing on the server).' })
+  const b = req.body || {}
+  const lead = b.lead || {}
+  const leadType = ['buyer', 'seller', 'both'].includes(lead.type) ? lead.type : 'buyer'
+  const history = Array.isArray(b.messages) ? b.messages.slice(-30) : []
+  const latest = String(b.latest || (history.length ? history[history.length - 1].text : '') || '').slice(0, 1200)
+  if (!latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
+  const isFirst = !history.some(m => m.role === 'agent')
+  // Build a synthetic context mirroring the shape context.js produces for a real lead.
+  const facts = {
+    first_name: lead.name || 'there', lead_type: leadType, lead_source: lead.source || 'Website',
+    crm_status: 'new', city: lead.city || 'Cedar Rapids', team_area: 'Cedar Rapids / Marion, Iowa (Linn County)',
+    is_first_text: isFirst, time_greeting: centralGreeting(), search_city: lead.city || null,
+    now: new Date().toISOString(),
+  }
+  const transcript = history.map(m => `${m.role === 'agent' ? 'AGENT (you)' : 'CONSUMER'}: ${m.text}`).join('\n') || '(no prior messages)'
+  const ctx = { facts, transcript, latestInbound: latest, lead_type: leadType, persona: getConfig().ai_persona || 'John with Matt Smith Team at RE/MAX Concepts', intelligence: { lead_type: leadType } }
+  const t0 = Date.now()
+  try {
+    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 900, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: buildUserMessage(ctx) }] })
+    const decision = sandboxParseJson(msg.content?.[0]?.text || '')
+    const action = ALLOWED_ACTIONS.includes(decision?.action) ? decision.action : 'NO_ACTION'
+    const delta = Math.max(-20, Math.min(40, Number(decision?.intent_delta) || 0))
+    const prevIntent = Math.max(0, Math.min(100, Number(b.intent) || 0))
+    const newIntent = Math.max(0, Math.min(100, prevIntent + delta))
+    res.json({
+      action,
+      message: String(decision?.message || '').trim(),
+      intent_delta: delta, intent_before: prevIntent, intent_after: newIntent, intent_level: levelFor(newIntent),
+      intent_signals: Array.isArray(decision?.intent_signals) ? decision.intent_signals : [],
+      memory: decision?.memory || {}, conversation_type: decision?.conversation_type || null,
+      summary: decision?.summary || '', next_state: decision?.next_state || null,
+      handoff: decision?.handoff || { required: false },
+      latency_ms: Date.now() - t0, tokens: msg.usage || {},
+    })
+  } catch (e) { res.status(500).json({ error: 'model error: ' + e.message }) }
+})
 
 // ---- per-lead AI card ----
 router.get('/lead/:id', (req, res) => {

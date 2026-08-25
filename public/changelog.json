@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T16:09:53.364Z",
-  "count": 472,
+  "generated_at": "2026-08-25T16:21:36.409Z",
+  "count": 473,
   "entries": [
+    {
+      "hash": "b3e36f5",
+      "date": "2026-08-25T11:10:00-05:00",
+      "subject": "Dedupe UI: merge only records matching the primary's last name/address (mixed-line safety)",
+      "title": "Dedupe UI: merge only records matching the primary's last name/address (mixed-line safety)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "70ee27a",
       "date": "2026-08-25T11:08:22-05:00",

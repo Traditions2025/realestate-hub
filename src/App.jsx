@@ -152,6 +152,7 @@ const Updates = lazy(() => import('./pages/Updates'))
 const Inbox = lazy(() => import('./pages/Inbox'))
 const PowerDialer = lazy(() => import('./pages/PowerDialer'))
 const AiOpportunities = lazy(() => import('./pages/AiOpportunities'))
+const AiSandbox = lazy(() => import('./pages/AiSandbox'))
 const Templates = lazy(() => import('./pages/Templates'))
 const Settings = lazy(() => import('./pages/Settings'))
 const Admin = lazy(() => import('./pages/Admin'))
@@ -171,6 +172,7 @@ const navSections = [
     { path: '/clients', label: 'Clients', icon: '\u25C9' },
     { path: '/inbox', label: 'Inbox', icon: '\u2709' },
     { path: '/ai-opportunities', label: 'AI Opportunities', icon: '\u2726' },
+    { path: '/ai-sandbox', label: 'AI Sandbox', icon: '\u2699' },
   ]},
   { label: 'WORK', items: [
     { path: '/tasks', label: 'Tasks', icon: '\u2610' },
@@ -353,6 +355,7 @@ export default function App() {
             <Route path="/clients" element={<Clients />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/ai-opportunities" element={<AiOpportunities />} />
+            <Route path="/ai-sandbox" element={<AiSandbox />} />
             <Route path="/dialer" element={<PowerDialer />} />
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/projects" element={<Projects />} />
