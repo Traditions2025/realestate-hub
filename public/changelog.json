@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-08-25T17:48:29.990Z",
-  "count": 478,
+  "generated_at": "2026-08-25T19:03:45.170Z",
+  "count": 483,
   "entries": [
+    {
+      "hash": "5e59e94",
+      "date": "2026-08-25T13:52:43-05:00",
+      "subject": "First texts also end with warm 'happy to help, just shoot me a text' close (all openers + first reply)",
+      "title": "First texts also end with warm 'happy to help, just shoot me a text' close (all openers + first reply)",
+      "body": "Still introduce + website + now the warm close on every first message, on top of the\nactivity-matched body. Version -> hubai-2026.08.25-4.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2ad44e2",
+      "date": "2026-08-25T13:49:49-05:00",
+      "subject": "Every first text must introduce (John w/ Matt Smith Team) + include MattSmithTeam.com",
+      "title": "Every first text must introduce (John w/ Matt Smith Team) + include MattSmithTeam.com",
+      "body": "Property-specific and first-reply openers were skipping the intro/website. Now all\nfirst messages require greeting + first name, 'I'm John with Matt Smith Team at RE/MAX',\nand MattSmithTeam.com before the activity-specific body. Version -> hubai-2026.08.25-3.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8570c7e",
+      "date": "2026-08-25T13:30:52-05:00",
+      "subject": "AI first-touch: full behavior-keyed opener playbook (25 templates) + 'local listings' + first-reply split",
+      "title": "AI first-touch: full behavior-keyed opener playbook (25 templates) + 'local listings' + first-reply split",
+      "body": "- PROACTIVE_OPENERS bank: the team's opener templates keyed to online activity (new\n  registration, viewed/requested-info/showing/favorited/saved-search/returned/inactive/\n  repeat-view/multiple/area/price/new-listing/price-drop/back-on-market/open-house/\n  availability/mortgage-calc/high-activity/high-intent/no-response/re-engagement). AI picks\n  the matching template and fills real values, never literal brackets, never view counts.\n- First message now splits: proactive opener bank when the lead hasn't texted; a light\n  FIRST_REPLY (greet + intro + answer) when they messaged first.\n- Fallback opener always says 'local listings in [city]'. Greeting rule: Hi/Hello/Good\n  morning-afternoon-evening + name, never Hey. Prompt version -> hubai-2026.08.25-2.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "49748c5",
+      "date": "2026-08-25T12:59:13-05:00",
+      "subject": "First message: property-first opener when a specific home is known; reference saved searches",
+      "title": "First message: property-first opener when a specific home is known; reference saved searches",
+      "body": "- When last_viewed_property is set, open direct and property-first: greeting + name,\n  'saw you were interested in [property]. What would you like to know about it? Happy to\n  get you the details, just reply to this text.' No long site intro, no view counts.\n- General/new-registration/saved-search first touch keeps 'thanks for stopping by... local\n  listings in [city]... anything in particular?'; saved searches referenced by criteria.\n- STYLE surveillance rule relaxed: referencing the one property/search they engaged with is\n  OK; view counts / 'I noticed you browsing' still banned.\n- Buyer/seller question banks (DISCOVERY) + objection responses (OBJECTIONS) remain in the\n  prompt and are what the AI draws from.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "913b46c",
+      "date": "2026-08-25T12:48:52-05:00",
+      "subject": "Fix city mixing: metro geography note + sandbox uses one consistent city",
+      "title": "city mixing: metro geography note + sandbox uses one consistent city",
+      "body": "- New GEO prompt section: Cedar Rapids/Marion/Hiawatha/etc are SEPARATE neighboring\n  cities, never nested; use the searched area as area-of-interest; don't assume the\n  profile city is where they live or say they're 'based in' a city; ask area openly.\n- Sandbox online-activity presets now set the lead city to the activity's search_city\n  so the profile city and searched city can't conflict.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "ba17303",
       "date": "2026-08-25T12:18:58-05:00",

@@ -59,6 +59,7 @@ export async function fetchFsboMasterRows() {
   const idx = (name) => header.findIndex(h => h.toLowerCase() === name.toLowerCase())
   const iPhone = idx('Phone 1'), iStatus = idx('FSBO Status'), iName = idx('Name'), iAddr = idx('Street Address')
   const iCity = idx('City'), iState = idx('State'), iZip = idx('Zipcode'), iEmail = idx('Email'), iSource = idx('Source'), iTags = idx('Tags')
+  const iListDate = idx('List Date'), iDom = idx('DOM')
   const cell = (row, i) => i >= 0 ? String(row[i] || '').trim() : ''
   const out = []
   for (let r = 1; r < rows.length; r++) {
@@ -71,6 +72,7 @@ export async function fetchFsboMasterRows() {
       name: cell(row, iName), address: cell(row, iAddr), city: cell(row, iCity),
       state: cell(row, iState) || 'IA', zip: cell(row, iZip), email: cell(row, iEmail),
       source: cell(row, iSource), tags: cell(row, iTags),
+      list_date: cell(row, iListDate), dom: cell(row, iDom),
     })
   }
   return out
@@ -118,10 +120,10 @@ export async function syncFsboMaster() {
       // (Available AND Off Market) lands on the list. On re-sync it matches by phone.
       const { first, last } = splitName(row.name)
       const info = db.run(
-        `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, created_at, updated_at)
-         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, created_at, updated_at)
+         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [first, last, row.phone, row.email || null, 'seller', 'watch', row.source || 'FSBO Master',
-         row.address || null, row.city || null, row.state || 'IA', row.zip || null, tagsJson(row.tags), row.status, now, now, now])
+         row.address || null, row.city || null, row.state || 'IA', row.zip || null, tagsJson(row.tags), row.status, now, row.list_date || null, row.dom || null, now, now])
       report.created++
       // Register in the index so duplicate-phone sheet rows update this same record.
       if (key) index.set(key, { id: info.lastInsertRowid, phone: row.phone, tags: tagsJson(row.tags), fsbo_status: row.status })
@@ -129,10 +131,10 @@ export async function syncFsboMaster() {
     }
     report.matched++
     if (match.fsbo_status !== row.status) {
-      db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, updated_at=? WHERE id=?', [row.status, now, now, match.id])
+      db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, updated_at=? WHERE id=?', [row.status, now, row.list_date || null, row.dom || null, now, match.id])
       report.updated++
     } else {
-      db.run('UPDATE clients SET fsbo_status_at=? WHERE id=?', [now, match.id])
+      db.run('UPDATE clients SET fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=? WHERE id=?', [now, row.list_date || null, row.dom || null, match.id])
     }
     match.fsbo_status = row.status
   }

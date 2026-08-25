@@ -2167,6 +2167,9 @@ export default function Clients() {
             const arrow = sortBy === 'fsbo_offmarket_first' ? '▼' : sortBy === 'fsbo_available_first' ? '▲' : '⇅'
             return <div key="visits" className="cl-visits sortable" onClick={() => setSortBy(sortBy === 'fsbo_available_first' ? 'fsbo_offmarket_first' : 'fsbo_available_first')} title="Click to sort by FSBO status">FSBO Status {arrow}</div>
           }
+          // FSBO list repurposes Type -> DOM (days on market) and Registered -> List Date.
+          if (isFsboList && col.key === 'type') return <div key="type" className="cl-type" title="Days on market (FSBO master file)">DOM</div>
+          if (isFsboList && col.key === 'registered') return <div key="registered" className="cl-registered">List Date</div>
           // These column headers double as click-to-filter dropdowns.
           if (col.key === 'type') {
             return <ColumnFilterHeader key="type" className="cl-type" label="Type" value={filter.type}
@@ -2258,6 +2261,7 @@ export default function Clients() {
                 </select>
               </div>
             case 'type':
+              if (isFsboList) return <div key="type" className="cl-type" title="Days on market (FSBO master file)">{item.fsbo_dom != null && item.fsbo_dom !== '' ? item.fsbo_dom : '—'}</div>
               return <div key="type" className="cl-type">
                 {item.type && (
                   <span className={`type-pill type-${item.type}`}>
@@ -2312,6 +2316,13 @@ export default function Clients() {
                 ) : '—'}
               </div>
             case 'registered': {
+              // FSBO list: show the master-file List Date instead of the registration date.
+              if (isFsboList) {
+                const ld = item.fsbo_list_date
+                return <div key="registered" className="cl-registered" title="List date (FSBO master file)">
+                  {ld ? (() => { const d = new Date(String(ld).replace(' ', 'T')); return isNaN(d) ? ld : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })() : '—'}
+                </div>
+              }
               // Prefer the real FUB registration date; fall back to the Sierra
               // import date only when a lead has no FUB register date.
               const reg = (item.register_date && item.register_date.trim()) ? item.register_date : item.sierra_creation_date
