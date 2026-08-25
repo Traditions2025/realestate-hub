@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T16:00:55.890Z",
-  "count": 468,
+  "generated_at": "2026-08-25T16:02:56.850Z",
+  "count": 469,
   "entries": [
+    {
+      "hash": "91994ee",
+      "date": "2026-08-25T11:01:05-05:00",
+      "subject": "P2-1: conversion attribution + AI ROI funnel",
+      "title": "P2-1: conversion attribution + AI ROI funnel",
+      "body": "GET /api/reporting/attribution: lead funnel (all -> engaged -> handoff -> closed),\nby-source leads/closed/conversion, AI-managed vs human breakdown + AI/human text\ncounts. New Attribution tab in Reporting with funnel bars, AI stat tiles, and a\nby-source table. Correlation-not-causation framing surfaced.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "81aac7e",
       "date": "2026-08-25T10:59:29-05:00",

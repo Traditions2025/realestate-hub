@@ -461,7 +461,18 @@ function HealthPanel() {
     authFetch('/api/admin/health').then(r => r.json()).then(d => d.error ? setErr(d.error) : setHealth(d)).catch(() => setErr('Failed to load'))
     authFetch('/api/admin/db-health').then(r => r.json()).then(d => setDbh(d && !d.error ? d : null)).catch(() => {})
     authFetch('/api/admin/failures?state=open').then(r => r.json()).then(d => setFailures(Array.isArray(d) ? d : [])).catch(() => {})
+    authFetch('/api/admin/integrations').then(r => r.json()).then(d => setIntg(d && !d.error ? d : null)).catch(() => {})
   }, [])
+  const [intg, setIntg] = useState(null)
+  const exportTable = async (t) => {
+    try {
+      const r = await authFetch(`/api/admin/export/${t}`)
+      if (!r.ok) throw new Error('export failed')
+      const blob = await r.blob(); const url = URL.createObjectURL(blob)
+      const a = document.createElement('a'); a.href = url; a.download = `${t}-export-${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000)
+    } catch (e) { alert('Could not export: ' + e.message) }
+  }
   useEffect(() => { load() }, [load])
   const resolve = async (id) => { await authFetch(`/api/admin/failures/${id}/resolve`, { method: 'POST' }); load() }
   const resolveAll = async () => { if (!confirm('Mark all open failures resolved?')) return; await authFetch('/api/admin/failures/resolve-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); load() }
@@ -482,6 +493,42 @@ function HealthPanel() {
   const badge = (ok, okText, badText) => <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
   return (
     <div>
+      {/* Integrations + queues (P2-6) */}
+      {intg && (
+        <div className="detail-section" style={{ marginBottom: 16 }}>
+          <h4>Integrations</h4>
+          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+            {Object.entries(intg.integrations).map(([k, v]) => (
+              <div key={k} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', minWidth: 150 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{badge(v.ok, 'OK', 'Off')}<span style={{ fontWeight: 600, fontSize: 13, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</span></div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>{v.detail}</div>
+              </div>
+            ))}
+          </div>
+          <h4>Queues</h4>
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+            {Object.entries(intg.queues).map(([k, v]) => (
+              <div key={k} style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: v > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{v}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
+              </div>
+            ))}
+          </div>
+          {intg.sync?.last_error && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 10 }}>Last sync error: {intg.sync.last_error.message}</div>}
+        </div>
+      )}
+
+      {/* Data export (P2-7) */}
+      <div className="detail-section" style={{ marginBottom: 16 }}>
+        <h4>Data Export</h4>
+        <p style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 0 }}>Download your data as CSV. Secrets, logins, and keys are never exported.</p>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {['clients', 'transactions', 'tasks', 'notes', 'communications'].map(t => (
+            <button key={t} className="btn btn-sm btn-secondary" onClick={() => exportTable(t)}>⬇ {t}.csv</button>
+          ))}
+        </div>
+      </div>
+
       {/* Database */}
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <h4>Database</h4>
