@@ -507,9 +507,12 @@ router.post('/create-lead', async (req, res) => {
   // Sierra's POST /leads requires a password (each lead gets a portal account). The lead
   // never uses it; generate a strong random one.
   const password = 'Fsbo!' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6).toUpperCase()
+  // Sierra requires an email. FSBOs often have none, so use the team's non-routable
+  // placeholder convention (notvalidemail.com never delivers, so no email is ever sent).
+  const email = client.email || `noemail-${Math.random().toString(36).slice(2, 12)}@notvalidemail.com`
   const payload = {
     firstName: client.first_name || '', lastName: client.last_name || '(FSBO)',
-    email: client.email || undefined, password,
+    email, password,
     cellPhone: digits || undefined,
     leadStatus: sierraStatus,
     source: client.source || 'FSBO Master',
