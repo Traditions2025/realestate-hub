@@ -433,12 +433,24 @@ router.get('/duplicates', (req, res) => {
     WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL
     GROUP BY pk HAVING n > 1 AND n <= 4 AND length(pk) = 10
     ORDER BY n DESC LIMIT ?`, [limit])
+  const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '')
   const groups = phoneRows.filter(g => !isPlaceholder(g.pk)).map(g => {
     const ids = String(g.ids).split(',').map(Number)
     const members = db.all(`SELECT id, first_name, last_name, phone, email, address, city, status, source, type, sierra_lead_id,
       (SELECT COUNT(*) FROM communications co WHERE co.client_id=clients.id) comms
       FROM clients WHERE id IN (${ids.map(() => '?').join(',')}) ORDER BY comms DESC, id ASC`, ids)
     return { key: g.pk, match: 'phone', count: g.n, members }
+  }).filter(g => {
+    // Only a real duplicate if members actually look like the same person: at least two
+    // share a last name OR a street address. A shared phone with all-different names is a
+    // household/brokerage/shared line, never merged.
+    const counts = {}
+    for (const m of g.members) { const k = norm(m.last_name); if (k) counts[k] = (counts[k] || 0) + 1 }
+    const sharedName = Object.values(counts).some(n => n >= 2)
+    const addrs = {}
+    for (const m of g.members) { const k = norm(m.address); if (k) addrs[k] = (addrs[k] || 0) + 1 }
+    const sharedAddr = Object.values(addrs).some(n => n >= 2)
+    return sharedName || sharedAddr
   })
   res.json({ groups, total: groups.length })
 })
