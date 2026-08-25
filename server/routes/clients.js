@@ -370,6 +370,8 @@ const SORT_OPTIONS = {
   least_visits: 'visits ASC',
   fsbo_available_first: "CASE fsbo_status WHEN 'Available' THEN 0 WHEN 'Off Market' THEN 1 ELSE 2 END ASC, updated_at DESC",
   fsbo_offmarket_first: "CASE fsbo_status WHEN 'Off Market' THEN 0 WHEN 'Available' THEN 1 ELSE 2 END ASC, updated_at DESC",
+  fsbo_dom_high: 'CAST(fsbo_dom AS INTEGER) DESC NULLS LAST',
+  fsbo_dom_low: 'CAST(fsbo_dom AS INTEGER) ASC NULLS LAST',
   highest_score: 'CAST(lead_score AS INTEGER) DESC NULLS LAST',
   lowest_score: 'CAST(lead_score AS INTEGER) ASC NULLS LAST',
   name_az: 'last_name ASC, first_name ASC',

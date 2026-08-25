@@ -2162,13 +2162,18 @@ export default function Clients() {
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
+          // FSBO Status -> click-to-filter (Available / Off Market).
           if (isFsboList && col.key === 'visits') {
-            const isSorted = sortBy === 'fsbo_available_first' || sortBy === 'fsbo_offmarket_first'
-            const arrow = sortBy === 'fsbo_offmarket_first' ? '▼' : sortBy === 'fsbo_available_first' ? '▲' : '⇅'
-            return <div key="visits" className="cl-visits sortable" onClick={() => setSortBy(sortBy === 'fsbo_available_first' ? 'fsbo_offmarket_first' : 'fsbo_available_first')} title="Click to sort by FSBO status">FSBO Status {arrow}</div>
+            const cur = (advFilters.fsbo_statuses_include && advFilters.fsbo_statuses_include.length === 1) ? advFilters.fsbo_statuses_include[0] : ''
+            return <ColumnFilterHeader key="visits" className="cl-visits" label="FSBO Status" value={cur}
+              options={[{ value: '', label: 'All' }, { value: 'Available', label: 'Available' }, { value: 'Off Market', label: 'Off Market' }]}
+              onSelect={v => setAdvFilters(p => ({ ...p, fsbo_statuses_include: v ? [v] : [] }))} />
           }
-          // FSBO list repurposes Type -> DOM (days on market) and Registered -> List Date.
-          if (isFsboList && col.key === 'type') return <div key="type" className="cl-type" title="Days on market (FSBO master file)">DOM</div>
+          // DOM -> sortable (days on market).
+          if (isFsboList && col.key === 'type') {
+            const arrow = sortBy === 'fsbo_dom_high' ? '▼' : sortBy === 'fsbo_dom_low' ? '▲' : '⇅'
+            return <div key="type" className={`cl-type sortable ${(sortBy === 'fsbo_dom_high' || sortBy === 'fsbo_dom_low') ? 'active' : ''}`} onClick={() => setSortBy(sortBy === 'fsbo_dom_high' ? 'fsbo_dom_low' : 'fsbo_dom_high')} title="Click to sort by days on market">DOM {arrow}</div>
+          }
           if (isFsboList && col.key === 'registered') return <div key="registered" className="cl-registered">List Date</div>
           // These column headers double as click-to-filter dropdowns.
           if (col.key === 'type') {
