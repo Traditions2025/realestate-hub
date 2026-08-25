@@ -19,6 +19,35 @@ const CATEGORY_SUGGESTIONS = [
   'Lender Intro', 'Closer Intro', 'Inspection', 'Equity Check', 'Market Update'
 ]
 
+// Custom/merge fields that get filled per-recipient when the template is used.
+const MERGE_FIELDS = [
+  ['{{first_name}}', 'First name'], ['{{last_name}}', 'Last name'], ['{{full_name}}', 'Full name'],
+  ['{{address}}', 'Property address'], ['{{city}}', 'City'], ['{{state}}', 'State'], ['{{zip}}', 'ZIP'],
+  ['{{agent}}', 'Agent name'], ['{{price_range}}', 'Price range'], ['{{email}}', 'Email'], ['{{phone}}', 'Phone'],
+]
+
+// Insert a token at the textarea cursor (or append), updating form state.
+function insertAtCursor(ref, token, current, setValue) {
+  const el = ref.current
+  if (el && typeof el.selectionStart === 'number') {
+    const s = el.selectionStart, e = el.selectionEnd
+    const next = (current || '').slice(0, s) + token + (current || '').slice(e)
+    setValue(next)
+    setTimeout(() => { try { el.focus(); el.selectionStart = el.selectionEnd = s + token.length } catch {} }, 0)
+  } else setValue((current || '') + token)
+}
+
+// A small "insert custom field" picker.
+function MergeFieldPicker({ onPick }) {
+  return (
+    <select value="" onChange={e => { if (e.target.value) onPick(e.target.value); e.target.value = '' }}
+      title="Insert a custom field" style={{ fontSize: 12, padding: '4px 6px' }}>
+      <option value="">+ Custom field…</option>
+      {MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
+    </select>
+  )
+}
+
 const emptyTemplate = {
   name: '', type: 'email', category: '', subject: '', body: '', is_html: false, tags: ''
 }
@@ -378,7 +407,10 @@ export default function Templates() {
                 <RichTextEditor value={form.body} onChange={(b) => setForm(p => ({ ...p, body: b, is_html: true }))} minHeight={240} />
               ) : (
                 <>
-                  <EmailToolbar textareaRef={tplBodyRef} body={form.body} setBody={(b) => setForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <EmailToolbar textareaRef={tplBodyRef} body={form.body} setBody={(b) => setForm(p => ({ ...p, body: b }))} showPreview={false} compact />
+                    <MergeFieldPicker onPick={tok => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))} />
+                  </div>
                   <textarea ref={tplBodyRef} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={16} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
                 </>
               )}
@@ -388,13 +420,22 @@ export default function Templates() {
             </div>
           ) : (
             <label>Body
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+                <MergeFieldPicker onPick={tok => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))} />
+                <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                  {MERGE_FIELDS.slice(0, 5).map(([tok, label]) => (
+                    <button key={tok} type="button" className="btn btn-sm btn-secondary" style={{ fontSize: 11, padding: '2px 7px' }}
+                      onClick={() => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))}>{label}</button>
+                  ))}
+                </div>
+              </div>
               <textarea
                 ref={tplBodyRef}
                 value={form.body}
                 onChange={e => setForm(p => ({ ...p, body: e.target.value }))}
                 rows={8}
                 required
-                placeholder={form.type === 'text' ? 'Hey {{first_name}}, quick note...' : 'Template body — supports {{first_name}}, {{address}}, etc.'}
+                placeholder={form.type === 'text' ? 'Hi {{first_name}}, quick note...' : 'Template body — supports {{first_name}}, {{address}}, etc.'}
                 style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}}
               />
             </label>

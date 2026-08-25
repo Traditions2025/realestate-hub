@@ -1,7 +1,87 @@
 {
-  "generated_at": "2026-08-25T19:03:45.170Z",
-  "count": 483,
+  "generated_at": "2026-08-25T20:30:42.681Z",
+  "count": 493,
   "entries": [
+    {
+      "hash": "21deed0",
+      "date": "2026-08-25T15:29:22-05:00",
+      "subject": "FSBO follow-up: OFF by default (explicit enable required to prevent accidental mass-text)",
+      "title": "FSBO follow-up: OFF by default (explicit enable required to prevent accidental mass-text)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b99a016",
+      "date": "2026-08-25T15:28:35-05:00",
+      "subject": "FSBO: daily 9:30 off-market->Junk + AI smart follow-up sequence",
+      "title": "FSBO: daily 9:30 off-market->Junk + AI smart follow-up sequence",
+      "body": "- fsbo_followups table + server/fsbo-followup.js: DOM-keyed scripted sequence.\n  Step 1 at DOM>=15 (availability check), on reply a canned response (positive vs\n  buyer-question) then a ~7-min-later best-email ask, Step 2 (+7d) the 35-years/\n  first-14-days message, Step 3 (+7d) still-available check. Proactive sends only\n  weekdays 9AM-4PM Central; replies answered any time; compliance/opt-out gated.\n- Daily 9:30 AM CT maintenance: refresh master file, then move Off Market FSBOs\n  (pending/listed/sold) to Junk in Hub + Sierra. FSBO list now excludes junk.\n- Scheduler ticks (15-min follow-up run + 9:30 daily), inbox reply hook, and\n  control endpoints (/api/lists/fsbo/followup[/run|/toggle], /fsbo/junk-off-market).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "02c293d",
+      "date": "2026-08-25T14:41:07-05:00",
+      "subject": "FSBO->Sierra: retry with placeholder email when the real email already exists in Sierra",
+      "title": "FSBO->Sierra: retry with placeholder email when the real email already exists in Sierra",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3990486",
+      "date": "2026-08-25T14:29:34-05:00",
+      "subject": "Sierra notes: correct shape is POST /leads/{id}/note with {message}",
+      "title": "Sierra notes: correct shape is POST /leads/{id}/note with {message}",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bcb0738",
+      "date": "2026-08-25T14:27:42-05:00",
+      "subject": "Sierra notes: multi-shape note pusher + add-fsbo-note test endpoint; strip FSBO Master from Hub tags on push",
+      "title": "Sierra notes: multi-shape note pusher + add-fsbo-note test endpoint; strip FSBO Master from Hub tags on push",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0758230",
+      "date": "2026-08-25T14:23:05-05:00",
+      "subject": "FSBO->Sierra: fix phone field (phone not cellPhone), attach note, drop 'FSBO Master' tag",
+      "title": "FSBO->Sierra: fix phone field (phone not cellPhone), attach note, drop 'FSBO Master' tag",
+      "body": "- Create payload uses 'phone' (Sierra's field) + a follow-up PUT to guarantee it saves.\n- Attaches an FSBO note (address, status, list date, DOM, Zillow link, master Notes) after\n  create via Sierra's note endpoint (tries known shapes).\n- 'FSBO Master' internal marker filtered from the Sierra tags and no longer added to Hub\n  records. Master-file Notes + Custom Link now captured (fsbo_notes, fsbo_link).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "37a60bd",
+      "date": "2026-08-25T14:14:50-05:00",
+      "subject": "Sierra create-lead: synthesize noemail-*@notvalidemail.com placeholder when FSBO has no email",
+      "title": "Sierra create-lead: synthesize noemail-*@notvalidemail.com placeholder when FSBO has no email",
+      "body": "Sierra requires an email on create; FSBOs often lack one. Use the team's existing\nnon-routable placeholder convention so nothing is ever emailed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cad6a46",
+      "date": "2026-08-25T14:12:33-05:00",
+      "subject": "Sierra create-lead: use POST /leads with required password field (email only if real)",
+      "title": "Sierra create-lead: use POST /leads with required password field (email only if real)",
+      "body": "Sierra's create endpoint is POST /leads and requires a password (portal account);\ngenerate a strong random one. Keep email optional to avoid welcome emails to placeholders.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e2f439a",
+      "date": "2026-08-25T14:09:49-05:00",
+      "subject": "Sierra: create-lead endpoint to push a Hub-native FSBO into Sierra and link it back",
+      "title": "Sierra: create-lead endpoint to push a Hub-native FSBO into Sierra and link it back",
+      "body": "POST /api/sierra/create-lead {client_id, dryRun?}: builds a Sierra create-lead payload\nfrom the Hub record (name, cellPhone, email, address, leadStatus, source, tags), tries\n/leads/create (+ fallbacks), and on success stores the returned sierra_lead_id on the Hub\nclient so the two are linked (no duplicate on next sync). dryRun returns the payload only.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "95ab77d",
+      "date": "2026-08-25T14:03:55-05:00",
+      "subject": "FSBO list: show master-file List Date (as Registered) and DOM (as Type)",
+      "title": "FSBO list: show master-file List Date (as Registered) and DOM (as Type)",
+      "body": "- clients.fsbo_list_date + fsbo_dom columns, populated from the master sheet's\n  'List Date' and 'DOM' columns on sync (match-update and create).\n- In the FSBO list only, the Registered column shows List Date and the Type column\n  shows DOM (days on market); headers relabeled accordingly. Other lists unchanged.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5e59e94",
       "date": "2026-08-25T13:52:43-05:00",
