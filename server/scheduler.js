@@ -313,6 +313,48 @@ function chicagoNow() {
   }
 }
 
+// Daily full Watch-status sweep. The hourly incremental sync pulls by update/creation
+// date with a 7-day look-back, so a lead added with a BACKDATED Sierra date (common for
+// expired/cancelled uploads, whose date is the MLS expiration) can be missed entirely.
+// This pages ALL Watch leads from Sierra once a day and upserts them, guaranteeing new
+// expired/cancelled / FSBO Watch leads land in the Hub. Watch is ~800 leads → cheap.
+async function watchStatusSweep() {
+  let page = 1, hasMore = true, added = 0, updated = 0, total = 0
+  db.beginBulk?.()
+  try {
+    while (hasMore) {
+      const result = await sierraGet('/leads/find', { leadStatus: 'Watch', includeSavedSearches: 'true', includeTags: 'true', pageSize: 100, pageNumber: page })
+      const rd = result.data || result
+      const leads = rd.leads || rd.data || []
+      if (!leads.length) break
+      for (const lead of leads) {
+        const r = processLead(lead, 'Watch')
+        if (r === 'added') added++; else if (r === 'updated') updated++
+        if (r) total++
+      }
+      const totalPages = rd.totalPages || 1
+      if (page >= totalPages) hasMore = false; else page++
+      if (page > 60) break
+    }
+  } finally { db.endBulk?.() }
+  db.run('INSERT INTO sierra_sync_log (sync_type, leads_synced, leads_added, leads_updated) VALUES (?,?,?,?)', ['watch_sweep', total, added, updated])
+  console.log(`[scheduler] Watch sweep: ${total} leads (${added} new, ${updated} updated)`)
+  return { total, added, updated }
+}
+
+// Fire the Watch sweep once daily at 6 AM CT (idempotent via app_settings date key).
+const WATCH_SWEEP_HOUR = 6
+async function checkWatchSweepTick() {
+  try {
+    const now = chicagoNow()
+    const minutesPast = (now.hour - WATCH_SWEEP_HOUR) * 60 + now.minute
+    if (minutesPast < 0 || minutesPast > 5) return
+    if (db.getSetting?.('last_watch_sweep_date') === now.date) return
+    db.setSetting?.('last_watch_sweep_date', now.date)   // claim the slot first so a slow run can't double-fire
+    await watchStatusSweep()
+  } catch (e) { console.error('[scheduler] Watch sweep error (non-fatal):', e.message) }
+}
+
 // Daily 10 AM CT Slack deadline alert — posts every buy/list transaction whose
 // deadlines are due today or in exactly 3 days to #transaction-tasks-deadlines.
 // Idempotent via digest_log period='slack_deadline' (reuses the same table +
@@ -438,7 +480,7 @@ async function checkBackupTick() {
   }
 }
 
-export { syncGoogleCalendar, runIncrementalNow, runDigestNow, runDailyRemindersNow }
+export { syncGoogleCalendar, runIncrementalNow, runDigestNow, runDailyRemindersNow, watchStatusSweep }
 
 // ---------------------------------------------------------------------------
 // FUB web-activity incremental sync — keeps each client's "Last Visit" fresh.
@@ -729,6 +771,10 @@ export function startScheduler() {
 
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
   setInterval(checkDigestTick, 60 * 1000)
+
+  // Daily Watch-status sweep - check every minute, fires at 6 AM CT (idempotent).
+  // Catches backdated expired/cancelled + FSBO Watch leads the incremental sync misses.
+  setInterval(checkWatchSweepTick, 60 * 1000)
 
   // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
   setInterval(checkSlackDeadlineTick, 60 * 1000)

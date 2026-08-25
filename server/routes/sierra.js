@@ -114,6 +114,15 @@ router.post('/sync', (req, res) => {
   res.json({ success: true, started: true, statuses })
 })
 
+// Manual trigger for the daily Watch-status sweep (also runs automatically at 6 AM CT).
+router.post('/watch-sweep', async (_req, res) => {
+  try {
+    const { watchStatusSweep } = await import('../scheduler.js')
+    const r = await watchStatusSweep()
+    res.json({ success: true, ...r })
+  } catch (e) { res.status(500).json({ success: false, error: e.message }) }
+})
+
 // Local DB counts (fast)
 router.get('/counts', async (req, res) => {
   try {
