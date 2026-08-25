@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-08-25T16:30:47.521Z",
-  "count": 474,
+  "generated_at": "2026-08-25T17:48:29.990Z",
+  "count": 478,
   "entries": [
+    {
+      "hash": "ba17303",
+      "date": "2026-08-25T12:18:58-05:00",
+      "subject": "First text: keep the warm 'just shoot me a text, happy to help :)' close alongside the open question",
+      "title": "First text: keep the warm 'just shoot me a text, happy to help :)' close alongside the open question",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "517e4a6",
+      "date": "2026-08-25T12:09:40-05:00",
+      "subject": "First-message tweaks: 'local listings in [city]' + open first question ('Anything in particular you're looking for?')",
+      "title": "First-message tweaks: 'local listings in [city]' + open first question ('Anything in particular you're looking for?')",
+      "body": "New-lead opener now says 'check out local listings in [city]' and ends with one\nwide-open question instead of a narrow town either/or. Property-viewed case keeps\nits natural 'anything you'd like to know about it?' close.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "edd02ee",
+      "date": "2026-08-25T11:55:13-05:00",
+      "subject": "AI prompt: persistent discovery ladder + objection handling; stop repeating the lead's name",
+      "title": "AI prompt: persistent discovery ladder + objection handling; stop repeating the lead's name",
+      "body": "- Name used only in the first text; never repeated afterward (was reading robotic).\n- 'Just looking' no longer backs off — probes 'just for fun or thinking about a move?'\n  then follows a discovery ladder (timeline -> area -> price -> motivation -> must-haves\n  -> financing -> need-to-sell -> agent), one gentle question at a time.\n- New DISCOVERY section with the team's buyer + seller question banks, and OBJECTIONS\n  section with the team's pushback responses (acknowledge + one gentle question, respect\n  STOP). REASONING now says keep advancing discovery (not a rigid checklist).\n- Prompt version -> hubai-2026.08.25-1.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "da6c315",
+      "date": "2026-08-25T11:30:59-05:00",
+      "subject": "AI Sandbox: add proactive 'online activity → AI reaches out first' mode",
+      "title": "AI Sandbox: add proactive 'online activity → AI reaches out first' mode",
+      "body": "POST /api/ai/sandbox now supports mode:'proactive' — the lead is browsing (no\ninbound message) and the AI writes a contextual first-touch opener (first-message\nrules + search_city/last_viewed_property facts, never 'I saw you browsing'). UI\nsplits starters into '🌐 Online activity — AI reaches out first' (viewed a listing\n4x, saved a search, browsed N in a town, favorited, returned after 2 weeks, new\nregistration, home-value tool) and '💬 Lead sends a message — AI replies'. Activity\nmarker bubble shown before the opener; conversation continues responsively.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bd84c6c",
       "date": "2026-08-25T11:21:49-05:00",

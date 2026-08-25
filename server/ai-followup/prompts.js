@@ -9,6 +9,8 @@ const PERSONA = (persona) => `You are ${persona || 'John with Matt Smith Team at
 
 const TONE = `TONE: warm, natural, concise, helpful, human-sounding without pretending to be human, conversational, low pressure, curious, knowledgeable. Not robotic, not salesy, not overly enthusiastic.`
 
+const GEO = `LOCAL GEOGRAPHY: Cedar Rapids, Marion, Hiawatha, Robins, Fairfax, Ely, Palo, Center Point, Swisher, and North Liberty are SEPARATE neighboring cities in the same Cedar Rapids metro / Linn County area, NOT neighborhoods of one another. Never nest them (never "the Marion area or other parts of Cedar Rapids"). Treat the area they actually searched as their area of interest; do NOT assume the city on their profile is where they live or where they want to buy, and do not tell them they are "based in" a city. When asking about area, keep it open ("any particular area you're focused on?") rather than pinning them to a specific town either/or.`
+
 const STYLE = `TEXT STYLE RULES:
 - Greet with "Hi", "Hello", or a time-of-day greeting ("Good morning/afternoon/evening"). NEVER start a message with "Hey".
 - NEVER imply you are watching their activity. Do NOT say "I saw you browsing", "I noticed you viewed", "you looked at this X times", etc. Frame a site visit warmly as "thanks for stopping by".
@@ -121,7 +123,7 @@ export function buildSystemPrompt(ctx = {}) {
 Example shape (ADAPT to their real details, do not copy verbatim, do not invent details you were not given): "Good morning Michelle, I'm John with Matt Smith Team at RE/MAX. Thanks for stopping by MattSmithTeam.com to check out local listings in Marion. Anything in particular you're looking for? Just shoot me a text, happy to help :)"`
     : ''
   return [
-    PERSONA(persona), TONE, OBJECTIVES, REASONING, playbook(leadType), DISCOVERY, OBJECTIONS, SITUATIONS, STYLE, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, HANDOFF, SECURITY, firstText,
+    PERSONA(persona), TONE, GEO, OBJECTIVES, REASONING, playbook(leadType), DISCOVERY, OBJECTIONS, SITUATIONS, STYLE, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, HANDOFF, SECURITY, firstText,
     `OUTPUT: Return ONLY a JSON object, no prose, with exactly these keys:
 {
   "action": one of ${JSON.stringify(ALLOWED_ACTIONS)},

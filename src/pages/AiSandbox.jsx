@@ -71,13 +71,16 @@ export default function AiSandbox() {
   // Proactive: online activity → AI reaches out first. Shows an activity marker, then the
   // AI's opener. After that the conversation continues responsively.
   const startOnlineActivity = async (a) => {
-    reset(); setLeadType(a.type); setErr(''); setBusy(true)
+    // Use ONE consistent city so the lead's profile city and what they searched don't
+    // conflict (that mix is what made the AI say "Marion area, or other parts of Cedar Rapids").
+    const city = a.activity.search_city || leadCity
+    reset(); setLeadType(a.type); setLeadCity(city); setErr(''); setBusy(true)
     const marker = { role: 'event', text: `Online activity — ${a.activity.description}` }
     setMessages([marker])
     try {
       const r = await authFetch('/api/ai/sandbox', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead: { name: leadName, type: a.type, city: leadCity }, mode: 'proactive', activity: a.activity, messages: [], intent: 0 }),
+        body: JSON.stringify({ lead: { name: leadName, type: a.type, city }, mode: 'proactive', activity: a.activity, messages: [], intent: 0 }),
       })
       const d = await r.json()
       if (d.error) { setErr(d.error); setBusy(false); return }
