@@ -99,6 +99,27 @@ router.get('/fsbo/status', (_req, res) => {
   res.json({ last_sync: db.getSetting?.('fsbo_master_last_sync') || null, source: fsboMasterCsvUrl(), counts })
 })
 
+// FSBO smart follow-up: status, manual run, enable/disable, and off-market->junk now.
+router.get('/fsbo/followup', (_req, res) => {
+  const byStep = db.all("SELECT step, COUNT(*) n FROM fsbo_followups WHERE status='active' GROUP BY step")
+  const totals = {
+    enabled: db.getSetting?.('fsbo_followup_enabled') !== '0',
+    enrolled: db.get("SELECT COUNT(*) n FROM fsbo_followups WHERE status='active'")?.n || 0,
+    by_step: Object.fromEntries(byStep.map(r => [`step_${r.step}`, r.n])),
+    replied: db.get("SELECT COUNT(*) n FROM fsbo_followups WHERE replied=1")?.n || 0,
+    done: db.get("SELECT COUNT(*) n FROM fsbo_followups WHERE status='done'")?.n || 0,
+    eligible_available: db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status='Available' AND phone IS NOT NULL AND phone!='' AND (hub_text_opt_out IS NULL OR hub_text_opt_out=0) AND lower(status) NOT IN ('junk','donotcontact','closed','archived')")?.n || 0,
+  }
+  res.json(totals)
+})
+router.post('/fsbo/followup/toggle', (req, res) => { db.setSetting('fsbo_followup_enabled', req.body?.enabled === false ? '0' : '1'); res.json({ enabled: req.body?.enabled !== false }) })
+router.post('/fsbo/followup/run', async (_req, res) => {
+  try { const m = await import('../fsbo-followup.js'); res.json(await m.runFsboFollowups()) } catch (e) { res.status(500).json({ error: e.message }) }
+})
+router.post('/fsbo/junk-off-market', async (_req, res) => {
+  try { const m = await import('../fsbo-followup.js'); res.json(await m.fsboDailyMaintenance()) } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Smart Audiences (P1-5): the field catalog the condition builder offers.
 router.get('/smart/fields', (_req, res) => res.json(fieldMeta()))
 

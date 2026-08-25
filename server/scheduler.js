@@ -342,6 +342,20 @@ async function watchStatusSweep() {
   return { total, added, updated }
 }
 
+// FSBO daily maintenance at 9:30 AM CT: refresh the master file + move off-market FSBOs
+// (pending / listed / sold) to Junk. Idempotent via app_settings date key.
+async function checkFsboDailyTick() {
+  try {
+    const now = chicagoNow()
+    if (now.hour !== 9 || now.minute < 30 || now.minute > 35) return
+    if (db.getSetting?.('last_fsbo_daily_date') === now.date) return
+    db.setSetting?.('last_fsbo_daily_date', now.date)
+    const { fsboDailyMaintenance } = await import('./fsbo-followup.js')
+    const rep = await fsboDailyMaintenance()
+    console.log(`[scheduler] FSBO daily: ${rep.junked.length} off-market -> Junk`)
+  } catch (e) { console.error('[scheduler] FSBO daily error (non-fatal):', e.message) }
+}
+
 // Fire the Watch sweep once daily at 6 AM CT (idempotent via app_settings date key).
 const WATCH_SWEEP_HOUR = 6
 async function checkWatchSweepTick() {
@@ -775,6 +789,12 @@ export function startScheduler() {
   // Daily Watch-status sweep - check every minute, fires at 6 AM CT (idempotent).
   // Catches backdated expired/cancelled + FSBO Watch leads the incremental sync misses.
   setInterval(checkWatchSweepTick, 60 * 1000)
+
+  // FSBO daily maintenance - check every minute, fires at 9:30 AM CT (idempotent).
+  setInterval(checkFsboDailyTick, 60 * 1000)
+
+  // FSBO smart follow-up sequence - every 15 min (self-gates to weekdays 9AM-4PM CT).
+  setInterval(() => { import('./fsbo-followup.js').then(m => m.runFsboFollowups()).catch(() => {}) }, 15 * 60 * 1000)
 
   // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
   setInterval(checkSlackDeadlineTick, 60 * 1000)

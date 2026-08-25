@@ -154,8 +154,10 @@ export function ensureFsboListIncludesMaster() {
   if (!list) return { ok: false, reason: 'no FSBO list found' }
   let cur = {}
   try { cur = JSON.parse(list.filter_criteria || '{}') } catch {}
-  if (cur && cur.has_fsbo_status) return { ok: true, already: true, list_id: list.id }
-  const next = { has_fsbo_status: 1, _legacy: cur._legacy || cur }
+  // Members: has an fsbo_status AND not junked (off-market FSBOs get moved to Junk daily and
+  // should drop off the working list).
+  if (cur && cur.has_fsbo_status && Array.isArray(cur.statuses_exclude) && cur.statuses_exclude.includes('junk')) return { ok: true, already: true, list_id: list.id }
+  const next = { has_fsbo_status: 1, statuses_exclude: ['junk', 'donotcontact', 'archived'], _legacy: cur._legacy || cur }
   db.run("UPDATE client_lists SET filter_criteria=?, updated_at=datetime('now') WHERE id=?", [JSON.stringify(next), list.id])
   return { ok: true, list_id: list.id }
 }

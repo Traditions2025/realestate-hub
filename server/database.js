@@ -1090,6 +1090,22 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(read, created_at DESC)') } catch {}
 
+  // FSBO AI smart follow-up sequence state (one row per enrolled FSBO).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fsbo_followups (
+      client_id INTEGER PRIMARY KEY,
+      step INTEGER DEFAULT 0,          -- 0 not started, 1 first text, 2 week-2, 3 week-3
+      first_text_at TEXT,
+      step2_at TEXT,
+      step3_at TEXT,
+      replied INTEGER DEFAULT 0,
+      email_ask_at TEXT,               -- when to send the 'best email?' ask (null once sent)
+      email_asked INTEGER DEFAULT 0,
+      status TEXT DEFAULT 'active',    -- active | done | stopped
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+
   // P2-3: web-push subscriptions (one row per browser/device that opted in).
   db.run(`
     CREATE TABLE IF NOT EXISTS push_subscriptions (
