@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T16:21:36.409Z",
-  "count": 473,
+  "generated_at": "2026-08-25T16:30:47.521Z",
+  "count": 474,
   "entries": [
+    {
+      "hash": "bd84c6c",
+      "date": "2026-08-25T11:21:49-05:00",
+      "subject": "AI Sandbox: chat with the real AI, watch it work, drive it with lead activities",
+      "title": "AI Sandbox: chat with the real AI, watch it work, drive it with lead activities",
+      "body": "POST /api/ai/sandbox runs the actual AI brain (same prompts/model) against a\nsimulated lead + conversation — pure model call, never sends a text or touches a\nreal lead. Returns the full decision: drafted reply, action, intent delta+signals,\nextracted memory, rolling summary, next state, handoff.\n\nNew AI Sandbox page: play the lead, watch a per-turn 'AI work' panel (intent\nbefore->after, signals, what it learned, action, handoff), live intent meter, and\n10 canned lead activities (tour request, home value, repeat viewer, financing,\nshort timeframe, browsing, area question, FSBO, opt-out, price objection) that\nseed the conversation. Nav under PIPELINE.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b3e36f5",
       "date": "2026-08-25T11:10:00-05:00",

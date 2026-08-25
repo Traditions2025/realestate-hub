@@ -5,18 +5,28 @@ import { authFetch } from '../api'
 // time (intent, reasoning, extracted memory, chosen action), and drive it with canned
 // lead activities. Nothing here sends a text or touches a real lead.
 
-// Canned "lead activities" the AI treats as conversation starters.
-const ACTIVITIES = [
+// Online activities — the lead is browsing/behaving on the site and the AI reaches out
+// FIRST (proactive). No inbound message; the AI writes a contextual opener.
+const ONLINE_ACTIVITIES = [
+  { icon: '🔥', label: 'Viewed a listing 4×', type: 'buyer', activity: { description: 'viewed the same listing 4 times in two days', search_city: 'Cedar Rapids', last_viewed_property: '7915 Sandhurst Dr NW, Cedar Rapids', recent_properties_viewed: ['7915 Sandhurst Dr NW, Cedar Rapids'] } },
+  { icon: '🔍', label: 'Saved a search', type: 'buyer', activity: { description: 'saved a search for single-family homes in Marion under $300k', search_city: 'Marion' } },
+  { icon: '🏘', label: 'Browsed 8 in Hiawatha', type: 'buyer', activity: { description: 'browsed 8 listings in Hiawatha tonight', search_city: 'Hiawatha', recent_properties_viewed: ['1204 Emmons St, Hiawatha', '830 N Center Point Rd, Hiawatha'] } },
+  { icon: '💾', label: 'Favorited a home', type: 'buyer', activity: { description: 'saved a property to their favorites', search_city: 'Marion', last_viewed_property: '2330 Timber Creek Dr, Marion' } },
+  { icon: '🔁', label: 'Returned after 2 wks', type: 'buyer', activity: { description: 'came back to the site after two quiet weeks and looked at listings again', search_city: 'Cedar Rapids' } },
+  { icon: '🆕', label: 'New lead registered', type: 'buyer', activity: { description: 'just registered on the website', search_city: 'Cedar Rapids' } },
+  { icon: '🏷', label: 'Home-value tool', type: 'seller', activity: { description: 'used the "what\'s my home worth" tool for their address', search_city: 'Marion', last_viewed_property: '808 Oakland Rd NE, Cedar Rapids' } },
+]
+
+// Lead messages — the lead texts FIRST and the AI replies (responsive).
+const LEAD_MESSAGES = [
   { icon: '🏠', label: 'Tour request', type: 'buyer', text: 'Hi, is that ranch on Prairie Rose Dr in Marion still available? Could we see it this Saturday?' },
   { icon: '💰', label: 'Home value (seller)', type: 'seller', text: "We're thinking about selling our house on Oakland Rd NE. What do you think it's worth in this market?" },
-  { icon: '👀', label: 'Repeat viewer', type: 'buyer', text: "I keep coming back to that 3-bed on Example Ave, is it a good deal? What are the taxes like?" },
   { icon: '💵', label: 'Financing question', type: 'buyer', text: 'Do I need to be pre-approved before we start looking? Not sure where to start.' },
   { icon: '⏱️', label: 'Short timeframe', type: 'buyer', text: 'We need to be in a new place within 30 days, our lease is ending. Can you help fast?' },
   { icon: '🤔', label: 'Just browsing', type: 'buyer', text: 'Just looking for now, not really ready to buy yet. Maybe next year.' },
   { icon: '📍', label: 'Area question', type: 'buyer', text: 'What are the best neighborhoods in Cedar Rapids for a family with young kids?' },
   { icon: '🏡', label: 'FSBO owner', type: 'seller', text: "I'm selling my place myself right now. Why would I need an agent?" },
   { icon: '🚫', label: 'Opt out / STOP', type: 'buyer', text: 'Please stop texting me.' },
-  { icon: '😐', label: 'Price objection', type: 'buyer', text: "Homes seem overpriced right now. What will sellers actually take off asking?" },
 ]
 
 const LEVEL_COLOR = { URGENT: '#ef4444', HIGH: '#f59e0b', ENGAGED: '#10b981', NURTURE: '#2563eb', LOW: '#64748b' }
@@ -41,7 +51,7 @@ export default function AiSandbox() {
     const type = typeOverride || leadType
     if (typeOverride && typeOverride !== leadType) setLeadType(typeOverride)
     setErr('')
-    const history = messages.map(m => ({ role: m.role === 'agent' ? 'agent' : 'lead', text: m.text }))
+    const history = messages.filter(m => m.role === 'agent' || m.role === 'lead').map(m => ({ role: m.role, text: m.text }))
     const next = [...messages, { role: 'lead', text: t }]
     setMessages(next); setInput(''); setBusy(true)
     try {
@@ -56,7 +66,25 @@ export default function AiSandbox() {
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
-  const startActivity = (a) => { reset(); setLeadType(a.type); setTimeout(() => send(a.text, a.type), 0) }
+  const startLeadMessage = (a) => { reset(); setLeadType(a.type); setTimeout(() => send(a.text, a.type), 0) }
+
+  // Proactive: online activity → AI reaches out first. Shows an activity marker, then the
+  // AI's opener. After that the conversation continues responsively.
+  const startOnlineActivity = async (a) => {
+    reset(); setLeadType(a.type); setErr(''); setBusy(true)
+    const marker = { role: 'event', text: `Online activity — ${a.activity.description}` }
+    setMessages([marker])
+    try {
+      const r = await authFetch('/api/ai/sandbox', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead: { name: leadName, type: a.type, city: leadCity }, mode: 'proactive', activity: a.activity, messages: [], intent: 0 }),
+      })
+      const d = await r.json()
+      if (d.error) { setErr(d.error); setBusy(false); return }
+      setIntent(d.intent_after)
+      setMessages([marker, { role: 'agent', text: d.message || '(the AI chose not to reach out)', work: d }])
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
 
   return (
     <div className="page">
@@ -78,12 +106,23 @@ export default function AiSandbox() {
         </div>
       </div>
 
-      {/* Lead activity starters */}
+      {/* Online activity → AI reaches out first (proactive) */}
       <div className="detail-section" style={{ marginBottom: 14 }}>
-        <h4 style={{ marginTop: 0 }}>Start from a lead activity</h4>
+        <h4 style={{ marginTop: 0 }}>🌐 Online activity — AI reaches out first</h4>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>The lead is browsing the site. The AI opens the conversation with a contextual, no-pressure message (never "I saw you browsing").</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {ACTIVITIES.map(a => (
-            <button key={a.label} className="btn btn-sm btn-secondary" disabled={busy} onClick={() => startActivity(a)} title={a.text}>{a.icon} {a.label}</button>
+          {ONLINE_ACTIVITIES.map(a => (
+            <button key={a.label} className="btn btn-sm" disabled={busy} onClick={() => startOnlineActivity(a)} title={a.activity.description}>{a.icon} {a.label}</button>
+          ))}
+        </div>
+      </div>
+
+      {/* Lead message → AI replies (responsive) */}
+      <div className="detail-section" style={{ marginBottom: 14 }}>
+        <h4 style={{ marginTop: 0 }}>💬 Lead sends a message — AI replies</h4>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {LEAD_MESSAGES.map(a => (
+            <button key={a.label} className="btn btn-sm btn-secondary" disabled={busy} onClick={() => startLeadMessage(a)} title={a.text}>{a.icon} {a.label}</button>
           ))}
         </div>
       </div>
@@ -91,8 +130,10 @@ export default function AiSandbox() {
       {/* Conversation */}
       <div className="detail-section" style={{ marginBottom: 14 }}>
         <div ref={scrollRef} style={{ maxHeight: 460, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, padding: 4 }}>
-          {messages.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>Pick a lead activity above, or type a message as the lead below.</div>}
-          {messages.map((m, i) => m.role === 'lead' ? (
+          {messages.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>Pick an <b>online activity</b> to watch the AI reach out first, a <b>lead message</b> to watch it reply, or type below as the lead.</div>}
+          {messages.map((m, i) => m.role === 'event' ? (
+            <div key={i} style={{ alignSelf: 'center', fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px dashed var(--border)', borderRadius: 20, padding: '4px 12px' }}>🌐 {m.text}</div>
+          ) : m.role === 'lead' ? (
             <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '80%', background: '#2563eb', color: '#fff', padding: '8px 12px', borderRadius: '12px 12px 2px 12px', fontSize: 14 }}>{m.text}</div>
           ) : (
             <div key={i} style={{ alignSelf: 'flex-start', maxWidth: '88%' }}>

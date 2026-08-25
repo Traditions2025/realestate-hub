@@ -34,21 +34,33 @@ router.post('/sandbox', async (req, res) => {
   const lead = b.lead || {}
   const leadType = ['buyer', 'seller', 'both'].includes(lead.type) ? lead.type : 'buyer'
   const history = Array.isArray(b.messages) ? b.messages.slice(-30) : []
-  const latest = String(b.latest || (history.length ? history[history.length - 1].text : '') || '').slice(0, 1200)
-  if (!latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
   const isFirst = !history.some(m => m.role === 'agent')
+  const proactive = b.mode === 'proactive'
+  const activity = b.activity || {}
+  const latest = String(b.latest || (history.length ? history[history.length - 1].text : '') || '').slice(0, 1200)
+  if (!proactive && !latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
   // Build a synthetic context mirroring the shape context.js produces for a real lead.
   const facts = {
     first_name: lead.name || 'there', lead_type: leadType, lead_source: lead.source || 'Website',
     crm_status: 'new', city: lead.city || 'Cedar Rapids', team_area: 'Cedar Rapids / Marion, Iowa (Linn County)',
-    is_first_text: isFirst, time_greeting: centralGreeting(), search_city: lead.city || null,
+    is_first_text: isFirst, time_greeting: centralGreeting(),
+    search_city: activity.search_city || lead.city || null,
+    last_viewed_property: activity.last_viewed_property || null,
+    recent_properties_viewed: Array.isArray(activity.recent_properties_viewed) ? activity.recent_properties_viewed : [],
     now: new Date().toISOString(),
   }
   const transcript = history.map(m => `${m.role === 'agent' ? 'AGENT (you)' : 'CONSUMER'}: ${m.text}`).join('\n') || '(no prior messages)'
   const ctx = { facts, transcript, latestInbound: latest, lead_type: leadType, persona: getConfig().ai_persona || 'John with Matt Smith Team at RE/MAX Concepts', intelligence: { lead_type: leadType } }
+  // Proactive: the lead is browsing / behaving online and the AI reaches out FIRST — no
+  // inbound message. Mirrors handleProactive's instruction (contextual reason, never
+  // "I saw you browsing").
+  const proactiveInstruction = `This is a lead the team has NOT texted yet. They have been active online: ${activity.description || 'browsing our website'}. Lead source: ${facts.lead_source}. Write a short, warm, welcoming opening SMS (follow the FIRST MESSAGE rules). Give a real, contextual reason for reaching out tied to what they were looking at (the city/area or a property, from the context) and end with ONE easy, low-pressure question. NEVER imply you are watching their activity (never say "I saw you viewed/browsing"); say "thanks for stopping by" instead. Return action SEND_TEXT with the message.`
+  const userContent = proactive
+    ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
+    : buildUserMessage(ctx)
   const t0 = Date.now()
   try {
-    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 900, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: buildUserMessage(ctx) }] })
+    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 900, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] })
     const decision = sandboxParseJson(msg.content?.[0]?.text || '')
     const action = ALLOWED_ACTIONS.includes(decision?.action) ? decision.action : 'NO_ACTION'
     const delta = Math.max(-20, Math.min(40, Number(decision?.intent_delta) || 0))
