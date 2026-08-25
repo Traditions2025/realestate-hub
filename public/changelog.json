@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-25T15:12:09.054Z",
-  "count": 462,
+  "generated_at": "2026-08-25T15:51:13.652Z",
+  "count": 465,
   "entries": [
+    {
+      "hash": "6a7a3f1",
+      "date": "2026-08-25T10:49:45-05:00",
+      "subject": "P1-3: normalized weighted behavioral_events feeding intent",
+      "title": "P1-3: normalized weighted behavioral_events feeding intent",
+      "body": "- behavioral_events table (typed, weighted, deduped) + index.\n- server/ai-followup/behavioral.js: EVENT_WEIGHTS catalog, recordBehavioralEvent\n  (idempotent via dedup_key), behavioralScore (recency half-life 21d, bounded cap).\n- computeIntent now adds a bounded behavioral contribution + reason; getIntent\n  returns current/peak/previous/delta.\n- Events recorded from web activity (tracking flush) and inbound texts (webhook).\n- 5 tests: weighting, dedup, recency decay, cap, intent lift. 147 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2c32d3d",
+      "date": "2026-08-25T10:46:32-05:00",
+      "subject": "Scheduler: daily Watch-status sweep (fixes backdated expired/cancelled drift)",
+      "title": "Scheduler: daily Watch-status sweep (fixes backdated expired/cancelled drift)",
+      "body": "Pages all Watch leads from Sierra once a day at 6 AM CT and upserts them, so\nleads added with a backdated Sierra date (MLS expiration) that the hourly\nincremental sync misses still land in the Hub. Idempotent via app_settings\ndate key; manual trigger at POST /api/sierra/watch-sweep.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d5549c0",
+      "date": "2026-08-25T10:12:22-05:00",
+      "subject": "Lead profile: show + change status inline (writes Hub and pushes to Sierra)",
+      "title": "Lead profile: show + change status inline (writes Hub and pushes to Sierra)",
+      "body": "Adds an InlineStatus editor to the client profile Contact Info: a colored\nstatus badge plus a dropdown. Changing it PUTs the Hub status immediately and\npushes the mapped status to Sierra via /api/sierra/update-lead-status so the\nnext sync won't revert it (junk/DoNotContact also drop the lead from drips\nserver-side). Shows a Hub+Sierra confirmation.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3f25bba",
       "date": "2026-08-24T17:50:34-05:00",

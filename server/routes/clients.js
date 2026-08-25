@@ -409,6 +409,39 @@ router.get('/', (req, res) => {
   res.json(rows)
 })
 
+// ---- P2-2: Unified contact timeline ----
+// Merges communications, notes, tasks, AI actions, handoffs, showings, behavioral events,
+// transaction milestones, and status/assignment audit into one time-sorted stream.
+router.get('/:id/timeline', (req, res) => {
+  const id = Number(req.params.id)
+  if (!db.get('SELECT id FROM clients WHERE id=?', [id])) return res.status(404).json({ error: 'not found' })
+  const limit = Math.min(Number(req.query.limit) || 200, 1000)
+  const ev = []
+  const at = (t) => t ? String(t).replace(' ', 'T') : null
+  try {
+    for (const c of db.all("SELECT channel, direction, preview, body, occurred_at FROM communications WHERE client_id=? ORDER BY occurred_at DESC LIMIT 300", [id]))
+      ev.push({ type: 'comm', channel: c.channel, dir: c.direction, icon: c.direction === 'incoming' ? '📥' : '📤', title: `${c.direction === 'incoming' ? 'Received' : 'Sent'} ${c.channel}`, detail: (c.preview || c.body || '').slice(0, 240), at: at(c.occurred_at) })
+    for (const n of db.all("SELECT title, content, created_at FROM notes WHERE related_type='client' AND related_id=? ORDER BY created_at DESC LIMIT 100", [id]))
+      ev.push({ type: 'note', icon: '📝', title: 'Note' + (n.title ? `: ${n.title}` : ''), detail: (n.content || '').slice(0, 240), at: at(n.created_at) })
+    for (const t of db.all("SELECT title, status, due_date, completed_at, created_at FROM tasks WHERE related_type='client' AND related_id=? ORDER BY created_at DESC LIMIT 100", [id]))
+      ev.push({ type: 'task', icon: t.status === 'done' ? '✅' : '☑️', title: `Task: ${t.title}`, detail: `${t.status}${t.due_date ? ' · due ' + String(t.due_date).slice(0, 10) : ''}`, at: at(t.completed_at || t.created_at) })
+    for (const a of db.all("SELECT action_type, reason, output_text, status, created_at FROM ai_actions WHERE client_id=? ORDER BY id DESC LIMIT 100", [id]))
+      ev.push({ type: 'ai', icon: '🤖', title: `AI ${String(a.action_type || '').replace(/_/g, ' ').toLowerCase()}`, detail: (a.output_text || a.reason || a.status || '').slice(0, 240), at: at(a.created_at) })
+    for (const h of db.all("SELECT reason, urgency, status, created_at FROM ai_handoffs WHERE client_id=? ORDER BY id DESC LIMIT 40", [id]))
+      ev.push({ type: 'handoff', icon: '⚑', title: `Handoff (${h.urgency || 'high'})`, detail: `${h.reason || ''} · ${h.status}`, at: at(h.created_at) })
+    for (const s of db.all("SELECT showing_date, status, address FROM showings WHERE client_id=? ORDER BY showing_date DESC LIMIT 40", [id]))
+      ev.push({ type: 'showing', icon: '🏡', title: 'Showing', detail: `${s.address || ''}${s.status ? ' · ' + s.status : ''}`, at: at(s.showing_date) })
+    for (const b of db.all("SELECT event_type, weight, source, occurred_at FROM behavioral_events WHERE client_id=? ORDER BY occurred_at DESC LIMIT 60", [id]))
+      ev.push({ type: 'behavior', icon: '📈', title: String(b.event_type || '').replace(/_/g, ' '), detail: `${b.source || ''} · weight ${b.weight}`, at: at(b.occurred_at) })
+    for (const l of db.all("SELECT action, details, created_at FROM activity_log WHERE entity_type='client' AND entity_id=? ORDER BY id DESC LIMIT 80", [id]))
+      ev.push({ type: 'audit', icon: '•', title: String(l.action || '').replace(/_/g, ' '), detail: (l.details || '').slice(0, 240), at: at(l.created_at) })
+    for (const t of db.all("SELECT id, status, address, updated_at, created_at FROM transactions WHERE client_id=? ORDER BY updated_at DESC LIMIT 20", [id]))
+      ev.push({ type: 'transaction', icon: '📄', title: `Transaction: ${t.status || 'open'}`, detail: t.address || '', at: at(t.updated_at || t.created_at) })
+  } catch (e) { return res.status(500).json({ error: e.message }) }
+  ev.sort((a, b) => (b.at || '').localeCompare(a.at || ''))
+  res.json(ev.slice(0, limit))
+})
+
 // ---- CSV export ----
 // Export selected leads (by id) OR the current filter as a CSV download. Export is
 // always CSV. Body: { ids: [...] } for a selection, or the same filter params the list

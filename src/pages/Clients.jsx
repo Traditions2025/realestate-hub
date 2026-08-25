@@ -2684,6 +2684,8 @@ export default function Clients() {
               </div>
             </div>
 
+            <ContactTimeline clientId={detail.id} />
+
             {/* Active Plans — drips + automations currently running for this lead */}
             {sequences && ((sequences.drips && sequences.drips.length) || (sequences.automations && sequences.automations.length)) ? (
               <div className="detail-section" style={{background: 'rgba(37,99,235,0.06)', border: '1px solid rgba(37,99,235,0.22)', borderRadius: 8, padding: '12px 16px'}}>
@@ -3500,6 +3502,46 @@ function InlineStatus({ detail, onSaved }) {
       {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>saving…</span>}
       {msg && !saving && <span style={{ fontSize: 11, color: msg.includes('failed') ? '#b45309' : '#10b981' }}>{msg}</span>}
     </p>
+  )
+}
+
+// P2-2: unified per-contact timeline — one filterable stream of every interaction.
+const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['note', 'Notes'], ['task', 'Tasks'], ['behavior', 'Activity']]
+function ContactTimeline({ clientId }) {
+  const [items, setItems] = React.useState(null)
+  const [open, setOpen] = React.useState(false)
+  const [f, setF] = React.useState('all')
+  React.useEffect(() => {
+    if (!open || items) return
+    authFetch(`/api/clients/${clientId}/timeline`).then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => setItems([]))
+  }, [open, clientId, items])
+  const fmt = (iso) => { try { return new Date(String(iso).includes('Z') ? iso : iso + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
+  const shown = (items || []).filter(e => f === 'all' || e.type === f)
+  return (
+    <div className="detail-section">
+      <h4 style={{ cursor: 'pointer', userSelect: 'none' }} onClick={() => setOpen(o => !o)}>{open ? '▾' : '▸'} Timeline {items && `(${items.length})`}</h4>
+      {open && (
+        <>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '4px 0 12px' }}>
+            {TIMELINE_FILTERS.map(([k, l]) => <button key={k} className={`btn btn-sm ${f === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setF(k)}>{l}</button>)}
+          </div>
+          {items === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>
+            : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No activity yet.</div>
+              : (
+                <div style={{ borderLeft: '2px solid var(--border)', paddingLeft: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {shown.map((e, i) => (
+                    <div key={i} style={{ position: 'relative' }}>
+                      <span style={{ position: 'absolute', left: -22, top: 0 }}>{e.icon}</span>
+                      <div style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</div>
+                      {e.detail && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{e.detail}</div>}
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(e.at)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+        </>
+      )}
+    </div>
   )
 }
 
