@@ -502,7 +502,7 @@ router.post('/create-lead', async (req, res) => {
 
   let tags = []
   try { tags = JSON.parse(client.tags || '[]') } catch {}
-  const digits = String(client.phone || '').replace(/\D/g, '').slice(-10)
+  tags = tags.filter(t => !/^fsbo master$/i.test(String(t)))   // internal marker, do not push to Sierra
   const sierraStatus = HUB_TO_SIERRA_STATUS[String(client.status || 'watch').toLowerCase()] || 'Watch'
   // Sierra's POST /leads requires a password (each lead gets a portal account). The lead
   // never uses it; generate a strong random one.
@@ -513,34 +513,47 @@ router.post('/create-lead', async (req, res) => {
   const payload = {
     firstName: client.first_name || '', lastName: client.last_name || '(FSBO)',
     email, password,
-    cellPhone: digits || undefined,
+    phone: client.phone || undefined,   // Sierra's field is `phone` (matches the update endpoint)
     leadStatus: sierraStatus,
     source: client.source || 'FSBO Master',
     streetAddress: client.address || undefined, city: client.city || undefined,
     state: client.state || 'IA', zipCode: client.zip || undefined,
     tags: tags.length ? tags : undefined,
   }
-  if (req.body?.dryRun) return res.json({ dryRun: true, payload: { ...payload, password: '***' } })
+  // The note we'll attach after creation: FSBO listing context from the master file.
+  const noteText = [
+    client.address ? `FSBO: ${client.address}, ${client.city || ''} ${client.zip || ''}`.trim() : 'FSBO',
+    client.fsbo_status ? `Status: ${client.fsbo_status}` : '',
+    client.fsbo_list_date ? `Listed: ${client.fsbo_list_date}` : '',
+    client.fsbo_dom ? `Days on market: ${client.fsbo_dom}` : '',
+    client.fsbo_link ? `Link: ${client.fsbo_link}` : '',
+    client.fsbo_notes ? `\n${client.fsbo_notes}` : '',
+  ].filter(Boolean).join('  ').trim()
+  if (req.body?.dryRun) return res.json({ dryRun: true, payload: { ...payload, password: '***' }, note: noteText })
 
-  const attempts = [{ path: '/leads', body: payload }]
-  const errors = []
-  for (const a of attempts) {
-    try {
-      const result = await sierraPost(a.path, a.body)
-      const data = result?.data || result
-      const newId = data?.id || data?.leadId || data?.leadID
-      if (newId) {
-        db.run('UPDATE clients SET sierra_lead_id=?, updated_at=? WHERE id=?', [String(newId), new Date().toISOString(), client.id])
-        db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-          ['sierra_lead_created', 'client', client.id, `Created in Sierra (id ${newId}) via POST ${a.path}`])
+  let created = null, noteResult = null
+  try {
+    const result = await sierraPost('/leads', payload)
+    const data = result?.data || result
+    const newId = data?.id || data?.leadId || data?.leadID
+    if (!newId) return res.status(502).json({ success: false, error: 'created but no lead id returned', sierra_response: data })
+    db.run('UPDATE clients SET sierra_lead_id=?, updated_at=? WHERE id=?', [String(newId), new Date().toISOString(), client.id])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['sierra_lead_created', 'client', client.id, `Created in Sierra (id ${newId})`])
+    created = newId
+    // Belt-and-suspenders: PUT the phone (some create paths ignore it) via the proven path.
+    if (client.phone) { try { await sierraPut(`/leads/${newId}`, { phone: client.phone }) } catch {} }
+    // Attach the FSBO note. Try the known Sierra note shapes.
+    if (noteText) {
+      for (const n of [{ path: `/leads/${newId}/notes`, body: { message: noteText } }, { path: '/notes/create', body: { leadId: newId, message: noteText } }, { path: `/notes/${newId}`, body: { message: noteText } }]) {
+        try { noteResult = await sierraPost(n.path, n.body); noteResult = { ok: true, via: n.path }; break }
+        catch (e) { noteResult = { ok: false, error: e.message }; if (!/40[045]/.test(e.message)) break }
       }
-      return res.json({ success: true, endpoint_used: `POST ${a.path}`, sierra_lead_id: newId || null, sierra_response: data })
-    } catch (err) {
-      errors.push({ endpoint: `POST ${a.path}`, error: err.message })
-      if (!/40[045]/.test(err.message)) break   // only fall through on route-mismatch 404s
     }
+    return res.json({ success: true, sierra_lead_id: created, phone_sent: client.phone || null, note: noteResult })
+  } catch (err) {
+    return res.status(502).json({ success: false, error: err.message, payload: { ...payload, password: '***' } })
   }
-  res.status(502).json({ success: false, error: 'Sierra create-lead failed', attempts: errors, payload })
 })
 
 // Push edited profile fields to Sierra so Hub edits STICK (otherwise the sync
