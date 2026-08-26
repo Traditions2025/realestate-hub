@@ -19,7 +19,7 @@ export function nextReviveOpener() {
   const n = REVIVE_OPENERS.length
   const i = ((Number(db.getSetting?.('ai_revive_rotation') || 0) % n) + n) % n
   try { db.setSetting?.('ai_revive_rotation', String((i + 1) % n)) } catch {}
-  return { index: i, text: REVIVE_OPENERS[i] }
+  return { index: i, text: REVIVE_OPENERS[i], total: n }
 }
 
 const nowIso = () => new Date().toISOString()

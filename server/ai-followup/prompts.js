@@ -1,6 +1,6 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.26-revive2'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.26-revive3'
 
 // Revive bank — for OLD buyer leads with NO recent online activity ("we're simply
 // reviving these old buyer leads"). One of these is rotated in per send so all 20 get
@@ -27,6 +27,10 @@ export const REVIVE_OPENERS = [
   "I know it's been some time since we talked. Did you end up putting the home search on the back burner, or is it something you're thinking about again?",
   "wanted to reconnect and see where you're at these days. If the right home came along, would you be open to making a move?",
   "it's been a while! Just curious, did you find a home already or should we still keep you in mind when something good comes up?",
+  "we dropped the ball staying in touch, and that's on us. Things have shifted in the market since we last spoke, and I wanted to make sure you had good info before you made any decisions. Are you still contemplating a move, or did plans change?",
+  "not trying to rush anything. Just want to make sure you have the right info so when the right home shows up, you're ready to move. Still thinking about buying in the next 6 to 12 months?",
+  "something just came up in [area] that matches what you were looking for. I don't want to assume you're still in the market, but I'd feel bad not reaching out. Still open to seeing something if it checks the boxes?",
+  "quick question, if the right home popped up in [area] at the right price, would you want to know about it? Just want to make sure I'm not missing you.",
 ]
 
 // The instruction that wraps a chosen revive body with the required format.
@@ -39,6 +43,7 @@ HARD RULES:
 - Greeting MUST be "Hi [First Name]", "Hello [First Name]", or "Good morning, [First Name]" / "Good afternoon, [First Name]" based on the current time (${timeGreeting || 'Hi'}). NEVER "Hey", NEVER "Good evening".
 - Introduce yourself once as "John with Matt Smith Team at RE/MAX" (do NOT add a city or anything after "RE/MAX").
 - End with MattSmithTeam.com as the LAST part of the message.
+- If the body contains [area] or [price], replace it with the lead's REAL value from the context (their city / preferred area / price range). If you do not have that value, rephrase naturally (e.g. "in your area", or drop the phrase) and NEVER output a literal bracket.
 - Do NOT reference any online activity, view counts, or "I saw you". This is a warm reconnect, not activity-based.
 - Return action SEND_TEXT with this message.`
 }

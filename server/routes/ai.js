@@ -90,7 +90,7 @@ router.post('/sandbox', async (req, res) => {
       summary: decision?.summary || '', next_state: decision?.next_state || null,
       handoff: decision?.handoff || { required: false },
       latency_ms: Date.now() - t0, tokens: msg.usage || {},
-      revive_opener: reviveInfo ? { index: reviveInfo.index + 1, total: 20, body: reviveInfo.text } : null,
+      revive_opener: reviveInfo ? { index: reviveInfo.index + 1, total: reviveInfo.total || 20, body: reviveInfo.text } : null,
     })
   } catch (e) { res.status(500).json({ error: 'model error: ' + e.message }) }
 })
