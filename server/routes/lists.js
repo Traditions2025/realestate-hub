@@ -159,6 +159,19 @@ router.post('/fsbo/dedupe', (req, res) => {
   }
   res.json({ dry, merged_groups: merged.length, records_removed: merged.reduce((a, m) => a + m.removed.length, 0), needs_review: review.length, merged, review })
 })
+// Push the current Watch status back to Sierra for Off Market FSBOs the old rule junked
+// there, so a Sierra->Hub status sync won't flip them back to Junk. Rate-limited.
+router.post('/fsbo/push-sierra-watch', async (_req, res) => {
+  const { sierraPut } = await import('../sierra-helper.js')
+  const recs = db.all("SELECT id, sierra_lead_id, first_name, last_name FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND sierra_lead_id IS NOT NULL AND lower(status)='watch' AND merged_into IS NULL")
+  let pushed = 0, errors = 0; const sample = []
+  for (const r of recs) {
+    try { await sierraPut(`/leads/${r.sierra_lead_id}`, { leadStatus: 'Watch' }); pushed++ }
+    catch (e) { errors++; if (sample.length < 5) sample.push(`${r.id}: ${e.message}`) }
+    await new Promise(s => setTimeout(s, 400))
+  }
+  res.json({ total: recs.length, pushed, errors, sample_errors: sample })
+})
 // Restore FSBO records the old "Off Market -> Junk" rule junked, back to a normal FSBO
 // status ('watch') so they read as real leads on the list (not junk). Merged duplicates
 // (fsbo_status cleared) and opted-out (donotcontact) leads are left alone. Returns the
