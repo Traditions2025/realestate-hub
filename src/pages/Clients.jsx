@@ -325,6 +325,9 @@ export default function Clients() {
   })
   const [detailOpen, setDetailOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
+  const [bulkMergeOpen, setBulkMergeOpen] = useState(false)
+  const [bulkAssignOpen, setBulkAssignOpen] = useState(false)
+  const [bulkTagsOpen, setBulkTagsOpen] = useState(false)
   const [detail, setDetail] = useState(null)
   const [textComposeClient, setTextComposeClient] = useState(null)  // lead-profile SMS composer (bulk/legacy)
   const [textPanelOpen, setTextPanelOpen] = useState(false)         // inline text box on the lead profile
@@ -2139,6 +2142,11 @@ export default function Clients() {
                     ⬇ {bulkExporting ? 'Exporting…' : 'Export to CSV'}
                   </button>
                   <div className="bulk-actions-divider" />
+                  <div className="bulk-actions-section-label">Organize</div>
+                  <button onClick={() => { setBulkActionsOpen(false); setBulkMergeOpen(true) }} title="Merge the selected leads into one (combines all history, notes, calls, texts, emails)">🔀 Merge Selected</button>
+                  <button onClick={() => { setBulkActionsOpen(false); setBulkAssignOpen(true) }}>👤 Assign Agent</button>
+                  <button onClick={() => { setBulkActionsOpen(false); setBulkTagsOpen(true) }}>🏷 Add / Remove Tags</button>
+                  <div className="bulk-actions-divider" />
                   <div className="bulk-actions-section-label">Enroll</div>
                   <button onClick={() => { setBulkActionsOpen(false); setBulkApply('drip') }}>💧 Apply Drip Campaign</button>
                   <button onClick={() => { setBulkActionsOpen(false); setBulkApply('automation') }}>⚡ Apply Automation</button>
@@ -3099,6 +3107,21 @@ export default function Clients() {
           onDone={(survivorId) => { setMergeOpen(false); setDetailOpen(false); load(); if (survivorId) openDetail(survivorId) }} />
       )}
 
+      {/* Bulk: merge / assign agent / tags */}
+      {bulkMergeOpen && (
+        <BulkMergeModal leads={items.filter(c => selectedIds.has(c.id))} ids={[...selectedIds]}
+          onClose={() => setBulkMergeOpen(false)}
+          onDone={(survivorId) => { setBulkMergeOpen(false); clearSelection(); load(); if (survivorId) openDetail(survivorId) }} />
+      )}
+      {bulkAssignOpen && (
+        <BulkAssignAgentModal ids={[...selectedIds]} onClose={() => setBulkAssignOpen(false)}
+          onDone={() => { setBulkAssignOpen(false); clearSelection(); load() }} />
+      )}
+      {bulkTagsOpen && (
+        <BulkTagsModal ids={[...selectedIds]} allTags={filterOptions.tags || []} onClose={() => setBulkTagsOpen(false)}
+          onDone={() => { setBulkTagsOpen(false); clearSelection(); load() }} />
+      )}
+
       {/* Bulk Email Modal */}
       <Modal open={bulkEmailOpen} onClose={() => setBulkEmailOpen(false)} title={`Bulk Email — ${selectedIds.size} recipients`} wide>
         <form onSubmit={reviewBulkEmail}>
@@ -3632,6 +3655,124 @@ function MergeLeadModal({ current, onClose, onDone }) {
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" disabled={!target || merging} onClick={doMerge}>{merging ? 'Merging…' : 'Merge leads'}</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// Bulk merge: fold the selected leads into one survivor (combines all history/comms/notes).
+function BulkMergeModal({ leads, ids, onClose, onDone }) {
+  const label = (c) => `${c.first_name || ''} ${c.last_name || ''}`.trim() || `Lead ${c.id}`
+  const [primaryId, setPrimaryId] = React.useState(leads[0]?.id || null)
+  const [keepBoth, setKeepBoth] = React.useState(true)
+  const [busy, setBusy] = React.useState(false)
+  const enough = ids.length >= 2
+  const run = async () => {
+    if (!primaryId || !enough) return
+    const dupIds = ids.filter(id => id !== primaryId)
+    const keep = leads.find(l => l.id === primaryId)
+    if (!confirm(`Merge ${dupIds.length} lead${dupIds.length === 1 ? '' : 's'} INTO "${keep ? label(keep) : primaryId}"?\n\nAll calls, texts, emails, notes and history from all of them combine onto the one you keep.${keepBoth ? ' Every email and phone number is kept.' : ''}\nThe others are archived (recoverable).`)) return
+    setBusy(true)
+    try {
+      const r = await authFetch('/api/clients/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primary_id: primaryId, duplicate_ids: dupIds, keep_both: keepBoth }) })
+      const d = await r.json()
+      if (d.error) { alert('Merge failed: ' + d.error); setBusy(false); return }
+      onDone(primaryId)
+    } catch (e) { alert('Merge failed: ' + e.message); setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Merge ${ids.length} selected lead${ids.length === 1 ? '' : 's'}`}>
+      <div className="form">
+        {!enough ? <p style={{ fontSize: 13 }}>Select at least 2 leads to merge.</p> : (
+          <>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Pick the record to KEEP. Everything from the others (calls, texts, emails, notes, history) combines onto it.</p>
+            {ids.length !== leads.length && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Showing {leads.length} of {ids.length} selected (the rest are on other pages but will still be merged in).</p>}
+            <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginBottom: 10 }}>
+              {leads.map(c => (
+                <label key={c.id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '7px 10px', borderBottom: '1px solid var(--border)', cursor: 'pointer' }}>
+                  <input type="radio" checked={primaryId === c.id} onChange={() => setPrimaryId(c.id)} />
+                  <span><span style={{ fontWeight: 600, fontSize: 13.5 }}>{label(c)}</span> <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{[c.phone, c.email].filter(Boolean).join(' · ')}</span></span>
+                </label>
+              ))}
+            </div>
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 8, cursor: 'pointer' }}><input type="checkbox" checked={keepBoth} onChange={e => setKeepBoth(e.target.checked)} /> Keep <b>all</b> emails &amp; phone numbers</label>
+          </>
+        )}
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={!enough || !primaryId || busy} onClick={run}>{busy ? 'Merging…' : 'Merge'}</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// Bulk assign (or clear) the owning agent.
+function BulkAssignAgentModal({ ids, onClose, onDone }) {
+  const [agents, setAgents] = React.useState([])
+  const [agent, setAgent] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  React.useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const run = async () => {
+    setBusy(true)
+    try {
+      const r = await authFetch('/api/clients/bulk-assign-agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, agent }) })
+      const d = await r.json()
+      if (d.error) { alert(d.error); setBusy(false); return }
+      alert(`Assigned ${d.updated} lead${d.updated === 1 ? '' : 's'} to ${agent || '(unassigned)'}.`)
+      onDone()
+    } catch (e) { alert('Failed: ' + e.message); setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Assign agent — ${ids.length} lead${ids.length === 1 ? '' : 's'}`}>
+      <div className="form">
+        <label style={{ fontSize: 13 }}>Agent<br />
+          <select value={agent} onChange={e => setAgent(e.target.value)} style={{ width: '100%', padding: '8px 10px', marginTop: 4 }}>
+            <option value="">— Unassign —</option>
+            {agents.map(a => <option key={a} value={a}>{a}</option>)}
+          </select>
+        </label>
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={busy} onClick={run}>{busy ? 'Saving…' : 'Assign'}</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
+// Bulk add and/or remove tags.
+function BulkTagsModal({ ids, allTags, onClose, onDone }) {
+  const [add, setAdd] = React.useState('')
+  const [remove, setRemove] = React.useState('')
+  const [busy, setBusy] = React.useState(false)
+  const parse = (s) => s.split(',').map(t => t.trim()).filter(Boolean)
+  const chip = (setter) => (t) => setter(prev => parse(prev).some(x => x.toLowerCase() === t.toLowerCase()) ? prev : (prev ? prev + ', ' : '') + t)
+  const run = async () => {
+    const a = parse(add), r = parse(remove)
+    if (!a.length && !r.length) return
+    setBusy(true)
+    try {
+      const res = await authFetch('/api/clients/bulk-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, add: a, remove: r }) })
+      const d = await res.json()
+      if (d.error) { alert(d.error); setBusy(false); return }
+      alert(`Updated tags on ${d.updated} lead${d.updated === 1 ? '' : 's'}.`)
+      onDone()
+    } catch (e) { alert('Failed: ' + e.message); setBusy(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Tags — ${ids.length} lead${ids.length === 1 ? '' : 's'}`}>
+      <div className="form">
+        <label style={{ fontSize: 13, fontWeight: 600 }}>Add tags (comma-separated)</label>
+        <input value={add} onChange={e => setAdd(e.target.value)} placeholder="e.g. Relocation, Investor" style={{ width: '100%', padding: '8px 10px', margin: '4px 0 6px' }} />
+        {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>{allTags.slice(0, 20).map(t => <button key={t} type="button" onClick={() => chip(setAdd)(t)} style={{ fontSize: 11, padding: '2px 7px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}>+ {t}</button>)}</div>}
+        <label style={{ fontSize: 13, fontWeight: 600 }}>Remove tags (comma-separated)</label>
+        <input value={remove} onChange={e => setRemove(e.target.value)} placeholder="tags to remove" style={{ width: '100%', padding: '8px 10px', margin: '4px 0 6px' }} />
+        {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>{allTags.slice(0, 20).map(t => <button key={t} type="button" onClick={() => chip(setRemove)(t)} style={{ fontSize: 11, padding: '2px 7px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}>− {t}</button>)}</div>}
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={busy || (!parse(add).length && !parse(remove).length)} onClick={run}>{busy ? 'Saving…' : 'Apply'}</button>
         </div>
       </div>
     </Modal>

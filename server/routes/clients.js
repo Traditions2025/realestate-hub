@@ -944,6 +944,43 @@ router.post('/bulk-type', (req, res) => {
   res.json({ success: true, updated: ids.length, type })
 })
 
+// Bulk assign (or clear) the owning agent on the selected leads.
+router.post('/bulk-assign-agent', (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean)
+  const agent = String(req.body?.agent || '').trim()
+  if (!ids.length) return res.status(400).json({ error: 'ids array required' })
+  const now = new Date().toISOString()
+  const ph = ids.map(() => '?').join(',')
+  db.run(`UPDATE clients SET agent_assigned=?, updated_at=? WHERE id IN (${ph})`, [agent || null, now, ...ids])
+  logActivity('bulk_assign_agent', 'client', 0, `Assigned ${ids.length} lead${ids.length === 1 ? '' : 's'} to ${agent || '(unassigned)'}`)
+  res.json({ success: true, updated: ids.length, agent })
+})
+
+// Bulk add and/or remove tags (comma-separated tags field), case-insensitive, no dupes.
+router.post('/bulk-tags', (req, res) => {
+  const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean)
+  const add = (Array.isArray(req.body?.add) ? req.body.add : []).map(s => String(s).trim()).filter(Boolean)
+  const remove = (Array.isArray(req.body?.remove) ? req.body.remove : []).map(s => String(s).trim()).filter(Boolean)
+  const removeLc = remove.map(s => s.toLowerCase())
+  if (!ids.length) return res.status(400).json({ error: 'ids array required' })
+  if (!add.length && !remove.length) return res.status(400).json({ error: 'add or remove tags required' })
+  const now = new Date().toISOString()
+  let updated = 0
+  db.beginBulk?.()
+  try {
+    for (const id of ids) {
+      const row = db.get('SELECT tags FROM clients WHERE id=?', [id]); if (!row) continue
+      let list = String(row.tags || '').split(',').map(s => s.trim()).filter(Boolean)
+      if (removeLc.length) list = list.filter(t => !removeLc.includes(t.toLowerCase()))
+      for (const t of add) if (!list.some(x => x.toLowerCase() === t.toLowerCase())) list.push(t)
+      db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [list.join(', ') || null, now, id])
+      updated++
+    }
+    logActivity('bulk_tags', 'client', 0, `Tags on ${updated} lead${updated === 1 ? '' : 's'}: +[${add.join(', ')}] -[${remove.join(', ')}]`)
+  } finally { db.endBulk?.() }
+  res.json({ success: true, updated, added: add, removed: remove })
+})
+
 // Auto-enrich newly-added FUB-linked leads (socials + register date + price) that
 // haven't been pulled yet. Runs on the scheduler so new leads get enriched without
 // the manual button. Newest leads first; small, rate-limited batch.

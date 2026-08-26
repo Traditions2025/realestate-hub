@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T20:01:45.212Z",
+  "generated_at": "2026-08-26T20:06:46.368Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c135f71",
+      "date": "2026-08-26T15:01:55-05:00",
+      "subject": "Lead profile: Merge with existing lead (search, pick survivor, keep both contacts)",
+      "title": "Lead profile: Merge with existing lead (search, pick survivor, keep both contacts)",
+      "body": "- Add 'Merge with existing lead' button on every lead profile -> MergeLeadModal: search\n  by name/email/phone, pick which record to keep, and a 'keep both emails & phone numbers'\n  option (extras saved as alt_emails/alt_phones secondary contacts, shown on the profile).\n- /api/clients/merge already reassigns all communications, notes, tasks, AI history to the\n  survivor (nothing lost, reversible); extend it with keep_both to preserve the other\n  lead's distinct email/phone instead of only filling blanks.\n- Add alt_emails/alt_phones columns to clients.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1c1b965",
       "date": "2026-08-26T14:16:39-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T11:22:14-05:00",
       "subject": "Always show all Sierra status tabs (Prime, Active, New, Qualify, Pending, Watch, Closed, Archived, Do Not Contact, Junk, Blocked) even with 0 count",
       "title": "Always show all Sierra status tabs (Prime, Active, New, Qualify, Pending, Watch, Closed, Archived, Do Not Contact, Junk, Blocked) even with 0 count",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "8dc8cd8",
-      "date": "2026-04-29T11:06:58-05:00",
-      "subject": "Mobile: convert Transactions and Partners tables to cards on mobile, stack pipeline columns vertically",
-      "title": "Mobile: convert Transactions and Partners tables to cards on mobile, stack pipeline columns vertically",
       "body": "",
       "category": "other"
     }
