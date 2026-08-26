@@ -635,7 +635,10 @@ async function start() {
     try {
       const last10 = String(phone || '').replace(/\D/g, '').slice(-10)
       if (!last10) return null
-      const match = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-7)])
+      // Match on the last 4 digits (always contiguous at the end) then confirm the full
+      // last-10. A last-7 LIKE misses formatted numbers like "(319) 929-9923" because the
+      // dash splits the digits, so the call never attaches to the lead.
+      const match = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-4)])
         .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
       const ext = 'twiliocall_' + (f.sid || Date.now())
       const label = channel === 'voicemail' ? 'Voicemail' : `${direction === 'incoming' ? 'Incoming' : 'Outgoing'} call`
@@ -673,7 +676,7 @@ async function start() {
       if (last10.length < 10) return
       const ext = 'missedcb_' + (callSid || last10)
       if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) return
-      const match = db.all('SELECT id, first_name, last_name, phone, status, hub_text_opt_out FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-7)])
+      const match = db.all('SELECT id, first_name, last_name, phone, status, hub_text_opt_out FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-4)])
         .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
       if (match && (match.hub_text_opt_out || isDncStatus(match.status))) return
       const msg = db.getSetting('missed_call_textback_message', 'Sorry we missed your call! This is the Matt Smith Team. How can we help? You can reply right here.')
@@ -722,6 +725,19 @@ async function start() {
         const { vmDropChildMap } = await import('./voice-state.js')
         if (['completed', 'busy', 'no-answer', 'canceled', 'failed'].includes(status)) vmDropChildMap.delete(parent)
         else vmDropChildMap.set(parent, { childSid: child, at: Date.now() })
+      }
+      // Reconcile the OUTCOME onto the call's timeline row (keyed by the parent browser leg).
+      // The callee leg is the source of truth for connected vs. no-answer/busy/failed — so a
+      // call that never connects is still logged clearly instead of stuck on "initiated".
+      if (parent && ['completed', 'busy', 'no-answer', 'canceled', 'failed', 'answered', 'in-progress'].includes(status)) {
+        const dur = Number(b.CallDuration || 0) || null
+        const connected = (status === 'completed' && dur) || status === 'answered' || status === 'in-progress'
+        const DISPO = { 'no-answer': 'No answer', busy: 'Busy', failed: 'Call failed', canceled: 'Canceled' }
+        let dstatus, disp = null
+        if (connected) dstatus = status === 'completed' ? 'completed' : 'in-progress'
+        else if (status === 'completed') { dstatus = 'no-answer'; disp = 'No answer' }   // completed with 0s talk = never connected
+        else { dstatus = status; disp = DISPO[status] || null }
+        upsertCall('call', 'outgoing', b.To, { sid: parent, delivery_status: dstatus, duration_sec: dur, disposition: disp })
       }
     } catch {}
     res.sendStatus(204)
@@ -795,6 +811,25 @@ async function start() {
       upsertCall('call', dir, phone, { sid: b.CallSid, delivery_status: b.CallStatus, duration_sec: Number(b.CallDuration || 0) || null })
     } catch {}
     res.sendStatus(204)
+  })
+  // One-time repair: attach past call/voicemail rows that were logged with no client_id
+  // (the old formatted-phone match bug) to their lead so they show on the profile.
+  app.post('/api/voice/backfill-call-clients', async (_req, res) => {
+    try {
+      const norm = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+      const orphans = db.all("SELECT id, direction, from_addr, to_addr, channel FROM communications WHERE channel IN ('call','voicemail') AND client_id IS NULL")
+      let linked = 0
+      for (const r of orphans) {
+        const last10 = norm(r.direction === 'incoming' ? r.from_addr : r.to_addr)
+        if (last10.length < 10) continue
+        const m = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-4)]).find(x => norm(x.phone) === last10)
+        if (!m) continue
+        db.run('UPDATE communications SET client_id=?, contact_name=?, thread_key=? WHERE id=?',
+          [m.id, `${m.first_name || ''} ${m.last_name || ''}`.trim(), `c${m.id}_call`, r.id])
+        linked++
+      }
+      res.json({ orphans: orphans.length, linked })
+    } catch (e) { res.status(500).json({ error: e.message }) }
   })
   // Send a one-off test text (verify outbound works end to end).
   app.post('/api/settings/twilio/test-send', async (req, res) => {

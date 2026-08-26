@@ -165,7 +165,7 @@ export function requireAuth(req, res, next) {
   if (req.path === '/api/inbox/twilio-status') return next() // Twilio posts delivery status here (no token)
   if (req.path === '/api/inbox/conversations-webhook') return next() // Twilio Conversations (group MMS) inbound (no token)
   if (req.path === '/api/gdrive/connect' || req.path === '/api/gdrive/callback') return next() // Google OAuth browser redirects
-  if (req.path.startsWith('/api/voice/') && req.path !== '/api/voice/token' && req.path !== '/api/voice/setup') return next() // Twilio Voice webhooks (signature-validated)
+  if (req.path.startsWith('/api/voice/') && req.path !== '/api/voice/token' && req.path !== '/api/voice/setup' && req.path !== '/api/voice/backfill-call-clients') return next() // Twilio Voice webhooks (signature-validated)
   if (req.path.startsWith('/api/social-media/img/')) return next() // public images so Meta/LinkedIn can fetch them
   if (req.path === '/api/social-media/queue' || req.path === '/api/social-media/result') return next() // n8n (checks its own shared key)
   if (req.path === '/api/track/beacon') return next() // tracking pixel beacons (public)

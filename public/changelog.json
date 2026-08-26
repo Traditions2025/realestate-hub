@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T17:01:37.401Z",
+  "generated_at": "2026-08-26T17:23:37.348Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "cb9bce8",
+      "date": "2026-08-26T12:01:46-05:00",
+      "subject": "Bulk text: multi-part sends (ordered texts per recipient) + FSBO Step 2 one-click",
+      "title": "Bulk text: multi-part sends (ordered texts per recipient) + FSBO Step 2 one-click",
+      "body": "- /api/inbox/bulk-text accepts an ordered bodies[] and sends each part to every\n  recipient in sequence (~5s apart), so a 3-part FSBO step can be bulk-applied in one action.\n- BulkTextModal: add/remove message parts, active-part merge/template insertion,\n  and a 'FSBO Step 2 (3 texts)' button that loads 2a/2b/2c from saved templates.\n- Added the 8 FSBO sequence steps as saved text templates (category FSBO Sequence).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3cfc3d5",
       "date": "2026-08-26T11:49:01-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-28T17:47:34-05:00",
       "subject": "Default Sierra sync to pull all 11 statuses (~45K leads)",
       "title": "Default Sierra sync to pull all 11 statuses (~45K leads)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "02e3016",
-      "date": "2026-04-28T17:42:58-05:00",
-      "subject": "Auto-seed vendors/partners/calendar on first boot + 'Sync Everything' button",
-      "title": "Auto-seed vendors/partners/calendar on first boot + 'Sync Everything' button",
       "body": "",
       "category": "other"
     }

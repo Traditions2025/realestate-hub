@@ -3027,7 +3027,7 @@ export default function Clients() {
                     const out = m.direction === 'outgoing'
                     const missed = m.channel === 'call' && String(m.delivery_status || '').toLowerCase() === 'missed'
                     const isCallish = m.channel === 'call' || m.channel === 'voicemail'
-                    const text = m.body || m.preview || m.subject || ''
+                    const text = commToText(m.body || m.preview || m.subject || '')
                     return (
                       <div key={m.id} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text-muted)', marginBottom: text || isCallish ? 3 : 0 }}>
@@ -3039,6 +3039,7 @@ export default function Clients() {
                           {m.agent ? <span>· {m.agent}</span> : null}
                           <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
                         </div>
+                        {m.channel === 'email' && m.subject && <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 2 }}>{commToText(m.subject)}</div>}
                         {text && <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
                         {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
                         {m.transcript && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
@@ -3624,6 +3625,21 @@ const COMM_META = {
   email: { icon: '✉', label: 'Email', color: '#3b82f6' },
 }
 const fmtCommWhen = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
+// Turn a logged email's raw HTML into a clean, readable preview (drop tracking pixels,
+// style/script, tags; keep link text; decode entities). Plain text passes through.
+function commToText(s) {
+  s = String(s || '')
+  if (!/<[a-z/!][^>]*>/i.test(s)) return s
+  s = s.replace(/<\s*(style|script|head)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, ' ')
+    .replace(/<img[^>]*>/gi, '')
+    .replace(/<\/(p|div|tr|h[1-6]|li|blockquote|table)\s*>/gi, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ').replace(/&amp;/gi, '&').replace(/&lt;/gi, '<').replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"').replace(/&#39;|&apos;/gi, "'")
+    .replace(/&#(\d+);/g, (_, n) => { try { return String.fromCharCode(+n) } catch { return '' } })
+  return s.replace(/[ \t]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim()
+}
 function TextComposerModal({ client, onClose, onSent }) {
   const [body, setBody] = React.useState('')
   const [sending, setSending] = React.useState(false)
