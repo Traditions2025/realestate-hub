@@ -14,6 +14,26 @@ export function centralGreeting(now = new Date()) {
   } catch { return 'Hi' }
 }
 
+// Does the lead have GENUINELY RECENT online activity (default 21 days)? Old FUB views
+// from months ago must NOT count — otherwise the AI greets a cold lead as if they were
+// "just checking out homes." Checks both behavioral (lead_activity) and FUB views.
+export function hasRecentActivity(clientId, days) {
+  const cid = Number(clientId)
+  const d = Math.max(1, Number(days || getConfig().ai_dormant_days || 21))
+  try { if (db.get(`SELECT 1 FROM lead_activity WHERE client_id=? AND created_at >= datetime('now','-${d} days') LIMIT 1`, [cid])) return true } catch {}
+  try { if (db.get(`SELECT 1 FROM fub_activity WHERE client_id=? AND occurred_at >= datetime('now','-${d} days') LIMIT 1`, [cid])) return true } catch {}
+  return false
+}
+// A DORMANT lead: no recent activity AND not a brand-new registration. These must get the
+// re-engage/REVIVE opener ("it's been a while"), never the activity-based "saw you browsing".
+export function isDormantLead(clientId, days) {
+  const cid = Number(clientId)
+  const d = Math.max(1, Number(days || getConfig().ai_dormant_days || 21))
+  if (hasRecentActivity(cid, d)) return false
+  try { if (db.get(`SELECT 1 FROM clients WHERE id=? AND created_at >= datetime('now','-${d} days')`, [cid])) return false } catch {}
+  return true
+}
+
 const stripHtml = (s) => String(s == null ? '' : s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 const clip = (s, n) => { const t = String(s == null ? '' : s); return t.length > n ? t.slice(0, n) + '…' : t }
 
@@ -45,8 +65,12 @@ export function buildLeadAiContext(clientId) {
       .map(a => `${a.event_type}${a.listing_mls ? ' ' + a.listing_mls : ''}${a.page_title ? ' (' + clip(a.page_title, 40) + ')' : ''}`)
   } catch {}
   // FUB property views (the freshest interest signal) → city of search + last property.
+  // ONLY count views that are genuinely recent — a stale view from months ago must never
+  // be surfaced as "the property they're looking at" (that made the AI greet cold leads as
+  // active browsers). Fall back to the preferred city / home city for search context.
+  const dormantDays = Math.max(1, Number(cfg.ai_dormant_days || 21))
   let fubViews = []
-  try { fubViews = db.all(`SELECT prop_street, prop_city, prop_mls, occurred_at FROM fub_activity WHERE client_id=? ORDER BY occurred_at DESC, id DESC LIMIT 5`, [cid]) } catch {}
+  try { fubViews = db.all(`SELECT prop_street, prop_city, prop_mls, occurred_at FROM fub_activity WHERE client_id=? AND occurred_at >= datetime('now','-${dormantDays} days') ORDER BY occurred_at DESC, id DESC LIMIT 5`, [cid]) } catch {}
   const lastViewed = fubViews[0]
   const searchCity = (lastViewed && lastViewed.prop_city) || (String(li.preferred_cities || '').split(',').map(s => s.trim()).filter(Boolean)[0]) || client.city || null
   const lastViewedProperty = lastViewed ? [lastViewed.prop_street, lastViewed.prop_city].filter(Boolean).join(', ') : (li.last_property_discussed || null)

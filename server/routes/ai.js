@@ -160,8 +160,11 @@ router.post('/lead/:id/send-now', async (req, res) => {
     const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
     // Right message for where the conversation is: no texts yet → opener; they replied
     // → answer + qualify; we texted with no reply → the next qualifying follow-up.
+    const { isDormantLead } = await import('../ai-followup/context.js')
     let result
-    if (!lastText) result = await m.handleProactive(cid, { force: true })
+    // Never-texted lead: a DORMANT one (no recent activity, not brand new) gets the REVIVE
+    // re-engage opener, NOT the activity-based "saw you browsing" opener.
+    if (!lastText) result = isDormantLead(cid) ? await m.handleNurture(cid, { reengage: true, force: true }) : await m.handleProactive(cid, { force: true })
     else if (lastText.direction === 'incoming' && lastIn) result = await m.handleInboundText(cid, lastIn.body, { force: true })
     else result = await m.handleFollowup(cid, { force: true })
     // Manual click should reliably send: if that path produced nothing, try a follow-up.
@@ -183,6 +186,7 @@ router.post('/bulk-send-now', async (req, res) => {
   if (!ids.length) return res.status(400).json({ error: 'Select at least one lead.' })
   if (ids.length > 500) return res.status(400).json({ error: 'Too many at once — select 500 or fewer.' })
   const m = await import('../ai-followup/orchestrator.js')
+  const { isDormantLead } = await import('../ai-followup/context.js')
   const out = { total: ids.length, sent: 0, skipped: 0, blocked: 0, results: [] }
   for (const cid of ids) {
     try {
@@ -196,7 +200,8 @@ router.post('/bulk-send-now', async (req, res) => {
       const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
       const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
       let result
-      if (!lastText) result = await m.handleProactive(cid, { force: true })
+      // Dormant (no recent activity, not brand new) → REVIVE opener, never "saw you browsing".
+      if (!lastText) result = isDormantLead(cid) ? await m.handleNurture(cid, { reengage: true, force: true }) : await m.handleProactive(cid, { force: true })
       else if (lastText.direction === 'incoming' && lastIn) result = await m.handleInboundText(cid, lastIn.body, { force: true })
       else result = await m.handleFollowup(cid, { force: true })
       if (result && result.ok && !result.sent && !/blocked|STOP|opt|quiet/i.test(result.reason || '')) {

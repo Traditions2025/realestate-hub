@@ -289,7 +289,7 @@ export async function handleFollowup(clientId, { force = false } = {}) {
 }
 
 // Nurture / re-engagement touch (scheduler-driven). attempt informs the tone.
-export async function handleNurture(clientId, { reengage = false, attempt = 1 } = {}) {
+export async function handleNurture(clientId, { reengage = false, attempt = 1, force = false } = {}) {
   const cid = Number(clientId)
   // Reviving an OLD BUYER lead (no recent activity) uses the rotated approved revive bank so
   // all 20 openers get exercised, not a single stock line. Sellers keep the generic reconnect.
@@ -305,7 +305,7 @@ export async function handleNurture(clientId, { reengage = false, attempt = 1 } 
     instruction = `This lead has not replied to recent messages (nurture attempt ${attempt}). Write ONE short, low-pressure, genuinely useful text with a real contextual reason. Vary it from prior messages. Do not say "just checking in" or "following up". If nothing useful to say, choose NO_ACTION.`
   }
   return runOutbound(cid, {
-    actionType: reengage ? 'REENGAGE' : 'NURTURE', flagKey: 'ai_nurture_enabled',
+    actionType: reengage ? 'REENGAGE' : 'NURTURE', flagKey: 'ai_nurture_enabled', force,
     nextState: reengage ? 'AI_REENGAGED' : 'AI_LONG_TERM_NURTURE', reviveTemplate, instruction,
   })
 }

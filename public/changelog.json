@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T18:39:30.425Z",
+  "generated_at": "2026-08-26T19:09:08.626Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8670fc9",
+      "date": "2026-08-26T13:39:33-05:00",
+      "subject": "Filters: add Sources (Exclude) option",
+      "title": "Filters: add Sources (Exclude) option",
+      "body": "Frontend advFilters.sources_exclude wired to the existing backend sources_exclude\nsupport (clients.js); also add it to the saved-list filter builder for parity.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "820dfe8",
       "date": "2026-08-26T13:27:44-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T10:12:39-05:00",
       "subject": "Pipeline: remove Pending column (merged into Under Contract), scrollable columns, upcoming action items with due dates",
       "title": "Pipeline: remove Pending column (merged into Under Contract), scrollable columns, upcoming action items with due dates",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "908ee95",
-      "date": "2026-04-29T09:31:57-05:00",
-      "subject": "Make /api/db-status public for diagnostics (only shows metadata, no actual data)",
-      "title": "Make /api/db-status public for diagnostics (only shows metadata, no actual data)",
       "body": "",
       "category": "other"
     }
