@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-26T20:48:37.568Z",
+  "generated_at": "2026-08-26T22:40:19.337Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "bb652c5",
+      "date": "2026-08-26T17:27:03-05:00",
+      "subject": "Revive bank: add 4 buyer reactivation openers (now 24), fill [area]/[price] from context",
+      "title": "Revive bank: add 4 buyer reactivation openers (now 24), fill [area]/[price] from context",
+      "body": "New warm reconnect lines (dropped-the-ball, no-rush 6-12mo, just-came-up-in-area,\nright-home question) added to the rotation; formatter still enforces Hi/Hello or\ntime-of-day greeting (never Hey), John/RE/MAX intro, MattSmithTeam.com at the end, and\nnow replaces [area]/[price] with the lead's real value (never a raw bracket).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "856224e",
+      "date": "2026-08-26T15:48:40-05:00",
+      "subject": "Filters: last email/text sent (more/less than N days) + AI Applied yes/no",
+      "title": "Filters: last email/text sent (more/less than N days) + AI Applied yes/no",
+      "body": "- buildClientFilter: recency via EXISTS on outgoing comms (less = within N days, more =\n  not in the last N days); ai_applied via ai_lead_state.ai_managed or an AI-sent text.\n- Client filter panel: Last Email Sent, Last Text Sent (op + days), AI Applied dropdown.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "07a800e",
       "date": "2026-08-26T15:06:54-05:00",
@@ -3985,22 +4001,6 @@
       "title": "TDZ error: move state declarations to top of Clients component (was used before declared)",
       "body": "",
       "category": "fix"
-    },
-    {
-      "hash": "3a8b8d0",
-      "date": "2026-04-29T11:52:35-05:00",
-      "subject": "Show empty state in list view when no leads in current tab",
-      "title": "Show empty state in list view when no leads in current tab",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "15fbcbb",
-      "date": "2026-04-29T11:44:21-05:00",
-      "subject": "Clients: list view (default), full-width when in list, Other dropdown for Archived/Junk/DNC/Blocked, skip Blocked sync (Sierra returns bogus 45K)",
-      "title": "Clients: list view (default), full-width when in list, Other dropdown for Archived/Junk/DNC/Blocked, skip Blocked sync (Sierra returns bogus 45K)",
-      "body": "",
-      "category": "other"
     }
   ]
 }

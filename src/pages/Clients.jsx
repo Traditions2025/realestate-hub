@@ -3135,6 +3135,8 @@ export default function Clients() {
               </div>
             )}
 
+            <QuickAddTask clientId={detail.id} clientName={`${detail.first_name || ''} ${detail.last_name || ''}`.trim()} />
+
             <div className="form-actions">
               <button className="btn btn-secondary" onClick={() => { setDetailOpen(false); openEdit(detail) }}>Edit Client</button>
               <button className="btn btn-secondary" onClick={() => setMergeOpen(true)}>🔀 Merge with existing lead</button>
@@ -3625,6 +3627,44 @@ function InlineStatus({ detail, onSaved }) {
 
 // P2-2: unified per-contact timeline — one filterable stream of every interaction.
 const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['note', 'Notes'], ['task', 'Tasks'], ['behavior', 'Activity']]
+// Quick "add task" on the lead profile: text + due date + assignee -> Tasks tab, linked
+// to this lead (related_type=client).
+function QuickAddTask({ clientId, clientName }) {
+  const [text, setText] = React.useState('')
+  const [date, setDate] = React.useState('')
+  const [assignee, setAssignee] = React.useState('')
+  const [agents, setAgents] = React.useState([])
+  const [saving, setSaving] = React.useState(false)
+  const [done, setDone] = React.useState('')
+  React.useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const add = async () => {
+    if (!text.trim()) return
+    setSaving(true); setDone('')
+    try {
+      const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text.trim(), due_date: date || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
+      const d = await r.json()
+      if (d && d.error) { alert('Could not add task: ' + d.error); setSaving(false); return }
+      setText(''); setDate(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000)
+    } catch (e) { alert('Could not add task: ' + e.message) } finally { setSaving(false) }
+  }
+  return (
+    <div className="detail-section">
+      <h4>Add Task</h4>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }}
+          placeholder={`Task for ${clientName || 'this lead'}…`} style={{ flex: '2 1 200px', minWidth: 160, padding: '7px 9px', fontSize: 13 }} />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Due date" style={{ padding: '6px 9px', fontSize: 13 }} />
+        <select value={assignee} onChange={e => setAssignee(e.target.value)} title="Assignee" style={{ padding: '7px 9px', fontSize: 13 }}>
+          <option value="">Assignee…</option>
+          {agents.map(a => <option key={a} value={a}>{a}</option>)}
+        </select>
+        <button className="btn btn-primary btn-sm" onClick={add} disabled={saving || !text.trim()}>{saving ? 'Adding…' : 'Add Task'}</button>
+      </div>
+      {done && <div style={{ fontSize: 12, color: '#10b981', marginTop: 6 }}>{done}</div>}
+    </div>
+  )
+}
+
 // Merge the current lead with an existing one: search, pick who to keep, keep both
 // emails/phones, and combine all history/notes/communications onto the survivor.
 function MergeLeadModal({ current, onClose, onDone }) {
