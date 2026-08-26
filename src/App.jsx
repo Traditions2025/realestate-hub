@@ -211,6 +211,28 @@ function PanelIcon() {
   )
 }
 
+// Catch render crashes so a page error shows a message + stack instead of a blank screen.
+class ErrorBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null } }
+  static getDerivedStateFromError(err) { return { err } }
+  componentDidCatch(err, info) { try { console.error('[app error]', err, info) } catch {} }
+  componentDidUpdate(prev) { if (prev.routeKey !== this.props.routeKey && this.state.err) this.setState({ err: null }) }
+  render() {
+    if (this.state.err) return (
+      <div style={{ padding: 24, maxWidth: 900 }}>
+        <h2 style={{ color: '#ef4444', marginTop: 0 }}>Something went wrong on this page.</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>The rest of the app is fine. Send this to your developer:</p>
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 12, maxHeight: 320, overflow: 'auto' }}>{String(this.state.err?.stack || this.state.err)}</pre>
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button className="btn btn-primary" onClick={() => this.setState({ err: null })}>Try again</button>
+          <button className="btn btn-secondary" onClick={() => window.location.assign('/')}>Go to Dashboard</button>
+        </div>
+      </div>
+    )
+    return this.props.children
+  }
+}
+
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Desktop: collapse (fully hide) the sidebar to give the page full width. Persisted.
@@ -348,6 +370,7 @@ export default function App() {
           <div style={{ flex: 1 }}><GlobalSearch /></div>
           <NotificationBell />
         </div>
+        <ErrorBoundary>
         <Suspense fallback={<div className="page-loading">Loading...</div>}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -377,6 +400,7 @@ export default function App() {
             <Route path="/reporting" element={<Reporting />} />
           </Routes>
         </Suspense>
+        </ErrorBoundary>
       </main>
     </div>
   )

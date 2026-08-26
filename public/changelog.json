@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T15:59:30.803Z",
+  "generated_at": "2026-08-26T16:09:18.620Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8dbda09",
+      "date": "2026-08-26T10:59:40-05:00",
+      "subject": "Lead text composer: WYSIWYG merge fields, template replaces (no append), no separate preview",
+      "title": "Lead text composer: WYSIWYG merge fields, template replaces (no append), no separate preview",
+      "body": "- Applying a template renders its merge fields for the lead and REPLACES the box (picking\n  another template swaps it instead of appending).\n- Merge-field dropdown inserts the filled value for the lead.\n- Removed the separate preview panel; the box itself shows the final text.\n- Uses POST /api/templates/render.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a0c8e00",
       "date": "2026-08-26T10:39:36-05:00",
@@ -3993,14 +4001,6 @@
       "title": "auth: stateless HMAC tokens that survive server restarts",
       "body": "",
       "category": "fix"
-    },
-    {
-      "hash": "3f256fb",
-      "date": "2026-04-28T12:50:29-05:00",
-      "subject": "Single button to sync all Sierra leads, remove auto-sync",
-      "title": "Single button to sync all Sierra leads, remove auto-sync",
-      "body": "",
-      "category": "other"
     }
   ]
 }
