@@ -119,7 +119,10 @@ export async function syncFsboMaster() {
     const k = last10(c.phone); if (!k) continue
     const prev = index.get(k)
     if (!prev) { index.set(k, c); continue }
-    const isFsbo = (x) => /fsbo/i.test(x.tags || '')
+    // Prefer the record that IS the FSBO — one already carrying an fsbo_status, or fsbo-tagged.
+    // Without this, a created FSBO record (no fsbo tag) loses to an older junk lead sharing the
+    // phone, so every sync re-hits the collision branch and creates yet another duplicate.
+    const isFsbo = (x) => /fsbo/i.test(x.tags || '') || !!(x.fsbo_status && String(x.fsbo_status).trim())
     if (isFsbo(c) && !isFsbo(prev)) index.set(k, c)
     else if (isFsbo(c) === isFsbo(prev) && c.id < prev.id) index.set(k, c)
   }

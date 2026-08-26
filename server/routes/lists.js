@@ -127,6 +127,38 @@ router.get('/fsbo/audit', async (_req, res) => {
     })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Collapse duplicate FSBO records sharing a phone. Hub-native sync duplicates (all the
+// losers have no Sierra profile) are merged automatically into the oldest record; groups
+// where a loser has its OWN sierra_lead_id are left for manual review (they may be genuine
+// separate Sierra profiles, e.g. one owner with two listings). Pass {dry:true} to preview.
+router.post('/fsbo/dedupe', (req, res) => {
+  const dry = req.body?.dry === true || req.query.dry === '1'
+  const last10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
+  const now = new Date().toISOString()
+  const recs = db.all("SELECT id, first_name, last_name, phone, sierra_lead_id, fsbo_status, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, status, created_at FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')")
+  const groups = {}
+  for (const r of recs) { const k = last10(r.phone); if (!k) continue; (groups[k] = groups[k] || []).push(r) }
+  const merged = [], review = []
+  for (const [k, g] of Object.entries(groups)) {
+    if (g.length < 2) continue
+    g.sort((a, b) => a.id - b.id)
+    const canonical = g[0], losers = g.slice(1)
+    if (losers.every(l => !l.sierra_lead_id)) {
+      for (const l of losers) {
+        if (!dry) {
+          const set = [], val = []
+          for (const f of ['fsbo_list_date', 'fsbo_dom', 'fsbo_notes', 'fsbo_link']) if (!canonical[f] && l[f]) { set.push(`${f}=?`); val.push(l[f]) }
+          if (set.length) { val.push(canonical.id); db.run(`UPDATE clients SET ${set.join(', ')} WHERE id=?`, val) }
+          db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, merged_into=?, updated_at=? WHERE id=?', [canonical.id, now, l.id])
+        }
+      }
+      merged.push({ phone: k, name: `${canonical.first_name || ''} ${canonical.last_name || ''}`.trim(), kept: canonical.id, removed: losers.map(l => l.id) })
+    } else {
+      review.push({ phone: k, name: `${canonical.first_name || ''} ${canonical.last_name || ''}`.trim(), records: g.map(r => ({ id: r.id, sierra_lead_id: r.sierra_lead_id, status: r.status, fsbo_status: r.fsbo_status, created_at: r.created_at })) })
+    }
+  }
+  res.json({ dry, merged_groups: merged.length, records_removed: merged.reduce((a, m) => a + m.removed.length, 0), needs_review: review.length, merged, review })
+})
 router.get('/fsbo/followup', (_req, res) => {
   const byStep = db.all("SELECT step, COUNT(*) n FROM fsbo_followups WHERE status='active' GROUP BY step")
   const totals = {
