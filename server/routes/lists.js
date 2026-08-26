@@ -124,10 +124,11 @@ router.post('/fsbo/followup/seed', (req, res) => {
   const firstTextAt = new Date(Date.now() - daysAgo * 86400000).toISOString()
   const last10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
   const ids = new Set((Array.isArray(b.client_ids) ? b.client_ids : []).map(Number).filter(Boolean))
-  for (const ph of (Array.isArray(b.phones) ? b.phones : [])) {
-    const k = last10(ph); if (!k) continue
-    for (const c of db.all("SELECT id, phone FROM clients WHERE phone LIKE ? AND fsbo_status IS NOT NULL", ['%' + k.slice(-7)])) {
-      if (last10(c.phone) === k) ids.add(c.id)
+  const wanted = new Set((Array.isArray(b.phones) ? b.phones : []).map(last10).filter(Boolean))
+  if (wanted.size) {
+    // Stored phones are formatted, so match on normalized last-10 across the FSBO set.
+    for (const c of db.all("SELECT id, phone FROM clients WHERE fsbo_status IS NOT NULL AND phone IS NOT NULL AND phone != ''")) {
+      const k = last10(c.phone); if (k && wanted.has(k)) ids.add(c.id)
     }
   }
   const seeded = []
