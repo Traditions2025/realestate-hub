@@ -74,7 +74,14 @@ export async function runFsboFollowups() {
   const out = { enrolled: 0, step1: 0, step2: 0, step3: 0, email_ask: 0, window }
   for (const c of eligibleFsbos()) {
     let row = fu(c.id)
-    if (!row) { db.run('INSERT OR IGNORE INTO fsbo_followups (client_id) VALUES (?)', [c.id]); row = fu(c.id); out.enrolled++ }
+    if (!row) {
+      // If we've ALREADY texted this FSBO (manually or before), don't re-send the opener.
+      // Enroll at step 1 dated to their earliest outbound text, so step 2 (+7 days) follows.
+      const firstOut = db.get("SELECT MIN(occurred_at) m FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing'", [c.id])?.m
+      if (firstOut) db.run("INSERT OR IGNORE INTO fsbo_followups (client_id, step, first_text_at, replied) VALUES (?,1,?,0)", [c.id, firstOut])
+      else db.run('INSERT OR IGNORE INTO fsbo_followups (client_id) VALUES (?)', [c.id])
+      row = fu(c.id); out.enrolled++
+    }
     if (row.status !== 'active') continue
 
     // Email ask (after a reply) — send when due, in-window.
