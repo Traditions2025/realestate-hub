@@ -35,7 +35,12 @@ function msgStep1(c) { return `${greeting()}, I'm John with Matt Smith Team at R
 const MSG_EMAIL_ASK = "Hope to be in touch soon. What's the best email we can reach you at?"
 const MSG_POSITIVE = 'Very good, thanks for letting me know'
 const MSG_BUYER_Q = "At this time, we're just checking it's availability :)"
-function msgStep2() { return `Hi, it's John again with Matt Smith Team at RE/MAX. A little about us, we've sold over 2,000 homes throughout Cedar Rapids and the surrounding areas over the past 35+ years.\n\nOne thing we've learned is that the first 14 days on the market are usually the most critical. That's when a listing typically gets the most attention, showings, buyer inquiries, and sometimes multiple offers. By the third week, activity can start to slow as the listing is no longer brand new to buyers.\n\nJust curious, what have you noticed so far with the activity on your home?` }
+// Step 2 is sent the same day but broken into 3 shorter texts (no wall of text).
+const MSG_STEP2 = [
+  "Hi, it's John again with Matt Smith Team at RE/MAX. A little about us, we've sold over 2,000 homes throughout Cedar Rapids and the surrounding areas over the past 35+ years. One thing we've learned is that the first 14 days on the market are usually the most critical, and that's when most of the activity tends to happen. By the third week, activity can start to slow down.",
+  "At this point, you might be thinking about adjusting the price. Before making a price reduction, though, it can be worth looking at whether price is actually the issue or if there are a few things that could be adjusted with the marketing or positioning first.",
+  "Our team would be happy to put together an analysis of your home and give you our perspective if that would be helpful.",
+]
 function msgStep3(c) { return `Hi ${c.first_name || 'there'}, It's John with Matt Smith Team at REMAX wanted to see if your home at ${street(c)} is still available for sale? It still shows active on Zillow site but those sites don't always tell me everything I need to know.` }
 
 // ---- send helper (compliance-gated, logged like an AI text) ----
@@ -53,6 +58,20 @@ async function sendFsbo(client, body, { proactive = true } = {}) {
       ['text', 'outgoing', client.id, name, '', client.phone, out.replace(/\s+/g, ' ').slice(0, 160), out, 'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'FSBO AI', 'fsbo_ai', nowIso()])
     return { ok: true }
   } catch (e) { return { ok: false, reason: e.message } }
+}
+
+// Send several texts to the same lead in order, spaced a few seconds apart so they
+// arrive in sequence (Twilio doesn't guarantee ordering on back-to-back sends).
+// Stops if any send is gated/fails; returns ok only if the FIRST text went out.
+async function sendFsboSeq(client, bodies, opts = {}) {
+  let first = null
+  for (let i = 0; i < bodies.length; i++) {
+    if (i) await new Promise(r => setTimeout(r, 8000))
+    const r = await sendFsbo(client, bodies[i], opts)
+    if (i === 0) first = r
+    if (!r.ok) break
+  }
+  return first || { ok: false, reason: 'empty' }
 }
 
 const fresh = (id) => db.get('SELECT * FROM clients WHERE id=?', [id])
@@ -95,7 +114,7 @@ export async function runFsboFollowups() {
       const r = await sendFsbo(c, msgStep1(c))
       if (r.ok) { db.run("UPDATE fsbo_followups SET step=1, first_text_at=?, updated_at=? WHERE client_id=?", [nowIso(), nowIso(), c.id]); out.step1++ }
     } else if (row.step === 1 && daysSince(row.first_text_at) >= 7) {
-      const r = await sendFsbo(c, msgStep2())
+      const r = await sendFsboSeq(c, MSG_STEP2)
       if (r.ok) { db.run("UPDATE fsbo_followups SET step=2, step2_at=?, updated_at=? WHERE client_id=?", [nowIso(), nowIso(), c.id]); out.step2++ }
     } else if (row.step === 2 && daysSince(row.step2_at) >= 7) {
       const r = await sendFsbo(c, msgStep3(c))
