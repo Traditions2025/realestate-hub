@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T15:26:36.695Z",
+  "generated_at": "2026-08-26T15:29:06.593Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a2fa666",
+      "date": "2026-08-26T10:26:39-05:00",
+      "subject": "Templates: add {{time_of_day}} merge field + expand the custom-field picker",
+      "title": "Templates: add {{time_of_day}} merge field + expand the custom-field picker",
+      "body": "- fillTemplate now supports {{time_of_day}} (morning/afternoon/evening) so a template can\n  write 'Good {{time_of_day}}'. Filled on every text + email send path.\n- Templates picker expanded to the real supported fields: time_of_day, greeting,\n  city_of_interest, price_range, state, zip, etc. Quick-insert buttons now include time-of-day.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "01637d9",
       "date": "2026-08-26T10:21:20-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-14T19:32:28-05:00",
       "subject": "Mobile-friendly: hamburger menu, slide-out sidebar, stacked layouts, bigger touch targets",
       "title": "Mobile-friendly: hamburger menu, slide-out sidebar, stacked layouts, bigger touch targets",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "3b12412",
-      "date": "2026-04-14T19:14:25-05:00",
-      "subject": "Real Estate Hub v2.0 - ready for deployment",
-      "title": "Real Estate Hub v2.0 - ready for deployment",
       "body": "",
       "category": "other"
     }

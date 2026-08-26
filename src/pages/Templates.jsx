@@ -29,6 +29,60 @@ const MERGE_FIELDS = [
   ['{{agent}}', 'Agent name'], ['{{email}}', 'Email'], ['{{phone}}', 'Phone'],
 ]
 
+// Map foreign merge-field names -> the Hub's canonical token. Keys are matched against a
+// token's inner text after lowercasing and stripping non-alphanumerics (so "First Name",
+// "firstName", "FNAME", "contact.first_name" all collapse to "firstname" etc.).
+const FIELD_ALIASES = {
+  first_name: ['firstname', 'fname', 'first', 'givenname', 'contactfirstname', 'leadfirstname', 'ownerfirstname'],
+  last_name: ['lastname', 'lname', 'last', 'surname', 'familyname', 'contactlastname'],
+  full_name: ['fullname', 'name', 'contactname', 'leadname', 'ownername', 'displayname'],
+  email: ['email', 'emailaddress', 'emailaddr', 'contactemail'],
+  phone: ['phone', 'phonenumber', 'cell', 'cellphone', 'mobile', 'mobilephone', 'contactphone'],
+  address: ['address', 'streetaddress', 'propertyaddress', 'street', 'addressline1', 'fulladdress', 'leadstreetaddress'],
+  city: ['city', 'town', 'propertycity'],
+  state: ['state', 'province', 'region'],
+  zip: ['zip', 'zipcode', 'postal', 'postalcode', 'postcode'],
+  agent: ['agent', 'agentname', 'realtor', 'assignedagent', 'loagent'],
+  price_range: ['pricerange', 'price', 'budget', 'pricepoint'],
+  city_of_interest: ['cityofinterest', 'searchcity', 'interestcity'],
+  time_of_day: ['timeofday', 'tod', 'partofday'],
+  greeting: ['greeting', 'timegreeting'],
+}
+const ALIAS_LOOKUP = (() => { const m = {}; for (const [canon, aliases] of Object.entries(FIELD_ALIASES)) for (const a of aliases) m[a] = canon; return m })()
+// Valid Hub tokens (canonical {{snake_case}}) — left as-is and never flagged.
+const KNOWN_HUB = new Set([
+  ...Object.keys(FIELD_ALIASES),
+  'properties', 'signature', 'home_value_link', 'cma_request_link', 'seasonal_maintenance', 'years_in_home',
+  'monthly_intro', 'last_viewed_address', 'search_price_range', 'price_point', 'price_clause', 'listing_interest',
+  'lender_name', 'lender_company',
+])
+
+// Convert every foreign merge token in `text` to the Hub's {{field}} form.
+// Returns { text, mapped:[{from,to}], unmapped:[tokens] }.
+function normalizeMergeFields(text) {
+  const mapped = [], unmapped = []
+  // Matches {{x}}, {x}, [[x]], [x], %x%, <<x>>, *|x|* — capturing the inner text.
+  const re = /\{\{\s*([^{}]+?)\s*\}\}|\[\[\s*([^\]]+?)\s*\]\]|<<\s*([^<>]+?)\s*>>|\*\|\s*([^|]+?)\s*\|\*|%\s*([^%]+?)\s*%|\{\s*([^{}]+?)\s*\}|\[\s*([^\]]+?)\s*\]/g
+  const out = String(text || '').replace(re, (full, ...groups) => {
+    const inner = groups.find(g => g != null)
+    if (inner == null) return full
+    const key = inner.toLowerCase().replace(/[^a-z0-9]/g, '')
+    const canon = ALIAS_LOOKUP[key]
+    if (!canon) {
+      // Already a valid Hub token? leave it, don't flag.
+      const hub = /^\{\{\s*([a-z0-9_]+)\s*\}\}$/.exec(full)
+      if (hub && KNOWN_HUB.has(hub[1])) return full
+      // Only flag clear merge-syntax tokens (double delimiters / percent), not literal [text].
+      if (/\{\{|<<|\*\||%[^%]+%/.test(full)) unmapped.push(full)
+      return full
+    }
+    const to = `{{${canon}}}`
+    if (full !== to) mapped.push({ from: full, to })
+    return to
+  })
+  return { text: out, mapped, unmapped: [...new Set(unmapped)] }
+}
+
 // Insert a token at the textarea cursor (or append), updating form state.
 function insertAtCursor(ref, token, current, setValue) {
   const el = ref.current
@@ -423,8 +477,18 @@ export default function Templates() {
             </div>
           ) : (
             <label>Body
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0', flexWrap: 'wrap' }}>
                 <MergeFieldPicker onPick={tok => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))} />
+                <button type="button" className="btn btn-sm" style={{ fontSize: 11.5 }}
+                  title="Detect merge fields from a pasted template (any format) and convert them to our fields"
+                  onClick={() => {
+                    const { text, mapped, unmapped } = normalizeMergeFields(form.body)
+                    if (!mapped.length && !unmapped.length) { alert('No merge fields found to convert.'); return }
+                    if (mapped.length) setForm(p => ({ ...p, body: text }))
+                    let msg = mapped.length ? `Converted ${mapped.length} field${mapped.length === 1 ? '' : 's'}:\n` + mapped.map(m => `  ${m.from}  →  ${m.to}`).join('\n') : 'Nothing needed converting.'
+                    if (unmapped.length) msg += `\n\nCouldn't match these (left as-is, map them by hand):\n` + unmapped.map(u => '  ' + u).join('\n')
+                    alert(msg)
+                  }}>🔀 Match custom fields</button>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {MERGE_FIELDS.slice(0, 5).map(([tok, label]) => (
                     <button key={tok} type="button" className="btn btn-sm btn-secondary" style={{ fontSize: 11, padding: '2px 7px' }}
