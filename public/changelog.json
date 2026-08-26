@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T15:21:04.557Z",
-  "count": 499,
+  "generated_at": "2026-08-26T15:26:36.695Z",
+  "count": 500,
   "entries": [
+    {
+      "hash": "01637d9",
+      "date": "2026-08-26T10:21:20-05:00",
+      "subject": "AI text: strict no-em-dash rule + sandbox strips dashes to match production",
+      "title": "AI text: strict no-em-dash rule + sandbox strips dashes to match production",
+      "body": "- STYLE prompt rule made strict/explicit: never use em/en dash punctuation (a known\n  AI tell); hyphens inside words are fine. Version -> hubai-2026.08.25-5.\n- Sandbox output now runs the same dash strip the live orchestrator applies, so the\n  preview matches what actually sends.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bfe65e6",
       "date": "2026-08-25T18:25:47-05:00",

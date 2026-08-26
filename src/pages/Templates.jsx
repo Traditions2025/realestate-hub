@@ -20,10 +20,13 @@ const CATEGORY_SUGGESTIONS = [
 ]
 
 // Custom/merge fields that get filled per-recipient when the template is used.
+// These match what the server's fillTemplate() actually replaces.
 const MERGE_FIELDS = [
   ['{{first_name}}', 'First name'], ['{{last_name}}', 'Last name'], ['{{full_name}}', 'Full name'],
+  ['{{time_of_day}}', 'Time of day (morning/afternoon/evening)'], ['{{greeting}}', 'Greeting (Morning/Afternoon/Evening)'],
   ['{{address}}', 'Property address'], ['{{city}}', 'City'], ['{{state}}', 'State'], ['{{zip}}', 'ZIP'],
-  ['{{agent}}', 'Agent name'], ['{{price_range}}', 'Price range'], ['{{email}}', 'Email'], ['{{phone}}', 'Phone'],
+  ['{{city_of_interest}}', 'City of interest'], ['{{price_range}}', 'Price range'],
+  ['{{agent}}', 'Agent name'], ['{{email}}', 'Email'], ['{{phone}}', 'Phone'],
 ]
 
 // Insert a token at the textarea cursor (or append), updating form state.

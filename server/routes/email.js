@@ -366,6 +366,8 @@ export function fillTemplate(text, client) {
     .replace(/\{\{monthly_intro\}\}/g, monthlyIntro())
     .replace(/\{\{agent\}\}/g, client.agent_assigned || 'Matt Smith')
     .replace(/\{\{greeting\}\}/g, currentGreeting())
+    // Just the word (morning/afternoon/evening) so a template can write "Good {{time_of_day}}".
+    .replace(/\{\{time_of_day\}\}/g, currentGreeting().toLowerCase())
     .replace(/\{\{signature\}\}/g, savedSignatureHtml())
 }
 
