@@ -24,14 +24,15 @@ export function hasRecentActivity(clientId, days) {
   try { if (db.get(`SELECT 1 FROM fub_activity WHERE client_id=? AND occurred_at >= datetime('now','-${d} days') LIMIT 1`, [cid])) return true } catch {}
   return false
 }
-// A DORMANT lead: no recent activity AND not a brand-new registration. These must get the
-// re-engage/REVIVE opener ("it's been a while"), never the activity-based "saw you browsing".
+// A DORMANT lead has NO genuinely recent online activity. These must get the re-engage /
+// REVIVE opener ("it's been a while"), never the activity-based "saw you browsing" or the
+// "thanks for checking out homes" welcome. Deliberately based ONLY on real activity, not on
+// the Hub created_at — a Sierra-synced old lead gets a fresh created_at at import time, which
+// would otherwise make months-old leads look brand new and get the wrong opener.
 export function isDormantLead(clientId, days) {
   const cid = Number(clientId)
   const d = Math.max(1, Number(days || getConfig().ai_dormant_days || 21))
-  if (hasRecentActivity(cid, d)) return false
-  try { if (db.get(`SELECT 1 FROM clients WHERE id=? AND created_at >= datetime('now','-${d} days')`, [cid])) return false } catch {}
-  return true
+  return !hasRecentActivity(cid, d)
 }
 
 const stripHtml = (s) => String(s == null ? '' : s).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
