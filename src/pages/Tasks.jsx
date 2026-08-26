@@ -529,7 +529,7 @@ export default function Tasks() {
                 const filtered = items.filter(it => {
                   if (!matchesAssignee(it)) return false
                   if (!q) return true
-                  const hay = [it.title, it.description, it.assigned_to, it.related_type, it.notes_log]
+                  const hay = [it.title, it.description, it.assigned_to, it.related_type, it.related_name, it.notes_log]
                     .filter(Boolean).join(' ').toLowerCase()
                   return hay.includes(q)
                 })
@@ -539,7 +539,7 @@ export default function Tasks() {
                 return filtered.map(item => (
                 <tr key={item.id} className={item.status === 'done' ? 'row-done' : ''}>
                   <td><input type="checkbox" checked={item.status === 'done'} onChange={() => toggleDone(item)} /></td>
-                  <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}</td>
+                  <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}{item.related_name && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 400 }}>👤 {item.related_name}</div>}</td>
                   <td><StatusBadge status={item.priority} /></td>
                   <td><StatusBadge status={item.status} /></td>
                   <td>{item.assigned_to || '—'}</td>

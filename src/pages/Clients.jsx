@@ -3639,6 +3639,7 @@ const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['not
 function QuickAddTask({ clientId, clientName, onAdded }) {
   const [text, setText] = React.useState('')
   const [date, setDate] = React.useState('')
+  const [time, setTime] = React.useState('')
   const [assignee, setAssignee] = React.useState('')
   const [agents, setAgents] = React.useState([])
   const [saving, setSaving] = React.useState(false)
@@ -3648,19 +3649,21 @@ function QuickAddTask({ clientId, clientName, onAdded }) {
     if (!text.trim()) return
     setSaving(true); setDone('')
     try {
-      const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text.trim(), due_date: date || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
+      const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text.trim(), due_date: date || null, due_time: time || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
       const d = await r.json()
       if (d && d.error) { alert('Could not add task: ' + d.error); setSaving(false); return }
-      setText(''); setDate(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000); onAdded && onAdded()
+      setText(''); setDate(''); setTime(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000); onAdded && onAdded()
     } catch (e) { alert('Could not add task: ' + e.message) } finally { setSaving(false) }
   }
+  const inp = { fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }
   return (
     <div style={{ marginTop: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input autoFocus value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }}
-          placeholder={`Task for ${clientName || 'this lead'}…`} style={{ flex: '2 1 220px', minWidth: 160, padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }} />
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Due date" style={{ padding: '6px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }} />
-        <select value={assignee} onChange={e => setAssignee(e.target.value)} title="Assignee" style={{ padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }}>
+          placeholder={`Task for ${clientName || 'this lead'}…`} style={{ ...inp, flex: '2 1 220px', minWidth: 160, padding: '7px 9px' }} />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Due date" style={{ ...inp, padding: '6px 9px' }} />
+        <input type="time" value={time} onChange={e => setTime(e.target.value)} title="Due time" style={{ ...inp, padding: '6px 9px' }} />
+        <select value={assignee} onChange={e => setAssignee(e.target.value)} title="Assignee" style={{ ...inp, padding: '7px 9px' }}>
           <option value="">Assignee…</option>
           {agents.map(a => <option key={a} value={a}>{a}</option>)}
         </select>

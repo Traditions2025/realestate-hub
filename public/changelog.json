@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T22:45:03.442Z",
+  "generated_at": "2026-08-26T22:52:32.596Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "bd32e89",
+      "date": "2026-08-26T17:45:06-05:00",
+      "subject": "Move Add Task to the lead action bar (button opens an inline box)",
+      "title": "Move Add Task to the lead action bar (button opens an inline box)",
+      "body": "'Add Task' now sits next to Add Note / Add Transaction; clicking it toggles an inline\ntext + due date + assignee box that files the task to the Tasks tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e5dfa04",
       "date": "2026-08-26T17:40:23-05:00",
@@ -3993,14 +4001,6 @@
       "title": "'Active Listing' quick action + fix calendar full width (Saturday was cut off)",
       "body": "",
       "category": "feature"
-    },
-    {
-      "hash": "cb5fa99",
-      "date": "2026-04-29T12:03:32-05:00",
-      "subject": "Move List/Cards view toggle to page header so it's always visible",
-      "title": "Move List/Cards view toggle to page header so it's always visible",
-      "body": "",
-      "category": "other"
     }
   ]
 }

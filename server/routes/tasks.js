@@ -101,7 +101,26 @@ router.get('/', (req, res) => {
   if (related_id) { sql += ' AND related_id = ?'; params.push(Number(related_id)) }
 
   sql += " ORDER BY CASE priority WHEN 'high' THEN 1 WHEN 'medium' THEN 2 WHEN 'low' THEN 3 END, due_date ASC"
-  res.json(db.all(sql, params))
+  const rows = db.all(sql, params)
+  // Attach the linked lead's name so a task added from a profile shows who it's about.
+  const cids = [...new Set(rows.filter(r => r.related_type === 'client' && r.related_id).map(r => r.related_id))]
+  if (cids.length) {
+    const names = {}
+    for (const c of db.all(`SELECT id, first_name, last_name FROM clients WHERE id IN (${cids.map(() => '?').join(',')})`, cids)) {
+      names[c.id] = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+    }
+    for (const r of rows) if (r.related_type === 'client' && names[r.related_id]) r.related_name = names[r.related_id]
+  }
+  res.json(rows)
+})
+
+// One-off / admin: reassign every task from one assignee to another (e.g. Leo -> John).
+router.post('/reassign', (req, res) => {
+  const from = String(req.body?.from || '').trim()
+  const to = String(req.body?.to || '').trim()
+  if (!from || !to) return res.status(400).json({ error: 'from and to required' })
+  const r = db.run('UPDATE tasks SET assigned_to=? WHERE lower(assigned_to)=lower(?)', [to, from])
+  res.json({ success: true, from, to, updated: r.changes })
 })
 
 router.get('/:id', (req, res) => {
