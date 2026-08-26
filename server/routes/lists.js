@@ -116,6 +116,30 @@ router.post('/fsbo/followup/toggle', (req, res) => { const on = req.body?.enable
 router.post('/fsbo/followup/run', async (_req, res) => {
   try { const m = await import('../fsbo-followup.js'); res.json(await m.runFsboFollowups()) } catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Mark FSBOs as already-contacted (e.g. texted manually in Sierra), so the sequence skips
+// the opener and continues at the +1-week message. Accepts phones and/or client_ids.
+router.post('/fsbo/followup/seed', (req, res) => {
+  const b = req.body || {}
+  const daysAgo = Number(b.days_ago) || 7
+  const firstTextAt = new Date(Date.now() - daysAgo * 86400000).toISOString()
+  const last10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
+  const ids = new Set((Array.isArray(b.client_ids) ? b.client_ids : []).map(Number).filter(Boolean))
+  for (const ph of (Array.isArray(b.phones) ? b.phones : [])) {
+    const k = last10(ph); if (!k) continue
+    for (const c of db.all("SELECT id, phone FROM clients WHERE phone LIKE ? AND fsbo_status IS NOT NULL", ['%' + k.slice(-7)])) {
+      if (last10(c.phone) === k) ids.add(c.id)
+    }
+  }
+  const seeded = []
+  for (const id of ids) {
+    db.run(`INSERT INTO fsbo_followups (client_id, step, first_text_at, replied, status)
+            VALUES (?,1,?,1,'active')
+            ON CONFLICT(client_id) DO UPDATE SET step=MAX(step,1), first_text_at=COALESCE(first_text_at,excluded.first_text_at), replied=1`,
+      [id, firstTextAt])
+    seeded.push(id)
+  }
+  res.json({ seeded: seeded.length, client_ids: seeded, first_text_at: firstTextAt })
+})
 router.post('/fsbo/junk-off-market', async (_req, res) => {
   try { const m = await import('../fsbo-followup.js'); res.json(await m.fsboDailyMaintenance()) } catch (e) { res.status(500).json({ error: e.message }) }
 })
