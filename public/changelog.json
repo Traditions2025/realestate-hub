@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T16:09:18.620Z",
+  "generated_at": "2026-08-26T16:16:48.684Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ef574bc",
+      "date": "2026-08-26T11:10:06-05:00",
+      "subject": "App: error boundary so a page crash shows the error + stack instead of a blank screen",
+      "title": "App: error boundary so a page crash shows the error + stack instead of a blank screen",
+      "body": "Wraps the routed content. A render error now shows a message, the stack (to send to dev),\nand Try again / Go to Dashboard, and clears when you navigate away.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8dbda09",
       "date": "2026-08-26T10:59:40-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-28T13:14:16-05:00",
       "subject": "Fix SW caching: network-first for HTML/JS so new deploys reach users immediately",
       "title": "SW caching: network-first for HTML/JS so new deploys reach users immediately",
-      "body": "",
-      "category": "fix"
-    },
-    {
-      "hash": "8b74476",
-      "date": "2026-04-28T12:54:33-05:00",
-      "subject": "Fix auth: stateless HMAC tokens that survive server restarts",
-      "title": "auth: stateless HMAC tokens that survive server restarts",
       "body": "",
       "category": "fix"
     }

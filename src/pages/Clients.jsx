@@ -3870,6 +3870,17 @@ function InlineTextComposer({ client, onClose, onSent }) {
   }, [q])
   const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
   const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
+  // Fill merge fields for this lead so the composer is WYSIWYG (no raw {{tokens}}).
+  const renderForLead = async (text) => {
+    if (!/\{\{[^}]+\}\}/.test(text)) return text
+    try {
+      const d = await (await authFetch('/api/templates/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text, client_id: client.id }) })).json()
+      return d.filled ? (d.body || text) : text
+    } catch { return text }
+  }
+  // Applying a template REPLACES the box (picking another swaps it, never appends).
+  const applyTemplate = async (t) => { setBody(await renderForLead(stripHtml(t.body))) }
+  const insertMergeValue = async (tok) => { insert(await renderForLead(tok)) }
   const addRecip = (c) => { if (!recips.find(r => r.id === c.id)) setRecips([...recips, c]); setQ(''); setResults([]) }
   const removeRecip = (id) => setRecips(recips.filter(r => r.id !== id))
   const uploadPhoto = async (file) => {
