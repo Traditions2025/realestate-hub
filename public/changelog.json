@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-25T23:25:37.065Z",
-  "count": 498,
+  "generated_at": "2026-08-26T15:21:04.557Z",
+  "count": 499,
   "entries": [
+    {
+      "hash": "bfe65e6",
+      "date": "2026-08-25T18:25:47-05:00",
+      "subject": "AI Sandbox: click any AI reply to refine it in real time",
+      "title": "AI Sandbox: click any AI reply to refine it in real time",
+      "body": "Each AI response is clickable -> a refine panel opens with quick suggestions\n(shorter, warmer, don't use their name, add website, one clear question, less salesy)\nplus a free-text instruction. Submitting re-runs the same turn through /api/ai/sandbox\nwith a REVISION REQUEST (prior draft + instruction, all rules kept) and replaces the\nreply in place. Stored per-turn request payload enables the regenerate.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "aad58ff",
       "date": "2026-08-25T17:57:44-05:00",

@@ -1,6 +1,6 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.25-4'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.25-5'
 
 const ALLOWED_ACTIONS = ['SEND_TEXT', 'NO_ACTION', 'HANDOFF_AGENT']
 export { ALLOWED_ACTIONS }
@@ -18,7 +18,7 @@ const STYLE = `TEXT STYLE RULES:
 - One question at a time, at most. If they asked a question, answer it before asking your own.
 - Do not repeat their whole message back. No fake enthusiasm, minimal emojis.
 - USE THEIR FIRST NAME ONLY IN YOUR VERY FIRST TEXT. After that, do NOT use their name again unless it is genuinely rare and natural. Starting or ending each text with their name reads as robotic and salesy. Default to no name.
-- Never use em dashes or en dashes. Use commas or periods.
+- STRICT: NEVER use an em dash or en dash (the "—" or "–" characters) anywhere in a message. They are a dead giveaway of AI-written text. Use a comma, a period, or two separate sentences instead. A hyphen inside a normal word ("two-story", "move-in") is fine; a dash used as punctuation between phrases is NOT.
 - Never say "just checking in", "following up", "touching base", "are you still interested" unless the context genuinely calls for it. Give a real reason for reaching out.
 - Do not send links unless useful and clearly authorized.`
 

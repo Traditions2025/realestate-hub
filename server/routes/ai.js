@@ -22,6 +22,8 @@ function sandboxParseJson(text) {
   const s = t.indexOf('{'), e = t.lastIndexOf('}'); if (s >= 0 && e > s) t = t.slice(s, e + 1)
   return JSON.parse(t)
 }
+// Same em/en-dash strip the live orchestrator applies, so the sandbox matches production.
+const stripDashes = (s) => String(s == null ? '' : s).replace(/\s*[—–]\s*/g, ', ').replace(/[ \t]{2,}/g, ' ')
 
 // ---- AI Sandbox: run the REAL AI brain against a simulated lead + conversation.
 // Pure model call — never sends a text, never touches a real lead or the DB. Returns the
@@ -74,7 +76,7 @@ router.post('/sandbox', async (req, res) => {
     const newIntent = Math.max(0, Math.min(100, prevIntent + delta))
     res.json({
       action,
-      message: String(decision?.message || '').trim(),
+      message: stripDashes(decision?.message || '').trim(),
       intent_delta: delta, intent_before: prevIntent, intent_after: newIntent, intent_level: levelFor(newIntent),
       intent_signals: Array.isArray(decision?.intent_signals) ? decision.intent_signals : [],
       memory: decision?.memory || {}, conversation_type: decision?.conversation_type || null,
