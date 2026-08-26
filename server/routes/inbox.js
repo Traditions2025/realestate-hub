@@ -565,11 +565,18 @@ router.delete('/:id', (req, res) => { db.run('DELETE FROM communications WHERE i
 // queue sends in the background (safe pacing) so the request returns immediately.
 // Returns the recipient breakdown up front; sent messages appear in the inbox. ----
 router.post('/bulk-text', async (req, res) => {
-  const { client_ids, body, template_id, name, created_by } = req.body || {}
+  const { client_ids, body, bodies, template_id, name, created_by } = req.body || {}
   if (!Array.isArray(client_ids) || !client_ids.length) return res.status(400).json({ error: 'Select at least one recipient.' })
-  let msg = body
-  if (template_id) { const t = db.get('SELECT body FROM templates WHERE id=?', [Number(template_id)]); if (t) msg = msg || t.body }
-  if (!msg || !String(msg).trim()) return res.status(400).json({ error: 'A message is required.' })
+  // Multi-part: `bodies` is an ordered list of texts sent to each recipient in sequence
+  // (e.g. a 3-part FSBO step). Falls back to the single `body`/template for compatibility.
+  let parts = Array.isArray(bodies) ? bodies.map(b => String(b || '').trim()).filter(Boolean) : []
+  if (!parts.length) {
+    let msg0 = body
+    if (template_id) { const t = db.get('SELECT body FROM templates WHERE id=?', [Number(template_id)]); if (t) msg0 = msg0 || t.body }
+    if (msg0 && String(msg0).trim()) parts = [String(msg0).trim()]
+  }
+  if (!parts.length) return res.status(400).json({ error: 'A message is required.' })
+  const msg = parts.join('\n\n')   // combined form for the campaign record + dup guard
   const { sendSms, twilioConfigured } = await import('../twilio.js')
   if (!twilioConfigured()) return res.status(400).json({ error: 'Texting isn’t connected yet.' })
   const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
@@ -605,15 +612,20 @@ router.post('/bulk-text', async (req, res) => {
     let sent = 0
     for (const c of recipients) {
       try {
-        const outText = fillTemplate(msg, c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
-        if (!outText) continue
-        const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
         const name2 = `${c.first_name || ''} ${c.last_name || ''}`.trim()
-        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, campaign_id, occurred_at)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name2, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
-        sent++
-        await new Promise(rs => setTimeout(rs, 900))   // gentle pacing to respect Twilio rate limits
+        let anySent = false
+        for (let pi = 0; pi < parts.length; pi++) {
+          const outText = fillTemplate(parts[pi], c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+          if (!outText) continue
+          const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
+          db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, campaign_id, occurred_at)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            ['text', 'outgoing', c.id, name2, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
+          anySent = true
+          // ~5s between parts to the same person so they arrive in order; short pace between people.
+          await new Promise(rs => setTimeout(rs, pi < parts.length - 1 ? 5000 : 900))
+        }
+        if (anySent) sent++
       } catch (e) {
         console.error('[bulk-text] send error:', e.message)
         try { const { recordFailure } = await import('../failures.js'); recordFailure('bulk', { ref: c.id, summary: `Bulk text failed to ${c.first_name || ''} ${c.last_name || ''}`.trim(), error: e.message }) } catch {}

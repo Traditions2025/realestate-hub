@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-08-26T16:16:48.684Z",
+  "generated_at": "2026-08-26T17:01:37.401Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3cfc3d5",
+      "date": "2026-08-26T11:49:01-05:00",
+      "subject": "FSBO Step 2: break the +1-week message into 3 sequential texts (no wall of text)",
+      "title": "FSBO Step 2: break the +1-week message into 3 sequential texts (no wall of text)",
+      "body": "Sends the credibility/curiosity message as 3 shorter texts ~8s apart, same day:\nintro+2000 homes+first-14-days, then price/marketing framing, then the CMA offer.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "df4a216",
+      "date": "2026-08-26T11:36:03-05:00",
+      "subject": "FSBO seed: match phones by normalized last-10 (stored phones are formatted)",
+      "title": "FSBO seed: match phones by normalized last-10 (stored phones are formatted)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "90e5b97",
+      "date": "2026-08-26T11:34:03-05:00",
+      "subject": "FSBO follow-up: seed endpoint to mark already-contacted FSBOs (skip opener, continue at +1wk)",
+      "title": "FSBO follow-up: seed endpoint to mark already-contacted FSBOs (skip opener, continue at +1wk)",
+      "body": "Sierra-sent texts aren't in Hub comms, so add POST /api/lists/fsbo/followup/seed\n{phones,client_ids,days_ago} that enrolls those FSBOs at step 1 dated to their first\ncontact, so the sequence won't re-send the Day-15 opener.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3bc7faf",
+      "date": "2026-08-26T11:30:58-05:00",
+      "subject": "FSBO follow-up: skip the opener for already-texted FSBOs (enroll at step 1 dated to their first outbound text)",
+      "title": "FSBO follow-up: skip the opener for already-texted FSBOs (enroll at step 1 dated to their first outbound text)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "eb9082d",
+      "date": "2026-08-26T11:16:51-05:00",
+      "subject": "Fix: applyTemplate/insertMergeValue defined in the wrong composer (TextComposerModal) — add them to InlineTextComposer where they're used",
+      "title": "Fix: applyTemplate/insertMergeValue defined in the wrong composer (TextComposerModal) — add them to InlineTextComposer where they're used",
+      "body": "The lead-profile Text panel (InlineTextComposer) referenced applyTemplate/insertMergeValue\nthat were mistakenly defined in TextComposerModal, causing 'ReferenceError: applyTemplate is\nnot defined' (blank page) on opening Text. Defined the helpers in InlineTextComposer.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "ef574bc",
       "date": "2026-08-26T11:10:06-05:00",
@@ -3961,46 +4001,6 @@
       "title": "Auto-seed vendors/partners/calendar on first boot + 'Sync Everything' button",
       "body": "",
       "category": "other"
-    },
-    {
-      "hash": "b7059e3",
-      "date": "2026-04-28T14:23:58-05:00",
-      "subject": "Dynamic status tabs - show every Sierra status as its own filterable tab",
-      "title": "Dynamic status tabs - show every Sierra status as its own filterable tab",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "17cc4c7",
-      "date": "2026-04-28T14:08:43-05:00",
-      "subject": "Background sync with polling - no more timeouts, shows live progress",
-      "title": "Background sync with polling - no more timeouts, shows live progress",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "59a8b3d",
-      "date": "2026-04-28T13:46:07-05:00",
-      "subject": "Sync only meaningful leads (Active+Prime+Watch+Pending ~943) by default; persistent disk path",
-      "title": "Sync only meaningful leads (Active+Prime+Watch+Pending ~943) by default; persistent disk path",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "4a4337f",
-      "date": "2026-04-28T13:22:51-05:00",
-      "subject": "Default Sierra sync to pull all leads, dashboard button too",
-      "title": "Default Sierra sync to pull all leads, dashboard button too",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "416a705",
-      "date": "2026-04-28T13:14:16-05:00",
-      "subject": "Fix SW caching: network-first for HTML/JS so new deploys reach users immediately",
-      "title": "SW caching: network-first for HTML/JS so new deploys reach users immediately",
-      "body": "",
-      "category": "fix"
     }
   ]
 }

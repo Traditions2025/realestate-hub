@@ -4045,45 +4045,68 @@ function InlineTextComposer({ client, onClose, onSent }) {
 
 // --- Bulk SMS to selected contacts (dedups phones, excludes STOP opt-outs, queues) ---
 function BulkTextModal({ clientIds, onClose, onDone }) {
-  const [body, setBody] = React.useState('')
+  const [parts, setParts] = React.useState([''])   // ordered texts, sent in sequence to each recipient
+  const [activeIdx, setActiveIdx] = React.useState(0)
   const [name, setName] = React.useState('')
   const [templates, setTemplates] = React.useState([])
   const [sending, setSending] = React.useState(false)
   React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
   const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
-  const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
+  const setPart = (i, v) => setParts(ps => ps.map((p, idx) => idx === i ? v : p))
+  const insert = (t) => setParts(ps => ps.map((p, idx) => idx === activeIdx ? (p ? p + (p.endsWith(' ') || p.endsWith('\n') ? '' : ' ') : '') + t : p))
+  const addPart = () => setParts(ps => { const next = [...ps, '']; setActiveIdx(next.length - 1); return next })
+  const removePart = (i) => setParts(ps => ps.length > 1 ? ps.filter((_, idx) => idx !== i) : ps)
+  // One-click: load the 3-part FSBO Step 2 straight from the saved templates.
+  const loadFsboStep2 = () => {
+    const pick = (frag) => stripHtml((templates.find(t => (t.name || '').toLowerCase().includes(frag)) || {}).body || '')
+    const seq = [pick('2a'), pick('2b'), pick('2c')].filter(Boolean)
+    if (seq.length) { setParts(seq); setActiveIdx(seq.length - 1); if (!name.trim()) setName('FSBO Step 2') }
+  }
+  const filled = parts.filter(p => p.trim())
   const doSend = async (force) => {
-    const r = await authFetch('/api/inbox/bulk-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds, body: body.trim(), name: name.trim() || null, created_by: 'John', force }) })
+    const r = await authFetch('/api/inbox/bulk-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds, bodies: filled, name: name.trim() || null, created_by: 'John', force }) })
     const d = await r.json()
     if (d.duplicate && !force) { if (confirm(d.error)) return doSend(true); setSending(false); return }
     if (d.error) { alert(d.error); setSending(false); return }
     const ex = d.excluded || {}
-    alert(`Queued ${d.queued} text${d.queued === 1 ? '' : 's'} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.do_not_contact || 0} do-not-contact, ${ex.duplicate_number || 0} duplicate number.`)
+    alert(`Queued ${d.queued} recipient${d.queued === 1 ? '' : 's'}${filled.length > 1 ? ` × ${filled.length} texts` : ''} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.do_not_contact || 0} do-not-contact, ${ex.duplicate_number || 0} duplicate number.`)
     onDone()
   }
   const send = async () => {
-    if (!body.trim()) return
-    if (!confirm(`Send this text to up to ${clientIds.length} selected contact(s)? Contacts who replied STOP, are Do Not Contact, have no phone, or are duplicate numbers are automatically skipped.`)) return
+    if (!filled.length) return
+    if (!confirm(`Send ${filled.length > 1 ? `these ${filled.length} texts (in order)` : 'this text'} to up to ${clientIds.length} selected contact(s)? Contacts who replied STOP, are Do Not Contact, have no phone, or are duplicate numbers are automatically skipped.`)) return
     setSending(true)
     try { await doSend(false) } catch (e) { alert('Bulk text failed: ' + e.message); setSending(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Text ${clientIds.length.toLocaleString()} selected`}>
       <div className="form">
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Sends from your Hub number (319) 343-1562. Merge fields fill per contact; anyone who replied STOP or is Do Not Contact is excluded.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Sends from your Hub number (319) 343-1562. Merge fields fill per contact; anyone who replied STOP or is Do Not Contact is excluded.{filled.length > 1 ? ' Multi-part texts go out in order, a few seconds apart, to each recipient.' : ''}</p>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Campaign name (optional, for reporting)" style={{ width: '100%', padding: '7px 9px', marginBottom: 8, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           <TemplatePicker templates={templates} onPick={t => insert(stripHtml(t.body))} />
           <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ fontSize: 12, padding: '4px 6px' }}>
             <option value="">+ Merge field…</option>
             {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
           </select>
+          <button type="button" className="btn btn-secondary" style={{ fontSize: 12, padding: '4px 8px' }} onClick={loadFsboStep2}>FSBO Step 2 (3 texts)</button>
         </div>
-        <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={5} maxLength={1000} placeholder="Type your message…" style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical' }} />
-        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000</div>
+        {parts.map((p, i) => (
+          <div key={i} style={{ marginBottom: 8 }}>
+            {parts.length > 1 && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+                <span>Text {i + 1} of {parts.length}</span>
+                <button type="button" onClick={() => removePart(i)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}>Remove</button>
+              </div>
+            )}
+            <textarea value={p} autoFocus={i === 0} onFocus={() => setActiveIdx(i)} onChange={e => setPart(i, e.target.value)} rows={4} maxLength={1000} placeholder={i === 0 ? 'Type your message…' : `Follow-up text ${i + 1}…`} style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical', border: activeIdx === i && parts.length > 1 ? '1px solid var(--accent, #b8863b)' : undefined }} />
+            <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>{p.length}/1000</div>
+          </div>
+        ))}
+        <button type="button" onClick={addPart} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', marginBottom: 8 }}>+ Add another text (sent after, same recipients)</button>
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Queuing…' : `Send to ${clientIds.length.toLocaleString()}`}</button>
+          <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !filled.length}>{sending ? 'Queuing…' : `Send${filled.length > 1 ? ` ${filled.length} texts` : ''} to ${clientIds.length.toLocaleString()}`}</button>
         </div>
       </div>
     </Modal>
