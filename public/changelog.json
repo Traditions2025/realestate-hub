@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-26T18:21:58.273Z",
+  "generated_at": "2026-08-26T18:39:30.425Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "820dfe8",
+      "date": "2026-08-26T13:27:44-05:00",
+      "subject": "Revive openers: introduce as John with Matt Smith Team at RE/MAX",
+      "title": "Revive openers: introduce as John with Matt Smith Team at RE/MAX",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "73b7ca3",
+      "date": "2026-08-26T13:22:10-05:00",
+      "subject": "AI: rotating 20-opener revive bank for old buyer leads with no recent activity",
+      "title": "AI: rotating 20-opener revive bank for old buyer leads with no recent activity",
+      "body": "- Add REVIVE_OPENERS (20 approved re-engagement texts) + REVIVE_OPENER_BLOCK that\n  enforces the format: Hi/Hello or Good morning/afternoon (never Hey/evening), John intro,\n  and MattSmithTeam.com at the end.\n- Rotate through all 20 via a persistent counter (nextReviveOpener) so every send uses a\n  different one; wired into the re-engagement path (handleNurture reengage) for buyers.\n- Sandbox: new 'Revive an old buyer lead' test that cycles the bank and shows which of 20.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e2ed2b9",
       "date": "2026-08-26T12:56:08-05:00",
@@ -3983,22 +3999,6 @@
       "date": "2026-04-29T09:31:57-05:00",
       "subject": "Make /api/db-status public for diagnostics (only shows metadata, no actual data)",
       "title": "Make /api/db-status public for diagnostics (only shows metadata, no actual data)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "fa94c47",
-      "date": "2026-04-29T09:27:37-05:00",
-      "subject": "Add DB persistence diagnostics: boot logging, save error reporting, /api/db-status endpoint",
-      "title": "DB persistence diagnostics: boot logging, save error reporting, /api/db-status endpoint",
-      "body": "",
-      "category": "feature"
-    },
-    {
-      "hash": "6774487",
-      "date": "2026-04-28T18:54:41-05:00",
-      "subject": "Pipeline cards: show actual status badge instead of type-derived; add type tag for purchase/listing",
-      "title": "Pipeline cards: show actual status badge instead of type-derived; add type tag for purchase/listing",
       "body": "",
       "category": "other"
     }

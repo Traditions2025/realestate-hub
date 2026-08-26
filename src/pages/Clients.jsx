@@ -349,6 +349,7 @@ export default function Clients() {
     cities_include: [],
     viewed_cities_include: [],
     sources_include: [],
+    sources_exclude: [],
     email_statuses: [],
     has_email: '', // '' (any) | '1' (with email) | '0' (no email)
     has_phone: '', // '' (any) | '1' (with phone) | '0' (no phone)
@@ -413,7 +414,7 @@ export default function Clients() {
     len(advFilters.tags_include) + len(advFilters.tags_exclude) +
     len(advFilters.zips_include) + len(advFilters.cities_include) +
     len(advFilters.viewed_cities_include) +
-    len(advFilters.sources_include) + len(advFilters.email_statuses) +
+    len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.email_statuses) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -566,6 +567,7 @@ export default function Clients() {
     if (advFilters.cities_include.length) params.cities_include = advFilters.cities_include.join(',')
     if (advFilters.viewed_cities_include.length) params.viewed_cities_include = advFilters.viewed_cities_include.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
+    if (advFilters.sources_exclude.length) params.sources_exclude = advFilters.sources_exclude.join(',')
     if (advFilters.email_statuses.length) params.email_statuses = advFilters.email_statuses.join(',')
     if (advFilters.has_email) params.has_email = advFilters.has_email === true ? '1' : advFilters.has_email
     if (advFilters.has_phone) params.has_phone = advFilters.has_phone === true ? '1' : advFilters.has_phone
@@ -979,7 +981,7 @@ export default function Clients() {
     setAdvFilters({
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
-      zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [],
+      zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [], sources_exclude: [],
       email_statuses: [],
       has_email: '', has_phone: '', exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
@@ -1062,6 +1064,7 @@ export default function Clients() {
           cities_include: f.cities_include || [],
           viewed_cities_include: f.viewed_cities_include || [],
           sources_include: f.sources_include || [],
+          sources_exclude: f.sources_exclude || [],
           email_statuses: f.email_statuses || [],
           has_email: (f.has_email === true || f.has_email === '1') ? '1' : (f.has_email === '0' ? '0' : ''),
           has_phone: (f.has_phone === true || f.has_phone === '1') ? '1' : (f.has_phone === '0' ? '0' : ''),
@@ -1737,12 +1740,21 @@ export default function Clients() {
               />
             </div>
             <div className="filter-section">
-              <h5>Sources</h5>
+              <h5>Sources (Include)</h5>
               <MultiSelect
                 placeholder={`Search ${filterOptions.sources.length} sources...`}
                 options={filterOptions.sources}
                 selected={advFilters.sources_include}
                 onChange={v => setAdvFilters(p => ({ ...p, sources_include: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Sources (Exclude)</h5>
+              <MultiSelect mode="exclude"
+                placeholder="Exclude sources..."
+                options={filterOptions.sources}
+                selected={advFilters.sources_exclude}
+                onChange={v => setAdvFilters(p => ({ ...p, sources_exclude: v }))}
               />
             </div>
             <div className="filter-section">

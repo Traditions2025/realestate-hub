@@ -311,6 +311,10 @@ function buildClientFilterForList(q) {
     where += ' AND source IN (' + q.sources_include.map(() => '?').join(',') + ')'
     params.push(...q.sources_include)
   }
+  if (q.sources_exclude?.length) {
+    where += ' AND (source IS NULL OR source NOT IN (' + q.sources_exclude.map(() => '?').join(',') + '))'
+    params.push(...q.sources_exclude)
+  }
   if (q.has_fsbo_status) where += " AND fsbo_status IS NOT NULL AND fsbo_status != ''"
   if (q.fsbo_statuses_include?.length) {
     where += ' AND fsbo_status IN (' + q.fsbo_statuses_include.map(() => '?').join(',') + ')'
