@@ -354,6 +354,9 @@ export default function Clients() {
     viewed_cities_include: [],
     sources_include: [],
     sources_exclude: [],
+    last_email_op: '', last_email_days: '',
+    last_text_op: '', last_text_days: '',
+    ai_applied: '',
     email_statuses: [],
     has_email: '', // '' (any) | '1' (with email) | '0' (no email)
     has_phone: '', // '' (any) | '1' (with phone) | '0' (no phone)
@@ -419,6 +422,7 @@ export default function Clients() {
     len(advFilters.zips_include) + len(advFilters.cities_include) +
     len(advFilters.viewed_cities_include) +
     len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.email_statuses) +
+    ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -572,6 +576,9 @@ export default function Clients() {
     if (advFilters.viewed_cities_include.length) params.viewed_cities_include = advFilters.viewed_cities_include.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
     if (advFilters.sources_exclude.length) params.sources_exclude = advFilters.sources_exclude.join(',')
+    if (advFilters.last_email_op && advFilters.last_email_days) { params.last_email_op = advFilters.last_email_op; params.last_email_days = advFilters.last_email_days }
+    if (advFilters.last_text_op && advFilters.last_text_days) { params.last_text_op = advFilters.last_text_op; params.last_text_days = advFilters.last_text_days }
+    if (advFilters.ai_applied) params.ai_applied = advFilters.ai_applied
     if (advFilters.email_statuses.length) params.email_statuses = advFilters.email_statuses.join(',')
     if (advFilters.has_email) params.has_email = advFilters.has_email === true ? '1' : advFilters.has_email
     if (advFilters.has_phone) params.has_phone = advFilters.has_phone === true ? '1' : advFilters.has_phone
@@ -986,6 +993,7 @@ export default function Clients() {
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
       zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [], sources_exclude: [],
+      last_email_op: '', last_email_days: '', last_text_op: '', last_text_days: '', ai_applied: '',
       email_statuses: [],
       has_email: '', has_phone: '', exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
@@ -1069,6 +1077,9 @@ export default function Clients() {
           viewed_cities_include: f.viewed_cities_include || [],
           sources_include: f.sources_include || [],
           sources_exclude: f.sources_exclude || [],
+          last_email_op: f.last_email_op || '', last_email_days: f.last_email_days || '',
+          last_text_op: f.last_text_op || '', last_text_days: f.last_text_days || '',
+          ai_applied: f.ai_applied || '',
           email_statuses: f.email_statuses || [],
           has_email: (f.has_email === true || f.has_email === '1') ? '1' : (f.has_email === '0' ? '0' : ''),
           has_phone: (f.has_phone === true || f.has_phone === '1') ? '1' : (f.has_phone === '0' ? '0' : ''),
@@ -1760,6 +1771,38 @@ export default function Clients() {
                 selected={advFilters.sources_exclude}
                 onChange={v => setAdvFilters(p => ({ ...p, sources_exclude: v }))}
               />
+            </div>
+            <div className="filter-section">
+              <h5>Last Email Sent</h5>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={advFilters.last_email_op} onChange={e => setAdvFilters(p => ({ ...p, last_email_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
+                  <option value="">Any</option>
+                  <option value="more">More than</option>
+                  <option value="less">Less than</option>
+                </select>
+                <input type="number" min="1" value={advFilters.last_email_days} onChange={e => setAdvFilters(p => ({ ...p, last_email_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.last_email_op} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
+              </div>
+            </div>
+            <div className="filter-section">
+              <h5>Last Text Sent</h5>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={advFilters.last_text_op} onChange={e => setAdvFilters(p => ({ ...p, last_text_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
+                  <option value="">Any</option>
+                  <option value="more">More than</option>
+                  <option value="less">Less than</option>
+                </select>
+                <input type="number" min="1" value={advFilters.last_text_days} onChange={e => setAdvFilters(p => ({ ...p, last_text_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.last_text_op} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
+              </div>
+            </div>
+            <div className="filter-section">
+              <h5>AI Applied</h5>
+              <select value={advFilters.ai_applied} onChange={e => setAdvFilters(p => ({ ...p, ai_applied: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
+                <option value="">Any</option>
+                <option value="yes">Yes — AI applied</option>
+                <option value="no">No — never touched by AI</option>
+              </select>
             </div>
             <div className="filter-section">
               <h5>Email Status</h5>

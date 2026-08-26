@@ -359,6 +359,24 @@ export function buildClientFilter(q) {
     params.push(term, term, term, term, term, term, term, term, term, term)
   }
 
+  // Last outgoing email / text recency. op 'less' = sent within N days; 'more' = NOT sent in
+  // the last N days (last was longer ago, or never). Uses the communications feed.
+  const recency = (channel, op, days) => {
+    const n = Math.floor(Number(days))
+    if (!['more', 'less'].includes(op) || !(n > 0)) return
+    const sub = `EXISTS (SELECT 1 FROM communications co WHERE co.client_id=clients.id AND co.channel='${channel}' AND co.direction='outgoing' AND co.occurred_at >= datetime('now','-${n} days'))`
+    where += op === 'less' ? ` AND ${sub}` : ` AND NOT ${sub}`
+  }
+  recency('email', q.last_email_op, q.last_email_days)
+  recency('text', q.last_text_op, q.last_text_days)
+
+  // AI Applied: has the AI been applied to this lead (enrolled/managed, or it has sent an AI
+  // text). 'yes' = applied, 'no' = never touched by the AI.
+  if (q.ai_applied === 'yes' || q.ai_applied === 'no') {
+    const sub = `(EXISTS (SELECT 1 FROM ai_lead_state s WHERE s.client_id=clients.id AND s.ai_managed=1) OR EXISTS (SELECT 1 FROM communications co WHERE co.client_id=clients.id AND co.sent_by_type IN ('ai','fsbo_ai')))`
+    where += q.ai_applied === 'yes' ? ` AND ${sub}` : ` AND NOT ${sub}`
+  }
+
   return { where, params }
 }
 

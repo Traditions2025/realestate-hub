@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T20:06:46.368Z",
+  "generated_at": "2026-08-26T20:48:37.568Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "07a800e",
+      "date": "2026-08-26T15:06:54-05:00",
+      "subject": "Bulk actions: Merge, Assign Agent, Add/Remove Tags",
+      "title": "Bulk actions: Merge, Assign Agent, Add/Remove Tags",
+      "body": "- Merge Selected -> BulkMergeModal (pick survivor, keep all emails/phones, combines all\n  history/comms/notes via /api/clients/merge).\n- Assign Agent -> /api/clients/bulk-assign-agent (agents from /api/inbox/agents).\n- Add/Remove Tags -> /api/clients/bulk-tags (case-insensitive, no dupes, quick-pick chips).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c135f71",
       "date": "2026-08-26T15:01:55-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T11:44:21-05:00",
       "subject": "Clients: list view (default), full-width when in list, Other dropdown for Archived/Junk/DNC/Blocked, skip Blocked sync (Sierra returns bogus 45K)",
       "title": "Clients: list view (default), full-width when in list, Other dropdown for Archived/Junk/DNC/Blocked, skip Blocked sync (Sierra returns bogus 45K)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "d870160",
-      "date": "2026-04-29T11:22:14-05:00",
-      "subject": "Always show all Sierra status tabs (Prime, Active, New, Qualify, Pending, Watch, Closed, Archived, Do Not Contact, Junk, Blocked) even with 0 count",
-      "title": "Always show all Sierra status tabs (Prime, Active, New, Qualify, Pending, Watch, Closed, Archived, Do Not Contact, Junk, Blocked) even with 0 count",
       "body": "",
       "category": "other"
     }
