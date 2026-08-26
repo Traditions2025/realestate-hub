@@ -159,6 +159,21 @@ router.post('/fsbo/dedupe', (req, res) => {
   }
   res.json({ dry, merged_groups: merged.length, records_removed: merged.reduce((a, m) => a + m.removed.length, 0), needs_review: review.length, merged, review })
 })
+// Restore FSBO records the old "Off Market -> Junk" rule junked, back to a normal FSBO
+// status ('watch') so they read as real leads on the list (not junk). Merged duplicates
+// (fsbo_status cleared) and opted-out (donotcontact) leads are left alone. Returns the
+// sierra_lead_ids so the caller can push the same restore to Sierra.
+router.post('/fsbo/restore-offmarket', (req, res) => {
+  const dry = req.body?.dry === true || req.query.dry === '1'
+  const now = new Date().toISOString()
+  const recs = db.all("SELECT id, first_name, last_name, sierra_lead_id, fsbo_status FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND lower(status)='junk' AND merged_into IS NULL")
+  if (!dry) for (const r of recs) db.run("UPDATE clients SET status='watch', updated_at=? WHERE id=?", [now, r.id])
+  res.json({
+    dry, restored: recs.length,
+    sierra: recs.filter(r => r.sierra_lead_id).map(r => ({ client_id: r.id, sierra_lead_id: r.sierra_lead_id })),
+    records: recs.map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), fsbo_status: r.fsbo_status })),
+  })
+})
 // Manual merge for the review groups: junk specific duplicate records into a kept one.
 // Copies any FSBO detail the keeper is missing, drops the dupes off the list (fsbo_status
 // cleared, status=junk, merged_into=keeper), and returns the dupes' sierra_lead_ids so the

@@ -147,25 +147,21 @@ export async function handleFsboReply(clientId, body) {
   return true
 }
 
-// Daily 9:30 job: refresh the master file, then move any FSBO that went Off Market
-// (pending / listed with an agent / sold) to Junk in the Hub AND Sierra.
+// Daily 9:30 job: refresh the master file so the Hub FSBO list mirrors the sheet 1:1.
+// Off Market FSBOs STAY on the list (labeled Off Market via the FSBO Status column) — they
+// are never junked. They're simply excluded from the text sequence, which only targets
+// Available FSBOs, so an Off Market listing is never messaged even mid-sequence.
 export async function fsboDailyMaintenance() {
-  const rep = { junked: [], errors: 0 }
+  const rep = { synced: false, errors: 0 }
   try {
     const { syncFsboMaster, ensureFsboListIncludesMaster } = await import('./fsbo-master.js')
-    await syncFsboMaster(); ensureFsboListIncludesMaster()
+    const r = await syncFsboMaster(); ensureFsboListIncludesMaster()
+    rep.synced = true; rep.sheet_rows = r.sheet_rows; rep.created = r.created; rep.updated = r.updated
   } catch (e) { rep.errors++ }
-  const offMarket = db.all("SELECT id, first_name, last_name, sierra_lead_id, status FROM clients WHERE fsbo_status='Off Market' AND lower(status) NOT IN ('junk','donotcontact') AND merged_into IS NULL")
-  for (const c of offMarket) {
-    db.run("UPDATE clients SET status='junk', updated_at=? WHERE id=?", [nowIso(), c.id])
-    db.run("UPDATE fsbo_followups SET status='stopped' WHERE client_id=?", [c.id])
-    // Push Junk to Sierra so it sticks.
-    if (c.sierra_lead_id) {
-      try { const { sierraPut } = await import('./sierra-helper.js'); await sierraPut(`/leads/${c.sierra_lead_id}`, { leadStatus: 'Junk' }) } catch { rep.errors++ }
-    }
-    rep.junked.push(`${c.first_name || ''} ${c.last_name || ''}`.trim())
-  }
+  // Stop the sequence for anyone who has gone Off Market (don't keep an active enrollment),
+  // without touching their lead status — they remain on the list.
+  db.run("UPDATE fsbo_followups SET status='stopped' WHERE status='active' AND client_id IN (SELECT id FROM clients WHERE fsbo_status='Off Market')")
   db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
-    ['fsbo_daily', 'fsbo', `Off-market -> Junk: ${rep.junked.length}${rep.errors ? ` (${rep.errors} errors)` : ''}`])
+    ['fsbo_daily', 'fsbo', `Master synced (${rep.sheet_rows || 0} rows). Off Market kept on list.${rep.errors ? ` ${rep.errors} errors.` : ''}`])
   return rep
 }
