@@ -159,6 +159,28 @@ router.post('/fsbo/dedupe', (req, res) => {
   }
   res.json({ dry, merged_groups: merged.length, records_removed: merged.reduce((a, m) => a + m.removed.length, 0), needs_review: review.length, merged, review })
 })
+// Manual merge for the review groups: junk specific duplicate records into a kept one.
+// Copies any FSBO detail the keeper is missing, drops the dupes off the list (fsbo_status
+// cleared, status=junk, merged_into=keeper), and returns the dupes' sierra_lead_ids so the
+// caller can junk those duplicate Sierra profiles too.
+router.post('/fsbo/merge-manual', (req, res) => {
+  const keep = Number(req.body?.keep)
+  const junk = (Array.isArray(req.body?.junk) ? req.body.junk : []).map(Number).filter(Boolean)
+  if (!keep || !junk.length) return res.status(400).json({ error: 'keep and junk[] required' })
+  const keeper = db.get('SELECT * FROM clients WHERE id=?', [keep])
+  if (!keeper) return res.status(404).json({ error: 'keeper not found' })
+  const now = new Date().toISOString()
+  const sierraToJunk = []
+  for (const id of junk) {
+    const l = db.get('SELECT * FROM clients WHERE id=?', [id]); if (!l) continue
+    const set = [], val = []
+    for (const f of ['fsbo_status', 'fsbo_list_date', 'fsbo_dom', 'fsbo_notes', 'fsbo_link']) if (!keeper[f] && l[f]) { set.push(`${f}=?`); val.push(l[f]) }
+    if (set.length) { val.push(keep); db.run(`UPDATE clients SET ${set.join(', ')} WHERE id=?`, val) }
+    db.run("UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, status='junk', merged_into=?, updated_at=? WHERE id=?", [keep, now, id])
+    if (l.sierra_lead_id) sierraToJunk.push(l.sierra_lead_id)
+  }
+  res.json({ kept: keep, junked: junk, sierra_to_junk: sierraToJunk })
+})
 router.get('/fsbo/followup', (_req, res) => {
   const byStep = db.all("SELECT step, COUNT(*) n FROM fsbo_followups WHERE status='active' GROUP BY step")
   const totals = {
