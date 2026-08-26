@@ -940,6 +940,9 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable INTEGER DEFAULT 0') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable_reason TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable_at TEXT') } catch {}
+  // Secondary emails/phones kept when merging leads ("keep both"). Comma-separated.
+  try { db.run('ALTER TABLE clients ADD COLUMN alt_emails TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

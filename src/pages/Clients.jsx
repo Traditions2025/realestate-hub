@@ -324,6 +324,7 @@ export default function Clients() {
     visible: Object.fromEntries(LIST_COLUMNS.map(c => [c.key, c.defaultVisible])),
   })
   const [detailOpen, setDetailOpen] = useState(false)
+  const [mergeOpen, setMergeOpen] = useState(false)
   const [detail, setDetail] = useState(null)
   const [textComposeClient, setTextComposeClient] = useState(null)  // lead-profile SMS composer (bulk/legacy)
   const [textPanelOpen, setTextPanelOpen] = useState(false)         // inline text box on the lead profile
@@ -2696,6 +2697,8 @@ export default function Clients() {
                   statusTag={detail.phone_status && detail.phone_status !== 'Unknown' ? <span className="email-status-tag">{detail.phone_status}</span> : null} />
                 <InlineField label="Email" field="email" type="email" value={detail.email} clientId={detail.id} onSaved={() => openDetail(detail.id)}
                   statusTag={detail.email_status && detail.email_status !== 'Unknown' ? <span className="email-status-tag">{detail.email_status}</span> : null} />
+                {detail.alt_phones && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other phones:</strong> {detail.alt_phones}</p>}
+                {detail.alt_emails && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other emails:</strong> {detail.alt_emails}</p>}
                 <InlineField label="Address" field="address" value={detail.address} clientId={detail.id} onSaved={() => openDetail(detail.id)} />
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
                 <InlineStatus detail={detail} onSaved={() => openDetail(detail.id)} />
@@ -3083,11 +3086,18 @@ export default function Clients() {
 
             <div className="form-actions">
               <button className="btn btn-secondary" onClick={() => { setDetailOpen(false); openEdit(detail) }}>Edit Client</button>
+              <button className="btn btn-secondary" onClick={() => setMergeOpen(true)}>🔀 Merge with existing lead</button>
               <button className="btn btn-danger" onClick={() => { remove(detail.id); setDetailOpen(false) }}>Delete</button>
             </div>
           </div>
         )}
       </Modal>
+
+      {/* Merge with existing lead */}
+      {mergeOpen && detail && (
+        <MergeLeadModal current={detail} onClose={() => setMergeOpen(false)}
+          onDone={(survivorId) => { setMergeOpen(false); setDetailOpen(false); load(); if (survivorId) openDetail(survivorId) }} />
+      )}
 
       {/* Bulk Email Modal */}
       <Modal open={bulkEmailOpen} onClose={() => setBulkEmailOpen(false)} title={`Bulk Email — ${selectedIds.size} recipients`} wide>
@@ -3549,6 +3559,85 @@ function InlineStatus({ detail, onSaved }) {
 
 // P2-2: unified per-contact timeline — one filterable stream of every interaction.
 const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['note', 'Notes'], ['task', 'Tasks'], ['behavior', 'Activity']]
+// Merge the current lead with an existing one: search, pick who to keep, keep both
+// emails/phones, and combine all history/notes/communications onto the survivor.
+function MergeLeadModal({ current, onClose, onDone }) {
+  const [q, setQ] = React.useState('')
+  const [results, setResults] = React.useState([])
+  const [searching, setSearching] = React.useState(false)
+  const [target, setTarget] = React.useState(null)
+  const [survivor, setSurvivor] = React.useState('current')   // 'current' | 'target'
+  const [keepBoth, setKeepBoth] = React.useState(true)
+  const [merging, setMerging] = React.useState(false)
+  const searchRef = React.useRef(0)
+  React.useEffect(() => {
+    const term = q.trim()
+    if (term.length < 2) { setResults([]); return }
+    const my = ++searchRef.current
+    setSearching(true)
+    const t = setTimeout(() => {
+      authFetch('/api/clients?search=' + encodeURIComponent(term) + '&limit=12')
+        .then(r => r.json()).then(d => {
+          if (my !== searchRef.current) return
+          setResults((Array.isArray(d) ? d : (d.clients || [])).filter(c => c.id !== current.id))
+        }).catch(() => {}).finally(() => { if (my === searchRef.current) setSearching(false) })
+    }, 300)
+    return () => clearTimeout(t)
+  }, [q, current.id])
+  const label = (c) => `${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'
+  const sub = (c) => [c.phone, c.email, c.city].filter(Boolean).join(' · ') || '—'
+  const doMerge = async () => {
+    if (!target) return
+    const survivorLead = survivor === 'current' ? current : target
+    const mergedLead = survivor === 'current' ? target : current
+    if (!confirm(`Merge "${label(mergedLead)}" INTO "${label(survivorLead)}"?\n\nAll calls, texts, emails, notes, tasks and history from both will live on ${label(survivorLead)}.${keepBoth ? "\nBoth leads' emails and phone numbers will be kept." : ''}\n\nThe other record is archived (recoverable).`)) return
+    setMerging(true)
+    try {
+      const r = await authFetch('/api/clients/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primary_id: survivorLead.id, duplicate_ids: [mergedLead.id], keep_both: keepBoth }) })
+      const d = await r.json()
+      if (d.error) { alert('Merge failed: ' + d.error); setMerging(false); return }
+      onDone(survivorLead.id)
+    } catch (e) { alert('Merge failed: ' + e.message); setMerging(false) }
+  }
+  return (
+    <Modal open onClose={onClose} title={`Merge ${label(current)} with another lead`}>
+      <div className="form">
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Search for the existing lead to merge with. All history, notes, calls, texts and emails from both leads are combined onto the one you keep.</p>
+        <input autoFocus value={q} onChange={e => { setQ(e.target.value); setTarget(null) }} placeholder="Search by name, email, or phone…" style={{ width: '100%', padding: '8px 10px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+        {searching && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Searching…</div>}
+        {!target && results.length > 0 && (
+          <div style={{ maxHeight: 220, overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 6, marginTop: 6 }}>
+            {results.map(c => (
+              <div key={c.id} onClick={() => setTarget(c)} style={{ padding: '8px 10px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 600, fontSize: 13.5 }}>{label(c)}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub(c)}{c.status ? ` · ${c.status}` : ''}</div>
+              </div>
+            ))}
+          </div>
+        )}
+        {!target && q.trim().length >= 2 && !searching && results.length === 0 && <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 8 }}>No matching leads found.</div>}
+        {target && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ padding: '8px 10px', border: '1px solid var(--accent, #b8863b)', borderRadius: 6, marginBottom: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{label(target)}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{sub(target)}</div></div>
+              <button className="btn btn-sm btn-secondary" onClick={() => setTarget(null)}>Change</button>
+            </div>
+            <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 4 }}>Which record do you want to keep?</div>
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 4, cursor: 'pointer' }}><input type="radio" checked={survivor === 'current'} onChange={() => setSurvivor('current')} /> Keep <b>{label(current)}</b> (merge {label(target)} into it)</label>
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 10, cursor: 'pointer' }}><input type="radio" checked={survivor === 'target'} onChange={() => setSurvivor('target')} /> Keep <b>{label(target)}</b> (merge {label(current)} into it)</label>
+            <label style={{ display: 'block', fontSize: 13, marginBottom: 10, cursor: 'pointer' }}><input type="checkbox" checked={keepBoth} onChange={e => setKeepBoth(e.target.checked)} /> Keep <b>both</b> emails &amp; phone numbers (the extra is saved as a secondary contact)</label>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>All calls, texts, emails, notes, tasks and history from both leads are combined onto the record you keep. The other is archived and can be recovered.</div>
+          </div>
+        )}
+        <div className="form-actions">
+          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-primary" disabled={!target || merging} onClick={doMerge}>{merging ? 'Merging…' : 'Merge leads'}</button>
+        </div>
+      </div>
+    </Modal>
+  )
+}
+
 function ContactTimeline({ clientId }) {
   const [items, setItems] = React.useState(null)
   const [open, setOpen] = React.useState(false)

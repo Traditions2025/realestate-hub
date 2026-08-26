@@ -463,12 +463,22 @@ router.get('/duplicates', (req, res) => {
 router.post('/merge', (req, res) => {
   const primaryId = Number(req.body?.primary_id)
   const dupIds = (Array.isArray(req.body?.duplicate_ids) ? req.body.duplicate_ids : []).map(Number).filter(x => x && x !== primaryId)
+  // keep_both (default true): preserve the merged lead's DIFFERENT email/phone as secondary
+  // (alt_emails / alt_phones) instead of discarding it.
+  const keepBoth = req.body?.keep_both !== false
   if (!primaryId || !dupIds.length) return res.status(400).json({ error: 'primary_id and duplicate_ids required' })
   const primary = db.get('SELECT * FROM clients WHERE id=?', [primaryId])
   if (!primary) return res.status(404).json({ error: 'primary not found' })
 
-  // Tables keyed by client_id → reassign to primary (nothing is lost).
+  // Tables keyed by client_id → reassign to primary (nothing is lost): every call, text,
+  // email, voicemail, AI action, note, task, showing, transaction moves to the survivor.
   const reassignClientId = ['communications', 'ai_actions', 'behavioral_events', 'lead_events', 'ai_handoffs', 'showings', 'transactions', 'lead_activity']
+  const norm10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : d }
+  // Collect all distinct emails/phones so "keep both" can preserve everything.
+  const emailKeep = String(primary.email || '').trim().toLowerCase()
+  const phoneKeep10 = norm10(primary.phone)
+  const altEmails = new Set(String(primary.alt_emails || '').split(',').map(s => s.trim()).filter(Boolean))
+  const altPhones = new Set(String(primary.alt_phones || '').split(',').map(s => s.trim()).filter(Boolean))
   const merged = []
   for (const dupId of dupIds) {
     const dup = db.get('SELECT * FROM clients WHERE id=?', [dupId])
@@ -484,16 +494,30 @@ router.post('/merge', (req, res) => {
     const sets = [], vals = []
     for (const f of fillable) {
       const pv = primary[f], dv = dup[f]
-      if ((pv === null || pv === undefined || pv === '') && dv !== null && dv !== undefined && dv !== '') { sets.push(`${f}=?`); vals.push(dv) }
+      if ((pv === null || pv === undefined || pv === '') && dv !== null && dv !== undefined && dv !== '') { sets.push(`${f}=?`); vals.push(dv); primary[f] = dv }
     }
     if (sets.length) { db.run(`UPDATE clients SET ${sets.join(', ')} WHERE id=?`, [...vals, primaryId]) }
+    // Keep both: any of the dup's emails/phones that differ from the survivor's become secondary.
+    if (keepBoth) {
+      for (const e of [dup.email, ...String(dup.alt_emails || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) {
+        if (e.toLowerCase() !== emailKeep && String(primary.email || '').trim().toLowerCase() !== e.toLowerCase()) altEmails.add(e)
+      }
+      for (const p of [dup.phone, ...String(dup.alt_phones || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) {
+        if (norm10(p) !== phoneKeep10 && norm10(p) !== norm10(primary.phone)) altPhones.add(p)
+      }
+    }
     // Archive the dup, point it at the survivor, snapshot it in the audit log (recoverable).
     db.run("UPDATE clients SET status='archived', merged_into=?, updated_at=datetime('now') WHERE id=?", [primaryId, dupId])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['merged', 'client', dupId, `Merged into ${primaryId}. Snapshot: ${JSON.stringify({ id: dup.id, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email, address: dup.address, status: dup.status, source: dup.source }).slice(0, 900)}`])
     merged.push(dupId)
   }
-  res.json({ success: true, primary_id: primaryId, merged, count: merged.length })
+  // Persist the collected secondary emails/phones on the survivor.
+  if (keepBoth) {
+    db.run('UPDATE clients SET alt_emails=?, alt_phones=?, updated_at=datetime(\'now\') WHERE id=?',
+      [[...altEmails].join(', ') || null, [...altPhones].join(', ') || null, primaryId])
+  }
+  res.json({ success: true, primary_id: primaryId, merged, count: merged.length, alt_emails: [...altEmails], alt_phones: [...altPhones] })
 })
 
 // ---- P2-2: Unified contact timeline ----

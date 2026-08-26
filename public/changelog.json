@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-26T19:09:08.626Z",
+  "generated_at": "2026-08-26T20:01:45.212Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "1c1b965",
+      "date": "2026-08-26T14:16:39-05:00",
+      "subject": "AI dormancy: base opener-vs-revive purely on real activity, not Hub created_at",
+      "title": "AI dormancy: base opener-vs-revive purely on real activity, not Hub created_at",
+      "body": "Sierra-synced old leads get a fresh created_at at import, which made months-old leads\nlook brand new and wrongly get the 'thanks for checking out homes' welcome. Dormant now\nmeans simply: no FUB view or behavioral event within the window -> REVIVE opener.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "70e15a0",
+      "date": "2026-08-26T14:10:11-05:00",
+      "subject": "AI preview: dormant buyers preview the revive opener too (matches what sends)",
+      "title": "AI preview: dormant buyers preview the revive opener too (matches what sends)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "03048a7",
+      "date": "2026-08-26T14:09:12-05:00",
+      "subject": "AI: dormant leads (no recent activity) get the REVIVE opener, never 'saw you browsing'",
+      "title": "AI: dormant leads (no recent activity) get the REVIVE opener, never 'saw you browsing'",
+      "body": "Root cause: manual Send AI on a never-texted lead always used the activity opener, and the\ncontext surfaced the most recent FUB view regardless of age — so a months-old view got\nreferenced as if current ('Saw you checking out 237 29th Ave SW').\n\nFix (two layers):\n- Routing: isDormantLead() (no activity in N days AND not a brand-new registration) now\n  routes send-now + bulk-send-now to the REVIVE re-engage bank instead of handleProactive.\n- Context: only FUB views within the dormant window (default 21 days, ai_dormant_days)\n  populate last_viewed_property, so no opener can ever cite a stale property as current.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8670fc9",
       "date": "2026-08-26T13:39:33-05:00",
@@ -3975,30 +3999,6 @@
       "date": "2026-04-29T11:06:58-05:00",
       "subject": "Mobile: convert Transactions and Partners tables to cards on mobile, stack pipeline columns vertically",
       "title": "Mobile: convert Transactions and Partners tables to cards on mobile, stack pipeline columns vertically",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "575649b",
-      "date": "2026-04-29T10:59:17-05:00",
-      "subject": "Performance: paginate clients (100 per page), cache hashed assets in SW for fast mobile loads",
-      "title": "Performance: paginate clients (100 per page), cache hashed assets in SW for fast mobile loads",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "ad1b0d8",
-      "date": "2026-04-29T10:34:36-05:00",
-      "subject": "Clients stats: clarify Active/Prime are leads (buyers + sellers mix), filter buyer/seller count by current tab",
-      "title": "Clients stats: clarify Active/Prime are leads (buyers + sellers mix), filter buyer/seller count by current tab",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "be860d9",
-      "date": "2026-04-29T10:12:39-05:00",
-      "subject": "Pipeline: remove Pending column (merged into Under Contract), scrollable columns, upcoming action items with due dates",
-      "title": "Pipeline: remove Pending column (merged into Under Contract), scrollable columns, upcoming action items with due dates",
       "body": "",
       "category": "other"
     }
