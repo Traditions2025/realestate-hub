@@ -777,6 +777,7 @@ export default function Clients() {
   const [listingActExpanded, setListingActExpanded] = useState(false)
   const [sierraExpanded, setSierraExpanded] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [taskOpen, setTaskOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [composerView, setComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
@@ -835,7 +836,7 @@ export default function Clients() {
     }).catch(() => {})
     // reset per-client detail UI state
     setTagsExpanded(false); setFubExpanded(false); setListingActExpanded(false)
-    setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText(''); setTextPanelOpen(false)
+    setSierraExpanded(false); setTxMenuOpen(false); setNoteOpen(false); setNoteText(''); setTextPanelOpen(false); setTaskOpen(false)
     setDetailOpen(true)
     // Hub tracking activity (mattsmithteam.com pixel) — always fetch, not gated on Sierra link
     authFetch(`/api/track/activity/${id}?limit=50`).then(r => r.json()).then(setHubActivity).catch(() => {})
@@ -2626,6 +2627,11 @@ export default function Clients() {
                   )}
                 </div>
 
+                <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}>
+                  <span className="lead-action-icon">✅</span>
+                  <span>Add Task</span>
+                </button>
+
                 {detail.sierra_lead_id && (
                   <button className="lead-action-btn lead-action-refresh" onClick={refreshFromSierra} disabled={refreshing} title="Pull this lead's latest data from Sierra">
                     <span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span>
@@ -2633,6 +2639,9 @@ export default function Clients() {
                   </button>
                 )}
               </div>
+              {taskOpen && (
+                <QuickAddTask clientId={detail.id} clientName={`${detail.first_name || ''} ${detail.last_name || ''}`.trim()} onAdded={() => load()} />
+              )}
               {noteOpen && (
                 <div style={{marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-start'}}>
                   <textarea value={noteText} onChange={e => setNoteText(e.target.value)} placeholder="Add an internal note…" rows={2} style={{flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical'}} />
@@ -3135,8 +3144,6 @@ export default function Clients() {
               </div>
             )}
 
-            <QuickAddTask clientId={detail.id} clientName={`${detail.first_name || ''} ${detail.last_name || ''}`.trim()} />
-
             <div className="form-actions">
               <button className="btn btn-secondary" onClick={() => { setDetailOpen(false); openEdit(detail) }}>Edit Client</button>
               <button className="btn btn-secondary" onClick={() => setMergeOpen(true)}>🔀 Merge with existing lead</button>
@@ -3629,7 +3636,7 @@ function InlineStatus({ detail, onSaved }) {
 const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['note', 'Notes'], ['task', 'Tasks'], ['behavior', 'Activity']]
 // Quick "add task" on the lead profile: text + due date + assignee -> Tasks tab, linked
 // to this lead (related_type=client).
-function QuickAddTask({ clientId, clientName }) {
+function QuickAddTask({ clientId, clientName, onAdded }) {
   const [text, setText] = React.useState('')
   const [date, setDate] = React.useState('')
   const [assignee, setAssignee] = React.useState('')
@@ -3644,17 +3651,16 @@ function QuickAddTask({ clientId, clientName }) {
       const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text.trim(), due_date: date || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
       const d = await r.json()
       if (d && d.error) { alert('Could not add task: ' + d.error); setSaving(false); return }
-      setText(''); setDate(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000)
+      setText(''); setDate(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000); onAdded && onAdded()
     } catch (e) { alert('Could not add task: ' + e.message) } finally { setSaving(false) }
   }
   return (
-    <div className="detail-section">
-      <h4>Add Task</h4>
+    <div style={{ marginTop: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-        <input value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }}
-          placeholder={`Task for ${clientName || 'this lead'}…`} style={{ flex: '2 1 200px', minWidth: 160, padding: '7px 9px', fontSize: 13 }} />
-        <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Due date" style={{ padding: '6px 9px', fontSize: 13 }} />
-        <select value={assignee} onChange={e => setAssignee(e.target.value)} title="Assignee" style={{ padding: '7px 9px', fontSize: 13 }}>
+        <input autoFocus value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }}
+          placeholder={`Task for ${clientName || 'this lead'}…`} style={{ flex: '2 1 220px', minWidth: 160, padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }} />
+        <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Due date" style={{ padding: '6px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }} />
+        <select value={assignee} onChange={e => setAssignee(e.target.value)} title="Assignee" style={{ padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }}>
           <option value="">Assignee…</option>
           {agents.map(a => <option key={a} value={a}>{a}</option>)}
         </select>

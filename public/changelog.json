@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T22:40:19.337Z",
+  "generated_at": "2026-08-26T22:45:03.442Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e5dfa04",
+      "date": "2026-08-26T17:40:23-05:00",
+      "subject": "Lead profile: quick Add Task (text + due date + assignee) -> Tasks tab",
+      "title": "Lead profile: quick Add Task (text + due date + assignee) -> Tasks tab",
+      "body": "Adds a task linked to the lead (related_type=client) via POST /api/tasks so it appears\non the Tasks tab; assignee list from /api/inbox/agents.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bb652c5",
       "date": "2026-08-26T17:27:03-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Move List/Cards view toggle to page header so it's always visible",
       "body": "",
       "category": "other"
-    },
-    {
-      "hash": "5cc94a9",
-      "date": "2026-04-29T11:57:21-05:00",
-      "subject": "Fix TDZ error: move state declarations to top of Clients component (was used before declared)",
-      "title": "TDZ error: move state declarations to top of Clients component (was used before declared)",
-      "body": "",
-      "category": "fix"
     }
   ]
 }
