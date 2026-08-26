@@ -1,6 +1,6 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.26-revive1'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.26-revive2'
 
 // Revive bank — for OLD buyer leads with NO recent online activity ("we're simply
 // reviving these old buyer leads"). One of these is rotated in per send so all 20 get
@@ -33,11 +33,11 @@ export const REVIVE_OPENERS = [
 export function REVIVE_OPENER_BLOCK(body, timeGreeting) {
   return `REVIVE OPENER — this is an OLD buyer lead with NO recent online activity; you are reconnecting after a long gap. Use the APPROVED body below; keep its wording and its single question intact, do NOT add a second question or merge in other topics.
 APPROVED BODY: "${body}"
-Compose the full SMS as ONE text in this order: greeting + first name, then "it's John with Matt Smith Team", then the APPROVED BODY (capitalize its first word so it flows after the intro), then finish with MattSmithTeam.com.
-Example shape: "Hi [First Name], it's John with Matt Smith Team. [approved body] You can always browse the latest at MattSmithTeam.com"
+Compose the full SMS as ONE text in this order: greeting + first name, then "it's John with Matt Smith Team at RE/MAX", then the APPROVED BODY (capitalize its first word so it flows after the intro), then finish with MattSmithTeam.com.
+Example shape: "Hi [First Name], it's John with Matt Smith Team at RE/MAX. [approved body] You can always browse the latest at MattSmithTeam.com"
 HARD RULES:
 - Greeting MUST be "Hi [First Name]", "Hello [First Name]", or "Good morning, [First Name]" / "Good afternoon, [First Name]" based on the current time (${timeGreeting || 'Hi'}). NEVER "Hey", NEVER "Good evening".
-- Introduce yourself once as "John with Matt Smith Team".
+- Introduce yourself once as "John with Matt Smith Team at RE/MAX" (do NOT add a city or anything after "RE/MAX").
 - End with MattSmithTeam.com as the LAST part of the message.
 - Do NOT reference any online activity, view counts, or "I saw you". This is a warm reconnect, not activity-based.
 - Return action SEND_TEXT with this message.`

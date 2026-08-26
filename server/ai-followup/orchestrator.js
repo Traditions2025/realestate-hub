@@ -298,7 +298,7 @@ export async function handleNurture(clientId, { reengage = false, attempt = 1 } 
   let reviveTemplate = null, instruction
   if (reengage && !isSeller) {
     reviveTemplate = nextReviveOpener().text
-    instruction = `Reconnect with this OLD buyer lead who has no recent activity. Use the REVIVE OPENER section: send the approved body exactly as one text with the greeting, "it's John with Matt Smith Team", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
+    instruction = `Reconnect with this OLD buyer lead who has no recent activity. Use the REVIVE OPENER section: send the approved body exactly as one text with the greeting, "it's John with Matt Smith Team at RE/MAX", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
   } else if (reengage) {
     instruction = `This lead went quiet a while ago and just showed fresh signs of life (or enough time has passed that their timing may have changed). Write ONE short, warm, low-pressure text that gives a genuine, contextual reason to reconnect. Do not say "just checking in".`
   } else {
