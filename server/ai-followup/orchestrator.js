@@ -247,8 +247,14 @@ export async function previewMessage(clientId, { context = '' } = {}) {
   const ai = getAiClient(); if (!ai) return { ok: false, reason: 'AI not configured (ANTHROPIC_API_KEY missing)' }
   const ctx = buildLeadAiContext(cid)
   const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
+  const { isDormantLead } = await import('./context.js')
+  const notSeller = !(String(client.type || '').toLowerCase().includes('seller') && !String(client.type || '').toLowerCase().includes('buyer'))
   let kind, instruction
-  if (!lastText) { kind = 'first text'; instruction = `This is a lead the team has NOT texted yet. Lead source: ${ctx.facts.lead_source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.` }
+  if (!lastText && isDormantLead(cid) && notSeller) {
+    // Dormant buyer, no recent activity → the REVIVE re-engage opener (never "saw you browsing").
+    kind = 'revive'; ctx.reviveTemplate = nextReviveOpener().text
+    instruction = `Reconnect with this OLD buyer lead who has no recent activity. Use the REVIVE OPENER section: send the approved body as one text with the greeting, "it's John with Matt Smith Team at RE/MAX", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
+  } else if (!lastText) { kind = 'first text'; instruction = `This is a lead the team has NOT texted yet. Lead source: ${ctx.facts.lead_source || 'unknown'}. Write a short, natural opening SMS to start a conversation. Give a real, contextual reason for reaching out based on the context. Do not force an appointment.` }
   else if (lastText.direction === 'incoming') { kind = 'reply'; instruction = null }
   else { kind = 'follow-up'; instruction = `You've already been in touch and are getting to know this lead. Send ONE short, natural follow-up asking the single most useful thing you do NOT know yet (buyer: area, then price, then property type (single-family or condo), then style (ranch, two-story, or something else), then beds, then timeframe, then financing; seller: address, then timeframe, then motivation). One question, no re-intro, do not repeat prior messages.` }
   // Agent-supplied context: a fact/steer the AI must fold into the text (e.g. "this
