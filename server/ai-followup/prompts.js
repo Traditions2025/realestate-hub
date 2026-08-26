@@ -1,6 +1,47 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.25-5'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.26-revive1'
+
+// Revive bank — for OLD buyer leads with NO recent online activity ("we're simply
+// reviving these old buyer leads"). One of these is rotated in per send so all 20 get
+// used, not just one. Bodies are greeting-stripped; the greeting + John intro + website
+// are added by REVIVE_OPENER_BLOCK so format stays consistent.
+export const REVIVE_OPENERS = [
+  "it's been a little while since we last connected. How did your home search end up going?",
+  "just wanted to check in. Did you ever end up finding a home, or are you still keeping an eye out?",
+  "curious where things ended up with your home search. Did you find the right place?",
+  "we haven't talked in a while. Are you still thinking about making a move, or have your plans changed?",
+  "just checking back in since it's been a while. What are your plans looking like these days when it comes to moving?",
+  "did you ever find what you were looking for, or did the home search get put on hold?",
+  "wanted to reconnect and see how things are going. Is buying a home still somewhere on your radar?",
+  "it's been a while! Did you end up buying, or are you still waiting for the right home to come along?",
+  "just wanted to touch base. Has anything changed with what you're looking for since we last talked?",
+  "curious if you ever found a place you loved, or if you decided to hold off for a while?",
+  "we connected a while back when you were looking at homes. Did you ever end up making a move?",
+  "wanted to see where things landed with your home search. Did life take you in a different direction, or is a move still in the plans?",
+  "just wanted to reconnect. What does the home search look like for you these days?",
+  "it's been a while since we talked about your home search. Are you looking again, or just keeping an eye on the market for now?",
+  "wanted to check in and see if your plans have changed at all. What would the right move look like for you now?",
+  "did you ever end up finding a home, or are you still waiting for something that really feels worth making a move for?",
+  "just reaching back out since we haven't connected in a while. Any plans to make a move this year?",
+  "I know it's been some time since we talked. Did you end up putting the home search on the back burner, or is it something you're thinking about again?",
+  "wanted to reconnect and see where you're at these days. If the right home came along, would you be open to making a move?",
+  "it's been a while! Just curious, did you find a home already or should we still keep you in mind when something good comes up?",
+]
+
+// The instruction that wraps a chosen revive body with the required format.
+export function REVIVE_OPENER_BLOCK(body, timeGreeting) {
+  return `REVIVE OPENER — this is an OLD buyer lead with NO recent online activity; you are reconnecting after a long gap. Use the APPROVED body below; keep its wording and its single question intact, do NOT add a second question or merge in other topics.
+APPROVED BODY: "${body}"
+Compose the full SMS as ONE text in this order: greeting + first name, then "it's John with Matt Smith Team", then the APPROVED BODY (capitalize its first word so it flows after the intro), then finish with MattSmithTeam.com.
+Example shape: "Hi [First Name], it's John with Matt Smith Team. [approved body] You can always browse the latest at MattSmithTeam.com"
+HARD RULES:
+- Greeting MUST be "Hi [First Name]", "Hello [First Name]", or "Good morning, [First Name]" / "Good afternoon, [First Name]" based on the current time (${timeGreeting || 'Hi'}). NEVER "Hey", NEVER "Good evening".
+- Introduce yourself once as "John with Matt Smith Team".
+- End with MattSmithTeam.com as the LAST part of the message.
+- Do NOT reference any online activity, view counts, or "I saw you". This is a warm reconnect, not activity-based.
+- Return action SEND_TEXT with this message.`
+}
 
 const ALLOWED_ACTIONS = ['SEND_TEXT', 'NO_ACTION', 'HANDOFF_AGENT']
 export { ALLOWED_ACTIONS }
@@ -155,8 +196,10 @@ export function buildSystemPrompt(ctx = {}) {
   const hasInbound = !!(ctx.latestInbound && String(ctx.latestInbound).trim())
   const firstText = !ctx.facts?.is_first_text ? ''
     : (hasInbound ? FIRST_REPLY(ctx.facts.time_greeting || 'Hi') : PROACTIVE_OPENERS)
+  // Reviving an old buyer lead with no recent activity: a rotated approved opener wins.
+  const revive = ctx.reviveTemplate ? REVIVE_OPENER_BLOCK(ctx.reviveTemplate, ctx.facts?.time_greeting) : ''
   return [
-    PERSONA(persona), TONE, GEO, OBJECTIVES, REASONING, playbook(leadType), DISCOVERY, OBJECTIONS, SITUATIONS, STYLE, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, HANDOFF, SECURITY, firstText,
+    PERSONA(persona), TONE, GEO, OBJECTIVES, REASONING, playbook(leadType), DISCOVERY, OBJECTIONS, SITUATIONS, STYLE, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, HANDOFF, SECURITY, firstText, revive,
     `OUTPUT: Return ONLY a JSON object, no prose, with exactly these keys:
 {
   "action": one of ${JSON.stringify(ALLOWED_ACTIONS)},

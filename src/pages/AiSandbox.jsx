@@ -109,6 +109,22 @@ export default function AiSandbox() {
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
 
+  // Revive: an OLD buyer lead with NO recent activity. Rotates through the 20 approved
+  // openers so you can test them all (click again for the next one).
+  const startRevive = async () => {
+    reset(); setLeadType('buyer'); setErr(''); setBusy(true)
+    setMessages([{ role: 'event', text: 'No recent activity — reviving old buyer lead' }])
+    try {
+      const req = { lead: { name: leadName, type: 'buyer', city: leadCity }, mode: 'revive', messages: [], intent: 0 }
+      const r = await authFetch('/api/ai/sandbox', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req) })
+      const d = await r.json()
+      if (d.error) { setErr(d.error); setBusy(false); return }
+      setIntent(d.intent_after)
+      const label = d.revive_opener ? `No recent activity — revive opener ${d.revive_opener.index} of ${d.revive_opener.total}` : 'No recent activity — reviving old buyer lead'
+      setMessages([{ role: 'event', text: label }, { role: 'agent', text: d.message || '(the AI chose not to reach out)', work: d, req }])
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -138,6 +154,13 @@ export default function AiSandbox() {
             <button key={a.label} className="btn btn-sm" disabled={busy} onClick={() => startOnlineActivity(a)} title={a.activity.description}>{a.icon} {a.label}</button>
           ))}
         </div>
+      </div>
+
+      {/* No recent activity → revive old buyer leads (rotating bank) */}
+      <div className="detail-section" style={{ marginBottom: 14 }}>
+        <h4 style={{ marginTop: 0 }}>💤 No recent activity — revive old buyer leads</h4>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>Reconnect an old buyer lead with no recent online activity. Rotates through all 20 approved openers (Hi/Hello + time of day, John intro, MattSmithTeam.com at the end). Click again to see the next one.</p>
+        <button className="btn btn-sm" disabled={busy} onClick={startRevive}>💤 Revive an old buyer lead</button>
       </div>
 
       {/* Lead message → AI replies (responsive) */}

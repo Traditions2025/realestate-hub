@@ -11,7 +11,16 @@ import { computeIntent, saveIntent, getIntent, levelFor } from './intent.js'
 import { applyMemory } from './memory.js'
 import { createAiHandoff } from './handoff.js'
 import { logAiAction } from './audit.js'
-import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS } from './prompts.js'
+import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS, REVIVE_OPENERS } from './prompts.js'
+
+// Rotate through the revive bank so all 20 openers get used (not just one). A persistent
+// counter in settings advances every time we pick one.
+export function nextReviveOpener() {
+  const n = REVIVE_OPENERS.length
+  const i = ((Number(db.getSetting?.('ai_revive_rotation') || 0) % n) + n) % n
+  try { db.setSetting?.('ai_revive_rotation', String((i + 1) % n)) } catch {}
+  return { index: i, text: REVIVE_OPENERS[i] }
+}
 
 const nowIso = () => new Date().toISOString()
 
@@ -165,7 +174,7 @@ async function sendAiSms(client, text, aiActionId) {
 // Shared outbound generator (proactive / nurture / re-engage). HUB-gated, compliance
 // re-checked, race-guarded, daily-capped, quiet-hours aware. force=true (manual "Send
 // AI now") bypasses only the per-mode global flag, never compliance.
-async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false }) {
+async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false, reviveTemplate = null }) {
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
@@ -180,6 +189,7 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   if (!force && sentToday >= cap) return logNo(cid, 'daily AI cap reached')
   const ai = getAiClient(); if (!ai) return logNo(cid, 'AI not configured')
   const ctx = buildLeadAiContext(cid)
+  if (reviveTemplate) ctx.reviveTemplate = reviveTemplate   // rotated revive opener wins
   const startedAtMsgId = latestMsgId(cid)
   const t0 = Date.now()
   let decision, usage = {}
@@ -281,11 +291,22 @@ export async function handleFollowup(clientId, { force = false } = {}) {
 // Nurture / re-engagement touch (scheduler-driven). attempt informs the tone.
 export async function handleNurture(clientId, { reengage = false, attempt = 1 } = {}) {
   const cid = Number(clientId)
+  // Reviving an OLD BUYER lead (no recent activity) uses the rotated approved revive bank so
+  // all 20 openers get exercised, not a single stock line. Sellers keep the generic reconnect.
+  const type = String(db.get('SELECT type FROM clients WHERE id=?', [cid])?.type || '').toLowerCase()
+  const isSeller = type.includes('seller') && !type.includes('buyer')
+  let reviveTemplate = null, instruction
+  if (reengage && !isSeller) {
+    reviveTemplate = nextReviveOpener().text
+    instruction = `Reconnect with this OLD buyer lead who has no recent activity. Use the REVIVE OPENER section: send the approved body exactly as one text with the greeting, "it's John with Matt Smith Team", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
+  } else if (reengage) {
+    instruction = `This lead went quiet a while ago and just showed fresh signs of life (or enough time has passed that their timing may have changed). Write ONE short, warm, low-pressure text that gives a genuine, contextual reason to reconnect. Do not say "just checking in".`
+  } else {
+    instruction = `This lead has not replied to recent messages (nurture attempt ${attempt}). Write ONE short, low-pressure, genuinely useful text with a real contextual reason. Vary it from prior messages. Do not say "just checking in" or "following up". If nothing useful to say, choose NO_ACTION.`
+  }
   return runOutbound(cid, {
-    actionType: reengage ? 'REENGAGE' : 'NURTURE', flagKey: 'ai_nurture_enabled', nextState: reengage ? 'AI_REENGAGED' : 'AI_LONG_TERM_NURTURE',
-    instruction: reengage
-      ? `This lead went quiet a while ago and just showed fresh signs of life (or enough time has passed that their timing may have changed). Write ONE short, warm, low-pressure text that gives a genuine, contextual reason to reconnect. Do not say "just checking in".`
-      : `This lead has not replied to recent messages (nurture attempt ${attempt}). Write ONE short, low-pressure, genuinely useful text with a real contextual reason. Vary it from prior messages. Do not say "just checking in" or "following up". If nothing useful to say, choose NO_ACTION.`,
+    actionType: reengage ? 'REENGAGE' : 'NURTURE', flagKey: 'ai_nurture_enabled',
+    nextState: reengage ? 'AI_REENGAGED' : 'AI_LONG_TERM_NURTURE', reviveTemplate, instruction,
   })
 }
 

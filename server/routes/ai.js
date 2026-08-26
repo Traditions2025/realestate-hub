@@ -37,7 +37,8 @@ router.post('/sandbox', async (req, res) => {
   const leadType = ['buyer', 'seller', 'both'].includes(lead.type) ? lead.type : 'buyer'
   const history = Array.isArray(b.messages) ? b.messages.slice(-30) : []
   const isFirst = !history.some(m => m.role === 'agent')
-  const proactive = b.mode === 'proactive'
+  const proactive = b.mode === 'proactive' || b.mode === 'revive'
+  const revive = b.mode === 'revive'
   const activity = b.activity || {}
   const latest = String(b.latest || (history.length ? history[history.length - 1].text : '') || '').slice(0, 1200)
   if (!proactive && !latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
@@ -53,13 +54,19 @@ router.post('/sandbox', async (req, res) => {
   }
   const transcript = history.map(m => `${m.role === 'agent' ? 'AGENT (you)' : 'CONSUMER'}: ${m.text}`).join('\n') || '(no prior messages)'
   const ctx = { facts, transcript, latestInbound: latest, lead_type: leadType, persona: getConfig().ai_persona || 'John with Matt Smith Team at RE/MAX Concepts', intelligence: { lead_type: leadType } }
+  // Revive test: rotate in one approved revive opener so you can click through all 20.
+  let reviveInfo = null
+  if (revive) { const { nextReviveOpener } = await import('../ai-followup/orchestrator.js'); reviveInfo = nextReviveOpener(); ctx.reviveTemplate = reviveInfo.text }
   // Proactive: the lead is browsing / behaving online and the AI reaches out FIRST — no
   // inbound message. Mirrors handleProactive's instruction (contextual reason, never
   // "I saw you browsing").
   const proactiveInstruction = `This is a lead the team has NOT texted yet. They have been active online: ${activity.description || 'browsing our website'}. Lead source: ${facts.lead_source}. Write a short, warm, welcoming opening SMS (follow the FIRST MESSAGE rules). Give a real, contextual reason for reaching out tied to what they were looking at (the city/area or a property, from the context) and end with ONE easy, low-pressure question. NEVER imply you are watching their activity (never say "I saw you viewed/browsing"); say "thanks for stopping by" instead. Return action SEND_TEXT with the message.`
-  let userContent = proactive
-    ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
-    : buildUserMessage(ctx)
+  const reviveInstruction = `This is an OLD buyer lead with NO recent online activity; you are reconnecting after a long gap. Follow the REVIVE OPENER section exactly: send the approved body as one text with the greeting, "it's John with Matt Smith Team", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
+  let userContent = revive
+    ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${reviveInstruction}\n\nReturn the JSON now.`
+    : proactive
+      ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
+      : buildUserMessage(ctx)
   // Refinement loop: the agent clicked a reply and asked for an improvement. Feed the prior
   // draft + their instruction so the model rewrites it (still following every rule).
   const refine = b.refine
@@ -83,6 +90,7 @@ router.post('/sandbox', async (req, res) => {
       summary: decision?.summary || '', next_state: decision?.next_state || null,
       handoff: decision?.handoff || { required: false },
       latency_ms: Date.now() - t0, tokens: msg.usage || {},
+      revive_opener: reviveInfo ? { index: reviveInfo.index + 1, total: 20, body: reviveInfo.text } : null,
     })
   } catch (e) { res.status(500).json({ error: 'model error: ' + e.message }) }
 })

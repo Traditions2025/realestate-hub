@@ -1,7 +1,55 @@
 {
-  "generated_at": "2026-08-26T17:23:37.348Z",
+  "generated_at": "2026-08-26T18:21:58.273Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e2ed2b9",
+      "date": "2026-08-26T12:56:08-05:00",
+      "subject": "FSBO: push-sierra-watch endpoint to un-junk restored Off Market leads in Sierra",
+      "title": "FSBO: push-sierra-watch endpoint to un-junk restored Off Market leads in Sierra",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "23800c8",
+      "date": "2026-08-26T12:53:20-05:00",
+      "subject": "FSBO list mirrors master 1:1 — keep Off Market on the list",
+      "title": "FSBO list mirrors master 1:1 — keep Off Market on the list",
+      "body": "- List criteria is now has_fsbo_status only (no lead-status exclusion), so Available AND\n  Off Market both show; the FSBO Status column distinguishes them.\n- Daily maintenance no longer junks Off Market (only stops their text enrollment); they\n  stay on the list. The text sequence still targets Available only, so Off Market is\n  never messaged.\n- Add POST /api/lists/fsbo/restore-offmarket to un-junk Off Market records the old rule junked.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e7d3c8a",
+      "date": "2026-08-26T12:40:56-05:00",
+      "subject": "FSBO: manual-merge endpoint to junk push-created duplicate profiles",
+      "title": "FSBO: manual-merge endpoint to junk push-created duplicate profiles",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "62461eb",
+      "date": "2026-08-26T12:37:47-05:00",
+      "subject": "FSBO sync: stop creating duplicate records + add dedupe",
+      "title": "FSBO sync: stop creating duplicate records + add dedupe",
+      "body": "- Matcher now prefers the record already carrying fsbo_status (not just an fsbo tag),\n  so a created FSBO record no longer loses to an older junk lead sharing the phone and\n  the hourly sync stops making a new duplicate every run.\n- POST /api/lists/fsbo/dedupe merges Hub-native duplicate groups into the oldest record\n  and flags Sierra-linked groups for manual review.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7a42ec2",
+      "date": "2026-08-26T12:32:31-05:00",
+      "subject": "FSBO audit endpoint: find duplicate/orphan fsbo_status records vs master",
+      "title": "FSBO audit endpoint: find duplicate/orphan fsbo_status records vs master",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e21bd52",
+      "date": "2026-08-26T12:23:49-05:00",
+      "subject": "Fix call logging + clean email previews on lead profile",
+      "title": "call logging + clean email previews on lead profile",
+      "body": "Calls:\n- upsertCall/missedCallTextBack matched phones with a last-7 LIKE, which misses\n  formatted numbers like (319) 929-9923 (the dash splits the digits) — so every call\n  logged with client_id NULL and never showed on the profile. Match on last-4 + exact last-10.\n- Callee-leg outcome (no-answer/busy/failed/completed) is now reconciled onto the\n  timeline row via /api/voice/child-status, so unconnected calls are logged clearly\n  instead of stuck on 'initiated'.\n- Add POST /api/voice/backfill-call-clients to relink past orphaned call rows.\n\nEmail:\n- Communication History rendered raw email HTML. Add commToText() to strip tags,\n  tracking pixels, style/script and decode entities; show a clean subject + body.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "cb9bce8",
       "date": "2026-08-26T12:01:46-05:00",
@@ -3951,54 +3999,6 @@
       "date": "2026-04-28T18:54:41-05:00",
       "subject": "Pipeline cards: show actual status badge instead of type-derived; add type tag for purchase/listing",
       "title": "Pipeline cards: show actual status badge instead of type-derived; add type tag for purchase/listing",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "899a608",
-      "date": "2026-04-28T18:50:11-05:00",
-      "subject": "Add migration to drop agency_type CHECK constraint on existing databases",
-      "title": "migration to drop agency_type CHECK constraint on existing databases",
-      "body": "",
-      "category": "feature"
-    },
-    {
-      "hash": "fb2efa7",
-      "date": "2026-04-28T18:49:28-05:00",
-      "subject": "Fix: remove agency_type CHECK constraint (Dual Agency was blocking sync), wrap each row in try/catch",
-      "title": "Fix: remove agency_type CHECK constraint (Dual Agency was blocking sync), wrap each row in try/catch",
-      "body": "",
-      "category": "fix"
-    },
-    {
-      "hash": "fe10751",
-      "date": "2026-04-28T18:42:12-05:00",
-      "subject": "Auto-sync scheduler: Sierra (incremental, every 10 min) + Google Sheet (every 5 min) - no manual sync needed",
-      "title": "Auto-sync scheduler: Sierra (incremental, every 10 min) + Google Sheet (every 5 min) - no manual sync needed",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "7583707",
-      "date": "2026-04-28T18:37:51-05:00",
-      "subject": "Fix CSV parser for multiline cells, add Closed column, Clear & Re-sync button",
-      "title": "CSV parser for multiline cells, add Closed column, Clear & Re-sync button",
-      "body": "",
-      "category": "fix"
-    },
-    {
-      "hash": "bd05e0c",
-      "date": "2026-04-28T18:11:24-05:00",
-      "subject": "Fix Sierra total count - query unique total instead of summing per-status (which had overlap)",
-      "title": "Sierra total count - query unique total instead of summing per-status (which had overlap)",
-      "body": "",
-      "category": "fix"
-    },
-    {
-      "hash": "62455ec",
-      "date": "2026-04-28T17:47:34-05:00",
-      "subject": "Default Sierra sync to pull all 11 statuses (~45K leads)",
-      "title": "Default Sierra sync to pull all 11 statuses (~45K leads)",
       "body": "",
       "category": "other"
     }
