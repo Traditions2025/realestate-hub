@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T15:29:06.593Z",
+  "generated_at": "2026-08-26T15:39:25.323Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "f871f47",
+      "date": "2026-08-26T10:29:36-05:00",
+      "subject": "Templates: 'Match custom fields' converts pasted foreign merge fields to Hub fields",
+      "title": "Templates: 'Match custom fields' converts pasted foreign merge fields to Hub fields",
+      "body": "Detects merge tokens in any common format ([First Name], {{firstName}}, %FIRST_NAME%,\n<<AgentName>>, Mailchimp *|FNAME|*, contact.first_name, etc.), maps them to the Hub's\ncanonical {{field}} via an alias table, and rewrites the body. Valid Hub tokens are left\nuntouched; anything it can't match is reported for manual mapping. One click in the text\ntemplate toolbar.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a2fa666",
       "date": "2026-08-26T10:26:39-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-28T12:45:24-05:00",
       "subject": "Sierra: support pulling all leads with status menu, address search on clients",
       "title": "Sierra: support pulling all leads with status menu, address search on clients",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "5bfba6c",
-      "date": "2026-04-14T19:32:28-05:00",
-      "subject": "Mobile-friendly: hamburger menu, slide-out sidebar, stacked layouts, bigger touch targets",
-      "title": "Mobile-friendly: hamburger menu, slide-out sidebar, stacked layouts, bigger touch targets",
       "body": "",
       "category": "other"
     }

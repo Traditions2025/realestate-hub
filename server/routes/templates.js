@@ -1,9 +1,19 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
+import { fillTemplate } from './email.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
+
+// Render a template body/subject with a specific lead's data (live preview of merge fields).
+router.post('/render', (req, res) => {
+  const { body = '', subject = '', client_id } = req.body || {}
+  const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
+  if (!client) return res.json({ body, subject, filled: false })
+  const strip = (s) => fillTemplate(s || '', client).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
+  res.json({ body: strip(body), subject: strip(subject), filled: true })
+})
 
 // FUB text templates live under one of a few possible endpoint names depending on
 // the account. Try each and return the first that responds with a list.

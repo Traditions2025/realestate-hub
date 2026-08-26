@@ -3810,6 +3810,16 @@ function InlineTextComposer({ client, onClose, onSent }) {
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState([])
   const [body, setBody] = React.useState('')
+  const [preview, setPreview] = React.useState('')   // merge fields filled for this lead
+  // Live-render merge fields for the current lead so the composer shows what will actually send.
+  React.useEffect(() => {
+    if (!/\{\{[^}]+\}\}/.test(body)) { setPreview(''); return }
+    const t = setTimeout(() => {
+      authFetch('/api/templates/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, client_id: client.id }) })
+        .then(r => r.json()).then(d => setPreview(d.filled ? (d.body || '') : '')).catch(() => {})
+    }, 300)
+    return () => clearTimeout(t)
+  }, [body, client.id])
   const [media, setMedia] = React.useState([])
   const [uploading, setUploading] = React.useState(false)
   const [sending, setSending] = React.useState(false)
@@ -4003,6 +4013,12 @@ function InlineTextComposer({ client, onClose, onSent }) {
         )
       )}
       <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={3} maxLength={1000} placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }} style={{ ...fld, resize: 'vertical', lineHeight: 1.5 }} />
+      {preview && recips.length === 1 && (
+        <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', whiteSpace: 'pre-wrap' }}>
+          <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>Preview for {client.first_name || 'this lead'}</span>
+          <div style={{ marginTop: 3, color: 'var(--text-primary)' }}>{preview}</div>
+        </div>
+      )}
       {schedOpen && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send at:</span>
