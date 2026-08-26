@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-26T15:39:25.323Z",
+  "generated_at": "2026-08-26T15:59:30.803Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a0c8e00",
+      "date": "2026-08-26T10:39:36-05:00",
+      "subject": "Lead text composer: live merge-field preview (shows filled text for this lead)",
+      "title": "Lead text composer: live merge-field preview (shows filled text for this lead)",
+      "body": "Merge fields fill on send (server-side), but the composer showed raw {{tokens}} which\nread as 'not working'. Added POST /api/templates/render and a live 'Preview for [name]'\nunder the text box that renders {{time_of_day}}, {{address}}, etc. with the lead's actual\ndata, updating as you type/insert.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f871f47",
       "date": "2026-08-26T10:29:36-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-28T12:50:29-05:00",
       "subject": "Single button to sync all Sierra leads, remove auto-sync",
       "title": "Single button to sync all Sierra leads, remove auto-sync",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "f266808",
-      "date": "2026-04-28T12:45:24-05:00",
-      "subject": "Sierra: support pulling all leads with status menu, address search on clients",
-      "title": "Sierra: support pulling all leads with status menu, address search on clients",
       "body": "",
       "category": "other"
     }

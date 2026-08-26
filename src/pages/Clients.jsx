@@ -3631,6 +3631,18 @@ function TextComposerModal({ client, onClose, onSent }) {
   React.useEffect(() => { authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
   const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
   const insert = (t) => setBody(b => (b ? b + (b.endsWith(' ') || b.endsWith('\n') ? '' : ' ') : '') + t)
+  // Fill merge fields for this lead so the composer is WYSIWYG (no raw {{tokens}}).
+  const renderForLead = async (text) => {
+    if (!/\{\{[^}]+\}\}/.test(text)) return text
+    try {
+      const d = await (await authFetch('/api/templates/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text, client_id: client.id }) })).json()
+      return d.filled ? (d.body || text) : text
+    } catch { return text }
+  }
+  // Applying a template REPLACES the box (picking another swaps it, never appends), with
+  // custom fields already filled for this lead.
+  const applyTemplate = async (t) => { setBody(await renderForLead(stripHtml(t.body))) }
+  const insertMergeValue = async (tok) => { insert(await renderForLead(tok)) }
   const send = async () => {
     if (!body.trim()) return
     setSending(true)
@@ -3810,16 +3822,6 @@ function InlineTextComposer({ client, onClose, onSent }) {
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState([])
   const [body, setBody] = React.useState('')
-  const [preview, setPreview] = React.useState('')   // merge fields filled for this lead
-  // Live-render merge fields for the current lead so the composer shows what will actually send.
-  React.useEffect(() => {
-    if (!/\{\{[^}]+\}\}/.test(body)) { setPreview(''); return }
-    const t = setTimeout(() => {
-      authFetch('/api/templates/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body, client_id: client.id }) })
-        .then(r => r.json()).then(d => setPreview(d.filled ? (d.body || '') : '')).catch(() => {})
-    }, 300)
-    return () => clearTimeout(t)
-  }, [body, client.id])
   const [media, setMedia] = React.useState([])
   const [uploading, setUploading] = React.useState(false)
   const [sending, setSending] = React.useState(false)
@@ -3945,8 +3947,8 @@ function InlineTextComposer({ client, onClose, onSent }) {
         )}
       </div>
       <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-        <TemplatePicker templates={templates} onPick={t => insert(stripHtml(t.body))} />
-        <select value="" onChange={e => { if (e.target.value) insert(e.target.value); e.target.value = '' }} style={{ ...fld, width: 'auto', fontSize: 12, padding: '5px 6px' }}>
+        <TemplatePicker templates={templates} onPick={applyTemplate} />
+        <select value="" onChange={e => { if (e.target.value) insertMergeValue(e.target.value); e.target.value = '' }} style={{ ...fld, width: 'auto', fontSize: 12, padding: '5px 6px' }}>
           <option value="">+ Merge field…</option>
           {TEXT_MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
         </select>
@@ -4013,12 +4015,6 @@ function InlineTextComposer({ client, onClose, onSent }) {
         )
       )}
       <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={3} maxLength={1000} placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }} style={{ ...fld, resize: 'vertical', lineHeight: 1.5 }} />
-      {preview && recips.length === 1 && (
-        <div style={{ marginTop: 6, fontSize: 12.5, color: 'var(--text-secondary)', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', whiteSpace: 'pre-wrap' }}>
-          <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)' }}>Preview for {client.first_name || 'this lead'}</span>
-          <div style={{ marginTop: 3, color: 'var(--text-primary)' }}>{preview}</div>
-        </div>
-      )}
       {schedOpen && (
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send at:</span>
