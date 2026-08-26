@@ -100,6 +100,33 @@ router.get('/fsbo/status', (_req, res) => {
 })
 
 // FSBO smart follow-up: status, manual run, enable/disable, and off-market->junk now.
+// Diagnose why the Hub FSBO count differs from the master sheet: duplicates (same phone
+// on 2+ records) and orphans (fsbo_status set but the phone isn't in the master anymore).
+router.get('/fsbo/audit', async (_req, res) => {
+  try {
+    const last10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
+    const { fetchFsboMasterRows } = await import('../fsbo-master.js')
+    const master = await fetchFsboMasterRows()
+    const masterPhones = new Set(master.map(r => last10(r.phone)).filter(Boolean))
+    const recs = db.all("SELECT id, first_name, last_name, phone, email, sierra_lead_id, fsbo_status, status, created_at FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL")
+    const onList = recs.filter(r => !['junk', 'donotcontact', 'archived'].includes(String(r.status || '').toLowerCase()))
+    // group by phone to find duplicates
+    const byPhone = {}
+    for (const r of onList) { const k = last10(r.phone) || `noPhone_${r.id}`; (byPhone[k] = byPhone[k] || []).push(r) }
+    const dupes = Object.entries(byPhone).filter(([, g]) => g.length > 1)
+      .map(([k, g]) => ({ phone: k, count: g.length, records: g.map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), sierra_lead_id: r.sierra_lead_id, email: r.email, status: r.status, created_at: r.created_at })) }))
+    const orphans = onList.filter(r => { const k = last10(r.phone); return k && !masterPhones.has(k) })
+      .map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), phone: r.phone, sierra_lead_id: r.sierra_lead_id, fsbo_status: r.fsbo_status, status: r.status, created_at: r.created_at }))
+    const noPhone = onList.filter(r => !last10(r.phone)).map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() }))
+    res.json({
+      master_rows: master.length, master_unique_phones: masterPhones.size,
+      hub_fsbo_status_total: recs.length, hub_on_list: onList.length,
+      duplicate_groups: dupes.length, duplicate_extra_records: dupes.reduce((a, g) => a + g.count - 1, 0),
+      orphans_not_in_master: orphans.length, no_phone: noPhone.length,
+      dupes, orphans, noPhone,
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/fsbo/followup', (_req, res) => {
   const byStep = db.all("SELECT step, COUNT(*) n FROM fsbo_followups WHERE status='active' GROUP BY step")
   const totals = {
