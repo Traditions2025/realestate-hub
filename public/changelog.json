@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T17:54:27.479Z",
+  "generated_at": "2026-08-27T18:03:04.402Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "fa20a13",
+      "date": "2026-08-27T12:54:30-05:00",
+      "subject": "Client Profile: add social enrichment + bulletproof Prev/Next",
+      "title": "Client Profile: add social enrichment + bulletproof Prev/Next",
+      "body": "- Reuse the modal's SocialProfiles (avatar, LinkedIn/Facebook save/edit, free Auto-check,\n  prefilled search links) as the Social & Research section — was missing on the full screen.\n- Nav capture now saves the loaded ids SYNCHRONOUSLY on click (then upgrades to the full matched\n  set in the background), so Prev/Next is reliably populated for every lead opened from the list.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c1206b2",
       "date": "2026-08-27T12:41:49-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T19:37:51-05:00",
       "subject": "Add Listing Interest panel: saved searches, saved listings, parsed listing activity from Sierra notes per client",
       "title": "Listing Interest panel: saved searches, saved listings, parsed listing activity from Sierra notes per client",
-      "body": "",
-      "category": "feature"
-    },
-    {
-      "hash": "d956336",
-      "date": "2026-04-29T19:28:05-05:00",
-      "subject": "Add activity filters (active/inactive/created in past X days), sort by visits/score/activity, 4 new presets",
-      "title": "activity filters (active/inactive/created in past X days), sort by visits/score/activity, 4 new presets",
       "body": "",
       "category": "feature"
     }

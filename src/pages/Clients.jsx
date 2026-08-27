@@ -845,7 +845,7 @@ export default function Clients() {
   // "Back to Clients" restores exactly where the user was. Sort/pageSize/view/columns already
   // persist in localStorage, so only the list/search/filters + scroll need capturing here.
   const captureClientsNav = () => {
-    const listName = activeListId ? (savedLists.find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
+    const listName = activeListId ? ((savedLists || []).find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
     const base = { backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }
     // Save the loaded ids SYNCHRONOUSLY first so Prev/Next always works, then upgrade to the FULL
     // matched set (e.g. all 68 FSBO across pages) in the background using the list's own filters.
@@ -859,7 +859,7 @@ export default function Clients() {
       }).catch(() => {})
     } catch {}
   }
-  const openFullProfile = (id) => { captureClientsNav(); navigate('/clients/' + id) }
+  const openFullProfile = (id) => { try { captureClientsNav() } catch (e) { console.error('captureClientsNav', e) } navigate('/clients/' + id) }
   // When returning from a profile via "Back to Clients", restore the prior list state once.
   useEffect(() => {
     if (!consumeClientsReturn()) return
