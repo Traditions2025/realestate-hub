@@ -55,17 +55,41 @@ function phoneKey(p) {
   return digits.length >= 10 ? digits.slice(-10) : null
 }
 // Match an incoming sender to a hub client: email exact (case-insensitive) or phone.
+// When several duplicate leads share the same phone/email, an inbound reply must
+// land on the SAME record that holds the outgoing side of the conversation — not
+// on whichever duplicate happens to have the lowest id (often an old junk record).
+// Rank candidates: active conversation (most recent OUTGOING) > non-junk > most
+// recent activity of any kind > newest record.
+const JUNK_STATUSES = new Set(['junk', 'trash', 'spam'])
+function pickBestClient(cands) {
+  if (!cands || !cands.length) return null
+  if (cands.length === 1) return cands[0]
+  const scored = cands.map((c) => {
+    let lastOut = '', lastAny = ''
+    try { const r = db.get("SELECT MAX(occurred_at) m FROM communications WHERE client_id=? AND direction='outgoing'", [c.id]); lastOut = (r && r.m) || '' } catch {}
+    try { const r = db.get('SELECT MAX(occurred_at) m FROM communications WHERE client_id=?', [c.id]); lastAny = (r && r.m) || '' } catch {}
+    return { c, lastOut, lastAny, junk: JUNK_STATUSES.has(String(c.status || '').toLowerCase()) }
+  })
+  scored.sort((a, b) => {
+    if (a.lastOut !== b.lastOut) return a.lastOut < b.lastOut ? 1 : -1   // active conversation wins
+    if (a.junk !== b.junk) return a.junk ? 1 : -1                        // non-junk over junk
+    if (a.lastAny !== b.lastAny) return a.lastAny < b.lastAny ? 1 : -1   // most recent activity
+    return b.c.id - a.c.id                                               // newest record
+  })
+  return scored[0].c
+}
+
 function matchClient(channel, fromAddr) {
   if (!fromAddr) return null
   if (channel === 'email') {
-    return db.get('SELECT id, first_name, last_name FROM clients WHERE lower(email) = lower(?) LIMIT 1', [String(fromAddr).trim()])
+    const rows = db.all('SELECT id, first_name, last_name, status FROM clients WHERE lower(email) = lower(?)', [String(fromAddr).trim()])
+    return pickBestClient(rows)
   }
   const k = phoneKey(fromAddr)
   if (!k) return null
   // match on the last 10 digits of the stored phone
-  const rows = db.all("SELECT id, first_name, last_name, phone FROM clients WHERE phone IS NOT NULL AND phone != ''")
-  for (const c of rows) if (phoneKey(c.phone) === k) return c
-  return null
+  const rows = db.all("SELECT id, first_name, last_name, phone, status FROM clients WHERE phone IS NOT NULL AND phone != ''").filter((c) => phoneKey(c.phone) === k)
+  return pickBestClient(rows)
 }
 
 const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -962,32 +986,64 @@ function parseJson(text) {
   const s = t.indexOf('{'), e = t.lastIndexOf('}'); if (s >= 0 && e > s) t = t.slice(s, e + 1)
   return JSON.parse(t)
 }
-const latestIncomingEmail = (rows) => [...rows].reverse().find(m => m.direction === 'incoming' && m.channel === 'email')
+// Newest inbound message of ANY channel (text or email). The suggested reply
+// used to only fire on emails, so text conversations never got a suggestion.
+const latestIncoming = (rows) => [...rows].reverse().find(m => m.direction === 'incoming' && (m.channel === 'email' || m.channel === 'text'))
+
+// SMS reply prompt — short, natural, no subject, no formal signature. Mirrors the
+// team's texting voice (John with Matt Smith Team at RE/MAX; never salesy).
+const REPLY_SYSTEM_TEXT = `You are drafting a TEXT MESSAGE reply as John with the Matt Smith Team (RE/MAX Concepts, Cedar Rapids / Marion, Iowa) to a client's text. Use ONLY the client records and the message thread provided.
+
+First identify what the client is actually asking or telling you (their intent), then write a short text that directly addresses THAT, not a generic acknowledgement.
+
+HARD RULES
+- This is an SMS. Keep it short and natural, the way a real person texts. Usually 1 to 3 sentences. No greeting block, no formal signature, no email formatting.
+- Never use em dashes or en dashes. Use commas, periods, or the word "to".
+- Never invent facts, promises, prices, dates, or availability. Use only what is in the records and thread. If you don't know something, say you'll find out.
+- Warm, friendly, conversational, confident, helpful. Never salesy, corporate, stiff, or pushy.
+- Do NOT use filler like "Thank you for reaching out", "Just checking in", or "I wanted to follow up". Just reply naturally.
+- Address their real intent. Add a natural next step ONLY when it fits. It is fine to reply with no ask.
+
+Return ONLY this JSON:
+{
+  "intent": one of ${JSON.stringify(INTENTS)},
+  "summary": "1-2 sentence plain summary of what they're asking and where the relationship stands, or ''",
+  "reply": { "body": "the text message" }
+}`
 function threadTranscript(rows) {
   return rows.slice(-12).map(m => {
     const who = m.direction === 'outgoing' ? 'Matt (agent)' : (m.contact_name || 'Client')
     const when = String(m.occurred_at || '').slice(0, 16).replace('T', ' ')
     const text = m.channel === 'email' ? stripHtml(m.body || m.preview) : (m.body || m.preview || '')
-    return `[${when}] ${who}${m.subject ? ' — ' + m.subject : ''}:\n${clip(text, 900)}`
+    const tag = m.channel === 'text' ? ' (text)' : ''
+    return `[${when}] ${who}${m.subject ? ' — ' + m.subject : ''}${tag}:\n${clip(text, 900)}`
   }).join('\n\n')
 }
 async function generateReply(client, rows, adjustInstruction, context, current) {
   const ai = getAiClient()
   if (!ai) return { error: 'AI is not configured (ANTHROPIC_API_KEY missing).' }
+  // Draft in the channel of the latest inbound message: SMS reply for a text, email reply for an email.
+  const inc = latestIncoming(rows)
+  const channel = inc && inc.channel === 'text' ? 'text' : 'email'
+  const system = channel === 'text' ? REPLY_SYSTEM_TEXT : REPLY_SYSTEM
   let dossier = {}
   try { dossier = buildDossier(client, await gatherFub(client.fub_person_id)) } catch {}
   const transcript = threadTranscript(rows)
   const extra = (adjustInstruction || context)
     ? `\nADJUST THE REPLY: ${adjustInstruction || ''}${context ? ` Extra context from the agent, treat as true and important: "${String(context).slice(0, 600)}".` : ''}\n`
-      + (current && current.body ? `CURRENT DRAFT to revise:\nSubject: ${current.subject || ''}\n${current.body}\n` : '')
+      + (current && current.body ? `CURRENT DRAFT to revise:\n${current.subject ? `Subject: ${current.subject}\n` : ''}${current.body}\n` : '')
     : ''
-  const userMsg = `CLIENT CONTEXT (JSON):\n${JSON.stringify(dossier)}\n\nEMAIL THREAD (oldest to newest):\n${transcript}\n${extra}\nReturn the JSON now.`
+  const userMsg = `CLIENT CONTEXT (JSON):\n${JSON.stringify(dossier)}\n\n${channel === 'text' ? 'MESSAGE' : 'EMAIL'} THREAD (oldest to newest):\n${transcript}\n${extra}\nReturn the JSON now.`
   let msg
-  try { msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 1200, system: REPLY_SYSTEM, messages: [{ role: 'user', content: userMsg }] }) }
+  try { msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 1200, system, messages: [{ role: 'user', content: userMsg }] }) }
   catch (e) { return { error: e.message } }
   let out; try { out = parseJson(msg.content?.[0]?.text || '') } catch { return { error: 'AI returned an unreadable response.' } }
+  out.channel = channel
   if (out.summary) out.summary = noDash(out.summary)
-  if (out.reply) { out.reply.subject = noDash(out.reply.subject || ''); out.reply.body = noDash(out.reply.body || '') }
+  if (out.reply) {
+    out.reply.body = noDash(out.reply.body || '')
+    out.reply.subject = channel === 'text' ? '' : noDash(out.reply.subject || '')
+  }
   return out
 }
 
@@ -997,12 +1053,13 @@ router.get('/thread/:clientId/ai', (req, res) => {
   const client = db.get('SELECT id FROM clients WHERE id = ?', [cid])
   if (!client) return res.status(404).json({ error: 'Client not found' })
   const rows = db.all('SELECT id, direction, channel, occurred_at FROM communications WHERE client_id = ? ORDER BY occurred_at ASC', [cid])
-  const inc = latestIncomingEmail(rows)
+  const inc = latestIncoming(rows)
   const row = db.get('SELECT * FROM inbox_ai WHERE client_id = ?', [cid])
   const parse = (s) => { try { return JSON.parse(s || 'null') } catch { return null } }
   res.json({
     ai_available: !!process.env.ANTHROPIC_API_KEY,
     has_incoming: !!inc,
+    channel: inc ? inc.channel : null,
     intent: row ? row.intent : null,
     summary: row ? row.summary : null,
     suggestion: parse(row && row.suggestion),
@@ -1017,7 +1074,7 @@ router.post('/thread/:clientId/ai/suggest', async (req, res) => {
   const client = db.get('SELECT * FROM clients WHERE id = ?', [cid])
   if (!client) return res.status(404).json({ error: 'Client not found' })
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC', [cid])
-  const inc = latestIncomingEmail(rows)
+  const inc = latestIncoming(rows)
   if (!inc) return res.json({ has_incoming: false })
   const out = await generateReply(client, rows)
   if (out.error) return res.status(502).json({ error: out.error })
@@ -1026,7 +1083,7 @@ router.post('/thread/:clientId/ai/suggest', async (req, res) => {
   db.run(`INSERT INTO inbox_ai (client_id, based_on_msg_id, intent, summary, suggestion, draft, updated_at) VALUES (?,?,?,?,?,?,?)
           ON CONFLICT(client_id) DO UPDATE SET based_on_msg_id=excluded.based_on_msg_id, intent=excluded.intent, summary=excluded.summary, suggestion=excluded.suggestion, updated_at=excluded.updated_at`,
     [cid, inc.id, out.intent || null, out.summary || null, suggestion, existing ? existing.draft : null, nowIso()])
-  res.json({ has_incoming: true, intent: out.intent || null, summary: out.summary || null, suggestion: out.reply || null, stale: false })
+  res.json({ has_incoming: true, channel: out.channel, intent: out.intent || null, summary: out.summary || null, suggestion: out.reply || null, stale: false })
 })
 
 // adjust the reply (shorter/casual/direct/warmer/regenerate/free-text context)
