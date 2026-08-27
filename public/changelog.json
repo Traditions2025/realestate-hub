@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T17:41:46.957Z",
+  "generated_at": "2026-08-27T17:54:27.479Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c1206b2",
+      "date": "2026-08-27T12:41:49-05:00",
+      "subject": "Client Profile: add Sierra notes, FUB activity, Website activity, Listing interest + robust Prev/Next",
+      "title": "Client Profile: add Sierra notes, FUB activity, Website activity, Listing interest + robust Prev/Next",
+      "body": "- Carry over all modal feeds the full screen was missing: Sierra Activity (lead-notes),\n  Follow Up Boss Activity (fub/activity/live), Website Activity (track/activity summary+events),\n  Listing Interest (sierra/lead-listings saved searches/properties/listing activity). Added as\n  draggable sections; layout bumped to v2 to place them sensibly.\n- Prev/Next now shows whenever the matched set has >1 lead (handles idx not found gracefully).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4a6d9cc",
       "date": "2026-08-27T12:27:47-05:00",
@@ -3993,14 +4001,6 @@
       "title": "activity filters (active/inactive/created in past X days), sort by visits/score/activity, 4 new presets",
       "body": "",
       "category": "feature"
-    },
-    {
-      "hash": "e788e6c",
-      "date": "2026-04-29T17:19:32-05:00",
-      "subject": "Better filter UI: searchable multi-select for tags/zips/cities/sources, email status filter, quick presets",
-      "title": "Better filter UI: searchable multi-select for tags/zips/cities/sources, email status filter, quick presets",
-      "body": "",
-      "category": "other"
     }
   ]
 }

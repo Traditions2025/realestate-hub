@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import TemplatePicker from '../components/TemplatePicker'
 import {
-  InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard,
+  InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard, SocialProfiles,
   InlineTextComposer, COMM_META, commToText, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
 } from './Clients'
 
@@ -215,7 +215,7 @@ export default function ClientProfile() {
             sierra: () => <SierraActivity client={client} />,
             activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
             notes: () => <NotesSection client={client} onSaved={load} onAdd={() => setNoteOpen(true)} />,
-            research: () => <Section title="Research" id="research" defaultOpen={false}><Research client={client} /></Section>,
+            research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
             plans: () => <ActionPlans cid={cid} />,
             tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} /></div>,

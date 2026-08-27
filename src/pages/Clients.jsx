@@ -212,7 +212,7 @@ function FubEnrichButton() {
 
 // Free lead social enrichment. Prefilled search links (agent finds + verifies +
 // pastes) plus a free Gravatar auto-check. No paid API, no scraping.
-function SocialProfiles({ detail, onSaved }) {
+export function SocialProfiles({ detail, onSaved }) {
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [li, setLi] = useState(detail.linkedin_url || '')
@@ -844,21 +844,22 @@ export default function Clients() {
   // Snapshot the current Clients list state so the full-screen profile can drive Prev/Next and
   // "Back to Clients" restores exactly where the user was. Sort/pageSize/view/columns already
   // persist in localStorage, so only the list/search/filters + scroll need capturing here.
-  const captureClientsNav = async () => {
+  const captureClientsNav = () => {
     const listName = activeListId ? (savedLists.find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
-    // Prev/Next should walk the FULL matched result set (e.g. all 68 FSBO), not just the loaded
-    // page. Fetch matched ids with the same filters the list uses (capped), fall back to loaded.
-    let ids = items.map(i => i.id)
+    const base = { backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }
+    // Save the loaded ids SYNCHRONOUSLY first so Prev/Next always works, then upgrade to the FULL
+    // matched set (e.g. all 68 FSBO across pages) in the background using the list's own filters.
+    try { saveClientsNav({ ...base, ids: items.map(i => i.id) }) } catch {}
     try {
       const params = buildLoadParams(); delete params.limit; delete params.offset
       const usp = new URLSearchParams(); for (const [k, v] of Object.entries(params)) if (v != null && v !== '') usp.set(k, v)
       usp.set('limit', '5000')
-      const d = await authFetch('/api/clients/ids?' + usp.toString()).then(r => r.json())
-      if (Array.isArray(d?.ids) && d.ids.length) ids = d.ids
+      authFetch('/api/clients/ids?' + usp.toString()).then(r => r.json()).then(d => {
+        if (Array.isArray(d?.ids) && d.ids.length) { try { saveClientsNav({ ...base, ids: d.ids }) } catch {} }
+      }).catch(() => {})
     } catch {}
-    try { saveClientsNav({ ids, backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }) } catch {}
   }
-  const openFullProfile = async (id) => { await captureClientsNav(); navigate('/clients/' + id) }
+  const openFullProfile = (id) => { captureClientsNav(); navigate('/clients/' + id) }
   // When returning from a profile via "Back to Clients", restore the prior list state once.
   useEffect(() => {
     if (!consumeClientsReturn()) return
