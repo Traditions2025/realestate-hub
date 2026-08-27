@@ -94,7 +94,7 @@ const emptyClient = {
 const LIST_COLUMNS = [
   { key: 'score',      label: 'Score',      defaultVisible: true,  size: 'compact', align: 'center', sort: { asc: 'lowest_score',  desc: 'highest_score' } },
   { key: 'name',       label: 'Name',       defaultVisible: true,  size: 'flex',    sort: { asc: 'name_az',       desc: 'name_za' } },
-  { key: 'status',     label: 'Status',     defaultVisible: true,  size: 'normal' },
+  { key: 'status',     label: 'Status',     defaultVisible: true,  size: 'compact', defaultWidth: 104, align: 'center' },
   { key: 'type',       label: 'Type',       defaultVisible: true,  size: 'compact', align: 'center' },
   { key: 'phone',      label: 'Phone',      defaultVisible: true,  size: 'normal' },
   { key: 'email',      label: 'Email',      defaultVisible: true,  size: 'flex' },
@@ -140,7 +140,7 @@ const SIERRA_STATUSES = [
   { value: 'closed',        label: 'Closed' },
   { value: 'archived',      label: 'Archived' },
   { value: 'junk',          label: 'Junk' },
-  { value: 'donotcontact',  label: 'Do Not Contact' },
+  { value: 'donotcontact',  label: 'DNC' },
   { value: 'blocked',       label: 'Blocked' },
 ]
 
@@ -1507,7 +1507,7 @@ export default function Clients() {
   const isOtherTab = OTHER_STATUSES.includes(tab)
 
   const formatStatus = (s) => {
-    if (s === 'donotcontact') return 'Do Not Contact'
+    if (s === 'donotcontact') return 'DNC'
     return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   }
 
@@ -3662,7 +3662,7 @@ function InlineField({ label, value, field, clientId, onSaved, statusTag = null,
 // AND pushes the new status to Sierra (source of truth), so the next sync doesn't revert
 // it. Junk/DoNotContact also pull the lead out of active drips server-side.
 const STATUS_OPTIONS = ['new', 'watch', 'qualify', 'prime', 'active', 'pending', 'closed', 'archived', 'junk', 'donotcontact']
-const STATUS_LABEL = { new: 'New', watch: 'Watch', qualify: 'Qualify', prime: 'Prime', active: 'Active', pending: 'Pending', closed: 'Closed', archived: 'Archived', junk: 'Junk', donotcontact: 'Do Not Contact' }
+const STATUS_LABEL = { new: 'New', watch: 'Watch', qualify: 'Qualify', prime: 'Prime', active: 'Active', pending: 'Pending', closed: 'Closed', archived: 'Archived', junk: 'Junk', donotcontact: 'DNC' }
 const STATUS_COLOR = { new: '#2563eb', watch: '#0891b2', qualify: '#7c3aed', prime: '#059669', active: '#10b981', pending: '#f59e0b', closed: '#64748b', archived: '#64748b', junk: '#ef4444', donotcontact: '#ef4444' }
 function InlineStatus({ detail, onSaved }) {
   const [saving, setSaving] = React.useState(false)

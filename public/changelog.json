@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T15:13:50.286Z",
+  "generated_at": "2026-08-27T15:22:06.408Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "d016534",
+      "date": "2026-08-27T10:14:26-05:00",
+      "subject": "Tables: replace auto-flex sizing with manual drag-to-resize columns (persistent)",
+      "title": "Tables: replace auto-flex sizing with manual drag-to-resize columns (persistent)",
+      "body": "- Remove the auto-flex category sizing (Clients grid) and Tasks demo classes; columns now use\n  fixed baseline pixel widths (from a size category) and the user drags the header edge to resize.\n- New reusable engine src/lib/columnResize.jsx: useColumnWidths(tableId) (localStorage now,\n  swap for server later), ResizeHandle (subtle 8px edge target; live drag, persist on release,\n  double-click auto-fit), keyed by stable column key so widths survive reorder/hide/show.\n- Clients: fixed-px grid template + resize handles; resize never triggers sort or column-reorder;\n  horizontal scroll when widths exceed viewport. Columns menu gains Reset Column Widths +\n  Auto-Fit Visible Columns (widths separate from visibility).\n- docs/TABLE-SIZING.md rewritten for the manual-resize convention.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f4c7234",
       "date": "2026-08-27T10:04:50-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T15:39:54-05:00",
       "subject": "Disable Google Sheet auto-sync - hub is now the source of truth for transactions, sheet sync is manual only",
       "title": "Disable Google Sheet auto-sync - hub is now the source of truth for transactions, sheet sync is manual only",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "2a931f1",
-      "date": "2026-04-29T14:41:04-05:00",
-      "subject": "Clients: remove stats/type, add visits/email status, lazy-load Sierra activity log in detail view",
-      "title": "Clients: remove stats/type, add visits/email status, lazy-load Sierra activity log in detail view",
       "body": "",
       "category": "other"
     }
