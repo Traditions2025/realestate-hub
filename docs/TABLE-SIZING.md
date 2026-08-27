@@ -1,109 +1,92 @@
-# HUB table / list column sizing
+# HUB table column widths — manual resize
 
-A reusable, content-behavior-based sizing convention for HUB lists and tables. It replaces
-per-field width rules (`.col-status`, `th:nth-child(4){width:100px}`, hard-coded `fr` per
-column) so new columns get balanced widths **without a new CSS rule each time**.
+HUB data tables use **manual, drag-to-resize columns** (like a spreadsheet/CRM), not automatic
+width guessing. Every column has a sensible **default width**; the user drags the header edge to
+change it, and the width **persists**.
 
-The idea: a column's width comes from **how its content behaves**, not what the field is called.
+Reusable engine: `src/lib/columnResize.jsx`.
 
-| Category | For content like | Behavior |
-|---|---|---|
-| `compact` | checkboxes, icons, short numbers, small badges, short status, short actions, short dates | Stays narrow. Shrinks to content. **Never absorbs extra width.** |
-| `normal` | names, phones, categories, owners, agents, short labels/dates | Reasonable min, one share of leftover width. The default feel. |
-| `flex` | emails, addresses, activity summaries, longer labels | Absorbs most of the extra width; truncates cleanly when squeezed. |
-| `wide` | notes, descriptions, property blurbs | Absorbs the most. |
+## How it behaves
 
-Extra horizontal space goes **preferentially to flex/wide** (they carry the `fr` weight);
-compact columns carry none, so they can't stretch. Every category has a **readable minimum**,
-so on narrow screens the table **scrolls horizontally** instead of squashing text.
+- Hover the divider on a column header's right edge → cursor becomes `col-resize`.
+- Drag → that column resizes live and smoothly; other columns **do not** redistribute.
+- Release → the width is saved (per table, by column key).
+- Double-click the divider → **auto-fit** that column to its header + visible cell content.
+- Fixed pixel widths mean the table can exceed the viewport → it **scrolls horizontally**
+  (user-chosen readability wins; columns are never auto-squeezed to fit).
+- Cells truncate with `text-overflow: ellipsis` and keep a `title` for the full value.
 
-Alignment is generic too: numbers right/tabular, badges & actions centered, text left.
-Never key alignment off a field name.
+## Persistence
 
----
+Widths are stored per table in `localStorage` under `table_layout::<tableId>`, keyed by **stable
+column key** (survives reorder / hide / show). To move to per-user server storage later, swap
+`loadColumnWidths`/`saveColumnWidths` in `columnResize.jsx` for an API call — no caller changes.
 
-## 1. Config-driven CSS-grid lists (e.g. Clients)
+```
+table_layout::clients  ->  { "name": 180, "phone": 130, "address": 300 }
+```
 
-Add `size` (and optional `align`) to the column config; the grid template is built from the
-categories. One shared source drives both header and body, so they stay aligned.
+Each table is independent: `status` in Clients is separate from `status` in Transactions. Use a
+distinct `tableId` per list (`clients`, `transactions`, `tasks`, …). Give a view its own id only
+if its column **structure** differs (the Clients FSBO / Cancelled views reuse the same column
+keys, so they share one `clients` layout).
+
+## Default widths
+
+A column's default comes from its optional `size` category (no per-field pixel rule needed):
 
 ```js
-const COLUMN_SIZES = {
-  compact: 'minmax(52px, fit-content(96px))',
-  normal:  'minmax(104px, 1fr)',
-  flex:    'minmax(150px, 1.8fr)',
-  wide:    'minmax(200px, 2.4fr)',
-}
-const colTrack = (c) => (c.size && COLUMN_SIZES[c.size]) || (c.fr ? `minmax(0, ${c.fr})` : COLUMN_SIZES.normal)
-
-const LIST_COLUMNS = [
-  { key: 'score',   label: 'Score',   size: 'compact', align: 'center' },
-  { key: 'name',    label: 'Name',    size: 'flex' },
-  { key: 'email',   label: 'Email',   size: 'flex' },
-  { key: 'status',  label: 'Status',  size: 'normal' },
-  { key: 'visits',  label: 'Visits',  size: 'compact', align: 'center' },
-  // no `size`? -> falls back to a legacy `fr`, else defaults to `normal`.
-]
-
-// gridTemplateColumns: `30px ${visibleColumns.map(colTrack).join(' ')}`
+DEFAULT_WIDTH_PX = { compact: 74, normal: 132, flex: 210, wide: 280 }
 ```
 
-The scroll container (`.client-list`) uses `overflow-x: auto`, so it only scrolls when the
-minimums actually exceed the viewport.
+`compact` = checkboxes/icons/short numbers/badges; `normal` = names/phones/dates; `flex` =
+emails/addresses/activity; `wide` = notes/descriptions. A column may override with
+`defaultWidth` (px) and set an optional `minWidth` (else the generic 60px min applies). A new
+column with no metadata still gets a sensible default and is resizable automatically.
 
-## 2. HTML `<table>` lists (e.g. Tasks, Transactions, Reporting)
+## Using it in a config-driven grid (Clients pattern)
 
-Use the shared utility classes from `src/styles/app.css`. Put the sizing class on the `<th>`
-**and** its `<td>`s so header and body come from one source.
+```js
+import { useColumnWidths, ResizeHandle, defaultWidthFor } from '../lib/columnResize'
 
-```html
-<div class="table-scroll">
-  <table class="data-table">
-    <thead><tr>
-      <th class="col-compact cell-center"></th>       <!-- checkbox -->
-      <th class="col-flex">Task</th>                  <!-- long text -->
-      <th class="col-compact cell-center">Status</th> <!-- badge -->
-      <th class="col-normal">Assigned</th>            <!-- short text -->
-      <th class="col-compact cell-num">Amount</th>    <!-- number, right-aligned -->
-    </tr></thead>
-    ...
-  </table>
-</div>
+const { widths, setWidthLive, commitWidth, reset } = useColumnWidths('clients')
+const widthPx = (c) => widths[c.key] || defaultWidthFor(c)
+const gridTemplate = `30px ${visibleColumns.map(c => widthPx(c) + 'px').join(' ')}`
+
+// In each header cell (position: relative), render:
+<ResizeHandle
+  getWidth={() => widthPx(col)} min={col.minWidth || 60}
+  onResizeLive={px => setWidthLive(col.key, px)}
+  onCommit={px => commitWidth(col.key, px)}
+  onAutoFit={() => autoFitColumn(col.key)} />
 ```
 
-Classes:
+Key details already handled in the Clients implementation:
 
-- `.col-compact` — shrink-to-content, `white-space: nowrap`; never absorbs slack.
-- `.col-normal` — `min-width: 96px`.
-- `.col-flex` — `min-width: 150px`, absorbs extra width, truncates with ellipsis.
-- `.col-wide` — `min-width: 220px`, absorbs the most, truncates with ellipsis.
-- `.cell-center` — centered (badges, actions).
-- `.cell-num` — right-aligned tabular numbers.
-- `.cell-truncate` — ellipsis truncation for any cell.
-- `.table-scroll` — wrap the table to get horizontal scrolling when it can't fit.
+- **Sort vs resize:** the handle stops click/propagation, so dragging the edge never sorts;
+  clicking the header body still sorts.
+- **Reorder vs resize:** a `resizingRef` flag cancels the header's drag-reorder while resizing.
+- **Reset / Auto-Fit** live in the Columns menu; Reset clears *widths only* (visibility untouched).
+- The scroll container (`.client-list`) uses `overflow-x: auto`.
 
----
+## Columns menu
 
-## Principles (why it behaves well)
+The Columns control keeps show/hide + reorder, and adds:
 
-- **Compact stays compact.** A column of `4 / 82 / Yes / Active` never gets the same flexible
-  width as an address or description.
-- **Long values don't distort the table.** flex/wide truncate with `text-overflow: ellipsis`
-  (add a `title`/tooltip so the full value is still inspectable).
-- **Readability over fitting.** If minimums exceed the viewport, scroll horizontally — don't
-  squash. On wide screens, extra space goes to flex/wide, not spread evenly.
-- **Survives change.** Columns can be added, removed, reordered, or differ entirely per list;
-  a column with no metadata still gets a sensible default.
-- **No field-name rules.** Don't reintroduce `.col-dom`, `.col-email`, or `th:nth-child(n)`
-  width selectors as the layout architecture — categorize by behavior instead.
+- **Reset Column Widths** — clears saved widths for this table, restores defaults (does not
+  change which columns are visible).
+- **Auto-Fit Visible Columns** — sizes each visible column to its content.
 
-## Adding a new column
+## Applying to `<table>` pages later
 
-Pick the category by content behavior:
+The same hook works for HTML tables: hold widths from `useColumnWidths(tableId)`, render a
+`<colgroup>` with `<col style={{width}}>` per column, and place a `ResizeHandle` in each `<th>`
+(`position: relative`). Neutral helpers `.cell-center`, `.cell-num`, `.cell-truncate`, and
+`.table-scroll` are available in `app.css`.
 
-- one word / number / icon / badge / short action -> `compact` (add `cell-center` or `cell-num`)
-- a name / phone / short label / date -> `normal`
-- an email / address / activity / long label -> `flex`
-- notes / descriptions -> `wide`
+## Don't
 
-That's it — no new width rule required.
+- Don't hard-code widths by field name (`.col-status`, `th:nth-child(4){width}`).
+- Don't auto-distribute/flex-grow columns to fill the viewport.
+- Don't store widths by position — always by stable column key.
+- Don't destroy a saved width when a column is hidden.

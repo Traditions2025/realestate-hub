@@ -507,15 +507,15 @@ export default function Tasks() {
           <table className="data-table">
             <thead>
               <tr>
-                <th className="col-compact cell-center"></th>
-                <th className="col-flex">Task</th>
-                <th className="col-compact cell-center">Priority</th>
-                <th className="col-compact cell-center">Status</th>
-                <th className="col-normal">Assigned</th>
-                <th className="col-compact">Due Date</th>
-                <th className="col-compact">Completed</th>
-                <th className="col-normal">Category</th>
-                <th className="col-compact cell-center">Actions</th>
+                <th style={{width: 40}}></th>
+                <th>Task</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Assigned</th>
+                <th>Due Date</th>
+                <th>Completed</th>
+                <th>Category</th>
+                <th>Actions</th>
               </tr>
             </thead>
             <tbody>

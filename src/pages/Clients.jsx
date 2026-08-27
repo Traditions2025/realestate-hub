@@ -7,6 +7,7 @@ import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlin
 import EmailToolbar from '../components/EmailToolbar'
 import RichTextEditor, { MERGE_FIELDS } from '../components/RichTextEditor'
 import TemplatePicker from '../components/TemplatePicker'
+import { useColumnWidths, ResizeHandle, defaultWidthFor } from '../lib/columnResize'
 
 // Turn a bare mattsmithteam.com property link (pasted into an email) into a rich
 // listing card — photo + address + MLS — like the listing previews. URLs already
@@ -86,27 +87,10 @@ const emptyClient = {
   linkedin_url: '', facebook_url: ''
 }
 
-// Reusable column-sizing categories (content-behavior, NOT field-name based). A column's grid
-// track comes from its `size`, so any list can size columns generically:
-//   compact — checkboxes, icons, short numbers, small badges, short actions (stay narrow; never absorb slack)
-//   normal  — names, phones, categories, owners, agents, short labels/dates (reasonable min, one share of slack)
-//   flex    — emails, addresses, activity, longer labels (absorb most of the extra width)
-//   wide    — notes, descriptions, property blurbs (absorb the most)
-// Extra horizontal space goes preferentially to flex/wide (fr weights); compact carries no fr
-// so it can't stretch. Every track has a readable min so narrow screens scroll instead of squashing.
-const COLUMN_SIZES = {
-  compact: 'minmax(52px, fit-content(96px))',
-  normal:  'minmax(104px, 1fr)',
-  flex:    'minmax(150px, 1.8fr)',
-  wide:    'minmax(200px, 2.4fr)',
-}
-// Track for a column: its sizing category, else a legacy `fr`, else a sensible default (normal).
-const colTrack = (c) => (c.size && COLUMN_SIZES[c.size]) || (c.fr ? `minmax(0, ${c.fr})` : COLUMN_SIZES.normal)
-
-// Column config for the list view. Users toggle visibility + reorder via the
-// "Columns" picker; prefs persist in localStorage. `key` matches sortable
-// indicators and the CSS .cl-{key} class on each cell. `size` = sizing category (above);
-// `align` is optional (compact/number columns center or right; text stays left by default).
+// Columns have FIXED pixel widths (a sensible baseline from `size`), and the user drags the
+// header edge to resize; widths persist per table (see lib/columnResize). `size` only picks the
+// default width — compact ~74, normal ~132, flex ~210, wide ~280. `align` centers/right-aligns
+// compact/number columns. Optional per-column `minWidth`/`defaultWidth` override the defaults.
 const LIST_COLUMNS = [
   { key: 'score',      label: 'Score',      defaultVisible: true,  size: 'compact', align: 'center', sort: { asc: 'lowest_score',  desc: 'highest_score' } },
   { key: 'name',       label: 'Name',       defaultVisible: true,  size: 'flex',    sort: { asc: 'name_az',       desc: 'name_za' } },
@@ -315,6 +299,28 @@ export default function Clients() {
   const [colPrefs, setColPrefs] = useState(loadColumnPrefs)
   const [columnsPickerOpen, setColumnsPickerOpen] = useState(false)
   const [dragColKey, setDragColKey] = useState(null)
+  // Manual column widths (drag-to-resize), persisted per table. One 'clients' layout — the FSBO
+  // and Cancelled/Expired views reuse the same column KEYS (just relabeled), so widths carry over.
+  const { widths: colWidths, setWidthLive: setColWidthLive, commitWidth: commitColWidth, reset: resetColWidths } = useColumnWidths('clients')
+  const colWidthPx = (c) => colWidths[c.key] || defaultWidthFor(c)
+  const colMin = (c) => Number(c.minWidth) || 60
+  const resizingRef = useRef(false)   // set true while a resize drag is active, so it never starts a column-reorder drag
+  // Auto-fit a column to its rendered header + cell content (double-click the divider, or menu).
+  const autoFitColumn = React.useCallback((key) => {
+    const vis = colPrefs.order.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(c => c && colPrefs.visible[c.key])
+    const i = vis.findIndex(c => c.key === key); if (i < 0) return
+    const col = vis[i]; const childIdx = i + 1   // grid child 0 is the checkbox cell
+    let max = 40
+    const header = document.querySelector('.client-list-header')
+    if (header && header.children[childIdx]) max = Math.max(max, header.children[childIdx].scrollWidth)
+    for (const row of document.querySelectorAll('.client-list-row')) {
+      const cell = row.children[childIdx]
+      if (cell) max = Math.max(max, cell.scrollWidth)
+    }
+    const px = Math.min(560, Math.max(colMin(col), max + 20))
+    commitColWidth(key, px)
+  }, [colPrefs, commitColWidth])
+  const autoFitVisible = () => { for (const c of visibleColumns) autoFitColumn(c.key) }
 
   useEffect(() => {
     try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(colPrefs)) } catch {}
@@ -1531,7 +1537,7 @@ export default function Clients() {
                       <strong>Columns</strong>
                       <button className="btn-link" onClick={resetColumns} title="Restore default visible columns and order">Reset</button>
                     </div>
-                    <div className="columns-picker-hint">Drag to reorder. Toggle checkboxes to show/hide.</div>
+                    <div className="columns-picker-hint">Drag to reorder. Toggle checkboxes to show/hide. Drag a header edge to resize (double-click it to auto-fit).</div>
                     <ul className="columns-picker-list">
                       {colPrefs.order.map(key => {
                         const col = LIST_COLUMNS.find(c => c.key === key)
@@ -1559,6 +1565,10 @@ export default function Clients() {
                         )
                       })}
                     </ul>
+                    <div style={{ borderTop: '1px solid var(--border)', marginTop: 6, paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <button className="btn-link" style={{ textAlign: 'left' }} onClick={resetColWidths} title="Remove your custom column widths and restore the default widths (does not change which columns are shown)">↔ Reset Column Widths</button>
+                      <button className="btn-link" style={{ textAlign: 'left' }} onClick={autoFitVisible} title="Size each visible column to fit its content">⇥ Auto-Fit Visible Columns</button>
+                    </div>
                   </div>
                 </>
               )}
@@ -2237,7 +2247,9 @@ export default function Clients() {
       {view === 'list' && items.length > 0 && (() => {
         // Build grid-template-columns dynamically from the user's visible/ordered cols.
         // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
-        const gridTemplate = `30px ${visibleColumns.map(colTrack).join(' ')}`
+        // Fixed pixel widths: columns keep the width the user set and never redistribute; when
+        // the total exceeds the viewport the list scrolls horizontally (readability over squeeze).
+        const gridTemplate = `30px ${visibleColumns.map(c => colWidthPx(c) + 'px').join(' ')}`
 
         // In the FSBO list the "Visits" column is repurposed as "FSBO Status"
         // (Available / Off Market) from the FSBO master file.
@@ -2449,16 +2461,21 @@ export default function Clients() {
               </div>
               {visibleColumns.map(col => (
                 <div key={col.key} draggable
-                  onDragStart={e => { setDragColKey(col.key); e.dataTransfer.effectAllowed = 'move' }}
+                  onDragStart={e => { if (resizingRef.current) { e.preventDefault(); return } setDragColKey(col.key); e.dataTransfer.effectAllowed = 'move' }}
                   onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                   onDrop={e => { e.preventDefault(); reorderColumn(dragColKey, col.key); setDragColKey(null) }}
                   onDragEnd={() => setDragColKey(null)}
                   className="cl-col-drag"
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: col.align === 'center' ? 'center' : col.align === 'right' ? 'flex-end' : 'flex-start', minWidth: 0, cursor: 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
+                  style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: col.align === 'center' ? 'center' : col.align === 'right' ? 'flex-end' : 'flex-start', minWidth: 0, cursor: 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
                   onDragEnter={e => { if (dragColKey && dragColKey !== col.key) e.currentTarget.style.borderLeft = '2px solid var(--accent, #2563eb)' }}
                   onDragLeave={e => { e.currentTarget.style.borderLeft = '2px solid transparent' }}
                   title="Drag to move this column">
                   {renderHeaderCell(col)}
+                  <ResizeHandle
+                    getWidth={() => colWidthPx(col)} min={colMin(col)}
+                    onResizeLive={px => { resizingRef.current = true; setColWidthLive(col.key, px) }}
+                    onCommit={px => { commitColWidth(col.key, px); setTimeout(() => { resizingRef.current = false }, 0) }}
+                    onAutoFit={() => autoFitColumn(col.key)} />
                 </div>
               ))}
             </div>

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T15:04:48.244Z",
+  "generated_at": "2026-08-27T15:13:50.286Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "f4c7234",
+      "date": "2026-08-27T10:04:50-05:00",
+      "subject": "Table sizing: reusable content-behavior categories (compact/normal/flex/wide) + docs",
+      "title": "Table sizing: reusable content-behavior categories (compact/normal/flex/wide) + docs",
+      "body": "Replace per-field width rules with a generic sizing system based on how a column's content\nbehaves, not its name:\n- Clients grid: LIST_COLUMNS gains size (compact/normal/flex/wide) + optional align; the grid\n  template is built from COLUMN_SIZES via colTrack() (minmax + fit-content; compact carries no\n  fr so it never absorbs slack, flex/wide absorb extra width). Header respects align.\n- .client-list scrolls horizontally when minimums exceed the viewport (readability over squeeze).\n- Shared CSS utilities for <table> lists: .col-compact/.col-normal/.col-flex/.col-wide,\n  .cell-center/.cell-num/.cell-truncate, .table-scroll. Applied to Tasks as a demo.\n- docs/TABLE-SIZING.md documents the convention so new columns need no new width rule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ebb35ae",
       "date": "2026-08-27T09:56:25-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T14:41:04-05:00",
       "subject": "Clients: remove stats/type, add visits/email status, lazy-load Sierra activity log in detail view",
       "title": "Clients: remove stats/type, add visits/email status, lazy-load Sierra activity log in detail view",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "192ec33",
-      "date": "2026-04-29T14:33:52-05:00",
-      "subject": "Performance: lazy-load page bundles, fast local DB counts (no Sierra API on load), skip auth verify roundtrip",
-      "title": "Performance: lazy-load page bundles, fast local DB counts (no Sierra API on load), skip auth verify roundtrip",
       "body": "",
       "category": "other"
     }
