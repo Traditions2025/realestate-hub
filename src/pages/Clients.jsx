@@ -4545,6 +4545,22 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
     if (seq.length) { setParts(seq); setActiveIdx(seq.length - 1); if (!name.trim()) setName('FSBO Step 2') }
   }
   const filled = parts.filter(p => p.trim())
+  // Preview the actual text a real recipient will get — merge/custom fields filled exactly the
+  // way the send fills them (/api/templates/render mirrors the bulk-text fillTemplate + strip).
+  const [preview, setPreview] = React.useState(null)
+  const loadPreview = async (idx) => {
+    const cid = clientIds[idx]
+    if (!cid) { setPreview({ idx, error: 'No recipient at that position.' }); return }
+    if (!filled.length) { setPreview({ idx, error: 'Type a message first.' }); return }
+    setPreview({ idx, loading: true })
+    try {
+      const rendered = await Promise.all(filled.map(async part => {
+        const d = await authFetch('/api/templates/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: part, client_id: cid }) }).then(r => r.json())
+        return d && d.filled ? (d.body || part) : part
+      }))
+      setPreview({ idx, parts: rendered })
+    } catch (e) { setPreview({ idx, error: e.message }) }
+  }
   const doSend = async (force) => {
     const r = await authFetch('/api/inbox/bulk-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds, bodies: filled, name: name.trim() || null, created_by: 'John', force }) })
     const d = await r.json()
@@ -4586,8 +4602,28 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
           </div>
         ))}
         <button type="button" onClick={addPart} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', marginBottom: 8 }}>+ Add another text (sent after, same recipients)</button>
+        {preview && (
+          <div style={{ border: '1px solid var(--accent, #b8863b)', borderRadius: 8, padding: '10px 12px', marginBottom: 10, background: 'var(--bg-secondary)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+              <strong style={{ fontSize: 12.5 }}>Preview — recipient {preview.idx + 1} of {clientIds.length}</strong>
+              <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={preview.idx <= 0} onClick={() => loadPreview(preview.idx - 1)}>‹ Prev</button>
+                <button type="button" className="btn btn-sm btn-secondary" disabled={preview.idx >= clientIds.length - 1} onClick={() => loadPreview(preview.idx + 1)}>Next ›</button>
+                <button type="button" className="btn btn-sm" onClick={() => setPreview(null)}>Close</button>
+              </div>
+            </div>
+            {preview.loading ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Rendering…</div>
+              : preview.error ? <div style={{ fontSize: 13, color: '#ef4444' }}>{preview.error}</div>
+                : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{preview.parts.map((t, i) => (
+                  <div key={i} style={{ background: 'var(--bg-primary,#fff)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 11px', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
+                    {preview.parts.length > 1 && <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3 }}>Text {i + 1}</div>}{t || '(empty)'}
+                  </div>))}</div>}
+            {!preview.loading && !preview.error && /\{\{[^}]+\}\}/.test((preview.parts || []).join('')) && <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 6 }}>⚠ A merge field didn't fill — check the field name matches a supported one.</div>}
+          </div>
+        )}
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-secondary" onClick={() => loadPreview(preview ? preview.idx : 0)} disabled={!filled.length} title="See the exact text a recipient gets, with custom fields filled">👁 Preview</button>
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !filled.length}>{sending ? 'Queuing…' : `Send${filled.length > 1 ? ` ${filled.length} texts` : ''} to ${clientIds.length.toLocaleString()}`}</button>
         </div>
       </div>

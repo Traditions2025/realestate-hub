@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T18:22:10.261Z",
+  "generated_at": "2026-08-27T18:43:35.933Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "51ff4e9",
+      "date": "2026-08-27T13:22:14-05:00",
+      "subject": "Fix remaining q reference in nav useEffect dependency array (was crashing the Clients page)",
+      "title": "remaining q reference in nav useEffect dependency array (was crashing the Clients page)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "6833607",
       "date": "2026-08-27T13:17:38-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Per-lead Sierra refresh button + reorganized lead action bar at top of detail modal",
       "body": "Backend:\n- New POST /api/sierra/refresh-lead/:sierraId endpoint pulls a single lead from Sierra and updates only that row (no impact on the other 45K leads)\n\nFrontend (Clients detail modal):\n- Action bar moved to the very top, right under the lead name. All primary actions visible at a glance: Email, Text (Twilio soon), Call (tel: link), Voicemail (Twilio soon), Pre-List, Active Listing, Purchase, Listing UC, and Refresh from Sierra\n- Refresh button only appears for Sierra-synced leads, lives on the right side of the bar\n- 'Text' and 'Voicemail' show a 'soon' badge and an explanation when clicked — placeholders for Twilio integration in progress\n- Removed the duplicate 'Quick Actions' section at the bottom of the modal",
       "category": "other"
-    },
-    {
-      "hash": "024e859",
-      "date": "2026-04-30T13:51:41-05:00",
-      "subject": "Fix Import tab: PDF/URL extraction now works without saving first",
-      "title": "Import tab: PDF/URL extraction now works without saving first",
-      "body": "- Add ensureListing() helper that auto-creates a placeholder row when needed\n- PDF upload, URL extract, marketing task checkboxes all use it now — no more 'save first' friction\n- Replace the orange 'save first' warning with a green confirmation when AI is ready, or a clear setup notice when API key is missing\n- Disable inputs only when extracting OR when API key is missing (was incorrectly disabled when listing wasn't saved)",
-      "category": "fix"
     }
   ]
 }
