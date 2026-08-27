@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T18:03:04.402Z",
+  "generated_at": "2026-08-27T18:06:01.981Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ac8d32d",
+      "date": "2026-08-27T13:03:07-05:00",
+      "subject": "Fix: clicking a lead reliably opens the profile (guard savedLists, always navigate even if capture throws)",
+      "title": "Fix: clicking a lead reliably opens the profile (guard savedLists, always navigate even if capture throws)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "fa20a13",
       "date": "2026-08-27T12:54:30-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Add Listings tab: full property data + 63-item marketing task checklist + AI extraction/generation",
       "title": "Listings tab: full property data + 63-item marketing task checklist + AI extraction/generation",
       "body": "New unified module for managing pre-listings + active listings together:\n- listings table with full property fields (beds/baths/sqft/lot/year/taxes/HOA/schools/features/photos/etc)\n- 4 modal tabs: Property Details, Marketing Tasks, Import (PDF/URL), AI Content\n- 63-item marketing checklist grouped by 7 stages (Pre-Listing → Coming Soon → Just Listed → Open House → While Active → Under Contract → Just Sold), with auto-date stamps and per-stage progress bars\n- AI features (require ANTHROPIC_API_KEY): PDF/URL data extraction + 9 marketing copy generators (MLS description, blog post, IG, FB, Coming Soon, Just Listed, Open House, Email Blast, Price Reduction)\n- Card grid view with hero photo, stage badge, marketing progress bar",
-      "category": "feature"
-    },
-    {
-      "hash": "7674ba2",
-      "date": "2026-04-29T19:37:51-05:00",
-      "subject": "Add Listing Interest panel: saved searches, saved listings, parsed listing activity from Sierra notes per client",
-      "title": "Listing Interest panel: saved searches, saved listings, parsed listing activity from Sierra notes per client",
-      "body": "",
       "category": "feature"
     }
   ]

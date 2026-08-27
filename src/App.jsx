@@ -133,32 +133,41 @@ function NotificationBell() {
 }
 
 // Lazy load pages so initial bundle is smaller
-const Dashboard = lazy(() => import('./pages/Dashboard'))
-const Transactions = lazy(() => import('./pages/Transactions'))
-const Clients = lazy(() => import('./pages/Clients'))
-const ClientProfile = lazy(() => import('./pages/ClientProfile'))
-const Tasks = lazy(() => import('./pages/Tasks'))
-const Projects = lazy(() => import('./pages/Projects'))
-const Notes = lazy(() => import('./pages/Notes'))
-const Marketing = lazy(() => import('./pages/Marketing'))
-const Vendors = lazy(() => import('./pages/Vendors'))
-const Partners = lazy(() => import('./pages/Partners'))
-const SocialMedia = lazy(() => import('./pages/SocialMedia'))
-const CampaignMatch = lazy(() => import('./pages/CampaignMatch'))
-const SmartAudiences = lazy(() => import('./pages/SmartAudiences'))
-const Duplicates = lazy(() => import('./pages/Duplicates'))
-const BlogPosts = lazy(() => import('./pages/BlogPosts'))
-const Calendar = lazy(() => import('./pages/Calendar'))
-const Updates = lazy(() => import('./pages/Updates'))
-const Inbox = lazy(() => import('./pages/Inbox'))
-const PowerDialer = lazy(() => import('./pages/PowerDialer'))
-const AiOpportunities = lazy(() => import('./pages/AiOpportunities'))
-const AiSandbox = lazy(() => import('./pages/AiSandbox'))
-const Templates = lazy(() => import('./pages/Templates'))
-const Settings = lazy(() => import('./pages/Settings'))
-const Admin = lazy(() => import('./pages/Admin'))
-const Automations = lazy(() => import('./pages/Automations'))
-const Reporting = lazy(() => import('./pages/Reporting'))
+// A failed dynamic import almost always means a NEW build was deployed while this tab was open
+// (the old chunk hash no longer exists). Reload once to pick up the fresh build instead of
+// leaving a route that "won't open". Guarded so it can never loop.
+const lazyWithReload = (importFn) => lazy(() => importFn().catch(err => {
+  const key = 'mst_chunk_reload_at'
+  const last = Number(sessionStorage.getItem(key) || 0)
+  if (Date.now() - last > 10000) { try { sessionStorage.setItem(key, String(Date.now())) } catch {} window.location.reload(); return new Promise(() => {}) }
+  throw err
+}))
+const Dashboard = lazyWithReload(() => import('./pages/Dashboard'))
+const Transactions = lazyWithReload(() => import('./pages/Transactions'))
+const Clients = lazyWithReload(() => import('./pages/Clients'))
+const ClientProfile = lazyWithReload(() => import('./pages/ClientProfile'))
+const Tasks = lazyWithReload(() => import('./pages/Tasks'))
+const Projects = lazyWithReload(() => import('./pages/Projects'))
+const Notes = lazyWithReload(() => import('./pages/Notes'))
+const Marketing = lazyWithReload(() => import('./pages/Marketing'))
+const Vendors = lazyWithReload(() => import('./pages/Vendors'))
+const Partners = lazyWithReload(() => import('./pages/Partners'))
+const SocialMedia = lazyWithReload(() => import('./pages/SocialMedia'))
+const CampaignMatch = lazyWithReload(() => import('./pages/CampaignMatch'))
+const SmartAudiences = lazyWithReload(() => import('./pages/SmartAudiences'))
+const Duplicates = lazyWithReload(() => import('./pages/Duplicates'))
+const BlogPosts = lazyWithReload(() => import('./pages/BlogPosts'))
+const Calendar = lazyWithReload(() => import('./pages/Calendar'))
+const Updates = lazyWithReload(() => import('./pages/Updates'))
+const Inbox = lazyWithReload(() => import('./pages/Inbox'))
+const PowerDialer = lazyWithReload(() => import('./pages/PowerDialer'))
+const AiOpportunities = lazyWithReload(() => import('./pages/AiOpportunities'))
+const AiSandbox = lazyWithReload(() => import('./pages/AiSandbox'))
+const Templates = lazyWithReload(() => import('./pages/Templates'))
+const Settings = lazyWithReload(() => import('./pages/Settings'))
+const Admin = lazyWithReload(() => import('./pages/Admin'))
+const Automations = lazyWithReload(() => import('./pages/Automations'))
+const Reporting = lazyWithReload(() => import('./pages/Reporting'))
 
 const navSections = [
   { label: 'MAIN', items: [
