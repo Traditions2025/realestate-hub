@@ -860,6 +860,13 @@ export default function Clients() {
     } catch {}
   }
   const openFullProfile = (id) => { try { captureClientsNav() } catch (e) { console.error('captureClientsNav', e) } navigate('/clients/' + id) }
+  // Keep the profile's Prev/Next + Back context continuously in sync with the loaded list, so it
+  // is ALWAYS populated (not dependent on the click handler running cleanly). ids = current list.
+  useEffect(() => {
+    if (!items || !items.length) return
+    const listName = activeListId ? ((savedLists || []).find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
+    try { saveClientsNav({ ids: items.map(i => i.id), backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }) } catch {}
+  }, [items, activeListId, q, advFilters, savedLists])
   // When returning from a profile via "Back to Clients", restore the prior list state once.
   useEffect(() => {
     if (!consumeClientsReturn()) return
