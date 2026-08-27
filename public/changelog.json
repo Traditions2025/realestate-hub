@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-26T22:52:32.596Z",
+  "generated_at": "2026-08-27T14:30:48.497Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "0079d7f",
+      "date": "2026-08-27T09:19:28-05:00",
+      "subject": "FSBO: make the sync self-healing so the list can never drift",
+      "title": "FSBO: make the sync self-healing so the list can never drift",
+      "body": "- Every syncFsboMaster run now collapses accidental duplicate FSBO records sharing a phone\n  (keep lowest id, merge Hub-native extras; Sierra-linked profiles like a real 2nd listing\n  are preserved). So even if a dup ever slips through, the next sync (incl the 9:30 AM daily\n  after the master updates) removes it automatically — the count always converges to the sheet.\n- Report exposes on_list / unique_sheet_phones / deduped; daily maintenance Slack-alerts if\n  the list drifts above the sheet's unique phones by more than a small margin.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3077f6a",
+      "date": "2026-08-27T09:13:40-05:00",
+      "subject": "FSBO sync: fix duplicate loop — live FSBO record beats a junk lead with a legacy FSBO tag",
+      "title": "FSBO sync: fix duplicate loop — live FSBO record beats a junk lead with a legacy FSBO tag",
+      "body": "Root cause of the runaway FSBO count: some phones have an old JUNK lead carrying a legacy\n'FSBO' tag. The index preferred it (tag = isFsbo, lower id), so the collision branch fired\nevery sync and created a new duplicate. Replace the isFsbo preference with a rank() where a\nlive non-junk record with an fsbo_status always wins; also exclude merged_into records from\nthe index.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5a37e42",
+      "date": "2026-08-26T17:52:35-05:00",
+      "subject": "Tasks: show linked lead name, add /reassign, time picker on profile task",
+      "title": "Tasks: show linked lead name, add /reassign, time picker on profile task",
+      "body": "- tasks GET attaches related_name (linked lead) so a task added from a profile shows who\n  it's about; Tasks table renders it under the title + includes it in search.\n- POST /api/tasks/reassign {from,to} to move all of one assignee's tasks to another.\n- Profile Add Task box: add a due-time picker (due_time).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bd32e89",
       "date": "2026-08-26T17:45:06-05:00",
@@ -3977,30 +4001,6 @@
       "title": "Support multiple Google Calendar iCal feeds via comma-separated env var",
       "body": "",
       "category": "other"
-    },
-    {
-      "hash": "aadfe2f",
-      "date": "2026-04-29T12:35:08-05:00",
-      "subject": "Auto-sync Matt's Google Calendar via iCal feed every 5 min + manual sync button",
-      "title": "Auto-sync Matt's Google Calendar via iCal feed every 5 min + manual sync button",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "f8f4d6b",
-      "date": "2026-04-29T12:24:58-05:00",
-      "subject": "Pull actual Realist Score from Sierra shortSummary field (specific number) with tag-range fallback",
-      "title": "Pull actual Realist Score from Sierra shortSummary field (specific number) with tag-range fallback",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "413bb57",
-      "date": "2026-04-29T12:09:41-05:00",
-      "subject": "Add 'Active Listing' quick action + fix calendar full width (Saturday was cut off)",
-      "title": "'Active Listing' quick action + fix calendar full width (Saturday was cut off)",
-      "body": "",
-      "category": "feature"
     }
   ]
 }

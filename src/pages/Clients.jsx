@@ -2262,6 +2262,7 @@ export default function Clients() {
               onSelect={v => setAdvFilters(p => ({ ...p, has_address: v }))} />
           }
           if (col.key === 'source') {
+            if (isFsboList) return <div key="source" className="cl-source">Listing</div>
             const srcVal = advFilters.sources_include.length === 1 ? advFilters.sources_include[0] : ''
             const srcOptions = [{ value: '', label: advFilters.sources_include.length > 1 ? `Multiple (${advFilters.sources_include.length})` : 'All sources' }]
             for (const s of (filterOptions.sources || [])) {
@@ -2369,6 +2370,12 @@ export default function Clients() {
               }
               return <div key="visits" className="cl-visits">{item.visits || 0}</div>
             case 'source':
+              // FSBO list: the Source column becomes the listing link (Zillow, from the master file).
+              if (isFsboList) return <div key="source" className="cl-source">
+                {item.fsbo_link
+                  ? <a href={item.fsbo_link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#006aff', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }} title={item.fsbo_link}>View Listing ↗</a>
+                  : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              </div>
               return <div key="source" className="cl-source">{item.source || '—'}</div>
             case 'last_fub_visit':
               return <div key="last_fub_visit" className="cl-last-visit">
@@ -2761,6 +2768,7 @@ export default function Clients() {
                 {detail.alt_emails && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other emails:</strong> {detail.alt_emails}</p>}
                 <InlineField label="Address" field="address" value={detail.address} clientId={detail.id} onSaved={() => openDetail(detail.id)} />
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
+                {detail.fsbo_link && <p style={{ margin: '2px 0' }}><strong>Listing:</strong> <a href={detail.fsbo_link} target="_blank" rel="noopener noreferrer" style={{ color: '#006aff', fontWeight: 600, textDecoration: 'none' }}>View on Zillow ↗</a></p>}
                 <InlineStatus detail={detail} onSaved={() => openDetail(detail.id)} />
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
