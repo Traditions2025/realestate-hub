@@ -136,6 +136,7 @@ function NotificationBell() {
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Transactions = lazy(() => import('./pages/Transactions'))
 const Clients = lazy(() => import('./pages/Clients'))
+const ClientProfile = lazy(() => import('./pages/ClientProfile'))
 const Tasks = lazy(() => import('./pages/Tasks'))
 const Projects = lazy(() => import('./pages/Projects'))
 const Notes = lazy(() => import('./pages/Notes'))
@@ -376,6 +377,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/transactions" element={<Transactions />} />
             <Route path="/clients" element={<Clients />} />
+            <Route path="/clients/:id" element={<ClientProfile />} />
             <Route path="/inbox" element={<Inbox />} />
             <Route path="/ai-opportunities" element={<AiOpportunities />} />
             <Route path="/ai-sandbox" element={<AiSandbox />} />

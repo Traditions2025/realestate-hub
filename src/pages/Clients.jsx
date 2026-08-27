@@ -8,6 +8,8 @@ import EmailToolbar from '../components/EmailToolbar'
 import RichTextEditor, { MERGE_FIELDS } from '../components/RichTextEditor'
 import TemplatePicker from '../components/TemplatePicker'
 import { useColumnWidths, ResizeHandle, defaultWidthFor } from '../lib/columnResize'
+import { useNavigate } from 'react-router-dom'
+import { saveClientsNav, loadClientsNav, consumeClientsReturn } from '../lib/clientsNav'
 
 // Turn a bare mattsmithteam.com property link (pasted into an email) into a rich
 // listing card — photo + address + MLS — like the listing previews. URLs already
@@ -130,7 +132,7 @@ function loadColumnPrefs() {
 // Sierra-aligned status list: { hubValue (lowercase_underscore), label, sierraValue }
 // hubValue must match what the sync writes via mapStatus() and what the backend's
 // HUB_TO_SIERRA_STATUS map keys on. Order = display order in the quick dropdown.
-const SIERRA_STATUSES = [
+export const SIERRA_STATUSES = [
   { value: 'prime',         label: 'Prime' },
   { value: 'active',        label: 'Active' },
   { value: 'new',           label: 'New' },
@@ -288,6 +290,7 @@ function SocialProfiles({ detail, onSaved }) {
 }
 
 export default function Clients() {
+  const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [tab, setTab] = useState('all') // default to All; 'active', 'prime', 'all'
   const [filter, setFilter] = useState({ type: '' })
@@ -836,6 +839,24 @@ export default function Clients() {
   // Load email templates on mount
   useEffect(() => {
     authFetch('/api/email/templates').then(r => r.json()).then(setEmailTemplates).catch(() => {})
+  }, [])
+
+  // Snapshot the current Clients list state so the full-screen profile can drive Prev/Next and
+  // "Back to Clients" restores exactly where the user was. Sort/pageSize/view/columns already
+  // persist in localStorage, so only the list/search/filters + scroll need capturing here.
+  const captureClientsNav = () => {
+    const listName = activeListId ? (savedLists.find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
+    try { saveClientsNav({ ids: items.map(i => i.id), backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }) } catch {}
+  }
+  const openFullProfile = (id) => { captureClientsNav(); navigate('/clients/' + id) }
+  // When returning from a profile via "Back to Clients", restore the prior list state once.
+  useEffect(() => {
+    if (!consumeClientsReturn()) return
+    const nav = loadClientsNav(); if (!nav?.restore) return
+    if (nav.restore.activeListId != null) setActiveListId(nav.restore.activeListId)
+    if (typeof nav.restore.q === 'string') setQ(nav.restore.q)
+    if (nav.restore.advFilters) setAdvFilters(nav.restore.advFilters)
+    if (nav.scrollY) setTimeout(() => { try { window.scrollTo(0, nav.scrollY) } catch {} }, 400)
   }, [])
 
   const openDetail = async (id) => {
@@ -2626,8 +2647,9 @@ export default function Clients() {
             {(() => {
               const idx = items.findIndex(i => i.id === detail.id)
               return (
-                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10}}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 8}}>
                   <button className="btn btn-secondary btn-sm" onClick={() => gotoAdjacent(-1)} disabled={idx <= 0}>‹ Prev</button>
+                  <button className="btn btn-sm" onClick={() => { setDetailOpen(false); openFullProfile(detail.id) }} title="Open this lead in the full-screen workspace">⤢ Full screen</button>
                   <span style={{fontSize: 12, color: 'var(--text-muted)'}}>{idx >= 0 ? `${idx + 1} of ${items.length}` : ''}</span>
                   <button className="btn btn-secondary btn-sm" onClick={() => gotoAdjacent(1)} disabled={idx < 0 || idx >= items.length - 1}>Next ›</button>
                 </div>
@@ -3631,7 +3653,7 @@ function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
 // --- Inline field editors for the lead profile (edit a single field in place) ---
 // Saves to the Hub, then pushes to Sierra (no-op for non-Sierra leads) so the edit
 // sticks past the next sync. onSaved refreshes the profile.
-function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text' }) {
+export function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text' }) {
   const [editing, setEditing] = React.useState(false)
   const [val, setVal] = React.useState(value || '')
   const [saving, setSaving] = React.useState(false)
@@ -3673,7 +3695,7 @@ function InlineField({ label, value, field, clientId, onSaved, statusTag = null,
 const STATUS_OPTIONS = ['new', 'watch', 'qualify', 'prime', 'active', 'pending', 'closed', 'archived', 'junk', 'donotcontact']
 const STATUS_LABEL = { new: 'New', watch: 'Watch', qualify: 'Qualify', prime: 'Prime', active: 'Active', pending: 'Pending', closed: 'Closed', archived: 'Archived', junk: 'Junk', donotcontact: 'DNC' }
 const STATUS_COLOR = { new: '#2563eb', watch: '#0891b2', qualify: '#7c3aed', prime: '#059669', active: '#10b981', pending: '#f59e0b', closed: '#64748b', archived: '#64748b', junk: '#ef4444', donotcontact: '#ef4444' }
-function InlineStatus({ detail, onSaved }) {
+export function InlineStatus({ detail, onSaved }) {
   const [saving, setSaving] = React.useState(false)
   const [msg, setMsg] = React.useState('')
   const cur = String(detail.status || '').toLowerCase()
@@ -3709,7 +3731,7 @@ function InlineStatus({ detail, onSaved }) {
 const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['note', 'Notes'], ['task', 'Tasks'], ['behavior', 'Activity']]
 // Quick "add task" on the lead profile: text + due date + assignee -> Tasks tab, linked
 // to this lead (related_type=client).
-function QuickAddTask({ clientId, clientName, onAdded }) {
+export function QuickAddTask({ clientId, clientName, onAdded }) {
   const [text, setText] = React.useState('')
   const [date, setDate] = React.useState('')
   const [time, setTime] = React.useState('')
@@ -3944,7 +3966,7 @@ function BulkTagsModal({ ids, allTags, onClose, onDone }) {
   )
 }
 
-function ContactTimeline({ clientId }) {
+export function ContactTimeline({ clientId }) {
   const [items, setItems] = React.useState(null)
   const [open, setOpen] = React.useState(false)
   const [f, setF] = React.useState('all')
@@ -3983,7 +4005,7 @@ function ContactTimeline({ clientId }) {
 }
 
 // Name is two columns (first + last), so it gets its own inline editor.
-function InlineName({ detail, onSaved }) {
+export function InlineName({ detail, onSaved }) {
   const [editing, setEditing] = React.useState(false)
   const [fn, setFn] = React.useState(detail.first_name || '')
   const [ln, setLn] = React.useState(detail.last_name || '')
@@ -4023,18 +4045,18 @@ function InlineName({ detail, onSaved }) {
 const TEXT_MERGE_FIELDS = [['{{first_name}}', 'First name'], ['{{last_name}}', 'Last name'], ['{{full_name}}', 'Full name'], ['{{city}}', 'City'], ['{{address}}', 'Address'], ['{{agent}}', 'Agent name'], ['{{price_range}}', 'Price range']]
 
 // ---- communication-history helpers (mirrors the Inbox) ----
-const recUrl = (id) => `/api/inbox/recording/${id}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
-const fmtDur = (s) => { s = Number(s) || 0; const m = Math.floor(s / 60), r = s % 60; return m ? `${m}m ${r}s` : `${r}s` }
-const COMM_META = {
+export const recUrl = (id) => `/api/inbox/recording/${id}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
+export const fmtDur = (s) => { s = Number(s) || 0; const m = Math.floor(s / 60), r = s % 60; return m ? `${m}m ${r}s` : `${r}s` }
+export const COMM_META = {
   text: { icon: '💬', label: 'Text', color: '#10b981' },
   call: { icon: '☎', label: 'Call', color: '#8b5cf6' },
   voicemail: { icon: '🎙', label: 'Voicemail', color: '#f59e0b' },
   email: { icon: '✉', label: 'Email', color: '#3b82f6' },
 }
-const fmtCommWhen = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
+export const fmtCommWhen = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
 // Turn a logged email's raw HTML into a clean, readable preview (drop tracking pixels,
 // style/script, tags; keep link text; decode entities). Plain text passes through.
-function commToText(s) {
+export function commToText(s) {
   s = String(s || '')
   if (!/<[a-z/!][^>]*>/i.test(s)) return s
   s = s.replace(/<\s*(style|script|head)[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, ' ')
@@ -4150,7 +4172,7 @@ function ManualDialer({ onClose }) {
 
 // --- HUB AI ISA card on the lead profile: shows the AI state/intent/summary and
 // gives the agent full control (enable, pause, take over, stop, send now). ---
-function AiIsaCard({ clientId }) {
+export function AiIsaCard({ clientId }) {
   const [d, setD] = React.useState(undefined)
   const [busy, setBusy] = React.useState(false)
   const [preview, setPreview] = React.useState(null)
@@ -4240,7 +4262,7 @@ function AiIsaCard({ clientId }) {
 // --- Inline text box on the lead profile: opens under the action buttons (not a
 // modal behind the drawer). Text, template, merge fields, photo (MMS), and add
 // more recipients — sends from the Hub number to everyone in one shot. ---
-function InlineTextComposer({ client, onClose, onSent }) {
+export function InlineTextComposer({ client, onClose, onSent }) {
   const [recips, setRecips] = React.useState([client])
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState([])

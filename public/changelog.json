@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T16:33:18.912Z",
+  "generated_at": "2026-08-27T16:51:19.027Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3304e78",
+      "date": "2026-08-27T11:33:23-05:00",
+      "subject": "Scheduled texts: add Preview (full text) + Send now",
+      "title": "Scheduled texts: add Preview (full text) + Send now",
+      "body": "- Refactor scheduled-texts.js into sendScheduledRow(); add sendScheduledNow(id) + route\n  POST /api/inbox/scheduled/:id/send-now (compliance re-checked at send).\n- Composer scheduled list: 👁 Preview expands the full scheduled text; ▶ Send now sends it\n  immediately and refreshes the thread.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ce920b6",
       "date": "2026-08-27T10:28:24-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Mass actions: page size selector (100/500/1000/2000), checkboxes, bulk email up to 2000 + signature with phone/website/office/bio",
       "body": "",
       "category": "other"
-    },
-    {
-      "hash": "4923c84",
-      "date": "2026-04-29T16:15:25-05:00",
-      "subject": "Add SendGrid email integration: send/bulk send, 6 templates with merge variables, history per client",
-      "title": "SendGrid email integration: send/bulk send, 6 templates with merge variables, history per client",
-      "body": "",
-      "category": "feature"
     }
   ]
 }

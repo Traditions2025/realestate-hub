@@ -2029,6 +2029,30 @@ input[type="range"] {
   -webkit-overflow-scrolling: touch;
 }
 
+/* ── Full-screen Client Profile workspace (/clients/:id) ─────────────────────────────── */
+.client-profile { padding: 0; }
+.cp-sticky { position: sticky; top: 0; z-index: 20; background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 12px 18px 0; }
+.cp-header-row { display: flex; align-items: center; gap: 12px; }
+.cp-prevnext { margin-left: auto; display: flex; align-items: center; gap: 6px; }
+.cp-count { font-size: 12.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; }
+.cp-identity { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.cp-name { font-size: 22px; font-weight: 800; margin: 0; color: var(--text-primary); }
+.cp-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.cp-badge { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); text-transform: capitalize; white-space: nowrap; }
+.cp-badge-muted { font-weight: 500; }
+.cp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.cp-tabs { display: flex; gap: 2px; margin-top: 12px; overflow-x: auto; }
+.cp-tab { border: none; background: none; padding: 9px 14px; font-size: 13.5px; font-weight: 600; color: var(--text-muted); cursor: pointer; border-bottom: 2px solid transparent; white-space: nowrap; }
+.cp-tab:hover { color: var(--text-primary); }
+.cp-tab.active { color: var(--accent, #2563eb); border-bottom-color: var(--accent, #2563eb); }
+.cp-body { padding: 16px 18px 40px; }
+.cp-grid { display: grid; grid-template-columns: minmax(0, 1.8fr) minmax(280px, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .cp-grid { grid-template-columns: 1fr; } }
+.cp-col-main, .cp-col-side { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cp-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
+.cp-card h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
+.cp-card p { margin: 3px 0; font-size: 13px; }
+
 /* Manual column resize handle — subtle 8px target on a column's right edge (see lib/columnResize). */
 .col-resize-handle {
   position: absolute; top: 0; right: -5px; width: 10px; height: 100%;

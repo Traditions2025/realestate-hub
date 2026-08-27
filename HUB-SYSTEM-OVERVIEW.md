@@ -351,4 +351,31 @@ npm test         # node --test test/comms.test.mjs test/hubai.test.mjs
 
 ---
 
-*This document reflects the live codebase as of 2026-08-21. When features change, update this file alongside the code.*
+## Client Profile workspace (`/clients/:id`)
+
+A full-screen, routed CRM workspace for a single lead — being migrated in from the old
+oversized modal (the modal still exists and remains reachable until parity is confirmed).
+
+- **Route:** `src/pages/ClientProfile.jsx` at `/clients/:id` (real URL: direct access, refresh,
+  back/forward, bookmarkable). Reuses HUB's existing sub-components + APIs — no duplicated
+  SMS/email/AI/task/transaction/Sierra systems.
+- **Reused components** (exported from `Clients.jsx`): `InlineName/InlineField/InlineStatus`
+  (inline editing), `InlineTextComposer` (SMS: templates, merge fields, MMS, AI suggestions,
+  scheduling, teammate loop), `ContactTimeline` (Activity), `AiIsaCard` (AI management),
+  `QuickAddTask`, plus `COMM_META/commToText/fmtCommWhen/fmtDur/recUrl`.
+- **Navigation state:** `src/lib/clientsNav.js` snapshots the Clients list state into
+  sessionStorage when a lead is opened — `ids` (matched result set for **Prev/Next · X of Y**),
+  `backLabel`, and `restore` (activeListId, search, advFilters) + scrollY. "← Back to Clients"
+  restores exactly that view. Sort/pageSize/view/column widths/visibility/order already persist
+  in localStorage and are owned by the Clients table (untouched by profile nav).
+- **Tabs:** Overview (contact/CRM/AI-summary/FSBO listings/notes/research, 2-col desktop),
+  Communications (All/Texts/Calls/Emails/Notes filters + search + composer, from
+  `/api/inbox/thread/:id`), Activity (`ContactTimeline`), Transactions (`/api/transactions`),
+  Tasks (`/api/tasks` + QuickAddTask), AI (`AiIsaCard`).
+- **Migration status:** additive — row-click still opens the classic modal; the modal now has a
+  "⤢ Full screen" button to the new route. Email/Add-Transaction full composers still live in
+  the modal; port those, then flip row-click to the route and deprecate the modal.
+
+---
+
+*This document reflects the live codebase as of 2026-08-21 (Client Profile workspace added 2026-08-27). When features change, update this file alongside the code.*
