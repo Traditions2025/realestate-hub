@@ -844,11 +844,21 @@ export default function Clients() {
   // Snapshot the current Clients list state so the full-screen profile can drive Prev/Next and
   // "Back to Clients" restores exactly where the user was. Sort/pageSize/view/columns already
   // persist in localStorage, so only the list/search/filters + scroll need capturing here.
-  const captureClientsNav = () => {
+  const captureClientsNav = async () => {
     const listName = activeListId ? (savedLists.find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
-    try { saveClientsNav({ ids: items.map(i => i.id), backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }) } catch {}
+    // Prev/Next should walk the FULL matched result set (e.g. all 68 FSBO), not just the loaded
+    // page. Fetch matched ids with the same filters the list uses (capped), fall back to loaded.
+    let ids = items.map(i => i.id)
+    try {
+      const params = buildLoadParams(); delete params.limit; delete params.offset
+      const usp = new URLSearchParams(); for (const [k, v] of Object.entries(params)) if (v != null && v !== '') usp.set(k, v)
+      usp.set('limit', '5000')
+      const d = await authFetch('/api/clients/ids?' + usp.toString()).then(r => r.json())
+      if (Array.isArray(d?.ids) && d.ids.length) ids = d.ids
+    } catch {}
+    try { saveClientsNav({ ids, backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }) } catch {}
   }
-  const openFullProfile = (id) => { captureClientsNav(); navigate('/clients/' + id) }
+  const openFullProfile = async (id) => { await captureClientsNav(); navigate('/clients/' + id) }
   // When returning from a profile via "Back to Clients", restore the prior list state once.
   useEffect(() => {
     if (!consumeClientsReturn()) return
@@ -2505,7 +2515,7 @@ export default function Clients() {
                 {/* Desktop / tablet: full configurable row */}
                 <div className={`client-list-row ${selectedIds.has(item.id) ? 'selected' : ''}`}
                   style={{ gridTemplateColumns: gridTemplate }}
-                  onClick={() => openDetail(item.id)}>
+                  onClick={() => openFullProfile(item.id)}>
                   <div className="cl-check" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
                   </div>
@@ -2522,7 +2532,7 @@ export default function Clients() {
                 </div>
                 {/* Mobile: condensed card — name, status, last activity only */}
                 <div className={`client-card-m ${selectedIds.has(item.id) ? 'selected' : ''}`}
-                  onClick={() => openDetail(item.id)}>
+                  onClick={() => openFullProfile(item.id)}>
                   <div className="ccm-check" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
                   </div>
@@ -2565,7 +2575,7 @@ export default function Clients() {
             {sierraStatus === 'syncing' ? 'Syncing clients from Sierra...' : 'No clients found. Sync from Sierra or add one manually.'}
           </div>
         ) : items.map(item => (
-          <div key={item.id} className="client-card" onClick={() => openDetail(item.id)}>
+          <div key={item.id} className="client-card" onClick={() => openFullProfile(item.id)}>
             <div className="client-card-header">
               <div className="client-avatar" style={{background: item.sierra_lead_id ? '#8b5cf6' : '#3b82f6'}}>
                 {item.first_name?.[0]}{item.last_name?.[0]}

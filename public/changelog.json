@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T16:51:19.027Z",
+  "generated_at": "2026-08-27T17:11:24.957Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8b21e2b",
+      "date": "2026-08-27T11:52:05-05:00",
+      "subject": "Client Profile: full-screen routed workspace at /clients/:id (additive, modal kept)",
+      "title": "Client Profile: full-screen routed workspace at /clients/:id (additive, modal kept)",
+      "body": "Foundation for migrating the oversized client modal into a dedicated CRM workspace:\n- New route /clients/:id (ClientProfile.jsx): real URL, direct access, back/forward, bookmarkable.\n- Sticky header (name, type, status, source, agent, intent, AI-managed) + Back to Clients +\n  Prev/Next (X of Y) through the matched result set.\n- Tabs reuse existing components/APIs (no duplicated backends): Overview, Communications\n  (All/Texts/Calls/Emails/Notes + search + composer), Activity (ContactTimeline), Transactions,\n  Tasks (QuickAddTask), AI (AiIsaCard). Exported the reusable profile sub-components from Clients.jsx.\n- src/lib/clientsNav.js snapshots list state (matched ids + activeListId/search/filters + scroll)\n  so Back-to-Clients restores the exact view; column widths/visibility/order stay owned by the table.\n- SAFE migration: row-click still opens the classic modal; modal gains a '⤢ Full screen' button.\n  Email/Add-Transaction composers remain in the modal until ported. Updated HUB-SYSTEM-OVERVIEW.md.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3304e78",
       "date": "2026-08-27T11:33:23-05:00",
@@ -3993,14 +4001,6 @@
       "title": "email signature with full office address",
       "body": "",
       "category": "improvement"
-    },
-    {
-      "hash": "533450f",
-      "date": "2026-04-29T16:52:33-05:00",
-      "subject": "Mass actions: page size selector (100/500/1000/2000), checkboxes, bulk email up to 2000 + signature with phone/website/office/bio",
-      "title": "Mass actions: page size selector (100/500/1000/2000), checkboxes, bulk email up to 2000 + signature with phone/website/office/bio",
-      "body": "",
-      "category": "other"
     }
   ]
 }

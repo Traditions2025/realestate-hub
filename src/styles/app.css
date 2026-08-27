@@ -2052,6 +2052,20 @@ input[type="range"] {
 .cp-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; }
 .cp-card h4 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); }
 .cp-card p { margin: 3px 0; font-size: 13px; }
+.cp-sec-head { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+.cp-sec-head h4 { text-transform: uppercase; }
+.cp-sec-body { margin-top: 10px; }
+.cp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 620px) { .cp-two { grid-template-columns: 1fr; } }
+.cp-sub { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 8px 0 4px; }
+.cp-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
+@media (max-width: 620px) { .cp-kv { grid-template-columns: 1fr; } }
+.cp-kv > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; border-bottom: 1px dashed var(--border); }
+.cp-kv-k { color: var(--text-muted); }
+.cp-kv-v { font-weight: 600; text-align: right; }
+.cp-tagchip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
+.cp-alerts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+.cp-alert { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
 
 /* Manual column resize handle — subtle 8px target on a column's right edge (see lib/columnResize). */
 .col-resize-handle {
