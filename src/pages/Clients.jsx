@@ -866,7 +866,7 @@ export default function Clients() {
     if (!items || !items.length) return
     const listName = activeListId ? ((savedLists || []).find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
     try { saveClientsNav({ ids: items.map(i => i.id), backTo: '/clients', backLabel: listName, restore: { activeListId, search, advFilters }, scrollY: window.scrollY }) } catch {}
-  }, [items, activeListId, q, advFilters, savedLists])
+  }, [items, activeListId, search, advFilters, savedLists])
   // When returning from a profile via "Back to Clients", restore the prior list state once.
   useEffect(() => {
     if (!consumeClientsReturn()) return

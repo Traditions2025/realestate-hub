@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T18:17:36.032Z",
+  "generated_at": "2026-08-27T18:22:10.261Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "6833607",
+      "date": "2026-08-27T13:17:38-05:00",
+      "subject": "Fix ReferenceError: q is not defined — Clients search state is 'search', not 'q'",
+      "title": "ReferenceError: q is not defined — Clients search state is 'search', not 'q'",
+      "body": "The nav-context code used 'q' (a different component's state) which threw: the useEffect crashed\nthe Clients page, and the click-time capture silently failed so Prev/Next never got ids. Use the\nreal 'search'/'setSearch' state.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "beab902",
       "date": "2026-08-27T13:14:29-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Import tab: PDF/URL extraction now works without saving first",
       "body": "- Add ensureListing() helper that auto-creates a placeholder row when needed\n- PDF upload, URL extract, marketing task checkboxes all use it now — no more 'save first' friction\n- Replace the orange 'save first' warning with a green confirmation when AI is ready, or a clear setup notice when API key is missing\n- Disable inputs only when extracting OR when API key is missing (was incorrectly disabled when listing wasn't saved)",
       "category": "fix"
-    },
-    {
-      "hash": "5e6d99d",
-      "date": "2026-04-30T13:45:14-05:00",
-      "subject": "Smarter auto-populate: search-based URL discovery + better diagnostics",
-      "title": "Smarter auto-populate: search-based URL discovery + better diagnostics",
-      "body": "- Use DuckDuckGo HTML search to find the actual property page on Zillow/Realtor.com/Redfin/Trulia/Homes.com (more reliable than guessing URL patterns)\n- Try 5 listing sites instead of 3, with direct-pattern URLs as fallback\n- Browser-like User-Agent with full Sec-Fetch headers + 20s timeout per source\n- Improved anti-bot detection (catches 'press & hold', 'access denied', 'checking your browser' pages)\n- Frontend now shows per-source status (✓/✗ with error reason and clickable link to open the page) so user can see what failed and why",
-      "category": "other"
     }
   ]
 }
