@@ -2019,8 +2019,35 @@ input[type="range"] {
   background: var(--bg-card);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden;
+  /* Readability over squeezing: if the columns' minimum widths exceed the viewport, scroll
+     horizontally instead of clipping/squashing. Flexible (fr) columns still shrink to fit on
+     wide screens, so scrolling only appears when it's actually needed. */
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
+
+/* ------------------------------------------------------------------------------------------
+   Reusable table column-sizing utilities (content-behavior based, NOT field-name based).
+   Use on <table>-based lists (Tasks, Transactions, Reporting, etc.) so future columns get
+   balanced widths without a new width rule per field. Put the class on BOTH the <th> and its
+   <td>s (sizing must come from one shared source so header + body stay aligned).
+     .col-compact — checkboxes, icons, short numbers, small badges, short actions
+     .col-normal  — names, phones, categories, owners, short labels/dates (default feel)
+     .col-flex    — emails, addresses, activity, longer labels (absorbs extra width)
+     .col-wide    — notes, descriptions, property blurbs (absorbs the most)
+   Alignment helpers: .cell-center (badges/actions), .cell-num (right-aligned tabular numbers).
+   Wrap the table in .table-scroll to get horizontal scrolling when it can't fit.
+   ------------------------------------------------------------------------------------------ */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
+.col-compact { width: 1%; white-space: nowrap; }                 /* shrink-to-content; never absorbs slack */
+.col-normal  { min-width: 96px; }
+.col-flex    { min-width: 150px; width: auto; }
+.col-wide    { min-width: 220px; width: auto; }
+/* Long values truncate cleanly instead of stretching the table (pair with a title tooltip). */
+.col-flex, .col-wide, .cell-truncate { max-width: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+td.col-flex, td.col-wide, td.cell-truncate { max-width: 0; }     /* let the browser distribute; ellipsis kicks in */
+.cell-center { text-align: center; }
+.cell-num { text-align: right; font-variant-numeric: tabular-nums; }
 
 .client-list-header,
 .client-list-row {

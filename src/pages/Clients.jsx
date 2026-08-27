@@ -86,22 +86,40 @@ const emptyClient = {
   linkedin_url: '', facebook_url: ''
 }
 
+// Reusable column-sizing categories (content-behavior, NOT field-name based). A column's grid
+// track comes from its `size`, so any list can size columns generically:
+//   compact — checkboxes, icons, short numbers, small badges, short actions (stay narrow; never absorb slack)
+//   normal  — names, phones, categories, owners, agents, short labels/dates (reasonable min, one share of slack)
+//   flex    — emails, addresses, activity, longer labels (absorb most of the extra width)
+//   wide    — notes, descriptions, property blurbs (absorb the most)
+// Extra horizontal space goes preferentially to flex/wide (fr weights); compact carries no fr
+// so it can't stretch. Every track has a readable min so narrow screens scroll instead of squashing.
+const COLUMN_SIZES = {
+  compact: 'minmax(52px, fit-content(96px))',
+  normal:  'minmax(104px, 1fr)',
+  flex:    'minmax(150px, 1.8fr)',
+  wide:    'minmax(200px, 2.4fr)',
+}
+// Track for a column: its sizing category, else a legacy `fr`, else a sensible default (normal).
+const colTrack = (c) => (c.size && COLUMN_SIZES[c.size]) || (c.fr ? `minmax(0, ${c.fr})` : COLUMN_SIZES.normal)
+
 // Column config for the list view. Users toggle visibility + reorder via the
 // "Columns" picker; prefs persist in localStorage. `key` matches sortable
-// indicators and the CSS .cl-{key} class on each cell.
+// indicators and the CSS .cl-{key} class on each cell. `size` = sizing category (above);
+// `align` is optional (compact/number columns center or right; text stays left by default).
 const LIST_COLUMNS = [
-  { key: 'score',      label: 'Score',      defaultVisible: true,  fr: '0.5fr', sort: { asc: 'lowest_score',  desc: 'highest_score' } },
-  { key: 'name',       label: 'Name',       defaultVisible: true,  fr: '1.4fr', sort: { asc: 'name_az',       desc: 'name_za' } },
-  { key: 'status',     label: 'Status',     defaultVisible: true,  fr: '0.9fr' },
-  { key: 'type',       label: 'Type',       defaultVisible: true,  fr: '0.9fr' },
-  { key: 'phone',      label: 'Phone',      defaultVisible: true,  fr: '1fr' },
-  { key: 'email',      label: 'Email',      defaultVisible: true,  fr: '1.6fr' },
-  { key: 'address',    label: 'Address',    defaultVisible: true,  fr: '1.4fr' },
-  { key: 'budget',     label: 'Budget',     defaultVisible: false, fr: '1.2fr' },
-  { key: 'visits',     label: 'Visits',     defaultVisible: true,  fr: '0.5fr', sort: { asc: 'least_visits',  desc: 'most_visits' } },
-  { key: 'source',     label: 'Source',     defaultVisible: true,  fr: '0.8fr' },
-  { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, fr: '1.3fr', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
-  { key: 'registered', label: 'Registered', defaultVisible: true,  fr: '0.8fr', sort: { asc: 'oldest_first', desc: 'recent_added' } },
+  { key: 'score',      label: 'Score',      defaultVisible: true,  size: 'compact', align: 'center', sort: { asc: 'lowest_score',  desc: 'highest_score' } },
+  { key: 'name',       label: 'Name',       defaultVisible: true,  size: 'flex',    sort: { asc: 'name_az',       desc: 'name_za' } },
+  { key: 'status',     label: 'Status',     defaultVisible: true,  size: 'normal' },
+  { key: 'type',       label: 'Type',       defaultVisible: true,  size: 'compact', align: 'center' },
+  { key: 'phone',      label: 'Phone',      defaultVisible: true,  size: 'normal' },
+  { key: 'email',      label: 'Email',      defaultVisible: true,  size: 'flex' },
+  { key: 'address',    label: 'Address',    defaultVisible: true,  size: 'flex' },
+  { key: 'budget',     label: 'Budget',     defaultVisible: false, size: 'normal' },
+  { key: 'visits',     label: 'Visits',     defaultVisible: true,  size: 'compact', align: 'center', sort: { asc: 'least_visits',  desc: 'most_visits' } },
+  { key: 'source',     label: 'Source',     defaultVisible: true,  size: 'normal' },
+  { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, size: 'flex', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
+  { key: 'registered', label: 'Registered', defaultVisible: true,  size: 'normal', sort: { asc: 'oldest_first', desc: 'recent_added' } },
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
@@ -2219,7 +2237,7 @@ export default function Clients() {
       {view === 'list' && items.length > 0 && (() => {
         // Build grid-template-columns dynamically from the user's visible/ordered cols.
         // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
-        const gridTemplate = `30px ${visibleColumns.map(c => `minmax(0, ${c.fr})`).join(' ')}`
+        const gridTemplate = `30px ${visibleColumns.map(colTrack).join(' ')}`
 
         // In the FSBO list the "Visits" column is repurposed as "FSBO Status"
         // (Available / Off Market) from the FSBO master file.
@@ -2436,7 +2454,7 @@ export default function Clients() {
                   onDrop={e => { e.preventDefault(); reorderColumn(dragColKey, col.key); setDragColKey(null) }}
                   onDragEnd={() => setDragColKey(null)}
                   className="cl-col-drag"
-                  style={{ display: 'flex', alignItems: 'center', minWidth: 0, cursor: 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: col.align === 'center' ? 'center' : col.align === 'right' ? 'flex-end' : 'flex-start', minWidth: 0, cursor: 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
                   onDragEnter={e => { if (dragColKey && dragColKey !== col.key) e.currentTarget.style.borderLeft = '2px solid var(--accent, #2563eb)' }}
                   onDragLeave={e => { e.currentTarget.style.borderLeft = '2px solid transparent' }}
                   title="Drag to move this column">

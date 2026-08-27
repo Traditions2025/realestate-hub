@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T14:56:23.017Z",
+  "generated_at": "2026-08-27T15:04:48.244Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ebb35ae",
+      "date": "2026-08-27T09:56:25-05:00",
+      "subject": "FSBO: one profile per name+phone; all listings on the lead (fsbo_listings)",
+      "title": "FSBO: one profile per name+phone; all listings on the lead (fsbo_listings)",
+      "body": "Same name + same number with multiple listings is now ONE lead (Beals, Natalie collapse to\none each). Sync groups sheet rows by name+phone, aggregates status (Available if any listing\nis), and stores every listing (address/link/list-date/DOM/status) in fsbo_listings. Self-heal\nmerges same-name+phone records (even across Sierra profiles), combining listings. Lead profile\nlists all FSBO listing addresses with clickable Zillow links; FSBO list 'View Listing' shows\nthe primary link + (+N) for extra listings. Invariant: on-list == profile count (name+phone).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "97a9417",
       "date": "2026-08-27T09:44:22-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T14:33:52-05:00",
       "subject": "Performance: lazy-load page bundles, fast local DB counts (no Sierra API on load), skip auth verify roundtrip",
       "title": "Performance: lazy-load page bundles, fast local DB counts (no Sierra API on load), skip auth verify roundtrip",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "e0d981a",
-      "date": "2026-04-29T14:19:10-05:00",
-      "subject": "Mobile improvements: prevent horizontal overflow, smaller calendar cells, mobile cards for Marketing & Social Media, scrollable tabs",
-      "title": "Mobile improvements: prevent horizontal overflow, smaller calendar cells, mobile cards for Marketing & Social Media, scrollable tabs",
       "body": "",
       "category": "other"
     }
