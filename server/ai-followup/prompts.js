@@ -1,6 +1,6 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.26-revive3'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.27-coldbuyer1'
 
 // Revive bank — for OLD buyer leads with NO recent online activity ("we're simply
 // reviving these old buyer leads"). One of these is rotated in per send so all 20 get
@@ -50,6 +50,174 @@ HARD RULES:
 
 const ALLOWED_ACTIONS = ['SEND_TEXT', 'NO_ACTION', 'HANDOFF_AGENT']
 export { ALLOWED_ACTIONS }
+
+// =====================================================================
+// OLD / COLD BUYER SMART SMS DRIP — staged re-engagement for buyer leads
+// with no recent activity (last ~2 months). Each stage has a GOAL and an
+// approved rotation; the AI reviews the whole conversation, personalizes,
+// avoids repeats, and can skip (NO_ACTION) if a stage no longer fits.
+// Cadence (day-of-campaign): 1, 4, 9, 17, 30, 50, then long-term 80, 120,
+// 165, 210, then a perpetual loop (~52 days). Text 1 reuses REVIVE_OPENERS.
+// =====================================================================
+export const COLD_BUYER_STAGES = [
+  { key: 't1', label: 'Text 1', day: 1, goal: 'Reconnect and find out what happened with their home search.', messages: REVIVE_OPENERS },
+  { key: 't2', label: 'Text 2', day: 4, goal: 'Make it extremely easy for the buyer to tell us their current status (looking, on hold, or already bought).', messages: [
+    "Just so I know where things stand, are you still looking, taking a break, or did you already find a home?",
+    "Not sure where things landed on your end. Are you still hoping to buy at some point, or did your plans change?",
+    "Quick question, are you actively looking, casually watching, or pretty much on hold right now?",
+    "Did you end up putting the home search on the back burner, or are you still keeping your options open?",
+    "If the right home came along, would you still be open to making a move?",
+    "Not sure if buying is still on your radar. Are you still looking around, or have things gone in a different direction?",
+    "Are you still keeping an eye on homes, or did you decide to take a break from the search?",
+    "Just curious, did you ever end up finding something, or are you still waiting for the right one?",
+    "Should we still keep you in mind when something good comes up, or are your plans on hold for now?",
+    "Has anything changed with your plans since you first started looking?",
+    "Are you thinking a move could still happen this year, or is there no real timeline anymore?",
+    "Just trying to get a feel for where you're at. Still looking, or did you decide to hold off for a while?",
+    "Did you ever get serious about anything you looked at, or has nothing really felt right yet?",
+    "Are you still open to buying if the right opportunity comes along?",
+    "Has the home search stayed on your radar, or have other things taken priority?",
+    "Curious if you're still watching the market at all these days?",
+    "Did your plans change, or are you just taking your time finding the right place?",
+    "If something really good came up tomorrow, would you want to know about it?",
+    "Are you still considering a move, even if you're not actively searching right now?",
+    "Totally fine either way, just curious if buying a home is still somewhere in the plans?",
+  ] },
+  { key: 't3', label: 'Text 3', day: 9, goal: 'Understand what may have prevented the buyer from moving forward.', messages: [
+    "Curious, what's been the biggest thing keeping you from making a move so far?",
+    "Has it mostly been a matter of not finding the right home, or is something else holding things up?",
+    "A lot can change when you've been looking for a while. Have price, interest rates, or inventory made you rethink anything?",
+    "Have you just not found anything you really love yet, or did the timing stop making sense?",
+    "I'm curious, what's been the hardest part of the home search for you?",
+    "Has finding the right home been the challenge, or is it more about getting comfortable with the numbers?",
+    "What do you feel like has been missing from the homes you've seen?",
+    "Have prices changed what you're comfortable looking at, or are you still around the same range?",
+    "Is there something you're waiting on before you'd feel ready to make a move?",
+    "If you've put the search on hold, what was the biggest reason?",
+    "Has anything about the market made you more hesitant about buying?",
+    "Are you mostly waiting for a better home to come along, or better timing?",
+    "What would need to happen for buying to make more sense for you right now?",
+    "Did you get discouraged with what's available, or are you just not in a hurry?",
+    "Are you finding homes you like but not loving the prices, or just not finding the right homes at all?",
+    "Has your budget or what you're looking for changed since you originally started searching?",
+    "Is there one thing that's really been holding up the move?",
+    "Have you been waiting on something specific before jumping back into the search?",
+    "What's been the bigger challenge lately, finding the right house or making the numbers work?",
+    "Sometimes plans just change. Was there anything in particular that made you slow down the home search?",
+  ] },
+  { key: 't4', label: 'Text 4', day: 17, goal: 'Stop asking whether they are still looking. Learn what type of property would actually get their attention.', messages: [
+    "If something really good came up, what would it need to have for you to want to go see it?",
+    "What are the 1 or 2 things a home absolutely needs to have for you?",
+    "If I were keeping an eye out for you, what's the one thing you'd really want me looking for?",
+    "Is there a particular neighborhood or area where you'd still jump on the right home?",
+    "What would make you say, \"Okay, that one's worth going to see\"?",
+    "If the right home showed up tomorrow, what would it look like?",
+    "Any particular area you'd still really like to end up in?",
+    "What's one feature you haven't been willing to compromise on?",
+    "If you could find the right home in your ideal area, where would that be?",
+    "Are there certain types of homes you'd still be interested in seeing?",
+    "What would have to be different about a home for it to really catch your attention?",
+    "If I only sent you homes that were actually worth looking at, what should I be watching for?",
+    "Has what you're looking for changed much since you originally started searching?",
+    "What's more important to you these days, the right location, the right house, or the right price?",
+    "Is there an area you'd move quickly on if something good became available?",
+    "What have you not been seeing enough of in the homes that are available?",
+    "If you could pick just three must-haves for the next home, what would they be?",
+    "Are you pretty flexible on what you buy, or do you have something specific in mind?",
+    "What kind of home would actually get you excited about looking again?",
+    "If we came across something that checked most of your boxes, would you want us to send it your way?",
+  ] },
+  { key: 't5', label: 'Text 5', day: 30, goal: 'Stop asking the buyer to explain themselves. Offer value and establish that we can stay in the background.', messages: [
+    "I don't want to keep bugging you about the home search. Happy to just keep an eye out and reach out if something really good comes up.",
+    "Rather than keep checking in, I can just keep an eye on the market for you and let you know when something worth seeing pops up.",
+    "If you're not ready right now, no worries. We can always keep you posted when something good hits the market.",
+    "Happy to stay in the background and just be a resource whenever you need anything real estate related.",
+    "No need to make any decisions right now. If something comes up that looks like a really good fit, I'm happy to send it your way.",
+    "I know timing can change. I'm happy to keep an eye out so you don't have to constantly watch what's coming on the market.",
+    "Rather than fill your phone with follow-ups, I'd rather reach out when there's actually something useful to share.",
+    "If the search is on pause, that's completely fine. We can always pick things back up whenever the timing makes sense.",
+    "I'm happy to keep things simple and just send you something when I think it's genuinely worth a look.",
+    "If you'd rather casually watch the market for now, that's perfectly fine. I'm happy to help whenever something catches your eye.",
+    "No rush on anything. If you ever want information on a home, pricing, an area, or what's happening in the market, I'm here.",
+    "Even if buying isn't happening anytime soon, I'm happy to be a resource whenever questions come up.",
+    "I'll keep an eye on things on our end. If something unusually good comes up, I'm happy to make sure you know about it.",
+    "You don't have to be actively looking for us to help. If you ever want a second opinion on a home, just let me know.",
+    "If you're waiting for the right opportunity, I'm happy to help watch for it.",
+    "Sometimes it's better to wait than force the wrong move. If something changes on your end, I'm always happy to help.",
+    "If you want, we can keep things really low-key and just make sure you don't miss anything good.",
+    "I'm happy to be your real estate resource whether you're buying next month, next year, or you're not sure yet.",
+    "Whenever you're ready to start looking seriously again, we can pick right back up from where you left off.",
+    "No pressure from us. If something comes along that makes sense for you, we'll be here to help.",
+  ] },
+  { key: 't6', label: 'Text 6', day: 50, goal: 'Final active re-engagement attempt. Short, conversational, easy to answer (a permission-based check).', messages: [
+    "Should I keep you posted on homes, or give you some space for now?",
+    "Don't want to keep chasing you :) Should I keep you on my radar for homes?",
+    "Quick yes or no, would you still want to hear about a really good home if one comes up?",
+    "Should I keep an eye out for you, or has the timing just passed for now?",
+    "Am I safe to assume the home search is on hold for now? :)",
+    "Should we keep you posted, or would you rather reconnect when the timing is better?",
+    "Don't want to make assumptions. Is buying still somewhere on your radar?",
+    "Should I stay in touch occasionally, or give the home search a rest for now?",
+    "If I see something that looks like a great opportunity, still okay to send it your way?",
+    "Would you rather I keep you posted on good homes or leave the ball in your court for now?",
+    "Is it fair to say buying is probably on the back burner right now?",
+    "Should we keep watching the market for you, or are you good for now?",
+    "Still okay if I reach out when something especially good comes up?",
+    "Don't want to overdo the follow-up. Want me to keep you in the loop or give it some time?",
+    "Would an occasional heads up on a good property still be useful?",
+    "Should I keep you on my list for anything interesting that comes up?",
+    "If your plans have changed completely, that's okay too. Just let me know and I'll make a note of it.",
+    "I can always leave the ball in your court and be here whenever you need us. Sound good?",
+    "Don't want to clutter your phone if the timing isn't right. Should I give things a rest for now?",
+    "Last thing I want to do is bug you. Still want us keeping an eye out for you?",
+  ] },
+  { key: 'ltn1', label: 'Long-Term Nurture 1', day: 80, goal: 'Light re-engagement. Leave the door open, no questions about whether they are still looking.', messages: [
+    "It's been a little while, just wanted to leave the door open if buying a home comes back onto your radar. Happy to help whenever the timing is right.",
+    "Just keeping in touch. If your plans ever shift and you want to start looking again, we're always happy to help.",
+    "No idea if buying is still in the plans, but wanted you to know we're here whenever you need anything.",
+    "Just touching base after giving you some space. If the home search comes back around, feel free to reach out anytime.",
+    "Keeping this low-key, but if something changes and you want to take another look at the market, we're here.",
+  ] },
+  { key: 'ltn2', label: 'Long-Term Nurture 2', day: 120, goal: 'Check whether circumstances have changed since we last reached out.', messages: [
+    "Curious if anything has changed on your end since we last reached out. Buying still somewhere in the future, or are you pretty settled for now?",
+    "It's been a few months, so I figured I'd check in. Any change in your plans when it comes to buying a home?",
+    "Just checking in after giving things some time. Has buying come back onto your radar at all?",
+    "A lot can change in a few months. Any chance a move is starting to make more sense, or are you still comfortable where you're at?",
+    "Wanted to check in since it's been a while. If your plans have changed at all, I'm happy to help however I can.",
+  ] },
+  { key: 'ltn3', label: 'Long-Term Nurture 3', day: 165, goal: 'Revisit their preferences and whether what they want has changed.', messages: [
+    "If you were to start looking again today, would you be looking for pretty much the same thing or has what you want changed?",
+    "Random question, if you made a move now, would you still be looking in the same area as before?",
+    "If buying came back into the picture, has your idea of the right home changed at all?",
+    "Curious if what you'd want in your next home is any different today than when you originally started looking.",
+    "If the right opportunity came along now, what would be most important to you?",
+  ] },
+  { key: 'ltn4', label: 'Long-Term Nurture 4', day: 210, goal: 'Keep the relationship open, no pressure.', messages: [
+    "Just wanted to keep the door open. If buying becomes a priority again, we're here whenever you need us.",
+    "No pressure at all, just staying in touch. If you ever want to start looking again, I'm happy to help.",
+    "It's been a while, but I didn't want you to feel like you couldn't reach out if real estate comes back onto your radar.",
+    "Whenever the timing is right, whether that's soon or much later, we're happy to be a resource.",
+    "Just keeping in touch from time to time. If anything changes with your plans, you know where to find us.",
+  ] },
+  { key: 'loop', label: 'Long-Term Nurture (ongoing)', day: null, loop: true, goal: 'Ongoing long-term nurture (~every 45 to 60 days). Rotate the PURPOSE of each outreach; never just ask "are you still looking?".', messages: [] },
+]
+
+// Instruction (user message) for a cold-buyer follow-up stage. Text 1 is handled
+// separately via REVIVE_OPENER_BLOCK (it re-introduces + adds the website).
+export function COLD_STAGE_BLOCK(stage, approvedBody) {
+  const base = `OLD / COLD BUYER DRIP — ${stage.label}${stage.day ? ` (around day ${stage.day})` : ''}. STAGE GOAL: ${stage.goal}
+This is an automated re-engagement text to an OLD buyer lead with no recent activity. FIRST read the entire conversation in the context. Treat this as a CONTINUATION of the same conversation John already started:
+- Do NOT re-introduce yourself, "Matt Smith Team", or "RE/MAX" (that was the first text). Do NOT restate MattSmithTeam.com. Do NOT open with the lead's name unless it is genuinely natural.
+- One question at a time. Short, warm, human, low pressure. No fake urgency. No em or en dashes.
+- Do NOT claim a property fits, that the market changed, or that we saw their online activity, unless the context data actually supports it.
+- Do NOT duplicate any message already sent in the conversation; if the approved message below is close to one already sent, rephrase it while keeping the same intent.
+- If this stage's intent no longer fits what the buyer already told us (they bought, have an agent, gave a timeline, said not interested, or asked to stop), return action NO_ACTION.`
+  if (approvedBody) {
+    return base + `\nAPPROVED MESSAGE for this stage (use it as the basis; keep its single question and meaning; you may lightly personalize with the lead's REAL info; replace [area] or [price] with their real value or rephrase naturally, never output a literal bracket):\n"${approvedBody}"\nReturn action SEND_TEXT with the message, or NO_ACTION.`
+  }
+  // Perpetual long-term loop (after day 210): rotate the PURPOSE every time.
+  return base + `\nRotate the PURPOSE of the outreach; do NOT just ask if they are still looking. Pick ONE angle that fits this lead using their REAL info from the context: a casual check-in, a buyer-preference question, genuinely relevant new inventory or a specific property, a meaningful price reduction, a property back on the market, a change in their preferred area, useful buyer information, a market change, or a financing/payment note when appropriate. Only reference data actually present in the context. Return action SEND_TEXT, or NO_ACTION if nothing genuinely useful fits.`
+}
 
 const PERSONA = (persona) => `You are ${persona || 'John with Matt Smith Team at RE/MAX Concepts'}, serving Cedar Rapids and Marion, Iowa. You handle first response and follow-up for the team by text. Write in a natural, warm, first-person voice as John (say "I", "me"). Always refer to the team as "Matt Smith Team" (never put "the" before it). Do NOT claim to be Matt. When someone wants to tour, meet, talk on the phone, or work with an agent, connect them with the team (hand off).`
 

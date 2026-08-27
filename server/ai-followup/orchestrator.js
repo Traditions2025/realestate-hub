@@ -11,7 +11,7 @@ import { computeIntent, saveIntent, getIntent, levelFor } from './intent.js'
 import { applyMemory } from './memory.js'
 import { createAiHandoff } from './handoff.js'
 import { logAiAction } from './audit.js'
-import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS, REVIVE_OPENERS } from './prompts.js'
+import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS, REVIVE_OPENERS, REVIVE_OPENER_BLOCK, COLD_BUYER_STAGES, COLD_STAGE_BLOCK } from './prompts.js'
 
 // Rotate through the revive bank so all 20 openers get used (not just one). A persistent
 // counter in settings advances every time we pick one.
@@ -313,6 +313,38 @@ export async function handleNurture(clientId, { reengage = false, attempt = 1, f
   return runOutbound(cid, {
     actionType: reengage ? 'REENGAGE' : 'NURTURE', flagKey: 'ai_nurture_enabled', force,
     nextState: reengage ? 'AI_REENGAGED' : 'AI_LONG_TERM_NURTURE', reviveTemplate, instruction,
+  })
+}
+
+// OLD / COLD BUYER staged drip. stageIndex 0 = Text 1 (the reconnect opener, which
+// re-introduces + adds the website via REVIVE_OPENER_BLOCK); stages 1+ are continuation
+// follow-ups from COLD_BUYER_STAGES, each rotating its approved bank. The scheduler
+// (scheduleColdBuyer) advances the cadence; a reply/opt-out cancels the pending actions.
+export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = false } = {}) {
+  const cid = Number(clientId)
+  const idx = Math.max(0, Number(stageIndex) || 0)
+  const stage = COLD_BUYER_STAGES[Math.min(idx, COLD_BUYER_STAGES.length - 1)]
+  const bank = stage.messages || []
+  // Rotate this stage's approved bank so leads don't all get identical sequences.
+  let approved = null
+  if (bank.length) {
+    const rotKey = `ai_cold_rot_${stage.key}`, n = bank.length
+    const r = ((Number(db.getSetting?.(rotKey) || 0) % n) + n) % n
+    try { db.setSetting?.(rotKey, String((r + 1) % n)) } catch {}
+    approved = bank[r]
+  }
+  if (idx === 0) {
+    // Text 1 = reconnect opener: greeting + intro + approved body + website.
+    const reviveTemplate = approved || nextReviveOpener().text
+    return runOutbound(cid, {
+      actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, reviveTemplate,
+      nextState: 'AI_WAITING_FOR_REPLY', instruction: REVIVE_OPENER_BLOCK(reviveTemplate, centralGreeting()),
+    })
+  }
+  return runOutbound(cid, {
+    actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force,
+    nextState: idx <= 5 ? 'AI_WAITING_FOR_REPLY' : 'AI_LONG_TERM_NURTURE',
+    instruction: COLD_STAGE_BLOCK(stage, approved),
   })
 }
 

@@ -40,10 +40,12 @@ router.post('/sandbox', async (req, res) => {
   const proactive = b.mode === 'proactive' || b.mode === 'revive'
   const revive = b.mode === 'revive'
   const nurture = b.mode === 'nurture'   // no-reply follow-up touch (nurture cadence)
+  const coldStage = b.mode === 'cold_stage'   // old/cold-buyer staged drip (Text 1..6, LTN, loop)
+  const stageIndex = Math.max(0, Number(b.stageIndex) || 0)
   const attempt = Math.max(1, Number(b.attempt) || 1)
   const activity = b.activity || {}
   const latest = String(b.latest || (history.length ? history[history.length - 1].text : '') || '').slice(0, 1200)
-  if (!proactive && !nurture && !latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
+  if (!proactive && !nurture && !coldStage && !latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
   // Build a synthetic context mirroring the shape context.js produces for a real lead.
   const facts = {
     first_name: lead.name || 'there', lead_type: leadType, lead_source: lead.source || 'Website',
@@ -66,13 +68,27 @@ router.post('/sandbox', async (req, res) => {
   const reviveInstruction = `This is an OLD buyer lead with NO recent online activity; you are reconnecting after a long gap. Follow the REVIVE OPENER section exactly: send the approved body as one text with the greeting, "it's John with Matt Smith Team at RE/MAX", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
   // Nurture follow-up (no reply): mirrors orchestrator.handleNurture's non-reengage instruction.
   const nurtureInstruction = `This lead has NOT replied to your prior message(s) shown in the transcript (nurture attempt ${attempt}). Write ONE short, low-pressure, genuinely useful text with a real, contextual reason to reach back out. Vary it clearly from the prior messages. Do not say "just checking in" or "following up" or repeat the greeting/intro from the first text. If there is genuinely nothing useful to say, return action NO_ACTION; otherwise return action SEND_TEXT with the message.`
+  // Cold-buyer staged drip preview: Text 1 uses REVIVE_OPENER_BLOCK; stages 1+ use COLD_STAGE_BLOCK.
+  let coldInfo = null
+  if (coldStage) {
+    const { COLD_BUYER_STAGES, COLD_STAGE_BLOCK, REVIVE_OPENER_BLOCK } = await import('../ai-followup/prompts.js')
+    const stage = COLD_BUYER_STAGES[Math.min(stageIndex, COLD_BUYER_STAGES.length - 1)]
+    const bank = stage.messages || []
+    const approved = bank.length ? bank[stageIndex % bank.length] : null   // deterministic pick for preview
+    coldInfo = { stage: stageIndex + 1, label: stage.label, day: stage.day, approved }
+    ctx.coldStageInstruction = stageIndex === 0
+      ? REVIVE_OPENER_BLOCK(approved || '', facts.time_greeting)
+      : `MESSAGES ALREADY SENT (oldest to newest, no replies received):\n${transcript}\n\n${COLD_STAGE_BLOCK(stage, approved)}`
+  }
   let userContent = revive
     ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${reviveInstruction}\n\nReturn the JSON now.`
-    : nurture
-      ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\nMESSAGES YOU ALREADY SENT (oldest to newest, no replies received):\n${transcript}\n\n${nurtureInstruction}\n\nReturn the JSON now.`
-      : proactive
-        ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
-        : buildUserMessage(ctx)
+    : coldStage
+      ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${ctx.coldStageInstruction}\n\nReturn the JSON now.`
+      : nurture
+        ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\nMESSAGES YOU ALREADY SENT (oldest to newest, no replies received):\n${transcript}\n\n${nurtureInstruction}\n\nReturn the JSON now.`
+        : proactive
+          ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
+          : buildUserMessage(ctx)
   // Refinement loop: the agent clicked a reply and asked for an improvement. Feed the prior
   // draft + their instruction so the model rewrites it (still following every rule).
   const refine = b.refine
@@ -97,6 +113,7 @@ router.post('/sandbox', async (req, res) => {
       handoff: decision?.handoff || { required: false },
       latency_ms: Date.now() - t0, tokens: msg.usage || {},
       revive_opener: reviveInfo ? { index: reviveInfo.index + 1, total: reviveInfo.total || 20, body: reviveInfo.text } : null,
+      cold_stage: coldInfo,
     })
   } catch (e) { res.status(500).json({ error: 'model error: ' + e.message }) }
 })
@@ -168,9 +185,16 @@ router.post('/lead/:id/send-now', async (req, res) => {
     // → answer + qualify; we texted with no reply → the next qualifying follow-up.
     const { isDormantLead } = await import('../ai-followup/context.js')
     let result
-    // Never-texted lead: a DORMANT one (no recent activity, not brand new) gets the REVIVE
-    // re-engage opener, NOT the activity-based "saw you browsing" opener.
-    if (!lastText) result = isDormantLead(cid) ? await m.handleNurture(cid, { reengage: true, force: true }) : await m.handleProactive(cid, { force: true })
+    // Never-texted lead: a DORMANT one (no recent activity, not brand new) enters the staged
+    // cold-buyer drip at Text 1 (buyers) or gets the generic revive (sellers). A fresh lead
+    // gets the activity-aware proactive opener.
+    if (!lastText) {
+      if (isDormantLead(cid)) {
+        const t = String((db.get('SELECT type FROM clients WHERE id=?', [cid]) || {}).type || '').toLowerCase()
+        if (t.includes('seller') && !t.includes('buyer')) result = await m.handleNurture(cid, { reengage: true, force: true })
+        else { result = await m.handleColdBuyerStage(cid, 0, { force: true }); if (result?.sent) { const s = await import('../ai-followup/scheduler.js'); s.scheduleColdBuyer(cid, 1) } }
+      } else result = await m.handleProactive(cid, { force: true })
+    }
     else if (lastText.direction === 'incoming' && lastIn) result = await m.handleInboundText(cid, lastIn.body, { force: true })
     else result = await m.handleFollowup(cid, { force: true })
     // Manual click should reliably send: if that path produced nothing, try a follow-up.
@@ -206,8 +230,14 @@ router.post('/bulk-send-now', async (req, res) => {
       const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
       const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
       let result
-      // Dormant (no recent activity, not brand new) → REVIVE opener, never "saw you browsing".
-      if (!lastText) result = isDormantLead(cid) ? await m.handleNurture(cid, { reengage: true, force: true }) : await m.handleProactive(cid, { force: true })
+      // Dormant (no recent activity, not brand new) → staged cold-buyer drip at Text 1 (buyers)
+      // or generic revive (sellers). Fresh lead → proactive opener.
+      if (!lastText) {
+        const t = String(client.type || '').toLowerCase()
+        if (!isDormantLead(cid)) result = await m.handleProactive(cid, { force: true })
+        else if (t.includes('seller') && !t.includes('buyer')) result = await m.handleNurture(cid, { reengage: true, force: true })
+        else { result = await m.handleColdBuyerStage(cid, 0, { force: true }); if (result?.sent) { const s = await import('../ai-followup/scheduler.js'); s.scheduleColdBuyer(cid, 1) } }
+      }
       else if (lastText.direction === 'incoming' && lastIn) result = await m.handleInboundText(cid, lastIn.body, { force: true })
       else result = await m.handleFollowup(cid, { force: true })
       if (result && result.ok && !result.sent && !/blocked|STOP|opt|quiet/i.test(result.reason || '')) {
