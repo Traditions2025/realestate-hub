@@ -181,8 +181,35 @@ export async function syncFsboMaster() {
     const k = last10(c.phone)
     if (!k || !sheetPhones.has(k)) { db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL WHERE id=?', [c.id]); report.pruned++ }
   }
-  // How many FSBO-master clients now sit in the live FSBO list (fsbo_status set).
+  // SELF-HEAL: every sync collapses any accidental duplicate FSBO records sharing a phone,
+  // so the list can NEVER drift above the master's unique phones — even if a dup slips
+  // through. Keep the lowest-id record; merge the extra Hub-native ones into it. Records
+  // with their OWN sierra_lead_id are left alone (a real second profile, e.g. one owner
+  // with two listings), so legitimate multi-listings are preserved.
+  report.deduped = 0
+  const byPhone = {}
+  for (const c of db.all("SELECT id, phone, sierra_lead_id, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')")) {
+    const k = last10(c.phone); if (!k) continue
+    ;(byPhone[k] = byPhone[k] || []).push(c)
+  }
+  for (const k of Object.keys(byPhone)) {
+    const g = byPhone[k]; if (g.length < 2) continue
+    g.sort((a, b) => a.id - b.id)
+    const canonical = g[0]
+    for (const l of g.slice(1)) {
+      if (l.sierra_lead_id) continue                 // distinct Sierra profile -> keep (real multi-listing)
+      const set = [], val = []
+      for (const f of ['fsbo_list_date', 'fsbo_dom', 'fsbo_notes', 'fsbo_link']) if (!canonical[f] && l[f]) { set.push(`${f}=?`); val.push(l[f]); canonical[f] = l[f] }
+      if (set.length) { val.push(canonical.id); db.run(`UPDATE clients SET ${set.join(', ')} WHERE id=?`, val) }
+      db.run("UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, merged_into=?, updated_at=? WHERE id=?", [canonical.id, now, l.id])
+      report.deduped++
+    }
+  }
+  // How many FSBO-master clients now sit in the live FSBO list, and whether it lines up
+  // with the sheet (an invariant: on-list should equal unique sheet phones + legit extras).
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
+  report.on_list = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')").n
+  report.unique_sheet_phones = sheetPhones.size
   db.setSetting?.('fsbo_master_last_sync', now)
   return report
 }
