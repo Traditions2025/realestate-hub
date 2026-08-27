@@ -39,9 +39,11 @@ router.post('/sandbox', async (req, res) => {
   const isFirst = !history.some(m => m.role === 'agent')
   const proactive = b.mode === 'proactive' || b.mode === 'revive'
   const revive = b.mode === 'revive'
+  const nurture = b.mode === 'nurture'   // no-reply follow-up touch (nurture cadence)
+  const attempt = Math.max(1, Number(b.attempt) || 1)
   const activity = b.activity || {}
   const latest = String(b.latest || (history.length ? history[history.length - 1].text : '') || '').slice(0, 1200)
-  if (!proactive && !latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
+  if (!proactive && !nurture && !latest.trim()) return res.status(400).json({ error: 'Provide the latest lead message.' })
   // Build a synthetic context mirroring the shape context.js produces for a real lead.
   const facts = {
     first_name: lead.name || 'there', lead_type: leadType, lead_source: lead.source || 'Website',
@@ -62,11 +64,15 @@ router.post('/sandbox', async (req, res) => {
   // "I saw you browsing").
   const proactiveInstruction = `This is a lead the team has NOT texted yet. They have been active online: ${activity.description || 'browsing our website'}. Lead source: ${facts.lead_source}. Write a short, warm, welcoming opening SMS (follow the FIRST MESSAGE rules). Give a real, contextual reason for reaching out tied to what they were looking at (the city/area or a property, from the context) and end with ONE easy, low-pressure question. NEVER imply you are watching their activity (never say "I saw you viewed/browsing"); say "thanks for stopping by" instead. Return action SEND_TEXT with the message.`
   const reviveInstruction = `This is an OLD buyer lead with NO recent online activity; you are reconnecting after a long gap. Follow the REVIVE OPENER section exactly: send the approved body as one text with the greeting, "it's John with Matt Smith Team at RE/MAX", and MattSmithTeam.com at the end. Return action SEND_TEXT.`
+  // Nurture follow-up (no reply): mirrors orchestrator.handleNurture's non-reengage instruction.
+  const nurtureInstruction = `This lead has NOT replied to your prior message(s) shown in the transcript (nurture attempt ${attempt}). Write ONE short, low-pressure, genuinely useful text with a real, contextual reason to reach back out. Vary it clearly from the prior messages. Do not say "just checking in" or "following up" or repeat the greeting/intro from the first text. If there is genuinely nothing useful to say, return action NO_ACTION; otherwise return action SEND_TEXT with the message.`
   let userContent = revive
     ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${reviveInstruction}\n\nReturn the JSON now.`
-    : proactive
-      ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
-      : buildUserMessage(ctx)
+    : nurture
+      ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\nMESSAGES YOU ALREADY SENT (oldest to newest, no replies received):\n${transcript}\n\n${nurtureInstruction}\n\nReturn the JSON now.`
+      : proactive
+        ? `CONTEXT (JSON, trusted):\n${JSON.stringify(facts)}\n\n${proactiveInstruction}\n\nReturn the JSON now.`
+        : buildUserMessage(ctx)
   // Refinement loop: the agent clicked a reply and asked for an improvement. Feed the prior
   // draft + their instruction so the model rewrites it (still following every rule).
   const refine = b.refine
