@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T19:00:51.810Z",
+  "generated_at": "2026-08-27T19:56:51.150Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "0340c4f",
+      "date": "2026-08-27T14:01:01-05:00",
+      "subject": "Inbox: show group texts on each participant's lead profile",
+      "title": "Inbox: show group texts on each participant's lead profile",
+      "body": "Group texts are stored once with client_id NULL + a conversation_sid, so they\nbelonged to no single profile and never appeared on a participant's page (only\nin the Inbox group thread). GET /thread/:clientId now also pulls every group\nconversation the lead is part of, matched by the group's participant list\n(group_meta) or by phone on any row, and merges them in occurred_at order.\nGroup sends now also record each participant's client_id in group_meta for\nexact future matching.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "01f3f12",
       "date": "2026-08-27T13:54:26-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Mortgage Lender + Title Company + Attorney + Insurance to vendor categories",
       "body": "",
       "category": "feature"
-    },
-    {
-      "hash": "74ba110",
-      "date": "2026-04-30T14:42:14-05:00",
-      "subject": "Pre-Listing column is now drag-enabled with promote/demote workflow",
-      "title": "Pre-Listing column is now drag-enabled with promote/demote workflow",
-      "body": "- Pre-listing cards are draggable. Drop one on Active / Under Contract / Clear to Close / Closed → confirms, then creates a listing-type transaction in that status and marks the pre-listing as 'Listed' so it leaves the column\n- Reverse direction also works: drag a transaction back onto the Pre-Listing column → confirms, creates a new pre-listing record, marks transaction as Withdrawn\n- Drag payload format changed to '<kind>:<id>' (tx vs pl) so drop handler can route correctly\n- Both confirms show the address + intended action so it's not surprising",
-      "category": "other"
     }
   ]
 }

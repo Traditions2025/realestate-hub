@@ -404,7 +404,7 @@ export default function Inbox() {
             <>
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
                 <div style={{ fontWeight: 700 }}>{selConvo?.contact_name || 'Conversation'}</div>
-                <button className="btn btn-sm btn-secondary" onClick={() => navigate('/clients?open=' + sel)} title="Open this lead's full profile in Clients">◉ View profile</button>
+                <a href={'/clients/' + sel} className="btn btn-sm btn-secondary" style={{ textDecoration: 'none' }} title="Open the full-screen profile (right-click or Ctrl/Cmd-click to open in a new tab)" onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); navigate('/clients/' + sel) }}>◉ View profile</a>
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
                   style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
                   <option value="">Unassigned</option>
