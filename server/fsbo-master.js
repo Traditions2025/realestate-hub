@@ -115,16 +115,25 @@ export async function syncFsboMaster() {
   // an FSBO-tagged client, else the lowest id.
   const index = new Map()
   const sheetPhones = new Set()
-  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != ''")) {
+  // Rank a candidate for the phone index. A LIVE (non-junk) record already carrying an
+  // fsbo_status is the real FSBO and must always win — even over an older JUNK lead that
+  // happens to carry a legacy "FSBO" tag. Anchoring on such a junk lead makes the collision
+  // branch fire on every sync and create a fresh duplicate each time.
+  const rank = (x) => {
+    const junk = isJunkish(x.status)
+    const hasFsbo = !!(x.fsbo_status && String(x.fsbo_status).trim())
+    if (hasFsbo && !junk) return 4        // the live FSBO record — always preferred
+    if (hasFsbo && junk) return 3
+    if (!junk && /fsbo/i.test(x.tags || '')) return 2
+    if (!junk) return 1
+    return 0                              // junkish, no fsbo_status (tag ignored)
+  }
+  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL")) {
     const k = last10(c.phone); if (!k) continue
     const prev = index.get(k)
     if (!prev) { index.set(k, c); continue }
-    // Prefer the record that IS the FSBO — one already carrying an fsbo_status, or fsbo-tagged.
-    // Without this, a created FSBO record (no fsbo tag) loses to an older junk lead sharing the
-    // phone, so every sync re-hits the collision branch and creates yet another duplicate.
-    const isFsbo = (x) => /fsbo/i.test(x.tags || '') || !!(x.fsbo_status && String(x.fsbo_status).trim())
-    if (isFsbo(c) && !isFsbo(prev)) index.set(k, c)
-    else if (isFsbo(c) === isFsbo(prev) && c.id < prev.id) index.set(k, c)
+    const rc = rank(c), rp = rank(prev)
+    if (rc > rp || (rc === rp && c.id < prev.id)) index.set(k, c)
   }
   const createNew = (row, key) => {
     const { first, last } = splitName(row.name)
