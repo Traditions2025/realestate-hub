@@ -73,7 +73,7 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
   const proxy10 = String(proxy).replace(/\D/g, '').slice(-10)
   // Never add our own Hub number as a participant (a number can't text itself) — e.g. a
   // team-directory entry that points at the Hub line.
-  const clean = (recipients || []).map(r => ({ phone: toE164(r.phone), name: r.name || null }))
+  const clean = (recipients || []).map(r => ({ phone: toE164(r.phone), name: r.name || null, client_id: r.client_id || null }))
     .filter(r => r.phone && String(r.phone).replace(/\D/g, '').slice(-10) !== proxy10)
   if (clean.length < 2) throw new Error('A group text needs at least 2 recipients (our own Hub number is skipped automatically)')
   const sid = await ensureConversationsService()

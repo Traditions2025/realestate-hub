@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T18:54:13.842Z",
+  "generated_at": "2026-08-27T19:00:51.810Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "01f3f12",
+      "date": "2026-08-27T13:54:26-05:00",
+      "subject": "Inbox: unify split conversations + make suggested TEXT replies work",
+      "title": "Inbox: unify split conversations + make suggested TEXT replies work",
+      "body": "Inbound-reply routing (systemic fix for Elias Abodeely split thread):\n- matchClient() no longer returns the first phone/email match (arbitrary id\n  order, often an old junk duplicate). It now ranks duplicate leads and picks\n  the record holding the ACTIVE conversation: most recent outgoing message >\n  non-junk > most recent activity > newest record. So a reply lands on the\n  same lead we texted, not a stale duplicate.\n\nSuggested reply (was email-only):\n- The suggestion keyed off latestIncomingEmail, so TEXT conversations never\n  got a suggestion. Now latestIncoming() covers text OR email, generateReply()\n  drafts an SMS-appropriate reply (short, no subject) for text threads via a\n  new REPLY_SYSTEM_TEXT prompt, and the routes report the channel. Frontend\n  already renders \"Suggested Text\" + a text send button off the thread channel.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a9e3072",
       "date": "2026-08-27T13:43:46-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Pre-Listing column is now drag-enabled with promote/demote workflow",
       "title": "Pre-Listing column is now drag-enabled with promote/demote workflow",
       "body": "- Pre-listing cards are draggable. Drop one on Active / Under Contract / Clear to Close / Closed → confirms, then creates a listing-type transaction in that status and marks the pre-listing as 'Listed' so it leaves the column\n- Reverse direction also works: drag a transaction back onto the Pre-Listing column → confirms, creates a new pre-listing record, marks transaction as Withdrawn\n- Drag payload format changed to '<kind>:<id>' (tx vs pl) so drop handler can route correctly\n- Both confirms show the address + intended action so it's not surprising",
-      "category": "other"
-    },
-    {
-      "hash": "fd7cea4",
-      "date": "2026-04-30T14:38:26-05:00",
-      "subject": "Drag-and-drop kanban (Transactions) + clickable sortable column headers (Clients)",
-      "title": "Drag-and-drop kanban (Transactions) + clickable sortable column headers (Clients)",
-      "body": "Transactions kanban:\n- Each pipeline card is now draggable (HTML5 native drag-and-drop, no library)\n- Drop a card on any other status column to update property_status — optimistic UI, server PUT, rollback on failure\n- Visual feedback: card fades while dragging, target column gets a dashed gold outline + tinted background\n- Pre-Listing column kept non-droppable (those live in pre_listings table, not transactions)\n\nClients list:\n- Score, Name, and Visits column headers are now clickable to sort\n- Click toggles between desc/asc (Score: ▼ highest first ↔ ▲ lowest first; Visits: ▼ most ↔ ▲ fewest; Name: ▼ A-Z ↔ ▲ Z-A)\n- Active sort column highlighted in gold with directional arrow\n- Existing sort dropdown still works in parallel",
       "category": "other"
     }
   ]

@@ -227,7 +227,31 @@ router.get('/contact-emails', async (req, res) => {
 
 // ---- one contact's full thread ----
 router.get('/thread/:clientId', (req, res) => {
-  const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [Number(req.params.clientId)])
+  const cid = Number(req.params.clientId)
+  const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [cid])
+  // Group texts are stored ONCE with client_id NULL + a conversation_sid (they belong to
+  // no single profile). Surface every group conversation this lead is part of on their
+  // profile: match by the group's participant list (group_meta) or by phone on any row.
+  try {
+    const client = db.get('SELECT phone FROM clients WHERE id = ?', [cid])
+    const k = client && client.phone ? phoneKey(client.phone) : null
+    const groupRows = db.all('SELECT * FROM communications WHERE conversation_sid IS NOT NULL ORDER BY occurred_at ASC LIMIT 1000')
+    const mySids = new Set()
+    for (const g of groupRows) {
+      if (g.client_id === cid) { mySids.add(g.conversation_sid); continue }
+      if (!k) continue
+      if (phoneKey(g.from_addr) === k || phoneKey(g.to_addr) === k) { mySids.add(g.conversation_sid); continue }
+      try {
+        const parts = (JSON.parse(g.group_meta || '{}').participants) || []
+        if (parts.some(p => phoneKey(p.phone) === k || Number(p.client_id) === cid)) mySids.add(g.conversation_sid)
+      } catch {}
+    }
+    if (mySids.size) {
+      const seen = new Set(rows.map(r => r.id))
+      for (const g of groupRows) if (mySids.has(g.conversation_sid) && !seen.has(g.id)) { rows.push(g); seen.add(g.id) }
+      rows.sort((a, b) => String(a.occurred_at || '').localeCompare(String(b.occurred_at || '')))
+    }
+  } catch (e) { console.error('[thread] group-merge:', e.message) }
   res.json(rows)
 })
 
@@ -859,7 +883,7 @@ router.post('/group-text', async (req, res) => {
   try {
     const { createGroupText } = await import('../twilio-conversations.js')
     const out = await createGroupText({ recipients, body })
-    const meta = JSON.stringify({ participants: out.participants.map(p => ({ phone: p.phone, name: p.name })) })
+    const meta = JSON.stringify({ participants: out.participants.map(p => ({ phone: p.phone, name: p.name, client_id: p.client_id || null })) })
     const names = out.participants.map(p => p.name || p.phone).join(', ')
     db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, group_meta, occurred_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
