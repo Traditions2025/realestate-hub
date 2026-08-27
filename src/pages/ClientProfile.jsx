@@ -3,9 +3,41 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import TemplatePicker from '../components/TemplatePicker'
 import {
-  InlineName, InlineField, InlineStatus, QuickAddTask, ContactTimeline, AiIsaCard,
-  InlineTextComposer, COMM_META, commToText, fmtCommWhen, fmtDur, recUrl,
+  InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard,
+  InlineTextComposer, COMM_META, commToText, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
 } from './Clients'
+
+// Clickable status pill (single status control — no redundant copies). Writes to Hub + Sierra.
+function StatusPill({ client, onSaved }) {
+  const change = async (v) => {
+    try {
+      await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: v }) })
+      if (client.sierra_lead_id) authFetch('/api/sierra/update-lead-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, status: v }) }).catch(() => {})
+      onSaved && onSaved()
+    } catch (e) { alert('Status update failed: ' + e.message) }
+  }
+  return <select className={`status-quick-select status-${client.status}`} value={client.status || ''} onChange={e => change(e.target.value)} title="Change status">
+    {SIERRA_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+  </select>
+}
+// Clickable assigned-agent pill.
+function AgentPill({ client, onSaved }) {
+  const [agents, setAgents] = React.useState([])
+  React.useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const change = async (v) => { try { await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_assigned: v || null }) }); onSaved && onSaved() } catch (e) { alert('Assign failed: ' + e.message) } }
+  return <select className="status-quick-select" value={client.agent_assigned || ''} onChange={e => change(e.target.value)} title="Assign agent" style={{ maxWidth: 150 }}>
+    <option value="">Unassigned</option>
+    {agents.map(a => <option key={a} value={a}>{a}</option>)}
+    {client.agent_assigned && !agents.includes(client.agent_assigned) && <option value={client.agent_assigned}>{client.agent_assigned}</option>}
+  </select>
+}
+// Editable Buyer/Seller type.
+function TypePill({ client, onSaved }) {
+  const change = async (v) => { try { await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: v }) }); onSaved && onSaved() } catch (e) { alert('Type update failed: ' + e.message) } }
+  return <select className={`status-quick-select type-${client.type || 'buyer'}`} value={client.type || 'buyer'} onChange={e => change(e.target.value)} title="Change type">
+    <option value="buyer">Buyer</option><option value="seller">Seller</option><option value="both">Buyer/Seller</option>
+  </select>
+}
 import { loadClientsNav, markClientsReturn } from '../lib/clientsNav'
 
 // One-page full-screen Client/Lead command center at /clients/:id. The whole relationship is
@@ -43,6 +75,17 @@ export default function ClientProfile() {
   const [savingNote, setSavingNote] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
+  const [layout, setLayout] = useState(loadLayout)
+  const [dragKey, setDragKey] = useState(null)
+  const [dragArmed, setDragArmed] = useState(null)
+  const moveSection = (fromKey, toKey, toCol) => {
+    setLayout(prev => {
+      const next = { left: prev.left.filter(k => k !== fromKey), right: prev.right.filter(k => k !== fromKey) }
+      const arr = next[toCol]; const at = toKey ? arr.indexOf(toKey) : arr.length
+      arr.splice(at < 0 ? arr.length : at, 0, fromKey); saveLayout(next); return next
+    })
+    setDragKey(null); setDragArmed(null)
+  }
 
   const nav = loadClientsNav()
   const ids = (nav && Array.isArray(nav.ids)) ? nav.ids : []
@@ -127,10 +170,10 @@ export default function ClientProfile() {
         <div className="cp-identity">
           <h1 className="cp-name">{name}</h1>
           <div className="cp-badges">
-            <span className={`type-pill type-${client.type || 'buyer'}`}>{typeLabel}</span>
-            {client.status && <span className="cp-badge">{client.status}</span>}
+            <TypePill client={client} onSaved={load} />
+            <StatusPill client={client} onSaved={load} />
+            <AgentPill client={client} onSaved={load} />
             {client.source && <span className="cp-badge cp-badge-muted">{client.source}</span>}
-            {client.agent_assigned && <span className="cp-badge cp-badge-muted">👤 {client.agent_assigned}</span>}
             {intent != null && <span className="cp-badge" style={{ background: 'rgba(37,99,235,.12)', color: '#2563eb' }}>Intent {intent}</span>}
             {ai?.ai_managed && <span className="cp-badge" style={{ background: 'rgba(124,58,237,.12)', color: '#7c3aed' }}>AI Managed</span>}
           </div>
@@ -160,22 +203,45 @@ export default function ClientProfile() {
         {alerts.length > 0 && (
           <div className="cp-alerts">{alerts.map((a, i) => <span key={i} className="cp-alert" style={{ background: a.tone === 'bad' ? 'rgba(239,68,68,.12)' : 'rgba(245,158,11,.14)', color: a.tone === 'bad' ? '#ef4444' : '#b45309' }}>⚠ {a.label}</span>)}</div>
         )}
-        <div className="cp-grid">
-          <div className="cp-col-main">
-            <ClientDetails client={client} onSaved={load} />
-            <BuyerSellerProfile client={client} ai={ai} />
-            <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />
-            <PropertyActivity client={client} />
-            <Section title="Activity" id="activity" defaultOpen={true}><ContactTimeline clientId={cid} /></Section>
-            <NotesSection client={client} onSaved={load} onAdd={() => setNoteOpen(true)} />
-            <Section title="Research" id="research" defaultOpen={false}><Research client={client} /></Section>
-          </div>
-          <div className="cp-col-side">
-            <AiIntelligence ai={ai} followup={followup} cid={cid} />
-            <div id="cp-tasks"><TasksCard cid={cid} name={name} /></div>
-            <TransactionsCard cid={cid} onAdd={addTransaction} navigate={navigate} />
-          </div>
-        </div>
+        {(() => {
+          const renderers = {
+            details: () => <ClientDetails client={client} onSaved={load} />,
+            bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
+            comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
+            propact: () => <PropertyActivity client={client} />,
+            activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
+            notes: () => <NotesSection client={client} onSaved={load} onAdd={() => setNoteOpen(true)} />,
+            research: () => <Section title="Research" id="research" defaultOpen={false}><Research client={client} /></Section>,
+            ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
+            plans: () => <ActionPlans cid={cid} />,
+            tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} /></div>,
+            txns: () => <TransactionsCard cid={cid} onAdd={addTransaction} navigate={navigate} />,
+          }
+          return (
+            <div className="cp-grid">
+              {['left', 'right'].map(col => (
+                <div key={col} className={col === 'left' ? 'cp-col-main' : 'cp-col-side'}
+                  onDragOver={e => { if (dragKey) e.preventDefault() }}
+                  onDrop={e => { if (dragKey) { e.preventDefault(); moveSection(dragKey, null, col) } }}>
+                  {layout[col].filter(k => renderers[k]).map(key => {
+                    const node = renderers[key]()
+                    if (!node) return null
+                    return (
+                      <div key={key} className={`cp-drag-wrap ${dragKey === key ? 'dragging' : ''}`} draggable={dragArmed === key}
+                        onDragStart={() => setDragKey(key)}
+                        onDragOver={e => { if (dragKey && dragKey !== key) { e.preventDefault(); e.stopPropagation() } }}
+                        onDrop={e => { if (dragKey) { e.preventDefault(); e.stopPropagation(); moveSection(dragKey, key, col) } }}
+                        onDragEnd={() => { setDragKey(null); setDragArmed(null) }}>
+                        <span className="cp-drag-grip" title="Drag to rearrange this box" onMouseDown={() => setDragArmed(key)} onMouseUp={() => setDragArmed(null)}>⋮⋮</span>
+                        {node}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )
@@ -195,14 +261,16 @@ function ClientDetails({ client, onSaved }) {
           {client.alt_phones && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other phones:</strong> {client.alt_phones}</p>}
           {client.alt_emails && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other emails:</strong> {client.alt_emails}</p>}
           <InlineField label="Address" field="address" value={client.address} clientId={cid} onSaved={onSaved} />
-          <p><strong>City:</strong> {client.city || '—'}{client.state ? `, ${client.state}` : ''} {client.zip || ''}</p>
+          <InlineField label="City" field="city" value={client.city} clientId={cid} onSaved={onSaved} />
+          <InlineField label="State" field="state" value={client.state} clientId={cid} onSaved={onSaved} />
+          <InlineField label="Zip" field="zip" value={client.zip} clientId={cid} onSaved={onSaved} />
         </div>
         <div>
           <div className="cp-sub">CRM</div>
-          <InlineStatus detail={client} onSaved={onSaved} />
-          <p><strong>Type:</strong> {client.type === 'seller' ? 'Seller' : client.type === 'both' ? 'Buyer/Seller' : 'Buyer'}</p>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Type:</strong> <TypePill client={client} onSaved={onSaved} /></p>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Status:</strong> <StatusPill client={client} onSaved={onSaved} /></p>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Agent:</strong> <AgentPill client={client} onSaved={onSaved} /></p>
           {client.source && <p><strong>Source:</strong> {client.source}</p>}
-          {client.agent_assigned && <p><strong>Assigned:</strong> {client.agent_assigned}</p>}
           {(client.register_date || client.created_at) && <p><strong>Registered:</strong> {new Date(String(client.register_date || client.created_at).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
         </div>
       </div>
@@ -467,6 +535,72 @@ function TransactionsCard({ cid, onAdd, navigate }) {
     </Section>
   )
 }
+
+// ── Action Plans (drip / automation / action plan enrollments) ───────────
+function ActionPlans({ cid }) {
+  const [seq, setSeq] = useState(null)
+  const [picker, setPicker] = useState(null)
+  const reload = useCallback(() => authFetch(`/api/clients/${cid}/sequences`).then(r => r.json()).then(setSeq).catch(() => setSeq({ drips: [], automations: [] })), [cid])
+  useEffect(() => { reload() }, [reload])
+  const drips = seq?.drips || []; const autos = seq?.automations || []
+  const remove = async (kind, eid) => {
+    if (!eid || !window.confirm('Remove this enrollment?')) return
+    await authFetch(kind === 'drip' ? `/api/drips/enrollments/${eid}/remove` : `/api/automations/enrollments/${eid}/remove`, { method: 'POST' }).catch(() => {})
+    reload()
+  }
+  const row = (icon, kind, e) => { const eid = e.enrollment_id || e.id; return (
+    <div key={kind + eid} style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', padding: '3px 0' }}>
+      <span>{icon}</span><span style={{ flex: 1 }}>{e.name || e.drip_name || e.automation_name || kind}</span>
+      {e.status && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{e.status}</span>}
+      <button title="Remove" onClick={() => remove(kind, eid)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
+    </div>
+  ) }
+  return (
+    <Section title="Action Plans" id="plans" right={<div style={{ display: 'flex', gap: 4 }}><button className="btn btn-sm" onClick={() => setPicker('drip')}>+ Drip</button><button className="btn btn-sm" onClick={() => setPicker('automation')}>+ Automation</button></div>}>
+      {seq === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
+        : (!drips.length && !autos.length && !picker) ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Not enrolled in any plans.</div>
+          : <>{drips.map(d => row('💧', 'drip', d))}{autos.map(a => row('⚡', 'automation', a))}</>}
+      {picker && <EnrollPicker kind={picker} cid={cid} onClose={() => setPicker(null)} onDone={() => { setPicker(null); reload() }} />}
+    </Section>
+  )
+}
+function EnrollPicker({ kind, cid, onClose, onDone }) {
+  const [items, setItems] = useState(null); const [sel, setSel] = useState(''); const [busy, setBusy] = useState(false)
+  useEffect(() => { authFetch(kind === 'automation' ? '/api/automations' : '/api/drips').then(r => r.json()).then(d => { let l = Array.isArray(d) ? d : []; if (kind === 'automation') l = l.filter(a => a.status === 'active'); setItems(l) }).catch(() => setItems([])) }, [kind])
+  const enroll = async () => {
+    if (!sel) return; setBusy(true)
+    const r = await authFetch(kind === 'automation' ? `/api/automations/${sel}/enroll` : `/api/drips/${sel}/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: [cid] }) }).then(x => x.json()).catch(e => ({ error: e.message }))
+    setBusy(false)
+    if (r.error) return alert(r.error)
+    if ((r.enrolled || 0) === 0) alert('Not enrolled — likely already in a drip, no email on file, or Do-Not-Contact.')
+    onDone()
+  }
+  return (
+    <div style={{ marginTop: 8, padding: 8, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
+      {items === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
+        : !items.length ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{kind === 'automation' ? 'No active automations.' : 'No drip campaigns.'}</div>
+          : <select value={sel} onChange={e => setSel(e.target.value)} autoFocus style={{ width: '100%', padding: '6px 8px', fontSize: 13 }}><option value="">— pick a {kind} —</option>{items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}><button className="btn btn-sm btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-sm btn-primary" disabled={busy || !sel} onClick={enroll}>{busy ? 'Enrolling…' : 'Enroll'}</button></div>
+    </div>
+  )
+}
+
+// ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'activity', 'notes', 'research'], right: ['ai', 'plans', 'tasks', 'txns'] }
+export function loadLayout() {
+  try {
+    const s = JSON.parse(localStorage.getItem('cp_layout_v1') || 'null')
+    if (s && Array.isArray(s.left) && Array.isArray(s.right)) {
+      const all = [...DEFAULT_LAYOUT.left, ...DEFAULT_LAYOUT.right]
+      const have = new Set([...s.left, ...s.right])
+      const left = [...s.left.filter(k => all.includes(k)), ...DEFAULT_LAYOUT.left.filter(k => !have.has(k))]
+      const right = [...s.right.filter(k => all.includes(k)), ...DEFAULT_LAYOUT.right.filter(k => !have.has(k))]
+      return { left, right }
+    }
+  } catch {}
+  return DEFAULT_LAYOUT
+}
+export function saveLayout(l) { try { localStorage.setItem('cp_layout_v1', JSON.stringify(l)) } catch {} }
 
 // ── Alerts ───────────────────────────────────────────────────────────────
 function buildAlerts(client, ai) {

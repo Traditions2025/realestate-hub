@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T17:11:24.957Z",
+  "generated_at": "2026-08-27T17:27:37.402Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "517f8d6",
+      "date": "2026-08-27T12:11:37-05:00",
+      "subject": "Client Profile: one-page command center + row-click opens full screen + tags/email/txn/prev-next",
+      "title": "Client Profile: one-page command center + row-click opens full screen + tags/email/txn/prev-next",
+      "body": "- Row-click on a lead now opens the full-screen /clients/:id workspace (not the modal); modal\n  kept as fallback with its '⤢ Full screen' button.\n- Rebuild ClientProfile as ONE page (no primary tabs): sticky header + actions, two-column\n  command center — left: Client Details (contact+CRM+tag chips), Buyer/Seller profile,\n  Communications (All/Texts/Calls/Emails + search + Load More + composer), Property Activity,\n  Activity (ContactTimeline), Notes, Research; right sidebar: AI Intelligence + Next Best Action\n  (+ Open Full AI = AiIsaCard), Tasks (overdue/upcoming + add), Transactions (+ add). Alerts row.\n- Add/remove TAGS via chips (reuses /api/clients/bulk-tags); Email composer (/api/email/send +\n  templates); Add Transaction (/api/transactions); collapsible sections persist open/closed.\n- Prev/Next now walks the FULL matched set via /api/clients/ids with the list's filters.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8b21e2b",
       "date": "2026-08-27T11:52:05-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Advanced filters: status/tags/zip/source include/exclude + saved lists feature with auto-updating filter criteria",
       "body": "",
       "category": "other"
-    },
-    {
-      "hash": "7c8a72c",
-      "date": "2026-04-29T16:56:58-05:00",
-      "subject": "Update email signature with full office address",
-      "title": "email signature with full office address",
-      "body": "",
-      "category": "improvement"
     }
   ]
 }
