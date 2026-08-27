@@ -158,21 +158,21 @@ export async function fsboDailyMaintenance() {
     const { syncFsboMaster, ensureFsboListIncludesMaster } = await import('./fsbo-master.js')
     r = await syncFsboMaster(); ensureFsboListIncludesMaster()
     rep.synced = true; rep.sheet_rows = r.sheet_rows; rep.created = r.created; rep.updated = r.updated
-    rep.on_list = r.on_list; rep.deduped = r.deduped; rep.unique_sheet_phones = r.unique_sheet_phones
+    rep.on_list = r.on_list; rep.deduped = r.deduped; rep.unique_sheet_phones = r.unique_sheet_phones; rep.sheet_rows = r.sheet_rows
   } catch (e) { rep.errors++ }
   // Stop the sequence for anyone who has gone Off Market (don't keep an active enrollment),
   // without touching their lead status — they remain on the list.
   db.run("UPDATE fsbo_followups SET status='stopped' WHERE status='active' AND client_id IN (SELECT id FROM clients WHERE fsbo_status='Off Market')")
   db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
     ['fsbo_daily', 'fsbo', `Master synced (${rep.sheet_rows || 0} rows). On list: ${rep.on_list ?? '?'}. Deduped: ${rep.deduped ?? 0}.${rep.errors ? ` ${rep.errors} errors.` : ''}`])
-  // Invariant alert: after self-heal, the list should equal the sheet's unique phones plus
-  // a few legit multi-listings. A big gap (or many dedupes) means something's off — ping Slack.
+  // Invariant alert: each sheet listing (phone+address) = one record, so on-list should track
+  // sheet rows closely. A meaningful excess (or many self-heals) means dups are creeping — ping Slack.
   try {
-    if (r && r.on_list != null && r.unique_sheet_phones != null) {
-      const gap = r.on_list - r.unique_sheet_phones
-      if (gap > 5 || (r.deduped || 0) > 3) {
+    if (r && r.on_list != null && r.sheet_rows != null) {
+      const gap = r.on_list - r.sheet_rows
+      if (gap > 3 || (r.deduped || 0) > 3) {
         const { postSlack } = await import('./slack.js')
-        await postSlack(`:warning: FSBO list check — on-list ${r.on_list} vs ${r.unique_sheet_phones} unique sheet phones (gap ${gap}, self-healed ${r.deduped || 0} dupes today). Worth a look if this keeps growing.`)
+        await postSlack(`:warning: FSBO list check — on-list ${r.on_list} vs ${r.sheet_rows} sheet rows (gap ${gap}, self-healed ${r.deduped || 0} dupes today). Worth a look if this keeps growing.`)
       }
     }
   } catch {}
