@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T17:27:37.402Z",
+  "generated_at": "2026-08-27T17:41:46.957Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4a6d9cc",
+      "date": "2026-08-27T12:27:47-05:00",
+      "subject": "Client Profile: rearrangeable boxes (persisted), editable State/Zip/Type, single clickable Status/Agent, action plans",
+      "title": "Client Profile: rearrangeable boxes (persisted), editable State/Zip/Type, single clickable Status/Agent, action plans",
+      "body": "- Rearrange sections by dragging the ⋮⋮ grip; order persists globally (localStorage cp_layout_v1)\n  so every lead opens in the same arrangement. New sections auto-append to defaults.\n- Client Details: City/State/Zip now inline-editable (added State + Zip); Type editable.\n- Status is a single clickable pill (Hub + Sierra) in the header and CRM — no redundant copies;\n  Assigned Agent is a clickable dropdown too.\n- New Action Plans box: shows current drip/automation enrollments and enrolls the lead into a\n  drip, automation, or action plan (reuses /api/{drips,automations}/:id/enroll + sequences).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "517f8d6",
       "date": "2026-08-27T12:11:37-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T17:19:32-05:00",
       "subject": "Better filter UI: searchable multi-select for tags/zips/cities/sources, email status filter, quick presets",
       "title": "Better filter UI: searchable multi-select for tags/zips/cities/sources, email status filter, quick presets",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "02f08f8",
-      "date": "2026-04-29T17:08:38-05:00",
-      "subject": "Advanced filters: status/tags/zip/source include/exclude + saved lists feature with auto-updating filter criteria",
-      "title": "Advanced filters: status/tags/zip/source include/exclude + saved lists feature with auto-updating filter criteria",
       "body": "",
       "category": "other"
     }

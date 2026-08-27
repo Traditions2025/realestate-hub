@@ -159,11 +159,11 @@ export default function ClientProfile() {
       <div className="cp-sticky">
         <div className="cp-header-row">
           <button className="btn btn-secondary btn-sm" onClick={backToClients} title={`Return to the ${backLabel} list where you left off`}>← Back to {backLabel}</button>
-          {ids.length > 1 && idx >= 0 && (
+          {ids.length > 1 && (
             <div className="cp-prevnext">
               <button className="btn btn-sm" disabled={idx <= 0} onClick={() => goToIndex(idx - 1)}>‹ Prev</button>
-              <span className="cp-count">{idx + 1} of {ids.length}</span>
-              <button className="btn btn-sm" disabled={idx >= ids.length - 1} onClick={() => goToIndex(idx + 1)}>Next ›</button>
+              <span className="cp-count">{idx >= 0 ? `${idx + 1} of ${ids.length}` : `${ids.length} in list`}</span>
+              <button className="btn btn-sm" disabled={idx >= 0 ? idx >= ids.length - 1 : false} onClick={() => goToIndex(idx >= 0 ? idx + 1 : 0)}>Next ›</button>
             </div>
           )}
         </div>
@@ -209,6 +209,10 @@ export default function ClientProfile() {
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             propact: () => <PropertyActivity client={client} />,
+            interest: () => <ListingInterest client={client} />,
+            website: () => <WebsiteActivity cid={cid} />,
+            fub: () => <FubActivity cid={cid} />,
+            sierra: () => <SierraActivity client={client} />,
             activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
             notes: () => <NotesSection client={client} onSaved={load} onAdd={() => setNoteOpen(true)} />,
             research: () => <Section title="Research" id="research" defaultOpen={false}><Research client={client} /></Section>,
@@ -585,11 +589,102 @@ function EnrollPicker({ kind, cid, onClose, onDone }) {
   )
 }
 
+// ── Sierra activity / notes ──────────────────────────────────────────────
+function SierraActivity({ client }) {
+  const [rows, setRows] = useState(null); const [exp, setExp] = useState(false)
+  useEffect(() => { if (!client.sierra_lead_id) { setRows([]); return } authFetch(`/api/sierra/lead-notes/${client.sierra_lead_id}`).then(r => r.json()).then(a => setRows(Array.isArray(a) ? a.slice().sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0)) : [])).catch(() => setRows([])) }, [client.sierra_lead_id])
+  if (!client.sierra_lead_id) return null
+  return (
+    <Section title={`Sierra Activity${rows ? ` (${rows.length})` : ''}`} id="sierra">
+      {rows === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
+        : !rows.length ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No Sierra activity.</div>
+          : <><div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible' }}>
+            {rows.slice(0, exp ? 60 : 5).map((a, i) => (
+              <div key={a.id || i} style={{ fontSize: 12.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 11 }}><span>{a.author || 'Sierra System'}</span><span>{a.date ? new Date(a.date).toLocaleDateString() : ''}</span></div>
+                <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{a.contents}</div>
+              </div>))}
+          </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
+    </Section>
+  )
+}
+// ── Follow Up Boss activity ──────────────────────────────────────────────
+function FubActivity({ cid }) {
+  const [rows, setRows] = useState(null); const [exp, setExp] = useState(false)
+  useEffect(() => { authFetch(`/api/fub/activity/live?client_id=${cid}`).then(r => r.json()).then(d => { const arr = Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : []); setRows(arr.slice().sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0))) }).catch(() => setRows([])) }, [cid])
+  if (rows && !rows.length) return null
+  const pv = (rows || []).filter(a => a.prop_street).length
+  return (
+    <Section title={`Follow Up Boss Activity${rows ? ` (${rows.length}${pv ? ` · ${pv} property views` : ''})` : ''}`} id="fub">
+      {rows === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
+        : <><div style={{ display: 'flex', flexDirection: 'column', maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible', border: '1px solid var(--border)', borderRadius: 6 }}>
+          {rows.slice(0, exp ? 150 : 5).map((a, i) => {
+            const when = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
+            const addr = a.prop_street ? `${a.prop_street}, ${a.prop_city || ''} ${a.prop_state || ''}`.trim() : ''
+            return (<div key={a.id || i} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ fontWeight: 600 }}>{a.type}</span><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{when}</span></div>
+              {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
+              {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.page_title}</div>}
+            </div>)
+          })}
+        </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
+    </Section>
+  )
+}
+// ── Website (Hub pixel) activity ─────────────────────────────────────────
+function WebsiteActivity({ cid }) {
+  const [data, setData] = useState(null); const [exp, setExp] = useState(false)
+  useEffect(() => { authFetch(`/api/track/activity/${cid}?limit=50`).then(r => r.json()).then(setData).catch(() => setData({ summary: { total_events: 0 }, events: [] })) }, [cid])
+  const sum = data?.summary; const events = data?.events || []
+  if (data && (!sum || !sum.total_events)) return null
+  return (
+    <Section title={`Website Activity${sum ? ` (${sum.total_events} events)` : ''}`} id="website">
+      {data === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
+        : <>
+          <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 12 }}>
+            <div><div style={{ fontSize: 17, fontWeight: 700 }}>{sum.pageviews || 0}</div><span style={{ color: 'var(--text-muted)' }}>page views</span></div>
+            <div><div style={{ fontSize: 17, fontWeight: 700, color: '#3b82f6' }}>{sum.listing_views || 0}</div><span style={{ color: 'var(--text-muted)' }}>listings</span></div>
+            <div><div style={{ fontSize: 17, fontWeight: 700, color: '#f59e0b' }}>{sum.saves || 0}</div><span style={{ color: 'var(--text-muted)' }}>saves</span></div>
+            <div><div style={{ fontSize: 17, fontWeight: 700 }}>{Math.round((sum.total_seconds || 0) / 60)}m</div><span style={{ color: 'var(--text-muted)' }}>on site</span></div>
+          </div>
+          <div style={{ maxHeight: exp ? 300 : 'none', overflowY: exp ? 'auto' : 'visible', border: '1px solid var(--border)', borderRadius: 6 }}>
+            {events.slice(0, exp ? 50 : 5).map(e => {
+              const label = { pageview: '👁 page view', listing_view: '🏠 listing view', save: '⭐ saved', pageduration: '⏱ time' }[e.event_type] || e.event_type
+              return (<div key={e.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontWeight: 600 }}>{label}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</span></div>
+                {e.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{e.page_title}</div>}
+              </div>)
+            })}
+          </div>
+          {events.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${events.length})`}</button>}
+        </>}
+    </Section>
+  )
+}
+// ── Listing interest (Sierra saved searches / properties) ────────────────
+function ListingInterest({ client }) {
+  const [d, setD] = useState(null)
+  useEffect(() => { if (!client.sierra_lead_id) { setD({}); return } authFetch(`/api/sierra/lead-listings/${client.sierra_lead_id}`).then(r => r.json()).then(setD).catch(() => setD({})) }, [client.sierra_lead_id])
+  if (!client.sierra_lead_id) return null
+  const ss = d?.saved_searches || [], sl = d?.saved_listings || [], la = d?.listing_activity || []
+  if (d && !ss.length && !sl.length && !la.length) return null
+  const addrOf = (x) => x.address || x.street || [x.prop_street, x.prop_city].filter(Boolean).join(', ') || x.name || 'Listing'
+  return (
+    <Section title="Listing Interest" id="interest">
+      {d === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div> : <>
+        {ss.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">Saved searches ({ss.length})</div>{ss.slice(0, 4).map((s, i) => <div key={i} style={{ fontSize: 12.5 }}>{s.name || s.criteria || s.summary || [s.city, s.min_price && `$${Number(s.min_price).toLocaleString()}+`].filter(Boolean).join(' · ') || 'Search'}</div>)}</div>}
+        {sl.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">⭐ Saved properties ({sl.length})</div>{sl.slice(0, 6).map((l, i) => <div key={i} style={{ fontSize: 12.5 }}>{addrOf(l)}{l.price ? ` · $${Number(l.price).toLocaleString()}` : ''}</div>)}</div>}
+        {la.length > 0 && <div><div className="cp-sub">🏠 Listing activity ({la.length})</div>{la.slice(0, 6).map((a, i) => <div key={i} style={{ fontSize: 12.5 }}>{addrOf(a)}<span style={{ color: 'var(--text-muted)' }}>{a.date ? ` · ${new Date(a.date).toLocaleDateString()}` : ''}</span></div>)}</div>}
+      </>}
+    </Section>
+  )
+}
+
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'activity', 'notes', 'research'], right: ['ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'notes', 'research'], right: ['ai', 'plans', 'tasks', 'txns'] }
 export function loadLayout() {
   try {
-    const s = JSON.parse(localStorage.getItem('cp_layout_v1') || 'null')
+    const s = JSON.parse(localStorage.getItem('cp_layout_v2') || 'null')
     if (s && Array.isArray(s.left) && Array.isArray(s.right)) {
       const all = [...DEFAULT_LAYOUT.left, ...DEFAULT_LAYOUT.right]
       const have = new Set([...s.left, ...s.right])
@@ -600,7 +695,7 @@ export function loadLayout() {
   } catch {}
   return DEFAULT_LAYOUT
 }
-export function saveLayout(l) { try { localStorage.setItem('cp_layout_v1', JSON.stringify(l)) } catch {} }
+export function saveLayout(l) { try { localStorage.setItem('cp_layout_v2', JSON.stringify(l)) } catch {} }
 
 // ── Alerts ───────────────────────────────────────────────────────────────
 function buildAlerts(client, ai) {
