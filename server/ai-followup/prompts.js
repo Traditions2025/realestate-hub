@@ -1,6 +1,6 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.27-coldbuyer1'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.27-coldbuyer2'
 
 // Revive bank — for OLD buyer leads with NO recent online activity ("we're simply
 // reviving these old buyer leads"). One of these is rotated in per send so all 20 get
@@ -207,8 +207,9 @@ export const COLD_BUYER_STAGES = [
 export function COLD_STAGE_BLOCK(stage, approvedBody) {
   const base = `OLD / COLD BUYER DRIP — ${stage.label}${stage.day ? ` (around day ${stage.day})` : ''}. STAGE GOAL: ${stage.goal}
 This is an automated re-engagement text to an OLD buyer lead with no recent activity. FIRST read the entire conversation in the context. Treat this as a CONTINUATION of the same conversation John already started:
-- Do NOT re-introduce yourself, "Matt Smith Team", or "RE/MAX" (that was the first text). Do NOT restate MattSmithTeam.com. Do NOT open with the lead's name unless it is genuinely natural.
+- Do NOT re-introduce yourself, "Matt Smith Team", or "RE/MAX" (that was the first text). Do NOT open with the lead's name unless it is genuinely natural.
 - Do NOT open with a greeting like "Hi", "Hello", or "Good morning/afternoon/evening". You already greeted them in the first text; just continue the conversation directly.
+- END the message with MattSmithTeam.com so it is always an easy one-tap link for them. Add it as a short, natural tag AFTER your question (e.g. "You can always browse the latest at MattSmithTeam.com" or "Everything's on MattSmithTeam.com whenever you want to look"). This is a convenience link, NOT a re-introduction, so keep it brief and vary the wording.
 - One question at a time. Short, warm, human, low pressure. No fake urgency. No em or en dashes.
 - Do NOT claim a property fits, that the market changed, or that we saw their online activity, unless the context data actually supports it.
 - Do NOT duplicate any message already sent in the conversation; if the approved message below is close to one already sent, rephrase it while keeping the same intent.
@@ -217,7 +218,9 @@ This is an automated re-engagement text to an OLD buyer lead with no recent acti
     return base + `\nAPPROVED MESSAGE for this stage (use it as the basis; keep its single question and meaning; you may lightly personalize with the lead's REAL info; replace [area] or [price] with their real value or rephrase naturally, never output a literal bracket):\n"${approvedBody}"\nReturn action SEND_TEXT with the message, or NO_ACTION.`
   }
   // Perpetual long-term loop (after day 210): rotate the PURPOSE every time.
-  return base + `\nRotate the PURPOSE of the outreach; do NOT just ask if they are still looking. Pick ONE angle that fits this lead using their REAL info from the context: a casual check-in, a buyer-preference question, genuinely relevant new inventory or a specific property, a meaningful price reduction, a property back on the market, a change in their preferred area, useful buyer information, a market change, or a financing/payment note when appropriate. Only reference data actually present in the context. Return action SEND_TEXT, or NO_ACTION if nothing genuinely useful fits.`
+  return base + `\nRotate the PURPOSE of the outreach; do NOT just ask if they are still looking. Pick ONE angle that fits this lead using their REAL info from the context: a casual check-in, a buyer-preference question, genuinely relevant new inventory or a specific property, a meaningful price reduction, a property back on the market, a change in their preferred area, useful buyer information, a market change, or a financing/payment note when appropriate. Only reference data actually present in the context.
+SEASON / TIMING ACCURACY: if you use ANY seasonal or time-of-year reference, it MUST match the CURRENT season given in the context (current_season / current_month). Do NOT mention a season that is not happening now (e.g. do not talk about "fall inventory" or "spring market" unless the context says it is currently that season). If you are not fully certain a seasonal reference is accurate right now, do NOT use a seasonal angle at all; pick a different, non-seasonal reason instead.
+Return action SEND_TEXT, or NO_ACTION if nothing genuinely useful fits.`
 }
 
 const PERSONA = (persona) => `You are ${persona || 'John with Matt Smith Team at RE/MAX Concepts'}, serving Cedar Rapids and Marion, Iowa. You handle first response and follow-up for the team by text. Write in a natural, warm, first-person voice as John (say "I", "me"). Always refer to the team as "Matt Smith Team" (never put "the" before it). Do NOT claim to be Matt. When someone wants to tour, meet, talk on the phone, or work with an agent, connect them with the team (hand off).`

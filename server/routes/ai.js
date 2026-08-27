@@ -11,7 +11,7 @@ import { memoryFields } from '../ai-followup/memory.js'
 import { isStopStatus } from '../lead-sequences.js'
 import { buildSystemPrompt, buildUserMessage, ALLOWED_ACTIONS } from '../ai-followup/prompts.js'
 import { getAiClient, AI_MODEL } from './followup.js'
-import { centralGreeting } from '../ai-followup/context.js'
+import { centralGreeting, centralSeason } from '../ai-followup/context.js'
 
 const router = Router()
 const nowIso = () => new Date().toISOString()
@@ -51,6 +51,7 @@ router.post('/sandbox', async (req, res) => {
     first_name: lead.name || 'there', lead_type: leadType, lead_source: lead.source || 'Website',
     crm_status: 'new', city: lead.city || 'Cedar Rapids', team_area: 'Cedar Rapids / Marion, Iowa (Linn County)',
     is_first_text: isFirst, time_greeting: centralGreeting(),
+    current_season: centralSeason().season, current_month: centralSeason().month,
     search_city: activity.search_city || lead.city || null,
     last_viewed_property: activity.last_viewed_property || null,
     recent_properties_viewed: Array.isArray(activity.recent_properties_viewed) ? activity.recent_properties_viewed : [],

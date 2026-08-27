@@ -174,7 +174,7 @@ async function sendAiSms(client, text, aiActionId) {
 // Shared outbound generator (proactive / nurture / re-engage). HUB-gated, compliance
 // re-checked, race-guarded, daily-capped, quiet-hours aware. force=true (manual "Send
 // AI now") bypasses only the per-mode global flag, never compliance.
-async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false, reviveTemplate = null }) {
+async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false, reviveTemplate = null, requireWebsite = false }) {
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
@@ -207,6 +207,9 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
     let finalMsg = finalizeAiText(cid, message)
     // A same-thread nudge must not re-greet — strip a leading "Hi Robert!/Hello there,".
     if (stripGreeting) finalMsg = finalMsg.replace(/^\s*(?:hi|hello|hey)\b[^\n]*?[,!]\s+/i, '').replace(/^\s*([a-z])/, (m, c) => c.toUpperCase())
+    // Cold-buyer drip: keep the website on every text as an easy tap-through (finalizeAiText
+    // only guarantees it on the very first message).
+    if (requireWebsite && !/mattsmithteam\.com/i.test(finalMsg)) finalMsg = (finalMsg.trim() + ' You can always browse the latest at MattSmithTeam.com').slice(0, 640)
     const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: finalMsg, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
     await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), finalMsg, actionId)
     markOutbound(cid)
@@ -342,7 +345,7 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
     })
   }
   return runOutbound(cid, {
-    actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force,
+    actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, requireWebsite: true,
     nextState: idx <= 5 ? 'AI_WAITING_FOR_REPLY' : 'AI_LONG_TERM_NURTURE',
     instruction: COLD_STAGE_BLOCK(stage, approved),
   })

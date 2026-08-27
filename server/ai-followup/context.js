@@ -14,6 +14,17 @@ export function centralGreeting(now = new Date()) {
   } catch { return 'Hi' }
 }
 
+// The CURRENT season + month in Central time, so the AI never references a season that
+// isn't actually happening (Northern Hemisphere / Iowa). Returns e.g. { season:'summer', month:'August' }.
+export function centralSeason(now = new Date()) {
+  try {
+    const m = parseInt(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'numeric' }).format(now), 10)
+    const month = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', month: 'long' }).format(now)
+    const season = (m === 12 || m <= 2) ? 'winter' : m <= 5 ? 'spring' : m <= 8 ? 'summer' : 'fall'
+    return { season, month }
+  } catch { return { season: null, month: null } }
+}
+
 // Does the lead have GENUINELY RECENT online activity (default 21 days)? Old FUB views
 // from months ago must NOT count — otherwise the AI greets a cold lead as if they were
 // "just checking out homes." Checks both behavioral (lead_activity) and FUB views.
@@ -103,6 +114,8 @@ export function buildLeadAiContext(clientId) {
     rolling_summary: li.ai_summary || null,
     recent_website_activity: behavior,
     now: new Date().toISOString(),
+    current_season: centralSeason().season,
+    current_month: centralSeason().month,
     team_area: 'Cedar Rapids / Marion, Iowa (Linn County)',
     is_first_text: isFirstText,
     time_greeting: timeGreeting,
