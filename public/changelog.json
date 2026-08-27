@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T18:14:26.390Z",
+  "generated_at": "2026-08-27T18:17:36.032Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "beab902",
+      "date": "2026-08-27T13:14:29-05:00",
+      "subject": "Fix Prev/Next: keep the Clients nav context (matched ids) continuously in sync with the loaded list",
+      "title": "Prev/Next: keep the Clients nav context (matched ids) continuously in sync with the loaded list",
+      "body": "The click-time capture could miss, leaving no ids for Prev/Next. Now a useEffect saves the\ncontext (ids + list + filters) whenever the list loads, so Prev/Next is always populated.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "64c2979",
       "date": "2026-08-27T13:06:04-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Smarter auto-populate: search-based URL discovery + better diagnostics",
       "body": "- Use DuckDuckGo HTML search to find the actual property page on Zillow/Realtor.com/Redfin/Trulia/Homes.com (more reliable than guessing URL patterns)\n- Try 5 listing sites instead of 3, with direct-pattern URLs as fallback\n- Browser-like User-Agent with full Sec-Fetch headers + 20s timeout per source\n- Improved anti-bot detection (catches 'press & hold', 'access denied', 'checking your browser' pages)\n- Frontend now shows per-source status (✓/✗ with error reason and clickable link to open the page) so user can see what failed and why",
       "category": "other"
-    },
-    {
-      "hash": "d76423f",
-      "date": "2026-04-30T13:39:53-05:00",
-      "subject": "Add Iowa address search + auto-fill from web (Zillow / Realtor.com / Redfin)",
-      "title": "Iowa address search + auto-fill from web (Zillow / Realtor.com / Redfin)",
-      "body": "- New /api/listings/search-address endpoint: Nominatim-backed autocomplete, server-side filtered to Iowa only\n- New /api/listings/:id/auto-populate endpoint: tries Realtor.com, Zillow, Redfin in sequence; uses whichever returns useful data (beds/sqft/price/year_built)\n- Listings UI: prominent gold-accent search box at top of Property Details tab. Type address → live dropdown of Iowa matches → click to populate street/city/state/zip → click 'Auto-fill from Web' to scrape full property data via Claude\n- Browser-side debounced search (350ms), graceful fallback messaging when all sources fail (suggests PDF upload)",
-      "category": "feature"
     }
   ]
 }

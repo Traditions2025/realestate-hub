@@ -846,7 +846,7 @@ export default function Clients() {
   // persist in localStorage, so only the list/search/filters + scroll need capturing here.
   const captureClientsNav = () => {
     const listName = activeListId ? ((savedLists || []).find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
-    const base = { backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }
+    const base = { backTo: '/clients', backLabel: listName, restore: { activeListId, search, advFilters }, scrollY: window.scrollY }
     // Save the loaded ids SYNCHRONOUSLY first so Prev/Next always works, then upgrade to the FULL
     // matched set (e.g. all 68 FSBO across pages) in the background using the list's own filters.
     try { saveClientsNav({ ...base, ids: items.map(i => i.id) }) } catch {}
@@ -865,14 +865,14 @@ export default function Clients() {
   useEffect(() => {
     if (!items || !items.length) return
     const listName = activeListId ? ((savedLists || []).find(l => l.id === activeListId)?.name || 'Clients') : 'Clients'
-    try { saveClientsNav({ ids: items.map(i => i.id), backTo: '/clients', backLabel: listName, restore: { activeListId, q, advFilters }, scrollY: window.scrollY }) } catch {}
+    try { saveClientsNav({ ids: items.map(i => i.id), backTo: '/clients', backLabel: listName, restore: { activeListId, search, advFilters }, scrollY: window.scrollY }) } catch {}
   }, [items, activeListId, q, advFilters, savedLists])
   // When returning from a profile via "Back to Clients", restore the prior list state once.
   useEffect(() => {
     if (!consumeClientsReturn()) return
     const nav = loadClientsNav(); if (!nav?.restore) return
     if (nav.restore.activeListId != null) setActiveListId(nav.restore.activeListId)
-    if (typeof nav.restore.q === 'string') setQ(nav.restore.q)
+    if (typeof nav.restore.search === 'string') setSearch(nav.restore.search)
     if (nav.restore.advFilters) setAdvFilters(nav.restore.advFilters)
     if (nav.scrollY) setTimeout(() => { try { window.scrollTo(0, nav.scrollY) } catch {} }, 400)
   }, [])
