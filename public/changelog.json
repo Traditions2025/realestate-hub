@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-08-27T14:30:48.497Z",
+  "generated_at": "2026-08-27T14:56:23.017Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "97a9417",
+      "date": "2026-08-27T09:44:22-05:00",
+      "subject": "FSBO sync: key listings by phone+address so multi-listing sellers show every listing",
+      "title": "FSBO sync: key listings by phone+address so multi-listing sellers show every listing",
+      "body": "A seller/builder with multiple listings on one phone (e.g. Built By Beals Too LLC, 2\nproperties) was collapsing to one record while Natalie Nelson's 2 (distinct Sierra leads)\nstayed — so on-list was 69 vs the sheet's 70. Now each sheet listing (phone+address) gets\nits own record: multi-listing phones match by phone+address, single-listing phones still\nattach to the existing lead by phone. Self-heal now merges only TRUE dups (same phone AND\naddress); prune drops removed listings for Hub-native records. New invariant: on-list == sheet rows.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ed190c4",
+      "date": "2026-08-27T09:30:53-05:00",
+      "subject": "FSBO list: Zillow listing link — 'View Listing' column + clickable link on lead profile",
+      "title": "FSBO list: Zillow listing link — 'View Listing' column + clickable link on lead profile",
+      "body": "The master file's Custom Link is stored in fsbo_link. In the FSBO list the Source column\nbecomes 'Listing' with a clickable 'View Listing ↗' Zillow link per row; the lead profile\nshows 'Listing: View on Zillow ↗'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0079d7f",
       "date": "2026-08-27T09:19:28-05:00",
@@ -3983,22 +3999,6 @@
       "date": "2026-04-29T14:19:10-05:00",
       "subject": "Mobile improvements: prevent horizontal overflow, smaller calendar cells, mobile cards for Marketing & Social Media, scrollable tabs",
       "title": "Mobile improvements: prevent horizontal overflow, smaller calendar cells, mobile cards for Marketing & Social Media, scrollable tabs",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "dcb9226",
-      "date": "2026-04-29T13:55:29-05:00",
-      "subject": "Add Pre-Listing as first column on Transaction Tracker pipeline",
-      "title": "Pre-Listing as first column on Transaction Tracker pipeline",
-      "body": "",
-      "category": "feature"
-    },
-    {
-      "hash": "e282d23",
-      "date": "2026-04-29T12:40:53-05:00",
-      "subject": "Support multiple Google Calendar iCal feeds via comma-separated env var",
-      "title": "Support multiple Google Calendar iCal feeds via comma-separated env var",
       "body": "",
       "category": "other"
     }

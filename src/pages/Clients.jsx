@@ -2370,12 +2370,19 @@ export default function Clients() {
               }
               return <div key="visits" className="cl-visits">{item.visits || 0}</div>
             case 'source':
-              // FSBO list: the Source column becomes the listing link (Zillow, from the master file).
-              if (isFsboList) return <div key="source" className="cl-source">
-                {item.fsbo_link
-                  ? <a href={item.fsbo_link} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#006aff', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }} title={item.fsbo_link}>View Listing ↗</a>
-                  : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-              </div>
+              // FSBO list: the Source column becomes the listing link(s) (Zillow, from the master file).
+              if (isFsboList) {
+                let listings = []
+                try { listings = JSON.parse(item.fsbo_listings || '[]') } catch {}
+                const links = listings.map(l => l.link).filter(Boolean)
+                const primary = links[0] || item.fsbo_link
+                const extra = Math.max(0, (links.length || (item.fsbo_link ? 1 : 0)) - 1)
+                return <div key="source" className="cl-source">
+                  {primary
+                    ? <a href={primary} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: '#006aff', fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap' }} title={links.join('\n') || item.fsbo_link}>View Listing ↗{extra > 0 ? ` (+${extra})` : ''}</a>
+                    : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                </div>
+              }
               return <div key="source" className="cl-source">{item.source || '—'}</div>
             case 'last_fub_visit':
               return <div key="last_fub_visit" className="cl-last-visit">
@@ -2768,7 +2775,21 @@ export default function Clients() {
                 {detail.alt_emails && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other emails:</strong> {detail.alt_emails}</p>}
                 <InlineField label="Address" field="address" value={detail.address} clientId={detail.id} onSaved={() => openDetail(detail.id)} />
                 <p><strong>City:</strong> {detail.city || '—'}{detail.state ? `, ${detail.state}` : ''} {detail.zip || ''}</p>
-                {detail.fsbo_link && <p style={{ margin: '2px 0' }}><strong>Listing:</strong> <a href={detail.fsbo_link} target="_blank" rel="noopener noreferrer" style={{ color: '#006aff', fontWeight: 600, textDecoration: 'none' }}>View on Zillow ↗</a></p>}
+                {(() => {
+                  let listings = []
+                  try { listings = JSON.parse(detail.fsbo_listings || '[]') } catch {}
+                  if (!listings.length && (detail.fsbo_link || detail.fsbo_status)) listings = [{ address: detail.address, link: detail.fsbo_link, status: detail.fsbo_status }]
+                  if (!listings.length) return null
+                  return <div style={{ margin: '4px 0' }}>
+                    <strong>FSBO Listing{listings.length > 1 ? `s (${listings.length})` : ''}:</strong>
+                    <ul style={{ margin: '2px 0 0', paddingLeft: 18 }}>
+                      {listings.map((l, i) => <li key={i} style={{ fontSize: 13, marginBottom: 2 }}>
+                        {l.address || '—'}{l.status ? ` (${l.status})` : ''}
+                        {l.link && <> — <a href={l.link} target="_blank" rel="noopener noreferrer" style={{ color: '#006aff', fontWeight: 600, textDecoration: 'none' }}>View on Zillow ↗</a></>}
+                      </li>)}
+                    </ul>
+                  </div>
+                })()}
                 <InlineStatus detail={detail} onSaved={() => openDetail(detail.id)} />
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>

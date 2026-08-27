@@ -943,6 +943,8 @@ export async function initDb() {
   // Secondary emails/phones kept when merging leads ("keep both"). Comma-separated.
   try { db.run('ALTER TABLE clients ADD COLUMN alt_emails TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}
+  // All FSBO listings for one seller (same name+phone = one profile with N listings). JSON array.
+  try { db.run('ALTER TABLE clients ADD COLUMN fsbo_listings TEXT') } catch {}
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

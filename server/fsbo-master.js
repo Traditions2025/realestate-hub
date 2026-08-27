@@ -113,119 +113,105 @@ export async function syncFsboMaster() {
   // Phones in the DB are stored formatted ("(319) 531-0905"), so a raw-digit LIKE never
   // matches. Build a normalized last-10 -> client index once. On a shared number, prefer
   // an FSBO-tagged client, else the lowest id.
-  const index = new Map()      // phone10 -> best record (single-listing / attach to existing lead)
-  const aindex = new Map()     // phone10|address -> record (each LISTING is its own record)
+  const index = new Map()      // phone10 -> best existing record to attach the FSBO to
   const sheetPhones = new Set()
-  const sheetAkeys = new Set()
   const normAddr = (a) => String(a || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-  const akey = (phone, addr) => { const p = last10(phone); return p ? p + '|' + normAddr(addr) : null }
+  const normName = (n) => String(n || '').toLowerCase().replace(/[^a-z0-9]/g, '')
   // Rank a candidate for the phone index. A LIVE (non-junk) record already carrying an
-  // fsbo_status is the real FSBO and must always win — even over an older JUNK lead that
-  // happens to carry a legacy "FSBO" tag. Anchoring on such a junk lead makes the collision
-  // branch fire on every sync and create a fresh duplicate each time.
+  // fsbo_status always wins — even over an older JUNK lead with a legacy "FSBO" tag.
   const rank = (x) => {
     const junk = isJunkish(x.status)
     const hasFsbo = !!(x.fsbo_status && String(x.fsbo_status).trim())
-    if (hasFsbo && !junk) return 4        // the live FSBO record — always preferred
+    if (hasFsbo && !junk) return 4
     if (hasFsbo && junk) return 3
     if (!junk && /fsbo/i.test(x.tags || '')) return 2
     if (!junk) return 1
-    return 0                              // junkish, no fsbo_status (tag ignored)
+    return 0
   }
   const better = (c, prev) => !prev || rank(c) > rank(prev) || (rank(c) === rank(prev) && c.id < prev.id)
-  for (const c of db.all("SELECT id, phone, address, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL")) {
+  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL")) {
     const k = last10(c.phone); if (!k) continue
     if (better(c, index.get(k))) index.set(k, c)
-    const ak = akey(c.phone, c.address)
-    if (ak && better(c, aindex.get(ak))) aindex.set(ak, c)
   }
-  // A phone that appears on 2+ sheet rows is a multi-listing seller (e.g. a builder). Each of
-  // its listings (phone+address) becomes its own record; a single-listing phone attaches to
-  // the existing CRM lead by phone.
-  const rowsPerPhone = {}
-  for (const r of rows) { const k = last10(r.phone); if (k) rowsPerPhone[k] = (rowsPerPhone[k] || 0) + 1 }
-  const createNew = (row) => {
-    const { first, last } = splitName(row.name)
-    const info = db.run(
-      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [first, last, row.phone, row.email || null, 'seller', 'watch', row.source || 'FSBO Master',
-       row.address || null, row.city || null, row.state || 'IA', row.zip || null, tagsJson(row.tags), row.status, now, row.list_date || null, row.dom || null, row.notes || null, row.link || null, now, now])
-    report.created++
-    const rec = { id: info.lastInsertRowid, phone: row.phone, address: row.address || null, tags: tagsJson(row.tags), fsbo_status: row.status, status: 'watch', first_name: first, last_name: last }
-    const k = last10(row.phone); if (k) index.set(k, rec)
-    const ak = akey(row.phone, row.address); if (ak) aindex.set(ak, rec)
-  }
+  // ONE profile per (name + phone). A seller with several listings on the same number is a
+  // single lead; every listing (address / link / list date / DOM / status) is stored on it in
+  // fsbo_listings. Group the sheet rows accordingly.
+  const groups = new Map()
   for (const row of rows) {
-    const key = last10(row.phone)
-    const ak = akey(row.phone, row.address)
+    const k = last10(row.phone)
+    const gk = k ? k + '|' + normName(row.name) : ('nophone|' + normName(row.name) + '|' + groups.size)
+    if (!groups.has(gk)) groups.set(gk, [])
+    groups.get(gk).push(row)
+  }
+  report.profiles = groups.size
+  const buildListings = (grp) => grp.map(r => ({ address: r.address || null, city: r.city || null, list_date: r.list_date || null, dom: r.dom || null, status: r.status || null, link: r.link || null, notes: r.notes || null }))
+  const createNew = (primary, status, listingsJson) => {
+    const { first, last } = splitName(primary.name)
+    const info = db.run(
+      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, fsbo_listings, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [first, last, primary.phone, primary.email || null, 'seller', 'watch', primary.source || 'FSBO Master',
+       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, primary.dom || null, primary.notes || null, primary.link || null, listingsJson, now, now])
+    report.created++
+    const rec = { id: info.lastInsertRowid, phone: primary.phone, tags: tagsJson(primary.tags), fsbo_status: status, status: 'watch', first_name: first, last_name: last }
+    const k = last10(primary.phone); if (k) index.set(k, rec)
+  }
+  for (const grp of groups.values()) {
+    const primary = grp.find(r => String(r.status || '').toLowerCase() === 'available') || grp[0]
+    const key = last10(primary.phone)
     if (key) sheetPhones.add(key)
-    if (ak) sheetAkeys.add(ak)
-    report.counts[row.status] = (report.counts[row.status] || 0) + 1
-    // Multi-listing phone → match THIS listing by phone+address (each listing keeps its own
-    // record). Single-listing phone → match by phone (attach the FSBO to the existing CRM lead).
-    const multi = key && rowsPerPhone[key] > 1
-    const match = multi ? (ak ? aindex.get(ak) : null) : (key ? index.get(key) : null)
-    // Phone COLLISION: the number matches an existing DEAD lead of a clearly different name.
-    // Don't stamp the FSBO onto the wrong lead — clear any wrong stamp and create the FSBO
-    // its own record.
-    if (match && isJunkish(match.status) && !sameName(row.name, match)) {
-      db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL WHERE id=?', [match.id])
+    // Aggregate status: Available if ANY of the seller's listings is available, else Off Market.
+    const status = grp.some(r => String(r.status || '').toLowerCase() === 'available') ? 'Available' : (primary.status || 'Off Market')
+    report.counts[status] = (report.counts[status] || 0) + 1
+    const listingsJson = JSON.stringify(buildListings(grp))
+    const match = key ? index.get(key) : null
+    // Phone COLLISION: number matches a DEAD lead of a clearly different name — don't stamp the
+    // FSBO onto the wrong lead; give it its own record.
+    if (match && isJunkish(match.status) && !sameName(primary.name, match)) {
+      db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL WHERE id=?', [match.id])
       report.collisions++
-      createNew(row)
+      createNew(primary, status, listingsJson)
       continue
     }
-    if (!match) {
-      // The FSBO master file is the source of truth: create a Hub record so every FSBO listing
-      // (Available AND Off Market) lands on the list. On re-sync it matches by phone/address.
-      createNew(row)
-      continue
-    }
+    if (!match) { createNew(primary, status, listingsJson); continue }
     report.matched++
-    if (match.fsbo_status !== row.status) {
-      db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_notes=?, fsbo_link=?, updated_at=? WHERE id=?', [row.status, now, row.list_date || null, row.dom || null, row.notes || null, row.link || null, now, match.id])
-      report.updated++
-    } else {
-      db.run('UPDATE clients SET fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_notes=?, fsbo_link=? WHERE id=?', [now, row.list_date || null, row.dom || null, row.notes || null, row.link || null, match.id])
-    }
-    match.fsbo_status = row.status
+    db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_notes=?, fsbo_link=?, fsbo_listings=?, updated_at=? WHERE id=?',
+      [status, now, primary.list_date || null, primary.dom || null, primary.notes || null, primary.link || null, listingsJson, now, match.id])
+    match.fsbo_status = status
   }
-  // Prune stragglers: a client carrying an fsbo_status whose phone is no longer in the sheet
-  // is no longer an FSBO. ALSO drop a Hub-native FSBO record (source = FSBO Master, no Sierra
-  // lead) whose specific listing (phone+address) is no longer in the sheet — that's a removed
-  // listing for a multi-listing seller. Existing/Sierra leads are only pruned by phone, never
-  // by address (their profile address may differ from the listing).
-  for (const c of db.all("SELECT id, phone, address, sierra_lead_id, source FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''")) {
+  // Prune stragglers: an fsbo_status record whose phone is no longer in the sheet.
+  for (const c of db.all("SELECT id, phone FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''")) {
     const k = last10(c.phone)
-    const hubNative = !c.sierra_lead_id && /fsbo master/i.test(c.source || '')
-    const drop = !k || !sheetPhones.has(k) || (hubNative && !sheetAkeys.has(akey(c.phone, c.address)))
-    if (drop) { db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL WHERE id=?', [c.id]); report.pruned++ }
+    if (!k || !sheetPhones.has(k)) { db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL WHERE id=?', [c.id]); report.pruned++ }
   }
-  // SELF-HEAL: every sync collapses any accidental TRUE duplicate — records sharing a phone
-  // AND the same address (an exact copy). Different addresses on one phone are DIFFERENT
-  // listings and are kept (e.g. a builder with several homes, or one owner with two listings).
-  // Keep the lowest-id record; merge extra Hub-native copies into it.
+  // SELF-HEAL: collapse ANY remaining records that share the same name + phone into ONE profile,
+  // combining all their listings. This makes multi-listing sellers (and any accidental dup) a
+  // single lead — even across separate Sierra profiles. Keep the lowest-id record.
   report.deduped = 0
-  const byAkey = {}
-  for (const c of db.all("SELECT id, phone, address, sierra_lead_id, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')")) {
-    const ak = akey(c.phone, c.address); if (!ak) continue
-    ;(byAkey[ak] = byAkey[ak] || []).push(c)
+  const byKey = {}
+  for (const c of db.all("SELECT id, phone, first_name, last_name, fsbo_listings, fsbo_status FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')")) {
+    const k = last10(c.phone); if (!k) continue
+    const gk = k + '|' + normName(`${c.first_name || ''} ${c.last_name || ''}`)
+    ;(byKey[gk] = byKey[gk] || []).push(c)
   }
-  for (const ak of Object.keys(byAkey)) {
-    const g = byAkey[ak]; if (g.length < 2) continue
+  for (const gk of Object.keys(byKey)) {
+    const g = byKey[gk]; if (g.length < 2) continue
     g.sort((a, b) => a.id - b.id)
     const canonical = g[0]
+    let combined = []
+    try { combined = JSON.parse(canonical.fsbo_listings || '[]') } catch {}
+    const seen = new Set(combined.map(x => normAddr(x.address)))
     for (const l of g.slice(1)) {
-      if (l.sierra_lead_id) continue                 // distinct Sierra profile -> keep
-      const set = [], val = []
-      for (const f of ['fsbo_list_date', 'fsbo_dom', 'fsbo_notes', 'fsbo_link']) if (!canonical[f] && l[f]) { set.push(`${f}=?`); val.push(l[f]); canonical[f] = l[f] }
-      if (set.length) { val.push(canonical.id); db.run(`UPDATE clients SET ${set.join(', ')} WHERE id=?`, val) }
-      db.run("UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, merged_into=?, updated_at=? WHERE id=?", [canonical.id, now, l.id])
+      let ll = []; try { ll = JSON.parse(l.fsbo_listings || '[]') } catch {}
+      for (const x of ll) { const a = normAddr(x.address); if (!seen.has(a)) { combined.push(x); seen.add(a) } }
+      db.run("UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL, merged_into=?, updated_at=? WHERE id=?", [canonical.id, now, l.id])
       report.deduped++
     }
+    const anyAvail = combined.some(x => String(x.status || '').toLowerCase() === 'available')
+    const prim = combined.find(x => String(x.status || '').toLowerCase() === 'available') || combined[0] || {}
+    db.run("UPDATE clients SET fsbo_listings=?, fsbo_status=?, address=COALESCE(?,address), fsbo_link=COALESCE(?,fsbo_link), updated_at=? WHERE id=?",
+      [JSON.stringify(combined), anyAvail ? 'Available' : (canonical.fsbo_status || 'Off Market'), prim.address || null, prim.link || null, now, canonical.id])
   }
-  // How many FSBO-master clients now sit in the live FSBO list, and whether it lines up
-  // with the sheet (an invariant: on-list should equal unique sheet phones + legit extras).
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
   report.on_list = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')").n
   report.unique_sheet_phones = sheetPhones.size
