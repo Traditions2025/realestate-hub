@@ -2488,7 +2488,16 @@ export default function Clients() {
                   <div className="cl-check" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
                   </div>
-                  {visibleColumns.map(col => renderCell(col, item))}
+                  {visibleColumns.map(col => {
+                    const cell = renderCell(col, item)
+                    // Line body cells up with their (aligned) header — center/right per the column's align.
+                    if (cell && (col.align === 'center' || col.align === 'right')) {
+                      const ta = col.align === 'center' ? 'center' : 'right'
+                      const jc = col.align === 'center' ? 'center' : 'flex-end'
+                      return React.cloneElement(cell, { style: { ...(cell.props.style || {}), textAlign: ta, justifyContent: jc } })
+                    }
+                    return cell
+                  })}
                 </div>
                 {/* Mobile: condensed card — name, status, last activity only */}
                 <div className={`client-card-m ${selectedIds.has(item.id) ? 'selected' : ''}`}

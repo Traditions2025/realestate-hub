@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T15:22:06.408Z",
+  "generated_at": "2026-08-27T15:28:21.527Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "7514b2c",
+      "date": "2026-08-27T10:22:09-05:00",
+      "subject": "Status column: shorten Do Not Contact -> DNC, make column compact + centered",
+      "title": "Status column: shorten Do Not Contact -> DNC, make column compact + centered",
+      "body": "The status <select> auto-sized to its widest option (Do Not Contact), forcing the column\nwide. Relabel donotcontact as DNC everywhere in the list so the widest option is now\nArchived; set the Status column to a compact ~104px default, centered.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d016534",
       "date": "2026-08-27T10:14:26-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-04-29T15:58:10-05:00",
       "subject": "Sierra: pull tags + lender info, add webhook endpoint for real-time lead updates",
       "title": "Sierra: pull tags + lender info, add webhook endpoint for real-time lead updates",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "2b68eec",
-      "date": "2026-04-29T15:39:54-05:00",
-      "subject": "Disable Google Sheet auto-sync - hub is now the source of truth for transactions, sheet sync is manual only",
-      "title": "Disable Google Sheet auto-sync - hub is now the source of truth for transactions, sheet sync is manual only",
       "body": "",
       "category": "other"
     }
