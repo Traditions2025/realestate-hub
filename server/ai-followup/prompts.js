@@ -208,6 +208,7 @@ export function COLD_STAGE_BLOCK(stage, approvedBody) {
   const base = `OLD / COLD BUYER DRIP — ${stage.label}${stage.day ? ` (around day ${stage.day})` : ''}. STAGE GOAL: ${stage.goal}
 This is an automated re-engagement text to an OLD buyer lead with no recent activity. FIRST read the entire conversation in the context. Treat this as a CONTINUATION of the same conversation John already started:
 - Do NOT re-introduce yourself, "Matt Smith Team", or "RE/MAX" (that was the first text). Do NOT restate MattSmithTeam.com. Do NOT open with the lead's name unless it is genuinely natural.
+- Do NOT open with a greeting like "Hi", "Hello", or "Good morning/afternoon/evening". You already greeted them in the first text; just continue the conversation directly.
 - One question at a time. Short, warm, human, low pressure. No fake urgency. No em or en dashes.
 - Do NOT claim a property fits, that the market changed, or that we saw their online activity, unless the context data actually supports it.
 - Do NOT duplicate any message already sent in the conversation; if the approved message below is close to one already sent, rephrase it while keeping the same intent.
