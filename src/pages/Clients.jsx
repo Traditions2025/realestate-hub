@@ -4285,6 +4285,15 @@ function InlineTextComposer({ client, onClose, onSent }) {
     } catch (e) { alert('Schedule failed: ' + e.message) } finally { setSending(false) }
   }
   const cancelScheduled = async (id) => { await authFetch(`/api/inbox/scheduled/${id}/cancel`, { method: 'POST' }).catch(() => {}); loadScheduled() }
+  const [previewSchedId, setPreviewSchedId] = React.useState(null)
+  const sendScheduledNow = async (id) => {
+    if (!confirm('Send this scheduled text now?')) return
+    try {
+      const d = await (await authFetch(`/api/inbox/scheduled/${id}/send-now`, { method: 'POST' })).json()
+      if (d.ok || d.sent) { loadScheduled(); onSent && onSent() }
+      else alert('Not sent: ' + (d.error || d.skipped || 'unknown'))
+    } catch (e) { alert('Send now failed: ' + e.message) }
+  }
   const fmtWhenLocal = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
   React.useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return }
@@ -4402,11 +4411,21 @@ function InlineTextComposer({ client, onClose, onSent }) {
       {scheduled.length > 0 && (
         <div style={{ marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 4 }}>
           {scheduled.map(s => (
-            <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 9px' }}>
-              <span style={{ color: '#f59e0b' }}>🕑</span>
-              <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtWhenLocal(s.send_at)}</span>
-              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.body || '[photo]'}</span>
-              <button onClick={() => cancelScheduled(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }} title="Cancel">✕</button>
+            <div key={s.id} style={{ fontSize: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 9px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ color: '#f59e0b' }}>🕑</span>
+                <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }} title="Scheduled send time">{fmtWhenLocal(s.send_at)}</span>
+                <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.body || '[photo]'}</span>
+                <button onClick={() => setPreviewSchedId(p => p === s.id ? null : s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: previewSchedId === s.id ? 'var(--accent, #2563eb)' : 'var(--text-muted)', fontSize: 13 }} title="Preview the full text">👁</button>
+                <button onClick={() => sendScheduledNow(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: '#10b981', fontSize: 12, fontWeight: 700 }} title="Send this text now instead of waiting">▶ Send now</button>
+                <button onClick={() => cancelScheduled(s.id)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13 }} title="Cancel this scheduled text">✕</button>
+              </div>
+              {previewSchedId === s.id && (
+                <div style={{ marginTop: 6, padding: '7px 9px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.45, color: 'var(--text-primary)' }}>
+                  {s.body || '[photo]'}
+                  {s.media_url && <div style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: 11 }}>+ attachment</div>}
+                </div>
+              )}
             </div>
           ))}
         </div>

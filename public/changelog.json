@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-27T15:28:21.527Z",
+  "generated_at": "2026-08-27T16:33:18.912Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ce920b6",
+      "date": "2026-08-27T10:28:24-05:00",
+      "subject": "List: align body cells to their header (center/right per column align)",
+      "title": "List: align body cells to their header (center/right per column align)",
+      "body": "DOM values were left-aligned under a centered header. Apply each column's align to its body\ncells too via cloneElement, so aligned columns (DOM, Status, Score, Visits) line up.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7514b2c",
       "date": "2026-08-27T10:22:09-05:00",
@@ -3993,14 +4001,6 @@
       "title": "SendGrid email integration: send/bulk send, 6 templates with merge variables, history per client",
       "body": "",
       "category": "feature"
-    },
-    {
-      "hash": "2519c93",
-      "date": "2026-04-29T15:58:10-05:00",
-      "subject": "Sierra: pull tags + lender info, add webhook endpoint for real-time lead updates",
-      "title": "Sierra: pull tags + lender info, add webhook endpoint for real-time lead updates",
-      "body": "",
-      "category": "other"
     }
   ]
 }

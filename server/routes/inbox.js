@@ -684,6 +684,11 @@ router.post('/scheduled/:id/cancel', (req, res) => {
   db.run("UPDATE scheduled_texts SET status='canceled' WHERE id=? AND status='scheduled'", [Number(req.params.id)])
   res.json({ success: true })
 })
+// Send a scheduled text immediately instead of waiting for its send_at.
+router.post('/scheduled/:id/send-now', async (req, res) => {
+  try { const m = await import('../scheduled-texts.js'); res.json(await m.sendScheduledNow(Number(req.params.id))) }
+  catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+})
 
 // ---- VOICEMAIL DROP: during a live outbound call that reached the callee's
 // voicemail, redirect the callee leg to play a saved recording, then hang up. ----
