@@ -182,6 +182,24 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   const mode = force ? 'responsive' : 'proactive'
   const gate = canSendSms(client, { channel: 'ai', mode, force })
   if (!gate.ok) return logNo(cid, 'blocked: ' + gate.reason)
+  // AUTOMATIC line-type screen: before the FIRST proactive/drip text to a number we have
+  // never line-checked, look it up once. If it's a landline / fixed VoIP (can't receive SMS),
+  // block it, flag it, and pull it from the drip — so a landline never gets an AI text.
+  // Skipped for replies (mode 'responsive' — they obviously can receive SMS).
+  if (mode === 'proactive' && !client.sms_line_checked_at && client.phone) {
+    try {
+      const { lookupLineType } = await import('../twilio.js')
+      const lt = await lookupLineType(client.phone)
+      if (!lt.error) {
+        db.run("UPDATE clients SET sms_line_type=?, sms_line_checked_at=? WHERE id=?", [lt.line_type || 'unknown', nowIso(), cid])
+        if (lt.textable === false) {
+          db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason=?, sms_undeliverable_at=? WHERE id=?", [`Twilio Lookup: ${lt.line_type}`, nowIso(), cid])
+          try { db.run("UPDATE ai_scheduled_actions SET state='canceled', error='landline (pre-send screen)', updated_at=? WHERE client_id=? AND state='pending'", [nowIso(), cid]) } catch {}
+          return logNo(cid, `blocked: ${lt.line_type} cannot receive SMS`)
+        }
+      }
+    } catch (e) { /* Lookup failure is non-fatal — fall through and let the send proceed */ }
+  }
   if (inQuietHours()) return logNo(cid, 'quiet hours')   // quiet hours apply even to a manual Send-AI-now
   // daily cap
   const cap = Number(getConfig().ai_followup_max_per_day) || 4
