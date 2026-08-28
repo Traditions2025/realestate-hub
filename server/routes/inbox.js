@@ -871,6 +871,14 @@ router.get('/twilio-usage', async (_req, res) => {
   })
 })
 
+// What line-type data we actually RETAINED from the lookups (read-only, no Twilio cost).
+router.get('/line-type-stats', (_req, res) => {
+  const checked = db.get("SELECT COUNT(*) n FROM clients WHERE sms_line_checked_at IS NOT NULL")?.n || 0
+  const byType = db.all("SELECT COALESCE(NULLIF(sms_line_type,''),'(unknown)') t, COUNT(*) n FROM clients WHERE sms_line_checked_at IS NOT NULL GROUP BY 1 ORDER BY n DESC")
+  const flaggedLookup = db.get("SELECT COUNT(*) n FROM clients WHERE sms_undeliverable=1 AND sms_undeliverable_reason LIKE 'Twilio Lookup%'")?.n || 0
+  res.json({ unique_numbers_recorded: checked, by_line_type: byType, landlines_flagged_from_lookup: flaggedLookup })
+})
+
 // Kill-switch + status for Twilio Lookups (line-type). GET shows state + today's count;
 // POST {disabled:true/false, daily_cap:N} flips the switch / cap. Safety after the 8/28 incident.
 router.get('/twilio-lookup-switch', (_req, res) => {
