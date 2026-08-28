@@ -433,6 +433,47 @@ router.get('/', (req, res) => {
 
 // ---- P2-5: duplicate detection + safe merge ----
 // Find likely duplicate clients grouped by normalized phone (last 10) or exact name+zip.
+// READ-ONLY audit: which 'new' leads look like an existing Past Client (status='closed'
+// or tagged "past client") by phone / email / address / name? Reports only; changes nothing.
+router.get('/audit/new-vs-past', (req, res) => {
+  const normName = (f, l) => `${f || ''} ${l || ''}`.toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\b[a-z]\b/g, ' ').replace(/\s+/g, ' ').trim()
+  const normPhone = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
+  const normEmail = (e) => { const s = String(e || '').trim().toLowerCase(); return (!s || s.includes('notvalidemail.com')) ? '' : s }
+  const normAddr = (a, an) => { let s = String(an || a || '').toLowerCase().split(',')[0].replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); return (/\d/.test(s) && s.replace(/\d/g, '').trim().length >= 4) ? s : '' }
+  const past = db.all("SELECT id, first_name, last_name, phone, email, address, address_normalized, tags, status FROM clients WHERE lower(status)='closed' OR lower(coalesce(tags,'')) LIKE '%past client%'")
+  const byName = new Map(), byPhone = new Map(), byEmail = new Map(), byAddr = new Map()
+  const add = (map, k, rec) => { if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(rec) }
+  for (const p of past) {
+    const rec = { id: p.id, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), status: p.status }
+    add(byName, normName(p.first_name, p.last_name), rec)
+    add(byPhone, normPhone(p.phone), rec)
+    add(byEmail, normEmail(p.email), rec)
+    add(byAddr, normAddr(p.address, p.address_normalized), rec)
+  }
+  const news = db.all("SELECT id, first_name, last_name, phone, email, address, address_normalized FROM clients WHERE lower(status)='new'")
+  const matches = []
+  for (const n of news) {
+    const reasons = [], hits = []
+    const ph = normPhone(n.phone), em = normEmail(n.email), ad = normAddr(n.address, n.address_normalized), nm = normName(n.first_name, n.last_name)
+    if (ph && byPhone.has(ph)) { reasons.push('phone'); hits.push(...byPhone.get(ph)) }
+    if (em && byEmail.has(em)) { reasons.push('email'); hits.push(...byEmail.get(em)) }
+    if (ad && byAddr.has(ad)) { reasons.push('address'); hits.push(...byAddr.get(ad)) }
+    if (nm && byName.has(nm)) { reasons.push('name'); hits.push(...byName.get(nm)) }
+    if (!reasons.length) continue
+    const uniqHits = [...new Map(hits.map(h => [h.id, h])).values()]
+    matches.push({ new_id: n.id, new_name: `${n.first_name || ''} ${n.last_name || ''}`.trim(), new_phone: n.phone, new_email: n.email, reasons, strong: reasons.some(r => r !== 'name'), past_matches: uniqHits.slice(0, 5) })
+  }
+  const strong = matches.filter(m => m.strong), nameOnly = matches.filter(m => !m.strong)
+  const byReason = {}; for (const m of matches) for (const r of m.reasons) byReason[r] = (byReason[r] || 0) + 1
+  res.json({
+    definition: "past = status 'closed' OR tag contains 'past client'; new = status 'new'",
+    past_client_pool: past.length, new_pool: news.length,
+    total_flagged: matches.length, strong_matches: strong.length, name_only_matches: nameOnly.length,
+    by_reason: byReason,
+    sample_strong: strong.slice(0, 50), sample_name_only: nameOnly.slice(0, 20),
+  })
+})
+
 router.get('/duplicates', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500)
   // Phone groups: same last-10 digits, more than one live (non-merged) client.
