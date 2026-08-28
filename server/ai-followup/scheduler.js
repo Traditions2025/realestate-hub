@@ -76,11 +76,16 @@ const COLD_DAYS = [1, 4, 9, 17, 30, 50, 80, 120, 165, 210]
 const COLD_LOOP_INDEX = COLD_DAYS.length   // 10 = the 'loop' stage in COLD_BUYER_STAGES
 const COLD_LOOP_GAP = 52
 
-// A weekday date in the daytime window. Sat/Sun roll to Monday. 15:00 UTC lands
-// ~9 to 10am Central, inside the approved daytime sending window.
-function businessSlot(date) {
+// A per-lead offset (0..359 minutes) so a whole cohort's sends SPREAD across the daytime
+// window instead of firing at the same minute. Deterministic by client id.
+export function coldSendOffsetMin(clientId) { return (Math.abs(Number(clientId) || 0) * 37) % 360 }
+
+// A weekday date in the daytime window. Sat/Sun roll to Monday. 15:00 UTC + offsetMin lands
+// ~10am to 4pm Central, inside the approved daytime sending window.
+function businessSlot(date, offsetMin = 0) {
   const d = new Date(date)
   d.setUTCHours(15, 0, 0, 0)
+  d.setUTCMinutes(Math.max(0, Math.min(359, offsetMin || 0)))
   for (let i = 0; i < 3; i++) {
     const wd = new Date(d).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short' })
     if (wd === 'Sat') d.setUTCDate(d.getUTCDate() + 2)
@@ -89,7 +94,7 @@ function businessSlot(date) {
   }
   return d.toISOString()
 }
-function nextBusinessSlot(gapDays) { return businessSlot(new Date(Date.now() + gapDays * 86400000)) }
+function nextBusinessSlot(gapDays, offsetMin = 0) { return businessSlot(new Date(Date.now() + gapDays * 86400000), offsetMin) }
 
 // Pre-schedule the WHOLE remaining cold-buyer sequence (stages fromStage..9) on a lead's
 // account, each dated from their Text 1 anchor (weekday/daytime). Explicit enrollment, NOT
@@ -98,9 +103,10 @@ function nextBusinessSlot(gapDays) { return businessSlot(new Date(Date.now() + g
 // via dedup_key `coldbuyer_<cid>_<stage>`. Returns the scheduled rows for display.
 export function enrollColdBuyerSequence(clientId, { fromStage = 0, anchorIso = null } = {}) {
   const anchor = anchorIso ? new Date(anchorIso) : new Date()
+  const off = coldSendOffsetMin(clientId)   // spread this lead's sends across the daytime window
   const out = []
   for (let k = Math.max(0, Number(fromStage) || 0); k < COLD_DAYS.length; k++) {
-    const when = k === 0 ? plusMin(2) : businessSlot(new Date(anchor.getTime() + (COLD_DAYS[k] - COLD_DAYS[0]) * 86400000))
+    const when = k === 0 ? plusMin(2) : businessSlot(new Date(anchor.getTime() + (COLD_DAYS[k] - COLD_DAYS[0]) * 86400000), off)
     scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: `cold buyer stage ${k + 1} (enrolled)`, payload: { stage: k, preScheduled: true }, dedupKey: `coldbuyer_${clientId}_${k}` })
     out.push({ stage: k + 1, execute_at: when })
   }
@@ -112,7 +118,7 @@ export function enrollColdBuyerSequence(clientId, { fromStage = 0, anchorIso = n
 export function scheduleColdBuyer(clientId, nextStage) {
   if (!autopilotOn() || !flag('ai_nurture_enabled')) return
   if ((Number(nextStage) || 0) < COLD_LOOP_INDEX) return
-  const when = nextBusinessSlot(COLD_LOOP_GAP)
+  const when = nextBusinessSlot(COLD_LOOP_GAP, coldSendOffsetMin(clientId))
   scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: 'cold buyer long-term loop', payload: { stage: COLD_LOOP_INDEX }, dedupKey: `coldbuyer_${clientId}_${COLD_LOOP_INDEX}_${new Date().toISOString().slice(0, 10)}` })
 }
 

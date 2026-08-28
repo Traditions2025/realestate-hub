@@ -348,6 +348,26 @@ router.post('/cold-buyer/enroll-cohort', async (req, res) => {
   res.json({ enrolled: done, enrolled_list: enroll.map(e => e.nm), skipped_count: skipped.length, skipped })
 })
 
+// Stagger the pending cold-buyer sends: re-time every pending AI_COLD_BUYER action so a
+// same-day wave spreads across the daytime window (per-lead offset) instead of one burst.
+router.post('/cold-buyer/stagger', async (req, res) => {
+  const dryRun = req.body?.dry_run === true
+  const { coldSendOffsetMin } = await import('../ai-followup/scheduler.js')
+  const rows = db.all("SELECT id, client_id, execute_at FROM ai_scheduled_actions WHERE action_type='AI_COLD_BUYER' AND state='pending'")
+  const byDay = {}
+  let changed = 0
+  for (const r of rows) {
+    const off = coldSendOffsetMin(r.client_id)
+    const nd = new Date(r.execute_at)
+    nd.setUTCHours(15, 0, 0, 0); nd.setUTCMinutes(off)   // 15:00 UTC + offset = ~10am-4pm CT, same date
+    const newAt = nd.toISOString()
+    const day = newAt.slice(0, 10)
+    byDay[day] = (byDay[day] || 0) + 1
+    if (!dryRun && newAt !== r.execute_at) { db.run("UPDATE ai_scheduled_actions SET execute_at=? WHERE id=?", [newAt, r.id]); changed++ }
+  }
+  res.json({ dry_run: dryRun, pending_actions: rows.length, restaggered: dryRun ? 0 : changed, spread_by_day: byDay })
+})
+
 // View a lead's pending cold-buyer drip schedule (what's programmed on their account).
 router.get('/lead/:id/cold-buyer', (req, res) => {
   const cid = Number(req.params.id)

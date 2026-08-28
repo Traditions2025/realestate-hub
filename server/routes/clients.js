@@ -387,6 +387,16 @@ export function buildClientFilter(q) {
   recency('email', q.last_email_op, q.last_email_days)
   recency('text', q.last_text_op, q.last_text_days)
 
+  // Off Market Date recency (cancelled/expired): went off market more/less than N days ago.
+  if (['more', 'less'].includes(q.off_market_op)) {
+    const n = Math.floor(Number(q.off_market_days))
+    if (n > 0) {
+      where += q.off_market_op === 'more'
+        ? ` AND off_market_date IS NOT NULL AND off_market_date != '' AND date(off_market_date) <= date('now','-${n} days')`
+        : ` AND off_market_date IS NOT NULL AND off_market_date != '' AND date(off_market_date) >= date('now','-${n} days')`
+    }
+  }
+
   // AI Applied: has the AI been applied to this lead (enrolled/managed, or it has sent an AI
   // text). 'yes' = applied, 'no' = never touched by the AI.
   if (q.ai_applied === 'yes' || q.ai_applied === 'no') {
@@ -409,6 +419,8 @@ const SORT_OPTIONS = {
   fsbo_dom_low: 'CAST(fsbo_dom AS INTEGER) ASC NULLS LAST',
   highest_score: 'CAST(lead_score AS INTEGER) DESC NULLS LAST',
   lowest_score: 'CAST(lead_score AS INTEGER) ASC NULLS LAST',
+  off_market_recent: "date(off_market_date) DESC NULLS LAST",
+  off_market_oldest: "date(off_market_date) ASC NULLS LAST",
   name_az: 'last_name ASC, first_name ASC',
   name_za: 'last_name DESC, first_name DESC',
   recent_update: 'updated_at DESC',

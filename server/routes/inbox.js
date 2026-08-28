@@ -656,12 +656,16 @@ router.post('/bulk-text', async (req, res) => {
     [name || null, created_by || null, msg, template_id || null, client_ids.length, recipients.length, noPhone, optedOut, doNotContact, duplicates, 'sending'])
   const campaignId = camp.lastInsertRowid
   // Fire the sends in the background so we never hit the HTTP timeout on big lists.
+  // Pace BETWEEN people so a blast doesn't fire all at once (better deliverability + looks
+  // human). Configurable via pace_seconds; default a natural 5 to 8 second gap, jittered.
+  const paceOverrideMs = Number(req.body?.pace_seconds) > 0 ? Number(req.body.pace_seconds) * 1000 : null
   ;(async () => {
     let sent = 0
     for (const c of recipients) {
       try {
         const name2 = `${c.first_name || ''} ${c.last_name || ''}`.trim()
         let anySent = false
+        const personPaceMs = paceOverrideMs != null ? paceOverrideMs : (5000 + Math.floor(Math.random() * 3000))
         for (let pi = 0; pi < parts.length; pi++) {
           const outText = fillTemplate(parts[pi], c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
           if (!outText) continue
@@ -670,8 +674,8 @@ router.post('/bulk-text', async (req, res) => {
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             ['text', 'outgoing', c.id, name2, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
           anySent = true
-          // ~5s between parts to the same person so they arrive in order; short pace between people.
-          await new Promise(rs => setTimeout(rs, pi < parts.length - 1 ? 5000 : 900))
+          // ~5s between parts to the same person so they arrive in order; then the per-person pace.
+          await new Promise(rs => setTimeout(rs, pi < parts.length - 1 ? 5000 : personPaceMs))
         }
         if (anySent) sent++
       } catch (e) {

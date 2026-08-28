@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-28T21:08:33.203Z",
+  "generated_at": "2026-08-28T21:17:07.026Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "cee9589",
+      "date": "2026-08-28T16:08:36-05:00",
+      "subject": "Add 'Off Market Date' custom field + optional list column (for cancelled/expired)",
+      "title": "'Off Market Date' custom field + optional list column (for cancelled/expired)",
+      "body": "- clients.off_market_date column\n- editable date field on the full-screen profile (Contact details)\n- selectable 'Off Market Date' column in the Clients list (off by default)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "217fcdd",
       "date": "2026-08-28T15:52:04-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Email Log tab to Updates page — full send history including failures with full error detail",
       "body": "Backend:\n- New GET /api/email/log returns paginated email_log entries with sent + failed counts\n- Filterable by recipient/subject/error text, status (sent/failed/all), and time range\n- New GET /api/email/log/:id returns the full row including the complete email body\n- Body trimmed to 200 chars in list response so the page stays fast even with 1000+ sends\n\nFrontend (third tab on Updates page — '✉ Email Log'):\n- Stats line at top: total · sent · failed counts in green/red\n- Each row shows: ✓/✗ icon, subject, status badge, template badge (if used), recipient, timestamp\n- Failed sends show the SendGrid error inline so you can see exactly what went wrong\n- Click any row to open the full email — subject, To, From, body, SendGrid message ID for tracing\n- Filters: search by recipient/subject/error, filter by status, time range, page size\n- Pagination via Load More for long histories",
       "category": "feature"
-    },
-    {
-      "hash": "d9fb621",
-      "date": "2026-05-05T13:51:11-05:00",
-      "subject": "Earnest money: drop-off goes to Lavessa at the front desk of RE/MAX office",
-      "title": "Earnest money: drop-off goes to Lavessa at the front desk of RE/MAX office",
-      "body": "",
-      "category": "other"
     }
   ]
 }

@@ -106,7 +106,7 @@ const LIST_COLUMNS = [
   { key: 'source',     label: 'Source',     defaultVisible: true,  size: 'normal' },
   { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, size: 'flex', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
   { key: 'registered', label: 'Registered', defaultVisible: true,  size: 'normal', sort: { asc: 'oldest_first', desc: 'recent_added' } },
-  { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal' },
+  { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal', sort: { asc: 'off_market_oldest', desc: 'off_market_recent' } },
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
@@ -385,6 +385,7 @@ export default function Clients() {
     agents_include: [],
     last_email_op: '', last_email_days: '',
     last_text_op: '', last_text_days: '',
+    off_market_op: '', off_market_days: '',
     ai_applied: '',
     email_statuses: [],
     has_email: '', // '' (any) | '1' (with email) | '0' (no email)
@@ -451,7 +452,7 @@ export default function Clients() {
     len(advFilters.zips_include) + len(advFilters.cities_include) +
     len(advFilters.viewed_cities_include) +
     len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.email_statuses) +
-    ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
+    ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + ((advFilters.off_market_op && advFilters.off_market_days) ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -608,6 +609,7 @@ export default function Clients() {
     if (advFilters.agents_include.length) params.agents_include = advFilters.agents_include.join(',')
     if (advFilters.last_email_op && advFilters.last_email_days) { params.last_email_op = advFilters.last_email_op; params.last_email_days = advFilters.last_email_days }
     if (advFilters.last_text_op && advFilters.last_text_days) { params.last_text_op = advFilters.last_text_op; params.last_text_days = advFilters.last_text_days }
+    if (advFilters.off_market_op && advFilters.off_market_days) { params.off_market_op = advFilters.off_market_op; params.off_market_days = advFilters.off_market_days }
     if (advFilters.ai_applied) params.ai_applied = advFilters.ai_applied
     if (advFilters.email_statuses.length) params.email_statuses = advFilters.email_statuses.join(',')
     if (advFilters.has_email) params.has_email = advFilters.has_email === true ? '1' : advFilters.has_email
@@ -1060,7 +1062,7 @@ export default function Clients() {
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
       zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [], sources_exclude: [], agents_include: [],
-      last_email_op: '', last_email_days: '', last_text_op: '', last_text_days: '', ai_applied: '',
+      last_email_op: '', last_email_days: '', last_text_op: '', last_text_days: '', off_market_op: '', off_market_days: '', ai_applied: '',
       email_statuses: [],
       has_email: '', has_phone: '', exclude_optouts: false,
       score_min: '', score_max: '', visits_min: '', visits_max: '',
@@ -1147,6 +1149,7 @@ export default function Clients() {
           agents_include: f.agents_include || [],
           last_email_op: f.last_email_op || '', last_email_days: f.last_email_days || '',
           last_text_op: f.last_text_op || '', last_text_days: f.last_text_days || '',
+          off_market_op: f.off_market_op || '', off_market_days: f.off_market_days || '',
           ai_applied: f.ai_applied || '',
           email_statuses: f.email_statuses || [],
           has_email: (f.has_email === true || f.has_email === '1') ? '1' : (f.has_email === '0' ? '0' : ''),
@@ -1874,6 +1877,18 @@ export default function Clients() {
                   <option value="less">Less than</option>
                 </select>
                 <input type="number" min="1" value={advFilters.last_text_days} onChange={e => setAdvFilters(p => ({ ...p, last_text_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.last_text_op} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
+              </div>
+            </div>
+            <div className="filter-section">
+              <h5>Off Market Date</h5>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={advFilters.off_market_op} onChange={e => setAdvFilters(p => ({ ...p, off_market_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
+                  <option value="">Any</option>
+                  <option value="more">More than</option>
+                  <option value="less">Less than</option>
+                </select>
+                <input type="number" min="1" value={advFilters.off_market_days} onChange={e => setAdvFilters(p => ({ ...p, off_market_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.off_market_op} />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
               </div>
             </div>
