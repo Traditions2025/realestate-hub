@@ -547,64 +547,112 @@ router.get('/duplicates', (req, res) => {
 // Merge duplicates into a primary. Reassigns ALL child records to the primary (nothing is
 // lost), fills the primary's blank fields from the dupes, then archives each dupe with a
 // merged_into pointer so the merge is reversible. Never hard-deletes.
-router.post('/merge', (req, res) => {
-  const primaryId = Number(req.body?.primary_id)
-  const dupIds = (Array.isArray(req.body?.duplicate_ids) ? req.body.duplicate_ids : []).map(Number).filter(x => x && x !== primaryId)
-  // keep_both (default true): preserve the merged lead's DIFFERENT email/phone as secondary
-  // (alt_emails / alt_phones) instead of discarding it.
-  const keepBoth = req.body?.keep_both !== false
-  if (!primaryId || !dupIds.length) return res.status(400).json({ error: 'primary_id and duplicate_ids required' })
+// Tags may be stored as a JSON array string (["a","b"]) or a comma list; parse either.
+function parseTags(s) {
+  if (!s) return []
+  try { const a = JSON.parse(s); if (Array.isArray(a)) return a.map(x => String(x).trim()).filter(Boolean) } catch {}
+  return String(s).split(',').map(x => x.trim().replace(/^[\[\]"']+|[\[\]"']+$/g, '').trim()).filter(Boolean)
+}
+// Core merge: fold dupIds into primaryId. Reassigns every child record, keeps both
+// contacts (alt_emails/alt_phones), UNIONS tags, fills primary blanks, archives dups
+// (merged_into pointer → reversible). The survivor keeps the PRIMARY's status + contact.
+function doMerge(primaryId, dupIds, keepBoth = true) {
   const primary = db.get('SELECT * FROM clients WHERE id=?', [primaryId])
-  if (!primary) return res.status(404).json({ error: 'primary not found' })
-
-  // Tables keyed by client_id → reassign to primary (nothing is lost): every call, text,
-  // email, voicemail, AI action, note, task, showing, transaction moves to the survivor.
+  if (!primary) return { error: 'primary not found' }
   const reassignClientId = ['communications', 'ai_actions', 'behavioral_events', 'lead_events', 'ai_handoffs', 'showings', 'transactions', 'lead_activity']
   const norm10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : d }
-  // Collect all distinct emails/phones so "keep both" can preserve everything.
   const emailKeep = String(primary.email || '').trim().toLowerCase()
   const phoneKeep10 = norm10(primary.phone)
   const altEmails = new Set(String(primary.alt_emails || '').split(',').map(s => s.trim()).filter(Boolean))
   const altPhones = new Set(String(primary.alt_phones || '').split(',').map(s => s.trim()).filter(Boolean))
+  const tagSet = new Set(parseTags(primary.tags))
   const merged = []
   for (const dupId of dupIds) {
+    if (!dupId || dupId === primaryId) continue
     const dup = db.get('SELECT * FROM clients WHERE id=?', [dupId])
     if (!dup) continue
-    for (const tbl of reassignClientId) {
-      try { db.run(`UPDATE ${tbl} SET client_id=? WHERE client_id=?`, [primaryId, dupId]) } catch {}
-    }
-    // notes + tasks use related_type/related_id
+    for (const tbl of reassignClientId) { try { db.run(`UPDATE ${tbl} SET client_id=? WHERE client_id=?`, [primaryId, dupId]) } catch {} }
     try { db.run("UPDATE notes SET related_id=? WHERE related_type='client' AND related_id=?", [primaryId, dupId]) } catch {}
     try { db.run("UPDATE tasks SET related_id=? WHERE related_type='client' AND related_id=?", [primaryId, dupId]) } catch {}
-    // Fill primary blanks from the dup (only when primary is empty).
     const fillable = ['phone', 'email', 'address', 'city', 'state', 'zip', 'source', 'agent_assigned', 'sierra_lead_id', 'lead_score', 'lead_grade', 'fsbo_status']
     const sets = [], vals = []
-    for (const f of fillable) {
-      const pv = primary[f], dv = dup[f]
-      if ((pv === null || pv === undefined || pv === '') && dv !== null && dv !== undefined && dv !== '') { sets.push(`${f}=?`); vals.push(dv); primary[f] = dv }
-    }
-    if (sets.length) { db.run(`UPDATE clients SET ${sets.join(', ')} WHERE id=?`, [...vals, primaryId]) }
-    // Keep both: any of the dup's emails/phones that differ from the survivor's become secondary.
+    for (const f of fillable) { const pv = primary[f], dv = dup[f]; if ((pv === null || pv === undefined || pv === '') && dv !== null && dv !== undefined && dv !== '') { sets.push(`${f}=?`); vals.push(dv); primary[f] = dv } }
+    if (sets.length) db.run(`UPDATE clients SET ${sets.join(', ')} WHERE id=?`, [...vals, primaryId])
     if (keepBoth) {
-      for (const e of [dup.email, ...String(dup.alt_emails || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) {
-        if (e.toLowerCase() !== emailKeep && String(primary.email || '').trim().toLowerCase() !== e.toLowerCase()) altEmails.add(e)
-      }
-      for (const p of [dup.phone, ...String(dup.alt_phones || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) {
-        if (norm10(p) !== phoneKeep10 && norm10(p) !== norm10(primary.phone)) altPhones.add(p)
-      }
+      for (const e of [dup.email, ...String(dup.alt_emails || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) { if (e.toLowerCase() !== emailKeep && String(primary.email || '').trim().toLowerCase() !== e.toLowerCase()) altEmails.add(e) }
+      for (const p of [dup.phone, ...String(dup.alt_phones || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) { if (norm10(p) !== phoneKeep10 && norm10(p) !== norm10(primary.phone)) altPhones.add(p) }
     }
-    // Archive the dup, point it at the survivor, snapshot it in the audit log (recoverable).
+    for (const t of parseTags(dup.tags)) tagSet.add(t)   // union tags onto survivor
     db.run("UPDATE clients SET status='archived', merged_into=?, updated_at=datetime('now') WHERE id=?", [primaryId, dupId])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['merged', 'client', dupId, `Merged into ${primaryId}. Snapshot: ${JSON.stringify({ id: dup.id, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email, address: dup.address, status: dup.status, source: dup.source }).slice(0, 900)}`])
     merged.push(dupId)
   }
-  // Persist the collected secondary emails/phones on the survivor.
-  if (keepBoth) {
-    db.run('UPDATE clients SET alt_emails=?, alt_phones=?, updated_at=datetime(\'now\') WHERE id=?',
-      [[...altEmails].join(', ') || null, [...altPhones].join(', ') || null, primaryId])
+  db.run("UPDATE clients SET tags=?, updated_at=datetime('now') WHERE id=?", [JSON.stringify([...tagSet]), primaryId])
+  if (keepBoth) db.run("UPDATE clients SET alt_emails=?, alt_phones=?, updated_at=datetime('now') WHERE id=?", [[...altEmails].join(', ') || null, [...altPhones].join(', ') || null, primaryId])
+  return { success: true, primary_id: primaryId, merged, count: merged.length, alt_emails: [...altEmails], alt_phones: [...altPhones], tags: [...tagSet] }
+}
+
+router.post('/merge', (req, res) => {
+  const primaryId = Number(req.body?.primary_id)
+  const dupIds = (Array.isArray(req.body?.duplicate_ids) ? req.body.duplicate_ids : []).map(Number).filter(x => x && x !== primaryId)
+  const keepBoth = req.body?.keep_both !== false
+  if (!primaryId || !dupIds.length) return res.status(400).json({ error: 'primary_id and duplicate_ids required' })
+  const r = doMerge(primaryId, dupIds, keepBoth)
+  if (r.error) return res.status(r.error === 'primary not found' ? 404 : 400).json(r)
+  res.json(r)
+})
+
+// Group B: cluster the high-confidence New-vs-PastClient duplicates and merge each cluster
+// into its PAST-CLIENT record (closed preferred, else genuine-PC-tagged). Handles chains
+// (e.g. 3 Kirk Watson records -> one). dry_run:true returns the plan and changes nothing.
+router.post('/merge-past-client-dups', (req, res) => {
+  const dryRun = req.body?.dry_run === true
+  const normName = (f, l) => `${f || ''} ${l || ''}`.toLowerCase().replace(/[^a-z ]/g, ' ').replace(/\b[a-z]\b/g, ' ').replace(/\s+/g, ' ').trim()
+  const normPhone = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
+  const normEmail = (e) => { const s = String(e || '').trim().toLowerCase(); return (!s || s.includes('notvalidemail.com')) ? '' : s }
+  const normAddr = (a) => { let s = String(a || '').toLowerCase().split(',')[0].replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); return (/\d/.test(s) && s.replace(/\d/g, '').trim().length >= 4) ? s : '' }
+  const isGenuinePC = (tagsStr) => String(tagsStr || '').split(',').some(t => { const x = t.toLowerCase(); return x.includes('past client') && !x.includes('unsubscribed') })
+  const past = db.all("SELECT id, first_name, last_name, phone, email, address, status, tags FROM clients WHERE (lower(status)='closed' OR lower(coalesce(tags,'')) LIKE '%past client%') AND merged_into IS NULL")
+    .filter(p => String(p.status || '').toLowerCase() === 'closed' || isGenuinePC(p.tags))
+  const recs = past.map(p => ({ id: p.id, nk: normName(p.first_name, p.last_name), pk: normPhone(p.phone), ek: normEmail(p.email), ak: normAddr(p.address) }))
+  const byName = new Map(), byPhone = new Map(), byEmail = new Map(), byAddr = new Map()
+  const add = (m, k, r) => { if (!k) return; if (!m.has(k)) m.set(k, []); m.get(k).push(r) }
+  for (const r of recs) { add(byName, r.nk, r); add(byPhone, r.pk, r); add(byEmail, r.ek, r); add(byAddr, r.ak, r) }
+  const news = db.all("SELECT id, first_name, last_name, phone, email, address FROM clients WHERE lower(status)='new' AND merged_into IS NULL")
+  const pairs = []
+  for (const n of news) {
+    const nm = normName(n.first_name, n.last_name), ph = normPhone(n.phone), em = normEmail(n.email), ad = normAddr(n.address)
+    const cand = new Map()
+    for (const [k, m] of [[nm, byName], [ph, byPhone], [em, byEmail], [ad, byAddr]]) if (k && m.has(k)) for (const r of m.get(k)) if (r.id !== n.id) cand.set(r.id, r)
+    if (!cand.size) continue
+    let best = null
+    for (const r of cand.values()) { const f = []; if (nm && r.nk === nm) f.push('name'); if (ph && r.pk === ph) f.push('phone'); if (em && r.ek === em) f.push('email'); if (ad && r.ak === ad) f.push('address'); if (!best || f.length > best.f.length) best = { r, f } }
+    const f = best.f
+    if (f.includes('email') || (f.includes('name') && (f.includes('phone') || f.includes('email') || f.includes('address')))) pairs.push({ new_id: n.id, past_id: best.r.id })
   }
-  res.json({ success: true, primary_id: primaryId, merged, count: merged.length, alt_emails: [...altEmails], alt_phones: [...altPhones] })
+  // Union-find cluster the pairs (chains: 3 records of the same person collapse to one group).
+  const parent = new Map()
+  const find = (x) => { if (!parent.has(x)) parent.set(x, x); while (parent.get(x) !== x) { parent.set(x, parent.get(parent.get(x))); x = parent.get(x) } return x }
+  const union = (a, b) => { parent.set(find(a), find(b)) }
+  for (const p of pairs) union(p.new_id, p.past_id)
+  const allIds = new Set(); pairs.forEach(p => { allIds.add(p.new_id); allIds.add(p.past_id) })
+  const clusters = new Map()
+  for (const id of allIds) { const root = find(id); if (!clusters.has(root)) clusters.set(root, new Set()); clusters.get(root).add(id) }
+  const nm = (m) => `${m.first_name || ''} ${m.last_name || ''}`.trim()
+  const score = (m) => { const st = String(m.status || '').toLowerCase(); if (st === 'closed') return 3; if (isGenuinePC(m.tags)) return 2; if (st !== 'new' && st !== 'archived') return 1; return 0 }
+  const plan = []
+  for (const ids of clusters.values()) {
+    const members = [...ids].map(id => db.get('SELECT id, first_name, last_name, status, tags FROM clients WHERE id=? AND merged_into IS NULL', [id])).filter(Boolean)
+    if (members.length < 2) continue
+    members.sort((a, b) => score(b) - score(a) || a.id - b.id)
+    const primary = members[0], dups = members.slice(1)
+    plan.push({ primary: { id: primary.id, name: nm(primary), status: primary.status }, dups: dups.map(d => ({ id: d.id, name: nm(d), status: d.status })) })
+  }
+  if (dryRun) return res.json({ cluster_count: plan.length, records_to_merge: plan.reduce((s, c) => s + c.dups.length, 0), clusters: plan })
+  const results = []
+  for (const c of plan) results.push({ cluster: c, result: doMerge(c.primary.id, c.dups.map(d => d.id), true) })
+  res.json({ merged_clusters: plan.length, records_merged: results.reduce((s, r) => s + (r.result.count || 0), 0), results })
 })
 
 // ---- P2-2: Unified contact timeline ----
