@@ -705,21 +705,31 @@ router.post('/cancelled-expired/extract-mls', async (req, res) => {
     return m ? normDate(m[1]) : null
   }
   const tagLikes = ['%"Sierra: Cancelled"%', '%"Sierra: Expired"%', '%"MLS: Cancelled"%', '%"MLS: Expired"%']
+  const inSet = `merged_into IS NULL AND sierra_lead_id IS NOT NULL AND lower(status) IN ('new','qualify','watch') AND (${tagLikes.map(() => 'tags LIKE ?').join(' OR ')})`
+  // Only leads not yet attempted this run — so each lead's Sierra notes are fetched ONCE.
   const all = db.all(`SELECT id, sierra_lead_id, first_name, last_name, mls_number, off_market_date FROM clients
-    WHERE merged_into IS NULL AND sierra_lead_id IS NOT NULL AND lower(status) IN ('new','qualify','watch')
-      AND (${tagLikes.map(() => 'tags LIKE ?').join(' OR ')})
+    WHERE ${inSet} AND mls_extract_attempted_at IS NULL
       AND (mls_number IS NULL OR mls_number='' OR off_market_date IS NULL OR off_market_date='')`, tagLikes)
-  if (dryRun) return res.json({ candidates: all.length })
+  if (dryRun) {
+    // The definitive still-missing list (regardless of attempted) — for the hand-off.
+    const miss = db.all(`SELECT id, first_name, last_name, mls_number, off_market_date FROM clients
+      WHERE ${inSet} AND (mls_number IS NULL OR mls_number='' OR off_market_date IS NULL OR off_market_date='')`, tagLikes)
+      .map(c => ({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), missing_mls: !c.mls_number, missing_off: !c.off_market_date }))
+    return res.json({ candidates_unattempted: all.length, still_missing_total: miss.length, still_missing: miss })
+  }
   const batch = all.slice(0, limit)
   const { sierraGet } = await import('../sierra-helper.js')
   const out = { processed: 0, mls_found: 0, off_found: 0, both_found: 0, none_found: 0, not_found: [] }
   for (const c of batch) {
     out.processed++
-    let text = ''
+    let text = '', fetchOk = false
     try {
       const data = await sierraGet(`/notes/${c.sierra_lead_id}`, { pageSize: 50, pageNumber: 1 })
       text = (data.data?.records || []).map(n => String(n.contents || '').replace(/<[^>]+>/g, ' ')).join('  ').replace(/&gt;/g, '>').replace(/&lt;/g, '<')
+      fetchOk = true
     } catch { }
+    // Mark attempted only if the fetch worked, so a Sierra error retries later instead of being skipped forever.
+    if (fetchOk) { try { db.run("UPDATE clients SET mls_extract_attempted_at=datetime('now') WHERE id=?", [c.id]) } catch {} }
     const mls = (!c.mls_number || c.mls_number === '') ? extractMls(text) : null
     const off = (!c.off_market_date || c.off_market_date === '') ? extractOff(text) : null
     const sets = [], vals = []
