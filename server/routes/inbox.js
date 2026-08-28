@@ -854,9 +854,11 @@ router.post('/send', async (req, res) => {
 router.post('/scrub-line-types', async (req, res) => {
   const dryRun = req.body?.dry_run === true
   const limit = Math.min(Number(req.body?.limit) || 300, 600)
+  // Only leads NOT already line-checked (sms_line_checked_at) so we never re-look-up a number.
   const rows = db.all(`SELECT c.id, c.phone, c.first_name, c.last_name FROM clients c
     WHERE c.merged_into IS NULL AND c.phone IS NOT NULL AND TRIM(c.phone) != ''
       AND (c.sms_undeliverable IS NULL OR c.sms_undeliverable = 0)
+      AND c.sms_line_checked_at IS NULL
       AND ( EXISTS (SELECT 1 FROM ai_lead_state s WHERE s.client_id=c.id AND (s.ai_enabled=1 OR s.ai_managed=1))
          OR EXISTS (SELECT 1 FROM ai_scheduled_actions a WHERE a.client_id=c.id AND a.state='pending') )`)
   if (dryRun) return res.json({ candidates: rows.length, est_cost_usd: +(rows.length * 0.005).toFixed(2) })
@@ -869,7 +871,9 @@ router.post('/scrub-line-types', async (req, res) => {
       const r = batch[idx++]
       const lt = await lookupLineType(r.phone)
       out.checked++
-      if (lt.error) { out.errors++; continue }
+      if (lt.error) { out.errors++; continue }   // leave unchecked so a later run retries
+      // Record the result so this number is never looked up again.
+      try { db.run("UPDATE clients SET sms_line_type=?, sms_line_checked_at=? WHERE id=?", [lt.line_type || 'unknown', nowIso(), r.id]) } catch {}
       if (lt.textable === false) {
         out.flagged_landline++
         try { db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason=?, sms_undeliverable_at=? WHERE id=?", [`Twilio Lookup: ${lt.line_type}`, nowIso(), r.id]) } catch {}
