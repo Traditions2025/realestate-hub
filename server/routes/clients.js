@@ -484,6 +484,18 @@ router.get('/audit/new-vs-past', (req, res) => {
   })
 })
 
+// READ-ONLY: inspect which "past client"-containing tags exist (to separate a genuine
+// "Past Client" tag from automation noise like "Past Client Unsubscribed to E-Alerts").
+router.get('/audit/past-client-tags', (req, res) => {
+  const rows = db.all("SELECT tags FROM clients WHERE lower(coalesce(tags,'')) LIKE '%past client%'")
+  const tagCounts = new Map()
+  for (const r of rows) for (const t of String(r.tags || '').split(',').map(s => s.trim()).filter(Boolean)) if (t.toLowerCase().includes('past client')) tagCounts.set(t, (tagCounts.get(t) || 0) + 1)
+  const distinct = [...tagCounts.entries()].map(([tag, count]) => ({ tag, count })).sort((a, b) => b.count - a.count)
+  const taggedNew = db.all("SELECT id, first_name, last_name, tags FROM clients WHERE lower(status)='new' AND lower(coalesce(tags,'')) LIKE '%past client%'")
+  const withTags = taggedNew.map(t => ({ id: t.id, name: `${t.first_name || ''} ${t.last_name || ''}`.trim(), pc_tags: String(t.tags || '').split(',').map(s => s.trim()).filter(x => x.toLowerCase().includes('past client')) }))
+  res.json({ distinct_past_client_tags: distinct, tagged_in_new_count: withTags.length, tagged_in_new: withTags })
+})
+
 router.get('/duplicates', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 500)
   // Phone groups: same last-10 digits, more than one live (non-merged) client.
