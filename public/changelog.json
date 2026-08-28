@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-28T20:52:00.512Z",
+  "generated_at": "2026-08-28T21:08:33.203Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "217fcdd",
+      "date": "2026-08-28T15:52:04-05:00",
+      "subject": "Profile: show phone deliverability badge (mobile / landline / disconnected + checked date)",
+      "title": "Profile: show phone deliverability badge (mobile / landline / disconnected + checked date)",
+      "body": "Surfaces sms_line_type + sms_undeliverable on the full-screen profile next to the\nphone, so agents can see at a glance whether a number is a textable mobile, a\nlandline that can't receive texts, or disconnected/undeliverable.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6565f71",
       "date": "2026-08-28T15:46:33-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Earnest money: drop-off goes to Lavessa at the front desk of RE/MAX office",
       "body": "",
       "category": "other"
-    },
-    {
-      "hash": "e4fe8d6",
-      "date": "2026-05-05T13:50:54-05:00",
-      "subject": "Update buyer Earnest Money section: generic 'due in 3 biz days' wording, keep listing-company language",
-      "title": "buyer Earnest Money section: generic 'due in 3 biz days' wording, keep listing-company language",
-      "body": "Old wording assumed the buyer had already initiated the ACH transfer — but at the moment 'Under Contract / Next Steps' is sent, that's often not the case. New wording matches what Matt actually says:\n\n'Your earnest money is due within 3 business days of the accepted offer, by [date]. The earnest money amount is [amount] and can be submitted by check or electronic ACH transfer. It will be held by the listing company, RE/MAX Concepts, and credited toward your costs at closing. If you prefer a check, you can drop it off at our RE/MAX office.'\n\nEarnest Money Summary block updated to match (Due by date, both methods listed, listing-company phrasing).\n\nNote: 'RE/MAX Concepts' is hardcoded since most of Matt's deals are in-house. For deals where a different brokerage holds earnest, edit the body before sending — or we can promote this to a merge var later.",
-      "category": "improvement"
     }
   ]
 }

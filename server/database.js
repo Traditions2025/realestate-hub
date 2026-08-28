@@ -942,6 +942,7 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN sms_undeliverable_at TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN sms_line_type TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN sms_line_checked_at TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN off_market_date TEXT') } catch {}   // cancelled/expired: when the listing went off market
   // Secondary emails/phones kept when merging leads ("keep both"). Comma-separated.
   try { db.run('ALTER TABLE clients ADD COLUMN alt_emails TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}

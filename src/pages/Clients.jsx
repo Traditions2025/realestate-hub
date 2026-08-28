@@ -106,6 +106,7 @@ const LIST_COLUMNS = [
   { key: 'source',     label: 'Source',     defaultVisible: true,  size: 'normal' },
   { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, size: 'flex', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
   { key: 'registered', label: 'Registered', defaultVisible: true,  size: 'normal', sort: { asc: 'oldest_first', desc: 'recent_added' } },
+  { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal' },
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
@@ -2504,6 +2505,12 @@ export default function Clients() {
                   : '—'}
               </div>
             }
+            case 'off_market_date':
+              return <div key="off_market_date" className="cl-registered">
+                {item.off_market_date
+                  ? (() => { const d = new Date(String(item.off_market_date).replace(' ', 'T')); return isNaN(d) ? item.off_market_date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })()
+                  : '—'}
+              </div>
             default: return null
           }
         }

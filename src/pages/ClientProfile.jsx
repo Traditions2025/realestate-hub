@@ -297,6 +297,7 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="City" field="city" value={client.city} clientId={cid} onSaved={onSaved} />
           <InlineField label="State" field="state" value={client.state} clientId={cid} onSaved={onSaved} />
           <InlineField label="Zip" field="zip" value={client.zip} clientId={cid} onSaved={onSaved} />
+          <InlineField label="Off Market Date" field="off_market_date" type="date" value={client.off_market_date} clientId={cid} onSaved={onSaved} />
         </div>
         <div>
           <div className="cp-sub">CRM</div>
