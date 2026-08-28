@@ -686,6 +686,56 @@ router.post('/merge-past-client-dups', (req, res) => {
   res.json({ merged_clusters: plan.length, records_merged: results.reduce((s, r) => s + (r.result.count || 0), 0), results })
 })
 
+// Extract MLS # and Off Market Date from the Sierra notes of Cancelled/Expired leads and
+// populate the mls_number / off_market_date fields. dry_run previews. Processes up to `limit`
+// (re-invoke while remaining>0). Returns leads where nothing could be found (for hand-off).
+router.post('/cancelled-expired/extract-mls', async (req, res) => {
+  const dryRun = req.body?.dry_run === true
+  const limit = Math.min(Number(req.body?.limit) || 50, 100)
+  const normDate = (s) => {
+    const m = String(s).match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/); if (!m) return null
+    let [, mo, da, yr] = m; if (yr.length === 2) yr = '20' + yr
+    return `${yr}-${String(mo).padStart(2, '0')}-${String(da).padStart(2, '0')}`
+  }
+  const extractMls = (t) => { const m = t.match(/MLS\s*#?\s*:?\s*(\d{6,8})\b/i); return m ? m[1] : null }
+  const extractOff = (t) => {
+    const m = t.match(/Off\s*Market\s*Date\s*:?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i)
+      || t.match(/\bExpired\s*:?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i)
+      || t.match(/Expire\s*Date\s*:?\s*(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})/i)
+    return m ? normDate(m[1]) : null
+  }
+  const tagLikes = ['%"Sierra: Cancelled"%', '%"Sierra: Expired"%', '%"MLS: Cancelled"%', '%"MLS: Expired"%']
+  const all = db.all(`SELECT id, sierra_lead_id, first_name, last_name, mls_number, off_market_date FROM clients
+    WHERE merged_into IS NULL AND sierra_lead_id IS NOT NULL AND lower(status) IN ('new','qualify','watch')
+      AND (${tagLikes.map(() => 'tags LIKE ?').join(' OR ')})
+      AND (mls_number IS NULL OR mls_number='' OR off_market_date IS NULL OR off_market_date='')`, tagLikes)
+  if (dryRun) return res.json({ candidates: all.length })
+  const batch = all.slice(0, limit)
+  const { sierraGet } = await import('../sierra-helper.js')
+  const out = { processed: 0, mls_found: 0, off_found: 0, both_found: 0, none_found: 0, not_found: [] }
+  for (const c of batch) {
+    out.processed++
+    let text = ''
+    try {
+      const data = await sierraGet(`/notes/${c.sierra_lead_id}`, { pageSize: 50, pageNumber: 1 })
+      text = (data.data?.records || []).map(n => String(n.contents || '').replace(/<[^>]+>/g, ' ')).join('  ').replace(/&gt;/g, '>').replace(/&lt;/g, '<')
+    } catch { }
+    const mls = (!c.mls_number || c.mls_number === '') ? extractMls(text) : null
+    const off = (!c.off_market_date || c.off_market_date === '') ? extractOff(text) : null
+    const sets = [], vals = []
+    if (mls) { sets.push('mls_number=?'); vals.push(mls); out.mls_found++ }
+    if (off) { sets.push('off_market_date=?'); vals.push(off); out.off_found++ }
+    if (mls && off) out.both_found++
+    if (sets.length) { sets.push("updated_at=datetime('now')"); db.run(`UPDATE clients SET ${sets.join(', ')} WHERE id=?`, [...vals, c.id]) }
+    // Still missing something after this pass → hand-off candidate
+    const stillMissMls = !(c.mls_number || mls), stillMissOff = !(c.off_market_date || off)
+    if (stillMissMls || stillMissOff) { out.none_found++; if (out.not_found.length < 200) out.not_found.push({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), missing_mls: stillMissMls, missing_off: stillMissOff }) }
+    await new Promise(r => setTimeout(r, 250))   // pace Sierra to avoid 429s
+  }
+  out.remaining = Math.max(0, all.length - batch.length)
+  res.json(out)
+})
+
 // Reclassify leads to Past Client (status='closed'), optionally assigning an agent.
 // Hub-only (does not push to Sierra). dry_run:true previews. Reversible via activity_log.
 router.post('/reclassify-past-client', (req, res) => {

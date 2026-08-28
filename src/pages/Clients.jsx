@@ -107,6 +107,7 @@ const LIST_COLUMNS = [
   { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, size: 'flex', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
   { key: 'registered', label: 'Registered', defaultVisible: true,  size: 'normal', sort: { asc: 'oldest_first', desc: 'recent_added' } },
   { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal', sort: { asc: 'off_market_oldest', desc: 'off_market_recent' } },
+  { key: 'mls_number', label: 'MLS #', defaultVisible: false, size: 'normal' },
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
@@ -2526,6 +2527,8 @@ export default function Clients() {
                   ? (() => { const d = new Date(String(item.off_market_date).replace(' ', 'T')); return isNaN(d) ? item.off_market_date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })()
                   : '—'}
               </div>
+            case 'mls_number':
+              return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
             default: return null
           }
         }

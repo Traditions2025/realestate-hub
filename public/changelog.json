@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-28T21:17:07.026Z",
+  "generated_at": "2026-08-28T21:28:32.300Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a207247",
+      "date": "2026-08-28T16:17:18-05:00",
+      "subject": "Stagger AI drip + bulk texts; Off Market Date filter + sort",
+      "title": "Stagger AI drip + bulk texts; Off Market Date filter + sort",
+      "body": "- Scheduler: per-lead time offset (coldSendOffsetMin) spreads every cold-buyer\n  send across the daytime window (10am-4pm CT) instead of one same-minute burst\n  — automatic for all future enrollments.\n- POST /api/ai/cold-buyer/stagger: re-times the existing pending cohort the same\n  way (dry_run supported).\n- Bulk text: pace between recipients is now 5-8s (jittered) and configurable via\n  pace_seconds, instead of 900ms.\n- Off Market Date: recency filter (more/less than N days) + sortable column.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cee9589",
       "date": "2026-08-28T16:08:36-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Auto-sync listing-type transactions into Listings tab on save",
       "body": "When a transaction with type='listing' is created or updated, automatically mirror it into the listings table:\n- If a linked listing exists (transaction_id match): update it (address, MLS#, list price, stage, status, seller, client)\n- If no linked listing AND the transaction is in a 'live' status (Active/Coming Soon/Under Contract/Pending/Clear to Close/Closed): create one\n- Pre-Listing status only updates an existing listing (doesn't auto-create — pre-listings have their own table/flow)\n- Purchase-type transactions: no-op\n\nStatus → stage mapping:\n- Active → active, Coming Soon → coming_soon, Under Contract/Pending/Clear to Close → under_contract, Closed/Withdrawn/Expired/Cancelled → closed\n\nDrag-and-drop on the Transactions kanban already PUTs the new property_status, so dragging a listing card to 'Active' now propagates to the Listings tab automatically. Same for new listing-type transaction creation.",
       "category": "other"
-    },
-    {
-      "hash": "a2397f2",
-      "date": "2026-05-05T14:07:08-05:00",
-      "subject": "Add Email Log tab to Updates page — full send history including failures with full error detail",
-      "title": "Email Log tab to Updates page — full send history including failures with full error detail",
-      "body": "Backend:\n- New GET /api/email/log returns paginated email_log entries with sent + failed counts\n- Filterable by recipient/subject/error text, status (sent/failed/all), and time range\n- New GET /api/email/log/:id returns the full row including the complete email body\n- Body trimmed to 200 chars in list response so the page stays fast even with 1000+ sends\n\nFrontend (third tab on Updates page — '✉ Email Log'):\n- Stats line at top: total · sent · failed counts in green/red\n- Each row shows: ✓/✗ icon, subject, status badge, template badge (if used), recipient, timestamp\n- Failed sends show the SendGrid error inline so you can see exactly what went wrong\n- Click any row to open the full email — subject, To, From, body, SendGrid message ID for tracing\n- Filters: search by recipient/subject/error, filter by status, time range, page size\n- Pagination via Load More for long histories",
-      "category": "feature"
     }
   ]
 }
