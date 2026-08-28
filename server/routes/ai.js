@@ -175,6 +175,20 @@ router.post('/lead/:id/prefs', (req, res) => {
   res.json({ success: true })
 })
 // Send an AI message now (proactive opener / manual trigger) — honors all compliance.
+// Bulk: report AI state (enabled / managed / state / pending drip actions) for a set of leads.
+router.post('/lead-states', (req, res) => {
+  const ids = (Array.isArray(req.body?.client_ids) ? req.body.client_ids : []).map(Number).filter(Boolean)
+  if (!ids.length) return res.status(400).json({ error: 'client_ids required' })
+  const out = ids.map(id => {
+    const c = db.get('SELECT id, first_name, last_name, status, agent_assigned FROM clients WHERE id=?', [id]); if (!c) return null
+    let s = {}; try { s = db.get('SELECT ai_enabled, ai_managed, ai_state FROM ai_lead_state WHERE client_id=?', [id]) || {} } catch {}
+    let pend = 0; try { pend = db.get("SELECT COUNT(*) n FROM ai_scheduled_actions WHERE client_id=? AND state='pending'", [id])?.n || 0 } catch {}
+    return { id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), status: c.status, agent: c.agent_assigned, ai_enabled: !!s.ai_enabled, ai_managed: !!s.ai_managed, ai_state: s.ai_state || null, pending_actions: pend }
+  }).filter(Boolean)
+  const aiOn = out.filter(x => x.ai_enabled || x.ai_managed || x.pending_actions > 0)
+  res.json({ total: out.length, ai_on_count: aiOn.length, ai_on: aiOn })
+})
+
 router.post('/lead/:id/send-now', async (req, res) => {
   try {
     const cid = Number(req.params.id)
