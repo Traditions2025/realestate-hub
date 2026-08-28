@@ -881,7 +881,27 @@ router.post('/group-text', async (req, res) => {
   }
   if (recipients.length < 2) return res.status(400).json({ error: 'A group text needs at least 2 eligible recipients.', blocked })
   try {
-    const { createGroupText } = await import('../twilio-conversations.js')
+    // Twilio binds each participant+proxy pair to ONE conversation, so re-texting the SAME
+    // group must reuse the existing conversation instead of creating a new one (which errors
+    // "binding already exists"). Find a prior group whose participant set matches exactly.
+    const wantKeys = new Set(recipients.map(r => phoneKey(r.phone)).filter(Boolean))
+    let reuseSid = null
+    if (wantKeys.size >= 2) {
+      for (const g of db.all("SELECT DISTINCT conversation_sid, group_meta FROM communications WHERE conversation_sid IS NOT NULL AND group_meta IS NOT NULL ORDER BY id DESC")) {
+        try {
+          const keys = new Set(((JSON.parse(g.group_meta).participants) || []).map(p => phoneKey(p.phone)).filter(Boolean))
+          if (keys.size === wantKeys.size && [...wantKeys].every(k => keys.has(k))) { reuseSid = g.conversation_sid; break }
+        } catch {}
+      }
+    }
+    const { createGroupText, sendConversationMessage } = await import('../twilio-conversations.js')
+    if (reuseSid) {
+      const out = await sendConversationMessage(reuseSid, body)
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['text', 'outgoing', null, 'You', '', '', body.replace(/\s+/g, ' ').slice(0, 160), body, 'conv_' + out.messageSid, 'grp_' + reuseSid, 'read', 'human', reuseSid, nowIso()])
+      return res.json({ success: true, conversation_sid: reuseSid, reused: true, sent_to: recipients.length, blocked })
+    }
     const out = await createGroupText({ recipients, body })
     const meta = JSON.stringify({ participants: out.participants.map(p => ({ phone: p.phone, name: p.name, client_id: p.client_id || null })) })
     const names = out.participants.map(p => p.name || p.phone).join(', ')
@@ -921,7 +941,7 @@ router.post('/group-reply', async (req, res) => {
     const { sendConversationMessage } = await import('../twilio-conversations.js')
     const out = await sendConversationMessage(sid, body)
     db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, occurred_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ['text', 'outgoing', null, 'You', '', '', body.replace(/\s+/g, ' ').slice(0, 160), body, 'conv_' + out.messageSid, 'grp_' + sid, 'read', 'human', sid, nowIso()])
     res.json({ success: true })
   } catch (e) { res.status(500).json({ error: e.message }) }
