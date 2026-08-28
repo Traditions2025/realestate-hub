@@ -34,6 +34,30 @@ export function toE164(p) {
   return d ? '+' + d : ''
 }
 
+// Twilio Lookup V2 — Line Type Intelligence. Returns the line type so we can skip
+// texting numbers that cannot receive SMS (landlines / fixed VoIP). Costs ~$0.005/call.
+// { valid, line_type: 'mobile'|'landline'|'nonFixedVoip'|'fixedVoip'|'tollFree'|'voip'|'personal'|null,
+//   carrier_name, textable, error }
+export async function lookupLineType(phone) {
+  const c = twilioConfig()
+  const e164 = toE164(phone)
+  if (!e164) return { valid: false, line_type: null, textable: false, error: 'no phone' }
+  if (!c.sid || !c.token) return { valid: null, line_type: null, textable: null, error: 'twilio not configured' }
+  try {
+    const url = `https://lookups.twilio.com/v2/PhoneNumbers/${encodeURIComponent(e164)}?Fields=line_type_intelligence`
+    const r = await fetch(url, { headers: { Authorization: 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64') } })
+    const j = await r.json().catch(() => ({}))
+    if (!r.ok) return { valid: null, line_type: null, textable: null, error: (j?.message || `HTTP ${r.status}`) }
+    const lt = j?.line_type_intelligence?.type || null   // Twilio returns snake keys under this object
+    const carrier = j?.line_type_intelligence?.carrier_name || null
+    // Cannot receive SMS: landlines and FIXED voip. Everything else (mobile, non-fixed VoIP
+    // like Google Voice, tollFree, personal) can. Unknown/null → leave textable (don't block).
+    const NON_TEXTABLE = new Set(['landline', 'fixedVoip'])
+    const textable = lt ? !NON_TEXTABLE.has(lt) : true
+    return { valid: j?.valid !== false, line_type: lt, carrier_name: carrier, textable, error: null }
+  } catch (e) { return { valid: null, line_type: null, textable: null, error: e.message } }
+}
+
 // STOP / START keyword handling (CTIA compliance). Returns 'stop' | 'start' | null.
 const STOP_WORDS = new Set(['stop', 'stopall', 'unsubscribe', 'cancel', 'end', 'quit', 'optout', 'opt-out'])
 const START_WORDS = new Set(['start', 'yes', 'unstop', 'optin', 'opt-in'])

@@ -847,6 +847,44 @@ router.post('/send', async (req, res) => {
   res.json({ sent: results.filter(r => r.ok).length, results })
 })
 
+// Line-type scrub: run Twilio Lookup on AI-on leads and flag landlines / fixed VoIP as
+// undeliverable (so they're dropped from the drip and never texted), improving sent rate.
+// dry_run:true returns the candidate count + cost estimate. Processes up to `limit` per call
+// (re-invoke while remaining>0). Sets sms_undeliverable + cancels their pending drip texts.
+router.post('/scrub-line-types', async (req, res) => {
+  const dryRun = req.body?.dry_run === true
+  const limit = Math.min(Number(req.body?.limit) || 300, 600)
+  const rows = db.all(`SELECT c.id, c.phone, c.first_name, c.last_name FROM clients c
+    WHERE c.merged_into IS NULL AND c.phone IS NOT NULL AND TRIM(c.phone) != ''
+      AND (c.sms_undeliverable IS NULL OR c.sms_undeliverable = 0)
+      AND ( EXISTS (SELECT 1 FROM ai_lead_state s WHERE s.client_id=c.id AND (s.ai_enabled=1 OR s.ai_managed=1))
+         OR EXISTS (SELECT 1 FROM ai_scheduled_actions a WHERE a.client_id=c.id AND a.state='pending') )`)
+  if (dryRun) return res.json({ candidates: rows.length, est_cost_usd: +(rows.length * 0.005).toFixed(2) })
+  const batch = rows.slice(0, limit)
+  const { lookupLineType } = await import('../twilio.js')
+  const out = { checked: 0, mobile: 0, textable_other: 0, flagged_landline: 0, unknown: 0, errors: 0, flagged: [] }
+  let idx = 0
+  const worker = async () => {
+    while (idx < batch.length) {
+      const r = batch[idx++]
+      const lt = await lookupLineType(r.phone)
+      out.checked++
+      if (lt.error) { out.errors++; continue }
+      if (lt.textable === false) {
+        out.flagged_landline++
+        try { db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason=?, sms_undeliverable_at=? WHERE id=?", [`Twilio Lookup: ${lt.line_type}`, nowIso(), r.id]) } catch {}
+        try { db.run("UPDATE ai_scheduled_actions SET state='canceled', error='landline/fixed-voip - removed from drip', updated_at=datetime('now') WHERE client_id=? AND state='pending'", [r.id]) } catch {}
+        if (out.flagged.length < 100) out.flagged.push({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), line_type: lt.line_type })
+      } else if (lt.line_type === 'mobile') out.mobile++
+      else if (lt.line_type) out.textable_other++
+      else out.unknown++
+    }
+  }
+  await Promise.all(Array.from({ length: 8 }, worker))
+  out.remaining = Math.max(0, rows.length - batch.length)
+  res.json(out)
+})
+
 // ===================== GROUP TEXTING (Twilio Conversations / group MMS) =====================
 // Readiness check: is the account/number able to do true group MMS?
 router.get('/group-status', async (_req, res) => {
