@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-28T14:19:50.272Z",
+  "generated_at": "2026-08-28T14:35:10.304Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "87f0c55",
+      "date": "2026-08-28T09:20:03-05:00",
+      "subject": "Cold-buyer drip: bulk cohort enroll + global search opens full profile",
+      "title": "Cold-buyer drip: bulk cohort enroll + global search opens full profile",
+      "body": "- POST /api/ai/cold-buyer/enroll-cohort: enroll everyone who got an AI/revive\n  Text 1 in a window and did NOT reply (buyers only; skips opt-outs, DNC,\n  excluded lists, no-phone), continuing each at Text 2. dry_run returns the list.\n- Global top-search now opens client results in the FULL-SCREEN profile\n  (/clients/:id) instead of the modal (?open=).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7a5a1ce",
       "date": "2026-08-28T09:06:02-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Massive mobile load speedup: stale-while-revalidate SW + dashboard data cached in localStorage",
       "body": "Service worker (mst-hub-v5):\n- HTML now stale-while-revalidate instead of network-first. Cached version paints INSTANTLY on revisit (huge win on slow mobile), while fresh version downloads in background for the next visit\n- Precache index.html, manifest, and logo on install — first navigation after install gets cached\n- Bumped cache name to v5 so old v4 cache is cleared\n\nDashboard:\n- Hydrates from localStorage on mount: shows last-known stats/activity instantly with zero network wait\n- Background fetch updates the data + saves new snapshot to localStorage\n- Subtle 'refreshing...' indicator next to title while fresh data loads\n- Full-page 'Loading...' only shows on truly first-ever visit (no cached data yet)",
       "category": "other"
-    },
-    {
-      "hash": "edc6319",
-      "date": "2026-05-04T10:48:53-05:00",
-      "subject": "Add drag-and-drop to Tasks board (To Do / In Progress / Done) — same UX as Transactions kanban",
-      "title": "drag-and-drop to Tasks board (To Do / In Progress / Done) — same UX as Transactions kanban",
-      "body": "",
-      "category": "feature"
     }
   ]
 }

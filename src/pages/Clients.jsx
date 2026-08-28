@@ -2385,9 +2385,15 @@ export default function Clients() {
               </div>
             case 'name':
               // List view: just the name for a clean list. The Sierra source badge and
-              // tags still render on each lead's profile detail drawer.
+              // tags still render on each lead's profile detail drawer. The name is a real
+              // link so right-click / middle-click / Cmd-click can open the full-screen
+              // profile in a new tab; a plain click falls through to the row handler.
               return <div key="name" className="cl-name">
-                <strong>{item.first_name} {item.last_name}</strong>
+                <a href={'/clients/' + item.id} className="cl-name-link"
+                  onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) { e.stopPropagation(); return } e.preventDefault() /* let the row onClick open full screen */ }}
+                  style={{ color: 'inherit', textDecoration: 'none' }}>
+                  <strong>{item.first_name} {item.last_name}</strong>
+                </a>
               </div>
             case 'status':
               return <div key="status" className="cl-status" onClick={e => e.stopPropagation()}>
