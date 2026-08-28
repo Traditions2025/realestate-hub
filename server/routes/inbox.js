@@ -847,6 +847,26 @@ router.post('/send', async (req, res) => {
   res.json({ sent: results.filter(r => r.ok).length, results })
 })
 
+// Read-only: actual Twilio balance + today's & this month's Lookup usage/charges,
+// so we can see exactly what the line-type scrub cost (not an estimate).
+router.get('/twilio-usage', async (_req, res) => {
+  const { twilioConfig } = await import('../twilio.js')
+  const c = twilioConfig()
+  if (!c.sid || !c.token) return res.status(400).json({ error: 'twilio not configured' })
+  const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+  const get = async (u) => { try { const r = await fetch(u, { headers: { Authorization: auth } }); return await r.json() } catch (e) { return { error: e.message } } }
+  const bal = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Balance.json`)
+  const pick = (recs) => (recs || []).filter(r => /lookup/i.test(r.category)).map(r => ({ category: r.category, count: Number(r.count || 0), price: Number(r.price || 0), price_unit: r.price_unit }))
+  const today = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Usage/Records/Today.json?PageSize=500`)
+  const month = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Usage/Records/ThisMonth.json?PageSize=500`)
+  const tRec = pick(today.usage_records), mRec = pick(month.usage_records)
+  res.json({
+    balance: bal.balance, currency: bal.currency,
+    lookup_today: tRec, lookup_today_charge: +tRec.reduce((s, r) => s + r.price, 0).toFixed(4), lookup_today_count: tRec.reduce((s, r) => s + r.count, 0),
+    lookup_month: mRec, lookup_month_charge: +mRec.reduce((s, r) => s + r.price, 0).toFixed(4), lookup_month_count: mRec.reduce((s, r) => s + r.count, 0),
+  })
+})
+
 // Line-type scrub: run Twilio Lookup on AI-on leads and flag landlines / fixed VoIP as
 // undeliverable (so they're dropped from the drip and never texted), improving sent rate.
 // dry_run:true returns the candidate count + cost estimate. Processes up to `limit` per call
