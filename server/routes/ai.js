@@ -175,6 +175,33 @@ router.post('/lead/:id/prefs', (req, res) => {
   res.json({ success: true })
 })
 // Send an AI message now (proactive opener / manual trigger) — honors all compliance.
+// Purge past clients from the cold-buyer drip: scan everyone with pending cold-buyer
+// actions (plus any extra_ids), keep only PAST CLIENTS (status closed OR genuine PC tag),
+// cancel their queued drip texts, and turn AI off. dry_run:true previews.
+router.post('/cold-buyer/purge-past-clients', (req, res) => {
+  const dryRun = req.body?.dry_run === true
+  const extra = (Array.isArray(req.body?.extra_ids) ? req.body.extra_ids : []).map(Number).filter(Boolean)
+  const isGenuinePC = (t) => String(t || '').split(',').some(x => { const l = x.toLowerCase(); return l.includes('past client') && !l.includes('unsubscribed') })
+  const cohort = db.all("SELECT DISTINCT client_id FROM ai_scheduled_actions WHERE action_type='AI_COLD_BUYER' AND state='pending'").map(r => r.client_id)
+  const ids = [...new Set([...cohort, ...extra])]
+  const targets = []
+  for (const id of ids) {
+    const c = db.get('SELECT id, first_name, last_name, status, tags FROM clients WHERE id=?', [id]); if (!c) continue
+    if (!(String(c.status || '').toLowerCase() === 'closed' || isGenuinePC(c.tags))) continue   // past clients only
+    const pend = db.get("SELECT COUNT(*) n FROM ai_scheduled_actions WHERE client_id=? AND state='pending'", [id])?.n || 0
+    let s = {}; try { s = db.get('SELECT ai_enabled, ai_managed FROM ai_lead_state WHERE client_id=?', [id]) || {} } catch {}
+    if (!pend && !s.ai_enabled && !s.ai_managed) continue   // nothing to undo
+    targets.push({ id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), status: c.status, pending: pend, ai_enabled: !!s.ai_enabled, ai_managed: !!s.ai_managed })
+  }
+  if (dryRun) return res.json({ count: targets.length, targets })
+  let canceled = 0
+  for (const t of targets) {
+    try { const r = db.run("UPDATE ai_scheduled_actions SET state='canceled', error='past client - removed from cold-buyer drip', updated_at=datetime('now') WHERE client_id=? AND state='pending'", [t.id]); canceled += r.changes || 0 } catch {}
+    try { setEnabled(t.id, false); setManaged(t.id, false); transitionAiState(t.id, 'AI_DISABLED', 'past client - not a cold buyer') } catch {}
+  }
+  res.json({ targets: targets.length, drip_texts_canceled: canceled, ai_disabled: targets.length, ids: targets.map(t => t.id) })
+})
+
 // Bulk: report AI state (enabled / managed / state / pending drip actions) for a set of leads.
 router.post('/lead-states', (req, res) => {
   const ids = (Array.isArray(req.body?.client_ids) ? req.body.client_ids : []).map(Number).filter(Boolean)
