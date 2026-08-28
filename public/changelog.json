@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-28T14:36:18.085Z",
+  "generated_at": "2026-08-28T15:38:46.637Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c460228",
+      "date": "2026-08-28T09:36:21-05:00",
+      "subject": "Global search: results are real links (open in new tab)",
+      "title": "Global search: results are real links (open in new tab)",
+      "body": "Each top-search result is now an <a href> (client -> /clients/:id, others ->\nr.href), so right-click / middle-click / Cmd-click open it in a new tab; a plain\nclick still navigates in-app via go().\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f6a2efb",
       "date": "2026-08-28T09:35:13-05:00",
@@ -3993,14 +4001,6 @@
       "title": "'Import Matt's Task List' one-click seed: 50+ organized tasks across 6 categories",
       "body": "Backend (POST /api/tasks/seed-matts-list):\n- Idempotent — checks for existing task by exact title before inserting, won't duplicate\n- Creates 50+ tasks organized into: Closed/Terminated, Admin/Setup, Active Transaction, Pre-Listing, Outreach, Marketing, Hub Build\n- Sensible priorities (high for time-sensitive / closing dates, medium for important, low for nice-to-have)\n- Status set correctly (done for completed items, in_progress for waiting/monitoring, todo for outstanding)\n- Due dates set on closing dates and explicit deadlines (4/30, 5/1, 5/4, 5/15, 6/18, 7/1)\n- Assignments set: Leo (utility transfers, hub build), Matt (personally-handled outreach, listing description)\n\nFrontend (Tasks page):\n- New '📥 Import Matt's Task List' button in the header\n- Confirms before importing, shows the added/skipped count when done, then reloads the task board",
       "category": "feature"
-    },
-    {
-      "hash": "0cd1d03",
-      "date": "2026-05-04T10:58:09-05:00",
-      "subject": "Fix Listings save: show errors, close modal on success, jump to new stage tab",
-      "title": "Listings save: show errors, close modal on success, jump to new stage tab",
-      "body": "The save function silently swallowed errors and never closed the modal — so when changing Stage to Under Contract (or any other field), it looked like nothing was happening:\n- The PUT was actually succeeding\n- The modal stayed open showing the same form, so user thought save failed\n- Meanwhile the card in the background moved to the new stage's column, but the user couldn't see it because they were on a different stage tab\n\nFixes:\n- Wrap save in try/catch — alerts the user if save fails\n- Close modal on successful save (matches Transactions UX)\n- If stage changed and user was filtering by a specific stage, auto-switch the filter to the new stage so the card is visible right away",
-      "category": "fix"
     }
   ]
 }

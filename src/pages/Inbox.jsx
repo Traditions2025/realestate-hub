@@ -97,13 +97,18 @@ const fmtDate = (iso) => {
 
 export default function Inbox() {
   const navigate = useNavigate()
-  const [folder, setFolder] = useState('inbox')
-  const [unreadOnly, setUnreadOnly] = useState(true)
-  const [channels, setChannels] = useState(['email', 'text', 'call'])
+  // Inbox filters persist across visits (so "Texts only" stays set when you come back).
+  const [folder, setFolder] = useState(() => localStorage.getItem('inbox_folder') || 'inbox')
+  const [unreadOnly, setUnreadOnly] = useState(() => { const v = localStorage.getItem('inbox_unreadOnly'); return v === null ? true : v === '1' })
+  const [channels, setChannels] = useState(() => { try { const v = JSON.parse(localStorage.getItem('inbox_channels') || 'null'); return Array.isArray(v) && v.length ? v : ['email', 'text', 'call'] } catch { return ['email', 'text', 'call'] } })
   const [filterOpen, setFilterOpen] = useState(false)
   const [agents, setAgents] = useState([])
   const [myAgent, setMyAgent] = useState(() => localStorage.getItem('mst_agent') || '')
-  const [assignFilter, setAssignFilter] = useState('all')   // all | mine | unassigned
+  const [assignFilter, setAssignFilter] = useState(() => localStorage.getItem('inbox_assignFilter') || 'all')   // all | mine | unassigned
+  useEffect(() => { try { localStorage.setItem('inbox_folder', folder) } catch {} }, [folder])
+  useEffect(() => { try { localStorage.setItem('inbox_unreadOnly', unreadOnly ? '1' : '0') } catch {} }, [unreadOnly])
+  useEffect(() => { try { localStorage.setItem('inbox_channels', JSON.stringify(channels)) } catch {} }, [channels])
+  useEffect(() => { try { localStorage.setItem('inbox_assignFilter', assignFilter) } catch {} }, [assignFilter])
   const [q, setQ] = useState('')
   const [convos, setConvos] = useState(null)
   const [totalUnread, setTotalUnread] = useState(0)
@@ -417,9 +422,11 @@ export default function Inbox() {
                   const meta = chMeta(m.channel)
                   const out = m.direction === 'outgoing'
                   const total = shownThread.length
-                  // Gmail-style: only the latest (and any unread incoming) message is expanded;
-                  // older read messages collapse to a one-line summary. Click to toggle.
-                  const expanded = (m.id in openMsgs) ? openMsgs[m.id] : (idx === total - 1 || (m.status === 'unread' && m.direction === 'incoming'))
+                  // Text/call/voicemail threads read like a chat, so show EVERY message in full
+                  // by default (no click-to-expand). Emails keep the Gmail-style collapse (only
+                  // the latest + any unread incoming expanded) since they can be long. Toggle still works.
+                  const expanded = (m.id in openMsgs) ? openMsgs[m.id]
+                    : (m.channel === 'email' ? (idx === total - 1 || (m.status === 'unread' && m.direction === 'incoming')) : true)
                   const toggle = () => setOpenMsgs(o => ({ ...o, [m.id]: !expanded }))
                   if (!expanded) {
                     return (
