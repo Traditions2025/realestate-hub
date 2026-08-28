@@ -7,6 +7,34 @@ import {
   InlineTextComposer, COMM_META, commToText, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
 } from './Clients'
 
+// Phone deliverability badge — shows what Twilio Lookup / delivery results told us:
+// mobile (can text), landline / fixed VoIP (can't text), disconnected/unknown, or unchecked.
+function PhoneStatusBadge({ client }) {
+  const lt = String(client.sms_line_type || '').toLowerCase()
+  const reason = String(client.sms_undeliverable_reason || '')
+  let label, tone
+  if (client.sms_undeliverable) {
+    if (/landline|fixedvoip/i.test(reason) || lt === 'landline' || lt === 'fixedvoip') { label = 'Landline — can’t receive texts'; tone = 'bad' }
+    else if (/30005|unknown|non.?exist|disconnect/i.test(reason)) { label = 'Disconnected / unknown number'; tone = 'bad' }
+    else { label = 'Undeliverable for SMS'; tone = 'bad' }
+  } else if (lt === 'mobile') { label = 'Mobile — can receive texts'; tone = 'good' }
+  else if (lt && lt !== 'unknown') { label = `Textable (${client.sms_line_type})`; tone = 'ok' }
+  else if (client.sms_line_checked_at) { label = 'Verified (type unknown)'; tone = 'ok' }
+  else return null   // never checked → show nothing
+  const C = { good: ['#065f46', '#d1fae5'], bad: ['#991b1b', '#fee2e2'], ok: ['#374151', '#e5e7eb'] }
+  const [fg, bg] = C[tone]
+  let when = null
+  try { if (client.sms_line_checked_at) when = new Date(String(client.sms_line_checked_at).replace(' ', 'T')).toLocaleDateString() } catch {}
+  return (
+    <div style={{ margin: '3px 0 5px' }}>
+      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, color: fg, background: bg }}>
+        {tone === 'good' ? '✓ ' : tone === 'bad' ? '⚠ ' : ''}{label}
+      </span>
+      {when && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>checked {when}</span>}
+    </div>
+  )
+}
+
 // Clickable status pill (single status control — no redundant copies). Writes to Hub + Sierra.
 function StatusPill({ client, onSaved }) {
   const change = async (v) => {
@@ -261,6 +289,7 @@ function ClientDetails({ client, onSaved }) {
           <div className="cp-sub">Contact</div>
           <InlineName detail={client} onSaved={onSaved} />
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved} />
+          {client.phone && <PhoneStatusBadge client={client} />}
           <InlineField label="Email" field="email" type="email" value={client.email} clientId={cid} onSaved={onSaved} />
           {client.alt_phones && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other phones:</strong> {client.alt_phones}</p>}
           {client.alt_emails && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other emails:</strong> {client.alt_emails}</p>}
