@@ -440,7 +440,12 @@ router.get('/audit/new-vs-past', (req, res) => {
   const normPhone = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
   const normEmail = (e) => { const s = String(e || '').trim().toLowerCase(); return (!s || s.includes('notvalidemail.com')) ? '' : s }
   const normAddr = (a) => { let s = String(a || '').toLowerCase().split(',')[0].replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); return (/\d/.test(s) && s.replace(/\d/g, '').trim().length >= 4) ? s : '' }
-  const past = db.all("SELECT id, first_name, last_name, phone, email, address, status FROM clients WHERE lower(status)='closed' OR lower(coalesce(tags,'')) LIKE '%past client%'")
+  // A GENUINE past-client tag is any "past client" tag EXCEPT the automation-noise
+  // "Past Client Unsubscribed to E-Alerts" (created by an e-alert unsubscribe automation,
+  // not a real past client). CavesservicesLLC tags ARE genuine (Hunter's past clients).
+  const isGenuinePC = (tagsStr) => String(tagsStr || '').split(',').some(t => { const x = t.toLowerCase(); return x.includes('past client') && !x.includes('unsubscribed') })
+  const past = db.all("SELECT id, first_name, last_name, phone, email, address, status, tags FROM clients WHERE lower(status)='closed' OR lower(coalesce(tags,'')) LIKE '%past client%'")
+    .filter(p => String(p.status || '').toLowerCase() === 'closed' || isGenuinePC(p.tags))
   // Recs carry their normalized keys so we can score field overlap PER past record
   // (name+address to the SAME record = same person; name to one + address to another = noise).
   const recs = past.map(p => ({ id: p.id, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), status: p.status,
@@ -449,8 +454,9 @@ router.get('/audit/new-vs-past', (req, res) => {
   const add = (map, k, r) => { if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(r) }
   for (const r of recs) { add(byName, r.nk, r); add(byPhone, r.pk, r); add(byEmail, r.ek, r); add(byAddr, r.ak, r) }
 
-  // (A) New-status leads that ALREADY carry a "past client" tag — clearest mis-status.
-  const taggedNew = db.all("SELECT id, first_name, last_name FROM clients WHERE lower(status)='new' AND lower(coalesce(tags,'')) LIKE '%past client%'")
+  // (A) New-status leads that carry a GENUINE past-client tag (noise tag excluded) — mis-status.
+  const taggedNew = db.all("SELECT id, first_name, last_name, tags FROM clients WHERE lower(status)='new' AND lower(coalesce(tags,'')) LIKE '%past client%'")
+    .filter(t => isGenuinePC(t.tags))
 
   const news = db.all("SELECT id, first_name, last_name, phone, email, address FROM clients WHERE lower(status)='new'")
   const high = [], weak = []
