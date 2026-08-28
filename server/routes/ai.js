@@ -251,6 +251,37 @@ router.post('/bulk-send-now', async (req, res) => {
   res.json(out)
 })
 
+// ---- COLD-BUYER DRIP: enroll leads + pre-schedule their remaining sequence. Explicit,
+// gated NOTHING sends until the AI engine (ai_followup + ai_nurture) is on and each date
+// arrives. Used to continue leads that already got Text 1 (start at Text 2) and for tests. ----
+router.post('/cold-buyer/enroll', async (req, res) => {
+  const ids = Array.isArray(req.body?.client_ids) ? req.body.client_ids.map(Number).filter(Boolean) : []
+  if (!ids.length) return res.status(400).json({ error: 'client_ids required' })
+  const explicitFrom = req.body?.from_stage != null ? Number(req.body.from_stage) : null
+  const { enrollColdBuyerSequence } = await import('../ai-followup/scheduler.js')
+  const results = []
+  for (const cid of ids) {
+    try {
+      const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+      if (!c) { results.push({ client_id: cid, ok: false, reason: 'no client' }); continue }
+      // Anchor = their most recent AI/revive Text 1 (so Text 2 lands on the right day); else now.
+      const anchor = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' AND sent_by_type IN ('ai','fsbo_ai') ORDER BY occurred_at DESC LIMIT 1", [cid])
+      const fromStage = explicitFrom != null ? explicitFrom : (anchor ? 1 : 0)   // already got Text 1 -> start at Text 2
+      setManaged(cid, true); setEnabled(cid, true)
+      const scheduled = enrollColdBuyerSequence(cid, { fromStage, anchorIso: anchor?.occurred_at || null })
+      results.push({ client_id: cid, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), start_text: fromStage + 1, anchor: anchor?.occurred_at || 'now', scheduled })
+    } catch (e) { results.push({ client_id: cid, ok: false, reason: e.message }) }
+  }
+  res.json({ enrolled: results.filter(r => r.scheduled).length, results })
+})
+
+// View a lead's pending cold-buyer drip schedule (what's programmed on their account).
+router.get('/lead/:id/cold-buyer', (req, res) => {
+  const cid = Number(req.params.id)
+  const rows = db.all("SELECT id, execute_at, state, reason, payload_json FROM ai_scheduled_actions WHERE client_id=? AND action_type='AI_COLD_BUYER' AND state IN ('pending','processing') ORDER BY execute_at ASC", [cid])
+  res.json(rows.map(r => { let p = {}; try { p = JSON.parse(r.payload_json || '{}') } catch {} return { id: r.id, text_number: (Number(p.stage) || 0) + 1, execute_at: r.execute_at, state: r.state } }))
+})
+
 // ---- Today's Intelligence: morning summary + prioritized action queue (P1-4) ----
 // A "what needs attention today" view driven by decayed intent + recent behavior.
 router.get('/intelligence', (_req, res) => {

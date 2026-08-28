@@ -50,12 +50,12 @@ export async function runDueAiActions() {
       else if (a.action_type === 'AI_NURTURE_TOUCH') { const step = payload.step || 0; res = await orch.handleNurture(a.client_id, { attempt: step + 1 }); if (res?.sent) scheduleNurture(a.client_id, step + 1) }
       else if (a.action_type === 'AI_REENGAGE') { res = await orch.handleNurture(a.client_id, { reengage: true }) }
       else if (a.action_type === 'AI_COLD_BUYER') {
-        // Staged old/cold-buyer drip. Advance the cadence regardless of send vs NO_ACTION
-        // (a skipped stage still moves the schedule forward); a reply/opt-out already
+        // Staged old/cold-buyer drip. Active stages 0..9 were pre-scheduled at enrollment,
+        // so we only chain the perpetual loop here (after LTN4). A reply/opt-out already
         // cancels the pending actions before we get here.
         const stage = Number(payload.stage) || 0
         res = await orch.handleColdBuyerStage(a.client_id, stage)
-        scheduleColdBuyer(a.client_id, stage + 1)
+        if (stage >= COLD_DAYS.length - 1) scheduleColdBuyer(a.client_id, stage + 1)
       }
       finish(a.id, res?.sent ? 'completed' : (res?.ok ? 'completed' : 'failed'), res?.reason || null)
     } catch (e) { finish(a.id, 'failed', String(e.message).slice(0, 200)) }
@@ -76,10 +76,10 @@ const COLD_DAYS = [1, 4, 9, 17, 30, 50, 80, 120, 165, 210]
 const COLD_LOOP_INDEX = COLD_DAYS.length   // 10 = the 'loop' stage in COLD_BUYER_STAGES
 const COLD_LOOP_GAP = 52
 
-// Weekday date, in the daytime window, `gapDays` from now. Sat/Sun roll to Monday.
-// 15:00 UTC lands ~9 to 10am Central, inside the approved daytime sending window.
-function nextBusinessSlot(gapDays) {
-  const d = new Date(Date.now() + gapDays * 86400000)
+// A weekday date in the daytime window. Sat/Sun roll to Monday. 15:00 UTC lands
+// ~9 to 10am Central, inside the approved daytime sending window.
+function businessSlot(date) {
+  const d = new Date(date)
   d.setUTCHours(15, 0, 0, 0)
   for (let i = 0; i < 3; i++) {
     const wd = new Date(d).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short' })
@@ -89,17 +89,31 @@ function nextBusinessSlot(gapDays) {
   }
   return d.toISOString()
 }
+function nextBusinessSlot(gapDays) { return businessSlot(new Date(Date.now() + gapDays * 86400000)) }
 
-// Schedule cold-buyer stage `nextStage` (0 = Text 1, sent right away on enrollment).
+// Pre-schedule the WHOLE remaining cold-buyer sequence (stages fromStage..9) on a lead's
+// account, each dated from their Text 1 anchor (weekday/daytime). Explicit enrollment, NOT
+// gated by autopilot — but nothing SENDS until ai_followup_enabled is on AND each date
+// arrives. The perpetual loop (stage 10) is chained by the drain after LTN4. Idempotent
+// via dedup_key `coldbuyer_<cid>_<stage>`. Returns the scheduled rows for display.
+export function enrollColdBuyerSequence(clientId, { fromStage = 0, anchorIso = null } = {}) {
+  const anchor = anchorIso ? new Date(anchorIso) : new Date()
+  const out = []
+  for (let k = Math.max(0, Number(fromStage) || 0); k < COLD_DAYS.length; k++) {
+    const when = k === 0 ? plusMin(2) : businessSlot(new Date(anchor.getTime() + (COLD_DAYS[k] - COLD_DAYS[0]) * 86400000))
+    scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: `cold buyer stage ${k + 1} (enrolled)`, payload: { stage: k, preScheduled: true }, dedupKey: `coldbuyer_${clientId}_${k}` })
+    out.push({ stage: k + 1, execute_at: when })
+  }
+  return out
+}
+
+// Chain the perpetual long-term loop (stage 10) after LTN4. Active stages 0..9 are
+// pre-scheduled by enrollColdBuyerSequence, so this only handles the loop (gated).
 export function scheduleColdBuyer(clientId, nextStage) {
   if (!autopilotOn() || !flag('ai_nurture_enabled')) return
-  let idx = Number(nextStage) || 0
-  let when
-  if (idx <= 0) { idx = 0; when = plusMin(2) }
-  else if (idx < COLD_DAYS.length) when = nextBusinessSlot(COLD_DAYS[idx] - COLD_DAYS[idx - 1])
-  else { idx = COLD_LOOP_INDEX; when = nextBusinessSlot(COLD_LOOP_GAP) }   // perpetual loop
-  const dayTag = idx >= COLD_LOOP_INDEX ? '_' + new Date().toISOString().slice(0, 10) : ''   // loop repeats, so vary the key
-  scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: `cold buyer stage ${idx + 1}`, payload: { stage: idx }, dedupKey: `coldbuyer_${clientId}_${idx}${dayTag}` })
+  if ((Number(nextStage) || 0) < COLD_LOOP_INDEX) return
+  const when = nextBusinessSlot(COLD_LOOP_GAP)
+  scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: 'cold buyer long-term loop', payload: { stage: COLD_LOOP_INDEX }, dedupKey: `coldbuyer_${clientId}_${COLD_LOOP_INDEX}_${new Date().toISOString().slice(0, 10)}` })
 }
 
 // ---- SWEEP: new leads → schedule a first touch (cursor-based; never backfills the DB) ----
@@ -141,7 +155,7 @@ export function reengagementSweep() {
     // the single generic reconnect.
     const t = String(c.type || '').toLowerCase()
     if (t.includes('seller') && !t.includes('buyer')) scheduleAiAction(c.id, 'AI_REENGAGE', plusMin(2), { reason: 'dormant re-engagement', dedupKey: `reengage_${c.id}_${new Date().toISOString().slice(0, 10)}` })
-    else scheduleColdBuyer(c.id, 0)
+    else enrollColdBuyerSequence(c.id, { fromStage: 0 })   // Text 1 now + the full sequence pre-scheduled
   }
 }
 
