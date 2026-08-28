@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-28T14:35:10.304Z",
+  "generated_at": "2026-08-28T14:36:18.085Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "f6a2efb",
+      "date": "2026-08-28T09:35:13-05:00",
+      "subject": "Clients list: lead name is a real link (open profile in new tab)",
+      "title": "Clients list: lead name is a real link (open profile in new tab)",
+      "body": "The row had an onClick but no href, so right-click offered nothing. The name is\nnow an <a href=\"/clients/:id\">: plain click still opens the full-screen profile\nvia the row handler; right-click / middle-click / Cmd-click open it in a new tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "87f0c55",
       "date": "2026-08-28T09:20:03-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Listings save: show errors, close modal on success, jump to new stage tab",
       "body": "The save function silently swallowed errors and never closed the modal — so when changing Stage to Under Contract (or any other field), it looked like nothing was happening:\n- The PUT was actually succeeding\n- The modal stayed open showing the same form, so user thought save failed\n- Meanwhile the card in the background moved to the new stage's column, but the user couldn't see it because they were on a different stage tab\n\nFixes:\n- Wrap save in try/catch — alerts the user if save fails\n- Close modal on successful save (matches Transactions UX)\n- If stage changed and user was filtering by a specific stage, auto-switch the filter to the new stage so the card is visible right away",
       "category": "fix"
-    },
-    {
-      "hash": "075be9f",
-      "date": "2026-05-04T10:52:34-05:00",
-      "subject": "Massive mobile load speedup: stale-while-revalidate SW + dashboard data cached in localStorage",
-      "title": "Massive mobile load speedup: stale-while-revalidate SW + dashboard data cached in localStorage",
-      "body": "Service worker (mst-hub-v5):\n- HTML now stale-while-revalidate instead of network-first. Cached version paints INSTANTLY on revisit (huge win on slow mobile), while fresh version downloads in background for the next visit\n- Precache index.html, manifest, and logo on install — first navigation after install gets cached\n- Bumped cache name to v5 so old v4 cache is cleared\n\nDashboard:\n- Hydrates from localStorage on mount: shows last-known stats/activity instantly with zero network wait\n- Background fetch updates the data + saves new snapshot to localStorage\n- Subtle 'refreshing...' indicator next to title while fresh data loads\n- Full-page 'Loading...' only shows on truly first-ever visit (no cached data yet)",
-      "category": "other"
     }
   ]
 }

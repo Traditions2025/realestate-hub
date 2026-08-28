@@ -45,17 +45,23 @@ function GlobalSearch() {
         {open && res && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.18)', maxHeight: 380, overflowY: 'auto' }}>
             {res.length === 0 ? <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>No matches</div>
-              : res.map((r, i) => (
-                <div key={r.type + r.id} onMouseEnter={() => setActive(i)} onClick={() => go(r)}
-                  style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '8px 12px', cursor: 'pointer', background: i === active ? 'var(--bg-secondary)' : 'transparent', borderBottom: '1px solid var(--rule-2, var(--border))' }}>
+              : res.map((r, i) => {
+                // Real link so right-click / middle-click / Cmd-click can open in a new tab;
+                // a plain click still does in-app navigation via go().
+                const href = r.type === 'client' && r.id ? '/clients/' + r.id : r.href
+                return (
+                <a key={r.type + r.id} href={href} onMouseEnter={() => setActive(i)}
+                  onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); go(r) }}
+                  style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '8px 12px', cursor: 'pointer', textDecoration: 'none', color: 'inherit', background: i === active ? 'var(--bg-secondary)' : 'transparent', borderBottom: '1px solid var(--rule-2, var(--border))' }}>
                   <span style={{ color: 'var(--text-muted)' }}>{TYPE_ICON[r.type] || '•'}</span>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
                     {r.subtitle && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>}
                   </div>
                   <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.04em' }}>{r.type}</span>
-                </div>
-              ))}
+                </a>
+                )
+              })}
           </div>
         )}
       </div>
