@@ -38,12 +38,20 @@ export function toE164(p) {
 // texting numbers that cannot receive SMS (landlines / fixed VoIP). Costs ~$0.005/call.
 // { valid, line_type: 'mobile'|'landline'|'nonFixedVoip'|'fixedVoip'|'tollFree'|'voip'|'personal'|null,
 //   carrier_name, textable, error }
+const LOOKUP_DAILY_CAP = () => Math.max(0, Number(db.getSetting('twilio_lookup_daily_cap', '500')) || 500)
 export async function lookupLineType(phone) {
   const c = twilioConfig()
   const e164 = toE164(phone)
   if (!e164) return { valid: false, line_type: null, textable: false, error: 'no phone' }
   if (!c.sid || !c.token) return { valid: null, line_type: null, textable: null, error: 'twilio not configured' }
+  // HARD SAFETY: a global kill-switch + a per-day cap so a runaway can never bill like the
+  // 2026-08-28 incident (12,564 line-type lookups = $100.51) again.
+  if (db.getSetting('twilio_lookup_disabled', '0') === '1') return { valid: null, line_type: null, textable: null, error: 'lookups disabled (kill-switch)' }
+  const dayKey = 'twilio_lookup_count_' + new Date().toISOString().slice(0, 10)
+  const used = Number(db.getSetting(dayKey, '0')) || 0
+  if (used >= LOOKUP_DAILY_CAP()) return { valid: null, line_type: null, textable: null, error: `lookup daily cap reached (${LOOKUP_DAILY_CAP()})` }
   try {
+    db.setSetting(dayKey, String(used + 1))
     const url = `https://lookups.twilio.com/v2/PhoneNumbers/${encodeURIComponent(e164)}?Fields=line_type_intelligence`
     const r = await fetch(url, { headers: { Authorization: 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64') } })
     const j = await r.json().catch(() => ({}))

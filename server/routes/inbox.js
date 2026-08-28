@@ -871,6 +871,22 @@ router.get('/twilio-usage', async (_req, res) => {
   })
 })
 
+// Kill-switch + status for Twilio Lookups (line-type). GET shows state + today's count;
+// POST {disabled:true/false, daily_cap:N} flips the switch / cap. Safety after the 8/28 incident.
+router.get('/twilio-lookup-switch', (_req, res) => {
+  const dayKey = 'twilio_lookup_count_' + new Date().toISOString().slice(0, 10)
+  res.json({
+    disabled: db.getSetting('twilio_lookup_disabled', '0') === '1',
+    daily_cap: Number(db.getSetting('twilio_lookup_daily_cap', '500')) || 500,
+    used_today: Number(db.getSetting(dayKey, '0')) || 0,
+  })
+})
+router.post('/twilio-lookup-switch', (req, res) => {
+  if (typeof req.body?.disabled === 'boolean') db.setSetting('twilio_lookup_disabled', req.body.disabled ? '1' : '0')
+  if (req.body?.daily_cap != null) db.setSetting('twilio_lookup_daily_cap', String(Math.max(0, Number(req.body.daily_cap) || 0)))
+  res.json({ disabled: db.getSetting('twilio_lookup_disabled', '0') === '1', daily_cap: Number(db.getSetting('twilio_lookup_daily_cap', '500')) || 500 })
+})
+
 // Line-type scrub: run Twilio Lookup on AI-on leads and flag landlines / fixed VoIP as
 // undeliverable (so they're dropped from the drip and never texted), improving sent rate.
 // dry_run:true returns the candidate count + cost estimate. Processes up to `limit` per call
