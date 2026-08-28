@@ -651,7 +651,7 @@ router.post('/merge-past-client-dups', (req, res) => {
     const primary = members[0], dups = members.slice(1)
     plan.push({ primary: { id: primary.id, name: nm(primary), status: primary.status }, dups: dups.map(d => ({ id: d.id, name: nm(d), status: d.status })) })
   }
-  if (dryRun) return res.json({ cluster_count: plan.length, records_to_merge: plan.reduce((s, c) => s + c.dups.length, 0), clusters: plan })
+  if (dryRun) return res.json({ _v: 'gbmerge2', cluster_count: plan.length, records_to_merge: plan.reduce((s, c) => s + c.dups.length, 0), clusters: plan })
   const results = []
   for (const c of plan) results.push({ cluster: c, result: doMerge(c.primary.id, c.dups.map(d => d.id), true) })
   res.json({ merged_clusters: plan.length, records_merged: results.reduce((s, r) => s + (r.result.count || 0), 0), results })
