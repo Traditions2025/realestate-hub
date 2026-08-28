@@ -583,6 +583,8 @@ function doMerge(primaryId, dupIds, keepBoth = true) {
       for (const p of [dup.phone, ...String(dup.alt_phones || '').split(',')].map(s => String(s || '').trim()).filter(Boolean)) { if (norm10(p) !== phoneKeep10 && norm10(p) !== norm10(primary.phone)) altPhones.add(p) }
     }
     for (const t of parseTags(dup.tags)) tagSet.add(t)   // union tags onto survivor
+    // Cancel any pending AI drip actions on the record being archived (never text a merged-away lead).
+    try { db.run("UPDATE ai_scheduled_actions SET state='canceled', error='merged into ' || ?, updated_at=datetime('now') WHERE client_id=? AND state='pending'", [primaryId, dupId]) } catch {}
     db.run("UPDATE clients SET status='archived', merged_into=?, updated_at=datetime('now') WHERE id=?", [primaryId, dupId])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['merged', 'client', dupId, `Merged into ${primaryId}. Snapshot: ${JSON.stringify({ id: dup.id, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email, address: dup.address, status: dup.status, source: dup.source }).slice(0, 900)}`])
