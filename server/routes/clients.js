@@ -151,6 +151,23 @@ export function buildClientFilter(q) {
     }
   }
 
+  // Assigned agent include/exclude. Use the sentinel '__unassigned__' to match leads with no agent.
+  if (q.agents_include) {
+    const arr = Array.isArray(q.agents_include) ? q.agents_include : q.agents_include.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      const named = arr.filter(a => a !== '__unassigned__'), parts = []
+      if (named.length) { parts.push('agent_assigned IN (' + named.map(() => '?').join(',') + ')'); params.push(...named) }
+      if (arr.includes('__unassigned__')) parts.push("(agent_assigned IS NULL OR TRIM(agent_assigned) = '')")
+      if (parts.length) where += ' AND (' + parts.join(' OR ') + ')'
+    }
+  }
+  if (q.agents_exclude) {
+    const arr = Array.isArray(q.agents_exclude) ? q.agents_exclude : q.agents_exclude.split(',').map(s => s.trim()).filter(Boolean)
+    const named = arr.filter(a => a !== '__unassigned__')
+    if (named.length) { where += ' AND (agent_assigned IS NULL OR agent_assigned NOT IN (' + named.map(() => '?').join(',') + '))'; params.push(...named) }
+    if (arr.includes('__unassigned__')) where += " AND agent_assigned IS NOT NULL AND TRIM(agent_assigned) != ''"
+  }
+
   // Has email / has phone (with / without)
   if (q.has_email === '1' || q.has_email === 'true') where += " AND email IS NOT NULL AND TRIM(email) != ''"
   else if (q.has_email === '0') where += " AND (email IS NULL OR TRIM(email) = '')"
@@ -779,7 +796,8 @@ router.get('/filter-options', (req, res) => {
     }
   }
   const viewed_cities = Object.entries(viewedCounts).sort((a, b) => b[1] - a[1]).map(([c]) => c)
-  res.json({ zips, cities, sources, tags, viewed_cities })
+  const agents = db.all("SELECT DISTINCT agent_assigned FROM clients WHERE agent_assigned IS NOT NULL AND TRIM(agent_assigned) != '' ORDER BY agent_assigned").map(r => r.agent_assigned)
+  res.json({ zips, cities, sources, tags, viewed_cities, agents })
 })
 
 router.get('/:id', (req, res) => {

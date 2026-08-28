@@ -381,6 +381,7 @@ export default function Clients() {
     viewed_cities_include: [],
     sources_include: [],
     sources_exclude: [],
+    agents_include: [],
     last_email_op: '', last_email_days: '',
     last_text_op: '', last_text_days: '',
     ai_applied: '',
@@ -448,7 +449,7 @@ export default function Clients() {
     len(advFilters.tags_include) + len(advFilters.tags_exclude) +
     len(advFilters.zips_include) + len(advFilters.cities_include) +
     len(advFilters.viewed_cities_include) +
-    len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.email_statuses) +
+    len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.email_statuses) +
     ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
@@ -603,6 +604,7 @@ export default function Clients() {
     if (advFilters.viewed_cities_include.length) params.viewed_cities_include = advFilters.viewed_cities_include.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
     if (advFilters.sources_exclude.length) params.sources_exclude = advFilters.sources_exclude.join(',')
+    if (advFilters.agents_include.length) params.agents_include = advFilters.agents_include.join(',')
     if (advFilters.last_email_op && advFilters.last_email_days) { params.last_email_op = advFilters.last_email_op; params.last_email_days = advFilters.last_email_days }
     if (advFilters.last_text_op && advFilters.last_text_days) { params.last_text_op = advFilters.last_text_op; params.last_text_days = advFilters.last_text_days }
     if (advFilters.ai_applied) params.ai_applied = advFilters.ai_applied
@@ -1056,7 +1058,7 @@ export default function Clients() {
     setAdvFilters({
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
-      zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [], sources_exclude: [],
+      zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [], sources_exclude: [], agents_include: [],
       last_email_op: '', last_email_days: '', last_text_op: '', last_text_days: '', ai_applied: '',
       email_statuses: [],
       has_email: '', has_phone: '', exclude_optouts: false,
@@ -1141,6 +1143,7 @@ export default function Clients() {
           viewed_cities_include: f.viewed_cities_include || [],
           sources_include: f.sources_include || [],
           sources_exclude: f.sources_exclude || [],
+          agents_include: f.agents_include || [],
           last_email_op: f.last_email_op || '', last_email_days: f.last_email_days || '',
           last_text_op: f.last_text_op || '', last_text_days: f.last_text_days || '',
           ai_applied: f.ai_applied || '',
@@ -1838,6 +1841,15 @@ export default function Clients() {
                 options={filterOptions.sources}
                 selected={advFilters.sources_exclude}
                 onChange={v => setAdvFilters(p => ({ ...p, sources_exclude: v }))}
+              />
+            </div>
+            <div className="filter-section">
+              <h5>Assigned Agent</h5>
+              <MultiSelect
+                placeholder={`Search ${(filterOptions.agents || []).length} agents...`}
+                options={[{ value: '__unassigned__', label: 'Unassigned' }, ...(filterOptions.agents || [])]}
+                selected={advFilters.agents_include}
+                onChange={v => setAdvFilters(p => ({ ...p, agents_include: v }))}
               />
             </div>
             <div className="filter-section">

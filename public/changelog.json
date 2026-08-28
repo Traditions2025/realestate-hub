@@ -1,7 +1,135 @@
 {
-  "generated_at": "2026-08-28T15:38:46.637Z",
+  "generated_at": "2026-08-28T18:47:23.399Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9a9e1bf",
+      "date": "2026-08-28T13:20:57-05:00",
+      "subject": "AI walkthrough: frame payoff as what it could realistically sell for; scheduling asks time for Matt to stop by",
+      "title": "AI walkthrough: frame payoff as what it could realistically sell for; scheduling asks time for Matt to stop by",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bf231e9",
+      "date": "2026-08-28T13:14:19-05:00",
+      "subject": "AI walkthrough rule: keep it general (upgrades/condition/layout), don't parrot specific features",
+      "title": "AI walkthrough rule: keep it general (upgrades/condition/layout), don't parrot specific features",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "11103ce",
+      "date": "2026-08-28T13:02:17-05:00",
+      "subject": "AI walkthrough rule: lead with the recommendation, don't open by downplaying it",
+      "title": "AI walkthrough rule: lead with the recommendation, don't open by downplaying it",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fb69675",
+      "date": "2026-08-28T13:01:08-05:00",
+      "subject": "AI prompt: always encourage seller walkthrough + move to scheduling; speak in second person",
+      "title": "AI prompt: always encourage seller walkthrough + move to scheduling; speak in second person",
+      "body": "- WALKTHROUGH rule: if a potential seller asks whether an in-person visit is\n  necessary, always encourage it as the preferred/most accurate way to value the\n  home (never 'strictly required', never 'totally optional'); once they're\n  receptive, transition straight into scheduling + hand off. Includes the team's\n  approved encouragement + scheduling scripts.\n- STYLE: always address the lead directly in second person ('you'/'your home'),\n  never third person ('if they want') when meaning the person being texted.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7fc29fa",
+      "date": "2026-08-28T12:53:02-05:00",
+      "subject": "AI: purge-past-clients from cold-buyer drip (cancel queued texts + disable AI)",
+      "title": "AI: purge-past-clients from cold-buyer drip (cancel queued texts + disable AI)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d62ad27",
+      "date": "2026-08-28T12:46:06-05:00",
+      "subject": "AI: bulk /lead-states endpoint to report AI enabled/managed/pending per lead",
+      "title": "AI: bulk /lead-states endpoint to report AI enabled/managed/pending per lead",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ccbb902",
+      "date": "2026-08-28T12:40:41-05:00",
+      "subject": "Clients: reclassify-past-client endpoint (status->closed + optional agent assign)",
+      "title": "Clients: reclassify-past-client endpoint (status->closed + optional agent assign)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "22bfcb1",
+      "date": "2026-08-28T12:26:57-05:00",
+      "subject": "Merge dry-run: add version marker to confirm deploy",
+      "title": "Merge dry-run: add version marker to confirm deploy",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6e018d7",
+      "date": "2026-08-28T12:26:26-05:00",
+      "subject": "Merge: cancel pending AI drip actions on archived (merged-away) records",
+      "title": "Merge: cancel pending AI drip actions on archived (merged-away) records",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "85f9ac9",
+      "date": "2026-08-28T12:23:59-05:00",
+      "subject": "Merge: union tags on survivor; add clustered Group-B past-client dup merger (dry-run)",
+      "title": "Merge: union tags on survivor; add clustered Group-B past-client dup merger (dry-run)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d6992d1",
+      "date": "2026-08-28T11:59:28-05:00",
+      "subject": "Audit: exclude 'Past Client Unsubscribed to E-Alerts' noise tag (keep Caves)",
+      "title": "Audit: exclude 'Past Client Unsubscribed to E-Alerts' noise tag (keep Caves)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "396922d",
+      "date": "2026-08-28T11:52:11-05:00",
+      "subject": "Audit: inspect past-client tags to separate genuine tag from automation noise",
+      "title": "Audit: inspect past-client tags to separate genuine tag from automation noise",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f2973e0",
+      "date": "2026-08-28T11:15:41-05:00",
+      "subject": "Audit: score match fields per past record; split tagged-in-new / high-confidence / weak",
+      "title": "Audit: score match fields per past record; split tagged-in-new / high-confidence / weak",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "888ef57",
+      "date": "2026-08-28T11:12:42-05:00",
+      "subject": "Fix audit endpoint: clients has no address_normalized column; use address",
+      "title": "audit endpoint: clients has no address_normalized column; use address",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "0d2913e",
+      "date": "2026-08-28T11:05:07-05:00",
+      "subject": "Clients: read-only audit for New leads that match a Past Client",
+      "title": "Clients: read-only audit for New leads that match a Past Client",
+      "body": "GET /api/clients/audit/new-vs-past flags 'new' leads that match a Closed/past-\nclient lead by phone, email, address, or name (strong = any non-name match).\nReports counts + samples only; changes nothing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "26c219d",
+      "date": "2026-08-28T10:38:52-05:00",
+      "subject": "Inbox: text threads show full conversation; persist filter settings",
+      "title": "Inbox: text threads show full conversation; persist filter settings",
+      "body": "- Text/call/voicemail messages now render fully expanded by default (chat-style),\n  no click-to-expand each. Emails keep Gmail-style collapse (they can be long).\n- Channel filter, folder, unread-only, and assignment filter persist to\n  localStorage, so \"Texts only\" stays set when you leave and come back.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c460228",
       "date": "2026-08-28T09:36:21-05:00",
@@ -3873,134 +4001,6 @@
       "title": "transaction date auto-calc: parse as local date (timezone bug) + correct walkthrough rule",
       "body": "The old calc functions called new Date('YYYY-MM-DD') which JS interprets as UTC midnight, then drifted into the previous day in any timezone west of UTC. Result: depending on the user's timezone, calcEarnestDue and calcFinalWalkthrough could produce dates 1 day off (or land on a wrong weekday entirely).\n\nNew parseLocalDate() splits the YYYY-MM-DD string and calls the local-time Date constructor — no timezone conversion happens. formatLocalDate() outputs the result back as YYYY-MM-DD using local components. Dates now match the user's intuition exactly.\n\nVerified output across every day of week:\n- Closing Wed 6/10 → Walkthrough Tue 6/9\n- Closing Mon 6/8  → Walkthrough Fri 6/5 (skip weekend)\n- Closing Sat      → Walkthrough Fri (1 day back)\n- Closing Sun      → Walkthrough Fri (skip Sat)\n- Earnest Wed 6/10 + 3 biz days → Mon 6/15 (skip Sat/Sun)",
       "category": "fix"
-    },
-    {
-      "hash": "ffbf3e2",
-      "date": "2026-05-05T12:56:50-05:00",
-      "subject": "Updates feed page + Lender+Cherryl PA email template + transaction date auto-calcs",
-      "title": "Updates feed page + Lender+Cherryl PA email template + transaction date auto-calcs",
-      "body": "Updates tab (new):\n- New /updates page in sidebar (MAIN section, ⟳ icon)\n- Pulls from activity_log table — every create/update/delete/sync/email/etc across the hub\n- Grouped by day with chronological feed\n- Filters: entity type (Client / Transaction / Listing / etc), action, time range (last hour / 24hr / 7d / 30d), free text search\n- Color-coded entity badges + action icons\n- Pagination via Load More (50/100/250/500 per page)\n- /api/activity now supports filtering by entity_type, action, since, search + pagination\n\nPA → Lender + Cherryl email template (new):\n- New 'buyer_pa_to_team' template matching the email format in the user's screenshot\n- Subject: '{{property_address}} - {{buyer_name}} | Matt Smith Team'\n- Body opens 'Hi {{lender_first_name}} and {{closer_first_name}},' — uses Cherryl's first name from Partners table\n- Lender email lives on the transaction now (new lender_email column + form field)\n- Recipient type 'lender_team' → primary = lender_email, suggested_cc = Cherryl, plus the standard team auto-CC\n- Email composer shows '(includes Cherryl)' note in CC line when this template is picked\n- Signed John (Marketing & Operations Lead) — different signature than Matt's templates\n\nTransaction date auto-calc rules:\n- Earnest Money Due = 3 business days after Contract Date (already wired, unchanged)\n- Mortgage Contingency ↔ Appraisal Contingency: setting one auto-syncs the other when blank (typically same date in Iowa contracts)\n- Final Walkthrough = last weekday before Closing Date (skips Sat/Sun) — auto-fills when blank\n- All auto-fills only when target field is empty, so user edits are never overwritten",
-      "category": "improvement"
-    },
-    {
-      "hash": "bac2185",
-      "date": "2026-05-05T12:36:01-05:00",
-      "subject": "Transactions: client picker is now a search box (debounced lookup) instead of 45K-item dropdown",
-      "title": "Transactions: client picker is now a search box (debounced lookup) instead of 45K-item dropdown",
-      "body": "The 'Client (from CRM)' field used to load all 45,608 clients into a <select>. Even when it rendered, finding the right one required scrolling endlessly.\n\nNow:\n- Empty state: search box prompting 'Search by name or email (start typing 2+ chars)...'\n- Type 2+ chars → debounced 300ms call to /api/clients?search=... returns top 20\n- Click a result → client_id sets and the linked-client card replaces the search box\n- Card shows name, score, email, phone, address\n- ✕ button on the card clears the selection and brings back the search box\n- 'No matches' helper text when search returns empty\n- Removed the unused getClients() bulk load on page mount\n\nSame pattern as the Recommend Modal — consistent UX across all client pickers in the hub.",
-      "category": "other"
-    },
-    {
-      "hash": "904cf16",
-      "date": "2026-05-05T11:40:53-05:00",
-      "subject": "Vendors + Partners: 1-click copy contact, recommend to client(s) with email template",
-      "title": "Vendors + Partners: 1-click copy contact, recommend to client(s) with email template",
-      "body": "New shared component (src/components/RecommendModal.jsx):\n- Selected vendors/partners shown as removable chips at top\n- 'Add another vendor/partner' field with searchable dropdown — append to recommendation\n- Recipient picker: search clients by name/email, multi-select with chips\n- 'Recommendation for' free-text input drives the subject + intro line\n- Auto-builds subject + body from selections, but both are fully editable\n- Body uses {{first_name}} merge variable so each recipient gets their own copy\n- Preview button renders the email with the first recipient's data\n- Sends via existing /api/email/bulk endpoint (one personalized email per client)\n\nVendors page:\n- Each card now has 📋 Copy (clipboard) + ✉ Send (open modal) buttons\n- Card checkbox enables multi-select; toolbar gets '✉ Send N Selected to Client' button\n- Address removed from card body, website added\n- Copy: name, company, phone, email, website (no address)\n\nPartners page:\n- Same Copy + Send actions on desktop table rows + mobile cards\n- Multi-select checkboxes + bulk send button\n- Same shared RecommendModal, just kind='partner'",
-      "category": "other"
-    },
-    {
-      "hash": "35d8315",
-      "date": "2026-05-05T10:02:44-05:00",
-      "subject": "Fix task create double-click → duplicates: lock submit button during save",
-      "title": "task create double-click → duplicates: lock submit button during save",
-      "body": "The save() function fired the API request and waited for it to return — but the Create Task button stayed enabled the whole time. On a slow Render cold start (a few seconds) the user would click again, thinking the first click didn't register, and a second identical task got created.\n\nFix:\n- Added 'saving' state, set true the moment submit fires\n- Submit button is now disabled while saving + label changes to 'Creating...' / 'Saving...' so the loading state is obvious\n- Cancel button also disabled during save (prevents closing the modal mid-request)\n- Guard at top of save() returns early if already in flight (defense in depth)\n- try/catch/finally so a failed save shows an error and re-enables the button instead of silently locking",
-      "category": "fix"
-    },
-    {
-      "hash": "573fdf2",
-      "date": "2026-05-05T09:19:05-05:00",
-      "subject": "Tasks: notes thread per task — leave running updates, comments, blockers",
-      "title": "Tasks: notes thread per task — leave running updates, comments, blockers",
-      "body": "Backend:\n- New notes_log TEXT column on tasks (JSON array of {at, by, text})\n- Migration on boot adds the column to existing DBs\n- POST /api/tasks/:id/notes appends a new note\n- DELETE /api/tasks/:id/notes/:idx removes a note by index\n\nFrontend (task edit modal):\n- New '📝 Notes (N)' section appears only when editing a task (not on New)\n- Shows existing notes in chronological order with author + timestamp\n- Each note has an X button to delete it (with confirm)\n- Add-note input: 'By' dropdown (Matt/Leo) + textarea + Add button\n- Cmd/Ctrl+Enter shortcut to add note quickly\n- Notes save independently of the main task form (clicking Add commits immediately)\n\nUse case: track running updates on each task — 'started 5/4', 'called Cherryl', 'waiting on Tim' — instead of cramming everything into the description field and overwriting context.",
-      "category": "other"
-    },
-    {
-      "hash": "1c110db",
-      "date": "2026-05-04T18:11:07-05:00",
-      "subject": "Tasks: Assigned To is now a dropdown (Unassigned / Matt / Leo) instead of free text",
-      "title": "Tasks: Assigned To is now a dropdown (Unassigned / Matt / Leo) instead of free text",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "39e8666",
-      "date": "2026-05-04T17:30:37-05:00",
-      "subject": "Add Delete button to task edit modal — was only available on list view's Del button before",
-      "title": "Delete button to task edit modal — was only available on list view's Del button before",
-      "body": "",
-      "category": "feature"
-    },
-    {
-      "hash": "bd4a242",
-      "date": "2026-05-04T14:15:31-05:00",
-      "subject": "Add Registered column to Clients list — clickable to sort by Sierra creation date",
-      "title": "Registered column to Clients list — clickable to sort by Sierra creation date",
-      "body": "- Shows sierra_creation_date formatted as 'Apr 22, 26'\n- Click the header to toggle: ▼ recent_added (newest first) ↔ ▲ oldest_first\n- Tooltip shows the full timestamp on hover\n- Backend sort logic (recent_added / oldest_first) was already wired up — this just exposes it as a header\n- Updated grid-template-columns to fit the new column",
-      "category": "feature"
-    },
-    {
-      "hash": "158d33f",
-      "date": "2026-05-04T14:07:49-05:00",
-      "subject": "Fix blank Clients page when picking a saved list",
-      "title": "blank Clients page when picking a saved list",
-      "body": "When loadSavedList() restored an older saved list's filters, it only set the legacy fields and left newer fields (visits_max, activity_days, has_saved_search, search_property_types, search_regions, etc.) as undefined.\n\nThe render then tried to call .length on those undefined arrays, throwing 'Cannot read properties of undefined' and crashing the entire Clients page to a blank screen.\n\nTwo-part fix:\n1. loadSavedList now spreads the full empty-default shape so every field is always defined, even when restoring an old saved list\n2. advFilterCount uses a defensive len() helper that treats non-arrays as empty — so even if some other code path produces a partial state object, the page doesn't crash",
-      "category": "fix"
-    },
-    {
-      "hash": "d3339db",
-      "date": "2026-05-04T13:36:58-05:00",
-      "subject": "Add 'Refresh Selected from Sierra' batch refresh on filter results",
-      "title": "'Refresh Selected from Sierra' batch refresh on filter results",
-      "body": "Backend (POST /api/sierra/refresh-leads-batch):\n- Accepts array of client_ids (max 1000 per batch)\n- Resolves to sierra_lead_ids and pulls each fresh from Sierra with includeTags + includeSavedSearches\n- Runs async — endpoint returns immediately, status polled separately\n- Tracks total/done/added/updated/errors in memory\n- Logs activity row when complete\n\nGET /api/sierra/refresh-leads-batch/status returns live progress.\n\nFrontend (Clients mass action bar):\n- New '↻ Refresh Selected from Sierra' button appears when leads are selected\n- Shows live progress: '↻ Refreshing 47/128...'\n- Polls server every 2s until complete, then alerts with summary + reloads list\n- Confirms with estimated time before kicking off\n\nUse case: filter to a specific tag or status, click 'Select All Matched', then 'Refresh Selected from Sierra' — pulls only those leads fresh from Sierra without waiting on a 60-90 min full sync. Especially useful for tag-only changes that incremental sync misses.",
-      "category": "feature"
-    },
-    {
-      "hash": "c1fb34d",
-      "date": "2026-05-04T13:16:37-05:00",
-      "subject": "Select All Matched: respects all filters, shows true count, no forced email-only",
-      "title": "Select All Matched: respects all filters, shows true count, no forced email-only",
-      "body": "Backend (/api/clients/ids):\n- Now respects the FULL filter set (advFilters, statuses_include, tags_include, all the new saved-search criteria, etc.) — was previously dropping advanced filters when frontend called it\n- Default behavior changed: returns ALL matching IDs regardless of email/opt-out status\n- Pass ?email_ready=1 to apply the legacy 'has email + not opted out' restriction (used by the new email-only button)\n- Bumped limit ceiling 5000 -> 50000 so even very large lists can be fully selected\n\nFrontend (Clients mass action bar):\n- Replaced 4-button cluster (Select 500/1000/2000/All Filtered) with 2 clear buttons:\n  • 'Select All Matched (X)' — primary CTA with the actual filtered count, selects every match regardless of email status (great for tagging, exporting, viewing)\n  • '✉ Email-Ready Only' — secondary, applies the email-only filter (with valid email + not opted out)\n- Both buttons use buildLoadParams() so they pass every active filter — no more silent dropping of advanced filters",
-      "category": "other"
-    },
-    {
-      "hash": "2306a83",
-      "date": "2026-05-04T13:05:40-05:00",
-      "subject": "Fix Load More: respect advanced filters (was dropping them and returning unfiltered results)",
-      "title": "Load More: respect advanced filters (was dropping them and returning unfiltered results)",
-      "body": "The loadMore() function was rebuilding the request params from scratch and only including basic ones (type, tab, search) — so all advanced filters (statuses_include, tags_include, zips, cities, sources, score, visits, activity dates, saved-search criteria) were dropped on the second page.\n\nResult: clicking 'Load More' would return leads that matched only the broad filter, mixing in non-matching results past the first page.\n\nFix: spread buildLoadParams() (the exact same params used for the initial load) and just override the offset. Now Load More returns the next page of the SAME filtered set.",
-      "category": "fix"
-    },
-    {
-      "hash": "00bcd45",
-      "date": "2026-05-04T12:55:02-05:00",
-      "subject": "Filter fixes: tags_include uses OR logic, removed Status (Exclude) UI",
-      "title": "Filter fixes: tags_include uses OR logic, removed Status (Exclude) UI",
-      "body": "Bug fix — tags_include was AND, should be OR:\n- With 7 tags selected, the lead had to have ALL 7 tags simultaneously to match (AND between each tag's LIKE clause). That's why no leads matched the user's expired/cancelled tag filter.\n- Now generates a single ' AND (tags LIKE ? OR tags LIKE ? OR ...)' clause so a lead matches if it has ANY of the selected tags\n- Same fix applied to lists.js so saved lists with tag-include filters also work right\n\nUX cleanup — removed Status (Exclude) from filter panel:\n- Status (Include) already implies 'show only these', so the Exclude column was redundant and confusing\n- Replaced with single 'Status' section + helper text 'Only leads with these statuses are shown'\n- Backend still accepts statuses_exclude for preset compatibility (Active Pipeline / Re-engagement presets) but it's no longer in the manual UI",
-      "category": "other"
-    },
-    {
-      "hash": "a9d2926",
-      "date": "2026-05-04T12:07:11-05:00",
-      "subject": "Fix Sierra incremental 400: proper UTC ISO date format + show actual API error body",
-      "title": "Sierra incremental 400: proper UTC ISO date format + show actual API error body",
-      "body": "Root cause:\n- The 'since' date sent in leadUpdateDateFrom was being mangled: SQLite returns 'YYYY-MM-DD HH:MM:SS' in UTC but without the Z marker, JS Date.parse interprets that as LOCAL time (which on Render UTC servers happens to be right, but on machines with TZ drift it can be hours off and Sierra rejects it as 400)\n- The fallback ISO string had milliseconds + Z stripped after .split('.')[0] — leaving a bare 'YYYY-MM-DDTHH:MM:SS' with no timezone, which Sierra appears to reject\n\nFixes:\n- New toSierraDate() helper normalizes any input (Date, ISO string, SQLite datetime string) to clean ISO 8601 UTC with Z marker (e.g. '2026-05-04T19:30:00Z')\n- Cap 'since' window to a max of 7 days back (no point pulling older incrementally; also defensively prevents very-old-date rejection)\n- Filter sync_log lookups to skip error rows when computing 'last successful sync'\n- Falls back through last successful incremental → last successful full sync → 7 days ago\n\nBetter error visibility (sierraGet helper):\n- 4xx/5xx responses now include the response body text in the thrown error message (truncated to 300 chars), so 'Sierra API 400: Bad Request' becomes 'Sierra API 400 Bad Request — { error: \"...\" }' showing what Sierra actually complained about",
-      "category": "fix"
-    },
-    {
-      "hash": "989bbbd",
-      "date": "2026-05-04T11:54:43-05:00",
-      "subject": "Sync visibility: split full vs incremental, manual trigger, scheduler health warning",
-      "title": "Sync visibility: split full vs incremental, manual trigger, scheduler health warning",
-      "body": "Backend:\n- New GET /api/sierra/sync-health returns last full sync, last incremental, last error, count of incremental runs in past 24h, and total lead updates accumulated since last full sync\n- New POST /api/sierra/sync-incremental-now manually triggers an incremental sync (skips the 10-min wait)\n- syncSierraIncremental now logs an 'incremental_error' row when it errors so failures show up in sync-log instead of disappearing silently\n- Returns structured result so the manual endpoint can report counts back to the UI\n\nFrontend (Clients page):\n- Replaced single 'Last sync' line with a richer banner showing both full sync + incremental sync timing\n- Shows incremental run count for the past 24h ('X runs in 24hr') so you can verify scheduler is alive\n- Shows 'Y updates since last full sync' as a running total\n- If the most recent incremental is older than 30 min, banner turns yellow with a warning that scheduler may have stopped\n- New '↻ Run Sync Now' button next to the banner triggers an immediate incremental sync — useful for diagnosing scheduler issues without waiting",
-      "category": "other"
-    },
-    {
-      "hash": "b6414a4",
-      "date": "2026-05-04T11:30:44-05:00",
-      "subject": "Add 'Import Matt's Task List' one-click seed: 50+ organized tasks across 6 categories",
-      "title": "'Import Matt's Task List' one-click seed: 50+ organized tasks across 6 categories",
-      "body": "Backend (POST /api/tasks/seed-matts-list):\n- Idempotent — checks for existing task by exact title before inserting, won't duplicate\n- Creates 50+ tasks organized into: Closed/Terminated, Admin/Setup, Active Transaction, Pre-Listing, Outreach, Marketing, Hub Build\n- Sensible priorities (high for time-sensitive / closing dates, medium for important, low for nice-to-have)\n- Status set correctly (done for completed items, in_progress for waiting/monitoring, todo for outstanding)\n- Due dates set on closing dates and explicit deadlines (4/30, 5/1, 5/4, 5/15, 6/18, 7/1)\n- Assignments set: Leo (utility transfers, hub build), Matt (personally-handled outreach, listing description)\n\nFrontend (Tasks page):\n- New '📥 Import Matt's Task List' button in the header\n- Confirms before importing, shows the added/skipped count when done, then reloads the task board",
-      "category": "feature"
     }
   ]
 }
