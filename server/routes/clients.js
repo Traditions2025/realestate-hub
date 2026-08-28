@@ -440,37 +440,47 @@ router.get('/audit/new-vs-past', (req, res) => {
   const normPhone = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : '' }
   const normEmail = (e) => { const s = String(e || '').trim().toLowerCase(); return (!s || s.includes('notvalidemail.com')) ? '' : s }
   const normAddr = (a) => { let s = String(a || '').toLowerCase().split(',')[0].replace(/[^a-z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim(); return (/\d/.test(s) && s.replace(/\d/g, '').trim().length >= 4) ? s : '' }
-  const past = db.all("SELECT id, first_name, last_name, phone, email, address, tags, status FROM clients WHERE lower(status)='closed' OR lower(coalesce(tags,'')) LIKE '%past client%'")
+  const past = db.all("SELECT id, first_name, last_name, phone, email, address, status FROM clients WHERE lower(status)='closed' OR lower(coalesce(tags,'')) LIKE '%past client%'")
+  // Recs carry their normalized keys so we can score field overlap PER past record
+  // (name+address to the SAME record = same person; name to one + address to another = noise).
+  const recs = past.map(p => ({ id: p.id, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), status: p.status,
+    nk: normName(p.first_name, p.last_name), pk: normPhone(p.phone), ek: normEmail(p.email), ak: normAddr(p.address) }))
   const byName = new Map(), byPhone = new Map(), byEmail = new Map(), byAddr = new Map()
-  const add = (map, k, rec) => { if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(rec) }
-  for (const p of past) {
-    const rec = { id: p.id, name: `${p.first_name || ''} ${p.last_name || ''}`.trim(), status: p.status }
-    add(byName, normName(p.first_name, p.last_name), rec)
-    add(byPhone, normPhone(p.phone), rec)
-    add(byEmail, normEmail(p.email), rec)
-    add(byAddr, normAddr(p.address), rec)
-  }
+  const add = (map, k, r) => { if (!k) return; if (!map.has(k)) map.set(k, []); map.get(k).push(r) }
+  for (const r of recs) { add(byName, r.nk, r); add(byPhone, r.pk, r); add(byEmail, r.ek, r); add(byAddr, r.ak, r) }
+
+  // (A) New-status leads that ALREADY carry a "past client" tag — clearest mis-status.
+  const taggedNew = db.all("SELECT id, first_name, last_name FROM clients WHERE lower(status)='new' AND lower(coalesce(tags,'')) LIKE '%past client%'")
+
   const news = db.all("SELECT id, first_name, last_name, phone, email, address FROM clients WHERE lower(status)='new'")
-  const matches = []
+  const high = [], weak = []
   for (const n of news) {
-    const reasons = [], hits = []
-    const ph = normPhone(n.phone), em = normEmail(n.email), ad = normAddr(n.address), nm = normName(n.first_name, n.last_name)
-    if (ph && byPhone.has(ph)) { reasons.push('phone'); hits.push(...byPhone.get(ph)) }
-    if (em && byEmail.has(em)) { reasons.push('email'); hits.push(...byEmail.get(em)) }
-    if (ad && byAddr.has(ad)) { reasons.push('address'); hits.push(...byAddr.get(ad)) }
-    if (nm && byName.has(nm)) { reasons.push('name'); hits.push(...byName.get(nm)) }
-    if (!reasons.length) continue
-    const uniqHits = [...new Map(hits.map(h => [h.id, h])).values()]
-    matches.push({ new_id: n.id, new_name: `${n.first_name || ''} ${n.last_name || ''}`.trim(), new_phone: n.phone, new_email: n.email, reasons, strong: reasons.some(r => r !== 'name'), past_matches: uniqHits.slice(0, 5) })
+    const nm = normName(n.first_name, n.last_name), ph = normPhone(n.phone), em = normEmail(n.email), ad = normAddr(n.address)
+    const cand = new Map()
+    for (const [k, map] of [[nm, byName], [ph, byPhone], [em, byEmail], [ad, byAddr]]) if (k && map.has(k)) for (const r of map.get(k)) if (r.id !== n.id) cand.set(r.id, r)
+    if (!cand.size) continue
+    let best = null
+    for (const r of cand.values()) {
+      const f = []
+      if (nm && r.nk === nm) f.push('name')
+      if (ph && r.pk === ph) f.push('phone')
+      if (em && r.ek === em) f.push('email')
+      if (ad && r.ak === ad) f.push('address')
+      if (!best || f.length > best.f.length) best = { r, f }
+    }
+    const f = best.f
+    // Same person = email match, OR name matches the SAME record as a phone/email/address.
+    const isHigh = f.includes('email') || (f.includes('name') && (f.includes('phone') || f.includes('email') || f.includes('address')))
+    const row = { new_id: n.id, new_name: `${n.first_name || ''} ${n.last_name || ''}`.trim(), fields: f, past: { id: best.r.id, name: best.r.name, status: best.r.status } }
+    ;(isHigh ? high : weak).push(row)
   }
-  const strong = matches.filter(m => m.strong), nameOnly = matches.filter(m => !m.strong)
-  const byReason = {}; for (const m of matches) for (const r of m.reasons) byReason[r] = (byReason[r] || 0) + 1
   res.json({
-    definition: "past = status 'closed' OR tag contains 'past client'; new = status 'new'",
-    past_client_pool: past.length, new_pool: news.length,
-    total_flagged: matches.length, strong_matches: strong.length, name_only_matches: nameOnly.length,
-    by_reason: byReason,
-    sample_strong: strong.slice(0, 50), sample_name_only: nameOnly.slice(0, 20),
+    definition: "past = status 'closed' OR tag contains 'past client'; new = status 'new'. Fields scored per past record.",
+    past_pool: recs.length, new_pool: news.length,
+    tagged_in_new_count: taggedNew.length,
+    tagged_in_new_sample: taggedNew.slice(0, 40).map(t => ({ id: t.id, name: `${t.first_name || ''} ${t.last_name || ''}`.trim() })),
+    high_confidence_count: high.length, high_confidence_sample: high.slice(0, 60),
+    weak_count: weak.length, weak_sample: weak.slice(0, 25),
   })
 })
 
