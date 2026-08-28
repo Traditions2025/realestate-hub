@@ -275,6 +275,38 @@ router.post('/cold-buyer/enroll', async (req, res) => {
   res.json({ enrolled: results.filter(r => r.scheduled).length, results })
 })
 
+// Enroll the whole cohort that got an AI/revive Text 1 in a window and did NOT reply.
+// Filters to buyers, excludes opt-outs / DNC / excluded lists / no-phone. Continues each
+// at Text 2. dry_run:true returns the list without scheduling. Idempotent (dedup_key).
+router.post('/cold-buyer/enroll-cohort', async (req, res) => {
+  const since = req.body?.since || '2026-08-26T00:00:00Z'
+  const until = req.body?.until || '2026-08-27T00:00:00Z'
+  const dryRun = req.body?.dry_run === true
+  const { enrollColdBuyerSequence } = await import('../ai-followup/scheduler.js')
+  const rows = db.all(`SELECT co.client_id cid, MIN(co.occurred_at) first_at
+    FROM communications co
+    WHERE co.channel='text' AND co.direction='outgoing' AND co.sent_by_type IN ('ai','fsbo_ai')
+      AND co.occurred_at >= ? AND co.occurred_at < ?
+    GROUP BY co.client_id`, [since, until])
+  const enroll = [], skipped = []
+  for (const r of rows) {
+    const c = db.get('SELECT * FROM clients WHERE id=?', [r.cid]); if (!c) continue
+    const nm = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+    if (db.get("SELECT 1 FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' AND occurred_at >= ? LIMIT 1", [r.cid, r.first_at])) { skipped.push({ cid: r.cid, nm, reason: 'replied' }); continue }
+    const t = String(c.type || '').toLowerCase()
+    if (t.includes('seller') && !t.includes('buyer')) { skipped.push({ cid: r.cid, nm, reason: 'seller' }); continue }
+    if (c.hub_text_opt_out) { skipped.push({ cid: r.cid, nm, reason: 'opted out' }); continue }
+    if (isStopStatus(c.status)) { skipped.push({ cid: r.cid, nm, reason: 'status ' + c.status }); continue }
+    if (isExcludedFromAutopilot(c)) { skipped.push({ cid: r.cid, nm, reason: 'excluded list' }); continue }
+    if (!c.phone) { skipped.push({ cid: r.cid, nm, reason: 'no phone' }); continue }
+    enroll.push({ cid: r.cid, nm, first_at: r.first_at })
+  }
+  if (dryRun) return res.json({ would_enroll: enroll.length, skipped_count: skipped.length, enroll, skipped })
+  let done = 0
+  for (const e of enroll) { setManaged(e.cid, true); setEnabled(e.cid, true); enrollColdBuyerSequence(e.cid, { fromStage: 1, anchorIso: e.first_at }); done++ }
+  res.json({ enrolled: done, enrolled_list: enroll.map(e => e.nm), skipped_count: skipped.length, skipped })
+})
+
 // View a lead's pending cold-buyer drip schedule (what's programmed on their account).
 router.get('/lead/:id/cold-buyer', (req, res) => {
   const cid = Number(req.params.id)

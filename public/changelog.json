@@ -1,7 +1,55 @@
 {
-  "generated_at": "2026-08-27T19:56:51.150Z",
+  "generated_at": "2026-08-28T14:19:50.272Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "7a5a1ce",
+      "date": "2026-08-28T09:06:02-05:00",
+      "subject": "Cold-buyer drip: explicit enrollment that pre-schedules the whole sequence",
+      "title": "Cold-buyer drip: explicit enrollment that pre-schedules the whole sequence",
+      "body": "- enrollColdBuyerSequence() pre-schedules stages fromStage..9 (Text 2..LTN4) as\n  dated AI_COLD_BUYER actions from the lead's Text 1 anchor (weekday/daytime), so\n  the full remaining plan is visible on the account at once. Not gated by\n  autopilot; nothing sends until ai_followup+ai_nurture are on and each date hits.\n- Drain now only chains the perpetual loop (stages pre-scheduled); scheduleColdBuyer\n  is loop-only. Re-engagement sweep enrolls dormant buyers via the full sequence.\n- New routes: POST /api/ai/cold-buyer/enroll {client_ids, from_stage?} (auto-starts\n  at Text 2 for leads that already got Text 1); GET /api/ai/lead/:id/cold-buyer\n  lists a lead's pending drip schedule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3e2078b",
+      "date": "2026-08-27T17:38:18-05:00",
+      "subject": "Cold-buyer drip: seasonal accuracy + website on every follow-up",
+      "title": "Cold-buyer drip: seasonal accuracy + website on every follow-up",
+      "body": "- Website: follow-up texts (2-6, LTN, loop) now end with MattSmithTeam.com as an\n  easy tap-through, not just Text 1. Instruction requires it as a short varied\n  link tag (not a re-introduction); runOutbound's requireWebsite appends it as a\n  safety net when the model omits it.\n- Seasonal accuracy: inject the real current season/month (Central time) into the\n  AI context (centralSeason). The long-term loop may only use a seasonal/timing\n  reference if it matches the current season; otherwise it must drop the seasonal\n  angle and pick a non-seasonal reason. Prevents \"fall inventory\" in summer, etc.\n- Sandbox facts carry current_season too so previews honor the same rule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bad6bcd",
+      "date": "2026-08-27T17:27:32-05:00",
+      "subject": "Cold-buyer drip: no re-greeting on continuation follow-ups",
+      "title": "Cold-buyer drip: no re-greeting on continuation follow-ups",
+      "body": "Text 2+ should read as a continuation of the same thread, so the stage\ninstruction now forbids opening with Hi/Hello/Good morning-afternoon-evening\n(production already stripped these on non-first sends; this stops the model\nwasting the opener on a greeting).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d0d56e7",
+      "date": "2026-08-27T17:23:40-05:00",
+      "subject": "AI: staged cold-buyer SMS drip (Day 1/4/9/17/30/50 + long-term nurture)",
+      "title": "AI: staged cold-buyer SMS drip (Day 1/4/9/17/30/50 + long-term nurture)",
+      "body": "Turns the one-and-done revive into a full staged re-engagement drip for old/\ncold buyer leads (no recent activity), extending the existing engine so all\ncompliance, reply-pauses-drip, website-activity override, and opt-out handling\ncarry over unchanged. Gated behind autopilot + ai_nurture_enabled (dormant\nuntil turned on).\n\n- prompts.js: COLD_BUYER_STAGES (Text 1 reuses REVIVE_OPENERS; Text 2-6 + LTN\n  1-4 approved rotations + a perpetual rotate-the-purpose loop stage) and\n  COLD_STAGE_BLOCK (per-stage goal; continuation rules: no re-intro/website\n  after Text 1, one question, no duplicates, personalize, NO_ACTION when the\n  stage no longer fits the conversation).\n- orchestrator.js: handleColdBuyerStage(cid, stageIndex) — Text 1 via\n  REVIVE_OPENER_BLOCK (greeting+intro+website), stages 1+ via COLD_STAGE_BLOCK,\n  each rotating its approved bank so leads don't get identical sequences.\n- scheduler.js: cadence [1,4,9,17,30,50,80,120,165,210]d then ~52d loop;\n  nextBusinessSlot() sends weekdays only in the daytime window (Sat/Sun roll to\n  Mon); AI_COLD_BUYER drain advances the cadence (a skipped stage still moves\n  forward); re-engagement sweep enrolls dormant BUYERS at Text 1, sellers keep\n  the generic reconnect.\n- ai.js: Send-AI routes dormant buyers into the drip (Text 1 + enroll); added a\n  cold_stage sandbox mode to preview every stage.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "02645d5",
+      "date": "2026-08-27T16:49:21-05:00",
+      "subject": "AI tester: add 'nurture' sandbox mode to preview no-reply follow-up touches",
+      "title": "AI tester: add 'nurture' sandbox mode to preview no-reply follow-up touches",
+      "body": "The AI tester could preview openers (proactive) and revive openers, but not\nthe no-reply nurture-cadence follow-ups. Added mode:'nurture' (+attempt, +prior\nmessage history) that runs the exact production nurture instruction, so the full\nno-response sequence can be previewed step by step.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cc2d266",
+      "date": "2026-08-27T14:57:00-05:00",
+      "subject": "Inbox: make \"View profile\" a real link (open full profile in new tab)",
+      "title": "Inbox: make \"View profile\" a real link (open full profile in new tab)",
+      "body": "The View profile control was a <button>, so the browser had no URL to offer\non right-click / middle-click, and it opened the modal (?open=) rather than\nthe full-screen profile. It's now an <a href=\"/clients/:id\">: normal click\nstill does in-app navigation to the full-screen profile, while right-click,\nmiddle-click, and Ctrl/Cmd-click open it in a new tab natively.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0340c4f",
       "date": "2026-08-27T14:01:01-05:00",
@@ -3951,54 +3999,6 @@
       "date": "2026-05-04T10:48:53-05:00",
       "subject": "Add drag-and-drop to Tasks board (To Do / In Progress / Done) — same UX as Transactions kanban",
       "title": "drag-and-drop to Tasks board (To Do / In Progress / Done) — same UX as Transactions kanban",
-      "body": "",
-      "category": "feature"
-    },
-    {
-      "hash": "e16e0ca",
-      "date": "2026-05-01T12:35:41-05:00",
-      "subject": "Cherryl info pulled from Partners table + dedicated utilities reminder template",
-      "title": "Cherryl info pulled from Partners table + dedicated utilities reminder template",
-      "body": "Closer (Cherryl) lookup:\n- New lookupCloser() helper queries partners table for role 'Closer' / 'Closing Coordinator' / 'Closing' / 'Escrow' / 'Title Company', or any partner whose name contains 'cherryl' or company contains 'at your service'\n- Cached for 5 min to avoid repeated DB hits per email\n- Falls back to env vars (CLOSER_NAME / CLOSER_EMAIL / CLOSER_COMPANY / CLOSER_PHONE) if no partner found\n- New /api/email/closer-info endpoint exposes the resolved info to the frontend\n- Email Cherryl button now uses live partner-table lookup; warns user clearly if Cherryl isn't on the Partners tab yet\n\nNew utilities reminder template:\n- 'buyer_utilities_reminder' template for sending 1 business week before closing\n- Cedar Rapids / Linn County provider contacts: Alliant Energy, Linn County REC, MidAmerican Energy, City of Cedar Rapids/Marion/Hiawatha water, Mediacom/ImOn/CenturyLink internet\n- Uses transaction's closing_date as effective date\n\nRefined utility messaging in other templates:\n- buyer_under_contract: now says 'at least 1 business week (5 business days) before closing'\n- buyer_closing_reminder: same timing emphasis + added Marion/Hiawatha water utility numbers + internet providers",
-      "category": "other"
-    },
-    {
-      "hash": "547f363",
-      "date": "2026-05-01T12:09:31-05:00",
-      "subject": "Transaction overhaul: lender fields, dotloop status, document dropdowns + email templates with auto-CC",
-      "title": "Transaction overhaul: lender fields, dotloop status, document dropdowns + email templates with auto-CC",
-      "body": "Schema:\n- New transaction columns: earnest_money_due_date, ipi_due_date, lender_name, lender_company, dotloop_status (default 'Not Submitted')\n\nTransaction form (Edit/New):\n- Removed TC Assigned (always Cherryl) and List Price\n- New Lender section: Name + Company + Type of Finance moved here\n- New Earnest Money Due Date — auto-fills to 3 business days after Contract Date (editable)\n- New IPI Due Date (Initial Property Inspection Response)\n- All inspection items (whole property, radon, WDI, septic, well, sewer) now grouped under a single Inspection section\n- Removed duplicate Seller Acknowledgment from checklist\n- Closing & Loop section now has Dotloop Transaction Status dropdown (Not Submitted / Needs Review / Listing Approved / Approved for Commission)\n- Title & Closing Documents converted from text inputs to dropdowns:\n  - Abstract: Not Started / Ordered / Received / N/A\n  - Title Commitment: same\n  - Mortgage Payoff: Not Started / Requested / Received / N/A\n  - ALTA Statement: Not Ready / Ready\n  - Deed Package: Not Ready / Ready / Signed\n- Linked client contact card displays inline once a Client (from CRM) is selected\n\nEmail templates (server/transaction-email-templates.js):\n- 5 transaction templates: Buyer Under Contract, Buyer Inspection prep, Buyer Closing Reminder, Seller Listing Live, Seller Under Contract, Seller Photo Prep, Lender Intro, Closer (Cherryl) Intro\n- 3 pre-listing templates: Photo Day Prep, Walkthrough Recap, Listing Agreement Ready\n- Merge variables for client + transaction + closer (Cherryl)\n\nSend pipeline:\n- New POST /api/email/send-transaction and /api/email/send-prelisting endpoints\n- ALWAYS auto-CC johnwithmattsmithteam@gmail.com + mattsmithremax@gmail.com on all transaction & pre-listing emails\n- sendViaSendGrid extended to support CC arrays (deduped, primary recipient excluded)\n- New email composer modals on Transactions and PreListings pages with template picker, recipient (Client/Lender/Cherryl/Custom), auto-CC display, editable subject/body",
-      "category": "other"
-    },
-    {
-      "hash": "fe9ed13",
-      "date": "2026-05-01T10:26:04-05:00",
-      "subject": "Add Purchase Agreement PDF auto-extract to Transactions modal",
-      "title": "Purchase Agreement PDF auto-extract to Transactions modal",
-      "body": "Backend (/api/transactions/:id/extract-pdf):\n- Accepts base64 PDF, uses Anthropic document API to extract structured fields from Iowa Purchase Agreements / Listing Agreements\n- Schema covers: address, MLS#, type, parties (buyer/seller + agents), agency type, list/purchase price, contract date, closing date, all 4 contingency dates (mortgage/appraisal/inspection), finance type, earnest money, inspection checkboxes (whole property / radon / WDI / septic / well / sewer), notes\n- Date strings normalized to YYYY-MM-DD; never invents missing values\n- Updates only the fields Claude found, leaves the rest untouched\n- New /_meta/ai-status endpoint mirrors the listings one\n\nFrontend (Transactions modal):\n- Gold-bordered '📄 Quick Fill — Upload Purchase Agreement' card at top of Edit/New modal\n- Auto-creates a placeholder transaction on first upload so it works on brand new entries\n- Reads PDF, sends to backend, refreshes form fields with extracted data\n- Shows green success banner with field count + names extracted, or red banner with error\n- Disabled if ANTHROPIC_API_KEY not configured (with explanation)",
-      "category": "feature"
-    },
-    {
-      "hash": "164cd2d",
-      "date": "2026-05-01T10:10:04-05:00",
-      "subject": "Widen modal-wide to 1200px + lock horizontal scroll so only vertical scrolling is needed",
-      "title": "Widen modal-wide to 1200px + lock horizontal scroll so only vertical scrolling is needed",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "ca17a8d",
-      "date": "2026-04-30T18:10:24-05:00",
-      "subject": "Trim marketing checklist + saved-search criteria filtering + send-to-matched-leads",
-      "title": "Trim marketing checklist + saved-search criteria filtering + send-to-matched-leads",
-      "body": "Marketing checklist cleanup (Listings tab):\n- Removed entire Open House group (team doesn't do them)\n- Removed virtual tour, floor plan, Facebook event, door knocking/flyers, all postcard items\n- Removed 'Live on Zillow' / 'Live on Realtor.com' (those are automatic via MLS feed)\n- Added LinkedIn to Coming Soon, Under Contract, Just Sold; added YouTube to Just Sold\n- Removed Open House post from AI generators and Open House date/time from property form\n\nSaved-search criteria storage + filtering (Clients):\n- New columns on clients table: search_price_min/max, search_beds_min, search_baths_min, search_sqft_min, search_regions, search_property_types, has_saved_search\n- processLead now extracts these from Sierra savedSearchesModel using the WIDEST range across multiple searches per lead\n- Backend filter logic supports all new criteria in /api/clients and /api/lists\n- New 'Looking For' filter section in advanced filters: max-budget range, beds/baths/sqft min, property types, regions, has-saved-search toggle\n- One-time full Sierra re-sync needed to backfill 45K existing leads (or wait for incremental as leads update)\n\nSend to matched leads (Listings):\n- New GET /api/listings/:id/matched-leads endpoint scores all eligible leads (must have email, valid status, opted in) against listing's price/beds/baths/sqft/property type, with bonus for region match, visits, lead score\n- Strict mode requires hard-criteria pass; loose mode includes any lead with score > 0\n- New 'Send to Matched Leads' tab in Listings modal: 'Find Matches' button → modal with selectable recipient list (with match reasons + score), editable subject/body template, sample preview render, and bulk send via existing /api/email/bulk\n- Pre-populated email template uses {{first_name}} merge variable, full team signature, links to MLS link if set\n- 200-recipient soft cap with confirmation prompt above that",
-      "category": "other"
-    },
-    {
-      "hash": "6ff6304",
-      "date": "2026-04-30T14:48:54-05:00",
-      "subject": "Add Mortgage Lender + Title Company + Attorney + Insurance to vendor categories",
-      "title": "Mortgage Lender + Title Company + Attorney + Insurance to vendor categories",
       "body": "",
       "category": "feature"
     }

@@ -26,7 +26,8 @@ function GlobalSearch() {
     const h = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpen(false) }
     document.addEventListener('mousedown', h); return () => document.removeEventListener('mousedown', h)
   }, [])
-  const go = (r) => { setOpen(false); setQ(''); navigate(r.href) }
+  // Client/lead results open the FULL-SCREEN profile (not the modal). Other types keep their href.
+  const go = (r) => { setOpen(false); setQ(''); navigate(r.type === 'client' && r.id ? '/clients/' + r.id : r.href) }
   const onKey = (e) => {
     if (!res || !res.length) return
     if (e.key === 'ArrowDown') { e.preventDefault(); setActive(a => Math.min(a + 1, res.length - 1)) }
