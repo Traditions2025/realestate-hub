@@ -657,6 +657,29 @@ router.post('/merge-past-client-dups', (req, res) => {
   res.json({ merged_clusters: plan.length, records_merged: results.reduce((s, r) => s + (r.result.count || 0), 0), results })
 })
 
+// Reclassify leads to Past Client (status='closed'), optionally assigning an agent.
+// Hub-only (does not push to Sierra). dry_run:true previews. Reversible via activity_log.
+router.post('/reclassify-past-client', (req, res) => {
+  const ids = (Array.isArray(req.body?.client_ids) ? req.body.client_ids : []).map(Number).filter(Boolean)
+  const assignAgent = (req.body?.assign_agent || '').trim() || null
+  const dryRun = req.body?.dry_run === true
+  if (!ids.length) return res.status(400).json({ error: 'client_ids required' })
+  const rows = ids.map(id => db.get('SELECT id, first_name, last_name, status, agent_assigned FROM clients WHERE id=? AND merged_into IS NULL', [id])).filter(Boolean)
+  if (dryRun) return res.json({ would_change: rows.map(r => ({ id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), from: r.status, to: 'closed', agent: assignAgent || r.agent_assigned })) })
+  let n = 0
+  for (const r of rows) {
+    const sets = [], vals = []
+    if (String(r.status || '').toLowerCase() !== 'closed') sets.push("status='closed'")
+    if (assignAgent) { sets.push('agent_assigned=?'); vals.push(assignAgent) }
+    if (!sets.length) continue
+    sets.push("updated_at=datetime('now')")
+    db.run(`UPDATE clients SET ${sets.join(', ')} WHERE id=?`, [...vals, r.id])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['reclassify', 'client', r.id, `Past-client audit: status ${r.status} -> closed${assignAgent ? `; agent -> ${assignAgent}` : ''}`])
+    n++
+  }
+  res.json({ changed: n, ids: rows.map(r => r.id) })
+})
+
 // ---- P2-2: Unified contact timeline ----
 // Merges communications, notes, tasks, AI actions, handoffs, showings, behavioral events,
 // transaction milestones, and status/assignment audit into one time-sorted stream.
