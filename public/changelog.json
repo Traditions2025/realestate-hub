@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-08-28T21:28:32.300Z",
+  "generated_at": "2026-08-31T16:12:27.276Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4faeeac",
+      "date": "2026-08-28T17:46:38-05:00",
+      "subject": "Fix cancelled/expired MLS extraction: mark attempted (fetch each lead's notes once)",
+      "title": "cancelled/expired MLS extraction: mark attempted (fetch each lead's notes once)",
+      "body": "Candidate query now excludes mls_extract_attempted_at leads and marks each lead\nattempted after a successful Sierra fetch, so every lead is processed exactly\nonce (no re-fetch loop). dry_run returns the definitive still-missing list for\nthe session hand-off.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "f24b722",
+      "date": "2026-08-28T16:46:50-05:00",
+      "subject": "Add read-only line-type-stats (what lookup data we retained)",
+      "title": "read-only line-type-stats (what lookup data we retained)",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "5083573",
+      "date": "2026-08-28T16:41:24-05:00",
+      "subject": "Twilio Lookup: hard kill-switch + daily cap (backstop after the 8/28 overspend)",
+      "title": "Twilio Lookup: hard kill-switch + daily cap (backstop after the 8/28 overspend)",
+      "body": "lookupLineType now checks a global kill-switch (twilio_lookup_disabled) and a\nper-day cap (twilio_lookup_daily_cap, default 500) before ever calling Twilio,\nso a runaway can never bill like the 12,564-lookup / $100.51 incident again.\nGET/POST /api/inbox/twilio-lookup-switch to view/flip it.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "894c7c1",
+      "date": "2026-08-28T16:28:35-05:00",
+      "subject": "Cancelled/Expired: MLS # field/column + extract MLS#/off-market-date from Sierra notes",
+      "title": "Cancelled/Expired: MLS # field/column + extract MLS#/off-market-date from Sierra notes",
+      "body": "- clients.mls_number column; editable field on profile + optional MLS # list column.\n- POST /api/clients/cancelled-expired/extract-mls: parses Sierra import notes\n  ((MLS 2603483) / MLS#: 2509112 / Off Market Date: / Expired MM/DD/YYYY) and\n  populates mls_number + off_market_date; returns leads still missing either.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a207247",
       "date": "2026-08-28T16:17:18-05:00",
@@ -3968,38 +4000,6 @@
       "subject": "Realist import: O(1) address matching (was 135M LIKE comparisons → now 1 SELECT + map lookup)",
       "title": "Realist import: O(1) address matching (was 135M LIKE comparisons → now 1 SELECT + map lookup)",
       "body": "The previous matching loop ran a full table scan with REPLACE/REPLACE/LOWER/LIKE for every property × every client (3000 × 45000 = 135M ops). On Render Starter that took several minutes — long enough that the browser timed out before getting the response, even though properties were actually being inserted.\n\nNew approach:\n- Load all clients with addresses in one SELECT (45K rows, fast)\n- Normalize each address in JS, build Map<normalized_addr, [client_ids]>\n- For each property, look up matches with addrMap.get(norm) — O(1)\n- Same fix applied to /rematch endpoint\n\nResult: 3000-row Realist CSV import should now finish in 5-15 seconds instead of 5+ minutes. Browser will see the response and show the success alert as expected.",
-      "category": "other"
-    },
-    {
-      "hash": "ddd2614",
-      "date": "2026-05-06T17:06:34-05:00",
-      "subject": "Remove accidentally-committed Realist CSV from repo + add to gitignore",
-      "title": "accidentally-committed Realist CSV from repo + add to gitignore",
-      "body": "Realist exports contain owner names + property addresses (PII). Removing the export file from git tracking — local file is preserved on Matt's laptop. Added 'export_*.csv' and '*-realist*.csv' patterns to .gitignore so future Realist downloads stay local-only.\n\nNote: this only removes the file from future commits. The data was briefly in git history (one commit). If that's a concern, I can rewrite history with git filter-repo to scrub it from past commits too — let me know.",
-      "category": "removal"
-    },
-    {
-      "hash": "acb4a1c",
-      "date": "2026-05-06T17:05:42-05:00",
-      "subject": "Realist enrichment: import CSV → enrich Sierra leads with home value, sell score, year built, sale history",
-      "title": "Realist enrichment: import CSV → enrich Sierra leads with home value, sell score, year built, sale history",
-      "body": "New realist_properties table:\n- Stores Realist tax/AVM/market-value records keyed by normalized address\n- Captures: market value, assessed value, total assessment, last sale price/date/PPSF, building type/style, year built, beds/baths, sell score (0-1000), MLS status, subdivision, school district, township, zoning, owner info, occupied flag\n\nNew enrichment columns on clients (auto-populated on match):\n- realist_market_value, realist_assessed_value, realist_year_built, realist_bedrooms,\n  realist_bathrooms_full, realist_owner_occupied, realist_sell_score,\n  realist_last_sale_price, realist_last_sale_date, realist_property_id, realist_matched_at\n\nBackend (/api/realist/*):\n- POST /import: parses Realist CSV (handles Excel ='...' quirks, '$' currency, 'Tax: 4 MLS: 3' columns), upserts to realist_properties by normalized address, then matches to clients by lowercased+depunctuated address LIKE\n- GET /stats: total properties, enriched client count, last import time\n- GET /for-client/:id: lookup the realist record for a specific client (by stored fk or address fallback)\n- POST /rematch: re-run matching after Sierra adds new leads\n\nFrontend (Clients page):\n- New '🏘 Import Realist CSV' button in the page header — pick a file, server parses + enriches all in one shot\n- New '🏘 Realist Property Data' filter section in the advanced filter panel: home value range, year built range, sell score min, owner-occupied (yes/no/any), 'has Realist match' toggle\n- 6 new sort options: Highest/Lowest Home Value, Highest Sell Score, Newest/Oldest Built, Highest Last Sale\n- New gold-bordered Realist Property Data card on every client detail panel showing the matched home info",
-      "category": "other"
-    },
-    {
-      "hash": "2ae5d1f",
-      "date": "2026-05-06T16:33:03-05:00",
-      "subject": "Pre-Listing → Active drag: hide promoted pre-listings + dedup before creating transaction",
-      "title": "Pre-Listing → Active drag: hide promoted pre-listings + dedup before creating transaction",
-      "body": "Two related fixes:\n\n1. Pre-Listing column now filters out pre-listings with status='Listed', 'Withdrawn', or 'Cancelled'. Once a pre-listing is dragged into Active (or any later stage), it's marked 'Listed' on the backend — and now also drops out of the Pre-Listing column on the kanban so it doesn't keep showing as draggable.\n\n2. Dedup check on promote: before creating a new transaction, look for an existing listing-type transaction with the same property_address. If found, update its status to the new stage instead of creating a duplicate. Confirms with the user before either path so they always see what's about to happen.\n\nTogether: dragging Federalist Rd from Pre-Listing → Active will (a) flip the existing transaction's status to Active if one exists, or (b) create a new one if not. Either way, the pre-listing card disappears from the Pre-Listing column so you can't accidentally drag it twice.",
-      "category": "other"
-    },
-    {
-      "hash": "6d5eff5",
-      "date": "2026-05-06T16:00:29-05:00",
-      "subject": "Auto-sync listing-type transactions into Listings tab on save",
-      "title": "Auto-sync listing-type transactions into Listings tab on save",
-      "body": "When a transaction with type='listing' is created or updated, automatically mirror it into the listings table:\n- If a linked listing exists (transaction_id match): update it (address, MLS#, list price, stage, status, seller, client)\n- If no linked listing AND the transaction is in a 'live' status (Active/Coming Soon/Under Contract/Pending/Clear to Close/Closed): create one\n- Pre-Listing status only updates an existing listing (doesn't auto-create — pre-listings have their own table/flow)\n- Purchase-type transactions: no-op\n\nStatus → stage mapping:\n- Active → active, Coming Soon → coming_soon, Under Contract/Pending/Clear to Close → under_contract, Closed/Withdrawn/Expired/Cancelled → closed\n\nDrag-and-drop on the Transactions kanban already PUTs the new property_status, so dragging a listing card to 'Active' now propagates to the Listings tab automatically. Same for new listing-type transaction creation.",
       "category": "other"
     }
   ]

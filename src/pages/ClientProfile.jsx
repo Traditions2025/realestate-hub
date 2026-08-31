@@ -100,6 +100,7 @@ export default function ClientProfile() {
   const [emailOpen, setEmailOpen] = useState(false)
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
+  const [taskOpen, setTaskOpen] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
@@ -129,7 +130,7 @@ export default function ClientProfile() {
   useEffect(() => { setLoading(true); load() }, [load])
   useEffect(() => { authFetch('/api/ai/lead/' + cid).then(r => r.json()).then(setAi).catch(() => setAi(null)) }, [cid])
   useEffect(() => { authFetch('/api/followup/' + cid).then(r => r.json()).then(setFollowup).catch(() => setFollowup(null)) }, [cid])
-  useEffect(() => { window.scrollTo(0, 0); setTextOpen(false); setEmailOpen(false); setNoteOpen(false) }, [cid])
+  useEffect(() => { window.scrollTo(0, 0); setTextOpen(false); setEmailOpen(false); setNoteOpen(false); setTaskOpen(false) }, [cid])
 
   const backToClients = () => { markClientsReturn(); navigate(nav?.backTo || '/clients') }
   const goToIndex = (n) => { if (n >= 0 && n < ids.length) navigate('/clients/' + ids[n]) }
@@ -211,7 +212,7 @@ export default function ClientProfile() {
           {client.phone && <button className="lead-action-btn" onClick={() => window.hubCall && window.hubCall(client.phone, name)}><span className="lead-action-icon">📞</span><span>Call</span></button>}
           {client.email && <button className="lead-action-btn" onClick={() => { setEmailOpen(v => !v); setTextOpen(false) }}><span className="lead-action-icon">✉</span><span>Email</span></button>}
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
-          <button className="lead-action-btn" onClick={() => { const el = document.getElementById('cp-tasks'); el && el.scrollIntoView({ behavior: 'smooth' }) }}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
+          <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 12, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
@@ -224,6 +225,7 @@ export default function ClientProfile() {
         )}
         {textOpen && client.phone && !client.hub_text_opt_out && <div style={{ marginTop: 8 }}><InlineTextComposer client={client} onClose={() => setTextOpen(false)} onSent={() => { load(); window.dispatchEvent(new CustomEvent('cp-comms-changed')) }} /></div>}
         {emailOpen && client.email && <EmailComposer client={client} onClose={() => setEmailOpen(false)} onSent={() => window.dispatchEvent(new CustomEvent('cp-comms-changed'))} />}
+        {taskOpen && <div style={{ marginTop: 8 }}><QuickAddTask clientId={cid} clientName={name} onAdded={() => { setTaskOpen(false); window.dispatchEvent(new CustomEvent('cp-tasks-changed')) }} /></div>}
       </div>
 
       {/* ── One-page body: two-column command center ──────────────────── */}
@@ -556,7 +558,7 @@ function TransactionsCard({ cid, onAdd, navigate }) {
     setTxns(arr.filter(t => String(t.client_id) === String(cid) || [t.buyer_client_id, t.seller_client_id].map(String).includes(String(cid))))
   }).catch(() => setTxns([])), [cid])
   useEffect(() => { reload() }, [reload])
-  useEffect(() => { const h = () => reload(); window.addEventListener('cp-txns-changed', h); return () => window.removeEventListener('cp-txns-changed', h) }, [reload])
+  useEffect(() => { const h = () => reload(); window.addEventListener('cp-txns-changed', h); window.addEventListener('cp-tasks-changed', h); return () => { window.removeEventListener('cp-txns-changed', h); window.removeEventListener('cp-tasks-changed', h) } }, [reload])
   return (
     <Section title="Transactions" id="txns" right={<button className="btn btn-sm" onClick={onAdd}>+ Add</button>}>
       {txns === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
