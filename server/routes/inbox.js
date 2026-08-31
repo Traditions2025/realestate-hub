@@ -560,9 +560,14 @@ router.post('/twilio-status', twilioWebhookGuard, (req, res) => {
     if (sid && status) {
       const err = (status === 'failed' || status === 'undelivered') ? twilioErrorText(errCode) : null
       db.run("UPDATE communications SET delivery_status=?, error_message=? WHERE external_id=? AND direction='outgoing'", [status, err, 'twilio_' + sid])
-      // Landline / number-can't-receive-SMS codes → mark the contact so automated texts skip
-      // it (30006 landline/unreachable carrier, 30005 unknown destination handset).
-      if ((status === 'failed' || status === 'undelivered') && ['30006', '30005'].includes(String(errCode))) {
+      // Number-side delivery failures → mark the contact so automated texts stop hitting a
+      // number that doesn't take our texts anyway. If the FIRST send bounces this way, we
+      // don't keep trying: 30003 unreachable (phone off/dead), 30005 unknown/dead number,
+      // 30006 landline/unreachable carrier, 21614 not a valid mobile number.
+      // NOTE: deliberately NOT our-side/transient codes (30001 queue, 30002 suspended,
+      // 30008 unknown, 30034 A2P, 30410 timeout, 30007 spam-filter) — those "fail" good
+      // numbers for reasons that have nothing to do with the number being bad.
+      if ((status === 'failed' || status === 'undelivered') && ['30003', '30005', '30006', '21614'].includes(String(errCode))) {
         const row = db.get("SELECT client_id FROM communications WHERE external_id=? AND direction='outgoing'", ['twilio_' + sid])
         if (row?.client_id && !db.get('SELECT sms_undeliverable FROM clients WHERE id=?', [row.client_id])?.sms_undeliverable) {
           db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason=?, sms_undeliverable_at=? WHERE id=?", [err || ('Twilio ' + errCode), new Date().toISOString(), row.client_id])
@@ -571,6 +576,34 @@ router.post('/twilio-status', twilioWebhookGuard, (req, res) => {
     }
   } catch {}
   res.sendStatus(204)
+})
+
+// One-shot backfill: apply the "first fail = stop texting" rule to PAST failed sends.
+// Marks any contact whose outgoing text bounced with a number-side error (unreachable /
+// unknown / landline / not-a-mobile) as sms_undeliverable, so drips stop retrying them.
+router.post('/backfill-undeliverable', (_req, res) => {
+  try {
+    const reasons = [
+      'Phone unreachable (off or out of coverage)',
+      'Unknown or non-existent number',
+      'Landline or unreachable carrier (can’t receive texts)',
+      'Not a valid mobile number',
+    ]
+    const ph = reasons.map(() => '?').join(',')
+    const rows = db.all(
+      `SELECT DISTINCT c.client_id, cl.first_name, cl.last_name, c.error_message
+         FROM communications c JOIN clients cl ON cl.id = c.client_id
+        WHERE c.direction='outgoing' AND c.delivery_status IN ('failed','undelivered')
+          AND c.error_message IN (${ph})
+          AND (cl.sms_undeliverable IS NULL OR cl.sms_undeliverable = 0)`, reasons)
+    let marked = 0
+    for (const r of rows) {
+      db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason=?, sms_undeliverable_at=? WHERE id=?",
+        [r.error_message, new Date().toISOString(), r.client_id])
+      marked++
+    }
+    res.json({ ok: true, marked, sample: rows.slice(0, 20).map(r => ({ id: r.client_id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), reason: r.error_message })) })
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 // ---- status changes ----
