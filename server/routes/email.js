@@ -682,7 +682,11 @@ router.post('/send', async (req, res) => {
   }
 
   const filledSubject = client ? fillTemplate(subject, client) : subject
-  const filledBody = client ? fillTemplate(body, client) : body
+  // Manual composer emails don't carry a signature. Append Matt's saved signature unless the
+  // body already has one (a template with {{signature}}, or a literal signature already typed).
+  let outBody = String(body || '')
+  if (!/\{\{\s*signature\s*\}\}/i.test(outBody)) outBody += '<br><br>{{signature}}'
+  const filledBody = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
 
   try {
     const result = await sendViaSendGrid(
