@@ -9,11 +9,16 @@ export async function renderColdStageTemplate(stageIndex, approvedBody, client) 
   let area = ''
   try { area = fillTemplate('{{city_of_interest}}', client).split(',')[0].trim() } catch {}
   if (!area || /^\d/.test(area)) area = 'your area'
+  else area = area.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())   // "MARION" -> "Marion"
   let body = String(approvedBody || '').replace(/\[area\]/gi, area).replace(/\[price\]/gi, 'the right price')
   let msg
   if (stageIndex === 0) {
     const b = body.charAt(0).toUpperCase() + body.slice(1)
-    msg = `${centralGreeting()} {{first_name}}, it's John with Matt Smith Team at RE/MAX. ${b} You can always browse the latest at MattSmithTeam.com`
+    // Avoid "Good afternoon John, it's John with Matt Smith Team" when the lead is also a John:
+    // drop the first name from the greeting if it matches the sender.
+    const fn = String(client.first_name || '').trim()
+    const namePart = (fn && fn.toLowerCase() !== 'john') ? ' {{first_name}}' : ''
+    msg = `${centralGreeting()}${namePart}, it's John with Matt Smith Team at RE/MAX. ${b} You can always browse the latest at MattSmithTeam.com`
   } else {
     msg = `${body} You can always browse the latest at MattSmithTeam.com`
   }
