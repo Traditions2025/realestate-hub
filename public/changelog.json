@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-31T20:28:04.254Z",
+  "generated_at": "2026-08-31T21:01:29.153Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9a4c1ff",
+      "date": "2026-08-31T15:28:13-05:00",
+      "subject": "Email composer: signature pre-placed, Insert-field menu, live preview",
+      "title": "Email composer: signature pre-placed, Insert-field menu, live preview",
+      "body": "Full-size profile composer was a plain textarea with no visible signature and no\nway to insert merge fields. Now: body pre-fills with {{signature}} at the bottom\n(movable/removable), an 'Insert field' dropdown drops merge fields at the cursor,\nand a Preview renders the final email (signature + fields filled for the lead) via\nnew GET /api/email/merge-fields and POST /api/email/preview.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cecd630",
       "date": "2026-08-31T15:21:15-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Templates: new manager tab for email/text/script/voicemail/note templates",
       "title": "Templates: new manager tab for email/text/script/voicemail/note templates",
       "body": "- New 'Templates' page under MARKETING in sidebar\n- Backend: templates table (name, type, category, subject, body, is_html,\n  tags, used_count, last_used_at) + CRUD + duplicate + used-counter\n- Frontend: type tabs (Email/Text/Script/Voicemail/Note), search across\n  name/subject/body/tags/category, edit modal with HTML auto-detect,\n  upload .html file, HTML preview in iframe, copy-body-to-clipboard,\n  duplicate, delete\n- Per-template merge-var support ({{first_name}}, {{address}}, etc.)\n  for future composer integration\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5a45648",
-      "date": "2026-05-07T13:28:30-05:00",
-      "subject": "Tasks: add search bar — matches title, description, notes, assigned",
-      "title": "Tasks: add search bar — matches title, description, notes, assigned",
-      "body": "Searches across title, description, assigned_to, related_type, and\nnotes_log on both board and list views. Case-insensitive substring match.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

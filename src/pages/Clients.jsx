@@ -111,6 +111,14 @@ const LIST_COLUMNS = [
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
+// Smart lists = server-computed segments (see GET /api/clients/smart-lists + ?smart= on the
+// list route). Each key maps to custom SQL on the backend.
+const SMART_LISTS = [
+  { key: 'returned_past_client', label: 'Past Client Returned (180d+)', desc: 'Past clients who came back to the website after 180+ days away' },
+  { key: 'past_client_no_email', label: 'Past Client · No Email 90d', desc: "Past clients we haven't emailed in the last 90 days" },
+  { key: 'most_active', label: 'Most Active (20+ / 30d)', desc: 'Leads who viewed 20+ listings in the last 30 days' },
+]
+
 function loadColumnPrefs() {
   try {
     const raw = localStorage.getItem(COLUMN_PREFS_KEY)
@@ -434,6 +442,9 @@ export default function Clients() {
   const [dripCampaigns, setDripCampaigns] = useState([])
   const [savedLists, setSavedLists] = useState([])
   const [activeListId, setActiveListId] = useState(null)
+  // Smart lists: server-computed segments (past-client return, no-email, most-active).
+  const [smartList, setSmartList] = useState(null)
+  const [smartCounts, setSmartCounts] = useState({})
   const [saveListOpen, setSaveListOpen] = useState(false)
   const [newListName, setNewListName] = useState('')
   const [editScoreId, setEditScoreId] = useState(null) // client id whose Realist Score is being edited inline
@@ -442,6 +453,7 @@ export default function Clients() {
   useEffect(() => {
     authFetch('/api/clients/filter-options').then(r => r.json()).then(setFilterOptions).catch(() => {})
     authFetch('/api/lists').then(r => r.json()).then(setSavedLists).catch(() => {})
+    authFetch('/api/clients/smart-lists').then(r => r.json()).then(d => setSmartCounts(d || {})).catch(() => {})
     authFetch('/api/drips').then(r => r.json()).then(d => setDripCampaigns(Array.isArray(d) ? d : (d.drips || d.rows || []))).catch(() => {})
   }, [])
 
@@ -595,7 +607,9 @@ export default function Clients() {
   const buildLoadParams = () => {
     const params = { limit: pageSize, offset: 0 }
     if (filter.type) params.type = filter.type
-    if (tab !== 'all') params.status = tab
+    // A smart list is its own server-computed segment; it supersedes the status tab.
+    if (smartList) params.smart = smartList
+    else if (tab !== 'all') params.status = tab
     if (search) params.search = search
     // Advanced filters
     if (advFilters.statuses_include.length) params.statuses_include = advFilters.statuses_include.join(',')
@@ -709,7 +723,7 @@ export default function Clients() {
     return () => document.removeEventListener('click', close)
   }, [otherMenuOpen])
 
-  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize, advFilters, sortBy])
+  useEffect(() => { load(); setSelectedIds(new Set()) }, [filter, search, tab, pageSize, advFilters, sortBy, smartList])
 
   const syncSierra = async (silent = false, statuses = 'Active,Prime,Watch,Pending') => {
     setSierraStatus('syncing')
@@ -1688,9 +1702,26 @@ export default function Clients() {
         {/* Sierra sync + Realist enrichment status moved to Updates → Systems tab. */}
       </div>
 
+      {/* Smart Lists — server-computed segments. Positioned above the status tabs. */}
+      <div className="client-tabs" style={{ marginBottom: 6 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4, textTransform: 'uppercase' }}>Smart Lists</span>
+        {SMART_LISTS.map(sl => (
+          <button
+            key={sl.key}
+            className={`client-tab ${smartList === sl.key ? 'active' : ''}`}
+            onClick={() => { setSmartList(smartList === sl.key ? null : sl.key); setActiveListId(null); setTab('all') }}
+            title={sl.desc}
+          >
+            <span className="tab-dot" style={{ background: '#0ea5e9' }}></span>
+            {sl.label}
+            <span className="tab-count">{smartCounts[sl.key] ?? '·'}</span>
+          </button>
+        ))}
+      </div>
+
       {/* Status Tabs - primary statuses always visible, others in dropdown */}
       <div className="client-tabs">
-        <button className={`client-tab ${tab === 'all' ? 'active' : ''}`} onClick={() => setTab('all')}>
+        <button className={`client-tab ${!smartList && tab === 'all' ? 'active' : ''}`} onClick={() => { setSmartList(null); setTab('all') }}>
           <span className="tab-dot" style={{ background: '#6b7280' }}></span>
           All
           <span className="tab-count">{allCounts.total}</span>
@@ -1698,8 +1729,8 @@ export default function Clients() {
         {primaryTabs.map(s => (
           <button
             key={s.status}
-            className={`client-tab ${tab === s.status ? 'active' : ''}`}
-            onClick={() => setTab(s.status)}
+            className={`client-tab ${!smartList && tab === s.status ? 'active' : ''}`}
+            onClick={() => { setSmartList(null); setTab(s.status) }}
           >
             <span className="tab-dot" style={{ background: statusColors[s.status] || '#6b7280' }}></span>
             {formatStatus(s.status)}

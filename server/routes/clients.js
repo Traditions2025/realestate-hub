@@ -22,6 +22,16 @@ router.get('/status-counts', (req, res) => {
   res.json(rows)
 })
 
+// Counts for the Clients page "Smart Lists" tabs (server-computed segments).
+router.get('/smart-lists', (_req, res) => {
+  const out = {}
+  for (const key of Object.keys(SMART_LIST_SQL)) {
+    try { out[key] = db.get(`SELECT COUNT(*) n FROM clients WHERE merged_into IS NULL AND ${SMART_LIST_SQL[key]}`).n }
+    catch (e) { out[key] = 0 }
+  }
+  res.json(out)
+})
+
 // Get just the IDs matching a filter (for "select all" mass actions)
 // By default returns ALL matching IDs regardless of email/opt-out status.
 // Pass ?email_ready=1 to only return clients with valid email + not opted out (for bulk email button).
@@ -404,7 +414,40 @@ export function buildClientFilter(q) {
     where += q.ai_applied === 'yes' ? ` AND ${sub}` : ` AND NOT ${sub}`
   }
 
+  // Smart lists — server-computed segments (Clients page "Smart Lists" tabs). Static SQL only
+  // (no user input), so injected as a literal predicate.
+  if (q.smart && SMART_LIST_SQL[q.smart]) where += ' AND ' + SMART_LIST_SQL[q.smart]
+
   return { where, params }
+}
+
+// Past client = closed status OR a genuine "past client" tag (excluding the E-Alerts
+// unsubscribe noise tag). Kept as a reusable fragment for the smart lists below.
+const PAST_CLIENT_SQL = "(lower(coalesce(clients.status,''))='closed' OR (lower(coalesce(clients.tags,'')) LIKE '%past client%' AND lower(coalesce(clients.tags,'')) NOT LIKE '%unsubscribed%'))"
+
+// Each smart list is a correlated predicate against clients.id (matches buildClientFilter's style).
+export const SMART_LIST_SQL = {
+  // Past client who came back to the website in the last 30 days after being away 180+ days
+  // (a recent FUB visit with NO prior visit in the 180 days before it).
+  returned_past_client:
+    `(${PAST_CLIENT_SQL} AND EXISTS (
+        SELECT 1 FROM fub_activity fa1
+        WHERE fa1.client_id = clients.id AND fa1.occurred_at >= datetime('now','-30 days')
+          AND NOT EXISTS (
+            SELECT 1 FROM fub_activity fa2
+            WHERE fa2.client_id = clients.id AND fa2.occurred_at < fa1.occurred_at
+              AND fa2.occurred_at >= datetime(fa1.occurred_at, '-180 days'))))`,
+  // Past client we have NOT sent an email to in the last 90 days (outgoing email on the feed).
+  past_client_no_email:
+    `(${PAST_CLIENT_SQL} AND NOT EXISTS (
+        SELECT 1 FROM communications co
+        WHERE co.client_id = clients.id AND co.channel='email' AND co.direction='outgoing'
+          AND co.occurred_at >= datetime('now','-90 days')))`,
+  // Very active: 20+ DISTINCT listings viewed in the last 30 days.
+  most_active:
+    `((SELECT COUNT(DISTINCT fa.prop_mls) FROM fub_activity fa
+        WHERE fa.client_id = clients.id AND fa.prop_mls IS NOT NULL AND fa.prop_mls != ''
+          AND fa.occurred_at >= datetime('now','-30 days')) >= 20)`,
 }
 
 // Map sort key to SQL ORDER BY
