@@ -364,8 +364,8 @@ router.post('/cold-buyer/preview-templated', async (req, res) => {
     out.push({ stage: i + 1, label: stage.label, message: await renderColdStageTemplate(i, approved, client) })
   }
   let area = ''
-  try { const { fillTemplate } = await import('./email.js'); area = fillTemplate('{{city_of_interest}}', client).trim() } catch {}
-  res.json({ client: `${client.first_name || ''} ${client.last_name || ''}`.trim(), resolved_area: area || '(empty → "your area")', stages: out })
+  try { const { fillTemplate } = await import('./email.js'); area = fillTemplate('{{city_of_interest}}', client).split(',')[0].trim() } catch {}
+  res.json({ client: `${client.first_name || ''} ${client.last_name || ''}`.trim(), resolved_area: (area && !/^\d/.test(area)) ? area : 'your area', stages: out })
 })
 
 // Stagger the pending cold-buyer sends: re-time every pending AI_COLD_BUYER action so a
