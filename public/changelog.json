@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-31T16:12:27.276Z",
+  "generated_at": "2026-08-31T16:24:27.153Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "db7f2f4",
+      "date": "2026-08-31T11:12:34-05:00",
+      "subject": "Full-screen profile: Add Task button opens the task box (not just scroll)",
+      "title": "Full-screen profile: Add Task button opens the task box (not just scroll)",
+      "body": "The action-bar Add Task only scrolled to the tasks section; now it toggles an\ninline QuickAddTask composer like Add Note does, and the Tasks card refreshes\non the new task (cp-tasks-changed event).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4faeeac",
       "date": "2026-08-28T17:46:38-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Show Realist import status banner on Clients page (no need to hit API URL directly)",
       "title": "Show Realist import status banner on Clients page (no need to hit API URL directly)",
       "body": "After mount, the page fetches /api/realist/stats and shows a banner just below the Sierra sync banner:\n- '🏘 Realist data: 3,000 properties imported · 412 clients enriched · Last import: 2026-05-06 22:15:23'\n- Re-match button next to it (re-runs the address matching after Sierra adds new leads)\n- If no Realist data has been imported yet, shows a yellow 'No Realist data imported yet' prompt instead\n\nRefreshes automatically after a successful import — no more guessing whether the upload landed.",
-      "category": "other"
-    },
-    {
-      "hash": "329f9b9",
-      "date": "2026-05-06T17:13:44-05:00",
-      "subject": "Realist import: O(1) address matching (was 135M LIKE comparisons → now 1 SELECT + map lookup)",
-      "title": "Realist import: O(1) address matching (was 135M LIKE comparisons → now 1 SELECT + map lookup)",
-      "body": "The previous matching loop ran a full table scan with REPLACE/REPLACE/LOWER/LIKE for every property × every client (3000 × 45000 = 135M ops). On Render Starter that took several minutes — long enough that the browser timed out before getting the response, even though properties were actually being inserted.\n\nNew approach:\n- Load all clients with addresses in one SELECT (45K rows, fast)\n- Normalize each address in JS, build Map<normalized_addr, [client_ids]>\n- For each property, look up matches with addrMap.get(norm) — O(1)\n- Same fix applied to /rematch endpoint\n\nResult: 3000-row Realist CSV import should now finish in 5-15 seconds instead of 5+ minutes. Browser will see the response and show the success alert as expected.",
       "category": "other"
     }
   ]

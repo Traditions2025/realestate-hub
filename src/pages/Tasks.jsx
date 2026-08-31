@@ -99,6 +99,10 @@ const CLS_RANK = { overdue: 0, today: 1, urgent: 2, watch: 3, normal: 4 }
 
 export default function Tasks() {
   const [items, setItems] = useState([])
+  // Team agents for the assignee dropdowns (Matt, John, Hunter) — kept in sync with the
+  // team directory instead of a stale hardcoded Matt/Leo list.
+  const [agents, setAgents] = useState(['Matt', 'John', 'Hunter'])
+  useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => { if (Array.isArray(a) && a.length) setAgents(a) }).catch(() => {}) }, [])
   const [filter, setFilter] = useState({ status: '', priority: '' })
   const [assigneeFilter, setAssigneeFilter] = useState('')
   const [search, setSearch] = useState('')
@@ -222,9 +226,9 @@ export default function Tasks() {
 
   const openNudge = (task) => {
     setNudgeTask(task)
-    setNudgeRecipient(task?.assigned_to ? task.assigned_to.toLowerCase() : 'matt')
+    { const who = (task?.assigned_to || '').toLowerCase(); setNudgeRecipient(who === 'john' || who === 'leo' ? 'leo' : 'matt') }
     setNudgeMessage('')
-    setNudgeSender('Leo')
+    setNudgeSender('John')
     setNudgeOpen(true)
   }
   const sendNudge = async () => {
@@ -348,8 +352,7 @@ export default function Tasks() {
         </select>
         <select value={assigneeFilter} onChange={e => setAssigneeFilter(e.target.value)}>
           <option value="">All Assignees</option>
-          <option value="Matt">Matt</option>
-          <option value="Leo">Leo</option>
+          {agents.map(a => <option key={a} value={a}>{a}</option>)}
           <option value="__unassigned__">Unassigned</option>
         </select>
         {search && (
@@ -584,8 +587,8 @@ export default function Tasks() {
           <div className="form-row">
             <label>Assigned To<select value={form.assigned_to || ''} onChange={e => f('assigned_to', e.target.value)}>
               <option value="">Unassigned</option>
-              <option value="Matt">Matt</option>
-              <option value="Leo">Leo</option>
+              {agents.map(a => <option key={a} value={a}>{a}</option>)}
+              {form.assigned_to && !agents.includes(form.assigned_to) && <option value={form.assigned_to}>{form.assigned_to}</option>}
             </select></label>
             <label style={{ alignSelf: 'flex-end', fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
               With a time + assignee, we email a calendar invite and ping Slack 30 &amp; 5 min before it's due.
@@ -618,8 +621,7 @@ export default function Tasks() {
                 <div style={{display: 'flex', gap: 6, alignItems: 'flex-start'}}>
                   <select value={noteBy} onChange={e => setNoteBy(e.target.value)} style={{width: 110, flexShrink: 0}}>
                     <option value="">— By —</option>
-                    <option value="Matt">Matt</option>
-                    <option value="Leo">Leo</option>
+                    {agents.map(a => <option key={a} value={a}>{a}</option>)}
                   </select>
                   <textarea
                     rows={2}
@@ -679,13 +681,12 @@ export default function Tasks() {
           <label>To
             <select value={nudgeRecipient} onChange={e => setNudgeRecipient(e.target.value)}>
               <option value="matt">Matt (mattsmithremax@gmail.com)</option>
-              <option value="leo">Leo / John (johnwithmattsmithteam@gmail.com)</option>
+              <option value="leo">John (johnwithmattsmithteam@gmail.com)</option>
             </select>
           </label>
           <label>From
             <select value={nudgeSender} onChange={e => setNudgeSender(e.target.value)}>
-              <option value="Leo">Leo</option>
-              <option value="Matt">Matt</option>
+              {agents.map(a => <option key={a} value={a}>{a}</option>)}
               <option value="the team">the team</option>
             </select>
           </label>
