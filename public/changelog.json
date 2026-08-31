@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-31T21:28:07.195Z",
+  "generated_at": "2026-08-31T21:48:36.131Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3957cc7",
+      "date": "2026-08-31T16:28:16-05:00",
+      "subject": "Clients: FSBO Days-on-Market filter (more/less than N days)",
+      "title": "Clients: FSBO Days-on-Market filter (more/less than N days)",
+      "body": "Adds fsbo_dom_op/fsbo_dom_days to buildClientFilter (CAST(fsbo_dom AS INTEGER)\n> / < N) and a 'FSBO Days on Market' more/less control in the filter panel, next\nto Off Market Date. Wired into params, filter count, clear-all, and saved-list\nrestore.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "02bf75d",
       "date": "2026-08-31T16:18:24-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Transactions: Earnest Money status dropdown + auto-calc contingencies",
       "title": "Transactions: Earnest Money status dropdown + auto-calc contingencies",
       "body": "- Earnest Money is now a status dropdown: Not Started / In Progress / Completed\n  (was a free-text \"amount\" input doubling as status)\n- Contract Date auto-fills Mortgage + Appraisal Contingency = +30 calendar days,\n  rolled BACK to prior Friday if it lands on a weekend\n- Earnest Money Due auto-fill (3 biz days) preserved\n- Both contingencies still mirror each other if one is edited and the other empty\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3cba515",
-      "date": "2026-05-08T10:53:18-05:00",
-      "subject": "TC daily digest: 9 AM + 1 PM CT email of all active transactions",
-      "title": "TC daily digest: 9 AM + 1 PM CT email of all active transactions",
-      "body": "Server-side scheduling (runs on Render so it works regardless of any\nlaptop being on). Idempotent via digest_log unique(date, period).\n\nPulls every transaction in 'Under Contract' / 'Pending' / 'Clear to Close'\nand emails a per-transaction status card showing:\n  - Earnest money / IPI due dates with status\n  - Inspection / Mortgage / Appraisal / Financing release deadlines\n  - Final walkthrough + closing dates with days-out classification\n  - Document statuses (Abstract, Title, Mortgage Payoff, ALTA, Deed)\n  - Dotloop status, lender, parties, notes\n\nTop of email is an Action Items table sorted by severity:\n  OVERDUE → TODAY → URGENT (≤3d) → WATCH (≤7d)\n\nNew endpoints:\n  GET  /api/email/tc-digest/preview?period=morning|afternoon  (HTML)\n  GET  /api/email/tc-digest/preview?format=json               (JSON)\n  POST /api/email/tc-digest/send  body { period, force }\n  GET  /api/email/tc-digest/log                               (history)\n\nRecipients: johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com\n(override via TC_DIGEST_RECIPIENTS env var on Render).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

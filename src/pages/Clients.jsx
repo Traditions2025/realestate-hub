@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import MultiSelect from '../components/MultiSelect'
+import IncludeExcludeSelect from '../components/IncludeExcludeSelect'
 import StatusBadge from '../components/StatusBadge'
 import { inlineImagesIntoBody, autoEmbedYoutubeLinks } from '../components/inlineImages'
 import EmailToolbar from '../components/EmailToolbar'
@@ -387,11 +388,15 @@ export default function Clients() {
     tags_include: [],
     tags_exclude: [],
     zips_include: [],
+    zips_exclude: [],
     cities_include: [],
+    cities_exclude: [],
     viewed_cities_include: [],
+    viewed_cities_exclude: [],
     sources_include: [],
     sources_exclude: [],
     agents_include: [],
+    agents_exclude: [],
     last_email_op: '', last_email_days: '',
     last_text_op: '', last_text_days: '',
     off_market_op: '', off_market_days: '',
@@ -463,9 +468,9 @@ export default function Clients() {
   const advFilterCount = (
     len(advFilters.statuses_include) + len(advFilters.statuses_exclude) +
     len(advFilters.tags_include) + len(advFilters.tags_exclude) +
-    len(advFilters.zips_include) + len(advFilters.cities_include) +
-    len(advFilters.viewed_cities_include) +
-    len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.email_statuses) +
+    len(advFilters.zips_include) + len(advFilters.zips_exclude) + len(advFilters.cities_include) + len(advFilters.cities_exclude) +
+    len(advFilters.viewed_cities_include) + len(advFilters.viewed_cities_exclude) +
+    len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.agents_exclude) + len(advFilters.email_statuses) +
     ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + ((advFilters.off_market_op && advFilters.off_market_days) ? 1 : 0) + ((advFilters.fsbo_dom_op && advFilters.fsbo_dom_days !== '') ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
@@ -618,11 +623,15 @@ export default function Clients() {
     if (advFilters.tags_include.length) params.tags_include = advFilters.tags_include.join(',')
     if (advFilters.tags_exclude.length) params.tags_exclude = advFilters.tags_exclude.join(',')
     if (advFilters.zips_include.length) params.zips_include = advFilters.zips_include.join(',')
+    if (advFilters.zips_exclude.length) params.zips_exclude = advFilters.zips_exclude.join(',')
     if (advFilters.cities_include.length) params.cities_include = advFilters.cities_include.join(',')
+    if (advFilters.cities_exclude.length) params.cities_exclude = advFilters.cities_exclude.join(',')
     if (advFilters.viewed_cities_include.length) params.viewed_cities_include = advFilters.viewed_cities_include.join(',')
+    if (advFilters.viewed_cities_exclude.length) params.viewed_cities_exclude = advFilters.viewed_cities_exclude.join(',')
     if (advFilters.sources_include.length) params.sources_include = advFilters.sources_include.join(',')
     if (advFilters.sources_exclude.length) params.sources_exclude = advFilters.sources_exclude.join(',')
     if (advFilters.agents_include.length) params.agents_include = advFilters.agents_include.join(',')
+    if (advFilters.agents_exclude.length) params.agents_exclude = advFilters.agents_exclude.join(',')
     if (advFilters.last_email_op && advFilters.last_email_days) { params.last_email_op = advFilters.last_email_op; params.last_email_days = advFilters.last_email_days }
     if (advFilters.last_text_op && advFilters.last_text_days) { params.last_text_op = advFilters.last_text_op; params.last_text_days = advFilters.last_text_days }
     if (advFilters.off_market_op && advFilters.off_market_days) { params.off_market_op = advFilters.off_market_op; params.off_market_days = advFilters.off_market_days }
@@ -1078,7 +1087,7 @@ export default function Clients() {
     setAdvFilters({
       statuses_include: [], statuses_exclude: [],
       tags_include: [], tags_exclude: [],
-      zips_include: [], cities_include: [], viewed_cities_include: [], sources_include: [], sources_exclude: [], agents_include: [],
+      zips_include: [], zips_exclude: [], cities_include: [], cities_exclude: [], viewed_cities_include: [], viewed_cities_exclude: [], sources_include: [], sources_exclude: [], agents_include: [], agents_exclude: [],
       last_email_op: '', last_email_days: '', last_text_op: '', last_text_days: '', off_market_op: '', off_market_days: '', ai_applied: '',
       email_statuses: [],
       has_email: '', has_phone: '', exclude_optouts: false,
@@ -1160,11 +1169,15 @@ export default function Clients() {
           tags_include: f.tags_include || [],
           tags_exclude: f.tags_exclude || [],
           zips_include: f.zips_include || [],
+          zips_exclude: f.zips_exclude || [],
           cities_include: f.cities_include || [],
+          cities_exclude: f.cities_exclude || [],
           viewed_cities_include: f.viewed_cities_include || [],
+          viewed_cities_exclude: f.viewed_cities_exclude || [],
           sources_include: f.sources_include || [],
           sources_exclude: f.sources_exclude || [],
           agents_include: f.agents_include || [],
+          agents_exclude: f.agents_exclude || [],
           last_email_op: f.last_email_op || '', last_email_days: f.last_email_days || '',
           last_text_op: f.last_text_op || '', last_text_days: f.last_text_days || '',
           off_market_op: f.off_market_op || '', off_market_days: f.off_market_days || '',
@@ -1812,84 +1825,74 @@ export default function Clients() {
           <div className="filter-grid">
             <div className="filter-section">
               <h5>Status</h5>
-              <MultiSelect
+              <IncludeExcludeSelect
                 placeholder="Search statuses..."
                 options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
-                selected={advFilters.statuses_include}
-                onChange={v => setAdvFilters(p => ({ ...p, statuses_include: v }))}
+                format={formatStatus}
+                include={advFilters.statuses_include}
+                exclude={advFilters.statuses_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, statuses_include: include, statuses_exclude: exclude }))}
               />
-              <p className="muted" style={{fontSize: 11, margin: '4px 0 0'}}>Only leads with these statuses are shown.</p>
+              <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>Toggle each value to Include or Exclude.</p>
             </div>
             <div className="filter-section">
-              <h5>Tags (Include)</h5>
-              <MultiSelect
+              <h5>Tags</h5>
+              <IncludeExcludeSelect
                 placeholder={`Search ${filterOptions.tags.length} tags...`}
                 options={filterOptions.tags}
-                selected={advFilters.tags_include}
-                onChange={v => setAdvFilters(p => ({ ...p, tags_include: v }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Tags (Exclude)</h5>
-              <MultiSelect mode="exclude"
-                placeholder="Exclude tags..."
-                options={filterOptions.tags}
-                selected={advFilters.tags_exclude}
-                onChange={v => setAdvFilters(p => ({ ...p, tags_exclude: v }))}
+                include={advFilters.tags_include}
+                exclude={advFilters.tags_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, tags_include: include, tags_exclude: exclude }))}
               />
             </div>
             <div className="filter-section">
               <h5>Zip Codes</h5>
-              <MultiSelect
+              <IncludeExcludeSelect
                 placeholder={`Search ${filterOptions.zips.length} zips...`}
                 options={filterOptions.zips}
-                selected={advFilters.zips_include}
-                onChange={v => setAdvFilters(p => ({ ...p, zips_include: v }))}
+                include={advFilters.zips_include}
+                exclude={advFilters.zips_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, zips_include: include, zips_exclude: exclude }))}
               />
             </div>
             <div className="filter-section">
               <h5>Cities (lead's home city)</h5>
-              <MultiSelect
+              <IncludeExcludeSelect
                 placeholder={`Search ${filterOptions.cities.length} cities...`}
                 options={filterOptions.cities}
-                selected={advFilters.cities_include}
-                onChange={v => setAdvFilters(p => ({ ...p, cities_include: v }))}
+                include={advFilters.cities_include}
+                exclude={advFilters.cities_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, cities_include: include, cities_exclude: exclude }))}
               />
             </div>
             <div className="filter-section">
               <h5>Looking In (cities they're viewing)</h5>
-              <MultiSelect
+              <IncludeExcludeSelect
                 placeholder={`Search ${(filterOptions.viewed_cities || []).length} cities they've viewed...`}
                 options={filterOptions.viewed_cities || []}
-                selected={advFilters.viewed_cities_include}
-                onChange={v => setAdvFilters(p => ({ ...p, viewed_cities_include: v }))}
+                include={advFilters.viewed_cities_include}
+                exclude={advFilters.viewed_cities_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, viewed_cities_include: include, viewed_cities_exclude: exclude }))}
               />
             </div>
             <div className="filter-section">
-              <h5>Sources (Include)</h5>
-              <MultiSelect
+              <h5>Sources</h5>
+              <IncludeExcludeSelect
                 placeholder={`Search ${filterOptions.sources.length} sources...`}
                 options={filterOptions.sources}
-                selected={advFilters.sources_include}
-                onChange={v => setAdvFilters(p => ({ ...p, sources_include: v }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Sources (Exclude)</h5>
-              <MultiSelect mode="exclude"
-                placeholder="Exclude sources..."
-                options={filterOptions.sources}
-                selected={advFilters.sources_exclude}
-                onChange={v => setAdvFilters(p => ({ ...p, sources_exclude: v }))}
+                include={advFilters.sources_include}
+                exclude={advFilters.sources_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, sources_include: include, sources_exclude: exclude }))}
               />
             </div>
             <div className="filter-section">
               <h5>Assigned Agent</h5>
-              <MultiSelect
+              <IncludeExcludeSelect
                 placeholder={`Search ${(filterOptions.agents || []).length} agents...`}
                 options={[{ value: '__unassigned__', label: 'Unassigned' }, ...(filterOptions.agents || [])]}
-                selected={advFilters.agents_include}
-                onChange={v => setAdvFilters(p => ({ ...p, agents_include: v }))}
+                include={advFilters.agents_include}
+                exclude={advFilters.agents_exclude}
+                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, agents_include: include, agents_exclude: exclude }))}
               />
             </div>
             <div className="filter-section">

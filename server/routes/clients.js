@@ -134,8 +134,15 @@ export function buildClientFilter(q) {
       params.push(...arr)
     }
   }
+  if (q.cities_exclude) {
+    const arr = Array.isArray(q.cities_exclude) ? q.cities_exclude : q.cities_exclude.split(',').map(s => s.trim()).filter(Boolean)
+    if (arr.length) {
+      where += ' AND (city IS NULL OR city NOT IN (' + arr.map(() => '?').join(',') + '))'
+      params.push(...arr)
+    }
+  }
 
-  // Viewed-cities include ("where they're looking" — from FUB property views).
+  // Viewed-cities include/exclude ("where they're looking" — from FUB property views).
   // fub_viewed_cities is a comma-joined string, so match ANY requested city as a substring.
   if (q.viewed_cities_include) {
     const arr = Array.isArray(q.viewed_cities_include) ? q.viewed_cities_include : q.viewed_cities_include.split(',').map(s => s.trim()).filter(Boolean)
@@ -143,6 +150,10 @@ export function buildClientFilter(q) {
       where += ' AND (' + arr.map(() => 'fub_viewed_cities LIKE ?').join(' OR ') + ')'
       arr.forEach(c => params.push(`%${c}%`))
     }
+  }
+  if (q.viewed_cities_exclude) {
+    const arr = Array.isArray(q.viewed_cities_exclude) ? q.viewed_cities_exclude : q.viewed_cities_exclude.split(',').map(s => s.trim()).filter(Boolean)
+    for (const c of arr) { where += ' AND (fub_viewed_cities IS NULL OR fub_viewed_cities NOT LIKE ?)'; params.push(`%${c}%`) }
   }
 
   // Source include/exclude
