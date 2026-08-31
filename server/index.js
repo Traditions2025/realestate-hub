@@ -421,6 +421,44 @@ async function start() {
     res.json({ ...status, record_counts: counts, disk, memory })
   })
 
+  // Live Render instance metrics: disk (persistent volume), RAM (against the container's
+  // cgroup limit, not the host), and CPU (this process, sampled). os.totalmem()/os.cpus()
+  // report the HOST on a containerized Render instance, so we read cgroup v2/v1 for the real
+  // per-instance limits and fall back to os only if those aren't present.
+  app.get('/api/system-metrics', async (_req, res) => {
+    const os = await import('os')
+    const fs = await import('fs')
+    const mb = 1024 * 1024
+    const readStr = (p) => { try { return fs.readFileSync(p, 'utf8').trim() } catch { return null } }
+    // Disk — the persistent /data volume
+    let disk = null
+    try {
+      const st = statfsSync(process.env.DB_DIR || '.')
+      const total = st.blocks * st.bsize, free = st.bavail * st.bsize
+      disk = { total_mb: Math.round(total / mb), used_mb: Math.round((total - free) / mb), free_mb: Math.round(free / mb), used_pct: total ? Math.round((1 - free / total) * 100) : null }
+    } catch (e) { disk = { error: e.message } }
+    // RAM — container limit + current usage from cgroup; process RSS always available
+    const m = process.memoryUsage()
+    let limit = null, used = null, src = 'os'
+    const maxV2 = readStr('/sys/fs/cgroup/memory.max')
+    if (maxV2 && maxV2 !== 'max') { limit = Number(maxV2); used = Number(readStr('/sys/fs/cgroup/memory.current')); src = 'cgroup-v2' }
+    else {
+      const maxV1 = readStr('/sys/fs/cgroup/memory/memory.limit_in_bytes')
+      if (maxV1 && Number(maxV1) > 0 && Number(maxV1) < os.totalmem()) { limit = Number(maxV1); used = Number(readStr('/sys/fs/cgroup/memory/memory.usage_in_bytes')); src = 'cgroup-v1' }
+    }
+    if (!limit) { limit = os.totalmem(); used = os.totalmem() - os.freemem() }
+    const memory = { rss_mb: Math.round(m.rss / mb), used_mb: used ? Math.round(used / mb) : null, limit_mb: limit ? Math.round(limit / mb) : null, used_pct: (limit && used) ? Math.round(used / limit * 100) : null, source: src }
+    // CPU — sample this process over 200ms; report as % of one core, plus allotted cores
+    const c0 = process.cpuUsage(); const t0 = Date.now()
+    await new Promise(r => setTimeout(r, 200))
+    const c1 = process.cpuUsage(c0); const dtUs = (Date.now() - t0) * 1000
+    let allotted = os.cpus().length
+    const cpuMax = readStr('/sys/fs/cgroup/cpu.max')
+    if (cpuMax && cpuMax !== 'max') { const [q, p] = cpuMax.split(/\s+/).map(Number); if (q && p) allotted = +(q / p).toFixed(2) }
+    const cpu = { process_pct_of_core: dtUs ? Math.round(((c1.user + c1.system) / dtUs) * 100) : null, allotted_cores: allotted, load_avg_1m: +os.loadavg()[0].toFixed(2), host_cores: os.cpus().length }
+    res.json({ disk, memory, cpu, uptime_hours: +(process.uptime() / 3600).toFixed(1), node: process.version, ts: new Date().toISOString() })
+  })
+
   // ---- LAYER 5: health check (unauthenticated) ----
   // Configure Render's "Health Check Path" to /api/health. If the DB ever
   // becomes unqueryable, this returns 503 and Render keeps the prior healthy
