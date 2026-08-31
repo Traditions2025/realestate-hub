@@ -199,7 +199,16 @@ export const COLD_BUYER_STAGES = [
     "Whenever the timing is right, whether that's soon or much later, we're happy to be a resource.",
     "Just keeping in touch from time to time. If anything changes with your plans, you know where to find us.",
   ] },
-  { key: 'loop', label: 'Long-Term Nurture (ongoing)', day: null, loop: true, goal: 'Ongoing long-term nurture (~every 45 to 60 days). Rotate the PURPOSE of each outreach; never just ask "are you still looking?".', messages: [] },
+  { key: 'loop', label: 'Long-Term Nurture (ongoing)', day: null, loop: true, goal: 'Ongoing long-term nurture (~every 45 to 60 days). Rotate the PURPOSE of each outreach; never just ask "are you still looking?".', messages: [
+    "Just checking in from time to time. If buying ever moves back up your list, I'm here to help whenever you're ready.",
+    "Hope all is well. If your plans around a move have shifted at all, I'd be glad to help you think it through, no pressure.",
+    "Random thought, if you were to make a move down the road, is there a particular area or type of home you'd want me keeping an eye out for?",
+    "Still happy to be your real estate resource whenever you need one, whether that's a question about value, timing, or the market in general.",
+    "Whenever the timing feels right for a move, we can pick things right back up from wherever you left off. Just say the word.",
+    "If it's ever helpful to get a fresh sense of what your home might be worth these days, I'm glad to put that together for you.",
+    "Just keeping in touch. If anything has changed on your end and buying is back on the table, I'm around whenever you want to talk.",
+    "No agenda here, just staying in touch. If a move starts to make sense again, I'd love to help make it easy for you.",
+  ] },
 ]
 
 // Instruction (user message) for a cold-buyer follow-up stage. Text 1 is handled

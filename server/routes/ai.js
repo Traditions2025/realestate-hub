@@ -348,28 +348,6 @@ router.post('/cold-buyer/enroll-cohort', async (req, res) => {
   res.json({ enrolled: done, enrolled_list: enroll.map(e => e.nm), skipped_count: skipped.length, skipped })
 })
 
-// Render a cold-buyer stage as a TEMPLATE (no Claude): approved message + merge fields.
-// This is the exact text the drip would send if we template the outbound stages.
-export async function renderColdStageTemplate(stageIndex, approvedBody, client) {
-  const { fillTemplate } = await import('./email.js')
-  const { centralGreeting } = await import('../ai-followup/context.js')
-  // [area] -> their search city, with a safe "your area" fallback (never a blank or a bracket).
-  let area = ''
-  try { area = fillTemplate('{{city_of_interest}}', client).trim() } catch {}
-  if (!area) area = 'your area'
-  let body = String(approvedBody || '').replace(/\[area\]/gi, area).replace(/\[price\]/gi, 'the right price')
-  let msg
-  if (stageIndex === 0) {
-    // Text 1 = reconnect: greeting + intro + body + website.
-    const b = body.charAt(0).toUpperCase() + body.slice(1)
-    msg = `${centralGreeting()} {{first_name}}, it's John with Matt Smith Team at RE/MAX. ${b} You can always browse the latest at MattSmithTeam.com`
-  } else {
-    // Continuation: no re-intro, no greeting; append the website as an easy link.
-    msg = `${body} You can always browse the latest at MattSmithTeam.com`
-  }
-  return fillTemplate(msg, client).replace(/\{\{[^}]+\}\}/g, '').replace(/\s{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim()
-}
-
 // PREVIEW the full templated sequence for a lead (no Claude, no send). For review.
 router.post('/cold-buyer/preview-templated', async (req, res) => {
   const cid = Number(req.body?.client_id)
@@ -382,6 +360,7 @@ router.post('/cold-buyer/preview-templated', async (req, res) => {
     const bank = stage.messages || []
     if (!bank.length) { out.push({ stage: i + 1, label: stage.label, needs_bank: true, message: '(no approved bank — currently AI-composed; needs a bank to template)' }); continue }
     const approved = bank[(cid + i) % bank.length]   // deterministic rotation for preview
+    const { renderColdStageTemplate } = await import('../ai-followup/cold-template.js')
     out.push({ stage: i + 1, label: stage.label, message: await renderColdStageTemplate(i, approved, client) })
   }
   let area = ''

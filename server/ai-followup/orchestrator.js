@@ -174,7 +174,7 @@ async function sendAiSms(client, text, aiActionId) {
 // Shared outbound generator (proactive / nurture / re-engage). HUB-gated, compliance
 // re-checked, race-guarded, daily-capped, quiet-hours aware. force=true (manual "Send
 // AI now") bypasses only the per-mode global flag, never compliance.
-async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false, reviveTemplate = null, requireWebsite = false }) {
+async function runOutbound(cid, { actionType, instruction, flagKey, nextState, force = false, stripGreeting = false, reviveTemplate = null, requireWebsite = false, templateText = null }) {
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
   ensureState(cid)
@@ -205,30 +205,34 @@ async function runOutbound(cid, { actionType, instruction, flagKey, nextState, f
   const cap = Number(getConfig().ai_followup_max_per_day) || 4
   const sentToday = db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND sent_by_type='ai' AND occurred_at >= datetime('now','-1 day')", [cid])?.n || 0
   if (!force && sentToday >= cap) return logNo(cid, 'daily AI cap reached')
-  const ai = getAiClient(); if (!ai) return logNo(cid, 'AI not configured')
-  const ctx = buildLeadAiContext(cid)
-  if (reviveTemplate) ctx.reviveTemplate = reviveTemplate   // rotated revive opener wins
   const startedAtMsgId = latestMsgId(cid)
   const t0 = Date.now()
-  let decision, usage = {}
-  try {
-    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` }] })
-    usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '')
-  } catch (e) { logAiAction({ client_id: cid, action_type: actionType, status: 'failed', error: e.message, model_name: AI_MODEL }); return { ok: false, reason: e.message } }
-  const message = noHey(noDash(String(decision?.message || '').trim())).slice(0, 640)
-  if (!message || (ALLOWED_ACTIONS.includes(decision?.action) && decision.action !== 'SEND_TEXT')) return logNo(cid, 'AI chose not to send')
+  let finalMsg, usage = {}, decision = null
+  if (templateText) {
+    // TEMPLATE path — NO Claude. The scheduled drip sends approved bank text (greeting/intro/
+    // website already baked in by renderColdStageTemplate). Claude is reserved for replies.
+    finalMsg = String(templateText).replace(/\s{2,}/g, ' ').trim().slice(0, 640)
+  } else {
+    const ai = getAiClient(); if (!ai) return logNo(cid, 'AI not configured')
+    const ctx = buildLeadAiContext(cid)
+    if (reviveTemplate) ctx.reviveTemplate = reviveTemplate   // rotated revive opener wins
+    try {
+      const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}\n\nReturn the JSON now.` }] })
+      usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '')
+    } catch (e) { logAiAction({ client_id: cid, action_type: actionType, status: 'failed', error: e.message, model_name: AI_MODEL }); return { ok: false, reason: e.message } }
+    const message = noHey(noDash(String(decision?.message || '').trim())).slice(0, 640)
+    if (!message || (ALLOWED_ACTIONS.includes(decision?.action) && decision.action !== 'SEND_TEXT')) return logNo(cid, 'AI chose not to send')
+    finalMsg = finalizeAiText(cid, message)
+    if (stripGreeting) finalMsg = finalMsg.replace(/^\s*(?:hi|hello|hey)\b[^\n]*?[,!]\s+/i, '').replace(/^\s*([a-z])/, (m, c) => c.toUpperCase())
+    if (requireWebsite && !/mattsmithteam\.com/i.test(finalMsg)) finalMsg = (finalMsg.trim() + ' You can always browse the latest at MattSmithTeam.com').slice(0, 640)
+  }
+  if (!finalMsg) return logNo(cid, 'no message to send')
   if (latestMsgId(cid) !== startedAtMsgId) return logNo(cid, 'aborted stale (new message arrived)')
   const g2 = canSendSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), { channel: 'ai', mode, force })
   if (!g2.ok) return logNo(cid, 'blocked at send: ' + g2.reason)
   try {
     if (decision?.memory || decision?.summary) { try { applyMemory(cid, decision.memory || {}, decision.summary) } catch {} }
-    let finalMsg = finalizeAiText(cid, message)
-    // A same-thread nudge must not re-greet — strip a leading "Hi Robert!/Hello there,".
-    if (stripGreeting) finalMsg = finalMsg.replace(/^\s*(?:hi|hello|hey)\b[^\n]*?[,!]\s+/i, '').replace(/^\s*([a-z])/, (m, c) => c.toUpperCase())
-    // Cold-buyer drip: keep the website on every text as an easy tap-through (finalizeAiText
-    // only guarantees it on the very first message).
-    if (requireWebsite && !/mattsmithteam\.com/i.test(finalMsg)) finalMsg = (finalMsg.trim() + ' You can always browse the latest at MattSmithTeam.com').slice(0, 640)
-    const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: finalMsg, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
+    const actionId = logAiAction({ client_id: cid, action_type: actionType, model_name: templateText ? 'template' : AI_MODEL, prompt_version: AI_PROMPT_VERSION, reason: actionType.toLowerCase(), output_text: finalMsg, tokens_input: usage.input_tokens, tokens_output: usage.output_tokens, latency_ms: Date.now() - t0, status: 'success' })
     await sendAiSms(db.get('SELECT * FROM clients WHERE id=?', [cid]), finalMsg, actionId)
     markOutbound(cid)
     transitionAiState(cid, nextState || 'AI_WAITING_FOR_REPLY', actionType.toLowerCase())
@@ -354,19 +358,23 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
     try { db.setSetting?.(rotKey, String((r + 1) % n)) } catch {}
     approved = bank[r]
   }
-  if (idx === 0) {
-    // Text 1 = reconnect opener: greeting + intro + approved body + website.
-    const reviveTemplate = approved || nextReviveOpener().text
-    return runOutbound(cid, {
-      actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, reviveTemplate,
-      nextState: 'AI_WAITING_FOR_REPLY', instruction: REVIVE_OPENER_BLOCK(reviveTemplate, centralGreeting()),
-    })
+  const nextState = idx <= 5 ? 'AI_WAITING_FOR_REPLY' : 'AI_LONG_TERM_NURTURE'
+  // TEMPLATE the scheduled drip (no Claude — Claude is reserved for replies). Render the
+  // approved bank message + merge fields and send it directly.
+  if (approved) {
+    const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+    if (client) {
+      const { renderColdStageTemplate } = await import('./cold-template.js')
+      const templateText = await renderColdStageTemplate(idx, approved, client)
+      if (templateText) return runOutbound(cid, { actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, nextState, templateText })
+    }
   }
-  return runOutbound(cid, {
-    actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, requireWebsite: true,
-    nextState: idx <= 5 ? 'AI_WAITING_FOR_REPLY' : 'AI_LONG_TERM_NURTURE',
-    instruction: COLD_STAGE_BLOCK(stage, approved),
-  })
+  // Fallback (no approved bank / no client) → the Claude path, unchanged.
+  if (idx === 0) {
+    const reviveTemplate = approved || nextReviveOpener().text
+    return runOutbound(cid, { actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, reviveTemplate, nextState, instruction: REVIVE_OPENER_BLOCK(reviveTemplate, centralGreeting()) })
+  }
+  return runOutbound(cid, { actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, requireWebsite: true, nextState, instruction: COLD_STAGE_BLOCK(stage, approved) })
 }
 
 // Cancel any pending scheduled AI actions for a lead (called when they reply or a
