@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-08-31T21:01:29.153Z",
+  "generated_at": "2026-08-31T21:28:07.195Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "02bf75d",
+      "date": "2026-08-31T16:18:24-05:00",
+      "subject": "Add /api/system-metrics: disk + RAM (cgroup limit) + CPU sample",
+      "title": "/api/system-metrics: disk + RAM (cgroup limit) + CPU sample",
+      "body": "Reports real per-instance Render metrics: persistent-disk usage, RAM against the\ncontainer's cgroup limit (not the host), and this process's CPU % of a core plus\nallotted cores. Falls back to os.* only when cgroup files are absent.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "91ede25",
+      "date": "2026-08-31T16:08:42-05:00",
+      "subject": "FSBO: compute DOM from List Date (sheet DOM is a stale snapshot)",
+      "title": "FSBO: compute DOM from List Date (sheet DOM is a stale snapshot)",
+      "body": "The master file's DOM column is frozen whenever a row was last touched, so it\ndrifted 40+ days behind on ~half the active listings. List Date is reliable, so\nDOM is now computed as today - List Date at sync time (daily sync keeps it\ncurrent); sheet DOM is used only when List Date is missing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "58b383e",
+      "date": "2026-08-31T16:01:39-05:00",
+      "subject": "Clients: 3 Smart Lists tabs (past-client return 180d, no-email 90d, most-active)",
+      "title": "Clients: 3 Smart Lists tabs (past-client return 180d, no-email 90d, most-active)",
+      "body": "Adds a Smart Lists row above the status tabs on the Clients page with server-\ncomputed segments: Past Client Returned (recent visit after 180+ days away),\nPast Client with no outgoing email in 90 days, and Most Active (20+ distinct\nlistings viewed in 30 days). New GET /api/clients/smart-lists for counts and a\n?smart= param on the list route (SMART_LIST_SQL injected in buildClientFilter,\nso counts, rows, and select-all-ids all honor it).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9a4c1ff",
       "date": "2026-08-31T15:28:13-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "TC daily digest: 9 AM + 1 PM CT email of all active transactions",
       "title": "TC daily digest: 9 AM + 1 PM CT email of all active transactions",
       "body": "Server-side scheduling (runs on Render so it works regardless of any\nlaptop being on). Idempotent via digest_log unique(date, period).\n\nPulls every transaction in 'Under Contract' / 'Pending' / 'Clear to Close'\nand emails a per-transaction status card showing:\n  - Earnest money / IPI due dates with status\n  - Inspection / Mortgage / Appraisal / Financing release deadlines\n  - Final walkthrough + closing dates with days-out classification\n  - Document statuses (Abstract, Title, Mortgage Payoff, ALTA, Deed)\n  - Dotloop status, lender, parties, notes\n\nTop of email is an Action Items table sorted by severity:\n  OVERDUE → TODAY → URGENT (≤3d) → WATCH (≤7d)\n\nNew endpoints:\n  GET  /api/email/tc-digest/preview?period=morning|afternoon  (HTML)\n  GET  /api/email/tc-digest/preview?format=json               (JSON)\n  POST /api/email/tc-digest/send  body { period, force }\n  GET  /api/email/tc-digest/log                               (history)\n\nRecipients: johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com\n(override via TC_DIGEST_RECIPIENTS env var on Render).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3b7edea",
-      "date": "2026-05-08T10:10:39-05:00",
-      "subject": "Email composers: unify image insert (no more 'no matching img' errors)",
-      "title": "Email composers: unify image insert (no more 'no matching img' errors)",
-      "body": "- New attachImagesSmart() helper: tries to inline matching <img> tags\n  first (HTML-from-file workflow); if none match, falls back to inserting\n  fresh base64 <img> tags at the cursor. Single button covers both cases.\n- EmailToolbar's 🖼 Insert Image now uses the smart helper\n- Removed the duplicate legacy '📷 Inline Images' button from Clients\n  single+bulk, Transactions, and PreListings composers — confusing\n  warning is gone, one image button per composer\n- Toolbar hint clarifies: 'Body is HTML — click Preview to see how it\n  will render in the inbox'\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ec617f3",
-      "date": "2026-05-07T15:51:42-05:00",
-      "subject": "Email composers: Insert Image, Insert YouTube, accurate Preview",
-      "title": "Email composers: Insert Image, Insert YouTube, accurate Preview",
-      "body": "- New shared EmailToolbar component (Insert Image / Insert YouTube)\n  added to all email composers: Clients single+bulk, Transactions,\n  PreListings, Listings 'Send to Matched', Recommend modal, Templates\n- Insert Image: file picker → embeds image as base64 data URI at the\n  cursor position so it renders in Gmail/Outlook without external host\n- Insert YouTube: prompts for URL, inserts a clickable thumbnail with\n  red Play overlay (iframes are blocked in most email clients)\n- Plain YouTube URLs pasted into the body auto-embed as thumbnails when\n  sent — applied server-side in sendViaSendGrid + new /api/email/preview\n- All Preview iframes now run autoEmbedYoutubeLinks so what you see\n  matches what the recipient gets\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "566e373",
-      "date": "2026-05-07T15:38:32-05:00",
-      "subject": "Templates: new manager tab for email/text/script/voicemail/note templates",
-      "title": "Templates: new manager tab for email/text/script/voicemail/note templates",
-      "body": "- New 'Templates' page under MARKETING in sidebar\n- Backend: templates table (name, type, category, subject, body, is_html,\n  tags, used_count, last_used_at) + CRUD + duplicate + used-counter\n- Frontend: type tabs (Email/Text/Script/Voicemail/Note), search across\n  name/subject/body/tags/category, edit modal with HTML auto-detect,\n  upload .html file, HTML preview in iframe, copy-body-to-clipboard,\n  duplicate, delete\n- Per-template merge-var support ({{first_name}}, {{address}}, etc.)\n  for future composer integration\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

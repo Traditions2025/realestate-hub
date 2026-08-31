@@ -407,6 +407,17 @@ export function buildClientFilter(q) {
     }
   }
 
+  // FSBO Days on Market: more/less than N days. fsbo_dom is stored as a numeric string, so cast.
+  if (['more', 'less'].includes(q.fsbo_dom_op)) {
+    const n = Math.floor(Number(q.fsbo_dom_days))
+    if (n >= 0) {
+      where += q.fsbo_dom_op === 'more'
+        ? " AND fsbo_dom IS NOT NULL AND fsbo_dom != '' AND CAST(fsbo_dom AS INTEGER) > ?"
+        : " AND fsbo_dom IS NOT NULL AND fsbo_dom != '' AND CAST(fsbo_dom AS INTEGER) < ?"
+      params.push(n)
+    }
+  }
+
   // AI Applied: has the AI been applied to this lead (enrolled/managed, or it has sent an AI
   // text). 'yes' = applied, 'no' = never touched by the AI.
   if (q.ai_applied === 'yes' || q.ai_applied === 'no') {

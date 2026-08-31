@@ -434,6 +434,7 @@ export default function Clients() {
     has_address: '', // '' (any) | '1' (has address) | '0' (no address)
     has_fsbo_status: '', // '' (any) | '1' (in the FSBO master file)
     fsbo_statuses_include: [], // ['Available','Off Market']
+    fsbo_dom_op: '', fsbo_dom_days: '', // FSBO days-on-market: 'more'/'less' than N
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -465,7 +466,7 @@ export default function Clients() {
     len(advFilters.zips_include) + len(advFilters.cities_include) +
     len(advFilters.viewed_cities_include) +
     len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.email_statuses) +
-    ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + ((advFilters.off_market_op && advFilters.off_market_days) ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
+    ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + ((advFilters.off_market_op && advFilters.off_market_days) ? 1 : 0) + ((advFilters.fsbo_dom_op && advFilters.fsbo_dom_days !== '') ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -666,6 +667,7 @@ export default function Clients() {
     if (advFilters.has_address) params.has_address = advFilters.has_address
     if (advFilters.has_fsbo_status) params.has_fsbo_status = advFilters.has_fsbo_status === true ? '1' : advFilters.has_fsbo_status
     if (advFilters.fsbo_statuses_include?.length) params.fsbo_statuses_include = advFilters.fsbo_statuses_include.join(',')
+    if (advFilters.fsbo_dom_op && advFilters.fsbo_dom_days !== '') { params.fsbo_dom_op = advFilters.fsbo_dom_op; params.fsbo_dom_days = advFilters.fsbo_dom_days }
     params.sort = sortBy
     return params
   }
@@ -1092,6 +1094,7 @@ export default function Clients() {
       realist_year_built_min: '', realist_year_built_max: '',
       realist_sell_score_min: '', realist_owner_occupied: '',
       in_drip: '', drip_id: '', has_address: '',
+      has_fsbo_status: '', fsbo_statuses_include: [], fsbo_dom_op: '', fsbo_dom_days: '',
     })
     setTab('all')
     setSearch('')
@@ -1194,6 +1197,7 @@ export default function Clients() {
           has_address: f.has_address || '',
           has_fsbo_status: (f.has_fsbo_status === true || f.has_fsbo_status === 1 || f.has_fsbo_status === '1') ? '1' : '',
           fsbo_statuses_include: f.fsbo_statuses_include || [],
+          fsbo_dom_op: f.fsbo_dom_op || '', fsbo_dom_days: f.fsbo_dom_days ?? '',
         })
         setTab('all')
         if (f.search) setSearch(f.search)
@@ -1922,6 +1926,18 @@ export default function Clients() {
                 </select>
                 <input type="number" min="1" value={advFilters.off_market_days} onChange={e => setAdvFilters(p => ({ ...p, off_market_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.off_market_op} />
                 <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
+              </div>
+            </div>
+            <div className="filter-section">
+              <h5>FSBO Days on Market</h5>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                <select value={advFilters.fsbo_dom_op} onChange={e => setAdvFilters(p => ({ ...p, fsbo_dom_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
+                  <option value="">Any</option>
+                  <option value="more">More than</option>
+                  <option value="less">Less than</option>
+                </select>
+                <input type="number" min="0" value={advFilters.fsbo_dom_days} onChange={e => setAdvFilters(p => ({ ...p, fsbo_dom_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.fsbo_dom_op} />
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days on market</span>
               </div>
             </div>
             <div className="filter-section">
