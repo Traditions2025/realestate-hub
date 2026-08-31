@@ -147,10 +147,9 @@ export async function handleFsboReply(clientId, body) {
   return true
 }
 
-// Daily 9:30 job: refresh the master file so the Hub FSBO list mirrors the sheet 1:1.
-// Off Market FSBOs STAY on the list (labeled Off Market via the FSBO Status column) — they
-// are never junked. They're simply excluded from the text sequence, which only targets
-// Available FSBOs, so an Off Market listing is never messaged even mid-sequence.
+// Daily 9:30 job: refresh the master file so the Hub FSBO list mirrors the sheet's Available
+// FSBOs. TEAM RULE: a FSBO that has gone Off Market (pending/sold) drops OFF the list and is
+// moved to Junk (done inside syncFsboMaster), which pulls it out of every sequence.
 export async function fsboDailyMaintenance() {
   const rep = { synced: false, errors: 0 }
   let r = null

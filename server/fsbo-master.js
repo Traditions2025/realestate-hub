@@ -3,6 +3,7 @@
 // "FSBO Status" (Available | Off Market) onto the client. This drives the Hub FSBO list
 // and its FSBO-Status column. Read-only against the sheet; upserts only fsbo_status.
 import db from './database.js'
+import { stopSequencesForClient } from './lead-sequences.js'
 
 const nowIso = () => new Date().toISOString()
 
@@ -212,6 +213,18 @@ export async function syncFsboMaster() {
     db.run("UPDATE clients SET fsbo_listings=?, fsbo_status=?, address=COALESCE(?,address), fsbo_link=COALESCE(?,fsbo_link), updated_at=? WHERE id=?",
       [JSON.stringify(combined), anyAvail ? 'Available' : (canonical.fsbo_status || 'Off Market'), prim.address || null, prim.link || null, now, canonical.id])
   }
+  // TEAM RULE: a FSBO that has gone Off Market (pending / sold / withdrawn) drops OFF the
+  // active list and is moved to Junk — pulled out of every sequence. We keep fsbo_status =
+  // 'Off Market' as the record of WHY it left; the FSBO list itself shows Available only
+  // (see ensureFsboListIncludesMaster). A seller who still has ANY available listing keeps
+  // aggregate status 'Available' above, so only fully-off-market sellers are junked here.
+  report.junked_off_market = 0
+  for (const c of db.all("SELECT id, status FROM clients WHERE fsbo_status='Off Market' AND merged_into IS NULL")) {
+    if (isJunkish(c.status)) continue
+    db.run("UPDATE clients SET status='junk', updated_at=? WHERE id=?", [now, c.id])
+    try { stopSequencesForClient(c.id, 'FSBO went Off Market (pending/sold)') } catch {}
+    report.junked_off_market++
+  }
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
   report.on_list = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')").n
   report.unique_sheet_phones = sheetPhones.size
@@ -232,8 +245,12 @@ export function ensureFsboListIncludesMaster() {
   // Members: EVERY record carrying an fsbo_status — Available AND Off Market — so the list
   // mirrors the master file 1:1. Merged duplicates have their fsbo_status cleared, so they
   // drop out; nothing is excluded by lead status (Off Market stays on the list).
-  if (cur && cur.has_fsbo_status && !cur.statuses_exclude) return { ok: true, already: true, list_id: list.id }
-  const next = { has_fsbo_status: 1, _legacy: cur._legacy || cur }
+  // FSBO list = ONLY Available FSBOs from the master file. Off Market (pending/sold) are
+  // junked and intentionally NOT shown here — they've left the active list.
+  const already = cur && cur.has_fsbo_status && Array.isArray(cur.fsbo_statuses_include)
+    && cur.fsbo_statuses_include.length === 1 && cur.fsbo_statuses_include[0] === 'Available'
+  if (already) return { ok: true, already: true, list_id: list.id }
+  const next = { has_fsbo_status: 1, fsbo_statuses_include: ['Available'], _legacy: cur._legacy || cur }
   db.run("UPDATE client_lists SET filter_criteria=?, updated_at=datetime('now') WHERE id=?", [JSON.stringify(next), list.id])
   return { ok: true, list_id: list.id }
 }
