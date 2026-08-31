@@ -40,12 +40,17 @@ export function parseCsv(text) {
   return rows
 }
 
-// Normalize an "FSBO Status" cell to a canonical value or null.
+// Normalize an "FSBO Status" cell to a canonical value or null. Three real values:
+//   Available   — still for sale FSBO → active list + text sequence
+//   Pending     — under contract / spoken for → dead lead → Junk, off the list
+//   Off Market  — withdrawn / expired, did NOT sell → stays on list (labeled), not texted
+// Pending and Off Market are DIFFERENT: only Pending is junked.
 function normStatus(v) {
   const s = String(v || '').trim().toLowerCase()
   if (!s) return null
   if (s.startsWith('avail')) return 'Available'
-  if (s.startsWith('off')) return 'Off Market'
+  if (s.startsWith('pend') || s.includes('contract')) return 'Pending'
+  if (s.startsWith('off') || s.startsWith('withdraw') || s.startsWith('expire')) return 'Off Market'
   return null
 }
 
@@ -158,11 +163,13 @@ export async function syncFsboMaster() {
     const k = last10(primary.phone); if (k) index.set(k, rec)
   }
   for (const grp of groups.values()) {
-    const primary = grp.find(r => String(r.status || '').toLowerCase() === 'available') || grp[0]
+    const primary = grp.find(r => r.status === 'Available') || grp.find(r => r.status === 'Pending') || grp[0]
     const key = last10(primary.phone)
     if (key) sheetPhones.add(key)
-    // Aggregate status: Available if ANY of the seller's listings is available, else Off Market.
-    const status = grp.some(r => String(r.status || '').toLowerCase() === 'available') ? 'Available' : (primary.status || 'Off Market')
+    // Aggregate status across a seller's listings: Available wins (still has something for
+    // sale), else Pending (under contract), else Off Market.
+    const status = grp.some(r => r.status === 'Available') ? 'Available'
+      : grp.some(r => r.status === 'Pending') ? 'Pending' : 'Off Market'
     report.counts[status] = (report.counts[status] || 0) + 1
     const listingsJson = JSON.stringify(buildListings(grp))
     const match = key ? index.get(key) : null
@@ -213,17 +220,24 @@ export async function syncFsboMaster() {
     db.run("UPDATE clients SET fsbo_listings=?, fsbo_status=?, address=COALESCE(?,address), fsbo_link=COALESCE(?,fsbo_link), updated_at=? WHERE id=?",
       [JSON.stringify(combined), anyAvail ? 'Available' : (canonical.fsbo_status || 'Off Market'), prim.address || null, prim.link || null, now, canonical.id])
   }
-  // TEAM RULE: a FSBO that has gone Off Market (pending / sold / withdrawn) drops OFF the
-  // active list and is moved to Junk — pulled out of every sequence. We keep fsbo_status =
-  // 'Off Market' as the record of WHY it left; the FSBO list itself shows Available only
-  // (see ensureFsboListIncludesMaster). A seller who still has ANY available listing keeps
-  // aggregate status 'Available' above, so only fully-off-market sellers are junked here.
-  report.junked_off_market = 0
-  for (const c of db.all("SELECT id, status FROM clients WHERE fsbo_status='Off Market' AND merged_into IS NULL")) {
+  // ONE-TIME correction: an earlier rule wrongly junked Off Market FSBOs. Off Market is NOT
+  // Pending — those sellers stay on the list. Restore any Off Market lead still sitting in Junk
+  // back to 'watch'. Self-disables after the first run so it never un-junks a later legit junk.
+  if (db.getSetting?.('fsbo_offmarket_unjunk_done', '0') !== '1') {
+    const r = db.run("UPDATE clients SET status='watch', updated_at=? WHERE fsbo_status='Off Market' AND lower(status)='junk'", [now])
+    report.offmarket_restored = r.changes || 0
+    db.setSetting?.('fsbo_offmarket_unjunk_done', '1')
+  }
+  // TEAM RULE: a FSBO that has gone PENDING (under contract) is a dead lead — it drops OFF the
+  // active list and is moved to Junk, pulled out of every sequence. We keep fsbo_status =
+  // 'Pending' as the record of WHY it left. Off Market (withdrawn/expired, did NOT sell) is
+  // DIFFERENT: those stay on the list, labeled, and are simply not texted.
+  report.junked_pending = 0
+  for (const c of db.all("SELECT id, status FROM clients WHERE fsbo_status='Pending' AND merged_into IS NULL")) {
     if (isJunkish(c.status)) continue
     db.run("UPDATE clients SET status='junk', updated_at=? WHERE id=?", [now, c.id])
-    try { stopSequencesForClient(c.id, 'FSBO went Off Market (pending/sold)') } catch {}
-    report.junked_off_market++
+    try { stopSequencesForClient(c.id, 'FSBO went Pending (under contract)') } catch {}
+    report.junked_pending++
   }
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
   report.on_list = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')").n
@@ -245,12 +259,13 @@ export function ensureFsboListIncludesMaster() {
   // Members: EVERY record carrying an fsbo_status — Available AND Off Market — so the list
   // mirrors the master file 1:1. Merged duplicates have their fsbo_status cleared, so they
   // drop out; nothing is excluded by lead status (Off Market stays on the list).
-  // FSBO list = ONLY Available FSBOs from the master file. Off Market (pending/sold) are
-  // junked and intentionally NOT shown here — they've left the active list.
-  const already = cur && cur.has_fsbo_status && Array.isArray(cur.fsbo_statuses_include)
-    && cur.fsbo_statuses_include.length === 1 && cur.fsbo_statuses_include[0] === 'Available'
+  // FSBO list = Available + Off Market from the master file (Off Market stays, labeled).
+  // Pending (under contract) is junked and intentionally NOT shown here.
+  const want = ['Available', 'Off Market']
+  const inc = Array.isArray(cur?.fsbo_statuses_include) ? cur.fsbo_statuses_include : null
+  const already = cur && cur.has_fsbo_status && inc && inc.length === want.length && want.every(w => inc.includes(w))
   if (already) return { ok: true, already: true, list_id: list.id }
-  const next = { has_fsbo_status: 1, fsbo_statuses_include: ['Available'], _legacy: cur._legacy || cur }
+  const next = { has_fsbo_status: 1, fsbo_statuses_include: want, _legacy: cur._legacy || cur }
   db.run("UPDATE client_lists SET filter_criteria=?, updated_at=datetime('now') WHERE id=?", [JSON.stringify(next), list.id])
   return { ok: true, list_id: list.id }
 }

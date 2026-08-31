@@ -147,9 +147,10 @@ export async function handleFsboReply(clientId, body) {
   return true
 }
 
-// Daily 9:30 job: refresh the master file so the Hub FSBO list mirrors the sheet's Available
-// FSBOs. TEAM RULE: a FSBO that has gone Off Market (pending/sold) drops OFF the list and is
-// moved to Junk (done inside syncFsboMaster), which pulls it out of every sequence.
+// Daily 9:30 job: refresh the master file so the Hub FSBO list mirrors the sheet's Available +
+// Off Market FSBOs. TEAM RULE (applied inside syncFsboMaster): a FSBO that has gone PENDING
+// (under contract) drops OFF the list and is moved to Junk. Off Market (withdrawn/expired, did
+// NOT sell) is different — those stay on the list, labeled, and are simply not texted.
 export async function fsboDailyMaintenance() {
   const rep = { synced: false, errors: 0 }
   let r = null
