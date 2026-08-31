@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-31T21:48:36.131Z",
+  "generated_at": "2026-08-31T23:03:07.500Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "050a3a9",
+      "date": "2026-08-31T16:48:45-05:00",
+      "subject": "Clients filters: per-value Include/Exclude toggle (status, tags, zips, cities, sources, agents)",
+      "title": "Clients filters: per-value Include/Exclude toggle (status, tags, zips, cities, sources, agents)",
+      "body": "Replaces the paired 'Include' / 'Exclude' boxes with one IncludeExcludeSelect per\ndimension: search/add a value, then flip it Include or Exclude with a per-value\ntoggle. Adds backend cities_exclude + viewed_cities_exclude (status/tags/zips/\nsources/agents excludes already existed) and frontend state/params/count/clear/\nsaved-list wiring for the new excludes.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3957cc7",
       "date": "2026-08-31T16:28:16-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Transactions: sort Under Contract column by closing date (soonest first)",
       "title": "Transactions: sort Under Contract column by closing date (soonest first)",
       "body": "Within the Under Contract / Pending kanban column, transactions are\nordered by closing_date ascending. Rows without a closing date drop\nto the bottom so the most time-sensitive deals stay at the top.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1f9d79c",
-      "date": "2026-05-08T13:11:58-05:00",
-      "subject": "Transactions: Earnest Money status dropdown + auto-calc contingencies",
-      "title": "Transactions: Earnest Money status dropdown + auto-calc contingencies",
-      "body": "- Earnest Money is now a status dropdown: Not Started / In Progress / Completed\n  (was a free-text \"amount\" input doubling as status)\n- Contract Date auto-fills Mortgage + Appraisal Contingency = +30 calendar days,\n  rolled BACK to prior Friday if it lands on a weekend\n- Earnest Money Due auto-fill (3 biz days) preserved\n- Both contingencies still mirror each other if one is edited and the other empty\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

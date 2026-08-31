@@ -118,6 +118,7 @@ const SMART_LISTS = [
   { key: 'returned_past_client', label: 'Past Client Returned (180d+)', desc: 'Past clients who came back to the website after 180+ days away' },
   { key: 'past_client_no_email', label: 'Past Client · No Email 90d', desc: "Past clients we haven't emailed in the last 90 days" },
   { key: 'most_active', label: 'Most Active (20+ / 30d)', desc: 'Leads who viewed 20+ listings in the last 30 days' },
+  { key: 'viewed_24h', label: 'Viewed within 24 hours', desc: 'Leads who viewed the website in the last 24 hours' },
 ]
 
 function loadColumnPrefs() {

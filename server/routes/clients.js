@@ -470,6 +470,10 @@ export const SMART_LIST_SQL = {
     `((SELECT COUNT(DISTINCT fa.prop_mls) FROM fub_activity fa
         WHERE fa.client_id = clients.id AND fa.prop_mls IS NOT NULL AND fa.prop_mls != ''
           AND fa.occurred_at >= datetime('now','-30 days')) >= 20)`,
+  // Hot right now: any website/property view in the last 24 hours (either activity source).
+  viewed_24h:
+    `(EXISTS (SELECT 1 FROM fub_activity fa WHERE fa.client_id = clients.id AND fa.occurred_at >= datetime('now','-1 day'))
+      OR EXISTS (SELECT 1 FROM lead_activity la WHERE la.client_id = clients.id AND la.created_at >= datetime('now','-1 day')))`,
 }
 
 // Map sort key to SQL ORDER BY
