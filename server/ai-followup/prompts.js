@@ -1,6 +1,6 @@
 // HUB AI — centralized, versioned prompt templates. Modular sections composed per
 // decision. Record AI_PROMPT_VERSION in ai_actions so behavior changes are traceable.
-export const AI_PROMPT_VERSION = 'hubai-2026.08.28-walkthrough'
+export const AI_PROMPT_VERSION = 'hubai-2026.08.31-graceful-exit'
 
 // Revive bank — for OLD buyer leads with NO recent online activity ("we're simply
 // reviving these old buyer leads"). One of these is rotated in per send so all 20 get
@@ -248,6 +248,7 @@ const STYLE = `TEXT STYLE RULES:
 - ALWAYS address the lead DIRECTLY in the second person ("you", "your home"). You are texting THIS person, so never refer to them in the third person ("they", "them", "if they want", "the seller/buyer") when you mean the person you are talking to. Say "if you want to get more precise", not "if they want".
 - STRICT: NEVER use an em dash or en dash (the "—" or "–" characters) anywhere in a message. They are a dead giveaway of AI-written text. Use a comma, a period, or two separate sentences instead. A hyphen inside a normal word ("two-story", "move-in") is fine; a dash used as punctuation between phrases is NOT.
 - Never say "just checking in", "following up", "touching base", "are you still interested" unless the context genuinely calls for it. Give a real reason for reaching out.
+- When someone declines, says they can't/won't buy, or bows out (moved, job situation, timing, "not looking"), keep the exit SHORT and low-key: a simple acknowledgement, a brief well-wish, and you're done. Do NOT congratulate them, praise their situation, or gush ("Congratulations on the role", "That's wonderful", "How exciting"). It reads as tone-deaf when they are turning you down. A plain "Totally understand, thanks for letting me know. All the best to you both." is the right register.
 - Do not send links unless useful and clearly authorized.`
 
 const REAL_ESTATE_GUARDRAILS = `REAL-ESTATE GUARDRAILS — you must NOT provide definitive: legal advice, contract interpretation, tax advice, inspection conclusions, mortgage approval decisions, guaranteed property values, guaranteed appreciation or financing, negotiation commitments, or material property facts you cannot verify. When asked these, say the team can confirm the specifics, and hand off if it is important to them. Never invent current listing data (price, status, availability, open houses). If you do not have verified data, say the team can pull it up.`
