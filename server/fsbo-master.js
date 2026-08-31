@@ -7,6 +7,28 @@ import { stopSequencesForClient } from './lead-sequences.js'
 
 const nowIso = () => new Date().toISOString()
 
+// The sheet's DOM column is a stale snapshot (frozen whenever the row was last touched), so it
+// drifts days/weeks behind reality. List Date is reliable, so we compute DOM = today - List Date
+// and let the daily sync keep it current. Falls back to the sheet's DOM only if List Date is missing.
+function parseSheetDate(s) {
+  s = String(s || '').trim(); if (!s) return null
+  let m
+  if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/))) {
+    let yr = Number(m[3]); if (yr < 100) yr += 2000
+    const dt = new Date(Date.UTC(yr, Number(m[1]) - 1, Number(m[2]))); return isNaN(dt.getTime()) ? null : dt
+  }
+  if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/))) {
+    const dt = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]))); return isNaN(dt.getTime()) ? null : dt
+  }
+  const dt = new Date(s); return isNaN(dt.getTime()) ? null : dt
+}
+function computeDom(listDate, sheetDom) {
+  const d = parseSheetDate(listDate)
+  if (d) return String(Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000)))
+  const n = String(sheetDom || '').trim()
+  return n || null
+}
+
 // Default to the team's shared FSBO master sheet; override via app_settings.
 const DEFAULT_SHEET_ID = '1i0p9ux3_4pluE24ioBajqTBZ2SqFkM6qtu7pofDDaJc'
 export function fsboMasterCsvUrl() {
@@ -150,14 +172,14 @@ export async function syncFsboMaster() {
     groups.get(gk).push(row)
   }
   report.profiles = groups.size
-  const buildListings = (grp) => grp.map(r => ({ address: r.address || null, city: r.city || null, list_date: r.list_date || null, dom: r.dom || null, status: r.status || null, link: r.link || null, notes: r.notes || null }))
+  const buildListings = (grp) => grp.map(r => ({ address: r.address || null, city: r.city || null, list_date: r.list_date || null, dom: computeDom(r.list_date, r.dom), status: r.status || null, link: r.link || null, notes: r.notes || null }))
   const createNew = (primary, status, listingsJson) => {
     const { first, last } = splitName(primary.name)
     const info = db.run(
       `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, fsbo_listings, created_at, updated_at)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [first, last, primary.phone, primary.email || null, 'seller', 'watch', primary.source || 'FSBO Master',
-       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, primary.dom || null, primary.notes || null, primary.link || null, listingsJson, now, now])
+       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), primary.notes || null, primary.link || null, listingsJson, now, now])
     report.created++
     const rec = { id: info.lastInsertRowid, phone: primary.phone, tags: tagsJson(primary.tags), fsbo_status: status, status: 'watch', first_name: first, last_name: last }
     const k = last10(primary.phone); if (k) index.set(k, rec)
@@ -184,7 +206,7 @@ export async function syncFsboMaster() {
     if (!match) { createNew(primary, status, listingsJson); continue }
     report.matched++
     db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_notes=?, fsbo_link=?, fsbo_listings=?, updated_at=? WHERE id=?',
-      [status, now, primary.list_date || null, primary.dom || null, primary.notes || null, primary.link || null, listingsJson, now, match.id])
+      [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), primary.notes || null, primary.link || null, listingsJson, now, match.id])
     match.fsbo_status = status
   }
   // Prune stragglers: an fsbo_status record whose phone is no longer in the sheet.
