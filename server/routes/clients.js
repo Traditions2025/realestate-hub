@@ -470,10 +470,18 @@ export const SMART_LIST_SQL = {
     `((SELECT COUNT(DISTINCT fa.prop_mls) FROM fub_activity fa
         WHERE fa.client_id = clients.id AND fa.prop_mls IS NOT NULL AND fa.prop_mls != ''
           AND fa.occurred_at >= datetime('now','-30 days')) >= 20)`,
-  // Hot right now: any website/property view in the last 24 hours (either activity source).
+  // Hot right now: a live PROSPECT who viewed in the last 24 hours (either activity source).
+  // Excludes junk/DNC, past clients + Closed, FSBO, Cancelled/Expired imports, and Pending —
+  // this is meant to surface active buyer/seller leads worth reaching today, not those buckets.
   viewed_24h:
-    `(EXISTS (SELECT 1 FROM fub_activity fa WHERE fa.client_id = clients.id AND fa.occurred_at >= datetime('now','-1 day'))
-      OR EXISTS (SELECT 1 FROM lead_activity la WHERE la.client_id = clients.id AND la.created_at >= datetime('now','-1 day')))`,
+    `((EXISTS (SELECT 1 FROM fub_activity fa WHERE fa.client_id = clients.id AND fa.occurred_at >= datetime('now','-1 day'))
+        OR EXISTS (SELECT 1 FROM lead_activity la WHERE la.client_id = clients.id AND la.created_at >= datetime('now','-1 day')))
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact','closed','pending','archived')
+      AND (clients.fsbo_status IS NULL OR clients.fsbo_status = '')
+      AND lower(coalesce(clients.tags,'')) NOT LIKE '%past client%'
+      AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%fsbo%'
+      AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%expired%'
+      AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%cancelled%')`,
 }
 
 // Map sort key to SQL ORDER BY
