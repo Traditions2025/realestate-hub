@@ -715,6 +715,37 @@ router.post('/send', async (req, res) => {
   }
 })
 
+// Live preview for the composer: renders merge fields + the signature exactly as /send
+// would, for THIS lead, so the agent sees the final email (signature included) before sending.
+router.post('/preview', (req, res) => {
+  const { client_id, subject, body } = req.body || {}
+  const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
+  let outBody = String(body || '')
+  if (!/\{\{\s*signature\s*\}\}/i.test(outBody)) outBody += '<br><br>{{signature}}'
+  const html = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
+  const subj = client ? fillTemplate(String(subject || ''), client) : String(subject || '')
+  res.json({ subject: subj, html })
+})
+
+// The merge fields the composer offers in its "Insert field" menu. Label = what the agent
+// sees; token = what gets inserted and later rendered by fillTemplate on send.
+const EMAIL_MERGE_FIELDS = [
+  { label: 'First name', token: '{{first_name}}' },
+  { label: 'Last name', token: '{{last_name}}' },
+  { label: 'Full name', token: '{{full_name}}' },
+  { label: 'Greeting (Morning/Afternoon)', token: '{{greeting}}' },
+  { label: 'City of interest', token: '{{city_of_interest}}' },
+  { label: 'Price range clause', token: '{{price_range}}' },
+  { label: 'Home value link', token: '{{home_value_link}}' },
+  { label: 'Request CMA link', token: '{{cma_request_link}}' },
+  { label: 'Email address', token: '{{email}}' },
+  { label: 'Phone', token: '{{phone}}' },
+  { label: 'Address', token: '{{address}}' },
+  { label: 'Assigned agent', token: '{{agent}}' },
+  { label: 'Signature', token: '{{signature}}' },
+]
+router.get('/merge-fields', (_req, res) => res.json(EMAIL_MERGE_FIELDS))
+
 // Bulk send runs in the BACKGROUND (each recipient does a live FUB pull for their
 // listings, so 100s of recipients take a minute+). The client kicks it off and
 // polls /bulk-status for progress.

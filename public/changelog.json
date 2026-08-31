@@ -1,7 +1,55 @@
 {
-  "generated_at": "2026-08-31T19:03:46.572Z",
+  "generated_at": "2026-08-31T20:28:04.254Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "cecd630",
+      "date": "2026-08-31T15:21:15-05:00",
+      "subject": "Email: append Matt's signature on manual composer sends",
+      "title": "Email: append Matt's signature on manual composer sends",
+      "body": "The full-size profile / clients composer posted to /api/email/send with no\nsignature. Now the server appends the saved {{signature}} to the body (rendered\nvia fillTemplate), unless the body already contains one. Automated/template sends\nuse sendViaSendGrid directly and already include {{signature}}, so they're\nunaffected.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d4748db",
+      "date": "2026-08-31T15:09:55-05:00",
+      "subject": "FSBO: junk PENDING only (not Off Market); restore wrongly-junked Off Market",
+      "title": "FSBO: junk PENDING only (not Off Market); restore wrongly-junked Off Market",
+      "body": "Pending and Off Market are different: Pending = under contract (dead lead -> Junk,\noff the list); Off Market = withdrawn/expired, did NOT sell (stays on the list,\nlabeled, just not texted). normStatus now recognizes Pending. Prior run wrongly\njunked the 19 Off Market; added a one-time self-disabling restore to 'watch'.\nFSBO list filter back to Available + Off Market (Pending excluded).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "19049da",
+      "date": "2026-08-31T15:02:27-05:00",
+      "subject": "FSBO: Off Market (pending/sold) now junked + dropped from the list",
+      "title": "FSBO: Off Market (pending/sold) now junked + dropped from the list",
+      "body": "Team rule change: when a FSBO goes Off Market in the master file it should leave\nthe active list and be moved to Junk (out of all sequences), not just labeled\nOff Market. syncFsboMaster now junks every Off Market fsbo record (keeping\nfsbo_status='Off Market' as the record of why) and the FSBO list filter is now\nAvailable-only. Sellers with any still-available listing stay Available and are\nuntouched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "041c80f",
+      "date": "2026-08-31T14:42:47-05:00",
+      "subject": "SMS: first unreachable bounce stops future texts (add 30003/21614)",
+      "title": "SMS: first unreachable bounce stops future texts (add 30003/21614)",
+      "body": "Previously only 30005/30006 (dead number / landline) marked a contact\nsms_undeliverable. Now an unreachable-handset bounce (30003, phone off/dead) or\n'not a valid mobile' (21614) on the first send also stops automated texts, since\nthose numbers don't take our texts. Deliberately excludes our-side/transient\ncodes (suspended, queue, A2P, timeout, spam-filter) so good numbers aren't killed\nby an account-level hiccup. Adds POST /api/inbox/backfill-undeliverable to apply\nthe rule to past failures.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fe9985b",
+      "date": "2026-08-31T14:25:41-05:00",
+      "subject": "AI tone: graceful low-key exit on declines, no congratulations/gushing",
+      "title": "AI tone: graceful low-key exit on declines, no congratulations/gushing",
+      "body": "Heather Hayes declined (can't buy due to husband's position) and the AI replied\n'Congratulations on the role' which reads tone-deaf. Added a STYLE rule: on a\ndecline/bow-out, keep the exit short and plain, no congratulations or praise.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4ff7d48",
+      "date": "2026-08-31T14:03:59-05:00",
+      "subject": "Service Balances: show real Anthropic balance you enter, not a misleading estimate",
+      "title": "Service Balances: show real Anthropic balance you enter, not a misleading estimate",
+      "body": "Anthropic has no API to read remaining credit with a normal key, so the Claude\ncard now headlines a saved balance the user types off the console (with date\nstamp), and demotes the token-log estimate to a secondary 'est. Hub usage' line.\nAdds POST /api/inbox/claude-balance.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4bbd35f",
       "date": "2026-08-31T13:55:15-05:00",
@@ -3953,54 +4001,6 @@
       "title": "Tasks: add search bar — matches title, description, notes, assigned",
       "body": "Searches across title, description, assigned_to, related_type, and\nnotes_log on both board and list views. Case-insensitive substring match.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "a0545ba",
-      "date": "2026-05-07T11:01:35-05:00",
-      "subject": "Clients: add Type column to list view; rename Both → Buyer/Seller",
-      "title": "Clients: add Type column to list view; rename Both → Buyer/Seller",
-      "body": "- New Type column in client list (between Status and Phone) shows\n  color-coded pill: 🎯 Buyer / 🏠 Seller / 🔄 Buyer/Seller\n- 'Both' renamed to 'Buyer/Seller' across type tabs, detail toggle,\n  bulk actions menu, and confirm dialog (DB value still 'both')\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "80f882f",
-      "date": "2026-05-07T10:21:43-05:00",
-      "subject": "Clients: per-lead Type toggle + bulk Set Type actions in dropdown",
-      "title": "Clients: per-lead Type toggle + bulk Set Type actions in dropdown",
-      "body": "- Detail modal: Buyer / Seller / Both toggle pills below action bar (one click to reclassify)\n- Bulk actions consolidated into a single 'Bulk Actions ▾' dropdown\n  containing: Email Selected, Mark as Buyer/Seller/Both, Refresh from Sierra\n- Backend: POST /api/clients/bulk-type for batch type updates (validated, logged)\n- Sierra leadType is unreliable for this team — manual classification only\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c3f7924",
-      "date": "2026-05-07T10:03:47-05:00",
-      "subject": "Clients: Type filter row (All / Buyers / Sellers / Both) with smart 'both' inclusion",
-      "title": "Clients: Type filter row (All / Buyers / Sellers / Both) with smart 'both' inclusion",
-      "body": "New Type filter row sits below the Status tabs and combines with whatever status is selected. Workflow examples:\n- Click 'Active' tab + '🎯 Buyers' → only active buyers (and 'both' clients) shown\n- Click 'Active' tab + '🏠 Sellers' → only active sellers (and 'both' clients)\n- Click 'Prime' tab + '🎯 Buyers' → high-value buyer prospects only\n\nSmart inclusion logic on backend:\n- type=buyer matches WHERE type IN ('buyer', 'both')\n- type=seller matches WHERE type IN ('seller', 'both')\n- type=both matches WHERE type = 'both' (only the dual-tagged ones)\nThis means a client tagged as 'both' shows up in BOTH the buyer view AND the seller view (as expected — they're both).\n\nVisual: rounded pill tabs with color-coded active states (blue for buyers, green for sellers, purple for both) so it's obvious at a glance which filter is on.",
-      "category": "other"
-    },
-    {
-      "hash": "ac61ce7",
-      "date": "2026-05-07T09:40:24-05:00",
-      "subject": "Tasks: 👋 Nudge button — quick email reminder to Matt or Leo about a specific task",
-      "title": "Tasks: 👋 Nudge button — quick email reminder to Matt or Leo about a specific task",
-      "body": "Each open task (not done) now has a 👋 Nudge button on:\n- The kanban card (To Do + In Progress columns)\n- The list view's actions column\n- The edit modal's form actions\n\nClick it → small modal opens with:\n- To: Matt (mattsmithremax@gmail.com) or Leo / John (johnwithmattsmithteam@gmail.com), defaulted from task.assigned_to\n- From: Leo / Matt / the team\n- Optional message: 'Can you handle this today? Closing on Friday...'\n- Task preview at the bottom showing what's about to be sent\n\nEmail content auto-includes:\n- Task title (subject + body)\n- Description (if any)\n- Status, priority, due date, assignee, category\n- The optional custom message\n- Link back to /tasks in the hub\n- Sender name in the from-line\n\nBackend (POST /api/tasks/:id/nudge):\n- Imports sendViaSendGrid from email.js (now exported)\n- Resolves recipient: matt/leo/john keywords or raw email\n- Sends via SendGrid through the existing pipeline\n- Logs the nudge as a note in the task's notes_log + as an activity entry, so there's an audit trail of who got nudged when about what",
-      "category": "other"
-    },
-    {
-      "hash": "f4ffcd3",
-      "date": "2026-05-07T09:15:41-05:00",
-      "subject": "Tasks: capture + show completion timestamp; Done column sorted newest-completed first",
-      "title": "Tasks: capture + show completion timestamp; Done column sorted newest-completed first",
-      "body": "Schema:\n- New tasks.completed_at TEXT column + migration with backfill (existing 'done' rows get their updated_at as a best-guess completion time)\n\nBackend (PUT /api/tasks/:id):\n- The MOMENT a task transitions into 'done' (whether via drag-drop, the toggle checkbox, or the modal save), completed_at is stamped with new Date().toISOString()\n- If a 'done' task is moved back to 'todo' or 'in_progress', completed_at is cleared\n- A task that was already 'done' and stays 'done' (just other fields edited) keeps its original completion time\n\nFrontend (Tasks page):\n- Each kanban card in the 'Done' column shows '✓ Completed May 6, 26' in green below the footer; hover for full timestamp\n- 'Done' column auto-sorts by completion timestamp DESC — most recently completed at the top, so what got finished today is visible first\n- New 'Completed' column added to the list/table view, also showing the date\n- Due-date pill is hidden on done cards (no point showing a pending due date once it's complete)",
-      "category": "other"
-    },
-    {
-      "hash": "4d2d6e9",
-      "date": "2026-05-06T18:37:56-05:00",
-      "subject": "Add 'Inline Images' to all email composers — embed local images as base64 so they render",
-      "title": "'Inline Images' to all email composers — embed local images as base64 so they render",
-      "body": "The Marion equity-check email's hero photo didn't render in Gmail because the HTML file referenced 'image.jpg' as a local file path. Recipients can't access local paths.\n\nSolution: 📷 Inline Images button on every email composer. Click → pick the image files referenced in your HTML → each one is read as base64 and the matching <img src=\"...\"> tags are rewritten to use embedded data URIs. The email becomes self-contained — works in every email client, no image hosting needed, no broken images later.\n\nImplementation:\n- New shared helper src/components/inlineImages.js with inlineImagesIntoBody(body, files)\n  - Matches images by basename (handles ./photos/x.jpg vs just x.jpg)\n  - Skips already-absolute (http/https) and already-data: URIs\n  - Returns { newBody, inlined: [filenames], unmatched: [filenames still local in body] }\n- Wired into all four email composers: Single email (Clients detail), Bulk email (Clients), Send Transaction Email, Send Pre-Listing Email\n- Alert after inlining shows what got embedded + flags any local <img> srcs that still need files uploaded\n\nWorkflow for designed HTML emails now:\n1. Click 📁 Load HTML File → pick the .html file\n2. Click 📷 Inline Images → pick all the images the HTML references\n3. Click 👁 Preview → confirm everything renders with images\n4. Click Send → recipient gets a fully self-contained email with embedded images",
-      "category": "feature"
     }
   ]
 }

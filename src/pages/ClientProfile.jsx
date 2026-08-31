@@ -421,15 +421,43 @@ function CommItem({ m }) {
 }
 
 // ── Compact email composer (reuses /api/email/send + templates) ──────────
+// The signature ({{signature}}) is pre-placed at the bottom so it's always there and can be
+// moved anywhere. "Insert field" drops merge fields ({{first_name}}, {{city_of_interest}}, …)
+// at the cursor, and Preview renders the final email — signature and fields filled in.
+const DEFAULT_BODY = '\n\n{{signature}}'
 function EmailComposer({ client, onClose, onSent }) {
   const [subject, setSubject] = useState('')
-  const [body, setBody] = useState('')
+  const [body, setBody] = useState(DEFAULT_BODY)
   const [templates, setTemplates] = useState([])
+  const [fields, setFields] = useState([])
   const [sending, setSending] = useState(false)
-  useEffect(() => { authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  const [preview, setPreview] = useState(null)   // {subject, html} or null
+  const [previewing, setPreviewing] = useState(false)
+  const taRef = React.useRef(null)
+  useEffect(() => {
+    authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {})
+    authFetch('/api/email/merge-fields').then(r => r.json()).then(f => setFields(Array.isArray(f) ? f : [])).catch(() => {})
+  }, [])
   const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+  const withSig = (t) => /\{\{\s*signature\s*\}\}/i.test(t) ? t : t + DEFAULT_BODY
+  // Insert a token at the caret (or replace the selection), keeping focus.
+  const insertToken = (tok) => {
+    const ta = taRef.current
+    if (!ta) { setBody(b => b + tok); return }
+    const s = ta.selectionStart ?? body.length, e = ta.selectionEnd ?? body.length
+    const next = body.slice(0, s) + tok + body.slice(e)
+    setBody(next)
+    requestAnimationFrame(() => { ta.focus(); const p = s + tok.length; ta.setSelectionRange(p, p) })
+  }
+  const doPreview = async () => {
+    setPreviewing(true)
+    try {
+      const r = await authFetch('/api/email/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, subject, body: body.replace(/\n/g, '<br>') }) })
+      setPreview(await r.json())
+    } catch (e) { alert('Preview failed: ' + e.message) } finally { setPreviewing(false) }
+  }
   const send = async () => {
-    if (!body.trim()) return
+    if (!stripHtml(body).trim()) return
     setSending(true)
     try {
       const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>') }) })
@@ -437,17 +465,34 @@ function EmailComposer({ client, onClose, onSent }) {
       if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else alert('Email not sent: ' + (d.error || 'unknown'))
     } catch (e) { alert('Email failed: ' + e.message) } finally { setSending(false) }
   }
+  const inputStyle = { width: '100%', padding: '7px 9px', marginBottom: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)', fontSize: 13 }
   return (
     <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
-      <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center' }}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>To: {client.email}</span>
-        <TemplatePicker templates={templates} onPick={t => { if (t.subject) setSubject(t.subject); setBody(stripHtml(t.body)) }} />
+        <TemplatePicker templates={templates} onPick={t => { if (t.subject) setSubject(t.subject); setBody(withSig(stripHtml(t.body))) }} />
+        <select value="" onChange={e => { if (e.target.value) { insertToken(e.target.value); e.target.value = '' } }}
+          title="Insert a merge field at the cursor"
+          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
+          <option value="">+ Insert field…</option>
+          {fields.map(f => <option key={f.token} value={f.token}>{f.label}</option>)}
+        </select>
       </div>
-      <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={{ width: '100%', padding: '7px 9px', marginBottom: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)', fontSize: 13 }} />
-      <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} placeholder="Write your email…" style={{ width: '100%', padding: 9, fontSize: 13, lineHeight: 1.5, resize: 'vertical' }} />
+      <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={inputStyle} />
+      <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Write your email…" style={{ width: '100%', padding: 9, fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
+      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+        Fields like <code>{'{{first_name}}'}</code> and <code>{'{{signature}}'}</code> fill in automatically when the email is sent. Use Preview to see the final version for {client.first_name || 'this lead'}.
+      </div>
+      {preview && (
+        <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 6, background: '#fff' }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 9px', borderBottom: '1px solid var(--border)' }}>PREVIEW · Subject: {preview.subject || '(no subject)'}</div>
+          <div style={{ padding: 12, color: '#0f172a', fontSize: 13, maxHeight: 320, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: preview.html || '' }} />
+        </div>
+      )}
       <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Sending…' : 'Send Email'}</button>
+        <button className="btn btn-secondary btn-sm" onClick={doPreview} disabled={previewing}>{previewing ? 'Loading…' : (preview ? 'Refresh Preview' : 'Preview')}</button>
+        <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || !stripHtml(body).trim()}>{sending ? 'Sending…' : 'Send Email'}</button>
       </div>
     </div>
   )
