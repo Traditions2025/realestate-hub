@@ -28,7 +28,17 @@ const DEFAULT_BUSINESS = {
 function ServiceBalances() {
   const [data, setData] = useState(null)
   const [busy, setBusy] = useState(false)
+  const [edit, setEdit] = useState(false)
+  const [balInput, setBalInput] = useState('')
+  const [savingBal, setSavingBal] = useState(false)
   const load = () => { setBusy(true); authFetch('/api/inbox/service-balances').then(r => r.json()).then(d => setData(d || {})).catch(() => setData({ error: 'Could not load' })).finally(() => setBusy(false)) }
+  const saveBal = async () => {
+    const n = Number(balInput)
+    if (!isFinite(n)) { alert('Enter a number like 19.75'); return }
+    setSavingBal(true)
+    try { await authFetch('/api/inbox/claude-balance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance: n }) }); setEdit(false); load() }
+    catch (e) { alert('Save failed: ' + e.message) } finally { setSavingBal(false) }
+  }
   useEffect(() => { load() }, [])
   const tw = data?.twilio || {}, cl = data?.claude || {}
   const money = (n, cur) => (n == null ? '—' : `${cur === 'USD' || !cur ? '$' : ''}${Number(n).toFixed(2)}${cur && cur !== 'USD' ? ' ' + cur : ''}`)
@@ -63,14 +73,30 @@ function ServiceBalances() {
         </div>
         {/* Claude / AI */}
         <div style={card}>
-          <span style={lbl}>Claude / AI (texting brain)</span>
-          {cl.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 13 }}>{cl.error}</span> : (
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <span style={lbl}>Claude / AI (texting brain)</span>
+            {!edit && <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 11 }} onClick={() => { setBalInput(cl.saved_balance != null ? String(cl.saved_balance) : ''); setEdit(true) }}>Update</button>}
+          </div>
+          {cl.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 13 }}>{cl.error}</span> : edit ? (
+            <div style={{ display: 'grid', gap: 6 }}>
+              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Remaining balance from console.anthropic.com</label>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <span style={{ fontSize: 18, color: 'var(--text-muted)' }}>$</span>
+                <input value={balInput} onChange={e => setBalInput(e.target.value)} placeholder="19.75" inputMode="decimal"
+                  style={{ width: 100, padding: '6px 8px', fontSize: 16, border: '1px solid var(--border)', borderRadius: 6 }} />
+                <button className="btn btn-primary btn-sm" onClick={saveBal} disabled={savingBal}>{savingBal ? 'Saving…' : 'Save'}</button>
+                <button className="btn btn-sm" onClick={() => setEdit(false)}>Cancel</button>
+              </div>
+            </div>
+          ) : (
             <>
-              <span style={big()}>{money(cl.est_spend_30d)}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>est. AI spend, last 30 days · {cl.ai_actions_30d ?? 0} AI actions</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Model: {cl.model}</span>
+              <span style={big()}>{cl.saved_balance != null ? money(cl.saved_balance) : '—'}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                remaining balance{cl.saved_balance_at ? ` · you entered this ${new Date(cl.saved_balance_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' })}` : ' · not set — tap Update'}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Est. Hub usage: {money(cl.est_spend_30d)} / 30 days · {cl.ai_actions_30d ?? 0} actions · {cl.model}</span>
               <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{cl.note}</span>
-              {cl.billing_url && <a href={cl.billing_url} target="_blank" rel="noreferrer" style={link}>View live balance / billing at Anthropic →</a>}
+              {cl.billing_url && <a href={cl.billing_url} target="_blank" rel="noreferrer" style={link}>Open Anthropic billing to check / top up →</a>}
             </>
           )}
         </div>

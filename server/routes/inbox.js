@@ -873,15 +873,27 @@ router.get('/service-balances', async (_req, res) => {
     const rate = m.includes('opus') ? { i: 15 / 1e6, o: 75 / 1e6 } : m.includes('haiku') ? { i: 0.8 / 1e6, o: 4 / 1e6 } : { i: 3 / 1e6, o: 15 / 1e6 }
     let r = { ti: 0, tout: 0, n: 0 }
     try { r = db.get("SELECT COALESCE(SUM(tokens_input),0) ti, COALESCE(SUM(tokens_output),0) tout, COUNT(*) n FROM ai_actions WHERE created_at >= datetime('now','-30 days') AND status='success'") || r } catch {}
+    const savedBal = db.getSetting('anthropic_balance', '')
     out.claude = {
       model, live_balance_available: false,
+      saved_balance: savedBal !== '' && savedBal != null ? Number(savedBal) : null,
+      saved_balance_at: db.getSetting('anthropic_balance_at', '') || null,
       est_spend_30d: +(((r.ti || 0) * rate.i) + ((r.tout || 0) * rate.o)).toFixed(2),
       ai_actions_30d: r.n || 0,
-      note: 'Anthropic does not expose a live credit balance via the API. This is the Hub\'s estimated AI spend over the last 30 days from its own token logs.',
+      note: 'Anthropic doesn\'t expose a live balance via the API, so enter what the console shows and it\'ll be saved here. The estimate below is only partial AI usage from the Hub logs.',
       billing_url: 'https://console.anthropic.com/settings/billing',
     }
   } catch (e) { out.claude = { error: e.message } }
   res.json(out)
+})
+
+// Save the Anthropic remaining balance the user reads off the console (no API to pull it).
+router.post('/claude-balance', (req, res) => {
+  const b = Number(req.body?.balance)
+  if (!isFinite(b)) return res.status(400).json({ error: 'balance must be a number' })
+  db.setSetting('anthropic_balance', String(b))
+  db.setSetting('anthropic_balance_at', new Date().toISOString())
+  res.json({ ok: true, saved_balance: b, saved_balance_at: db.getSetting('anthropic_balance_at', '') })
 })
 
 // Read-only: actual Twilio balance + today's & this month's Lookup usage/charges,

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-08-31T18:55:04.238Z",
+  "generated_at": "2026-08-31T19:03:46.572Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4bbd35f",
+      "date": "2026-08-31T13:55:15-05:00",
+      "subject": "Settings: Service Balances card — live Twilio balance + estimated Claude/AI spend",
+      "title": "Settings: Service Balances card — live Twilio balance + estimated Claude/AI spend",
+      "body": "Adds GET /api/inbox/service-balances (Twilio Balance.json + account status;\nClaude spend estimated from ai_actions token logs over last 30 days, model-aware\nrate) and a Settings 'Service Balances' card with a Refresh button and top-up links.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e389796",
       "date": "2026-08-31T13:34:24-05:00",
@@ -3993,14 +4001,6 @@
       "title": "'Inline Images' to all email composers — embed local images as base64 so they render",
       "body": "The Marion equity-check email's hero photo didn't render in Gmail because the HTML file referenced 'image.jpg' as a local file path. Recipients can't access local paths.\n\nSolution: 📷 Inline Images button on every email composer. Click → pick the image files referenced in your HTML → each one is read as base64 and the matching <img src=\"...\"> tags are rewritten to use embedded data URIs. The email becomes self-contained — works in every email client, no image hosting needed, no broken images later.\n\nImplementation:\n- New shared helper src/components/inlineImages.js with inlineImagesIntoBody(body, files)\n  - Matches images by basename (handles ./photos/x.jpg vs just x.jpg)\n  - Skips already-absolute (http/https) and already-data: URIs\n  - Returns { newBody, inlined: [filenames], unmatched: [filenames still local in body] }\n- Wired into all four email composers: Single email (Clients detail), Bulk email (Clients), Send Transaction Email, Send Pre-Listing Email\n- Alert after inlining shows what got embedded + flags any local <img> srcs that still need files uploaded\n\nWorkflow for designed HTML emails now:\n1. Click 📁 Load HTML File → pick the .html file\n2. Click 📷 Inline Images → pick all the images the HTML references\n3. Click 👁 Preview → confirm everything renders with images\n4. Click Send → recipient gets a fully self-contained email with embedded images",
       "category": "feature"
-    },
-    {
-      "hash": "0a3dbd6",
-      "date": "2026-05-06T18:31:57-05:00",
-      "subject": "Single email composer: same HTML upload + preview + attachments as bulk",
-      "title": "Single email composer: same HTML upload + preview + attachments as bulk",
-      "body": "The single email send-to-client modal (opens from a client's detail panel) was missing the HTML/attachment features that the bulk + transaction composers had. Now matches:\n\n- 📁 Load HTML File button — pick an .html file from disk, contents go straight into Body\n- 👁 Preview button — opens iframe rendering the HTML with merge variables (first_name/last_name/full_name/address/city) filled from the linked client\n- 📎 Add Attachment — multi-select files, attaches as base64 to the SendGrid send (PDFs, images, etc.)\n- Body textarea: 12 → 20 rows, monospace font, drag-resize\n- Backend /api/email/send now accepts attachments[] + cc[] params and forwards to sendViaSendGrid\n\nNet result: every email send modal in the hub (Single client, Bulk, Transaction, Pre-Listing) has identical capabilities — load HTML, preview, attach files, send.",
-      "category": "other"
     }
   ]
 }
