@@ -24,6 +24,62 @@ const DEFAULT_BUSINESS = {
   poc_email: 'mattsmithremax@gmail.com', poc_phone: '(319) 943-1585',
 }
 
+// Twilio (live) + Claude/AI (estimated from logs) balances, so you can recheck in one place.
+function ServiceBalances() {
+  const [data, setData] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const load = () => { setBusy(true); authFetch('/api/inbox/service-balances').then(r => r.json()).then(d => setData(d || {})).catch(() => setData({ error: 'Could not load' })).finally(() => setBusy(false)) }
+  useEffect(() => { load() }, [])
+  const tw = data?.twilio || {}, cl = data?.claude || {}
+  const money = (n, cur) => (n == null ? '—' : `${cur === 'USD' || !cur ? '$' : ''}${Number(n).toFixed(2)}${cur && cur !== 'USD' ? ' ' + cur : ''}`)
+  const lowTwilio = tw.balance != null && tw.balance < 10
+  const card = { border: '1px solid var(--border)', borderRadius: 10, padding: 16, display: 'grid', gap: 6, background: 'var(--surface, #fff)' }
+  const big = (color) => ({ fontSize: 26, fontWeight: 700, color: color || 'var(--text)', fontVariantNumeric: 'tabular-nums' })
+  const lbl = { fontSize: 11, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }
+  const link = { fontSize: 12, color: 'var(--primary, #2563eb)', textDecoration: 'none' }
+  return (
+    <section className="detail-section">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+        <h4 style={{ margin: 0 }}>Service Balances</h4>
+        <button className="btn btn-sm" onClick={load} disabled={busy}>{busy ? 'Refreshing…' : '↻ Refresh'}</button>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 12px' }}>
+        What the texting + AI run on. Twilio is live; Claude/AI is estimated from the Hub's own usage logs.
+      </p>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px,100%),1fr))', gap: 12 }}>
+        {/* Twilio */}
+        <div style={card}>
+          <span style={lbl}>Twilio (texts + calls)</span>
+          {tw.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 13 }}>{tw.error}</span> : (
+            <>
+              <span style={big(lowTwilio ? 'var(--danger,#dc2626)' : (tw.balance < 0 ? 'var(--danger,#dc2626)' : undefined))}>{money(tw.balance, tw.currency)}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Account: <b style={{ color: tw.account_status === 'active' ? 'var(--success,#16a34a)' : 'var(--danger,#dc2626)' }}>{tw.account_status || 'unknown'}</b>
+              </span>
+              {lowTwilio && <span style={{ fontSize: 12, color: 'var(--danger,#dc2626)' }}>⚠ Low balance — top up before running texts.</span>}
+              {tw.top_up_url && <a href={tw.top_up_url} target="_blank" rel="noreferrer" style={link}>Add funds / manage billing →</a>}
+            </>
+          )}
+        </div>
+        {/* Claude / AI */}
+        <div style={card}>
+          <span style={lbl}>Claude / AI (texting brain)</span>
+          {cl.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 13 }}>{cl.error}</span> : (
+            <>
+              <span style={big()}>{money(cl.est_spend_30d)}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>est. AI spend, last 30 days · {cl.ai_actions_30d ?? 0} AI actions</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Model: {cl.model}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.4 }}>{cl.note}</span>
+              {cl.billing_url && <a href={cl.billing_url} target="_blank" rel="noreferrer" style={link}>View live balance / billing at Anthropic →</a>}
+            </>
+          )}
+        </div>
+      </div>
+      {data?.checked_at && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, display: 'block' }}>Checked {new Date(data.checked_at).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT</span>}
+    </section>
+  )
+}
+
 export default function Settings() {
   const [signature, setSignature] = useState('')
   const [account, setAccount] = useState(EMPTY_ACCOUNT)
@@ -132,6 +188,7 @@ export default function Settings() {
 
       {loading ? <p style={{ color: 'var(--text-muted)' }}>Loading…</p> : (
         <div style={{ display: 'grid', gap: 24, maxWidth: 760, width: '100%', gridTemplateColumns: 'minmax(0, 1fr)' }}>
+          <ServiceBalances />
           {/* Account info */}
           <section className="detail-section">
             <h4>Account Info</h4>

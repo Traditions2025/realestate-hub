@@ -851,6 +851,39 @@ router.post('/send', async (req, res) => {
   res.json({ sent: results.filter(r => r.ok).length, results })
 })
 
+// One place to see both service balances in the Hub (Settings). Twilio balance is live;
+// Anthropic does NOT expose a live credit balance to a normal API key, so we show the
+// Hub's estimated AI spend from our own logs + a link to top up.
+router.get('/service-balances', async (_req, res) => {
+  const out = { twilio: {}, claude: {}, checked_at: new Date().toISOString() }
+  try {
+    const { twilioConfig } = await import('../twilio.js')
+    const c = twilioConfig()
+    if (c.sid && c.token) {
+      const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+      const get = async (u) => { try { const r = await fetch(u, { headers: { Authorization: auth } }); return r.ok ? await r.json() : {} } catch { return {} } }
+      const bal = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Balance.json`)
+      const acct = await get(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}.json`)
+      out.twilio = { balance: bal.balance != null ? Number(bal.balance) : null, currency: bal.currency || 'USD', account_status: acct.status || null, reachable: bal.balance != null, top_up_url: 'https://console.twilio.com/us1/billing/manage-billing/billing-overview' }
+    } else out.twilio = { error: 'Twilio not configured' }
+  } catch (e) { out.twilio = { error: e.message } }
+  try {
+    const model = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
+    const m = model.toLowerCase()
+    const rate = m.includes('opus') ? { i: 15 / 1e6, o: 75 / 1e6 } : m.includes('haiku') ? { i: 0.8 / 1e6, o: 4 / 1e6 } : { i: 3 / 1e6, o: 15 / 1e6 }
+    let r = { ti: 0, tout: 0, n: 0 }
+    try { r = db.get("SELECT COALESCE(SUM(tokens_input),0) ti, COALESCE(SUM(tokens_output),0) tout, COUNT(*) n FROM ai_actions WHERE created_at >= datetime('now','-30 days') AND status='success'") || r } catch {}
+    out.claude = {
+      model, live_balance_available: false,
+      est_spend_30d: +(((r.ti || 0) * rate.i) + ((r.tout || 0) * rate.o)).toFixed(2),
+      ai_actions_30d: r.n || 0,
+      note: 'Anthropic does not expose a live credit balance via the API. This is the Hub\'s estimated AI spend over the last 30 days from its own token logs.',
+      billing_url: 'https://console.anthropic.com/settings/billing',
+    }
+  } catch (e) { out.claude = { error: e.message } }
+  res.json(out)
+})
+
 // Read-only: actual Twilio balance + today's & this month's Lookup usage/charges,
 // so we can see exactly what the line-type scrub cost (not an estimate).
 router.get('/twilio-usage', async (_req, res) => {
