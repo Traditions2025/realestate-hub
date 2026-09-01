@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T17:38:37.161Z",
+  "generated_at": "2026-09-01T17:46:30.761Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "23d7fcc",
+      "date": "2026-09-01T12:38:47-05:00",
+      "subject": "Cancelled/Expired list: custom columns (drop visits/last-visit; add Off Market Date, MLS Status, MLS #)",
+      "title": "Cancelled/Expired list: custom columns (drop visits/last-visit; add Off Market Date, MLS Status, MLS #)",
+      "body": "The Cancelled/Expired saved list now renders a fixed column set instead of the\nglobal chosen columns: score, name, status, type, phone, email, address, source,\nOff Market Date, MLS Status (color-coded Cancelled/Expired/Withdrawn), MLS #.\nAdds a clients.mls_status column populated by expired-master (raw sheet col P) on\nboth matched updates and created leads.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "dac093c",
       "date": "2026-09-01T12:21:14-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "db: malformed-file recovery + disable the migration that caused corruption",
       "title": "db: malformed-file recovery + disable the migration that caused corruption",
       "body": "Two safety fixes for the production outage caused by a corrupt\nrealestate-hub.db on Render's persistent disk:\n\n1. initDb() now wraps the load in try/catch + runs PRAGMA quick_check.\n   If the file is unreadable ('disk image malformed', etc), it's\n   renamed to *.broken-{timestamp} (preserving for later recovery)\n   and a fresh empty DB is created so the server can boot. Loud logs\n   tell the operator the file was set aside.\n\n2. Disabled the agency_type CHECK-constraint recreate-table migration.\n   Its hardcoded new schema (~55 cols) no longer matched the live\n   transactions table (~80+ cols after later ALTER ADD COLUMN\n   migrations), so every boot hit:\n       INSERT INTO transactions SELECT * FROM transactions_old;\n       -> table has 55 columns but 82 values were supplied\n   That happened inside a BEGIN TRANSACTION block; the partial state\n   plus the saveDb() at the end of initDb was slowly corrupting the\n   on-disk file. The CHECK constraint is harmless — agency_type only\n   ever takes a few specific values from the UI dropdown. Left the\n   block behind a `false` guard so the original intent is documented.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e67acdc",
-      "date": "2026-05-11T09:51:12-05:00",
-      "subject": "Revert \"Listings: internal notes thread with @mentions + redesigned stage tabs\"",
-      "title": "Revert \"Listings: internal notes thread with @mentions + redesigned stage tabs\"",
-      "body": "This reverts commit ab07ae2e9099ecb5ec068dc9b602b443170a5c7a.",
       "category": "other"
     }
   ]

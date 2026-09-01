@@ -157,6 +157,22 @@ function loadColumnPrefs() {
     }
   }
 }
+// The Cancelled/Expired list keeps its OWN column order/visibility (separate localStorage key),
+// so reordering it never disturbs the main list. Restricted to EXPIRED_COLUMN_KEYS.
+const COLUMN_PREFS_KEY_EXPIRED = 'mst_clients_columns_expired_v1'
+function loadExpiredColumnPrefs() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(COLUMN_PREFS_KEY_EXPIRED) || 'null')
+    if (!parsed || !Array.isArray(parsed.order)) throw new Error('no prefs')
+    const order = parsed.order.filter(k => EXPIRED_COLUMN_KEYS.includes(k))
+    for (const k of EXPIRED_COLUMN_KEYS) if (!order.includes(k)) order.push(k)
+    const visible = {}
+    for (const k of EXPIRED_COLUMN_KEYS) visible[k] = parsed.visible && k in parsed.visible ? !!parsed.visible[k] : true
+    return { order, visible }
+  } catch {
+    return { order: [...EXPIRED_COLUMN_KEYS], visible: Object.fromEntries(EXPIRED_COLUMN_KEYS.map(k => [k, true])) }
+  }
+}
 
 // Sierra-aligned status list: { hubValue (lowercase_underscore), label, sierraValue }
 // hubValue must match what the sync writes via mapStatus() and what the backend's
@@ -328,7 +344,14 @@ export default function Clients() {
   const [editing, setEditing] = useState(null)
   const [editingOriginal, setEditingOriginal] = useState(null)
   const [form, setForm] = useState(emptyClient)
-  const [colPrefs, setColPrefs] = useState(loadColumnPrefs)
+  // Saved lists + active list live up here so the per-list column prefs below can key off them.
+  const [savedLists, setSavedLists] = useState([])
+  const [activeListId, setActiveListId] = useState(null)
+  const [colPrefs, setColPrefs] = useState(loadColumnPrefs)                         // main list
+  const [expiredColPrefs, setExpiredColPrefs] = useState(loadExpiredColumnPrefs)    // Cancelled/Expired list
+  const isExpiredList = /^(cancelled|expired)/i.test((savedLists.find(l => l.id === activeListId)?.name) || '')
+  const activeColPrefs = isExpiredList ? expiredColPrefs : colPrefs
+  const setActiveColPrefs = isExpiredList ? setExpiredColPrefs : setColPrefs
   const [columnsPickerOpen, setColumnsPickerOpen] = useState(false)
   const [dragColKey, setDragColKey] = useState(null)
   // Manual column widths (drag-to-resize), persisted per table. One 'clients' layout — the FSBO
@@ -339,7 +362,7 @@ export default function Clients() {
   const resizingRef = useRef(false)   // set true while a resize drag is active, so it never starts a column-reorder drag
   // Auto-fit a column to its rendered header + cell content (double-click the divider, or menu).
   const autoFitColumn = React.useCallback((key) => {
-    const vis = colPrefs.order.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(c => c && colPrefs.visible[c.key])
+    const vis = activeColPrefs.order.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(c => c && activeColPrefs.visible[c.key])
     const i = vis.findIndex(c => c.key === key); if (i < 0) return
     const col = vis[i]; const childIdx = i + 1   // grid child 0 is the checkbox cell
     let max = 40
@@ -351,21 +374,21 @@ export default function Clients() {
     }
     const px = Math.min(560, Math.max(colMin(col), max + 20))
     commitColWidth(key, px)
-  }, [colPrefs, commitColWidth])
+  }, [activeColPrefs, commitColWidth])
   const autoFitVisible = () => { for (const c of visibleColumns) autoFitColumn(c.key) }
 
-  useEffect(() => {
-    try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(colPrefs)) } catch {}
-  }, [colPrefs])
+  useEffect(() => { try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(colPrefs)) } catch {} }, [colPrefs])
+  useEffect(() => { try { localStorage.setItem(COLUMN_PREFS_KEY_EXPIRED, JSON.stringify(expiredColPrefs)) } catch {} }, [expiredColPrefs])
 
-  const visibleColumns = colPrefs.order
+  // Columns for the active list (the Cancelled/Expired list has its own set + order).
+  const visibleColumns = activeColPrefs.order
     .map(k => LIST_COLUMNS.find(c => c.key === k))
-    .filter(c => c && colPrefs.visible[c.key])
+    .filter(c => c && activeColPrefs.visible[c.key])
 
-  const toggleColumn = (key) => setColPrefs(p => ({ ...p, visible: { ...p.visible, [key]: !p.visible[key] } }))
+  const toggleColumn = (key) => setActiveColPrefs(p => ({ ...p, visible: { ...p.visible, [key]: !p.visible[key] } }))
   const reorderColumn = (fromKey, toKey) => {
     if (!fromKey || !toKey || fromKey === toKey) return
-    setColPrefs(p => {
+    setActiveColPrefs(p => {
       const order = [...p.order]
       const fromIdx = order.indexOf(fromKey)
       const toIdx = order.indexOf(toKey)
@@ -375,10 +398,9 @@ export default function Clients() {
       return { ...p, order }
     })
   }
-  const resetColumns = () => setColPrefs({
-    order: LIST_COLUMNS.map(c => c.key),
-    visible: Object.fromEntries(LIST_COLUMNS.map(c => [c.key, c.defaultVisible])),
-  })
+  const resetColumns = () => setActiveColPrefs(isExpiredList
+    ? { order: [...EXPIRED_COLUMN_KEYS], visible: Object.fromEntries(EXPIRED_COLUMN_KEYS.map(k => [k, true])) }
+    : { order: LIST_COLUMNS.map(c => c.key), visible: Object.fromEntries(LIST_COLUMNS.map(c => [c.key, c.defaultVisible])) })
   const [detailOpen, setDetailOpen] = useState(false)
   const [mergeOpen, setMergeOpen] = useState(false)
   const [bulkMergeOpen, setBulkMergeOpen] = useState(false)
@@ -464,8 +486,6 @@ export default function Clients() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [], viewed_cities: [] })
   const [dripCampaigns, setDripCampaigns] = useState([])
-  const [savedLists, setSavedLists] = useState([])
-  const [activeListId, setActiveListId] = useState(null)
   // Smart lists: server-computed segments (past-client return, no-email, most-active).
   const [smartList, setSmartList] = useState(null)
   const [smartCounts, setSmartCounts] = useState({})
@@ -1635,7 +1655,7 @@ export default function Clients() {
                     </div>
                     <div className="columns-picker-hint">Drag to reorder. Toggle checkboxes to show/hide. Drag a header edge to resize (double-click it to auto-fit).</div>
                     <ul className="columns-picker-list">
-                      {colPrefs.order.map(key => {
+                      {activeColPrefs.order.map(key => {
                         const col = LIST_COLUMNS.find(c => c.key === key)
                         if (!col) return null
                         return (
@@ -1652,7 +1672,7 @@ export default function Clients() {
                             <label>
                               <input
                                 type="checkbox"
-                                checked={!!colPrefs.visible[key]}
+                                checked={!!activeColPrefs.visible[key]}
                                 onChange={() => toggleColumn(key)}
                               />
                               {col.label}
@@ -2385,15 +2405,11 @@ export default function Clients() {
         // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
         // Fixed pixel widths: columns keep the width the user set and never redistribute; when
         // the total exceeds the viewport the list scrolls horizontally (readability over squeeze).
-        // In the FSBO list the "Visits" column is repurposed as "FSBO Status"; the
-        // Cancelled/Expired list gets its OWN fixed column set (drops visits/last-visit, adds
-        // off-market date, MLS status, MLS #). Everything else uses the user's chosen columns.
-        const activeListName = (savedLists.find(l => l.id === activeListId)?.name || '')
-        const isFsboList = activeListName.toUpperCase() === 'FSBO'
-        const isExpiredList = /^(cancelled|expired)/i.test(activeListName)
-        const cols = isExpiredList
-          ? EXPIRED_COLUMN_KEYS.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(Boolean)
-          : visibleColumns
+        // In the FSBO list the "Visits" column is repurposed as "FSBO Status". The
+        // Cancelled/Expired list's own column set + order is already baked into visibleColumns
+        // (via activeColPrefs), and it's reorderable/persisted just like the main list.
+        const isFsboList = (savedLists.find(l => l.id === activeListId)?.name || '').toUpperCase() === 'FSBO'
+        const cols = visibleColumns
         const gridTemplate = `30px ${cols.map(c => colWidthPx(c) + 'px').join(' ')}`
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
