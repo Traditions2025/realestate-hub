@@ -67,12 +67,17 @@ export function activeSequencesForClient(clientId) {
     try { stepsArr = JSON.parse(r.steps || '[]') } catch { stepsArr = [] }
     const { steps, ...rest } = r
     const cur = stepsArr[r.current_step] || null
+    // Subject for the label. Steps may carry an inline subject OR pull it from a template.
+    let subj = cur ? (cur.subject || '') : ''
+    if (cur && !subj && cur.template_id) {
+      try { subj = db.get('SELECT subject FROM templates WHERE id=?', [cur.template_id])?.subject || '' } catch { /* ignore */ }
+    }
     return {
       ...rest,
       total_steps: stepsArr.length,
       // 1-based label for the human ("Email 4 of 12"); current_step is 0-based next-to-send.
       next_step_number: Math.min(r.current_step + 1, stepsArr.length),
-      next_step_subject: cur ? (cur.subject || '(no subject)') : null,
+      next_step_subject: cur ? (subj || '(no subject)') : null,
     }
   })
   const automations = db.all(
