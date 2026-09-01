@@ -539,7 +539,23 @@ const SORT_OPTIONS = {
   // against lead_activity; with the index on (client_id, created_at) this
   // is acceptable for the typical clients page size.
   hub_activity: "(SELECT COUNT(*) FROM lead_activity la WHERE la.client_id = clients.id AND la.created_at >= datetime('now','-14 days')) DESC, sierra_update_date DESC NULLS LAST",
+  // Communication recency — sort by latest inbound text / inbound email / outbound call.
+  // These reference the computed aliases added to the rows SELECT below.
+  last_text_recent: 'last_text_in DESC NULLS LAST',
+  last_text_oldest: 'last_text_in ASC NULLS LAST',
+  last_email_recent: 'last_email_in DESC NULLS LAST',
+  last_email_oldest: 'last_email_in ASC NULLS LAST',
+  last_call_recent: 'last_call_made DESC NULLS LAST',
+  last_call_oldest: 'last_call_made ASC NULLS LAST',
 }
+
+// Correlated per-lead comm-recency columns (opt-in list columns). MAX(occurred_at) of an
+// inbound text, inbound email, and outbound call. communications is indexed on (client_id,
+// occurred_at), so this stays cheap at the clients-page size.
+const COMM_RECENCY_SELECT = `,
+  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='text'  AND co.direction='incoming') AS last_text_in,
+  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='email' AND co.direction='incoming') AS last_email_in,
+  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='call'  AND co.direction='outgoing') AS last_call_made`
 
 router.get('/', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 5000)
@@ -550,7 +566,7 @@ router.get('/', (req, res) => {
   const orderBy = SORT_OPTIONS[sortKey] || SORT_OPTIONS.recent_activity
 
   const total = db.get(`SELECT COUNT(*) as c FROM clients${where}`, params).c
-  const rows = db.all(`SELECT * FROM clients${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
+  const rows = db.all(`SELECT *${COMM_RECENCY_SELECT} FROM clients${where} ORDER BY ${orderBy} LIMIT ? OFFSET ?`,
     [...params, limit, offset])
 
   res.set('X-Total-Count', String(total))

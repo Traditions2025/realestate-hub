@@ -111,6 +111,10 @@ const LIST_COLUMNS = [
   { key: 'mls_status', label: 'MLS Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'mls_number', label: 'MLS #', defaultVisible: false, size: 'normal' },
   { key: 'fsbo_price', label: 'Price', defaultVisible: false, size: 'normal', align: 'right' },
+  // Opt-in comm-recency columns (add per list via the Columns picker). Sort by latest.
+  { key: 'last_text_in', label: 'Last Text In', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_oldest', desc: 'last_text_recent' } },
+  { key: 'last_email_in', label: 'Last Email In', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_oldest', desc: 'last_email_recent' } },
+  { key: 'last_call_made', label: 'Last Call', defaultVisible: false, size: 'normal', sort: { asc: 'last_call_oldest', desc: 'last_call_recent' } },
 ]
 // The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
 // date, MLS status, and MLS #.
@@ -120,6 +124,14 @@ const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 // Live days-on-market for the FSBO list: always today - List Date, so it's current the
 // moment you open the page (the daily sync also recomputes the stored value). Falls back to
 // the stored fsbo_dom when there's no parseable List Date.
+// Short date for the comm-recency columns (last text/email/call). Handles "YYYY-MM-DD HH:MM:SS"
+// (assumed UTC) and ISO; returns an em dash when empty.
+function fmtCommDate(v) {
+  if (!v) return '—'
+  const s = String(v); const iso = s.includes('T') ? s : s.replace(' ', 'T') + (s.endsWith('Z') ? '' : 'Z')
+  const d = new Date(iso)
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 function fsboDomLive(listDate, stored) {
   if (listDate) {
     const d = new Date(String(listDate).replace(' ', 'T'))
@@ -2633,6 +2645,12 @@ export default function Clients() {
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
             case 'fsbo_price':
               return <div key="fsbo_price" className="cl-source" style={{ fontWeight: 600 }}>{item.fsbo_price ? '$' + Number(item.fsbo_price).toLocaleString() : '—'}</div>
+            case 'last_text_in':
+              return <div key="last_text_in" className="cl-registered">{fmtCommDate(item.last_text_in)}</div>
+            case 'last_email_in':
+              return <div key="last_email_in" className="cl-registered">{fmtCommDate(item.last_email_in)}</div>
+            case 'last_call_made':
+              return <div key="last_call_made" className="cl-registered">{fmtCommDate(item.last_call_made)}</div>
             default: return null
           }
         }
