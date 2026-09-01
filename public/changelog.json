@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-09-01T15:50:35.215Z",
+  "generated_at": "2026-09-01T16:27:49.905Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "d09ccea",
+      "date": "2026-09-01T11:01:46-05:00",
+      "subject": "Expired master: schedule the daily/hourly refresh (verify numbers agreed)",
+      "title": "Expired master: schedule the daily/hourly refresh (verify numbers agreed)",
+      "body": "Dry-run + live run matched the brief (186 rows, 140 off-market, 32 back-on-market,\n4 sold; 88% match rate = real absences + safety skips, not a normalization bug;\n0 new junks, all 18 already junked; fields read back correctly; list held at 148).\nAdded the expired-master refresh to the Sierra tick with the same hourly throttle\nand isolation as the FSBO block.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "180d2cb",
+      "date": "2026-09-01T10:57:07-05:00",
+      "subject": "Expired/Cancelled master sync (on-demand, dry-run first; not scheduled)",
+      "title": "Expired/Cancelled master sync (on-demand, dry-run first; not scheduled)",
+      "body": "Mirrors fsbo-master.js: server/expired-master.js reads the Expired/Cancelled\nMaster File, matches clients by ADDRESS+CITY (normalized, long-forms expanded)\nwith Name-1 confirmation to avoid junking a stranger/previous owner, writes\noff_market_date/mls_number/listing_agent, and junks leads back on the market\n(Active/Pending/Contingent/Backup, or a Sold within 24 months). Never junks on\nunknown/empty status. Adds POST /api/lists/expired/sync (?dry=1) + GET\n/api/lists/expired/status and a listing_agent column. No scheduler entry yet,\npending verification of the brief's numbers.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ac651ae",
+      "date": "2026-09-01T10:53:15-05:00",
+      "subject": "Action Plans: resolve next-email subject from template when step has no inline subject",
+      "title": "Action Plans: resolve next-email subject from template when step has no inline subject",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ef8313d",
+      "date": "2026-09-01T10:50:48-05:00",
+      "subject": "Action Plans: pause/resume, delay-next, next-email info + read, real button controls",
+      "title": "Action Plans: pause/resume, delay-next, next-email info + read, real button controls",
+      "body": "Profile Action Plans now show per plan: status pill, the next email (Email N of M\n+ subject, clickable to preview the rendered email for this lead), and when it\nsends. Replaces the faint x with Pause/Resume, Delay (+1d/3d/1wk/2wk/1mo), Read,\nand Remove buttons.\n\nBackend: per-enrollment pause/resume/delay endpoints for BOTH drips and\nautomations (drip tick already skips non-active; automation due query skips\nnon active/waiting, so 'paused' halts sends; resume reschedules next_run_at,\ndelay pushes it out with holiday-bump). activeSequencesForClient now returns drip\nstatus (incl paused), next_step_number, and next_step_subject.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "12a5d26",
       "date": "2026-09-01T10:36:35-05:00",
@@ -3968,38 +4000,6 @@
       "subject": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
       "title": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
       "body": "- Cash deals (type_of_finance = 'Cash') skip Mortgage Contingency and\n  Financing Release rows — no buyer financing, no need to track them.\n- Action items now appear even when both date and status are blank.\n  Skipped only when status is in a TERMINAL state (Completed / Received\n  / Ready / Signed / N/A). Blank rows render muted ('not set yet') so\n  they don't compete with active items but still flag that nothing's\n  been entered.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "81c6401",
-      "date": "2026-05-08T18:54:10-05:00",
-      "subject": "Digest: status dropdowns are primary, dates are timing context",
-      "title": "Digest: status dropdowns are primary, dates are timing context",
-      "body": "Items in the per-transaction action list are now driven by status:\n\n- Status terminal (Completed / Received / Ready / Signed / N/A) →\n  item is dropped regardless of date. The dropdown is the source of\n  truth for done-ness.\n- Status pending + date set → show with date-based severity\n  (OVERDUE / TODAY / URGENT / WATCH)\n- Status pending + no date → still surface as URGENT with\n  '(no date set) · status: ...' so it doesn't fall through the cracks\n\nNew items added to the action list because they have status dropdowns:\n  Inspection release, Final inspection waiver,\n  Abstract, Title commitment, Mortgage payoff, ALTA, Deed package\n\nTop-of-email Action Items table now renders status text in the\n'date' column when no date is set.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b0c705b",
-      "date": "2026-05-08T18:47:21-05:00",
-      "subject": "Transactions: remove HOA Docs and Seller Acknowledgment from checklist",
-      "title": "Transactions: remove HOA Docs and Seller Acknowledgment from checklist",
-      "body": "Removed from both the form and the daily digest. DB columns stay\nin place so any prior data isn't dropped.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "66cc35a",
-      "date": "2026-05-08T18:43:36-05:00",
-      "subject": "Transactions: payment method dropdown + financing follow-up + pending-only digest",
-      "title": "Transactions: payment method dropdown + financing follow-up + pending-only digest",
-      "body": "Form changes:\n- Closing Logistics: 'Verify How Buyer Is Paying' dropdown replaces the\n  Wire Instructions checkbox. Options: Wire (verified by phone), Check,\n  Cashier's Check, Cash, Other. Selecting any value implies verification.\n- New 'Followed Up on Financing Release' checkbox in Closing Logistics\n\nDigest changes:\n- Per-transaction card now shows a progress bar (X/Y done, color-coded\n  red <50% / amber <80% / green ≥80%) instead of a sea of green/gray chips\n- Below the bar: ONLY the pending items grouped by phase, in a yellow\n  callout box — so 'what still needs doing' is the focus\n- 'All complete' badge when nothing's pending\n- Closing line now also shows buyer payment method when set\n- Progress count + pending list respect the side filter (purchase / listing\n  / both / blank-shows-all)\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4eae4d0",
-      "date": "2026-05-08T18:27:21-05:00",
-      "subject": "Transactions: 'Both' Type option for dual-agency deals",
-      "title": "Transactions: 'Both' Type option for dual-agency deals",
-      "body": "When the team represents both buyer and seller, set Type = Both.\n- Form: shows every checklist item from both sides (no filtering)\n  with a 🔄 BOTH SIDES (dual agency) badge in the section header\n- Daily digest: same — every chip from both sides renders so neither\n  half of the work falls through; transaction card shows a purple\n  'BOTH SIDES' pill instead of the green LISTING / blue PURCHASE\n- Also fixed digest's side-pill detection: was reading tx.transaction_type\n  (never set), now reads tx.type which is the actual column\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

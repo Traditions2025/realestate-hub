@@ -222,13 +222,26 @@ router.post('/enrollments/:eid/resume', (req, res) => {
   db.run("UPDATE drip_enrollments SET status='active', next_run_at=? WHERE id=?", [next, e.id])
   res.json({ success: true, status: 'active', next_run_at: next })
 })
+// Delay the next email either by a preset { days } OR to an exact { until: 'YYYY-MM-DD' }.
+// An explicit date is scheduled inside the campaign's normal send window on that calendar day
+// (rolled forward off holidays / a passed window), so a hand-picked date still lands in-hours.
 router.post('/enrollments/:eid/delay', (req, res) => {
-  const days = Math.floor(Number(req.body?.days) || 0)
-  if (!(days > 0)) return res.status(400).json({ error: 'days must be a positive number' })
-  const e = db.get('SELECT id, next_run_at FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
+  const e = db.get('SELECT id, drip_id, current_step, next_run_at FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
   if (!e) return res.status(404).json({ error: 'enrollment not found' })
-  const baseMs = Math.max(Date.now(), e.next_run_at ? new Date(e.next_run_at).getTime() : Date.now())
-  const next = bumpPastHolidays(new Date(baseMs + days * 86400000).toISOString())
+  const until = String(req.body?.until || '').trim()
+  let next
+  if (until) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) return res.status(400).json({ error: 'until must be YYYY-MM-DD' })
+    const targetMs = Date.parse(until + 'T12:00:00Z')
+    if (isNaN(targetMs)) return res.status(400).json({ error: 'invalid date' })
+    const step = parse(db.get('SELECT steps FROM drip_campaigns WHERE id=?', [e.drip_id])?.steps, [])[e.current_step] || {}
+    next = nextSendIso(Math.max(targetMs, Date.now()), { ...step, delay_days: 0 })   // that day, in the send window
+  } else {
+    const days = Math.floor(Number(req.body?.days) || 0)
+    if (!(days > 0)) return res.status(400).json({ error: 'days must be positive, or pass until' })
+    const baseMs = Math.max(Date.now(), e.next_run_at ? new Date(e.next_run_at).getTime() : Date.now())
+    next = bumpPastHolidays(new Date(baseMs + days * 86400000).toISOString())
+  }
   db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [next, e.id])
   res.json({ success: true, next_run_at: next })
 })

@@ -638,18 +638,25 @@ function TransactionsCard({ cid, onAdd, navigate }) {
 }
 
 // ── Action Plans (drip / automation / action plan enrollments) ───────────
-// Small "Delay next…" dropdown that fires onPick(days).
-function DelayMenu({ onPick, disabled }) {
+// "Delay next…" — a preset dropdown (+N days) OR an exact date picker. Picking a date sets the
+// next send to that day; presets push out from the current schedule.
+function DelayMenu({ onDelayDays, onDelayUntil, disabled }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const sel = { fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }
   return (
-    <select disabled={disabled} value="" onChange={e => { if (e.target.value) { onPick(Number(e.target.value)); e.target.value = '' } }}
-      title="Delay the next email" style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
-      <option value="">⏱ Delay…</option>
-      <option value="1">+1 day</option>
-      <option value="3">+3 days</option>
-      <option value="7">+1 week</option>
-      <option value="14">+2 weeks</option>
-      <option value="30">+1 month</option>
-    </select>
+    <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
+      <select disabled={disabled} value="" onChange={e => { if (e.target.value) { onDelayDays(Number(e.target.value)); e.target.value = '' } }} title="Delay by a preset" style={sel}>
+        <option value="">⏱ Delay…</option>
+        <option value="1">+1 day</option>
+        <option value="3">+3 days</option>
+        <option value="7">+1 week</option>
+        <option value="14">+2 weeks</option>
+        <option value="30">+1 month</option>
+      </select>
+      <input type="date" disabled={disabled} min={today} title="…or pick the exact next send date"
+        onChange={e => { if (e.target.value) { onDelayUntil(e.target.value); e.target.value = '' } }}
+        style={{ ...sel, padding: '2px 4px' }} />
+    </span>
   )
 }
 const fmtPlanDate = (iso) => { if (!iso) return null; const d = new Date(String(iso).replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
@@ -696,7 +703,7 @@ function ActionPlans({ cid }) {
           {paused
             ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => call('drip', eid, 'resume')}>▶ Resume</button>
             : <button className="btn btn-sm" disabled={busy} onClick={() => call('drip', eid, 'pause')}>⏸ Pause</button>}
-          {e.next_step_subject && <DelayMenu disabled={busy} onPick={days => call('drip', eid, 'delay', { days })} />}
+          {e.next_step_subject && <DelayMenu disabled={busy} onDelayDays={days => call('drip', eid, 'delay', { days })} onDelayUntil={until => call('drip', eid, 'delay', { until })} />}
           {e.next_step_subject && <button className="btn btn-sm" onClick={() => openPreview(e)}>📖 Read</button>}
           <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => remove('drip', eid)}>Remove</button>
         </div>
@@ -715,7 +722,7 @@ function ActionPlans({ cid }) {
           {paused
             ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => call('automation', eid, 'resume')}>▶ Resume</button>
             : <button className="btn btn-sm" disabled={busy} onClick={() => call('automation', eid, 'pause')}>⏸ Pause</button>}
-          <DelayMenu disabled={busy} onPick={days => call('automation', eid, 'delay', { days })} />
+          <DelayMenu disabled={busy} onDelayDays={days => call('automation', eid, 'delay', { days })} onDelayUntil={until => call('automation', eid, 'delay', { until })} />
           <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => remove('automation', eid)}>Remove</button>
         </div>
       </div>

@@ -858,13 +858,23 @@ router.post('/enrollments/:eid/resume', (req, res) => {
   db.run('UPDATE automation_enrollments SET status=?, next_run_at=? WHERE id=?', [status, next, e.id])
   res.json({ success: true, status, next_run_at: next })
 })
+// Delay the next step by a preset { days } OR to an exact { until: 'YYYY-MM-DD' } (~9am Central).
 router.post('/enrollments/:eid/delay', (req, res) => {
-  const days = Math.floor(Number(req.body?.days) || 0)
-  if (!(days > 0)) return res.status(400).json({ error: 'days must be a positive number' })
   const e = db.get('SELECT id, next_run_at FROM automation_enrollments WHERE id=?', [Number(req.params.eid)])
   if (!e) return res.status(404).json({ error: 'enrollment not found' })
-  const baseMs = Math.max(Date.now(), e.next_run_at ? new Date(e.next_run_at).getTime() : Date.now())
-  const next = bumpPastHolidays(new Date(baseMs + days * 86400000).toISOString())
+  const until = String(req.body?.until || '').trim()
+  let next
+  if (until) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(until)) return res.status(400).json({ error: 'until must be YYYY-MM-DD' })
+    const targetMs = Date.parse(until + 'T15:00:00Z')   // ~9-10am America/Chicago
+    if (isNaN(targetMs)) return res.status(400).json({ error: 'invalid date' })
+    next = bumpPastHolidays(new Date(Math.max(targetMs, Date.now())).toISOString())
+  } else {
+    const days = Math.floor(Number(req.body?.days) || 0)
+    if (!(days > 0)) return res.status(400).json({ error: 'days must be positive, or pass until' })
+    const baseMs = Math.max(Date.now(), e.next_run_at ? new Date(e.next_run_at).getTime() : Date.now())
+    next = bumpPastHolidays(new Date(baseMs + days * 86400000).toISOString())
+  }
   db.run('UPDATE automation_enrollments SET next_run_at=? WHERE id=?', [next, e.id])
   res.json({ success: true, next_run_at: next })
 })
