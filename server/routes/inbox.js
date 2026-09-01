@@ -971,13 +971,23 @@ router.post('/backfill-fsbo-emails', (req, res) => {
   const dry = req.query.dry === '1' || req.body?.dry === true
   const all = req.query.scope === 'all'
   const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
-  const rows = db.all(`SELECT id, first_name, last_name, email FROM clients
+  // Inbound texts stored under a group/conversation (client_id NULL) — map by sender phone so a
+  // lead's emailed-in reply is still found even when it lives in a single-participant conversation.
+  const groupByPhone = new Map()
+  for (const r of db.all("SELECT from_addr, body FROM communications WHERE client_id IS NULL AND channel='text' AND direction='incoming' AND from_addr IS NOT NULL")) {
+    const k = phoneKey(r.from_addr); if (!k) continue
+    if (!groupByPhone.has(k)) groupByPhone.set(k, [])
+    groupByPhone.get(k).push(r.body)
+  }
+  const rows = db.all(`SELECT id, first_name, last_name, email, phone FROM clients
       WHERE merged_into IS NULL ${all ? '' : "AND fsbo_status IS NOT NULL AND fsbo_status != ''"}`)
   const out = { dry, scanned: rows.length, updated: 0, changes: [], skipped_has_real_email: [] }
   for (const c of rows) {
-    const texts = db.all("SELECT body FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' ORDER BY occurred_at DESC", [c.id])
+    const own = db.all("SELECT body FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' ORDER BY occurred_at DESC", [c.id]).map(r => r.body)
+    const k = phoneKey(c.phone)
+    const bodies = [...own, ...(k ? (groupByPhone.get(k) || []) : [])]
     let found = null
-    for (const t of texts) { const m = String(t.body || '').match(EMAIL); if (m && !/notvalidemail/i.test(m[0])) { found = m[0].trim(); break } }
+    for (const b of bodies) { const m = String(b || '').match(EMAIL); if (m && !/notvalidemail/i.test(m[0])) { found = m[0].trim(); break } }
     if (!found) continue
     const cur = String(c.email || '')
     const placeholder = !cur || /notvalidemail/i.test(cur)
