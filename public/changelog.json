@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T21:15:03.678Z",
+  "generated_at": "2026-09-01T21:51:17.975Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "1e81f7e",
+      "date": "2026-09-01T16:15:06-05:00",
+      "subject": "Clients: Columns picker offers ALL columns on every list (incl. fixed-set lists)",
+      "title": "Clients: Columns picker offers ALL columns on every list (incl. fixed-set lists)",
+      "body": "The Cancelled/Expired list has a fixed column set, so its picker didn't offer\ncomm-recency columns (Last Text/Email/Call). The picker now lists every column on\nany list, and toggling one on appends it to that list's order so it renders. Lets\nLast Text/Email/Call be applied on all statuses/lists.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7876035",
       "date": "2026-09-01T16:13:13-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Tasks deadlines: inline status dropdown + skip walkthrough on listing-only",
       "title": "Tasks deadlines: inline status dropdown + skip walkthrough on listing-only",
       "body": "Two changes:\n\n1. Listing-side transactions (type='listing') no longer surface\n   Final Walkthrough — that's a buyer-side activity (the buyer\n   schedules and conducts the walkthrough to check the property\n   before closing). Purchase + dual-agency transactions still see it.\n\n2. Each deadline card with a status dropdown field now has an inline\n   <select> at the bottom of the card. Changing the value PUTs to\n   /api/transactions/:id and the deadlines list auto-refreshes.\n   Currently editable inline:\n     - Earnest money (Not Started / In Progress / Completed)\n     - Inspection (Not Started / Ordered / Completed / Waived / N/A)\n     - Appraisal (Not Started / Ordered / Completed / Waived / N/A)\n   When a status becomes terminal (Completed / Waived / N/A), the\n   card automatically drops off the column on the next refresh.\n   Cards without a status field (Closing, walkthrough, etc.) still\n   click-through to /transactions.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e5b5824",
-      "date": "2026-05-13T10:28:14-05:00",
-      "subject": "Tasks deadlines: sort chronologically (nearest to farthest by date)",
-      "title": "Tasks deadlines: sort chronologically (nearest to farthest by date)",
-      "body": "Was sorting by severity tier first (OVERDUE > TODAY > URGENT > WATCH >\nnormal) and only sorting by date within each tier. That meant a\n'normal' deadline 8 days out came after a 'URGENT' deadline 2 days out\nwhich is fine, BUT items within the same tier could feel out of order\nto the user (e.g., overdue by 10d came before overdue by 1d).\n\nNow: strict ascending sort by daysOut. Most-overdue first (oldest\nmissed deadline), then today, then future ones progressing outward.\nThe colored left-border tag still conveys urgency at a glance.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

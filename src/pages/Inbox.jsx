@@ -124,7 +124,7 @@ export default function Inbox() {
   const [aiBusy, setAiBusy] = useState('')
   const [aiCtx, setAiCtx] = useState('')
   const [sending, setSending] = useState(false)
-  const [replyOpen, setReplyOpen] = useState(false)   // AI/reply composer minimized by default (saves space)
+  const [replyOpen, setReplyOpen] = useState(true)   // reply composer open by default so you can type right away
   const [openMsgs, setOpenMsgs] = useState({})        // per-message expand overrides (Gmail-style thread collapse)
   const [replyMedia, setReplyMedia] = useState([])    // outgoing MMS photos: [{url,type}]
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -174,7 +174,7 @@ export default function Inbox() {
     if (!clientId) return
     setUnknownSel(null); setGroupSel(null)
     setSel(clientId)
-    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(false); setOpenMsgs({}); setReplyMedia([])
+    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setOpenMsgs({}); setReplyMedia([])
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
     // AI: restore a saved draft, else the suggestion; generate on first open / when a newer email arrived
@@ -188,6 +188,13 @@ export default function Inbox() {
     }).catch(() => {})
   }
   const closeThread = (clientId) => authFetch(`/api/inbox/thread/${clientId}/close`, { method: 'POST' }).then(() => { setSel(null); load() })
+  // Deep link: /inbox?client=ID (from the "View in Inbox" button in the text-notification email)
+  // opens that lead's thread on load.
+  useEffect(() => {
+    const cid = new URLSearchParams(window.location.search).get('client')
+    if (cid && /^\d+$/.test(cid)) openThread(Number(cid))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Open the most recent conversation automatically, so the full blue/white chat shows
   // without needing a click. Runs once after the list first loads; a manual Close does

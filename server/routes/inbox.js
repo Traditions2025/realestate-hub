@@ -126,11 +126,17 @@ async function notifyInboundText(client, body, fromPhone) {
     const to = db.getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
     if (!to) return
     const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromPhone
+    const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    const btn = (href, label, primary) => `<a href="${href}" style="display:inline-block;padding:9px 16px;border-radius:8px;font-weight:600;font-size:13px;text-decoration:none;${primary ? 'background:#2563eb;color:#fff;' : 'background:#fff;color:#2563eb;border:1px solid #2563eb;'}">${label}</a>`
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
       <p style="margin:0 0 10px;"><strong>${escHtml(name)}</strong> just texted the Hub.</p>
       <p style="margin:0 0 4px;"><strong>From:</strong> ${escHtml(fromPhone)}</p>
       <p style="margin:8px 0;background:#f1f5f9;padding:10px 12px;border-radius:8px;">${escHtml(body).slice(0, 600)}</p>
-      <p style="margin:6px 0 0;color:#64748b;font-size:12px;">Reply from the Hub Inbox.</p></div>`
+      <p style="margin:16px 0 0;">
+        ${btn(`${hub}/inbox?client=${client.id}`, 'View in Inbox', true)}
+        &nbsp;
+        ${btn(`${hub}/clients/${client.id}`, 'View Lead Profile', false)}
+      </p></div>`
     await sendViaSendGrid(to, 'Matt Smith Team', `New text from ${name}`, html, null, [], [], [], 'inbox_notify')
   } catch {}
 }
