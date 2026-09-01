@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T16:27:49.905Z",
+  "generated_at": "2026-09-01T16:35:37.452Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "2bb891b",
+      "date": "2026-09-01T11:28:00-05:00",
+      "subject": "Action Plans delay: allow an exact next-send date, not just presets",
+      "title": "Action Plans delay: allow an exact next-send date, not just presets",
+      "body": "DelayMenu now has a date picker alongside the +N-day presets. Passing\n{ until: 'YYYY-MM-DD' } schedules the next email on that calendar day inside the\ncampaign's send window (holiday/passed-window rolled forward); presets still push\nout from the current schedule. Both drip and automation delay endpoints accept\nuntil.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d09ccea",
       "date": "2026-09-01T11:01:46-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Listings: internal notes thread with @mentions + redesigned stage tabs",
       "title": "Listings: internal notes thread with @mentions + redesigned stage tabs",
       "body": "Backend:\n- New listings.notes_log column (JSON array of {at, by, text, mentions})\n- POST /api/listings/:id/notes — parses @matt / @leo / @john mentions,\n  emails the mentioned teammate(s) with the note text and a link back\n  to the hub\n- DELETE /api/listings/:id/notes/:idx\n\nFrontend — listing modal:\n- New 💬 Notes tab with composer (by-author dropdown, multi-line text)\n  and a reverse-chronological thread of past notes\n- @mentions render as inline pills in the saved notes\n- 'notified: @matt' badge shows when a note triggered an email\n- Per-note delete button\n\nFrontend — stage tabs redesigned:\n- Replaced the small text-tab strip with a 6-column card grid showing\n  large count + uppercase label, color-coded left accent bar per stage\n  (purple pre-listing / amber coming soon / green active / blue under\n  contract / slate closed) and a subtle lift + glow on the active card\n- Mobile collapses to 3 columns\n\nAlso: deleted the orphan 2416 C St SW listing (id=1) on the live DB\nthat was creating the duplicate row.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "835cb3c",
-      "date": "2026-05-08T18:59:58-05:00",
-      "subject": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
-      "title": "Digest: cash skips mortgage; surface blank action rows as 'not set yet'",
-      "body": "- Cash deals (type_of_finance = 'Cash') skip Mortgage Contingency and\n  Financing Release rows — no buyer financing, no need to track them.\n- Action items now appear even when both date and status are blank.\n  Skipped only when status is in a TERMINAL state (Completed / Received\n  / Ready / Signed / N/A). Blank rows render muted ('not set yet') so\n  they don't compete with active items but still flag that nothing's\n  been entered.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

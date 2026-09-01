@@ -484,6 +484,14 @@ export const SMART_LIST_SQL = {
     `((SELECT COUNT(DISTINCT fa.prop_mls) FROM fub_activity fa
         WHERE fa.client_id = clients.id AND fa.prop_mls IS NOT NULL AND fa.prop_mls != ''
           AND fa.occurred_at >= datetime('now','-30 days')) >= 20)`,
+  // Replied to one of our emails (an incoming email on the feed), excluding Junk / DNC.
+  responded_email:
+    `(EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='email' AND co.direction='incoming')
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact'))`,
+  // Replied to one of our texts (an incoming text on the feed), excluding Junk / DNC.
+  responded_text:
+    `(EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='incoming')
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact'))`,
   // Hot right now: a live PROSPECT who viewed in the last 24 hours (either activity source).
   // Excludes junk/DNC, past clients + Closed, FSBO, Cancelled/Expired imports, and Pending —
   // this is meant to surface active buyer/seller leads worth reaching today, not those buckets.

@@ -130,6 +130,8 @@ const SMART_LISTS = [
   { key: 'past_client_no_email', label: 'Past Client · No Email 90d', desc: "Past clients we haven't emailed in the last 90 days" },
   { key: 'most_active', label: 'Most Active (20+ / 30d)', desc: 'Leads who viewed 20+ listings in the last 30 days' },
   { key: 'viewed_24h', label: 'Viewed within 24 hours', desc: 'Leads who viewed the website in the last 24 hours' },
+  { key: 'responded_email', label: 'Responded to Email', desc: 'Leads who have replied to one of our emails (excludes Junk / DNC)' },
+  { key: 'responded_text', label: 'Responded to Text', desc: 'Leads who have replied to one of our texts (excludes Junk / DNC)' },
 ]
 
 function loadColumnPrefs() {
