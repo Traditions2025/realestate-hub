@@ -747,6 +747,21 @@ function doMerge(primaryId, dupIds, keepBoth = true) {
   return { success: true, primary_id: primaryId, merged, count: merged.length, alt_emails: [...altEmails], alt_phones: [...altPhones], tags: [...tagSet] }
 }
 
+// Repair: move rows that still point at a merged/archived duplicate onto the surviving record
+// (follows merge chains). Fixes texts/activity that landed on a duplicate after it was merged.
+router.post('/reassign-merged-comms', (_req, res) => {
+  const merged = db.all('SELECT id, merged_into FROM clients WHERE merged_into IS NOT NULL')
+  const map = Object.fromEntries(merged.map(m => [m.id, m.merged_into]))
+  const survivor = (id) => { let cur = id, g = 0; while (map[cur] && g++ < 20) cur = map[cur]; return cur }
+  const tbls = ['communications', 'ai_actions', 'behavioral_events', 'lead_activity', 'showings', 'transactions', 'ai_handoffs']
+  const counts = {}; let commsMoved = 0
+  for (const m of merged) {
+    const surv = survivor(m.id); if (surv === m.id) continue
+    for (const t of tbls) { try { const r = db.run(`UPDATE ${t} SET client_id=? WHERE client_id=?`, [surv, m.id]); counts[t] = (counts[t] || 0) + (r.changes || 0); if (t === 'communications') commsMoved += r.changes || 0 } catch {} }
+  }
+  res.json({ merged_records: merged.length, communications_moved: commsMoved, moved: counts })
+})
+
 router.post('/merge', (req, res) => {
   const primaryId = Number(req.body?.primary_id)
   const dupIds = (Array.isArray(req.body?.duplicate_ids) ? req.body.duplicate_ids : []).map(Number).filter(x => x && x !== primaryId)

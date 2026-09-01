@@ -83,13 +83,13 @@ function pickBestClient(cands) {
 function matchClient(channel, fromAddr) {
   if (!fromAddr) return null
   if (channel === 'email') {
-    const rows = db.all('SELECT id, first_name, last_name, status FROM clients WHERE lower(email) = lower(?)', [String(fromAddr).trim()])
+    const rows = db.all('SELECT id, first_name, last_name, status FROM clients WHERE lower(email) = lower(?) AND merged_into IS NULL', [String(fromAddr).trim()])
     return pickBestClient(rows)
   }
   const k = phoneKey(fromAddr)
   if (!k) return null
-  // match on the last 10 digits of the stored phone
-  const rows = db.all("SELECT id, first_name, last_name, phone, status FROM clients WHERE phone IS NOT NULL AND phone != ''").filter((c) => phoneKey(c.phone) === k)
+  // match on the last 10 digits of the stored phone — never a merged/archived duplicate.
+  const rows = db.all("SELECT id, first_name, last_name, phone, status FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL").filter((c) => phoneKey(c.phone) === k)
   return pickBestClient(rows)
 }
 
