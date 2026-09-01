@@ -110,6 +110,7 @@ const LIST_COLUMNS = [
   { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal', sort: { asc: 'off_market_oldest', desc: 'off_market_recent' } },
   { key: 'mls_status', label: 'MLS Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'mls_number', label: 'MLS #', defaultVisible: false, size: 'normal' },
+  { key: 'fsbo_status', label: 'FSBO Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'fsbo_price', label: 'Price', defaultVisible: false, size: 'normal', align: 'right' },
   // Opt-in comm-recency columns (add per list via the Columns picker). Sort by latest.
   { key: 'last_text_in', label: 'Last Text In', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_oldest', desc: 'last_text_recent' } },
@@ -2422,20 +2423,30 @@ export default function Clients() {
         // Cancelled/Expired list's own column set + order is already baked into visibleColumns
         // (via activeColPrefs), and it's reorderable/persisted just like the main list.
         const isFsboList = (savedLists.find(l => l.id === activeListId)?.name || '').toUpperCase() === 'FSBO'
-        // FSBO list: inject a Price column (from the master file) after DOM, if not already shown.
+        // FSBO list: inject a dedicated FSBO Status column (Available/Off Market) and a Price
+        // column from the master file, so they're always visible regardless of column prefs.
         let cols = visibleColumns
-        if (isFsboList && !cols.some(c => c.key === 'fsbo_price')) {
-          const priceCol = LIST_COLUMNS.find(c => c.key === 'fsbo_price')
-          if (priceCol) { cols = [...cols]; const at = cols.findIndex(c => c.key === 'type'); cols.splice(at >= 0 ? at + 1 : cols.length, 0, priceCol) }
+        if (isFsboList) {
+          cols = [...cols]
+          if (!cols.some(c => c.key === 'fsbo_status')) {
+            const sc = LIST_COLUMNS.find(c => c.key === 'fsbo_status')
+            const at = cols.findIndex(c => c.key === 'status')
+            if (sc) cols.splice(at >= 0 ? at + 1 : 1, 0, sc)
+          }
+          if (!cols.some(c => c.key === 'fsbo_price')) {
+            const priceCol = LIST_COLUMNS.find(c => c.key === 'fsbo_price')
+            const at = cols.findIndex(c => c.key === 'type')
+            if (priceCol) cols.splice(at >= 0 ? at + 1 : cols.length, 0, priceCol)
+          }
         }
         const gridTemplate = `30px ${cols.map(c => colWidthPx(c) + 'px').join(' ')}`
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
-          // FSBO Status -> click-to-filter (Available / Off Market).
-          if (isFsboList && col.key === 'visits') {
+          // FSBO Status -> click-to-filter (Available / Off Market). Dedicated column now.
+          if (col.key === 'fsbo_status') {
             const cur = (advFilters.fsbo_statuses_include && advFilters.fsbo_statuses_include.length === 1) ? advFilters.fsbo_statuses_include[0] : ''
-            return <ColumnFilterHeader key="visits" className="cl-visits" label="FSBO Status" value={cur}
+            return <ColumnFilterHeader key="fsbo_status" className="cl-type" label="FSBO Status" value={cur}
               options={[{ value: '', label: 'All' }, { value: 'Available', label: 'Available' }, { value: 'Off Market', label: 'Off Market' }]}
               onSelect={v => setAdvFilters(p => ({ ...p, fsbo_statuses_include: v ? [v] : [] }))} />
           }
@@ -2571,14 +2582,14 @@ export default function Clients() {
                   ? `${formatCurrency(item.budget_min) || '?'} - ${formatCurrency(item.budget_max) || '?'}`
                   : '—'}
               </div>
+            case 'fsbo_status': {
+              const fs = item.fsbo_status
+              const color = fs === 'Available' ? '#10b981' : fs === 'Off Market' ? '#ef4444' : 'var(--text-muted)'
+              return <div key="fsbo_status" className="cl-type" title="FSBO status (master file)">
+                {fs ? <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: color, padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{fs}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+              </div>
+            }
             case 'visits':
-              if (isFsboList) {
-                const fs = item.fsbo_status
-                const color = fs === 'Available' ? '#10b981' : fs === 'Off Market' ? '#ef4444' : 'var(--text-muted)'
-                return <div key="visits" className="cl-visits" title="FSBO status (master file)">
-                  {fs ? <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: color, padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{fs}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
-                </div>
-              }
               return <div key="visits" className="cl-visits">{item.visits || 0}</div>
             case 'source':
               // FSBO list: the Source column becomes the listing link(s) (Zillow, from the master file).

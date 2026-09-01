@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-01T18:48:39.132Z",
+  "generated_at": "2026-09-01T19:40:51.329Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e63f8cc",
+      "date": "2026-09-01T14:30:43-05:00",
+      "subject": "Inbox: POST /api/inbox/import-texts — record external (Sierra) text history onto profiles",
+      "title": "Inbox: POST /api/inbox/import-texts — record external (Sierra) text history onto profiles",
+      "body": "Matches each text to a lead by phone, inserts as a text communication (deduped by\ndeterministic external_id), so the Hub timeline + 'Last Text In' reflect texts\nthat happened in Sierra. Lets the team see who's been texted and when.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6302677",
+      "date": "2026-09-01T14:06:37-05:00",
+      "subject": "FSBO: main address = the FSBO listing address (and Sierra sync won't clobber it)",
+      "title": "FSBO: main address = the FSBO listing address (and Sierra sync won't clobber it)",
+      "body": "The lead's address is what {{address}} uses in texts/emails, so it must match the\nFSBO listing or we'd reference the wrong (maybe-not-even-listed) house. FSBO sync\nnow sets address/city/state/zip to the listing on matched leads (COALESCE so a\nblank listing never wipes a good address; created leads already do this), and the\nSierra incremental sync no longer overwrites address/city/state/zip for any lead\ncarrying an fsbo_status (guards against flip-flop).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cf0984a",
+      "date": "2026-09-01T13:48:42-05:00",
+      "subject": "Clients: opt-in columns Last Text In / Last Email In / Last Call + sort by latest",
+      "title": "Clients: opt-in columns Last Text In / Last Email In / Last Call + sort by latest",
+      "body": "Adds three comm-recency columns (last inbound text, last inbound email, last\noutbound call) computed per lead from the communications feed, addable via the\nColumns picker on any list (incl. smart lists), and sortable by latest. Default\nhidden so they don't clutter lists that don't need them.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e2a0682",
       "date": "2026-09-01T13:31:00-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "Closings: auto-invite team (John + Matt) + per-audience Buyer/Seller buttons",
       "title": "Closings: auto-invite team (John + Matt) + per-audience Buyer/Seller buttons",
       "body": "When a transaction has closing_date + closing_time + closing_location all\nset, an iCalendar invite fires automatically to the team:\n  johnwithmattsmithteam@gmail.com\n  mattsmithremax@gmail.com\n(override via TEAM_CLOSING_INVITE_RECIPIENTS env var)\n\nThe auto-send is idempotent — tracked via a closing_invite_signature\ncolumn ('date|time|location'). It only re-fires when one of those three\nfields changes, so saving the transaction for unrelated reasons won't\nre-spam the team.\n\nUI in the Closing Logistics section now shows a status line:\n  ✓ Team auto-invite sent to John + Matt — May 12 at 10:32 AM\n  ↳ Re-fires automatically if Closing Time or Location changes.\n\nPlus three on-demand buttons (audience-tagged):\n  📧 Send to Buyer\n  📧 Send to Seller\n  📧 Send to Other\nEach prompts for the email + optional note, sends the same .ics\nattachment, and logs to activity_log with the audience label.\n\nRefactored: extracted sendClosingInvite() as a shared helper used by\nboth the auto-send path and the HTTP endpoint (no more duplicated code).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "07d383d",
-      "date": "2026-05-11T17:39:49-05:00",
-      "subject": "Transactions: auto-sync closing to calendar + send .ics invite",
-      "title": "Transactions: auto-sync closing to calendar + send .ics invite",
-      "body": "Two new capabilities tied to the Closing Time / Closing Location fields:\n\n1. AUTO HUB CALENDAR SYNC\n   Whenever a transaction is saved with a closing_date, a 'Closing'\n   event is created/updated in the hub's calendar_events table:\n     - Title: 'Closing — <address>'\n     - Date / time from closing_date + closing_time\n     - Location from closing_location\n     - Description carries buyer/seller/lender/price\n     - related_type='transaction', related_id=tx.id for linkage\n   Removed automatically when status becomes Closed/Cancelled/Withdrawn/\n   Expired/Terminated, or when closing_date is cleared. Edits to the\n   transaction's fields propagate to the calendar entry.\n\n2. SEND CLOSING INVITE (.ICS)\n   New endpoint: POST /api/transactions/:id/send-closing-invite\n     body { recipients: 'email1, email2, ...', message?: '...' }\n   Builds an iCalendar (.ics) attachment with the closing details and\n   emails it via SendGrid. Recipients click to add to Google / Outlook\n   / Apple calendar.\n   - Handles DST automatically (computes America/Chicago offset for\n     the event date using Intl)\n   - Defaults to 10:00 AM if closing_time can't be parsed\n   - 1-hour block by default\n\n   UI: green callout in the Closing Logistics section (visible when\n   closing_date is set) with a 'Send Closing Invite' button that\n   prompts for recipients (pre-fills buyer/seller/lender emails) plus\n   an optional note.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e9699a0",
-      "date": "2026-05-11T16:16:55-05:00",
-      "subject": "Transactions: undo-style demote to Pre-Listing (no Withdrawn artifact)",
-      "title": "Transactions: undo-style demote to Pre-Listing (no Withdrawn artifact)",
-      "body": "Dragging a transaction from Active back to the Pre-Listing column used\nto (1) create a duplicate pre-listings row and (2) mark the transaction\nas Withdrawn. That left clutter for what's really just an undo of a\nmis-drag.\n\nNew behavior:\n- If the transaction was originally promoted from a pre-listing\n  (pre_listing_id is set) → flip that pre-listing's status from 'Listed'\n  back to 'New' and DELETE the transaction. True undo, original card\n  reappears in the Pre-Listing column.\n- If no link exists (transaction created directly) → create a fresh\n  pre-listing carrying address/owner/notes, delete the transaction.\n\nEither path leaves NO Withdrawn marker behind.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "51dedfd",
-      "date": "2026-05-11T10:57:34-05:00",
-      "subject": "db: disable destructive auto-recovery; add /broken-file discovery + restore",
-      "title": "db: disable destructive auto-recovery; add /broken-file discovery + restore",
-      "body": "The 2026-05-11 incident lost data twice because the malformed-DB\nrecovery path in 0430e39 auto-renamed the live file and created a\nfresh empty one. That's silent data loss disguised as 'recovery'.\nWorse: it fires on EVERY corrupt-load throw, so any boot with a\ntransient read issue trashed the disk.\n\nNEW: on a load failure, just THROW. Boot crashes loudly (502).\nA 502 is recoverable. Wiped data is not.\n\nTo find data the old recovery moved aside, two new endpoints:\n  GET  /api/backup/candidates   — lists /data/*.broken-* sidecars\n                                  plus all /data/backups/* snapshots,\n                                  newest first\n  POST /api/backup/restore body { source: \"/data/...path...\" }\n                                — copies the chosen file over\n                                  /data/realestate-hub.db (current\n                                  one renamed aside first). Caller\n                                  must redeploy to load into memory.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
