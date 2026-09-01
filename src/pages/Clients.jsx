@@ -402,7 +402,13 @@ export default function Clients() {
     .map(k => LIST_COLUMNS.find(c => c.key === k))
     .filter(c => c && activeColPrefs.visible[c.key])
 
-  const toggleColumn = (key) => setActiveColPrefs(p => ({ ...p, visible: { ...p.visible, [key]: !p.visible[key] } }))
+  // Toggle visibility; if turning ON a column not yet in this list's order (e.g. adding Last
+  // Text to the Cancelled/Expired list, whose default set is fixed), append it so it renders.
+  const toggleColumn = (key) => setActiveColPrefs(p => {
+    const on = !p.visible[key]
+    const order = (on && !p.order.includes(key)) ? [...p.order, key] : p.order
+    return { ...p, order, visible: { ...p.visible, [key]: on } }
+  })
   const reorderColumn = (fromKey, toKey) => {
     if (!fromKey || !toKey || fromKey === toKey) return
     setActiveColPrefs(p => {
@@ -1683,7 +1689,7 @@ export default function Clients() {
                     </div>
                     <div className="columns-picker-hint">Drag to reorder. Toggle checkboxes to show/hide. Drag a header edge to resize (double-click it to auto-fit).</div>
                     <ul className="columns-picker-list">
-                      {activeColPrefs.order.map(key => {
+                      {[...activeColPrefs.order, ...LIST_COLUMNS.map(c => c.key).filter(k => !activeColPrefs.order.includes(k))].map(key => {
                         const col = LIST_COLUMNS.find(c => c.key === key)
                         if (!col) return null
                         return (
