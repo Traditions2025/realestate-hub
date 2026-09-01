@@ -1805,6 +1805,9 @@ export async function initDb() {
       ['fsbo_dom', 'TEXT'],
       ['fsbo_notes', 'TEXT'],
       ['fsbo_link', 'TEXT'],
+      // Manually removed from FSBO (wrong owner / phone collision). The master-file sync
+      // skips these leads so a bad listing never re-attaches.
+      ['fsbo_excluded', 'INTEGER'],
       // P2-5: when a duplicate is merged into another client, this points to the survivor.
       // The row is kept (status archived) so a merge is reversible and never loses history.
       ['merged_into', 'INTEGER'],

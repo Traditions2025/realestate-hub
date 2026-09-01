@@ -157,7 +157,7 @@ export async function syncFsboMaster() {
     return 0
   }
   const better = (c, prev) => !prev || rank(c) > rank(prev) || (rank(c) === rank(prev) && c.id < prev.id)
-  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL")) {
+  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL AND (fsbo_excluded IS NULL OR fsbo_excluded=0)")) {
     const k = last10(c.phone); if (!k) continue
     if (better(c, index.get(k))) index.set(k, c)
   }

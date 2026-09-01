@@ -32,6 +32,20 @@ router.get('/smart-lists', (_req, res) => {
   res.json(out)
 })
 
+// Remove a wrongly-attached FSBO listing from a lead (phone collision: the number matched
+// but this person isn't the owner). Clears the FSBO fields, pulls them from the FSBO
+// follow-up sequence, and sets fsbo_excluded so the master sync never re-attaches it.
+router.post('/:id/remove-fsbo', (req, res) => {
+  const id = Number(req.params.id)
+  const c = db.get('SELECT id, fsbo_status FROM clients WHERE id=?', [id])
+  if (!c) return res.status(404).json({ error: 'client not found' })
+  db.run(`UPDATE clients SET fsbo_status=NULL, fsbo_status_at=NULL, fsbo_list_date=NULL,
+            fsbo_dom=NULL, fsbo_notes=NULL, fsbo_link=NULL, fsbo_listings=NULL,
+            fsbo_excluded=1, updated_at=? WHERE id=?`, [new Date().toISOString(), id])
+  try { db.run("UPDATE fsbo_followups SET status='stopped' WHERE client_id=?", [id]) } catch {}
+  res.json({ ok: true, id })
+})
+
 // Get just the IDs matching a filter (for "select all" mass actions)
 // By default returns ALL matching IDs regardless of email/opt-out status.
 // Pass ?email_ready=1 to only return clients with valid email + not opted out (for bulk email button).

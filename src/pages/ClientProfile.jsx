@@ -238,7 +238,7 @@ export default function ClientProfile() {
             details: () => <ClientDetails client={client} onSaved={load} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
-            propact: () => <PropertyActivity client={client} />,
+            propact: () => <PropertyActivity client={client} onSaved={load} />,
             interest: () => <ListingInterest client={client} />,
             website: () => <WebsiteActivity cid={cid} />,
             fub: () => <FubActivity cid={cid} />,
@@ -499,19 +499,29 @@ function EmailComposer({ client, onClose, onSent }) {
 }
 
 // ── Property / Web activity ──────────────────────────────────────────────
-function PropertyActivity({ client }) {
+function PropertyActivity({ client, onSaved }) {
   let listings = []
   try { listings = JSON.parse(client.fsbo_listings || '[]') } catch {}
+  const hasFsbo = !!(client.fsbo_status || listings.length)
   const lastViewed = client.last_fub_activity_at ? new Date(String(client.last_fub_activity_at).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
-  if (!listings.length && !lastViewed) return null
+  if (!listings.length && !lastViewed && !client.fsbo_status) return null
+  const removeFsbo = async () => {
+    if (!confirm(`Remove the FSBO listing from ${client.first_name || 'this lead'}'s profile?\n\nUse this when the FSBO isn't really theirs (a phone number matched the wrong person). It clears the listing and stops the master-file sync from re-attaching it.`)) return
+    try {
+      const r = await authFetch('/api/clients/' + client.id + '/remove-fsbo', { method: 'POST' })
+      if (r.ok) { onSaved && onSaved() } else alert('Could not remove FSBO.')
+    } catch (e) { alert('Remove failed: ' + e.message) }
+  }
   return (
-    <Section title={client.type === 'seller' || listings.length ? 'Subject Property / Activity' : 'Property Activity'} id="propact">
+    <Section title={client.type === 'seller' || listings.length ? 'Subject Property / Activity' : 'Property Activity'} id="propact"
+      right={hasFsbo ? <button className="btn btn-sm btn-danger" onClick={removeFsbo} title="Not the owner? Remove this FSBO listing and stop it re-attaching.">Remove FSBO</button> : null}>
       {listings.map((l, i) => (
         <div key={i} style={{ fontSize: 13, marginBottom: 6 }}>
           <strong>{l.address || '—'}</strong> {l.status ? <span className="cp-badge">{l.status}</span> : null} {l.dom != null ? <span style={{ color: 'var(--text-muted)' }}>DOM {l.dom}</span> : null}
           {l.link && <> — <a href={l.link} target="_blank" rel="noopener noreferrer" style={{ color: '#006aff', fontWeight: 600 }}>View Listing ↗</a></>}
         </div>
       ))}
+      {!listings.length && client.fsbo_status && <div style={{ fontSize: 13, marginBottom: 6 }}>FSBO status: <span className="cp-badge">{client.fsbo_status}</span></div>}
       {lastViewed && <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Last website activity: {lastViewed}{client.last_fub_activity_type ? ` · ${client.last_fub_activity_type}` : ''}</div>}
     </Section>
   )
