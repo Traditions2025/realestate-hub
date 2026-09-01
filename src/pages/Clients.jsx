@@ -113,7 +113,9 @@ const LIST_COLUMNS = [
   { key: 'fsbo_status', label: 'FSBO Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'fsbo_price', label: 'Price', defaultVisible: false, size: 'normal', align: 'right' },
   // Opt-in comm-recency columns (add per list via the Columns picker). Sort by latest.
+  { key: 'last_text', label: 'Last Text', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_any_oldest', desc: 'last_text_any_recent' } },
   { key: 'last_text_in', label: 'Last Text In', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_oldest', desc: 'last_text_recent' } },
+  { key: 'last_text_out', label: 'Last Text Out', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_out_oldest', desc: 'last_text_out_recent' } },
   { key: 'last_email_in', label: 'Last Email In', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_oldest', desc: 'last_email_recent' } },
   { key: 'last_call_made', label: 'Last Call', defaultVisible: false, size: 'normal', sort: { asc: 'last_call_oldest', desc: 'last_call_recent' } },
 ]
@@ -2656,6 +2658,10 @@ export default function Clients() {
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
             case 'fsbo_price':
               return <div key="fsbo_price" className="cl-source" style={{ fontWeight: 600 }}>{item.fsbo_price ? '$' + Number(item.fsbo_price).toLocaleString() : '—'}</div>
+            case 'last_text':
+              return <div key="last_text" className="cl-registered">{fmtCommDate(item.last_text_any)}</div>
+            case 'last_text_out':
+              return <div key="last_text_out" className="cl-registered">{fmtCommDate(item.last_text_out)}</div>
             case 'last_text_in':
               return <div key="last_text_in" className="cl-registered">{fmtCommDate(item.last_text_in)}</div>
             case 'last_email_in':

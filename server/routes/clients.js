@@ -547,6 +547,10 @@ const SORT_OPTIONS = {
   last_email_oldest: 'last_email_in ASC NULLS LAST',
   last_call_recent: 'last_call_made DESC NULLS LAST',
   last_call_oldest: 'last_call_made ASC NULLS LAST',
+  last_text_any_recent: 'last_text_any DESC NULLS LAST',
+  last_text_any_oldest: 'last_text_any ASC NULLS LAST',
+  last_text_out_recent: 'last_text_out DESC NULLS LAST',
+  last_text_out_oldest: 'last_text_out ASC NULLS LAST',
 }
 
 // Correlated per-lead comm-recency columns (opt-in list columns). MAX(occurred_at) of an
@@ -555,7 +559,9 @@ const SORT_OPTIONS = {
 const COMM_RECENCY_SELECT = `,
   (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='text'  AND co.direction='incoming') AS last_text_in,
   (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='email' AND co.direction='incoming') AS last_email_in,
-  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='call'  AND co.direction='outgoing') AS last_call_made`
+  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='call'  AND co.direction='outgoing') AS last_call_made,
+  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='text') AS last_text_any,
+  (SELECT MAX(co.occurred_at) FROM communications co WHERE co.client_id=clients.id AND co.channel='text' AND co.direction='outgoing') AS last_text_out`
 
 router.get('/', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 100, 5000)
