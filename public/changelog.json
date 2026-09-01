@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-01T20:07:08.387Z",
+  "generated_at": "2026-09-01T21:13:09.064Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3a9bd0b",
+      "date": "2026-09-01T15:52:39-05:00",
+      "subject": "AI: POST /api/ai/expired/disable-all — turn off AI for all Cancelled/Expired leads",
+      "title": "AI: POST /api/ai/expired/disable-all — turn off AI for all Cancelled/Expired leads",
+      "body": "Disables + unmanages each cancelled/expired lead (tag/source/mls_status match),\nsets AI_DISABLED, cancels pending scheduled AI actions.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2ddb36c",
+      "date": "2026-09-01T15:25:28-05:00",
+      "subject": "AI: POST /api/ai/fsbo/disable-all — turn off all AI for FSBO leads",
+      "title": "AI: POST /api/ai/fsbo/disable-all — turn off all AI for FSBO leads",
+      "body": "Flips fsbo_followup_enabled off (the proactive FSBO sequence force-sends bypass\nper-lead flags, so the global switch is the true stop) and disables/unmanages every\nFSBO lead, cancels their pending scheduled AI actions, and stops active FSBO\nfollow-up enrollments.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "dcf49d3",
+      "date": "2026-09-01T15:07:11-05:00",
+      "subject": "Clients: comm-recency columns render dates in Central time (team TZ)",
+      "title": "Clients: comm-recency columns render dates in Central time (team TZ)",
+      "body": "fmtCommDate now formats to America/Chicago so a late-night text never shows as\nthe next day for a non-Central viewer (e.g. the PH-based VA).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "77b6727",
       "date": "2026-09-01T14:58:16-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "Tasks: Transaction Deadlines moved into a 4th kanban column",
       "title": "Tasks: Transaction Deadlines moved into a 4th kanban column",
       "body": "The horizontal strip at the top was cramped. Reworked as a proper 4th\nkanban column (\"DEADLINES\") sitting next to TO DO / IN PROGRESS / DONE\nso the styling matches and each card is full-size and readable.\n\n- Kanban grid is now 4 columns (collapses to 2 below 1100px)\n- DEADLINES column is read-only — no drop target, no add button\n- Each card uses the same kanban-card shape as task cards, with a\n  colored left border indicating urgency (OVERDUE/TODAY/URGENT/WATCH)\n- Card layout: severity tag, action label, property address, date +\n  days-out, status (if pending)\n- Click any card → /transactions\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "89cc1f5",
-      "date": "2026-05-13T09:35:43-05:00",
-      "subject": "Walkthrough scheduling + Tasks deadlines strip + pre-listings filter",
-      "title": "Walkthrough scheduling + Tasks deadlines strip + pre-listings filter",
-      "body": "Three independent changes bundled into one deploy:\n\nPART 2 — Final Walkthrough scheduling (parallel to Closing)\n  - New fields: final_walkthrough_time, final_walkthrough_location,\n    final_walkthrough_confirmed, plus invite_signature/sent_at tracking\n  - Edit modal: Time + Location inputs below the Date input, plus a\n    purple callout with status line + Send to Buyer/Seller/Other\n    invite buttons (visible when date is set)\n  - syncWalkthroughToCalendar() — auto-creates a purple 'Walkthrough'\n    event in the hub calendar when date is set; updates on edits;\n    deletes when transaction closes/cancels\n  - maybeSendTeamWalkthroughInvite() — fires .ics to team\n    (John + Matt) once date+time+location are ALL set, idempotent via\n    signature so it won't re-spam on unrelated saves\n  - New checklist item in Closing Logistics: 'Final Walkthrough Time\n    + Location Confirmed' (side: both)\n  - POST /api/transactions/:id/send-walkthrough-invite\n\nPART 3 — Tasks tab: 'Transaction Deadlines' strip\n  - Above the kanban, a horizontal-scrollable row of date-driven\n    items from every Active/UC transaction\n  - Sorted by severity (OVERDUE → TODAY → URGENT → WATCH → normal)\n  - Color-coded left accent bar matching severity\n  - Cash deals skip mortgage contingency (matches digest logic)\n  - Terminal statuses (Completed/Waived/Received/etc.) drop their\n    item from the list — only PENDING items render\n  - Each card click → /transactions\n\nPre-listings: I also did a data cleanup pass on the live DB before\nthis commit — marked 2416 C St SW + Federalist as 'Listed' (they're\nalready active listings/transactions) and deleted two duplicates of\nexisting rows. No code change for that; just data.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3fcdfe7",
-      "date": "2026-05-12T16:44:28-05:00",
-      "subject": "Transactions: add Delete button to the edit modal",
-      "title": "Transactions: add Delete button to the edit modal",
-      "body": "Frontend-only change. The DELETE /api/transactions/:id endpoint has\nexisted for a long time but was only reachable via row-action buttons\nelsewhere — now there's a clear 🗑 Delete Transaction button on the\nedit modal itself for removing duplicates / wrong entries.\n\n- Only renders when editing an existing transaction (no delete in\n  the New Transaction modal)\n- Left-aligned in the form-actions row so it's visually separated\n  from the right-side Save/Cancel\n- Confirm dialog warns about Listings linkage (if the transaction\n  was auto-synced to a Listings entry, that needs separate deletion)\n- Refreshes the list and closes the modal after success\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "107403e",
-      "date": "2026-05-12T14:17:50-05:00",
-      "subject": "db: wait for BOTH /data paths to settle (mount-race bug fix)",
-      "title": "db: wait for BOTH /data paths to settle (mount-race bug fix)",
-      "body": "Previous loop exited as soon as EITHER /data/realestate-hub.db OR\n/data/backups was visible. If the main file mounted first and the\nbackups dir mounted slightly later, newestUsableBackup() returned\nnull → auto-restore couldn't fire → restored data got wiped again.\n\nTwo-phase wait:\n  1. Wait up to 30s for at least one of the two paths to appear\n  2. Then wait up to 10s more for the other path to settle\n\nThis ensures `newestUsableBackup()` sees the backups dir before the\nauto-restore decision is made.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

@@ -102,6 +102,7 @@ const LIST_COLUMNS = [
   { key: 'phone',      label: 'Phone',      defaultVisible: true,  size: 'normal' },
   { key: 'email',      label: 'Email',      defaultVisible: true,  size: 'flex' },
   { key: 'address',    label: 'Address',    defaultVisible: true,  size: 'flex' },
+  { key: 'zip',        label: 'Zip',        defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'zip_az', desc: 'zip_za' } },
   { key: 'budget',     label: 'Budget',     defaultVisible: false, size: 'normal' },
   { key: 'visits',     label: 'Visits',     defaultVisible: true,  size: 'compact', align: 'center', sort: { asc: 'least_visits',  desc: 'most_visits' } },
   { key: 'source',     label: 'Source',     defaultVisible: true,  size: 'normal' },
@@ -2669,6 +2670,8 @@ export default function Clients() {
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
             case 'fsbo_price':
               return <div key="fsbo_price" className="cl-source" style={{ fontWeight: 600 }}>{item.fsbo_price ? '$' + Number(item.fsbo_price).toLocaleString() : '—'}</div>
+            case 'zip':
+              return <div key="zip" className="cl-type">{item.zip || '—'}</div>
             case 'last_text':
               return <div key="last_text" className="cl-registered">{fmtCommDate(item.last_text_any)}</div>
             case 'last_text_out':

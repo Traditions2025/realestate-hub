@@ -522,6 +522,8 @@ const SORT_OPTIONS = {
   off_market_oldest: "date(off_market_date) ASC NULLS LAST",
   name_az: 'last_name ASC, first_name ASC',
   name_za: 'last_name DESC, first_name DESC',
+  zip_az: "NULLIF(zip,'') ASC NULLS LAST",
+  zip_za: "NULLIF(zip,'') DESC NULLS LAST",
   recent_update: 'updated_at DESC',
   oldest_first: "COALESCE(NULLIF(register_date,''), sierra_creation_date) ASC NULLS LAST",
   // Follow Up Boss last web visit (most/least active)
