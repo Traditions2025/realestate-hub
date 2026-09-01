@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T17:46:30.761Z",
+  "generated_at": "2026-09-01T17:55:58.245Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3ef6c2a",
+      "date": "2026-09-01T12:46:40-05:00",
+      "subject": "Cancelled/Expired list: make its custom columns reorderable + hideable (own prefs)",
+      "title": "Cancelled/Expired list: make its custom columns reorderable + hideable (own prefs)",
+      "body": "Drag wasn't working because the list rendered a hardcoded column array while the\ndrag handlers edited the global colPrefs. Now the Cancelled/Expired list has its\nOWN persisted column prefs (order + visibility, separate localStorage key), so\ndragging MLS Status etc. reorders this list only and never disturbs the main list.\nThe column picker, resize, auto-fit, and Reset all operate on whichever list is\nactive.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "23d7fcc",
       "date": "2026-09-01T12:38:47-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Data protection: 5-layer backup + integrity system (never lose data again)",
       "title": "Data protection: 5-layer backup + integrity system (never lose data again)",
       "body": "Direct response to today's DB corruption incident. The hub now has\nfive independent guards against data loss:\n\nLAYER 1 — OFF-RENDER EMAIL BACKUPS (server/backup.js)\n  Daily at 2 AM CT, the DB is gzipped and emailed as an attachment to\n  BACKUP_RECIPIENTS (defaults to mattsmithremax@gmail.com; comma-separated\n  env var). Capped at 25 MB compressed to stay under SendGrid's limit.\n  Off-disk copies survive even a total Render outage.\n\nLAYER 2 — PRE-MIGRATION SNAPSHOTS (server/database.js)\n  Before any migration runs, initDb() copies the file to\n  /data/backups/realestate-hub.db.pre-boot-{ts}. Keeps last 10 boots.\n  If a migration corrupts the file, the rollback is one cp away.\n\nLAYER 3 — MIGRATION LEDGER (_migrations table + runMigration helper)\n  Each named migration runs at most once. The agency_type CHECK\n  recreate-table migration re-ran every boot and slowly corrupted the\n  disk for weeks; with the ledger that pattern is impossible. Future\n  migrations must use runMigration('descriptive_name', fn).\n\nLAYER 4 — POST-MIGRATION INTEGRITY CHECK\n  PRAGMA quick_check on load (was added in 0430e39); PRAGMA\n  integrity_check now also runs after migrations. checkDbHealth()\n  exported for use by the health endpoint.\n\nLAYER 5 — RENDER HEALTH ENDPOINT (GET /api/health)\n  Unauthenticated. Returns 503 if the DB is unqueryable so Render's\n  health probe drops the sick instance and keeps the prior healthy\n  one routed. Configure the Render service's 'Health Check Path' to\n  /api/health to activate.\n\nMANUAL CONTROLS\n  POST /api/backup/now      — fire the daily backup right now\n  GET  /api/backup/list     — list on-disk backups (for restore UIs)\n\nThe disabled agency_type recreate-table migration stays disabled.\nBackup file rotation deletes anything older than the last 14 daily +\n10 pre-boot copies so the disk doesn't fill up.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0430e39",
-      "date": "2026-05-11T10:09:11-05:00",
-      "subject": "db: malformed-file recovery + disable the migration that caused corruption",
-      "title": "db: malformed-file recovery + disable the migration that caused corruption",
-      "body": "Two safety fixes for the production outage caused by a corrupt\nrealestate-hub.db on Render's persistent disk:\n\n1. initDb() now wraps the load in try/catch + runs PRAGMA quick_check.\n   If the file is unreadable ('disk image malformed', etc), it's\n   renamed to *.broken-{timestamp} (preserving for later recovery)\n   and a fresh empty DB is created so the server can boot. Loud logs\n   tell the operator the file was set aside.\n\n2. Disabled the agency_type CHECK-constraint recreate-table migration.\n   Its hardcoded new schema (~55 cols) no longer matched the live\n   transactions table (~80+ cols after later ALTER ADD COLUMN\n   migrations), so every boot hit:\n       INSERT INTO transactions SELECT * FROM transactions_old;\n       -> table has 55 columns but 82 values were supplied\n   That happened inside a BEGIN TRANSACTION block; the partial state\n   plus the saveDb() at the end of initDb was slowly corrupting the\n   on-disk file. The CHECK constraint is harmless — agency_type only\n   ever takes a few specific values from the UI dropdown. Left the\n   block behind a `false` guard so the original intent is documented.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

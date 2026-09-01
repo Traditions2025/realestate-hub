@@ -98,6 +98,7 @@ export default function ClientProfile() {
   const [followup, setFollowup] = useState(null)
   const [textOpen, setTextOpen] = useState(false)
   const [emailOpen, setEmailOpen] = useState(false)
+  const [emailPrefill, setEmailPrefill] = useState(null)
   const [noteOpen, setNoteOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [taskOpen, setTaskOpen] = useState(false)
@@ -131,6 +132,12 @@ export default function ClientProfile() {
   useEffect(() => { authFetch('/api/ai/lead/' + cid).then(r => r.json()).then(setAi).catch(() => setAi(null)) }, [cid])
   useEffect(() => { authFetch('/api/followup/' + cid).then(r => r.json()).then(setFollowup).catch(() => setFollowup(null)) }, [cid])
   useEffect(() => { window.scrollTo(0, 0); setTextOpen(false); setEmailOpen(false); setNoteOpen(false); setTaskOpen(false) }, [cid])
+  // "Use in Email" on the AI card opens the composer prefilled with the suggested draft.
+  useEffect(() => {
+    const h = (e) => { setEmailPrefill(e.detail || null); setTextOpen(false); setEmailOpen(true) }
+    window.addEventListener('cp-compose-email', h)
+    return () => window.removeEventListener('cp-compose-email', h)
+  }, [])
 
   const backToClients = () => { markClientsReturn(); navigate(nav?.backTo || '/clients') }
   const goToIndex = (n) => { if (n >= 0 && n < ids.length) navigate('/clients/' + ids[n]) }
@@ -224,7 +231,7 @@ export default function ClientProfile() {
           </div>
         )}
         {textOpen && client.phone && !client.hub_text_opt_out && <div style={{ marginTop: 8 }}><InlineTextComposer client={client} onClose={() => setTextOpen(false)} onSent={() => { load(); window.dispatchEvent(new CustomEvent('cp-comms-changed')) }} /></div>}
-        {emailOpen && client.email && <EmailComposer client={client} onClose={() => setEmailOpen(false)} onSent={() => window.dispatchEvent(new CustomEvent('cp-comms-changed'))} />}
+        {emailOpen && client.email && <EmailComposer client={client} initial={emailPrefill} onClose={() => { setEmailOpen(false); setEmailPrefill(null) }} onSent={() => window.dispatchEvent(new CustomEvent('cp-comms-changed'))} />}
         {taskOpen && <div style={{ marginTop: 8 }}><QuickAddTask clientId={cid} clientName={name} onAdded={() => { setTaskOpen(false); window.dispatchEvent(new CustomEvent('cp-tasks-changed')) }} /></div>}
       </div>
 
@@ -425,9 +432,9 @@ function CommItem({ m }) {
 // moved anywhere. "Insert field" drops merge fields ({{first_name}}, {{city_of_interest}}, …)
 // at the cursor, and Preview renders the final email — signature and fields filled in.
 const DEFAULT_BODY = '\n\n{{signature}}'
-function EmailComposer({ client, onClose, onSent }) {
-  const [subject, setSubject] = useState('')
-  const [body, setBody] = useState(DEFAULT_BODY)
+function EmailComposer({ client, onClose, onSent, initial }) {
+  const [subject, setSubject] = useState(initial?.subject || '')
+  const [body, setBody] = useState(initial?.body ? String(initial.body).trimEnd() + DEFAULT_BODY : DEFAULT_BODY)
   const [templates, setTemplates] = useState([])
   const [fields, setFields] = useState([])
   const [sending, setSending] = useState(false)
@@ -578,11 +585,21 @@ function AiIntelligence({ ai, followup, cid }) {
         <div><strong>AI:</strong> {ai?.ai_managed ? 'Managed' : 'Manual'}</div>
         {ai?.ai_state && <div><strong>State:</strong> {String(ai.ai_state).replace(/_/g, ' ').toLowerCase()}</div>}
       </div>
-      {rec && (rec.recommended_action || rec.reason || rec.summary) && (
+      {rec && (rec.recommended_action || rec.recommendation || rec.reason || rec.summary) && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(124,58,237,.06)', border: '1px solid rgba(124,58,237,.25)', borderRadius: 8 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Next Best Action</div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{rec.recommended_action || rec.action || rec.title || 'Follow up'}</div>
-          {(rec.reason || rec.summary) && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{rec.reason || rec.summary}</div>}
+          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{rec.recommended_action || rec.recommendation?.label || rec.action || rec.title || 'Follow up'}</div>
+          {(rec.reason || rec.recommendation?.rationale || rec.summary) && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{rec.reason || rec.recommendation?.rationale || rec.summary}</div>}
+        </div>
+      )}
+      {rec && rec.email && (rec.email.subject || rec.email.body) && (
+        <div style={{ marginTop: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Suggested Email</div>
+            <button className="btn btn-sm btn-primary" onClick={() => window.dispatchEvent(new CustomEvent('cp-compose-email', { detail: { subject: rec.email.subject || '', body: rec.email.body || '' } }))}>✉ Use in Email</button>
+          </div>
+          {rec.email.subject && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 4 }}>{rec.email.subject}</div>}
+          {rec.email.body && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 3, whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}>{rec.email.body}</div>}
         </div>
       )}
       {full && <div style={{ marginTop: 10 }}><AiIsaCard clientId={cid} /></div>}
