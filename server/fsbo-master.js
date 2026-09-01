@@ -223,8 +223,17 @@ export async function syncFsboMaster() {
     }
     if (!match) { createNew(primary, status, listingsJson, price); continue }
     report.matched++
-    db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_price=?, fsbo_notes=?, fsbo_link=?, fsbo_listings=?, updated_at=? WHERE id=?',
-      [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null, primary.notes || null, primary.link || null, listingsJson, now, match.id])
+    // Main address MUST equal the FSBO listing address — it's what {{address}} uses in texts/
+    // emails, so a stale address would reference the wrong (maybe-not-listed) house. COALESCE
+    // keeps the existing value only if the listing address is blank.
+    db.run(`UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_price=?,
+        fsbo_notes=?, fsbo_link=?, fsbo_listings=?,
+        address=COALESCE(?,address), city=COALESCE(?,city), state=COALESCE(?,state), zip=COALESCE(?,zip),
+        updated_at=? WHERE id=?`,
+      [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null,
+       primary.notes || null, primary.link || null, listingsJson,
+       primary.address || null, primary.city || null, primary.state || null, primary.zip || null,
+       now, match.id])
     match.fsbo_status = status
   }
   // Prune stragglers: an fsbo_status record whose phone is no longer in the sheet.

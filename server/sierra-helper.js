@@ -134,7 +134,12 @@ export function processLead(lead, sierraStatusOverride) {
   const existing = db.get('SELECT id, status FROM clients WHERE sierra_lead_id = ?', [sierraId])
   if (existing) {
     db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
-      source=?, address=?, city=?, state=?, zip=?, type=?,
+      source=?,
+      address = CASE WHEN COALESCE(fsbo_status,'')!='' THEN address ELSE ? END,
+      city    = CASE WHEN COALESCE(fsbo_status,'')!='' THEN city    ELSE ? END,
+      state   = CASE WHEN COALESCE(fsbo_status,'')!='' THEN state   ELSE ? END,
+      zip     = CASE WHEN COALESCE(fsbo_status,'')!='' THEN zip     ELSE ? END,
+      type=?,
       budget_min=?, budget_max=?, agent_assigned=?, status=?,
       lead_score=COALESCE(?, lead_score), lead_grade=COALESCE(?, lead_grade), visits=?, email_status=?, phone_status=?,
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
