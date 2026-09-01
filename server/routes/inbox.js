@@ -3,7 +3,7 @@ import Busboy from 'busboy'
 import { createWriteStream, mkdirSync, unlinkSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
-import { randomUUID } from 'crypto'
+import { randomUUID, createHash } from 'crypto'
 import db from '../database.js'
 import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
 import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
@@ -927,6 +927,39 @@ router.post('/claude-balance', (req, res) => {
   db.setSetting('anthropic_balance', String(b))
   db.setSetting('anthropic_balance_at', new Date().toISOString())
   res.json({ ok: true, saved_balance: b, saved_balance_at: db.getSetting('anthropic_balance_at', '') })
+})
+
+// Import historical text history (e.g. copied from Sierra) onto Hub lead profiles. Matches each
+// text to a lead by phone, inserts it as a text communication (deduped by a deterministic
+// external_id), so the Hub timeline + the "Last Text In" column reflect texts sent/received
+// elsewhere. Body: { texts: [{ phone, direction:'in'|'out', body, occurred_at, agent? }] }.
+router.post('/import-texts', (req, res) => {
+  const items = Array.isArray(req.body?.texts) ? req.body.texts : []
+  if (!items.length) return res.status(400).json({ error: 'texts[] required' })
+  const out = { matched: 0, inserted: 0, duplicate: 0, unmatched: [], errors: [] }
+  for (const t of items) {
+    try {
+      const phone = String(t.phone || '')
+      const client = matchClient('text', phone)
+      if (!client) { out.unmatched.push(`${t.phone} — ${String(t.body || '').slice(0, 40)}`); continue }
+      out.matched++
+      const dir = /^in/i.test(t.direction) ? 'incoming' : 'outgoing'
+      let occ = t.occurred_at ? new Date(t.occurred_at) : new Date()
+      if (isNaN(occ.getTime())) occ = new Date()
+      const occIso = occ.toISOString()
+      const body = String(t.body || '').trim()
+      const ext = 'import:' + client.id + ':' + createHash('sha1').update(dir + '|' + occIso + '|' + body).digest('hex').slice(0, 16)
+      if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) { out.duplicate++; continue }
+      const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+      const preview = body.replace(/\s+/g, ' ').slice(0, 160)
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['text', dir, client.id, name, dir === 'incoming' ? phone : '', dir === 'outgoing' ? phone : '', preview, body, ext, `c${client.id}_text`, 'read',
+         dir === 'outgoing' ? 'delivered' : null, t.agent || (dir === 'outgoing' ? 'Sierra' : null), 'sierra_import', occIso])
+      out.inserted++
+    } catch (e) { out.errors.push(e.message) }
+  }
+  res.json(out)
 })
 
 // Read-only: actual Twilio balance + today's & this month's Lookup usage/charges,
