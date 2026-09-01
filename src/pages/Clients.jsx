@@ -112,6 +112,17 @@ const LIST_COLUMNS = [
 ]
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
+// Live days-on-market for the FSBO list: always today - List Date, so it's current the
+// moment you open the page (the daily sync also recomputes the stored value). Falls back to
+// the stored fsbo_dom when there's no parseable List Date.
+function fsboDomLive(listDate, stored) {
+  if (listDate) {
+    const d = new Date(String(listDate).replace(' ', 'T'))
+    if (!isNaN(d.getTime())) return String(Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000)))
+  }
+  return (stored != null && stored !== '') ? String(stored) : null
+}
+
 // Smart lists = server-computed segments (see GET /api/clients/smart-lists + ?smart= on the
 // list route). Each key maps to custom SQL on the backend.
 const SMART_LISTS = [
@@ -2487,7 +2498,7 @@ export default function Clients() {
                 </select>
               </div>
             case 'type':
-              if (isFsboList) return <div key="type" className="cl-type" title="Days on market (FSBO master file)">{item.fsbo_dom != null && item.fsbo_dom !== '' ? item.fsbo_dom : '—'}</div>
+              if (isFsboList) { const dom = fsboDomLive(item.fsbo_list_date, item.fsbo_dom); return <div key="type" className="cl-type" title="Days on market (live from List Date)">{dom != null ? dom : '—'}</div> }
               return <div key="type" className="cl-type">
                 {item.type && (
                   <span className={`type-pill type-${item.type}`}>

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T14:22:29.425Z",
+  "generated_at": "2026-09-01T15:36:32.510Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "eabe484",
+      "date": "2026-09-01T09:23:15-05:00",
+      "subject": "FSBO: remove a wrongly-attached listing from a lead (phone collision)",
+      "title": "FSBO: remove a wrongly-attached listing from a lead (phone collision)",
+      "body": "Adds a 'Remove FSBO' action on the profile's Property Activity section for cases\nlike a FSBO number matching the wrong person. POST /api/clients/:id/remove-fsbo\nclears all fsbo_* fields, stops the FSBO follow-up, and sets a new fsbo_excluded\nflag so syncFsboMaster never re-attaches it (excluded leads are dropped from the\nphone-match index).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1378d07",
       "date": "2026-08-31T18:03:51-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Transactions: side-aware checklist (listing vs purchase) + drop Thank-You Gift",
       "title": "Transactions: side-aware checklist (listing vs purchase) + drop Thank-You Gift",
       "body": "- Each checklist item now has a side: 'both' / 'listing' / 'purchase'.\n  When transaction Type is set, only relevant items render. When Type\n  is blank, all items show so nothing's hidden by accident.\n- Listing-side only:\n    MLS Marked Pending/Sold, Remove Listing Alerts,\n    Seller's Disclosure (RPDS), HOA Docs, Seller Acknowledgment,\n    Seller Signed Deed Package, Sign + Lockbox Removed\n- Purchase-side only:\n    Wire Instructions Sent, Utilities Set to New Owner\n- Both: AYSE, all closing logistics, commission/loop steps, testimonial,\n    keys collected, 30-day follow-up\n- Header tag in 'Listing & Disclosures' shows current side so it's clear\n  what's filtered: 🏠 LISTING SIDE / 🎯 PURCHASE SIDE\n- Daily digest chips apply the same filtering — purchase-side digests\n  don't get listing-only chips and vice versa.\n- Removed Thank-You Gift Sent (UI + FIELDS allowlist; column stays in\n  DB so existing data isn't dropped).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b2eee71",
-      "date": "2026-05-08T16:14:18-05:00",
-      "subject": "Transactions: expanded under-contract checklist (closing logistics, deed, post-close)",
-      "title": "Transactions: expanded under-contract checklist (closing logistics, deed, post-close)",
-      "body": "Adds 17 new fields organized into three phased sections so nothing\nfalls through the cracks between contract and post-close:\n\nLISTING & DISCLOSURES (immediately after going UC):\n  + MLS Marked Pending\n  + Seller's Disclosure (RPDS) Received\n  + HOA Docs Provided\n\nCLOSING LOGISTICS (new section, replaces lumped 'Closing & Loop'):\n  + Closing Time / Closing Location free-text fields\n  + Closing Time Confirmed\n  + Closing Location Confirmed\n  + Buyer/Seller Notified of When & Where\n  + Closing Disclosure Reviewed (3-day rule)\n  + Wire Instructions Sent (verified by phone)\n\nDAY-OF & POST-CLOSING (new section):\n  + Seller Signed Deed Package\n  + Keys / Garage Remotes Collected\n  + Sign + Lockbox Removed\n  + MLS Marked Sold\n  + Commission Received\n  + Thank-You Gift Sent\n  + 30-Day Post-Close Follow-Up\n\nSchema migration auto-adds the columns to existing DBs. Daily TC digest\n(9 AM + 1 PM CT email) surfaces all new chips and shows closing\ntime + location inline on each transaction card.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

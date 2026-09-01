@@ -498,6 +498,15 @@ function EmailComposer({ client, onClose, onSent }) {
   )
 }
 
+// Live days-on-market: today - List Date, always current. Falls back to the stored value.
+function domLive(listDate, stored) {
+  if (listDate) {
+    const d = new Date(String(listDate).replace(' ', 'T'))
+    if (!isNaN(d.getTime())) return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000))
+  }
+  return (stored != null && stored !== '') ? stored : null
+}
+
 // ── Property / Web activity ──────────────────────────────────────────────
 function PropertyActivity({ client, onSaved }) {
   let listings = []
@@ -517,7 +526,7 @@ function PropertyActivity({ client, onSaved }) {
       right={hasFsbo ? <button className="btn btn-sm btn-danger" onClick={removeFsbo} title="Not the owner? Remove this FSBO listing and stop it re-attaching.">Remove FSBO</button> : null}>
       {listings.map((l, i) => (
         <div key={i} style={{ fontSize: 13, marginBottom: 6 }}>
-          <strong>{l.address || '—'}</strong> {l.status ? <span className="cp-badge">{l.status}</span> : null} {l.dom != null ? <span style={{ color: 'var(--text-muted)' }}>DOM {l.dom}</span> : null}
+          <strong>{l.address || '—'}</strong> {l.status ? <span className="cp-badge">{l.status}</span> : null} {(() => { const dom = domLive(l.list_date, l.dom); return dom != null ? <span style={{ color: 'var(--text-muted)' }}>DOM {dom}</span> : null })()}
           {l.link && <> — <a href={l.link} target="_blank" rel="noopener noreferrer" style={{ color: '#006aff', fontWeight: 600 }}>View Listing ↗</a></>}
         </div>
       ))}
