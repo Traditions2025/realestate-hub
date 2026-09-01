@@ -110,6 +110,7 @@ const LIST_COLUMNS = [
   { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal', sort: { asc: 'off_market_oldest', desc: 'off_market_recent' } },
   { key: 'mls_status', label: 'MLS Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'mls_number', label: 'MLS #', defaultVisible: false, size: 'normal' },
+  { key: 'fsbo_price', label: 'Price', defaultVisible: false, size: 'normal', align: 'right' },
 ]
 // The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
 // date, MLS status, and MLS #.
@@ -2409,7 +2410,12 @@ export default function Clients() {
         // Cancelled/Expired list's own column set + order is already baked into visibleColumns
         // (via activeColPrefs), and it's reorderable/persisted just like the main list.
         const isFsboList = (savedLists.find(l => l.id === activeListId)?.name || '').toUpperCase() === 'FSBO'
-        const cols = visibleColumns
+        // FSBO list: inject a Price column (from the master file) after DOM, if not already shown.
+        let cols = visibleColumns
+        if (isFsboList && !cols.some(c => c.key === 'fsbo_price')) {
+          const priceCol = LIST_COLUMNS.find(c => c.key === 'fsbo_price')
+          if (priceCol) { cols = [...cols]; const at = cols.findIndex(c => c.key === 'type'); cols.splice(at >= 0 ? at + 1 : cols.length, 0, priceCol) }
+        }
         const gridTemplate = `30px ${cols.map(c => colWidthPx(c) + 'px').join(' ')}`
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
@@ -2625,6 +2631,8 @@ export default function Clients() {
             }
             case 'mls_number':
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
+            case 'fsbo_price':
+              return <div key="fsbo_price" className="cl-source" style={{ fontWeight: 600 }}>{item.fsbo_price ? '$' + Number(item.fsbo_price).toLocaleString() : '—'}</div>
             default: return null
           }
         }

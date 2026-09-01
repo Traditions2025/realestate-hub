@@ -76,6 +76,19 @@ function normStatus(v) {
   return null
 }
 
+// The list price lives inside the Notes column as a Zillow blob ("$170,000\n1235 14th St...").
+// Pull the first plausible whole-dollar price ($10k-$100M) that isn't a /mo or /sqft figure.
+export function extractFsboPrice(notes) {
+  const s = String(notes || '')
+  const re = /\$\s?(\d{1,3}(?:,\d{3})+|\d{4,})(?!\s*\/)/g
+  let m
+  while ((m = re.exec(s))) {
+    const n = Number(m[1].replace(/,/g, ''))
+    if (n >= 10000 && n <= 100000000) return n
+  }
+  return null
+}
+
 export async function fetchFsboMasterRows() {
   const url = fsboMasterCsvUrl()
   const resp = await fetch(url, { headers: { 'User-Agent': 'MattSmithHub/1.0' } })
@@ -85,9 +98,10 @@ export async function fetchFsboMasterRows() {
   if (!rows.length) return []
   const header = rows[0].map(h => String(h || '').trim())
   const idx = (name) => header.findIndex(h => h.toLowerCase() === name.toLowerCase())
+  const notesCols = header.map((h, i) => (h.toLowerCase() === 'notes' ? i : -1)).filter(i => i >= 0)
   const iPhone = idx('Phone 1'), iStatus = idx('FSBO Status'), iName = idx('Name'), iAddr = idx('Street Address')
   const iCity = idx('City'), iState = idx('State'), iZip = idx('Zipcode'), iEmail = idx('Email'), iSource = idx('Source'), iTags = idx('Tags')
-  const iListDate = idx('List Date'), iDom = idx('DOM'), iNotes = idx('Notes'), iLink = idx('Custom Link')
+  const iListDate = idx('List Date'), iDom = idx('DOM'), iLink = idx('Custom Link')
   const cell = (row, i) => i >= 0 ? String(row[i] || '').trim() : ''
   const out = []
   for (let r = 1; r < rows.length; r++) {
@@ -95,13 +109,14 @@ export async function fetchFsboMasterRows() {
     const phone = cell(row, iPhone)
     const status = normStatus(cell(row, iStatus))
     if (!last10(phone) || !status) continue
+    const notes = notesCols.map(i => cell(row, i)).filter(Boolean).join('\n')
     out.push({
       phone, status,
       name: cell(row, iName), address: cell(row, iAddr), city: cell(row, iCity),
       state: cell(row, iState) || 'IA', zip: cell(row, iZip), email: cell(row, iEmail),
       source: cell(row, iSource), tags: cell(row, iTags),
       list_date: cell(row, iListDate), dom: cell(row, iDom),
-      notes: cell(row, iNotes), link: cell(row, iLink),
+      notes, link: cell(row, iLink), price: extractFsboPrice(notes),
     })
   }
   return out
@@ -172,14 +187,16 @@ export async function syncFsboMaster() {
     groups.get(gk).push(row)
   }
   report.profiles = groups.size
-  const buildListings = (grp) => grp.map(r => ({ address: r.address || null, city: r.city || null, list_date: r.list_date || null, dom: computeDom(r.list_date, r.dom), status: r.status || null, link: r.link || null, notes: r.notes || null }))
-  const createNew = (primary, status, listingsJson) => {
+  const buildListings = (grp) => grp.map(r => ({ address: r.address || null, city: r.city || null, list_date: r.list_date || null, dom: computeDom(r.list_date, r.dom), price: r.price || null, status: r.status || null, link: r.link || null, notes: r.notes || null }))
+  // A seller's price = the price on their primary (Available) listing.
+  const groupPrice = (grp, primary) => (primary && primary.price) || (grp.find(r => r.price)?.price) || null
+  const createNew = (primary, status, listingsJson, price) => {
     const { first, last } = splitName(primary.name)
     const info = db.run(
-      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_notes, fsbo_link, fsbo_listings, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_price, fsbo_notes, fsbo_link, fsbo_listings, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [first, last, primary.phone, primary.email || null, 'seller', 'watch', primary.source || 'FSBO Master',
-       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), primary.notes || null, primary.link || null, listingsJson, now, now])
+       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null, primary.notes || null, primary.link || null, listingsJson, now, now])
     report.created++
     const rec = { id: info.lastInsertRowid, phone: primary.phone, tags: tagsJson(primary.tags), fsbo_status: status, status: 'watch', first_name: first, last_name: last }
     const k = last10(primary.phone); if (k) index.set(k, rec)
@@ -194,19 +211,20 @@ export async function syncFsboMaster() {
       : grp.some(r => r.status === 'Pending') ? 'Pending' : 'Off Market'
     report.counts[status] = (report.counts[status] || 0) + 1
     const listingsJson = JSON.stringify(buildListings(grp))
+    const price = groupPrice(grp, primary)
     const match = key ? index.get(key) : null
     // Phone COLLISION: number matches a DEAD lead of a clearly different name — don't stamp the
     // FSBO onto the wrong lead; give it its own record.
     if (match && isJunkish(match.status) && !sameName(primary.name, match)) {
       db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL WHERE id=?', [match.id])
       report.collisions++
-      createNew(primary, status, listingsJson)
+      createNew(primary, status, listingsJson, price)
       continue
     }
-    if (!match) { createNew(primary, status, listingsJson); continue }
+    if (!match) { createNew(primary, status, listingsJson, price); continue }
     report.matched++
-    db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_notes=?, fsbo_link=?, fsbo_listings=?, updated_at=? WHERE id=?',
-      [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), primary.notes || null, primary.link || null, listingsJson, now, match.id])
+    db.run('UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_price=?, fsbo_notes=?, fsbo_link=?, fsbo_listings=?, updated_at=? WHERE id=?',
+      [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null, primary.notes || null, primary.link || null, listingsJson, now, match.id])
     match.fsbo_status = status
   }
   // Prune stragglers: an fsbo_status record whose phone is no longer in the sheet.

@@ -947,6 +947,7 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN mls_extract_attempted_at TEXT') } catch {}   // notes parsed for MLS#/off-market (once)
   try { db.run('ALTER TABLE clients ADD COLUMN listing_agent TEXT') } catch {}   // cancelled/expired: listing agent from the master file
   try { db.run('ALTER TABLE clients ADD COLUMN mls_status TEXT') } catch {}   // cancelled/expired: MLS status (Cancelled/Expired/Withdrawn) from the master file
+  try { db.run('ALTER TABLE clients ADD COLUMN fsbo_price INTEGER') } catch {}   // FSBO: list price parsed from the master file Notes blob
   // Secondary emails/phones kept when merging leads ("keep both"). Comma-separated.
   try { db.run('ALTER TABLE clients ADD COLUMN alt_emails TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}
