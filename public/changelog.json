@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T19:58:14.087Z",
+  "generated_at": "2026-09-01T20:07:08.387Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "77b6727",
+      "date": "2026-09-01T14:58:16-05:00",
+      "subject": "Clients: selecting a saved list no longer leaves a status tab active or its filter lingering",
+      "title": "Clients: selecting a saved list no longer leaves a status tab active or its filter lingering",
+      "body": "Status tab active-state now requires no active saved list (so All+FSBO can't both\nhighlight), and clicking a status tab exits the saved list (drops its stored\nfilter) instead of layering on top of it. loadSavedList clears any smart-list\nselection. Fixes the mixed-selection where a list appeared combined with All.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ad4a5e0",
       "date": "2026-09-01T14:54:39-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "db: wait for BOTH /data paths to settle (mount-race bug fix)",
       "title": "db: wait for BOTH /data paths to settle (mount-race bug fix)",
       "body": "Previous loop exited as soon as EITHER /data/realestate-hub.db OR\n/data/backups was visible. If the main file mounted first and the\nbackups dir mounted slightly later, newestUsableBackup() returned\nnull → auto-restore couldn't fire → restored data got wiped again.\n\nTwo-phase wait:\n  1. Wait up to 30s for at least one of the two paths to appear\n  2. Then wait up to 10s more for the other path to settle\n\nThis ensures `newestUsableBackup()` sees the backups dir before the\nauto-restore decision is made.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0cee838",
-      "date": "2026-05-12T13:31:51-05:00",
-      "subject": "db: auto-restore also triggers on size ratio (live < 50% of newest backup)",
-      "title": "db: auto-restore also triggers on size ratio (live < 50% of newest backup)",
-      "body": "The 100 KB threshold from the previous commit missed the actual wipe\npattern we hit on 2026-05-12: live DB at 148 KB (barely above\nthreshold), newest backup at 24 MB. Plain absolute size check let it\nslip through.\n\nSmarter check: if newest backup exists AND live size < 50% of backup\nsize, treat as suspicious and auto-restore. The 50% ratio catches a\nwiped DB regardless of absolute size, while still allowing healthy\ngrowth (a slightly-smaller-than-yesterday DB is normal during cleanups).\n\nConditions now:\n  - File missing → restore\n  - File < 100 KB absolute → restore\n  - File < 50% of newest backup size → restore (NEW)\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
