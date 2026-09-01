@@ -99,6 +99,23 @@ router.get('/fsbo/status', (_req, res) => {
   res.json({ last_sync: db.getSetting?.('fsbo_master_last_sync') || null, source: fsboMasterCsvUrl(), counts })
 })
 
+// Expired/Cancelled master-file sync: read the master sheet, write off_market_date / mls_number
+// / listing_agent onto matched clients, and junk anything back on the market. NOT yet scheduled;
+// run ?dry=1 first and verify the numbers before wiring into scheduler.js. Mirrors /fsbo/sync.
+router.post('/expired/sync', async (req, res) => {
+  try {
+    const dry = req.query.dry === '1' || req.query.dry === 'true' || req.body?.dry === true
+    const m = await import('../expired-master.js')
+    const report = await m.syncExpiredMaster({ dryRun: dry })
+    const listInfo = m.ensureExpiredListIncludesMaster()
+    res.json({ ok: true, source: m.expiredMasterCsvUrl(), ...report, list: listInfo })
+  } catch (e) { res.status(500).json({ ok: false, error: e.message }) }
+})
+router.get('/expired/status', async (_req, res) => {
+  const m = await import('../expired-master.js')
+  res.json({ last_sync: db.getSetting?.('expired_master_last_sync') || null, source: m.expiredMasterCsvUrl() })
+})
+
 // FSBO smart follow-up: status, manual run, enable/disable, and off-market->junk now.
 // Diagnose why the Hub FSBO count differs from the master sheet: duplicates (same phone
 // on 2+ records) and orphans (fsbo_status set but the phone isn't in the master anymore).

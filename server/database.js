@@ -945,6 +945,7 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN off_market_date TEXT') } catch {}   // cancelled/expired: when the listing went off market
   try { db.run('ALTER TABLE clients ADD COLUMN mls_number TEXT') } catch {}        // cancelled/expired: the listing MLS #
   try { db.run('ALTER TABLE clients ADD COLUMN mls_extract_attempted_at TEXT') } catch {}   // notes parsed for MLS#/off-market (once)
+  try { db.run('ALTER TABLE clients ADD COLUMN listing_agent TEXT') } catch {}   // cancelled/expired: listing agent from the master file
   // Secondary emails/phones kept when merging leads ("keep both"). Comma-separated.
   try { db.run('ALTER TABLE clients ADD COLUMN alt_emails TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}
