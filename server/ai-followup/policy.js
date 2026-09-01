@@ -6,6 +6,7 @@
 import db from '../database.js'
 import { isStopStatus } from '../lead-sequences.js'
 import { inQuietHours } from './flags.js'
+import { isUsHoliday } from '../holidays.js'
 
 const nowIso = () => new Date().toISOString()
 export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
@@ -53,6 +54,9 @@ export function canSendSms(client, context = {}) {
   if (channel !== 'manual' && isStopStatus(client.status)) return deny(`lead status ${client.status}`)
   // ...and numbers a prior send hard-failed as landline / can't-receive-SMS (auto-cleared if they text us).
   if (channel !== 'manual' && client.sms_undeliverable) return deny('number is undeliverable (likely a landline)')
+  // No automated/campaign/AI texts on US federal holidays (Central). Manual 1:1 replies still work,
+  // so you can answer a lead who texts you on a holiday.
+  if (channel !== 'manual' && isUsHoliday()) return deny('US holiday — automated sends paused')
   // AI-specific gates — skipped for a manual agent-triggered send (context.force),
   // which only needs the hard compliance blocks above (STOP / opt-out / status).
   if (channel === 'ai' && !context.force) {

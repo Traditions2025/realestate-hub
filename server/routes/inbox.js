@@ -10,6 +10,7 @@ import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './follow
 import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
 import { isStopStatus, stopSequencesForClient } from '../lead-sequences.js'
+import { isUsHoliday } from '../holidays.js'
 
 // MMS uploads live next to the DB (the persistent /data disk on Render) and are
 // served publicly at /uploads so Twilio can fetch them when sending an MMS.
@@ -121,9 +122,23 @@ async function notifyUnknownInbound(fromPhone, body) {
 }
 
 // Email John (or whoever inbox_notify_email is) when a client texts the Hub.
+// Off-hours in Central: after 6 PM on a weekday, any weekend, or a US holiday.
+function isOffHoursCentral() {
+  try {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(new Date())
+    const wd = p.find(x => x.type === 'weekday')?.value
+    const hr = Number(p.find(x => x.type === 'hour')?.value)
+    const weekend = wd === 'Sat' || wd === 'Sun'
+    return weekend || hr >= 18 || isUsHoliday()
+  } catch { return false }
+}
 async function notifyInboundText(client, body, fromPhone) {
   try {
-    const to = db.getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
+    let to = db.getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
+    // Off-hours (weekday after 6 PM, weekends, holidays): also alert Matt's RE/MAX email.
+    const recips = new Set(to.split(/[,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean))
+    if (isOffHoursCentral()) recips.add('mattsmithremax@gmail.com')
+    to = [...recips].join(',')
     if (!to) return
     const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromPhone
     const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
@@ -663,6 +678,8 @@ router.post('/bulk-text', async (req, res) => {
     if (msg0 && String(msg0).trim()) parts = [String(msg0).trim()]
   }
   if (!parts.length) return res.status(400).json({ error: 'A message is required.' })
+  // No mass texts on US holidays (Central). Individual manual replies still work.
+  if (isUsHoliday()) return res.status(400).json({ error: "It's a US holiday — mass texting is paused so nothing goes out to leads today.", holiday: true })
   const msg = parts.join('\n\n')   // combined form for the campaign record + dup guard
   const { sendSms, twilioConfigured } = await import('../twilio.js')
   if (!twilioConfigured()) return res.status(400).json({ error: 'Texting isn’t connected yet.' })

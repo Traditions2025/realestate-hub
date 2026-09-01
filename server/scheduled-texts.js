@@ -5,6 +5,7 @@
 import db from './database.js'
 import { fillTemplate } from './routes/email.js'
 import { isStopStatus } from './lead-sequences.js'
+import { isUsHoliday } from './holidays.js'
 
 const nowIso = () => new Date().toISOString()
 const last10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
@@ -53,6 +54,7 @@ export async function runDueScheduledTexts() {
   try { due = db.all("SELECT * FROM scheduled_texts WHERE status='scheduled' AND send_at <= ? ORDER BY send_at ASC LIMIT 50", [nowIso()]) }
   catch { return }
   if (!due || !due.length) return
+  if (isUsHoliday()) return   // US holiday — leave them scheduled; they'll fire the next non-holiday tick
   const { twilioConfigured } = await import('./twilio.js')
   if (!twilioConfigured()) return   // leave them scheduled; try again next tick
   for (const s of due) {
