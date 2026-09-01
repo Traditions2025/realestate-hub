@@ -197,11 +197,23 @@ router.get('/', (req, res) => {
     if (r.group_meta && !t.group_meta) t.group_meta = r.group_meta
     // rows are newest-first, so the first seen is the latest
   }
-  // Group threads get a stable "Group: name, name" label from the send's participants.
+  // Group threads get a stable "Group: name, name" label from the send's participants. A
+  // conversation with only ONE participant is NOT a group (a 1:1 text that happened to go
+  // through Twilio Conversations) — show the person's name and link it to their profile.
   for (const t of threads.values()) {
-    if (t.is_group && t.group_meta) {
-      try { const names = (JSON.parse(t.group_meta).participants || []).map(p => p.name || p.phone); if (names.length) t.contact_name = 'Group: ' + names.join(', ') } catch {}
-    } else if (t.is_group && !/^Group:/.test(t.contact_name)) { t.contact_name = 'Group text' }
+    if (!t.is_group) continue
+    let parts = []
+    try { parts = t.group_meta ? (JSON.parse(t.group_meta).participants || []) : [] } catch {}
+    if (parts.length >= 2) {
+      const names = parts.map(p => p.name || p.phone); if (names.length) t.contact_name = 'Group: ' + names.join(', ')
+    } else if (parts.length === 1) {
+      t.is_group = false
+      const p = parts[0]
+      if (p.name) t.contact_name = p.name
+      if (p.client_id) { t.client_id = Number(p.client_id); t.unknown = false; t.phone = null }
+    } else if (!/^Group:/.test(t.contact_name)) {
+      t.contact_name = 'Group text'
+    }
   }
   // lightweight AI intent hint per conversation (from the last analysis)
   const intents = {}
@@ -950,6 +962,30 @@ router.post('/claude-balance', (req, res) => {
   db.setSetting('anthropic_balance', String(b))
   db.setSetting('anthropic_balance_at', new Date().toISOString())
   res.json({ ok: true, saved_balance: b, saved_balance_at: db.getSetting('anthropic_balance_at', '') })
+})
+
+// Backfill emails FSBO leads texted us. Scans inbound texts for an email address and writes it
+// to the lead's profile ONLY when their current email is empty or a @notvalidemail placeholder
+// (never overwrites a real email). ?dry=1 previews. Also updatable for any tag via ?scope=all.
+router.post('/backfill-fsbo-emails', (req, res) => {
+  const dry = req.query.dry === '1' || req.body?.dry === true
+  const all = req.query.scope === 'all'
+  const EMAIL = /[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i
+  const rows = db.all(`SELECT id, first_name, last_name, email FROM clients
+      WHERE merged_into IS NULL ${all ? '' : "AND fsbo_status IS NOT NULL AND fsbo_status != ''"}`)
+  const out = { dry, scanned: rows.length, updated: 0, changes: [], skipped_has_real_email: [] }
+  for (const c of rows) {
+    const texts = db.all("SELECT body FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' ORDER BY occurred_at DESC", [c.id])
+    let found = null
+    for (const t of texts) { const m = String(t.body || '').match(EMAIL); if (m && !/notvalidemail/i.test(m[0])) { found = m[0].trim(); break } }
+    if (!found) continue
+    const cur = String(c.email || '')
+    const placeholder = !cur || /notvalidemail/i.test(cur)
+    if (!placeholder) { if (cur.toLowerCase() !== found.toLowerCase()) out.skipped_has_real_email.push(`${c.first_name} ${c.last_name}: keeps ${cur} (texted ${found})`); continue }
+    out.changes.push(`${c.first_name} ${c.last_name}: ${cur || '(none)'} -> ${found}`)
+    if (!dry) { db.run("UPDATE clients SET email=?, email_status='Valid', updated_at=? WHERE id=?", [found, new Date().toISOString(), c.id]); out.updated++ }
+  }
+  res.json(out)
 })
 
 // Import historical text history (e.g. copied from Sierra) onto Hub lead profiles. Matches each

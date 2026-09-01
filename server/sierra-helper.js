@@ -133,7 +133,9 @@ export function processLead(lead, sierraStatusOverride) {
 
   const existing = db.get('SELECT id, status FROM clients WHERE sierra_lead_id = ?', [sierraId])
   if (existing) {
-    db.run(`UPDATE clients SET first_name=?, last_name=?, email=?, phone=?,
+    db.run(`UPDATE clients SET first_name=?, last_name=?,
+      email = CASE WHEN ? LIKE '%notvalidemail%' AND email IS NOT NULL AND email != '' AND email NOT LIKE '%notvalidemail%' THEN email ELSE ? END,
+      phone=?,
       source=?,
       address = CASE WHEN COALESCE(fsbo_status,'')!='' THEN address ELSE ? END,
       city    = CASE WHEN COALESCE(fsbo_status,'')!='' THEN city    ELSE ? END,
@@ -148,7 +150,7 @@ export function processLead(lead, sierraStatusOverride) {
       search_price_min=?, search_price_max=?, search_beds_min=?, search_baths_min=?,
       search_sqft_min=?, search_regions=?, search_property_types=?, has_saved_search=?,
       updated_at=datetime('now') WHERE id=?`,
-      [firstName, lastName, email, phone, source, address, city, state, zip,
+      [firstName, lastName, email, email, phone, source, address, city, state, zip,
         type, budgetMin, budgetMax, agentAssigned, clientStatus,
         leadScore, leadGrade, visits, emailStatus, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
