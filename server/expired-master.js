@@ -62,6 +62,14 @@ function extractDate(s) {
 }
 const monthsAgo = (d, n) => { const c = new Date(); c.setMonth(c.getMonth() - n); return d >= c }
 
+// Team rule: no LLC / corporate owners on the prospecting list (flag by name). Trusts and
+// estates are a person's holding, NOT an entity, so they're allowed.
+function isCompanyName(name) {
+  const s = String(name || '').toLowerCase()
+  if (/\b(trust|estate|revocable|irrevocable)\b/.test(s)) return false
+  return /\b(llc|l\.l\.c|inc\b|incorporated|corp|corporation|ltd|llp|company|rentals?|properties|property|appraisal|realty|homes\b|group|enterprises?|investments?|holdings?|management|partners|associates)\b/.test(s)
+}
+
 // Split "First Last", "Last, First", or a company into first/last (never blank first).
 function splitName(name) {
   const s = String(name || '').trim()
@@ -125,7 +133,7 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     counts: { off_market: 0, back_on_market: 0, sold: 0, unknown: 0 },
     matched: 0, unmatched: 0, name_mismatch: 0, wrote: 0,
     junked: 0, already_junk: 0, created: 0,
-    unmatched_addresses: [], name_mismatches: [], would_junk: [], junk_new: [], junk_skipped_sold_old: [], would_create: [],
+    unmatched_addresses: [], name_mismatches: [], would_junk: [], junk_new: [], junk_skipped_sold_old: [], would_create: [], skipped_company: [],
   }
 
   // Address+City index of live Hub clients (multiple people can share an address → keep a list).
@@ -150,7 +158,12 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     if (!match) {
       if (candidates.length) { report.name_mismatch++; if (report.name_mismatches.length < 60) report.name_mismatches.push(`${row.name} @ ${row.address}, ${row.city} (Hub has: ${candidates.map(c => `${c.first_name || ''} ${c.last_name || ''}`.trim()).join(' / ')})`) }
       else { report.unmatched++; if (report.unmatched_addresses.length < 60) report.unmatched_addresses.push(`${row.address}, ${row.city} [${row.mls_status || '?'}]`) }
-      const createable = cls === 'off_market' && key && row.name && !/^\(unknown\)$/.test(row.name)
+      const hasName = row.name && !/^\(unknown\)$/.test(row.name)
+      if (cls === 'off_market' && key && hasName && isCompanyName(row.name)) {
+        report.skipped_company.push(`${row.name} — ${row.address}, ${row.city}`)
+        continue
+      }
+      const createable = cls === 'off_market' && key && hasName
       if (createable) {
         report.would_create.push(`${row.name} — ${row.address}, ${row.city} [${row.mls_status}]`)
         if (!dryRun) {
