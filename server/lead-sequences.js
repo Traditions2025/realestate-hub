@@ -57,22 +57,29 @@ export function activeSequencesForClient(clientId) {
   const id = Number(clientId)
   if (!id) return { drips: [], automations: [] }
   const drips = db.all(
-    `SELECT e.id AS enrollment_id, e.drip_id, e.current_step, e.next_run_at, e.entered_at, e.source,
+    `SELECT e.id AS enrollment_id, e.drip_id, e.current_step, e.next_run_at, e.entered_at, e.source, e.status,
        d.name AS drip_name, d.steps AS steps
      FROM drip_enrollments e JOIN drip_campaigns d ON d.id = e.drip_id
-     WHERE e.client_id=? AND e.status='active'
+     WHERE e.client_id=? AND e.status IN ('active','paused')
      ORDER BY e.entered_at DESC`, [id]
   ).map(r => {
-    let total = 0
-    try { total = JSON.parse(r.steps || '[]').length } catch { total = 0 }
+    let stepsArr = []
+    try { stepsArr = JSON.parse(r.steps || '[]') } catch { stepsArr = [] }
     const { steps, ...rest } = r
-    return { ...rest, total_steps: total }
+    const cur = stepsArr[r.current_step] || null
+    return {
+      ...rest,
+      total_steps: stepsArr.length,
+      // 1-based label for the human ("Email 4 of 12"); current_step is 0-based next-to-send.
+      next_step_number: Math.min(r.current_step + 1, stepsArr.length),
+      next_step_subject: cur ? (cur.subject || '(no subject)') : null,
+    }
   })
   const automations = db.all(
     `SELECT e.id AS enrollment_id, e.automation_id, e.status, e.next_run_at, e.entered_at,
        a.name AS automation_name
      FROM automation_enrollments e JOIN automations a ON a.id = e.automation_id
-     WHERE e.client_id=? AND e.status IN ('active','waiting')
+     WHERE e.client_id=? AND e.status IN ('active','waiting','paused')
      ORDER BY e.entered_at DESC`, [id]
   )
   return { drips, automations }

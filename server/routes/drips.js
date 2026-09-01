@@ -199,6 +199,40 @@ router.post('/enrollments/:eid/remove', (req, res) => {
   res.json({ success: true })
 })
 
+// ---- Action Plans controls: pause / resume / delay a single enrollment ----
+// The drip tick only processes status='active', so 'paused' halts sends with no engine change.
+router.post('/enrollments/:eid/pause', (req, res) => {
+  const e = db.get('SELECT id, status FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  if (e.status === 'active') db.run("UPDATE drip_enrollments SET status='paused' WHERE id=?", [e.id])
+  res.json({ success: true, status: 'paused' })
+})
+router.post('/enrollments/:eid/resume', (req, res) => {
+  const e = db.get('SELECT * FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  if (e.status !== 'paused') return res.json({ success: true, status: e.status })
+  // If the scheduled time passed while paused (or is missing), reschedule the current step for
+  // the next send window; otherwise keep the existing future time.
+  let next = e.next_run_at
+  if (!next || next <= nowIso()) {
+    const d = db.get('SELECT steps FROM drip_campaigns WHERE id=?', [e.drip_id])
+    const step = parse(d?.steps, [])[e.current_step] || { send_time: '09:00' }
+    next = nextSendIso(Date.now(), { ...step, delay_days: 0 })
+  }
+  db.run("UPDATE drip_enrollments SET status='active', next_run_at=? WHERE id=?", [next, e.id])
+  res.json({ success: true, status: 'active', next_run_at: next })
+})
+router.post('/enrollments/:eid/delay', (req, res) => {
+  const days = Math.floor(Number(req.body?.days) || 0)
+  if (!(days > 0)) return res.status(400).json({ error: 'days must be a positive number' })
+  const e = db.get('SELECT id, next_run_at FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  const baseMs = Math.max(Date.now(), e.next_run_at ? new Date(e.next_run_at).getTime() : Date.now())
+  const next = bumpPastHolidays(new Date(baseMs + days * 86400000).toISOString())
+  db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [next, e.id])
+  res.json({ success: true, next_run_at: next })
+})
+
 // ---- activity ----
 router.get('/:id/activity', (req, res) => {
   const rows = db.all(`SELECT e.*, c.first_name, c.last_name, c.email

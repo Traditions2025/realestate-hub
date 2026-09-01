@@ -841,6 +841,33 @@ router.post('/enrollments/:eid/remove', (req, res) => {
   db.run("UPDATE automation_enrollments SET status='removed', exit_reason='manually removed', completed_at=? WHERE id=?", [nowIso(), Number(req.params.eid)])
   res.json({ success: true })
 })
+// ---- Action Plans controls: pause / resume / delay a single automation enrollment ----
+// The due scheduler only picks status IN ('active','waiting'), so 'paused' halts it for free.
+router.post('/enrollments/:eid/pause', (req, res) => {
+  const e = db.get('SELECT id, status FROM automation_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  if (['active', 'waiting'].includes(e.status)) db.run("UPDATE automation_enrollments SET status='paused' WHERE id=?", [e.id])
+  res.json({ success: true, status: 'paused' })
+})
+router.post('/enrollments/:eid/resume', (req, res) => {
+  const e = db.get('SELECT * FROM automation_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  if (e.status !== 'paused') return res.json({ success: true, status: e.status })
+  const next = e.next_run_at || nowIso()
+  const status = next > nowIso() ? 'waiting' : 'active'   // both are picked up by the due query
+  db.run('UPDATE automation_enrollments SET status=?, next_run_at=? WHERE id=?', [status, next, e.id])
+  res.json({ success: true, status, next_run_at: next })
+})
+router.post('/enrollments/:eid/delay', (req, res) => {
+  const days = Math.floor(Number(req.body?.days) || 0)
+  if (!(days > 0)) return res.status(400).json({ error: 'days must be a positive number' })
+  const e = db.get('SELECT id, next_run_at FROM automation_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  const baseMs = Math.max(Date.now(), e.next_run_at ? new Date(e.next_run_at).getTime() : Date.now())
+  const next = bumpPastHolidays(new Date(baseMs + days * 86400000).toISOString())
+  db.run('UPDATE automation_enrollments SET next_run_at=? WHERE id=?', [next, e.id])
+  res.json({ success: true, next_run_at: next })
+})
 router.post('/executions/:xid/retry', async (req, res) => {
   const x = db.get('SELECT * FROM automation_executions WHERE id=?', [Number(req.params.xid)])
   if (!x) return res.status(404).json({ error: 'Execution not found' })

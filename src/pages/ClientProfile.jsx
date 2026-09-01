@@ -638,30 +638,106 @@ function TransactionsCard({ cid, onAdd, navigate }) {
 }
 
 // ── Action Plans (drip / automation / action plan enrollments) ───────────
+// Small "Delay next…" dropdown that fires onPick(days).
+function DelayMenu({ onPick, disabled }) {
+  return (
+    <select disabled={disabled} value="" onChange={e => { if (e.target.value) { onPick(Number(e.target.value)); e.target.value = '' } }}
+      title="Delay the next email" style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
+      <option value="">⏱ Delay…</option>
+      <option value="1">+1 day</option>
+      <option value="3">+3 days</option>
+      <option value="7">+1 week</option>
+      <option value="14">+2 weeks</option>
+      <option value="30">+1 month</option>
+    </select>
+  )
+}
+const fmtPlanDate = (iso) => { if (!iso) return null; const d = new Date(String(iso).replace(' ', 'T')); return isNaN(d.getTime()) ? null : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
+
 function ActionPlans({ cid }) {
   const [seq, setSeq] = useState(null)
   const [picker, setPicker] = useState(null)
+  const [preview, setPreview] = useState(null)   // rendered {drip, subject, body}
+  const [busyId, setBusyId] = useState(null)
   const reload = useCallback(() => authFetch(`/api/clients/${cid}/sequences`).then(r => r.json()).then(setSeq).catch(() => setSeq({ drips: [], automations: [] })), [cid])
   useEffect(() => { reload() }, [reload])
   const drips = seq?.drips || []; const autos = seq?.automations || []
-  const remove = async (kind, eid) => {
-    if (!eid || !window.confirm('Remove this enrollment?')) return
-    await authFetch(kind === 'drip' ? `/api/drips/enrollments/${eid}/remove` : `/api/automations/enrollments/${eid}/remove`, { method: 'POST' }).catch(() => {})
-    reload()
+  const call = async (kind, eid, action, body) => {
+    setBusyId(eid)
+    try {
+      await authFetch(`/api/${kind === 'drip' ? 'drips' : 'automations'}/enrollments/${eid}/${action}`,
+        { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined })
+    } catch (e) { alert('Action failed: ' + e.message) } finally { setBusyId(null); reload() }
   }
-  const row = (icon, kind, e) => { const eid = e.enrollment_id || e.id; return (
-    <div key={kind + eid} style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center', padding: '3px 0' }}>
-      <span>{icon}</span><span style={{ flex: 1 }}>{e.name || e.drip_name || e.automation_name || kind}</span>
-      {e.status && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{e.status}</span>}
-      <button title="Remove" onClick={() => remove(kind, eid)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>×</button>
-    </div>
-  ) }
+  const remove = (kind, eid) => { if (eid && window.confirm('Remove this action plan? The lead stops receiving it.')) call(kind, eid, 'remove') }
+  const openPreview = async (e) => {
+    try {
+      const r = await authFetch(`/api/drips/${e.drip_id}/preview/${e.current_step || 0}/${cid}`).then(x => x.json())
+      if (r.error) return alert(r.error)
+      setPreview(r)
+    } catch (err) { alert('Preview failed: ' + err.message) }
+  }
+  const pill = (label, on) => <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10, background: on ? '#fef3c7' : '#dcfce7', color: on ? '#92400e' : '#166534' }}>{label}</span>
+  const shell = { border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }
+  const dripRow = (e) => {
+    const eid = e.enrollment_id, paused = e.status === 'paused', next = fmtPlanDate(e.next_run_at), busy = busyId === eid
+    return (
+      <div key={'d' + eid} style={shell}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>💧</span><span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{e.drip_name}</span>{pill(paused ? 'Paused' : 'Active', paused)}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '5px 0 7px' }}>
+          {e.next_step_subject
+            ? <>Next: <button onClick={() => openPreview(e)} style={{ border: 'none', background: 'none', padding: 0, color: 'var(--primary,#2563eb)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>Email {e.next_step_number} of {e.total_steps}: {e.next_step_subject}</button></>
+            : <>All {e.total_steps} emails sent</>}
+          {next && <> · {paused ? 'was set for' : 'sends'} {next}</>}
+        </div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {paused
+            ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => call('drip', eid, 'resume')}>▶ Resume</button>
+            : <button className="btn btn-sm" disabled={busy} onClick={() => call('drip', eid, 'pause')}>⏸ Pause</button>}
+          {e.next_step_subject && <DelayMenu disabled={busy} onPick={days => call('drip', eid, 'delay', { days })} />}
+          {e.next_step_subject && <button className="btn btn-sm" onClick={() => openPreview(e)}>📖 Read</button>}
+          <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => remove('drip', eid)}>Remove</button>
+        </div>
+      </div>
+    )
+  }
+  const autoRow = (e) => {
+    const eid = e.enrollment_id, paused = e.status === 'paused', next = fmtPlanDate(e.next_run_at), busy = busyId === eid
+    return (
+      <div key={'a' + eid} style={shell}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span>⚡</span><span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{e.automation_name}</span>{pill(paused ? 'Paused' : (e.status === 'waiting' ? 'Waiting' : 'Active'), paused)}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '5px 0 7px' }}>{next ? `Next step ${paused ? 'was set for' : 'runs'} ${next}` : 'Running'}</div>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {paused
+            ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => call('automation', eid, 'resume')}>▶ Resume</button>
+            : <button className="btn btn-sm" disabled={busy} onClick={() => call('automation', eid, 'pause')}>⏸ Pause</button>}
+          <DelayMenu disabled={busy} onPick={days => call('automation', eid, 'delay', { days })} />
+          <button className="btn btn-sm btn-danger" disabled={busy} onClick={() => remove('automation', eid)}>Remove</button>
+        </div>
+      </div>
+    )
+  }
   return (
     <Section title="Action Plans" id="plans" right={<div style={{ display: 'flex', gap: 4 }}><button className="btn btn-sm" onClick={() => setPicker('drip')}>+ Drip</button><button className="btn btn-sm" onClick={() => setPicker('automation')}>+ Automation</button></div>}>
       {seq === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
         : (!drips.length && !autos.length && !picker) ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Not enrolled in any plans.</div>
-          : <>{drips.map(d => row('💧', 'drip', d))}{autos.map(a => row('⚡', 'automation', a))}</>}
+          : <>{drips.map(dripRow)}{autos.map(autoRow)}</>}
       {picker && <EnrollPicker kind={picker} cid={cid} onClose={() => setPicker(null)} onDone={() => { setPicker(null); reload() }} />}
+      {preview && (
+        <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, maxWidth: 640, width: '100%', maxHeight: '85vh', overflow: 'auto' }}>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <strong style={{ fontSize: 13, color: '#0f172a' }}>{preview.drip} — Subject: {preview.subject || '(no subject)'}</strong>
+              <button className="btn btn-sm" onClick={() => setPreview(null)}>Close</button>
+            </div>
+            <div style={{ padding: 16, fontSize: 13, color: '#0f172a' }} dangerouslySetInnerHTML={{ __html: preview.body || '' }} />
+          </div>
+        </div>
+      )}
     </Section>
   )
 }
