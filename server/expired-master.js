@@ -62,6 +62,26 @@ function extractDate(s) {
 }
 const monthsAgo = (d, n) => { const c = new Date(); c.setMonth(c.getMonth() - n); return d >= c }
 
+// Split "First Last", "Last, First", or a company into first/last (never blank first).
+function splitName(name) {
+  const s = String(name || '').trim()
+  if (!s) return { first: '(unknown)', last: '' }
+  if (s.includes(',')) { const [last, first] = s.split(',').map(x => x.trim()); return first ? { first, last } : { first: last, last: '' } }
+  const parts = s.split(/\s+/)
+  return parts.length === 1 ? { first: parts[0], last: '' } : { first: parts[0], last: parts.slice(1).join(' ') }
+}
+// Tags for a created lead: whatever's in the sheet's Tags column, guaranteed to carry the
+// MLS: Cancelled/Expired tag the Cancelled/Expired list filters on. Stored JSON-array style so
+// buildClientFilter's `tags LIKE '%"Tag"%'` matches.
+function tagsJson(row, cls, mlsStatus) {
+  const set = new Set(String(row.tags || '').split(',').map(t => t.trim()).filter(Boolean))
+  const s = String(mlsStatus || '').trim().toLowerCase()
+  if (s === 'cancelled' || s === 'canceled') set.add('MLS: Cancelled')
+  else if (s === 'expired') set.add('MLS: Expired')
+  else if (s === 'withdrawn') set.add('MLS: Cancelled')   // withdrawn works like cancelled for the list
+  return JSON.stringify([...set])
+}
+
 // Classify column P. Anything unexpected (incl. empty) is 'unknown' — never junk on unknown.
 function classifyMlsStatus(p) {
   const s = String(p || '').trim().toLowerCase()
@@ -80,14 +100,15 @@ export async function fetchExpiredMasterRows() {
   if (!rows.length) return []
   const header = rows[0].map(h => String(h || '').trim())
   const idx = (name) => header.findIndex(h => h.toLowerCase() === name.toLowerCase())
-  const iName = idx('Name 1'), iAddr = idx('Street Address'), iCity = idx('City'), iState = idx('State'), iZip = idx('Zipcode')
+  const iName = idx('Name 1'), iPhone = idx('Phone 1'), iEmail = idx('Email 1'), iAddr = idx('Street Address'), iCity = idx('City'), iState = idx('State'), iZip = idx('Zipcode')
   const iTags = idx('Tags'), iStatus = idx('Status'), iNotes = idx('Notes'), iMls = idx('MLS #'), iOff = idx('Off Market Date'), iAgent = idx('Listing Agent')
   const cell = (row, i) => i >= 0 ? String(row[i] || '').trim() : ''
   const out = []
   for (let r = 1; r < rows.length; r++) {
     const row = rows[r]
     out.push({
-      name: cell(row, iName), address: cell(row, iAddr), city: cell(row, iCity), state: cell(row, iState), zip: cell(row, iZip),
+      name: cell(row, iName), phone: cell(row, iPhone), email: cell(row, iEmail),
+      address: cell(row, iAddr), city: cell(row, iCity), state: cell(row, iState), zip: cell(row, iZip),
       tags: cell(row, iTags), mls_status: cell(row, iStatus), notes: cell(row, iNotes),
       mls_number: cell(row, iMls), off_market_date: cell(row, iOff), listing_agent: cell(row, iAgent),
     })
@@ -103,8 +124,8 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     dry: !!dryRun, sheet_rows: rows.length,
     counts: { off_market: 0, back_on_market: 0, sold: 0, unknown: 0 },
     matched: 0, unmatched: 0, name_mismatch: 0, wrote: 0,
-    junked: 0, already_junk: 0,
-    unmatched_addresses: [], name_mismatches: [], would_junk: [], junk_new: [], junk_skipped_sold_old: [],
+    junked: 0, already_junk: 0, created: 0,
+    unmatched_addresses: [], name_mismatches: [], would_junk: [], junk_new: [], junk_skipped_sold_old: [], would_create: [],
   }
 
   // Address+City index of live Hub clients (multiple people can share an address → keep a list).
@@ -120,10 +141,33 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     report.counts[cls] = (report.counts[cls] || 0) + 1
     const key = addrCityKey(row.address, row.city)
     const candidates = key ? (index.get(key) || []) : []
-    if (!candidates.length) { report.unmatched++; if (report.unmatched_addresses.length < 60) report.unmatched_addresses.push(`${row.address}, ${row.city} [${row.mls_status || '?'}]`); continue }
-    // Confirm the sheet's Name 1 against a candidate at that address (never junk a stranger).
-    const match = candidates.find(c => sameName(row.name, c))
-    if (!match) { report.name_mismatch++; if (report.name_mismatches.length < 60) report.name_mismatches.push(`${row.name} @ ${row.address}, ${row.city} (Hub has: ${candidates.map(c => `${c.first_name || ''} ${c.last_name || ''}`.trim()).join(' / ')})`); continue }
+    // Name-confirm against a candidate already at that address (never write onto a stranger).
+    const match = candidates.length ? candidates.find(c => sameName(row.name, c)) : null
+
+    // NO confirmed match → the sheet's owner isn't in the Hub yet. For a workable OFF-MARKET row
+    // with a real name + address, CREATE a Hub-native lead so it lands on the Cancelled/Expired
+    // list without a Sierra import. Back-on-market / Sold / unknown / nameless rows are not created.
+    if (!match) {
+      if (candidates.length) { report.name_mismatch++; if (report.name_mismatches.length < 60) report.name_mismatches.push(`${row.name} @ ${row.address}, ${row.city} (Hub has: ${candidates.map(c => `${c.first_name || ''} ${c.last_name || ''}`.trim()).join(' / ')})`) }
+      else { report.unmatched++; if (report.unmatched_addresses.length < 60) report.unmatched_addresses.push(`${row.address}, ${row.city} [${row.mls_status || '?'}]`) }
+      const createable = cls === 'off_market' && key && row.name && !/^\(unknown\)$/.test(row.name)
+      if (createable) {
+        report.would_create.push(`${row.name} — ${row.address}, ${row.city} [${row.mls_status}]`)
+        if (!dryRun) {
+          const { first, last } = splitName(row.name)
+          const email = (row.email && !/notvalidemail/i.test(row.email)) ? row.email : null
+          const info = db.run(
+            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_extract_attempted_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [first, last, row.phone || null, email, 'seller', 'new', 'Expired/Cancelled Mls', row.address || null, row.city || null, row.state || null, row.zip || null,
+             tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, now, now, now])
+          // index the new lead so a duplicate row in this same run won't create it twice
+          index.set(key, [...candidates, { id: info.lastInsertRowid, first_name: first, last_name: last, address: row.address, city: row.city, status: 'new' }])
+          report.created++
+        }
+      }
+      continue
+    }
     report.matched++
 
     // Decide junk. Sold only counts when the sale is recent (≤24 months) — an old Sold is
