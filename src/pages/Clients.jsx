@@ -108,8 +108,12 @@ const LIST_COLUMNS = [
   { key: 'last_fub_visit', label: 'Last Visit', defaultVisible: true, size: 'flex', sort: { asc: 'oldest_fub_visit', desc: 'recent_fub_visit' } },
   { key: 'registered', label: 'Registered', defaultVisible: true,  size: 'normal', sort: { asc: 'oldest_first', desc: 'recent_added' } },
   { key: 'off_market_date', label: 'Off Market Date', defaultVisible: false, size: 'normal', sort: { asc: 'off_market_oldest', desc: 'off_market_recent' } },
+  { key: 'mls_status', label: 'MLS Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'mls_number', label: 'MLS #', defaultVisible: false, size: 'normal' },
 ]
+// The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
+// date, MLS status, and MLS #.
+const EXPIRED_COLUMN_KEYS = ['score', 'name', 'status', 'type', 'phone', 'email', 'address', 'source', 'off_market_date', 'mls_status', 'mls_number']
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
 // Live days-on-market for the FSBO list: always today - List Date, so it's current the
@@ -2381,11 +2385,16 @@ export default function Clients() {
         // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
         // Fixed pixel widths: columns keep the width the user set and never redistribute; when
         // the total exceeds the viewport the list scrolls horizontally (readability over squeeze).
-        const gridTemplate = `30px ${visibleColumns.map(c => colWidthPx(c) + 'px').join(' ')}`
-
-        // In the FSBO list the "Visits" column is repurposed as "FSBO Status"
-        // (Available / Off Market) from the FSBO master file.
-        const isFsboList = (savedLists.find(l => l.id === activeListId)?.name || '').toUpperCase() === 'FSBO'
+        // In the FSBO list the "Visits" column is repurposed as "FSBO Status"; the
+        // Cancelled/Expired list gets its OWN fixed column set (drops visits/last-visit, adds
+        // off-market date, MLS status, MLS #). Everything else uses the user's chosen columns.
+        const activeListName = (savedLists.find(l => l.id === activeListId)?.name || '')
+        const isFsboList = activeListName.toUpperCase() === 'FSBO'
+        const isExpiredList = /^(cancelled|expired)/i.test(activeListName)
+        const cols = isExpiredList
+          ? EXPIRED_COLUMN_KEYS.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(Boolean)
+          : visibleColumns
+        const gridTemplate = `30px ${cols.map(c => colWidthPx(c) + 'px').join(' ')}`
 
         // Cell renderers: one entry per column key. Each returns JSX for one cell.
         const renderHeaderCell = (col) => {
@@ -2591,6 +2600,13 @@ export default function Clients() {
                   ? (() => { const d = new Date(String(item.off_market_date).replace(' ', 'T')); return isNaN(d) ? item.off_market_date : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })()
                   : '—'}
               </div>
+            case 'mls_status': {
+              const s = String(item.mls_status || '').trim()
+              if (!s) return <div key="mls_status" className="cl-type">—</div>
+              const low = s.toLowerCase()
+              const color = low.startsWith('cancel') ? '#dc2626' : low.startsWith('expir') ? '#b45309' : low.startsWith('withdraw') ? '#7c3aed' : '#6b7280'
+              return <div key="mls_status" className="cl-type"><span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10, color: '#fff', background: color }}>{s}</span></div>
+            }
             case 'mls_number':
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
             default: return null
@@ -2605,7 +2621,7 @@ export default function Clients() {
                   checked={items.length > 0 && items.every(i => selectedIds.has(i.id))}
                   onChange={e => { if (e.target.checked) selectAllVisible(); else clearSelection() }} />
               </div>
-              {visibleColumns.map(col => (
+              {cols.map(col => (
                 <div key={col.key} draggable
                   onDragStart={e => { if (resizingRef.current) { e.preventDefault(); return } setDragColKey(col.key); e.dataTransfer.effectAllowed = 'move' }}
                   onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
@@ -2634,7 +2650,7 @@ export default function Clients() {
                   <div className="cl-check" onClick={e => e.stopPropagation()}>
                     <input type="checkbox" checked={selectedIds.has(item.id)} onChange={() => toggleSelect(item.id)} />
                   </div>
-                  {visibleColumns.map(col => {
+                  {cols.map(col => {
                     const cell = renderCell(col, item)
                     // Line body cells up with their (aligned) header — center/right per the column's align.
                     if (cell && (col.align === 'center' || col.align === 'right')) {

@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-01T16:35:37.452Z",
+  "generated_at": "2026-09-01T17:38:37.161Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "dac093c",
+      "date": "2026-09-01T12:21:14-05:00",
+      "subject": "Expired master: skip LLC/corporate owners on lead creation (trusts/estates allowed)",
+      "title": "Expired master: skip LLC/corporate owners on lead creation (trusts/estates allowed)",
+      "body": "Applies the team's no-LLC/corp prospecting rule to master-file lead creation:\ncompany names (LLC/Inc/Corp/Rentals/Appraisal/Realty/etc.) are flagged and NOT\ncreated; trusts and estates are allowed. Reports skipped_company.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "51761ff",
+      "date": "2026-09-01T12:19:01-05:00",
+      "subject": "Expired master: create Hub-native leads for off-market rows not yet in the Hub",
+      "title": "Expired master: create Hub-native leads for off-market rows not yet in the Hub",
+      "body": "Makes the master file the true source: an off-market row (Cancelled/Expired/\nWithdrawn) with a real name+address that has no confirmed Hub match now creates a\nHub-native seller lead (status new, MLS: Cancelled/Expired tag) so it lands on the\nCancelled/Expired list with no Sierra import. Back-on-market/Sold/unknown/nameless\nrows are never created; existing leads still just get field updates + junk logic.\nIdempotent (created leads match by address+city+name on the next run). ?dry=1\nreports would_create.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d5c8043",
+      "date": "2026-09-01T11:35:40-05:00",
+      "subject": "Smart lists: Responded to Email + Responded to Text (excl Junk/DNC)",
+      "title": "Smart lists: Responded to Email + Responded to Text (excl Junk/DNC)",
+      "body": "Two segments from the communications feed: an incoming email / incoming text from\nthe lead, with Junk and Do-Not-Contact excluded.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "2bb891b",
       "date": "2026-09-01T11:28:00-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "Revert \"Listings: internal notes thread with @mentions + redesigned stage tabs\"",
       "title": "Revert \"Listings: internal notes thread with @mentions + redesigned stage tabs\"",
       "body": "This reverts commit ab07ae2e9099ecb5ec068dc9b602b443170a5c7a.",
-      "category": "other"
-    },
-    {
-      "hash": "5f2ab2f",
-      "date": "2026-05-11T09:51:12-05:00",
-      "subject": "Revert \"Fix: lazy-import sendViaSendGrid in listings to break circular import\"",
-      "title": "Revert \"Fix: lazy-import sendViaSendGrid in listings to break circular import\"",
-      "body": "This reverts commit 1875ce09310c92a2428c9581266162aa28b3cf42.",
-      "category": "fix"
-    },
-    {
-      "hash": "1875ce0",
-      "date": "2026-05-11T09:39:38-05:00",
-      "subject": "Fix: lazy-import sendViaSendGrid in listings to break circular import",
-      "title": "Fix: lazy-import sendViaSendGrid in listings to break circular import",
-      "body": "Production deploys were failing on Render — Render's Node runtime\ncrashed on the circular dependency:\n  routes/listings.js → routes/email.js → transaction-digest.js → routes/email.js\n\nLocal Node 24 handles ESM cyclic named exports fine, but Render's\nenvironment doesn't. Moved the import inside notifyMentions() so\nthe cycle never resolves at module-load time.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "ab07ae2",
-      "date": "2026-05-11T09:18:45-05:00",
-      "subject": "Listings: internal notes thread with @mentions + redesigned stage tabs",
-      "title": "Listings: internal notes thread with @mentions + redesigned stage tabs",
-      "body": "Backend:\n- New listings.notes_log column (JSON array of {at, by, text, mentions})\n- POST /api/listings/:id/notes — parses @matt / @leo / @john mentions,\n  emails the mentioned teammate(s) with the note text and a link back\n  to the hub\n- DELETE /api/listings/:id/notes/:idx\n\nFrontend — listing modal:\n- New 💬 Notes tab with composer (by-author dropdown, multi-line text)\n  and a reverse-chronological thread of past notes\n- @mentions render as inline pills in the saved notes\n- 'notified: @matt' badge shows when a note triggered an email\n- Per-note delete button\n\nFrontend — stage tabs redesigned:\n- Replaced the small text-tab strip with a 6-column card grid showing\n  large count + uppercase label, color-coded left accent bar per stage\n  (purple pre-listing / amber coming soon / green active / blue under\n  contract / slate closed) and a subtle lift + glow on the active card\n- Mobile collapses to 3 columns\n\nAlso: deleted the orphan 2416 C St SW listing (id=1) on the live DB\nthat was creating the duplicate row.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
