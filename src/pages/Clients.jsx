@@ -1164,6 +1164,16 @@ export default function Clients() {
     setActiveListId(null)
   }
 
+  // Switch to a status tab. If we're leaving a saved list (FSBO/Cancelled-Expired), drop that
+  // list's stored filter so the status view isn't still scoped to the list; otherwise keep any
+  // manual advanced filters. Always exits smart lists + saved lists so only ONE tab is active.
+  const selectStatusTab = (status) => {
+    setSmartList(null)
+    if (activeListId) clearAllFilters()   // resets advFilters + activeListId + search (+ tab)
+    else setActiveListId(null)
+    setTab(status)
+  }
+
   const saveAsList = async () => {
     if (!newListName.trim()) return alert('Please enter a list name')
     const filter_criteria = { ...advFilters }
@@ -1206,6 +1216,7 @@ export default function Clients() {
   }
 
   const loadSavedList = async (listId) => {
+    setSmartList(null)   // a saved list and a smart list are mutually exclusive
     if (!listId) {
       clearAllFilters()
       return
@@ -1792,7 +1803,7 @@ export default function Clients() {
 
       {/* Status Tabs - primary statuses always visible, others in dropdown */}
       <div className="client-tabs">
-        <button className={`client-tab ${!smartList && tab === 'all' ? 'active' : ''}`} onClick={() => { setSmartList(null); setTab('all') }}>
+        <button className={`client-tab ${!smartList && !activeListId && tab === 'all' ? 'active' : ''}`} onClick={() => selectStatusTab('all')}>
           <span className="tab-dot" style={{ background: '#6b7280' }}></span>
           All
           <span className="tab-count">{allCounts.total}</span>
@@ -1800,8 +1811,8 @@ export default function Clients() {
         {primaryTabs.map(s => (
           <button
             key={s.status}
-            className={`client-tab ${!smartList && tab === s.status ? 'active' : ''}`}
-            onClick={() => { setSmartList(null); setTab(s.status) }}
+            className={`client-tab ${!smartList && !activeListId && tab === s.status ? 'active' : ''}`}
+            onClick={() => selectStatusTab(s.status)}
           >
             <span className="tab-dot" style={{ background: statusColors[s.status] || '#6b7280' }}></span>
             {formatStatus(s.status)}

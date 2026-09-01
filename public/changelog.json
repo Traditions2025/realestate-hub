@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T19:54:36.233Z",
+  "generated_at": "2026-09-01T19:58:14.087Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ad4a5e0",
+      "date": "2026-09-01T14:54:39-05:00",
+      "subject": "Clients: rename to 'Last Text Received' / 'Last Text Sent' (+ 'Last Text (Any)')",
+      "title": "Clients: rename to 'Last Text Received' / 'Last Text Sent' (+ 'Last Text (Any)')",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "15882de",
       "date": "2026-09-01T14:54:10-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "db: auto-restore also triggers on size ratio (live < 50% of newest backup)",
       "title": "db: auto-restore also triggers on size ratio (live < 50% of newest backup)",
       "body": "The 100 KB threshold from the previous commit missed the actual wipe\npattern we hit on 2026-05-12: live DB at 148 KB (barely above\nthreshold), newest backup at 24 MB. Plain absolute size check let it\nslip through.\n\nSmarter check: if newest backup exists AND live size < 50% of backup\nsize, treat as suspicious and auto-restore. The 50% ratio catches a\nwiped DB regardless of absolute size, while still allowing healthy\ngrowth (a slightly-smaller-than-yesterday DB is normal during cleanups).\n\nConditions now:\n  - File missing → restore\n  - File < 100 KB absolute → restore\n  - File < 50% of newest backup size → restore (NEW)\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5ba7910",
-      "date": "2026-05-12T13:20:47-05:00",
-      "subject": "db: stronger auto-restore — also triggers when DB file is suspiciously tiny",
-      "title": "db: stronger auto-restore — also triggers when DB file is suspiciously tiny",
-      "body": "Previous fix had two flaws:\n1. Used a dynamic await import('fs') that may not have given me readdirSync\n   in some Node configs.\n2. Only triggered auto-restore when the file was MISSING. But the actual\n   wipe symptom is the file existing but being 148 KB (fresh empty schema\n   plus seeded vendors/calendar) — which is technically present.\n\nUpdated logic:\n- readdirSync + copyFileSync are now static top-level imports\n- Auto-restore fires when DB_PATH is missing OR < 100 KB (a real DB with\n  even just seed data is ~140 KB, so < 100 KB = corrupted/empty)\n- Suspect file is moved to *.replaced-{ts} aside for forensic review\n- Logs the disk probe at boot (DB_PATH exists/size, backupDir exists)\n  so we can see exactly what happened in the deploy logs\n\nAfter this deploy: even if Render's mount race fires again and writes\n148 KB over our real 24 MB file, the NEXT boot auto-restores from the\n17:39 backup which still has 18 tx + 45K clients + 68 tasks.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
