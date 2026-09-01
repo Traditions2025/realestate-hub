@@ -749,6 +749,39 @@ router.post('/merge', (req, res) => {
   res.json(r)
 })
 
+// Fold FSBO Sierra-duplicate twins. The same FSBO seller imported into Sierra twice becomes two
+// Hub records with the same phone+name — one carrying fsbo_status (on the FSBO list), the other
+// where texts/activity may have landed. Merge the twins INTO the fsbo record so the FSBO list
+// shows the full history. Name-guarded so a shared household phone isn't collapsed. ?dry=1 previews.
+router.post('/fsbo-merge-dups', (req, res) => {
+  const dry = req.query.dry === '1' || req.body?.dry === true
+  const key = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
+  const nameMatch = (a, b) => {
+    const norm = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(Boolean)
+    const x = norm(`${a.first_name || ''} ${a.last_name || ''}`), y = norm(`${b.first_name || ''} ${b.last_name || ''}`)
+    if (!x.length || !y.length) return false
+    const sy = new Set(y)
+    if (x.filter(t => sy.has(t)).length >= 2) return true
+    return x[x.length - 1] === y[y.length - 1] && x[0][0] === y[0][0]
+  }
+  const rows = db.all("SELECT id, first_name, last_name, phone, fsbo_status FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL")
+  const groups = new Map()
+  for (const c of rows) { const k = key(c.phone); if (!k) continue; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(c) }
+  const plan = []; let mergedRecords = 0
+  for (const g of groups.values()) {
+    if (g.length < 2) continue
+    const fsbo = g.filter(c => c.fsbo_status && String(c.fsbo_status).trim())
+    if (!fsbo.length) continue
+    fsbo.sort((a, b) => ((b.fsbo_status === 'Available') - (a.fsbo_status === 'Available')) || (a.id - b.id))
+    const primary = fsbo[0]
+    const foldIds = g.filter(c => c.id !== primary.id && nameMatch(primary, c)).map(c => c.id)
+    if (!foldIds.length) continue
+    plan.push({ primary: primary.id, name: `${primary.first_name || ''} ${primary.last_name || ''}`.trim(), fold: foldIds })
+    if (!dry) { const r = doMerge(primary.id, foldIds, true); if (!r.error) mergedRecords += foldIds.length }
+  }
+  res.json({ dry, leads_with_dups: plan.length, merged_records: mergedRecords, plan: plan.slice(0, 60) })
+})
+
 // Group B: cluster the high-confidence New-vs-PastClient duplicates and merge each cluster
 // into its PAST-CLIENT record (closed preferred, else genuine-PC-tagged). Handles chains
 // (e.g. 3 Kirk Watson records -> one). dry_run:true returns the plan and changes nothing.
