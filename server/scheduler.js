@@ -149,6 +149,19 @@ async function syncSierraIncremental() {
       }
     } catch (e) { console.error('[scheduler] FSBO master sync error (non-fatal):', e.message) }
 
+    // Expired/Cancelled master-file refresh — same ~hourly throttle + isolation as FSBO above.
+    // Writes off_market_date/mls_number/listing_agent onto matched leads and junks any that
+    // went back on the market. Verified against the brief's numbers before scheduling.
+    try {
+      const last = db.getSetting?.('expired_master_last_sync')
+      const stale = !last || (Date.now() - new Date(last).getTime()) > 60 * 60 * 1000
+      if (stale) {
+        const { syncExpiredMaster } = await import('./expired-master.js')
+        const rep = await syncExpiredMaster()
+        console.log(`[scheduler] Expired master: ${rep.matched}/${rep.sheet_rows} matched, ${rep.wrote} written, ${rep.junked} junked, ${rep.unmatched} unmatched`)
+      }
+    } catch (e) { console.error('[scheduler] Expired master sync error (non-fatal):', e.message) }
+
     return { success: true, total, added, updated, since: sinceFormatted }
   } catch (err) {
     console.error('[scheduler] Sierra sync error:', err.message)
