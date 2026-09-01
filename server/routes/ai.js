@@ -202,6 +202,24 @@ router.post('/cold-buyer/purge-past-clients', (req, res) => {
   res.json({ targets: targets.length, drip_texts_canceled: canceled, ai_disabled: targets.length, ids: targets.map(t => t.id) })
 })
 
+// Turn OFF all AI for FSBO leads. Flips the FSBO follow-up master switch off (the proactive
+// FSBO sequence uses force-sends that bypass per-lead flags, so the global switch is the real
+// stop), AND disables/unmanages every FSBO lead + cancels their pending scheduled AI actions +
+// stops active FSBO follow-up enrollments. ?dry=1 previews the count.
+router.post('/fsbo/disable-all', (req, res) => {
+  const dry = req.query.dry === '1' || req.body?.dry === true
+  const ids = db.all("SELECT id FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL").map(r => r.id)
+  if (dry) return res.json({ dry: true, fsbo_leads: ids.length })
+  db.setSetting?.('fsbo_followup_enabled', '0')   // master FSBO follow-up switch OFF
+  let canceled = 0, stopped = 0
+  for (const id of ids) {
+    try { const r = db.run("UPDATE ai_scheduled_actions SET state='canceled', error='FSBO AI turned off', updated_at=datetime('now') WHERE client_id=? AND state='pending'", [id]); canceled += r.changes || 0 } catch {}
+    try { setEnabled(id, false); setManaged(id, false); transitionAiState(id, 'AI_DISABLED', 'FSBO AI turned off') } catch {}
+    try { const r = db.run("UPDATE fsbo_followups SET status='stopped' WHERE client_id=? AND status='active'", [id]); stopped += r.changes || 0 } catch {}
+  }
+  res.json({ fsbo_followup_enabled: false, fsbo_leads: ids.length, ai_disabled: ids.length, scheduled_canceled: canceled, followups_stopped: stopped })
+})
+
 // Bulk: report AI state (enabled / managed / state / pending drip actions) for a set of leads.
 router.post('/lead-states', (req, res) => {
   const ids = (Array.isArray(req.body?.client_ids) ? req.body.client_ids : []).map(Number).filter(Boolean)
