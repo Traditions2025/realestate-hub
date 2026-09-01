@@ -220,6 +220,25 @@ router.post('/fsbo/disable-all', (req, res) => {
   res.json({ fsbo_followup_enabled: false, fsbo_leads: ids.length, ai_disabled: ids.length, scheduled_canceled: canceled, followups_stopped: stopped })
 })
 
+// Turn OFF all AI for Cancelled/Expired leads (tagged/sourced Cancelled or Expired, or carrying
+// an MLS status). Disables + unmanages each lead, sets AI_DISABLED, and cancels pending scheduled
+// AI actions. (No proactive force-send sequence exists for these like FSBO, so per-lead is the
+// full stop.) ?dry=1 previews the count.
+router.post('/expired/disable-all', (req, res) => {
+  const dry = req.query.dry === '1' || req.body?.dry === true
+  const ids = db.all(`SELECT id FROM clients WHERE merged_into IS NULL AND (
+      lower(coalesce(tags,'')) LIKE '%cancelled%' OR lower(coalesce(tags,'')) LIKE '%expired%'
+      OR lower(coalesce(source,'')) LIKE '%cancelled%' OR lower(coalesce(source,'')) LIKE '%expired%'
+      OR (mls_status IS NOT NULL AND mls_status != ''))`).map(r => r.id)
+  if (dry) return res.json({ dry: true, expired_cancelled_leads: ids.length })
+  let canceled = 0
+  for (const id of ids) {
+    try { const r = db.run("UPDATE ai_scheduled_actions SET state='canceled', error='Cancelled/Expired AI turned off', updated_at=datetime('now') WHERE client_id=? AND state='pending'", [id]); canceled += r.changes || 0 } catch {}
+    try { setEnabled(id, false); setManaged(id, false); transitionAiState(id, 'AI_DISABLED', 'Cancelled/Expired AI turned off') } catch {}
+  }
+  res.json({ expired_cancelled_leads: ids.length, ai_disabled: ids.length, scheduled_canceled: canceled })
+})
+
 // Bulk: report AI state (enabled / managed / state / pending drip actions) for a set of leads.
 router.post('/lead-states', (req, res) => {
   const ids = (Array.isArray(req.body?.client_ids) ? req.body.client_ids : []).map(Number).filter(Boolean)
