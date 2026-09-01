@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-01T19:54:07.460Z",
+  "generated_at": "2026-09-01T19:54:36.233Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "15882de",
+      "date": "2026-09-01T14:54:10-05:00",
+      "subject": "Clients: add 'Last Text' (any direction) + 'Last Text Out' columns",
+      "title": "Clients: add 'Last Text' (any direction) + 'Last Text Out' columns",
+      "body": "Last Text In is inbound-only, so a lead you texted with no reply showed blank.\nAdds 'Last Text' (most recent text either direction) and 'Last Text Out' (last\ntext we sent), both sortable, so the list shows you've reached out even without a\nreply.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "aa3f746",
       "date": "2026-09-01T14:47:36-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "db: stronger auto-restore — also triggers when DB file is suspiciously tiny",
       "title": "db: stronger auto-restore — also triggers when DB file is suspiciously tiny",
       "body": "Previous fix had two flaws:\n1. Used a dynamic await import('fs') that may not have given me readdirSync\n   in some Node configs.\n2. Only triggered auto-restore when the file was MISSING. But the actual\n   wipe symptom is the file existing but being 148 KB (fresh empty schema\n   plus seeded vendors/calendar) — which is technically present.\n\nUpdated logic:\n- readdirSync + copyFileSync are now static top-level imports\n- Auto-restore fires when DB_PATH is missing OR < 100 KB (a real DB with\n  even just seed data is ~140 KB, so < 100 KB = corrupted/empty)\n- Suspect file is moved to *.replaced-{ts} aside for forensic review\n- Logs the disk probe at boot (DB_PATH exists/size, backupDir exists)\n  so we can see exactly what happened in the deploy logs\n\nAfter this deploy: even if Render's mount race fires again and writes\n148 KB over our real 24 MB file, the NEXT boot auto-restores from the\n17:39 backup which still has 18 tx + 45K clients + 68 tasks.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "159d73e",
-      "date": "2026-05-12T13:10:13-05:00",
-      "subject": "db: fix disk-mount race that wiped DB on every Render deploy",
-      "title": "db: fix disk-mount race that wiped DB on every Render deploy",
-      "body": "ROOT CAUSE of the 2026-05-11 and 2026-05-12 data wipes:\nRender's persistent disk mounts asynchronously. The Node process starts\nBEFORE /data is fully visible. initDb()'s existsSync(DB_PATH) was\nreturning FALSE even though the real 24 MB DB file existed on the disk.\nThat sent boot down the `else` branch (create empty in-memory DB) and\nsaveDb() at the end of initDb wrote the empty DB over the real file\nonce /data finished mounting. Silent total data loss every deploy.\n\nFIX (two layers of defense):\n1. Retry existsSync for up to 30 seconds (500ms × 60). Wait for /data\n   to mount before deciding the file doesn't exist.\n2. If main file is still missing AFTER mount confirms (backups dir\n   exists), the file genuinely vanished — auto-restore from the\n   newest backup in /data/backups/ instead of overwriting with empty.\n   Only proceeds with restore if a backup > 100 KB is available (skip\n   tiny / corrupted ones).\n\nEither layer alone would have prevented yesterday's wipe; together\nthey make this class of bug impossible.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
