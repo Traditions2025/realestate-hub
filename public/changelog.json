@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T14:48:06.245Z",
+  "generated_at": "2026-09-02T14:57:40.748Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "62b4191",
+      "date": "2026-09-02T09:48:09-05:00",
+      "subject": "Mobile Inbox: make .inbox-panes a column so the list fills by flex-grow (not row stretch)",
+      "title": "Mobile Inbox: make .inbox-panes a column so the list fills by flex-grow (not row stretch)",
+      "body": "Root cause of the bottom gap: .inbox-panes is the desktop flex ROW (folders|list|\nreading), so on mobile the single visible list got its height from align-items:\nstretch, which doesn't reliably expand it. Switching .inbox-panes to a COLUMN on\nmobile gives a clean vertical grow-chain (page -> panes -> list -> scroll all\nflex:1 / min-height:0), so the conversation list + its background fill to the very\nbottom regardless of how few conversations there are.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4e9d065",
       "date": "2026-09-02T09:42:44-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Sierra incremental sync: also pull by creationDate (catches imports)",
       "title": "Sierra incremental sync: also pull by creationDate (catches imports)",
       "body": "Imported leads in Sierra (Source: Import) often preserve the source\nfile's original updateDate rather than setting it to import time. That\nmeans our incremental sync (filter: leadUpdateDateFrom) misses them\neven when they were brought in yesterday.\n\nAdded a second pass with leadCreationDateFrom so newly created leads\nare pulled regardless of whether their updateDate was bumped. processLead\nis idempotent (UPDATE if exists), so a lead caught by both passes is\nno extra work - just one DB row touch.\n\nConcrete case: Kevin Christensen (imported yesterday, status=Watch,\nsource=Import) wasn't in the hub despite 144 incremental runs - because\nhis updateDate carried over from the source file and was older than the\nsync watermark.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "abb0780",
-      "date": "2026-05-19T09:09:26-05:00",
-      "subject": "Sierra incremental sync: 2-min overlap window + find-lead diagnostic",
-      "title": "Sierra incremental sync: 2-min overlap window + find-lead diagnostic",
-      "body": "Watermark drift fix: previous run logged synced_at=NOW, next run queried\nleadUpdateDateFrom=that-same-NOW. Leads updated in the same second as\nthe run could be missed (depending on whether Sierra's filter is\ninclusive/exclusive on the boundary). Now subtracts 2 min from the\nwatermark each cycle - re-processing the same lead is a no-op UPDATE,\nbut missed leads stop being missed.\n\nAdded GET /api/sierra/find-lead?q=<name|email|phone> so user can confirm\nwhether a lead actually exists in Sierra (and whether the hub already has\nit) without needing the Sierra ID. Returns Sierra status, creation date,\nupdate date, plus in_hub/hub_status flags from the local DB.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
