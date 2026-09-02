@@ -93,6 +93,25 @@ function matchClient(channel, fromAddr) {
   return pickBestClient(rows)
 }
 
+// Is this phone a participant in a Twilio Conversations (group) thread we already know about?
+// Those replies arrive via /conversations-webhook (the canonical group copy). Some Twilio
+// number configs ALSO fire the plain messaging webhook for the same SMS — with a different
+// MessageSid, so external_id dedup misses — which used to create a duplicate 1:1 copy on the
+// person's profile and a stray standalone conversation. If the sender is a group participant,
+// the group path owns the message and the messaging webhook must not store it again.
+function isGroupParticipant(phone) {
+  const k = phoneKey(phone)
+  if (!k) return false
+  try {
+    const rows = db.all("SELECT from_addr, to_addr, group_meta FROM communications WHERE conversation_sid IS NOT NULL")
+    for (const r of rows) {
+      if (phoneKey(r.from_addr) === k || phoneKey(r.to_addr) === k) return true
+      if (r.group_meta) { try { if (((JSON.parse(r.group_meta).participants) || []).some(p => phoneKey(p.phone) === k)) return true } catch {} }
+    }
+  } catch {}
+  return false
+}
+
 const escHtml = (s) => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 const fmtPhone = (p) => { const d = String(p || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
 const unknownKey = (phone) => { const k = phoneKey(phone); return k ? 'u_' + k : null }
@@ -553,7 +572,9 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     // senders land in the Unknown queue (client_id NULL) so no inbound lead is lost.
     const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)
     const dup = db.get('SELECT id FROM communications WHERE external_id = ?', [externalId])
-    if (!dup) {
+    // A group participant's reply is stored by /conversations-webhook; don't duplicate it here.
+    const groupMirror = isGroupParticipant(from)
+    if (!dup && !groupMirror) {
       const preview = (String(body).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} attachment${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
       const name = client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : fmtPhone(from)
       const cid = client ? client.id : null
@@ -1197,10 +1218,34 @@ router.post('/conversations-webhook', async (req, res) => {
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, conversation_sid, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
           ['text', 'incoming', match ? match.id : null, name, author, '', String(b.Body).replace(/\s+/g, ' ').slice(0, 160), String(b.Body), ext, 'grp_' + b.ConversationSid, 'unread', b.ConversationSid, nowIso()])
+        // Notify (the messaging webhook no longer stores/notifies group participants). No AI
+        // auto-reply on group threads — a bot replying into a group is undesirable.
+        if (match) notifyInboundText(match, String(b.Body), author, { group: true }).catch(() => {})
       }
     }
   } catch (e) { console.error('[conversations-webhook]', e.message) }
   res.sendStatus(204)
+})
+// Maintenance: remove historical duplicates where a group participant's reply was ALSO
+// stored as a 1:1 text by the messaging webhook (different MessageSid → dedup missed).
+// Deletes the twilio_ 1:1 copy, keeping the canonical conv_ group row. ?dry=1 to preview.
+router.post('/dedupe-group-mirrors', (req, res) => {
+  const dry = req.query.dry === '1' || req.body?.dry === true
+  const groupRows = db.all("SELECT id, client_id, from_addr, body, occurred_at FROM communications WHERE conversation_sid IS NOT NULL AND direction='incoming' AND channel='text'")
+  const victims = new Map()
+  for (const g of groupRows) {
+    if (!g.body) continue
+    const k = phoneKey(g.from_addr)
+    const cands = db.all("SELECT id, client_id, from_addr, occurred_at FROM communications WHERE conversation_sid IS NULL AND direction='incoming' AND channel='text' AND external_id LIKE 'twilio_%' AND body = ?", [g.body])
+    for (const c of cands) {
+      const sameWho = (g.client_id && c.client_id === g.client_id) || (k && phoneKey(c.from_addr) === k)
+      const dt = Math.abs(new Date(c.occurred_at).getTime() - new Date(g.occurred_at).getTime())
+      if (sameWho && dt <= 5 * 60 * 1000) victims.set(c.id, { id: c.id, client_id: c.client_id, body: g.body.slice(0, 40), at: c.occurred_at })
+    }
+  }
+  const list = [...victims.values()]
+  if (!dry) for (const v of list) db.run('DELETE FROM communications WHERE id=?', [v.id])
+  res.json({ dry: !!dry, duplicates: list.length, rows: list })
 })
 // Reply INTO an existing group conversation (message goes to everyone).
 router.post('/group-reply', async (req, res) => {
