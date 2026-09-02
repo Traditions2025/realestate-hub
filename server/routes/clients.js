@@ -515,9 +515,10 @@ export const SMART_LIST_SQL = {
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%fsbo%'
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%expired%'
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%cancelled%')`,
-  // FSBO with 14+ days on market that we have NOT texted yet (no outgoing text ever).
+  // FSBO with 14+ days on market that we have NOT texted yet (no outgoing text ever). Excludes Junk / DNC.
   fsbo_dom14_untexted:
     `(clients.fsbo_status IS NOT NULL AND clients.fsbo_status != ''
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact')
       AND clients.fsbo_dom IS NOT NULL AND clients.fsbo_dom != '' AND CAST(clients.fsbo_dom AS INTEGER) >= 14
       AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='outgoing'))`,
   // Cancelled/Expired that have not responded — no INCOMING text from them. Uses the SAME
@@ -528,9 +529,10 @@ export const SMART_LIST_SQL = {
       AND (clients.tags LIKE '%"Sierra: Cancelled"%' OR clients.tags LIKE '%"Sierra: Expired"%'
            OR clients.tags LIKE '%"MLS: Cancelled"%' OR clients.tags LIKE '%"MLS: Expired"%')
       AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='incoming'))`,
-  // FSBO with 14+ days on market that we have NOT texted in the last 14 days (may have texted earlier).
+  // FSBO with 14+ days on market that we have NOT texted in the last 14 days (may have texted earlier). Excludes Junk / DNC.
   fsbo_dom14_no_text_2w:
     `(clients.fsbo_status IS NOT NULL AND clients.fsbo_status != ''
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact')
       AND clients.fsbo_dom IS NOT NULL AND clients.fsbo_dom != '' AND CAST(clients.fsbo_dom AS INTEGER) >= 14
       AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='outgoing' AND co.occurred_at >= datetime('now','-14 days')))`,
 }
