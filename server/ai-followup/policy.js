@@ -15,8 +15,11 @@ export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); r
 // message that IS a single keyword ("STOP"). This catches conversational revocations
 // like "stop texting me", "take me off your list", "don't message me again".
 // Deliberately CONSERVATIVE: an opt-out verb must sit next to a messaging word, so
-// "stop by the house" or "stop sending me listings in that range" do NOT match.
-const NL_OPTOUT_RE = /(?:\b(?:stop|quit|cease|no more|don'?t|do not|please stop|please no)\b[^.!?\n]{0,24}\b(?:text|texts|texting|messag(?:e|es|ing)|contact(?:ing)?|sms|reach(?:ing)? out)\b)|\btake me off\b|\bremove me\b|\bunsubscribe me\b|\bleave me alone\b|\blose my number\b|\bstop bothering me\b/i
+// "stop by the house" or "stop sending me listings in that range" do NOT match. Two
+// guards prevent benign false positives (e.g. "I don't check my text messages" or "I
+// don't always answer texts", which are NOT opt-outs): the opt-out verb must not be
+// followed by a reading/answering verb, nor by a possessive + messaging noun ("my texts").
+const NL_OPTOUT_RE = /(?:\b(?:stop|quit|cease|no more|don'?t|do not|please stop|please no)\b(?![^.!?\n]{0,24}\b(?:check|read|see|get|got|receiv\w*|answer|reply|respond|return|miss)\b)(?![^.!?\n]{0,24}\b(?:my|your|his|her|our|their)\b\s*(?:text|message|sms))[^.!?\n]{0,18}\b(?:text|texts|texting|messag(?:e|es|ing)|contact(?:ing)?|sms|reach(?:ing)? out)\b)|\btake me off\b|\bremove me\b|\bunsubscribe me\b|\bleave me alone\b|\blose my number\b|\bstop bothering me\b/i
 export function isNaturalOptOut(body) {
   const s = String(body || '').trim()
   if (!s) return false

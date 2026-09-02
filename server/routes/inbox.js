@@ -1257,6 +1257,30 @@ router.post('/dedupe-group-mirrors', (req, res) => {
   if (!dry) for (const v of list) db.run('DELETE FROM communications WHERE id=?', [v.id])
   res.json({ dry: !!dry, duplicates: list.length, rows: list })
 })
+// Maintenance: undo natural-language opt-out FALSE POSITIVES. Only reconsiders opt-outs that
+// came from the conversational detector (source sms_reply_nl) — literal STOP keywords are left
+// alone. If none of a lead's inbound texts still match the (tightened) detector, the STOP flag
+// was a misread (e.g. "I don't check my text messages") and is cleared. ?dry=1 to preview.
+router.post('/fix-false-optouts', async (req, res) => {
+  const dry = req.query.dry === '1' || req.body?.dry === true
+  const { isNaturalOptOut } = await import('../ai-followup/policy.js')
+  const cands = db.all(`SELECT c.id, c.first_name, c.last_name FROM clients c
+    JOIN communication_preferences cp ON cp.client_id = c.id
+    WHERE c.hub_text_opt_out = 1 AND cp.sms_opt_out_source = 'sms_reply_nl'`)
+  const cleared = []
+  for (const c of cands) {
+    const texts = db.all("SELECT body, preview FROM communications WHERE client_id=? AND channel='text' AND direction='incoming'", [c.id])
+    const stillOptOut = texts.some(t => isNaturalOptOut(t.body || t.preview || ''))
+    if (!stillOptOut) {
+      if (!dry) {
+        db.run('UPDATE clients SET hub_text_opt_out=0, updated_at=? WHERE id=?', [nowIso(), c.id])
+        db.run("UPDATE communication_preferences SET sms_status='unknown', sms_opt_out_source=NULL, sms_opt_out_timestamp=NULL, updated_at=? WHERE client_id=?", [nowIso(), c.id])
+      }
+      cleared.push({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim() })
+    }
+  }
+  res.json({ dry: !!dry, cleared: cleared.length, rows: cleared })
+})
 // Reply INTO an existing group conversation (message goes to everyone).
 router.post('/group-reply', async (req, res) => {
   const sid = String(req.body?.conversation_sid || '')
