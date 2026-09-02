@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T14:24:12.799Z",
+  "generated_at": "2026-09-02T14:33:35.731Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "94ca779",
+      "date": "2026-09-02T09:24:25-05:00",
+      "subject": "Mobile: notification bell in top-right nav bar; Inbox full-height list + no horizontal scroll; drop subtitle; merge Calls+VM",
+      "title": "Mobile: notification bell in top-right nav bar; Inbox full-height list + no horizontal scroll; drop subtitle; merge Calls+VM",
+      "body": "- Notification bell moved to the mobile top bar (top-right, clean borderless, 40px\n  tap target); rendered once (mobile topbar OR desktop header via isMobile).\n  Dropdown capped to viewport width so it never runs off-screen.\n- Inbox: removed the 'All client calls, texts...' subtitle (web + mobile).\n- Mobile Inbox now a proper flex column filling calc(100dvh - topbar): the list\n  takes flex:1/min-height:0 and scrolls vertically to the bottom (safe-area aware),\n  no leftover gap or cut-off; killed the stray horizontal scrollbar (panes\n  max-width:100%/overflow-x hidden, reading overlay uses inset:0 not 100vw).\n- Mobile channel filter: Calls + Voicemails combined into one 'Calls'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9afadb1",
       "date": "2026-09-02T09:06:30-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Sort Under Contract by nearest closing date in table + mobile views",
       "title": "Sort Under Contract by nearest closing date in table + mobile views",
       "body": "Kanban Under Contract column was already sorted closing-date-ascending,\nbut the desktop full table and mobile card list were iterating items raw.\nAdded a computed sortedItems that puts Under Contract / Pending rows at\nthe top, sorted by closing date soonest-first (rows w/o a date at the\nbottom of that group), with the remaining statuses preserved in their\noriginal order after.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4ba2d46",
-      "date": "2026-05-15T11:55:37-05:00",
-      "subject": "Pre-Listing duplicate cleanup deletes rows instead of tagging Withdrawn",
-      "title": "Pre-Listing duplicate cleanup deletes rows instead of tagging Withdrawn",
-      "body": "Per user: duplicates should be removed, not parked under Withdrawn\nstatus where they still clutter history views. Cleanup endpoint now\nhard-DELETEs the older rows in each duplicate group; only the newest\nrow is kept. flipToListed action is unchanged (still flips matching\naddresses to status='Listed').\n\nFrontend label, confirm-dialog copy, and result alert updated to say\n\"delete\" instead of \"merge/withdraw\".\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

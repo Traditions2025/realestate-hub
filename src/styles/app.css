@@ -4015,21 +4015,27 @@ img[width], img[height] { height: auto; }
    full-screen overlay with a "← Inbox" back bar + safe-area padding.
    ============================================================ */
 @media (max-width: 768px) {
-  /* The Inbox page fills the viewport below the fixed topbar; a flex column lets the panes take
-     the remaining height (no magic fixed height that leaves a gap or cuts off the bottom). */
+  /* Pin the Inbox to fill the viewport from just under the fixed topbar to the very bottom, as a
+     flex column, so the list always reaches the bottom (no dead space, no cut-off) regardless of
+     what sits above it. Covering the redundant global "Search everything" row maximizes list room
+     (the Inbox has its own search). */
   .inbox-page {
+    position: fixed; top: calc(56px + env(safe-area-inset-top)); left: 0; right: 0; bottom: 0;
     display: flex; flex-direction: column;
-    height: calc(100dvh - 56px - env(safe-area-inset-top));
-    min-height: 0; overflow: hidden;              /* only the LIST scrolls, and only vertically */
+    margin: 0 !important; padding: 8px 12px 0 !important;
+    min-height: 0; max-width: 100%; overflow: hidden;   /* only the LIST scrolls, and only vertically */
+    background: var(--bg-primary, var(--bg));
+    z-index: 30;
   }
   .inbox-page .page-header { flex: 0 0 auto; margin-bottom: 8px; }
   .inbox-page .inbox-panes {
     flex: 1 1 auto; height: auto !important; min-height: 0 !important;
-    border-left: none !important; border-right: none !important; border-radius: 0 !important;
-    max-width: 100%; overflow: hidden;            /* kill the stray horizontal scrollbar */
+    border: none !important; border-radius: 0 !important;
+    width: 100%; max-width: 100%; overflow: hidden;      /* contain any horizontal overflow */
   }
   .inbox-panes .inbox-folders { display: none !important; }        /* folder/channel filters hidden on mobile */
-  .inbox-panes .inbox-list { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; min-width: 0 !important; }
+  .inbox-panes .inbox-list { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; min-width: 0 !important; overflow: hidden !important; }
+  .inbox-list-scroll { overflow-x: hidden !important; }            /* vertical scroll only */
   .inbox-panes .inbox-reading { display: none !important; }        /* default: list only */
   /* A conversation is open → hide the list, show the conversation full-screen */
   .inbox-panes.has-selection .inbox-list { display: none !important; }

@@ -392,7 +392,7 @@ export default function Inbox() {
               })()}
             </div>
           )}
-          <div style={{ flex: 1, overflowY: 'auto' }}>
+          <div className="inbox-list-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
             {convos === null ? <div style={pad}>Loading…</div>
               : convos.length === 0 ? (
                 <div style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
