@@ -4044,6 +4044,10 @@ img[width], img[height] { height: auto; }
     flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
     overflow: hidden !important; border-right: none !important;
   }
+  /* Keep the search + channel-chip header rows at their natural height. Without this the
+     scroll region's tall content pulls flex-shrink off its siblings and squishes/clips
+     the "All / Emails / Texts / Calls" chips. Only .inbox-list-scroll absorbs the shrink. */
+  .inbox-panes .inbox-list > *:not(.inbox-list-scroll) { flex: 0 0 auto !important; }
   .inbox-list-scroll { flex: 1 1 auto !important; min-height: 0 !important; max-height: none !important; overflow-y: auto !important; overflow-x: hidden !important; background: var(--bg-primary, var(--bg)); }  /* fills to bottom, vertical scroll only; no vh cap */
   .inbox-panes .inbox-reading { display: none !important; }        /* default: list only */
   /* A conversation is open → hide the list, show the conversation full-screen */

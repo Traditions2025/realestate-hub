@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T15:08:54.575Z",
+  "generated_at": "2026-09-02T15:19:01.644Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c30d646",
+      "date": "2026-09-02T10:09:00-05:00",
+      "subject": "Mobile Inbox: remove the 48vh max-height cap that stopped the list ~185px short",
+      "title": "Mobile Inbox: remove the 48vh max-height cap that stopped the list ~185px short",
+      "body": "Diagnosed via real device-emulated measurement: the whole flex chain (.inbox-page\n-> .inbox-panes -> .inbox-list) already reached the viewport bottom (844px), but\n.inbox-list-scroll was pinned to max-height:48vh (=405px) by a leftover rule from\nthe old 3-pane-stacks-vertically mobile design (.inbox-list > div:last-child),\nending at bottom:659 and leaving a 185px blank gap. Cleared that cap and added\nmax-height:none to .inbox-list-scroll so it fills the remaining height.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e072a7f",
       "date": "2026-09-02T09:58:02-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Hub-to-Sierra status write-back (status-only, confirm-gated)",
       "title": "Hub-to-Sierra status write-back (status-only, confirm-gated)",
       "body": "When you edit a Sierra-sourced client and change the status field, save\nprompts: \"Push status change to Sierra?\". Local hub save always happens\nfirst - the Sierra call is gated on confirmation so accidental flips\ncan't propagate. If Sierra fails, the hub change still persists and an\nalert surfaces the API error.\n\nScope is intentionally narrow: only the status field, only for clients\nwith a sierra_lead_id. Phone/email/notes/tags remain read-only-from-the-\nhub side (still edit those in Sierra).\n\nBackend tries 4 known Sierra endpoint shapes (/leads/edit/:id, /leads/\nupdate/:id, /leads/:id/status, PUT /leads/:id) until one accepts the\nwrite, then logs which shape worked to activity_log. If all fail, the\nresponse includes the full error trail so we can pin the right endpoint.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "88d4fa8",
-      "date": "2026-05-19T09:27:22-05:00",
-      "subject": "Tasks: add assignee quick-filter (Matt / Leo / Unassigned)",
-      "title": "Tasks: add assignee quick-filter (Matt / Leo / Unassigned)",
-      "body": "New dropdown in the Tasks toolbar next to Priority and Status filters.\nSelecting Matt shows only Matt's tasks; Leo shows only Leo's; Unassigned\nshows tasks with no assigned_to value. Applies to both kanban and table\nviews. Case-insensitive match.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
