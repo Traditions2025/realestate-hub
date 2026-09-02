@@ -520,14 +520,14 @@ export const SMART_LIST_SQL = {
     `(clients.fsbo_status IS NOT NULL AND clients.fsbo_status != ''
       AND clients.fsbo_dom IS NOT NULL AND clients.fsbo_dom != '' AND CAST(clients.fsbo_dom AS INTEGER) >= 14
       AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='outgoing'))`,
-  // Cancelled/Expired that have not responded — no INCOMING text from them (excludes Junk / DNC).
+  // Cancelled/Expired that have not responded — no INCOMING text from them. Uses the SAME
+  // definition as the Cancelled/Expired list tab (status new/qualify/watch + an MLS/Sierra
+  // Cancelled/Expired tag) so this is a strict subset of that tab, not a broader population.
   cx_no_response:
-    `(((clients.mls_status IS NOT NULL AND clients.mls_status != '')
-        OR lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) LIKE '%expired%'
-        OR lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) LIKE '%cancelled%'
-        OR lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) LIKE '%canceled%')
-      AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='incoming')
-      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact'))`,
+    `(clients.status IN ('new','qualify','watch')
+      AND (clients.tags LIKE '%"Sierra: Cancelled"%' OR clients.tags LIKE '%"Sierra: Expired"%'
+           OR clients.tags LIKE '%"MLS: Cancelled"%' OR clients.tags LIKE '%"MLS: Expired"%')
+      AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='incoming'))`,
   // FSBO with 14+ days on market that we have NOT texted in the last 14 days (may have texted earlier).
   fsbo_dom14_no_text_2w:
     `(clients.fsbo_status IS NOT NULL AND clients.fsbo_status != ''
