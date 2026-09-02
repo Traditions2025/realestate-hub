@@ -153,6 +153,9 @@ const SMART_LISTS = [
   { key: 'viewed_24h', label: 'Viewed within 24 hours', desc: 'Leads who viewed the website in the last 24 hours' },
   { key: 'responded_email', label: 'Responded to Email', desc: 'Leads who have replied to one of our emails (excludes Junk / DNC)' },
   { key: 'responded_text', label: 'Responded to Text', desc: 'Leads who have replied to one of our texts (excludes Junk / DNC)' },
+  { key: 'fsbo_dom14_untexted', label: 'FSBO 14+ DOM · Not Texted', desc: 'FSBOs with 14+ days on market we have never texted' },
+  { key: 'cx_no_response', label: 'Cancelled/Expired · No Response', desc: 'Cancelled/Expired with no text back from them (excludes Junk / DNC)' },
+  { key: 'fsbo_dom14_no_text_2w', label: 'FSBO 14+ DOM · No Text 2wk', desc: 'FSBOs with 14+ days on market we have not texted in the last 2 weeks' },
 ]
 
 function loadColumnPrefs() {
@@ -1832,13 +1835,15 @@ export default function Clients() {
         {/* Sierra sync + Realist enrichment status moved to Updates → Systems tab. */}
       </div>
 
-      {/* Smart Lists — server-computed segments. Positioned above the status tabs. */}
-      <div className="client-tabs" style={{ marginBottom: 6 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4, textTransform: 'uppercase' }}>Smart Lists</span>
+      {/* Smart Lists — server-computed segments. Positioned above the status tabs. This row
+          scrolls horizontally on its own (nowrap + overflow-x) since the list keeps growing. */}
+      <div className="client-tabs" style={{ marginBottom: 6, flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4, textTransform: 'uppercase', flexShrink: 0 }}>Smart Lists</span>
         {SMART_LISTS.map(sl => (
           <button
             key={sl.key}
             className={`client-tab ${smartList === sl.key ? 'active' : ''}`}
+            style={{ flexShrink: 0 }}
             onClick={() => { setSmartList(smartList === sl.key ? null : sl.key); setActiveListId(null); setTab('all') }}
             title={sl.desc}
           >

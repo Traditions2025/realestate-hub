@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T20:08:32.514Z",
+  "generated_at": "2026-09-02T20:29:53.978Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "094fa18",
+      "date": "2026-09-02T15:08:47-05:00",
+      "subject": "Clients filters: include/exclude FSBO and Cancelled/Expired as a reusable dimension",
+      "title": "Clients filters: include/exclude FSBO and Cancelled/Expired as a reusable dimension",
+      "body": "Adds two tri-state filters (Include all / Only / Exclude) for FSBO and for\nCancelled/Expired, so any view (e.g. the Watch status) can isolate or hide those\nprospecting leads. Server buildClientFilter gains fsbo_mode + cx_mode, matching the\nsame signals the tabs/smart lists use (fsbo_status / mls_status, with a tag+source\nsubstring fallback for fsbo/expired/cancelled). Counts toward the active-filter\nbadge and clears with the rest.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "2a63b90",
       "date": "2026-09-02T12:06:52-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Hub-to-Sierra tag write-back (add + remove)",
       "title": "Hub-to-Sierra tag write-back (add + remove)",
       "body": "Adds POST /api/sierra/update-lead-tag with body {client_id, tag, action}\nwhere action is 'add' or 'remove'. Local DB updates first so the hub\nstate is always correct; then if the lead has a sierra_lead_id, the\nendpoint tries multiple Sierra route shapes (same multi-attempt pattern\nused by status write-back) and falls back to last-resort full-tag-array\nshapes if needed.\n\nFrontend: detail-modal Tags section is now editable. Each tag chip gets\nan X button to remove; a small add-form below lets you type a new tag\nand submit. For Sierra-linked leads, the section is labeled \"Tags (N) ↔\nSierra\" so you know changes propagate. Remove asks for confirmation;\nadd does not (low risk, easily reversed).\n\nNon-Sierra clients still work — they just update the local DB and skip\nthe Sierra push step.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9799ee0",
-      "date": "2026-05-20T13:37:05-05:00",
-      "subject": "Auto-restore: tighten data-preservation guarantee",
-      "title": "Auto-restore: tighten data-preservation guarantee",
-      "body": "Two changes per user request \"make sure 100% no existing data removed\":\n\n1. Copy corrupt file to sidecar FIRST, then overwrite live file. Was\n   rename-then-copy, which left a brief window where the corrupt bytes\n   only existed in the renamed sidecar - if anything went wrong after\n   the rename but before the backup copy completed, the live position\n   would be missing.\n\n2. If the sidecar copy fails (disk full, permission, etc.), ABORT the\n   entire restore. Crash with the original corruption error and leave\n   the live file untouched. Previous code would still try to overwrite\n   the live file with the backup even if it couldn't preserve the\n   corrupt bytes - that's a hidden data-loss path.\n\nNet safety: regardless of failure mode, the original corrupted bytes\nare either at DB_PATH (if abort) or at DB_PATH.corrupt-{ts} (if\nrestore succeeded). They are never deleted, never overwritten without\na copy existing elsewhere first.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
