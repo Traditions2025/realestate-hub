@@ -443,6 +443,11 @@ export function buildClientFilter(q) {
     }
   }
 
+  // "Last Text Sent" state: never texted (no outgoing text ever) vs has been texted. Lets you
+  // filter, from the Last Text Sent column, the leads we have not yet texted.
+  if (q.texted_out === 'never') where += " AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id=clients.id AND co.channel='text' AND co.direction='outgoing')"
+  else if (q.texted_out === 'yes') where += " AND EXISTS (SELECT 1 FROM communications co WHERE co.client_id=clients.id AND co.channel='text' AND co.direction='outgoing')"
+
   // FSBO / Cancelled-Expired category include/exclude. Lets you isolate or hide prospecting
   // leads on any view (e.g. show only the Watch leads that are NOT FSBO / Cancelled-Expired).
   // Matches the same signals the tabs + smart lists use: the structured columns first, then a

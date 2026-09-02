@@ -285,6 +285,44 @@ function ZipColumnHeader({ sortBy, setSortBy, options, include, exclude, onChang
   )
 }
 
+// Last Text Sent column header: click to sort (newest/oldest) and filter by whether we've
+// texted them — "No text yet" surfaces the leads we have not texted at all.
+function TextSentColumnHeader({ sortBy, setSortBy, mode, onMode }) {
+  const [open, setOpen] = useState(false)
+  const active = sortBy === 'last_text_out_recent' || sortBy === 'last_text_out_oldest' || !!mode
+  const arrow = sortBy === 'last_text_out_recent' ? '▼' : sortBy === 'last_text_out_oldest' ? '▲' : ''
+  const sortBtn = (val, txt) => (
+    <button type="button" className="btn btn-sm" onClick={() => setSortBy(val)}
+      style={{ flex: 1, ...(sortBy === val ? { background: '#2563eb', color: '#fff', borderColor: '#2563eb' } : {}) }}>{txt}</button>
+  )
+  const modeBtn = (val, txt) => (
+    <button type="button" className="btn btn-sm" onClick={() => onMode(mode === val ? '' : val)}
+      style={{ width: '100%', textAlign: 'left', marginTop: 4, ...(mode === val ? { background: '#2563eb', color: '#fff', borderColor: '#2563eb' } : {}) }}>{txt}</button>
+  )
+  return (
+    <div className={`cl-last_text_out sortable ${active ? 'active' : ''}`} style={{ position: 'relative', cursor: 'pointer' }}
+      onClick={() => setOpen(o => !o)} title="Sort or filter by last text sent">
+      Last Text Sent {arrow}{mode === 'never' ? ' • none' : mode === 'yes' ? ' • sent' : ''} ▾
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
+          <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, width: 210, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 10, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SORT</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {sortBtn('last_text_out_recent', 'Newest ▼')}
+              {sortBtn('last_text_out_oldest', 'Oldest ▲')}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 2 }}>FILTER</div>
+            {modeBtn('never', 'No text yet (not texted)')}
+            {modeBtn('yes', 'Has been texted')}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // Bulk-pull social profiles from Follow Up Boss for all FUB-linked leads.
 function FubEnrichButton() {
   const [status, setStatus] = useState(null)
@@ -543,6 +581,7 @@ export default function Clients() {
     fsbo_dom_op: '', fsbo_dom_days: '', // FSBO days-on-market: 'more'/'less' than N
     fsbo_mode: '',  // '' (any) | 'only' (only FSBOs) | 'exclude' (hide FSBOs)
     cx_mode: '',    // '' (any) | 'only' (only Cancelled/Expired) | 'exclude' (hide them)
+    texted_out: '', // '' (any) | 'never' (no text sent yet) | 'yes' (has been texted)
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -573,7 +612,7 @@ export default function Clients() {
     len(advFilters.viewed_cities_include) + len(advFilters.viewed_cities_exclude) +
     len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.agents_exclude) + len(advFilters.email_statuses) +
     ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + ((advFilters.off_market_op && advFilters.off_market_days) ? 1 : 0) + ((advFilters.fsbo_dom_op && advFilters.fsbo_dom_days !== '') ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
-    (advFilters.fsbo_mode ? 1 : 0) + (advFilters.cx_mode ? 1 : 0) +
+    (advFilters.fsbo_mode ? 1 : 0) + (advFilters.cx_mode ? 1 : 0) + (advFilters.texted_out ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -781,6 +820,7 @@ export default function Clients() {
     if (advFilters.fsbo_dom_op && advFilters.fsbo_dom_days !== '') { params.fsbo_dom_op = advFilters.fsbo_dom_op; params.fsbo_dom_days = advFilters.fsbo_dom_days }
     if (advFilters.fsbo_mode) params.fsbo_mode = advFilters.fsbo_mode
     if (advFilters.cx_mode) params.cx_mode = advFilters.cx_mode
+    if (advFilters.texted_out) params.texted_out = advFilters.texted_out
     params.sort = sortBy
     return params
   }
@@ -1208,7 +1248,7 @@ export default function Clients() {
       realist_sell_score_min: '', realist_owner_occupied: '',
       in_drip: '', drip_id: '', has_address: '',
       has_fsbo_status: '', fsbo_statuses_include: [], fsbo_dom_op: '', fsbo_dom_days: '',
-      fsbo_mode: '', cx_mode: '',
+      fsbo_mode: '', cx_mode: '', texted_out: '',
     })
     setTab('all')
     setSearch('')
@@ -2577,6 +2617,10 @@ export default function Clients() {
               options={filterOptions.zips}
               include={advFilters.zips_include} exclude={advFilters.zips_exclude}
               onChangeFilter={({ include, exclude }) => setAdvFilters(p => ({ ...p, zips_include: include, zips_exclude: exclude }))} />
+          }
+          if (col.key === 'last_text_out') {
+            return <TextSentColumnHeader key="last_text_out" sortBy={sortBy} setSortBy={setSortBy}
+              mode={advFilters.texted_out} onMode={v => setAdvFilters(p => ({ ...p, texted_out: v }))} />
           }
           const isSorted = col.sort && (sortBy === col.sort.asc || sortBy === col.sort.desc)
           const arrow = !col.sort ? '' : (sortBy === col.sort.desc ? '▼' : sortBy === col.sort.asc ? '▲' : '⇅')

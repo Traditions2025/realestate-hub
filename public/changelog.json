@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-02T20:29:53.978Z",
+  "generated_at": "2026-09-02T20:51:28.573Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8651009",
+      "date": "2026-09-02T15:40:46-05:00",
+      "subject": "Smart lists: exclude Junk/DNC from FSBO 14+ DOM lists (CX list already excludes them)",
+      "title": "Smart lists: exclude Junk/DNC from FSBO 14+ DOM lists (CX list already excludes them)",
+      "body": "A junked/pending FSBO can still carry fsbo_status, so both FSBO smart lists now add\nstatus NOT IN (junk, donotcontact). cx_no_response already excludes them via its\nstatus new/qualify/watch filter.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4339009",
+      "date": "2026-09-02T15:36:25-05:00",
+      "subject": "Smart list cx_no_response: match the Cancelled/Expired tab definition exactly",
+      "title": "Smart list cx_no_response: match the Cancelled/Expired tab definition exactly",
+      "body": "Was 325 (any mls_status or expired/cancelled substring, all statuses) vs the tab's\n152. Now uses the tab's own filter (status new/qualify/watch + a Sierra/MLS\nCancelled/Expired tag) AND no incoming text, so it's a strict subset of the 152.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6b03409",
+      "date": "2026-09-02T15:30:07-05:00",
+      "subject": "Clients smart lists: add 3 FSBO/CX follow-up lists + horizontal slider on the row",
+      "title": "Clients smart lists: add 3 FSBO/CX follow-up lists + horizontal slider on the row",
+      "body": "New smart lists:\n- FSBO 14+ DOM, Not Texted (fsbo_status set, fsbo_dom>=14, no outgoing text ever)\n- Cancelled/Expired, No Response (CX signals, no incoming text from them, excl Junk/DNC)\n- FSBO 14+ DOM, No Text 2wk (fsbo_dom>=14, no outgoing text in the last 14 days)\nThe /smart-lists count endpoint picks these up automatically. Also made the Smart\nLists tab row scroll horizontally on its own (nowrap + overflow-x, items dont shrink)\nsince it keeps growing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "094fa18",
       "date": "2026-09-02T15:08:47-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "Sierra creationDate pass: format date as MM/dd/yyyy (Sierra's requirement)",
       "title": "Sierra creationDate pass: format date as MM/dd/yyyy (Sierra's requirement)",
       "body": "Sierra's API rejects ISO 8601 on leadCreationDateFrom with 400:\n  \"Invalid parameter - leadCreationDateFrom. Please specify date in\n   MM/dd/yyyy format.\"\n\nBut it accepts ISO 8601 on leadUpdateDateFrom (which we've been using\nfor years). Inconsistent formats across filters - had to learn this\nfrom the error reply, not docs.\n\nRender logs confirmed this was failing every 5-13 minutes since at\nleast 4:56 AM 2026-05-21, and probably longer. The creationDate pass\nwas supposed to catch imported leads (Source: Import) whose updateDate\npreserves the source file's old timestamp - meaning Kevin Christensen\nand any other recent import has NOT been syncing despite my prior\n\"fix\". This commit makes the pass actually work.\n\nAdded toSierraDateMMDDYYYY() helper that formats the same UTC instant\nas MM/dd/yyyy (e.g. 05/20/2026). Uses getUTCMonth/Date/FullYear so\nthe date is stable regardless of server timezone.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "03aaac9",
-      "date": "2026-05-20T15:09:17-05:00",
-      "subject": "Bulk-tag sheet fetch: try /export URL first, surface real errors",
-      "title": "Bulk-tag sheet fetch: try /export URL first, surface real errors",
-      "body": "User hit \"Error: fetch failed\" with no detail. Two changes:\n\n1. Try the /export?format=csv URL first - it's a single hop, no 302\n   redirect chain like gviz does. Fall back to gviz if export fails.\n2. On failure, return the actual fetch error messages (including\n   .cause from undici) and which URL attempts failed - so the next\n   time it breaks we see WHY instead of \"fetch failed\".\n3. Detect HTML responses (sheet not public / auth-required) and treat\n   them as failures so we don't try to parse Google's login HTML as\n   CSV.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c69f020",
-      "date": "2026-05-20T14:35:18-05:00",
-      "subject": "Bulk-tag clients from a Google Sheet (Updates -> Bulk Tools)",
-      "title": "Bulk-tag clients from a Google Sheet (Updates -> Bulk Tools)",
-      "body": "New POST /api/sierra/bulk-tag-from-sheet endpoint that:\n- Fetches a public Google Sheet as CSV\n- Filters rows where a chosen column equals a chosen value\n- Matches each row to a hub client by phone (last 10 digits)\n- Adds a tag to each matched client locally\n- Pushes the tag to Sierra for sierra_lead_id clients (multi-attempt\n  fallback across known Sierra tag endpoint shapes)\n- Returns a per-row report: matched / no-match / already-tagged / Sierra\n  push success or failure\n\nNew UI: Updates page -> Bulk Tools tab, pre-filled for the FSBO Master\n\"Off Market\" batch (sheet 1i0p9...DDaJc, column FSBO Status, value\nOff Market, tag FSBO_Off Market). Dry-run preview button shows what\nwould change before any writes; Run-for-real button has a confirm\ndialog and shows the same report with actual results.\n\nReusable for any future bulk-tag-from-sheet operation - the form\nfields are editable.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d60d13c",
-      "date": "2026-05-20T14:10:12-05:00",
-      "subject": "Hub-to-Sierra tag write-back (add + remove)",
-      "title": "Hub-to-Sierra tag write-back (add + remove)",
-      "body": "Adds POST /api/sierra/update-lead-tag with body {client_id, tag, action}\nwhere action is 'add' or 'remove'. Local DB updates first so the hub\nstate is always correct; then if the lead has a sierra_lead_id, the\nendpoint tries multiple Sierra route shapes (same multi-attempt pattern\nused by status write-back) and falls back to last-resort full-tag-array\nshapes if needed.\n\nFrontend: detail-modal Tags section is now editable. Each tag chip gets\nan X button to remove; a small add-form below lets you type a new tag\nand submit. For Sierra-linked leads, the section is labeled \"Tags (N) ↔\nSierra\" so you know changes propagate. Remove asks for confirmation;\nadd does not (low risk, easily reversed).\n\nNon-Sierra clients still work — they just update the local DB and skip\nthe Sierra push step.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
