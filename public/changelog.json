@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-09-01T21:51:17.975Z",
+  "generated_at": "2026-09-02T13:51:25.710Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "02ce315",
+      "date": "2026-09-01T18:09:53-05:00",
+      "subject": "Fix: matchClient excludes merged records; repair endpoint reassigns orphaned comms to survivor",
+      "title": "Fix: matchClient excludes merged records; repair endpoint reassigns orphaned comms to survivor",
+      "body": "New inbound texts were landing on archived duplicate records (matchClient didn't\nfilter merged_into), so a merged lead's texts (and their emailed-in address) lived\non the wrong id. matchClient now excludes merged records, and POST /api/clients/\nreassign-merged-comms moves comms/activity from any merged dup to its survivor.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "2e49926",
+      "date": "2026-09-01T18:03:13-05:00",
+      "subject": "Backfill FSBO emails: also match emails texted inside group/conversation rows (client_id NULL) by sender phone",
+      "title": "Backfill FSBO emails: also match emails texted inside group/conversation rows (client_id NULL) by sender phone",
+      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0de7558",
+      "date": "2026-09-01T18:01:10-05:00",
+      "subject": "Inbox: single-participant convos not labeled Group; backfill FSBO emails from texts; Sierra won't clobber a real email with a placeholder",
+      "title": "Inbox: single-participant convos not labeled Group; backfill FSBO emails from texts; Sierra won't clobber a real email with a placeholder",
+      "body": "- A conversation with one participant is a 1:1 (shows the person's name + links to\n  profile), not a 'Group text' (fixes Devin Barker showing as a group).\n- POST /api/inbox/backfill-fsbo-emails: reads inbound texts for an email and writes\n  it to the lead when their current email is empty/placeholder (never overwrites a\n  real one). ?dry=1, ?scope=all.\n- Sierra sync now keeps the Hub's real email instead of overwriting it with a\n  @notvalidemail placeholder, so texted emails survive the next sync.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "947aef3",
+      "date": "2026-09-01T17:04:05-05:00",
+      "subject": "Notifications + holidays: off-hours alerts to Matt; no automated sends on US holidays",
+      "title": "Notifications + holidays: off-hours alerts to Matt; no automated sends on US holidays",
+      "body": "Incoming-text email alerts now also go to Matt's RE/MAX email during off-hours\n(weekday after 6 PM Central, weekends, US holidays). And no automated texts go out\non US federal holidays: canSendSms denies every non-manual channel on a holiday\n(covers AI, automations, and bulk via canAutomatedSend), bulk-text is blocked\nupfront with a clear message, and the scheduled-text tick defers on holidays.\nManual 1:1 replies still work so you can answer a lead. Drip emails already skip\nholidays.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f3d94f6",
+      "date": "2026-09-01T16:51:21-05:00",
+      "subject": "Inbox: reply box open by default + text-notification buttons (View in Inbox / View Lead Profile)",
+      "title": "Inbox: reply box open by default + text-notification buttons (View in Inbox / View Lead Profile)",
+      "body": "Incoming-text email notification now has 'View in Inbox' (deep-links /inbox?client=ID\nto open that thread) and 'View Lead Profile' (/clients/ID) buttons. Inbox honors\n?client= to open the thread on load, and the reply composer is open by default so\nyou can type immediately instead of clicking Reply first.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1e81f7e",
       "date": "2026-09-01T16:15:06-05:00",
@@ -3960,46 +4000,6 @@
       "subject": "Light/dark theme toggle + saved-list shortcuts in Clients status tabs",
       "title": "Light/dark theme toggle + saved-list shortcuts in Clients status tabs",
       "body": "1. THEME TOGGLE\n   - body[data-theme=\"light\"] CSS overrides everything in app.css using\n     a small set of light-mode variable values (white card bg, light gray\n     page bg, dark text). Same accent so brand stays consistent.\n   - 'Light Mode' / 'Dark Mode' button in the sidebar footer.\n   - Choice persisted to localStorage (mst_theme) — survives reloads.\n\n2. CLIENTS STATUS TABS\n   - Removed the 'Other' dropdown that aggregated Archived/Junk/etc.\n     The user wasn't using it; less-common statuses are still reachable\n     via Advanced Filters.\n   - Added saved-list shortcut tabs after the primary status tabs.\n     Auto-renders any saved list whose name matches /^(FSBO|Cancelled\\/\n     Expired|Cancelled|Expired)/i — so the existing 'FSBO' (73) and\n     'Cancelled/Expired' (176) lists now appear as clickable tabs with\n     a purple dot.\n   - Click → loadSavedList(id) applies the saved filter as if the user\n     picked it from the Saved Lists dropdown.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3131eb1",
-      "date": "2026-05-14T09:58:18-05:00",
-      "subject": "Remove ALL remaining Google Sheet sync UI (Transactions + PreListings)",
-      "title": "ALL remaining Google Sheet sync UI (Transactions + PreListings)",
-      "body": "Caught in user screenshot: the Transactions page had two sync buttons\n('Clear & Re-sync' and 'Sync from Google Sheet') in its header that I\nmissed yesterday — only Dashboard's buttons were removed.\n\nThis pass nukes every remaining trigger:\n  - Transactions page: 'Clear & Re-sync' button GONE\n  - Transactions page: 'Sync from Google Sheet' button GONE\n  - Transactions page: subtitle updated, empty-state messages updated\n  - PreListings page: 'Sync from Google Sheet' button GONE\n  - PreListings page: empty-state message updated\n  - syncSheet() / clearAndResync() handlers deleted from both pages\n  - Orphan syncing/setSyncing state removed where no longer referenced\n  - POST /api/transactions/clear-all → 410 Gone (was a foot-gun;\n    only caller was the now-deleted Clear & Re-sync button)\n\nTogether with yesterday's commit (280de32) that disabled the\nsync-sheet endpoints + Dashboard buttons, there is now NO path —\nbutton, handler, or API call — that pulls from the Google Sheet.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "removal"
-    },
-    {
-      "hash": "280de32",
-      "date": "2026-05-14T09:47:06-05:00",
-      "subject": "Hub is master: kill Google Sheet sync entirely (transactions + pre-listings)",
-      "title": "Hub is master: kill Google Sheet sync entirely (transactions + pre-listings)",
-      "body": "The persistent duplicate-pre-listings problem was caused by the\nDashboard's 'Sync Everything' / 'Sync Google Sheet' buttons triggering\nsheet pulls. The sheet has the same property recorded with multiple\naddress variants ('230 Bever Ln SE' vs 'bever lane se', with/without\ncommas) so each sync re-inserted them as 'new' rows.\n\nPer user direction (stated multiple times now), the hub is the master\nfile for transactions and pre-listings. Sheet sync is fully disabled:\n\n- POST /api/transactions/sync-sheet → 410 Gone\n- POST /api/pre-listings/sync-sheet → 410 Gone\n- /api/seed/all no longer calls the sheet endpoints\n- Dashboard 'Sync Google Sheet' and 'Sync Everything' buttons removed\n- Only 'Pull Sierra Leads' button remains (Sierra is a separate\n  external source — that integration stays untouched)\n- Original sheet-pull code preserved behind _disabled_* function names\n  in case the user ever changes their mind\n\nSaved durable memory rule: feedback_hub_is_master.md.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a87fea7",
-      "date": "2026-05-14T09:36:05-05:00",
-      "subject": "Pre-listings: fix persistent duplicate + Listed-still-showing bugs",
-      "title": "Pre-listings: fix persistent duplicate + Listed-still-showing bugs",
-      "body": "Two compounding bugs explained the recurring complaint:\n\n1. PreListings page rendered every row without filtering.\n   - The Transactions kanban already hid status IN ('Listed',\n     'Withdrawn', 'Cancelled'), but the standalone Pre-Listings page\n     showed everything. So 8506 Federalist (Listed) and 2416 C St SW\n     (Listed) kept appearing despite the status flip yesterday.\n   - Fix: added the same filter to PreListings.jsx.\n\n2. POST /api/pre-listings/sync-sheet did exact-string dedup against\n   property_address, but the Google Sheet has the same property\n   recorded multiple ways:\n     \"230 Bever Ln SE, Cedar Rapids, IA 52403\"\n     \"230 bever lane se, Cedar Rapids, IA 52403\"\n     \"3822 Banar Ave SW, Cedar Rapids, IA 52404\"\n     \"3822 Banar Ave SW Cedar Rapids, IA 52404\"   (no comma)\n   Different strings → dedup missed → every sync re-inserted them.\n   - Fix: normalizeAddress() — lowercase, strip punctuation, expand\n     suffix abbreviations (lane→ln, drive→dr, etc.) and direction\n     words (southwest→sw). Used as the dedup key.\n   - Also pre-loads existing pre-listings + active listings + active\n     transactions and skips any sheet row whose normalized address\n     matches anything we already track. The sync will never recreate\n     a property that's already promoted past the pre-listing stage.\n\n3. Added markMatchingPreListingsAsListed(txId) which fires on every\n   transaction POST/PUT. If an active-status transaction matches any\n   pre-listing by normalized address, that pre-listing flips to\n   'Listed'. So even when someone manually creates a transaction\n   without going through the promote flow, the matching pre-listing\n   gets cleaned up automatically.\n\nAlso did a one-time data delete of id=17 (Bever Ln dup) and id=18\n(Banar Ave dup) which had been re-imported by yesterday's sync run.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "de857a4",
-      "date": "2026-05-14T09:24:05-05:00",
-      "subject": "Transactions/Tasks/Digest: financing status + side filters + click-to-edit modal",
-      "title": "Transactions/Tasks/Digest: financing status + side filters + click-to-edit modal",
-      "body": "Four user-driven changes bundled:\n\n1. NEW: 'Financing Status' dropdown (Not Started / In Progress / Approved)\n   - New column financing_status; lives in the Lender section of the\n     transaction form, next to Type of Finance.\n   - When 'Approved', the Mortgage/Financing deadline drops off the\n     Tasks Deadlines column AND the daily digest stops nagging.\n\n2. Mortgage Payoff is now LISTING-SIDE ONLY\n   - Hidden from the transaction form when type='purchase' (replaced\n     with a small italic \"(listing-side only)\" hint)\n   - Filtered out of the digest's action items + per-transaction\n     doc-status row on purchase-only transactions.\n\n3. Click-to-edit deadline modal (instead of /transactions redirect)\n   - Click any card in the Tasks Deadlines column → small modal opens\n     with: Date input + Status dropdown (whichever applies) + Save /\n     Cancel / Open Full Transaction buttons.\n   - Saves via PUT /api/transactions/:id and refreshes the list\n     without leaving the Tasks page.\n\n4. Digest 'Mortgage contingency' row now carries financing_status as\n   its primary signal (relabeled 'Mortgage / Financing'). Approved =>\n   drop the row.\n\nDEADLINE_STATUS_OPTIONS map synced with the actual Transactions.jsx\ndropdown values to keep inline-edit options consistent. Appraisal N/A\nalready worked end-to-end; verified.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ffbc792",
-      "date": "2026-05-13T13:42:05-05:00",
-      "subject": "Tasks deadlines: inline status dropdown + skip walkthrough on listing-only",
-      "title": "Tasks deadlines: inline status dropdown + skip walkthrough on listing-only",
-      "body": "Two changes:\n\n1. Listing-side transactions (type='listing') no longer surface\n   Final Walkthrough — that's a buyer-side activity (the buyer\n   schedules and conducts the walkthrough to check the property\n   before closing). Purchase + dual-agency transactions still see it.\n\n2. Each deadline card with a status dropdown field now has an inline\n   <select> at the bottom of the card. Changing the value PUTs to\n   /api/transactions/:id and the deadlines list auto-refreshes.\n   Currently editable inline:\n     - Earnest money (Not Started / In Progress / Completed)\n     - Inspection (Not Started / Ordered / Completed / Waived / N/A)\n     - Appraisal (Not Started / Ordered / Completed / Waived / N/A)\n   When a status becomes terminal (Completed / Waived / N/A), the\n   card automatically drops off the column on the next refresh.\n   Cards without a status field (Closing, walkthrough, etc.) still\n   click-through to /transactions.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

@@ -3987,3 +3987,26 @@ img[width], img[height] { height: auto; }
   .ccm-date { font-weight: 600; color: var(--text-primary); }
   .ccm-muted { color: var(--text-muted); }
 }
+
+/* ============================================================
+   MOBILE INBOX — single-pane navigation (list XOR conversation).
+   Desktop keeps the split-pane (folders | list | reading) untouched.
+   On narrow screens: show ONLY the list, and open a conversation as a
+   full-screen overlay with a "← Inbox" back bar + safe-area padding.
+   ============================================================ */
+@media (max-width: 768px) {
+  .inbox-panes { height: calc(100dvh - 190px) !important; min-height: 320px !important; }
+  .inbox-panes .inbox-folders { display: none !important; }        /* folder/channel filters hidden on mobile */
+  .inbox-panes .inbox-list { width: 100% !important; flex: 1 1 auto !important; }
+  .inbox-panes .inbox-reading { display: none !important; }        /* default: list only */
+  /* A conversation is open → hide the list, show the conversation full-screen */
+  .inbox-panes.has-selection .inbox-list { display: none !important; }
+  .inbox-panes.has-selection .inbox-reading {
+    display: flex !important;
+    position: fixed !important; inset: 0 !important; z-index: 1200 !important;
+    width: 100vw !important; max-width: 100vw !important; height: 100dvh !important;
+    background: var(--bg-primary); border: none !important; border-radius: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .inbox-mobile-back { display: flex !important; padding-top: calc(11px + env(safe-area-inset-top)) !important; }
+}

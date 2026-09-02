@@ -132,6 +132,24 @@ export default function Inbox() {
   const [schedOpen, setSchedOpen] = useState(false)
   const [sendAt, setSendAt] = useState('')
   const fileRef = React.useRef(null)
+  // Mobile single-pane navigation: show the list OR the open conversation, never both stacked.
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
+  useEffect(() => { const mq = window.matchMedia('(max-width: 767px)'); const h = e => setIsMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h) }, [])
+  const hasSelection = !!(sel || unknownSel || groupSel)
+  const clearSelection = () => { setSel(null); setUnknownSel(null); setGroupSel(null) }
+  // On mobile, opening a conversation pushes a history entry so the device/browser Back returns
+  // to the list; popstate (Back) closes the conversation without leaving the Inbox.
+  const pushedRef = React.useRef(false)
+  useEffect(() => {
+    if (isMobile && hasSelection && !pushedRef.current) { try { window.history.pushState({ inboxThread: true }, '') } catch {} pushedRef.current = true }
+    if (!hasSelection) pushedRef.current = false
+  }, [isMobile, hasSelection])
+  useEffect(() => {
+    const onPop = () => { clearSelection(); pushedRef.current = false }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+  const backToList = () => { if (pushedRef.current) { try { window.history.back(); return } catch {} } clearSelection() }
 
   const load = useCallback(() => {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
@@ -202,9 +220,10 @@ export default function Inbox() {
   const autoOpenedRef = React.useRef(false)
   useEffect(() => {
     if (autoOpenedRef.current) return
+    if (isMobile) { autoOpenedRef.current = true; return }   // mobile starts on the list, not a conversation
     if (sel || unknownSel) { autoOpenedRef.current = true; return }
     if (Array.isArray(convos) && convos.length) { autoOpenedRef.current = true; openConvo(convos[0]) }
-  }, [convos, sel, unknownSel]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [convos, sel, unknownSel, isMobile]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Generate/regenerate the AI suggestion. force=true overwrites the editor
   // (Regenerate / first open); otherwise it only fills an empty editor.
@@ -321,7 +340,7 @@ export default function Inbox() {
         <button className="btn btn-primary" onClick={() => setCompose(true)}>✎ New Message</button>
       </div>
 
-      <div className="inbox-panes" style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
+      <div className={'inbox-panes' + (hasSelection ? ' has-selection' : '')} style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
         {/* left: folders + filters */}
         <aside className="inbox-folders" style={{ width: 210, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 14, flexShrink: 0 }}>
           <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
@@ -414,8 +433,13 @@ export default function Inbox() {
             </div>
           ) : (
             <>
-              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ fontWeight: 700 }}>{selConvo?.contact_name || 'Conversation'}</div>
+              {/* Mobile-only back bar: return to the conversation list (device Back also works). */}
+              <button className="inbox-mobile-back" onClick={backToList}
+                style={{ display: 'none', alignItems: 'center', gap: 6, width: '100%', padding: '11px 14px', border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--primary, #2563eb)', fontWeight: 700, fontSize: 14, cursor: 'pointer', textAlign: 'left' }}>
+                ← Inbox
+              </button>
+              <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>{selConvo?.contact_name || 'Conversation'}</div>
                 <a href={'/clients/' + sel} className="btn btn-sm btn-secondary" style={{ textDecoration: 'none' }} title="Open the full-screen profile (right-click or Ctrl/Cmd-click to open in a new tab)" onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); navigate('/clients/' + sel) }}>◉ View profile</a>
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
                   style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
