@@ -380,6 +380,18 @@ export default function Inbox() {
             </div>
             <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
           </div>
+          {/* Mobile: channel selector (the desktop folder sidebar is hidden on mobile). Tap one to
+              view Texts / Calls / Emails / Voicemails separately, or All. */}
+          {isMobile && (
+            <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+              {(() => { const chip = (active) => ({ flex: '0 0 auto', padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? 'var(--primary, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' }); const isAll = channels.length >= 4; return (<>
+                <button onClick={() => setChannels(['email', 'text', 'call', 'voicemail'])} style={chip(isAll)}>All</button>
+                {CHANNELS.map(c => { const only = channels.length === 1 && channels[0] === c.key; return (
+                  <button key={c.key} onClick={() => setChannels([c.key])} style={chip(only)}><span style={{ fontVariantEmoji: 'text' }}>{c.icon}</span> {c.label}</button>
+                ) })}
+              </>) })()}
+            </div>
+          )}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {convos === null ? <div style={pad}>Loading…</div>
               : convos.length === 0 ? (

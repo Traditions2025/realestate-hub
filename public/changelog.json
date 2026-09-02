@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T13:53:18.047Z",
+  "generated_at": "2026-09-02T14:06:25.109Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3b5fe3b",
+      "date": "2026-09-02T08:53:24-05:00",
+      "subject": "Responsive foundation: shared utilities + dev overflow scanner",
+      "title": "Responsive foundation: shared utilities + dev overflow scanner",
+      "body": "Stage 1 of the mobile responsive audit. The app already had the core (global\nbox-sizing:border-box, min-width:0 flex children, .ellipsis, .table-scroll, a 768px\nbreakpoint, safe-area/PWA handling, Client Profile grid collapse). Added the missing\nshared utility classes (.wrap-anywhere, .content-shrink, .toolbar-responsive,\n.card-responsive, .table-scroll-x, .mobile-full-width, .stack-mobile, .hide-mobile)\nand a window.__overflowScan() dev helper that lists elements sticking past the\nviewport (ignoring intentional table scrollers) to drive the per-page audit.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b893e7e",
       "date": "2026-09-02T08:51:48-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Pre-Listing diagnostics + cleanup tool",
       "body": "For three days I've claimed the duplicate-pre-listings issue was fixed,\nbut only fixed the CODE PATHS that create duplicates. Never cleaned up\nthe existing duplicate rows already in the DB from the old sheet-sync era.\n\nAdds:\n- GET /api/pre-listings/diagnostics - read-only audit. Returns pre-listings\n  whose address matches a live transaction/listing (should be Listed) AND\n  groups of duplicate-address pre-listing rows.\n- POST /api/pre-listings/cleanup - body {action: 'flipToListed' |\n  'mergeDuplicates' | 'both'}. Marks matches as Listed and sets duplicate\n  rows to Withdrawn (newest kept). Nothing deleted; recoverable.\n- Diagnostics button + review modal on PreListings page. Shows exactly what\n  will change before you click Fix all.\n\nAlso restricts GET /:id to digits so /diagnostics isn't swallowed.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "feature"
-    },
-    {
-      "hash": "ba76bc1",
-      "date": "2026-05-15T11:30:12-05:00",
-      "subject": "Wrap client status tabs so all fit without horizontal scroll",
-      "title": "Wrap client status tabs so all fit without horizontal scroll",
-      "body": "Status tabs row (Prime/Active/New/Qualify/Pending/Watch/Closed/FSBO/\nCancelled-Expired/All) was overflowing horizontally - last tab hidden\nbehind the scroller. Added flex-wrap + tightened tab padding/font so\nall tabs fit on the visible row (and wrap to a second row on narrower\nviewports instead of scrolling).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }
