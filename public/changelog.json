@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T14:42:41.328Z",
+  "generated_at": "2026-09-02T14:48:06.245Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4e9d065",
+      "date": "2026-09-02T09:42:44-05:00",
+      "subject": "Mobile Inbox: guarantee the list scroll fills to the bottom (min-height:0 on the list column + scroll)",
+      "title": "Mobile Inbox: guarantee the list scroll fills to the bottom (min-height:0 on the list column + scroll)",
+      "body": "Belt-and-suspenders on the flex chain so the conversation list always expands to\nthe viewport bottom instead of stopping at content height.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7b1e2c2",
       "date": "2026-09-02T09:33:38-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Sierra incremental sync: 2-min overlap window + find-lead diagnostic",
       "body": "Watermark drift fix: previous run logged synced_at=NOW, next run queried\nleadUpdateDateFrom=that-same-NOW. Leads updated in the same second as\nthe run could be missed (depending on whether Sierra's filter is\ninclusive/exclusive on the boundary). Now subtracts 2 min from the\nwatermark each cycle - re-processing the same lead is a no-op UPDATE,\nbut missed leads stop being missed.\n\nAdded GET /api/sierra/find-lead?q=<name|email|phone> so user can confirm\nwhether a lead actually exists in Sierra (and whether the hub already has\nit) without needing the Sierra ID. Returns Sierra status, creation date,\nupdate date, plus in_hub/hub_status flags from the local DB.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "2ce8a2e",
-      "date": "2026-05-15T12:51:57-05:00",
-      "subject": "Fix Transactions page crash: parseDate TDZ in sortedItems",
-      "title": "Transactions page crash: parseDate TDZ in sortedItems",
-      "body": "Previous commit referenced parseDate inside sortedItems before parseDate\nwas declared in the function body. const declarations don't hoist their\nvalue, so the IIFE threw ReferenceError on render and the whole page\nshowed empty. Moved parseDate above sortedItems.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

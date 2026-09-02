@@ -4030,12 +4030,19 @@ img[width], img[height] { height: auto; }
   .inbox-page .page-header { flex: 0 0 auto; margin-bottom: 8px; }
   .inbox-page .inbox-panes {
     flex: 1 1 auto; height: auto !important; min-height: 0 !important;
+    /* Column (not the desktop row) so the list gets its height from flex-grow, not stretch —
+       this is what makes it fill to the bottom instead of stopping at content height. */
+    flex-direction: column !important;
     border: none !important; border-radius: 0 !important;
     width: 100%; max-width: 100%; overflow: hidden;      /* contain any horizontal overflow */
   }
   .inbox-panes .inbox-folders { display: none !important; }        /* folder/channel filters hidden on mobile */
-  .inbox-panes .inbox-list { width: 100% !important; max-width: 100% !important; flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important; overflow: hidden !important; }
-  .inbox-list-scroll { flex: 1 1 auto !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; }  /* fills to bottom, vertical scroll only */
+  .inbox-panes .inbox-list {
+    width: 100% !important; max-width: 100% !important;
+    flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
+    overflow: hidden !important; border-right: none !important;
+  }
+  .inbox-list-scroll { flex: 1 1 auto !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; background: var(--bg-primary, var(--bg)); }  /* fills to bottom, vertical scroll only */
   .inbox-panes .inbox-reading { display: none !important; }        /* default: list only */
   /* A conversation is open → hide the list, show the conversation full-screen */
   .inbox-panes.has-selection .inbox-list { display: none !important; }
