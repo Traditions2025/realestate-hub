@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T14:33:35.731Z",
+  "generated_at": "2026-09-02T14:42:41.328Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "7b1e2c2",
+      "date": "2026-09-02T09:33:38-05:00",
+      "subject": "Mobile Inbox: pin full-height (fills to bottom) + kill horizontal scroll",
+      "title": "Mobile Inbox: pin full-height (fills to bottom) + kill horizontal scroll",
+      "body": "The list left dead space at the bottom because the height calc ignored the global\nsearch row above the page. Now the Inbox is position:fixed from under the topbar to\nthe viewport bottom (flex column), so the list always reaches the bottom and gains\nthe space the redundant global search occupied. List scroll container is\noverflow-x:hidden + panes/list contained, removing the stray horizontal slider.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "94ca779",
       "date": "2026-09-02T09:24:25-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Transactions page crash: parseDate TDZ in sortedItems",
       "body": "Previous commit referenced parseDate inside sortedItems before parseDate\nwas declared in the function body. const declarations don't hoist their\nvalue, so the IIFE threw ReferenceError on render and the whole page\nshowed empty. Moved parseDate above sortedItems.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "cb1db5d",
-      "date": "2026-05-15T12:28:11-05:00",
-      "subject": "Sort Under Contract by nearest closing date in table + mobile views",
-      "title": "Sort Under Contract by nearest closing date in table + mobile views",
-      "body": "Kanban Under Contract column was already sorted closing-date-ascending,\nbut the desktop full table and mobile card list were iterating items raw.\nAdded a computed sortedItems that puts Under Contract / Pending rows at\nthe top, sorted by closing date soonest-first (rows w/o a date at the\nbottom of that group), with the remaining statuses preserved in their\noriginal order after.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }
