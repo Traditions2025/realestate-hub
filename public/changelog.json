@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T14:06:25.109Z",
+  "generated_at": "2026-09-02T14:24:12.799Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9afadb1",
+      "date": "2026-09-02T09:06:30-05:00",
+      "subject": "Inbox mobile: channel selector (All / Texts / Calls / Emails / Voicemails) on the list",
+      "title": "Inbox mobile: channel selector (All / Texts / Calls / Emails / Voicemails) on the list",
+      "body": "The desktop folder sidebar with channel filters is hidden on mobile, so this adds a\ncompact scrollable chip row on the mobile conversation list to view each channel\nseparately (tap one = that channel only; All = everything). Uses the existing\nchannels filter state.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3b5fe3b",
       "date": "2026-09-02T08:53:24-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Pre-Listing duplicate cleanup deletes rows instead of tagging Withdrawn",
       "body": "Per user: duplicates should be removed, not parked under Withdrawn\nstatus where they still clutter history views. Cleanup endpoint now\nhard-DELETEs the older rows in each duplicate group; only the newest\nrow is kept. flipToListed action is unchanged (still flips matching\naddresses to status='Listed').\n\nFrontend label, confirm-dialog copy, and result alert updated to say\n\"delete\" instead of \"merge/withdraw\".\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "7193af6",
-      "date": "2026-05-15T11:52:44-05:00",
-      "subject": "Add Pre-Listing diagnostics + cleanup tool",
-      "title": "Pre-Listing diagnostics + cleanup tool",
-      "body": "For three days I've claimed the duplicate-pre-listings issue was fixed,\nbut only fixed the CODE PATHS that create duplicates. Never cleaned up\nthe existing duplicate rows already in the DB from the old sheet-sync era.\n\nAdds:\n- GET /api/pre-listings/diagnostics - read-only audit. Returns pre-listings\n  whose address matches a live transaction/listing (should be Listed) AND\n  groups of duplicate-address pre-listing rows.\n- POST /api/pre-listings/cleanup - body {action: 'flipToListed' |\n  'mergeDuplicates' | 'both'}. Marks matches as Listed and sets duplicate\n  rows to Withdrawn (newest kept). Nothing deleted; recoverable.\n- Diagnostics button + review modal on PreListings page. Shows exactly what\n  will change before you click Fix all.\n\nAlso restricts GET /:id to digits so /diagnostics isn't swallowed.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
     }
   ]
 }

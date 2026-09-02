@@ -331,12 +331,9 @@ export default function Inbox() {
   const selConvo = convos && convos.find(c => c.client_id === sel)
 
   return (
-    <div className="page" style={{ paddingBottom: 0 }}>
+    <div className="page inbox-page" style={{ paddingBottom: 0 }}>
       <div className="page-header">
-        <div>
-          <h1>Inbox</h1>
-          <p className="page-subtitle">All client calls, texts, and emails in one place. Only messages that match one of your clients appear here.</p>
-        </div>
+        <div><h1>Inbox</h1></div>
         <button className="btn btn-primary" onClick={() => setCompose(true)}>✎ New Message</button>
       </div>
 
@@ -384,12 +381,15 @@ export default function Inbox() {
               view Texts / Calls / Emails / Voicemails separately, or All. */}
           {isMobile && (
             <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
-              {(() => { const chip = (active) => ({ flex: '0 0 auto', padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? 'var(--primary, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' }); const isAll = channels.length >= 4; return (<>
-                <button onClick={() => setChannels(['email', 'text', 'call', 'voicemail'])} style={chip(isAll)}>All</button>
-                {CHANNELS.map(c => { const only = channels.length === 1 && channels[0] === c.key; return (
-                  <button key={c.key} onClick={() => setChannels([c.key])} style={chip(only)}><span style={{ fontVariantEmoji: 'text' }}>{c.icon}</span> {c.label}</button>
-                ) })}
-              </>) })()}
+              {(() => {
+                const chip = (active) => ({ flex: '0 0 auto', padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? 'var(--primary, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
+                const same = (a) => a.length === channels.length && a.every(x => channels.includes(x))
+                // Calls = calls + voicemails combined into one filter.
+                const opts = [['All', ['email', 'text', 'call', 'voicemail']], ['✉ Emails', ['email']], ['💬 Texts', ['text']], ['☎ Calls', ['call', 'voicemail']]]
+                return opts.map(([label, keys]) => (
+                  <button key={label} onClick={() => setChannels(keys)} style={chip(same(keys))}><span style={{ fontVariantEmoji: 'text' }}>{label}</span></button>
+                ))
+              })()}
             </div>
           )}
           <div style={{ flex: 1, overflowY: 'auto' }}>

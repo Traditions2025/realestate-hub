@@ -117,7 +117,7 @@ function NotificationBell() {
         {unread > 0 && <span style={{ position: 'absolute', top: 2, right: 4, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
-        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 340, maxHeight: 460, overflowY: 'auto', background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 60 }}>
+        <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 340, maxWidth: 'calc(100vw - 24px)', maxHeight: 460, overflowY: 'auto', background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 60 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
             <strong style={{ fontSize: 13 }}>Notifications</strong>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -252,6 +252,10 @@ class ErrorBoundary extends React.Component {
 
 export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  // Mobile vs desktop so the notification bell lives in the mobile top bar (top-right) instead
+  // of the desktop content header — rendered in exactly one place.
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches)
+  useEffect(() => { const mq = window.matchMedia('(max-width: 768px)'); const h = e => setIsMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h) }, [])
   // Desktop: collapse (fully hide) the sidebar to give the page full width. Persisted.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('mst_sidebar_collapsed') === '1')
   useEffect(() => { localStorage.setItem('mst_sidebar_collapsed', collapsed ? '1' : '0') }, [collapsed])
@@ -325,7 +329,7 @@ export default function App() {
           {sidebarOpen ? '\u2715' : '\u2630'}
         </button>
         <img src="/logo.png" alt="Matt Smith Team" className="mobile-logo" />
-        <div style={{width: 40}}></div>
+        <div className="mobile-topbar-actions">{isMobile && <NotificationBell />}</div>
       </div>
 
       {/* Overlay */}
@@ -385,7 +389,7 @@ export default function App() {
       <main className="main-content">
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 40, background: 'var(--bg-primary, var(--bg))' }}>
           <div style={{ flex: 1 }}><GlobalSearch /></div>
-          <NotificationBell />
+          {!isMobile && <NotificationBell />}
         </div>
         <ErrorBoundary>
         <Suspense fallback={<div className="page-loading">Loading...</div>}>
