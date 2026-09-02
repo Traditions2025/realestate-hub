@@ -221,16 +221,25 @@ router.get('/', (req, res) => {
   // through Twilio Conversations) — show the person's name and link it to their profile.
   for (const t of threads.values()) {
     if (!t.is_group) continue
+    // group_meta lives on the OUTGOING send row, which the inbox (incoming-only) query does
+    // not return — so look it up by conversation_sid. Without this the list never sees the
+    // participants and falls back to the generic "Group text" label.
+    if (!t.group_meta && t.conversation_sid) {
+      try { const g = db.get("SELECT group_meta FROM communications WHERE conversation_sid=? AND group_meta IS NOT NULL ORDER BY id ASC LIMIT 1", [t.conversation_sid]); if (g && g.group_meta) t.group_meta = g.group_meta } catch {}
+    }
     let parts = []
     try { parts = t.group_meta ? (JSON.parse(t.group_meta).participants || []) : [] } catch {}
+    const names = parts.map(p => p.name || fmtPhone(p.phone)).filter(Boolean)
     if (parts.length >= 2) {
-      const names = parts.map(p => p.name || p.phone); if (names.length) t.contact_name = 'Group: ' + names.join(', ')
+      if (names.length) t.contact_name = names.join(', ')   // actual recipient names, not "Group text"
     } else if (parts.length === 1) {
+      // A "group" with a single external participant is really a 1:1 — show their name and
+      // link it to their profile.
       t.is_group = false
       const p = parts[0]
-      if (p.name) t.contact_name = p.name
+      t.contact_name = p.name || fmtPhone(p.phone) || t.contact_name
       if (p.client_id) { t.client_id = Number(p.client_id); t.unknown = false; t.phone = null }
-    } else if (!/^Group:/.test(t.contact_name)) {
+    } else if (!/^Group:/.test(t.contact_name || '')) {
       t.contact_name = 'Group text'
     }
   }
