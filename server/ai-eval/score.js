@@ -62,10 +62,13 @@ export function scoreScenario(decision, scenario) {
   const fail = (name, detail) => { checks.push({ name, pass: false, detail }); score = Math.min(score, 1) }
   const ok = (name) => checks.push({ name, pass: true })
 
-  // Expected action.
-  if (expect.expected_action) {
-    if (action === expect.expected_action) ok('action')
-    else fail('action', `expected ${expect.expected_action}, got ${action}`)
+  // Expected action (a single action, or an array of acceptable actions).
+  const allowedActions = expect.expected_action
+    ? (Array.isArray(expect.expected_action) ? expect.expected_action : [expect.expected_action])
+    : []
+  if (allowedActions.length) {
+    if (allowedActions.includes(action)) ok('action')
+    else fail('action', `expected ${allowedActions.join(' or ')}, got ${action}`)
   }
 
   // Handoff expectation.
@@ -88,8 +91,9 @@ export function scoreScenario(decision, scenario) {
       if (hits(message, expect.on_topic).length) ok('on_topic')
       else fail('on_topic', 'reply drifted off the expected topic')
     }
-  } else if (expect.expected_action === 'SEND_TEXT') {
-    // We expected a reply and got none.
+  } else if (allowedActions.length === 1 && allowedActions[0] === 'SEND_TEXT') {
+    // We expected a reply (and ONLY a reply) and got none. If NO_ACTION is also acceptable
+    // (e.g. cold sellers, where a silent hold can be the right call), sending nothing is fine.
     fail('responded', 'expected a reply, sent nothing')
   }
 

@@ -10,7 +10,7 @@
 const PERSONA = 'John with Matt Smith Team at RE/MAX Concepts'
 
 // Compact ctx builder. `intel` folds into intelligence; `facts` overrides defaults.
-const S = (id, segment, title, { intel = {}, facts = {}, transcript = '', latestInbound, expect }) => ({
+const S = (id, segment, title, { intel = {}, facts = {}, transcript = '', latestInbound, expect, client }) => ({
   id, segment, title,
   ctx: {
     persona: PERSONA,
@@ -19,6 +19,9 @@ const S = (id, segment, title, { intel = {}, facts = {}, transcript = '', latest
     facts: { team_area: 'Cedar Rapids / Marion, Iowa (Linn County)', is_first_text: false, ...facts },
     transcript,
     latestInbound,
+    // `client` drives detectColdSeller() — set fsbo_status / mls_status to exercise the
+    // FSBO / expired / cancelled conversation philosophy.
+    ...(client ? { client } : {}),
   },
   expect,
 })
@@ -150,6 +153,36 @@ export const SELLER = [
     transcript: 'them: Got a job offer in Denver, need to move by fall',
     latestInbound: 'We have to be out by September. What are our next steps?',
     expect: { expected_action: 'SEND_TEXT', on_topic: [/september|next step|timeline|list|meet|plan/i] },
+  }),
+
+  // ---------- COLD SELLERS: FSBO / expired / cancelled philosophy ----------
+  S('cs-fsbo-doing-ourselves', 'seller', 'FSBO — respect the choice, do not sell them an agent', {
+    client: { fsbo_status: 'Available', type: 'seller' },
+    transcript: 'them: We put a for sale by owner sign up last week',
+    latestInbound: 'We are going to try selling it ourselves.',
+    expect: { expected_action: ['SEND_TEXT', 'NO_ACTION'], must_not_include: [/you('| wi)ll need an agent/i, /why would you.*without.*agent/i, /fsbo.*(fail|rarely|hard)/i, /schedule.*(consultation|walkthrough|appointment)/i, /15.?minute/i, /earn your (business|listing)/i] },
+  }),
+  S('cs-fsbo-price-challenge', 'seller', 'FSBO shares price — do not challenge or push CMA', {
+    client: { fsbo_status: 'Available', type: 'seller' },
+    transcript: 'them: Selling it ourselves, asking 315',
+    latestInbound: 'We think 315 is fair for our place.',
+    expect: { expected_action: ['SEND_TEXT', 'NO_ACTION'], must_not_include: [/overpriced|too high|priced too/i, /free cma/i, /let me run.*comps/i, /matt can (stop by|come)/i] },
+  }),
+  S('cs-expired-frustrated', 'seller', 'Expired — acknowledge, do not dissect or ask activity', {
+    client: { mls_status: 'Expired', type: 'seller' },
+    transcript: 'them: Our listing just expired',
+    latestInbound: 'Honestly we are just frustrated, it sat forever and nothing happened.',
+    expect: { expected_action: ['SEND_TEXT', 'NO_ACTION'], must_not_include: [/how (much|many).*(activity|showings)/i, /you (needed|need) to (lower|drop).*price/i, /overpriced/i, /we can (get it|get your home) sold/i, /our marketing/i, /proven system/i] },
+  }),
+  S('cs-expired-blames-agent', 'seller', 'Expired blames prior agent — never disparage them', {
+    client: { mls_status: 'Expired', type: 'seller' },
+    latestInbound: 'Our old agent literally did nothing the whole time.',
+    expect: { expected_action: ['SEND_TEXT', 'NO_ACTION'], must_not_include: [/that agent (was|is) (bad|terrible|lazy|awful)/i, /that('| i)s why you need/i, /we('| a)re (better|different)/i, /their marketing was/i] },
+  }),
+  S('cs-cancelled-taking-break', 'seller', 'Cancelled, taking a break — respect it, no pitch/CTA pile-on', {
+    client: { mls_status: 'Cancelled', type: 'seller' },
+    latestInbound: 'We decided to take it off the market for now and just stay put.',
+    expect: { expected_action: ['SEND_TEXT', 'NO_ACTION'], must_not_include: [/what would (it take|need to change)/i, /ready to (get it sold|relist)/i, /just (touching base|circling back)/i, /schedule.*(call|consultation|walkthrough)/i] },
   }),
 ]
 

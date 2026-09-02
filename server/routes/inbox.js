@@ -11,6 +11,7 @@ import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
 import { isStopStatus, stopSequencesForClient } from '../lead-sequences.js'
 import { isUsHoliday } from '../holidays.js'
+import { detectColdSeller, COLD_SELLER_PHILOSOPHY } from '../ai-followup/prompts.js'
 
 // MMS uploads live next to the DB (the persistent /data disk on Render) and are
 // served publicly at /uploads so Twilio can fetch them when sending an MMS.
@@ -1393,7 +1394,11 @@ async function generateReply(client, rows, adjustInstruction, context, current) 
   // Draft in the channel of the latest inbound message: SMS reply for a text, email reply for an email.
   const inc = latestIncoming(rows)
   const channel = inc && inc.channel === 'text' ? 'text' : 'email'
-  const system = channel === 'text' ? REPLY_SYSTEM_TEXT : REPLY_SYSTEM
+  let system = channel === 'text' ? REPLY_SYSTEM_TEXT : REPLY_SYSTEM
+  // FSBO / expired / cancelled / withdrawn sellers get the cold-seller posture (relationship
+  // over pitch, no interrogation, no manufactured appointment) layered on top of the base rules.
+  const cold = detectColdSeller(client)
+  if (cold) system += '\n\n' + COLD_SELLER_PHILOSOPHY(cold)
   let dossier = {}
   try { dossier = buildDossier(client, await gatherFub(client.fub_person_id)) } catch {}
   const transcript = threadTranscript(rows)

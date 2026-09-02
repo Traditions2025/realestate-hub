@@ -58,7 +58,9 @@ router.post('/sandbox', async (req, res) => {
     now: new Date().toISOString(),
   }
   const transcript = history.map(m => `${m.role === 'agent' ? 'AGENT (you)' : 'CONSUMER'}: ${m.text}`).join('\n') || '(no prior messages)'
-  const ctx = { facts, transcript, latestInbound: latest, lead_type: leadType, persona: getConfig().ai_persona || 'John with Matt Smith Team at RE/MAX Concepts', intelligence: { lead_type: leadType } }
+  // Pass the (synthetic) lead through as `client` so the cold-seller detector can react to
+  // fsbo_status / mls_status / tags / source when the sandbox simulates an FSBO/expired lead.
+  const ctx = { facts, transcript, latestInbound: latest, lead_type: leadType, persona: getConfig().ai_persona || 'John with Matt Smith Team at RE/MAX Concepts', intelligence: { lead_type: leadType }, client: lead }
   // Revive test: rotate in one approved revive opener so you can click through all 20.
   let reviveInfo = null
   if (revive) { const { nextReviveOpener } = await import('../ai-followup/orchestrator.js'); reviveInfo = nextReviveOpener(); ctx.reviveTemplate = reviveInfo.text }
