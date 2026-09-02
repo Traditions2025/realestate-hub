@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-09-02T16:28:58.778Z",
+  "generated_at": "2026-09-02T17:06:37.201Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "134035a",
+      "date": "2026-09-02T11:51:35-05:00",
+      "subject": "Fix natural-language opt-out false positives (e.g. 'I dont check my text messages')",
+      "title": "natural-language opt-out false positives (e.g. 'I dont check my text messages')",
+      "body": "The NL_OPTOUT_RE 24-char window matched benign phrases where an opt-out verb sat\nnear a messaging NOUN with an intervening reading verb or possessive -- 'I dont\ncheck my text messages', 'I dont always answer texts' -- and wrongly set\nhub_text_opt_out, blocking texts to engaged leads (e.g. Tammy Facion, an active\nFSBO sharing a door code). Tightened the regex with two negative lookaheads (no\nfollowing check/read/answer/etc verb; no possessive + messaging noun) so it still\ncatches real opt-outs ('stop texting me', 'dont text me', 'no more texts', 'take\nme off') but not these. Added POST /api/inbox/fix-false-optouts (?dry=1) to clear\nexisting NL false-positive opt-outs (source sms_reply_nl only; literal STOP kept).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "aef752a",
+      "date": "2026-09-02T11:29:12-05:00",
+      "subject": "Transactions: treat financing/appraisal 'Approved' as contingency removed (suppress reminders)",
+      "title": "Transactions: treat financing/appraisal 'Approved' as contingency removed (suppress reminders)",
+      "body": "Financing already suppressed on Approved everywhere; Appraisal only suppressed on\nCompleted/N/A, so an Approved appraisal kept nagging. Added 'Approved' to the\nappraisal terminal/suppress lists in daily-reminders.js, transaction-digest.js and\nTasks.jsx (+ its inline dropdown, matching the Transactions form). Also fixed the\nper-transaction Upcoming Actions card, which filtered only by date: it now drops\ncontingencies whose status is terminal and passes financing_status to the Mortgage\nContingency row so an approved financing/appraisal contingency no longer shows.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bcc1053",
       "date": "2026-09-02T11:11:05-05:00",
@@ -3984,22 +4000,6 @@
       "subject": "Auto-restore from newest valid backup when live DB is corrupted",
       "title": "Auto-restore from newest valid backup when live DB is corrupted",
       "body": "Today's incident: the bulk-mode commit (4450c8c) corrupted\n/data/realestate-hub.db (\"database disk image is malformed\"). Server\ncorrectly refused to boot (per the no-auto-rename policy that prevents\nsilent data wipes), so deploys went into a crash loop and the service\nsat at 502.\n\nAdded a recovery branch: when sql.js fails to load the DB, walk every\nsidecar file in /data/ and every file in /data/backups/, validate each\nby attempting to load it with sql.js + PRAGMA quick_check, and swap in\nthe newest one that loads cleanly.\n\nSafety properties:\n- Corrupt file is renamed to .corrupt-{timestamp} (never deleted)\n- Skips the pre-boot snapshot taken on THIS boot if it matches the\n  corrupt file's size+mtime (it's a copy of the corrupt file)\n- Falls back to the original crash if NO valid candidate exists\n- Logs are loud so the user sees exactly which file was restored\n\nThe recovery window equals the time since the most recent valid backup\n(typically <24h with the daily 2 AM backup). That's an acceptable cost\nvs. the current state of \"service down indefinitely until a human\nshells into Render and swaps files manually\".\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6676c73",
-      "date": "2026-05-20T13:30:34-05:00",
-      "subject": "Revert \"Sierra incremental sync: wrap in bulk mode to stop blocking API requests\"",
-      "title": "Revert \"Sierra incremental sync: wrap in bulk mode to stop blocking API requests\"",
-      "body": "This reverts commit 4450c8c9cbec8548593d8ae8b8468a840f08b699.",
-      "category": "other"
-    },
-    {
-      "hash": "4450c8c",
-      "date": "2026-05-20T13:16:38-05:00",
-      "subject": "Sierra incremental sync: wrap in bulk mode to stop blocking API requests",
-      "title": "Sierra incremental sync: wrap in bulk mode to stop blocking API requests",
-      "body": "processLead() does INSERTs/UPDATEs, and db.run() saves the entire sql.js\nDB to disk after each write when not in bulk mode. For a 45K-lead DB\nthat's multi-hundred-ms of synchronous blocking per lead. The recently\nadded second pass (creationDate) compounds it. Net result: every 10 min\nthe event loop is starved for 10-30 seconds, and any other API request\n(Partners list, Vendors list, etc.) queues behind it.\n\nWrapped both passes + the sync_log insert in beginBulk/endBulk so we\nserialize the DB to disk ONCE at the end of the sync instead of per\nlead. try/finally guarantees endBulk runs even if Sierra throws.\n\nConcrete symptom this fixes: user reported Vendors/Partners taking\n20+ seconds to load. Probed /api/partners with no-auth and got\n401 in 21.7s -- the auth middleware was waiting for the event loop\nto be free.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

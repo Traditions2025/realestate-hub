@@ -247,6 +247,41 @@ function ColumnFilterHeader({ className, label, value, options, onSelect }) {
   )
 }
 
+// Zip column header: click opens a popover to SORT (0-9 / 9-0) and SEARCH/ADD multiple zip
+// codes to filter by (reuses the same multi-select filter as the Filters panel).
+function ZipColumnHeader({ sortBy, setSortBy, options, include, exclude, onChangeFilter }) {
+  const [open, setOpen] = useState(false)
+  const nFilter = include.length + exclude.length
+  const active = sortBy === 'zip_az' || sortBy === 'zip_za' || nFilter > 0
+  const arrow = sortBy === 'zip_za' ? '▼' : sortBy === 'zip_az' ? '▲' : ''
+  const sortBtn = (val, txt) => (
+    <button type="button" className="btn btn-sm" onClick={() => setSortBy(val)}
+      style={{ flex: 1, ...(sortBy === val ? { background: '#2563eb', color: '#fff', borderColor: '#2563eb' } : {}) }}>{txt}</button>
+  )
+  return (
+    <div className={`cl-zip sortable ${active ? 'active' : ''}`} style={{ position: 'relative', cursor: 'pointer' }}
+      onClick={() => setOpen(o => !o)} title="Sort or filter by zip code">
+      Zip {arrow}{nFilter ? ` (${nFilter})` : ''} ▾
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
+          <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, width: 250, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 10, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}
+            onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SORT</div>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+              {sortBtn('zip_az', '0–9 ▲')}
+              {sortBtn('zip_za', '9–0 ▼')}
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SEARCH ZIP CODES</div>
+            <IncludeExcludeSelect options={options} include={include} exclude={exclude} onChange={onChangeFilter} placeholder="Search zips to add..." />
+            {nFilter > 0 && <button type="button" className="btn btn-sm" style={{ marginTop: 8, width: '100%' }} onClick={() => onChangeFilter({ include: [], exclude: [] })}>Clear zip filter</button>}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 // Bulk-pull social profiles from Follow Up Boss for all FUB-linked leads.
 function FubEnrichButton() {
   const [status, setStatus] = useState(null)
@@ -2509,6 +2544,12 @@ export default function Clients() {
             return <ColumnFilterHeader key="source" className="cl-source" label="Source" value={srcVal}
               options={srcOptions}
               onSelect={v => setAdvFilters(p => ({ ...p, sources_include: v ? [v] : [] }))} />
+          }
+          if (col.key === 'zip') {
+            return <ZipColumnHeader key="zip" sortBy={sortBy} setSortBy={setSortBy}
+              options={filterOptions.zips}
+              include={advFilters.zips_include} exclude={advFilters.zips_exclude}
+              onChangeFilter={({ include, exclude }) => setAdvFilters(p => ({ ...p, zips_include: include, zips_exclude: exclude }))} />
           }
           const isSorted = col.sort && (sortBy === col.sort.asc || sortBy === col.sort.desc)
           const arrow = !col.sort ? '' : (sortBy === col.sort.desc ? '▼' : sortBy === col.sort.asc ? '▲' : '⇅')
