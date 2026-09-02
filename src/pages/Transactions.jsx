@@ -797,11 +797,18 @@ export default function Transactions() {
     if (!d) return null
     return Math.ceil((d - today) / (1000 * 60 * 60 * 24))
   }
+  // A contingency whose status is terminal (e.g. financing/appraisal Approved) is considered
+  // removed — drop it from Upcoming Actions instead of nagging about a satisfied contingency.
+  const ACTION_TERMINAL = {
+    'Inspection': ['Completed', 'Waived', 'N/A', 'Not Applicable'],
+    'Appraisal Contingency': ['Approved', 'Completed', 'Waived', 'N/A', 'Not Applicable'],
+    'Mortgage Contingency': ['Approved'],
+  }
   const getUpcomingActions = (item) => {
     const actions = [
       { label: 'Inspection', date: item.inspection_contingency_date, status: item.home_inspection },
       { label: 'Appraisal Contingency', date: item.appraisal_contingency_date, status: item.appraisal_contingency_status },
-      { label: 'Mortgage Contingency', date: item.mortgage_contingency_date },
+      { label: 'Mortgage Contingency', date: item.mortgage_contingency_date, status: item.financing_status },
       { label: 'Financing Release', date: item.financing_release },
       { label: 'Final Walkthrough', date: item.final_walkthrough },
       { label: 'Closing', date: item.closing_date },
@@ -809,6 +816,7 @@ export default function Transactions() {
     return actions
       .map(a => ({ ...a, days: daysUntil(a.date) }))
       .filter(a => a.days !== null && a.days >= -2)
+      .filter(a => !(a.status && (ACTION_TERMINAL[a.label] || []).includes(a.status)))
       .sort((a, b) => a.days - b.days)
       .slice(0, 3)
   }

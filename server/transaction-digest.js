@@ -98,7 +98,7 @@ const LABEL = {
 const TERMINAL_STATUSES = {
   earnest_money_deposit:        ['Completed'],
   home_inspection:              ['Completed', 'Waived', 'N/A', 'Not Applicable'],
-  appraisal_contingency_status: ['Completed', 'Waived', 'N/A', 'Not Applicable'],
+  appraisal_contingency_status: ['Approved', 'Completed', 'Waived', 'N/A', 'Not Applicable'],
   abstract:                     ['Received', 'N/A'],
   title_commitment:             ['Received', 'N/A'],
   mortgage_payoff:              ['Received', 'N/A'],

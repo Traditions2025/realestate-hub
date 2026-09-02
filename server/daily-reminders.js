@@ -43,7 +43,7 @@ const ACTIVE_STATUSES = new Set(['Active', 'Coming Soon', 'Under Contract', 'Pen
 const DEADLINE_FIELDS = [
   { col: 'earnest_money_due_date',     label: 'Earnest Money',          statusCol: 'earnest_money_deposit',        terminal: ['Completed'] },
   { col: 'inspection_contingency_date',label: 'Home Inspection',        statusCol: 'home_inspection',              terminal: ['Completed', 'N/A', 'Not Applicable'] },
-  { col: 'appraisal_contingency_date', label: 'Appraisal Contingency',  statusCol: 'appraisal_contingency_status', terminal: ['Completed', 'N/A', 'Not Applicable'] },
+  { col: 'appraisal_contingency_date', label: 'Appraisal Contingency',  statusCol: 'appraisal_contingency_status', terminal: ['Approved', 'Completed', 'N/A', 'Not Applicable'] },
   { col: 'mortgage_contingency_date',  label: 'Mortgage Contingency',   statusCol: 'financing_status',             terminal: ['Approved'] },
   { col: 'financing_release',          label: 'Financing Release',      statusCol: 'financing_release_status',     terminal: ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'] },
   { col: 'inspection_release',         label: 'Inspection Release',     statusCol: 'inspection_release_status',    terminal: ['Completed and Sent', 'Waived', 'N/A', 'Not Applicable'] },

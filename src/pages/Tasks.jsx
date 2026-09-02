@@ -28,7 +28,7 @@ function parseAnyDate(s) {
 const DEADLINE_TERMINAL = {
   earnest_money_deposit:        new Set(['Completed']),
   home_inspection:              new Set(['Completed', 'N/A', 'Not Applicable']),
-  appraisal_contingency_status: new Set(['Completed', 'N/A', 'Not Applicable']),
+  appraisal_contingency_status: new Set(['Approved', 'Completed', 'N/A', 'Not Applicable']),
   financing_status:             new Set(['Approved']),
   financing_release:            new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
   inspection_release:           new Set(['Completed and Sent', 'Waived', 'N/A', 'Not Applicable']),
@@ -38,7 +38,7 @@ const DEADLINE_TERMINAL = {
 const DEADLINE_STATUS_OPTIONS = {
   earnest_money_deposit:        ['Not Started', 'In Progress', 'Completed'],
   home_inspection:              ['Not Started', 'Scheduled', 'In Progress', 'Completed', 'N/A'],
-  appraisal_contingency_status: ['Not Started', 'Ordered', 'Completed', 'N/A'],
+  appraisal_contingency_status: ['Not Started', 'Ordered', 'Approved', 'Completed', 'N/A'],
   financing_status:             ['Not Started', 'In Progress', 'Approved'],
 }
 

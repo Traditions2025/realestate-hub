@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-09-02T15:19:01.644Z",
+  "generated_at": "2026-09-02T16:28:58.778Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "bcc1053",
+      "date": "2026-09-02T11:11:05-05:00",
+      "subject": "AI: apply FSBO/expired/cancelled cold-seller conversation philosophy",
+      "title": "AI: apply FSBO/expired/cancelled cold-seller conversation philosophy",
+      "body": "These leads did not ask us to contact them, so they must not be handled like a\nnormal inbound seller. Added a COLD_SELLER_PHILOSOPHY block + detectColdSeller()\n(reads fsbo_status/mls_status, falls back to tags/source) that OVERRIDES the\ndiscovery ladder, objection playbook and appointment cadence: listen -> understand\n-> acknowledge -> help -> stay available, relationship over pitch, no interrogation,\nsoft curiosity, mirror energy, never challenge/bad-mouth prior agent/assume price,\nnever fake value, no sales cliches, mention Matt/walkthrough only when it naturally\nfits. Wired into BOTH prompt systems (autopilot buildSystemPrompt + inbox suggested\nreplies generateReply) and the sandbox. Added 5 regression scenarios + made the\neval scorer accept an array of acceptable actions. Bumped AI_PROMPT_VERSION.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4d23a73",
+      "date": "2026-09-02T10:51:55-05:00",
+      "subject": "Inbox: label group texts with the actual recipient names, not 'Group text'",
+      "title": "Inbox: label group texts with the actual recipient names, not 'Group text'",
+      "body": "group_meta lives only on the outgoing send row, which the inbox (incoming-only)\nlist query excludes — so the list never saw the participants and fell back to the\ngeneric 'Group text' label. Now the list looks up group_meta by conversation_sid\nand names the recipients: 2+ participants -> 'Name, Name'; a single external\nparticipant -> that person's name linked to their profile (it's really a 1:1).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "72cd688",
+      "date": "2026-09-02T10:41:49-05:00",
+      "subject": "Inbox: stop group replies being duplicated as 1:1 texts (Twilio dual-webhook)",
+      "title": "Inbox: stop group replies being duplicated as 1:1 texts (Twilio dual-webhook)",
+      "body": "A Twilio Conversations (group) participant's reply arrives on the group webhook\n(conv_<IM sid>) AND, in this number config, the plain messaging webhook fires for\nthe same SMS (twilio_<SM sid>) — different MessageSids, so external_id dedup missed.\nThat created a second copy on the person's profile and a stray standalone 1:1\nconversation. Now the messaging webhook skips any sender that's a known group\nparticipant (isGroupParticipant), the group webhook sends the inbound notification\n(no AI auto-reply into groups), and a maintenance endpoint /dedupe-group-mirrors\ncleans up the historical duplicates.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3555d56",
+      "date": "2026-09-02T10:19:04-05:00",
+      "subject": "Mobile Inbox: pin search + channel-chip header rows to natural height (flex:0 0 auto)",
+      "title": "Mobile Inbox: pin search + channel-chip header rows to natural height (flex:0 0 auto)",
+      "body": "After removing the 48vh cap, the scroll region's tall content pulled flex-shrink\noff its sibling header rows, squishing the All/Emails/Texts/Calls chips (measured:\nchip row compressed to 29px, clipping labels). Locking the non-scroll children to\nflex:0 0 auto makes only .inbox-list-scroll absorb the shrink, so the header stays\nfull height and the list still fills to the bottom.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c30d646",
       "date": "2026-09-02T10:09:00-05:00",
@@ -3968,38 +4000,6 @@
       "subject": "Sierra incremental sync: wrap in bulk mode to stop blocking API requests",
       "title": "Sierra incremental sync: wrap in bulk mode to stop blocking API requests",
       "body": "processLead() does INSERTs/UPDATEs, and db.run() saves the entire sql.js\nDB to disk after each write when not in bulk mode. For a 45K-lead DB\nthat's multi-hundred-ms of synchronous blocking per lead. The recently\nadded second pass (creationDate) compounds it. Net result: every 10 min\nthe event loop is starved for 10-30 seconds, and any other API request\n(Partners list, Vendors list, etc.) queues behind it.\n\nWrapped both passes + the sync_log insert in beginBulk/endBulk so we\nserialize the DB to disk ONCE at the end of the sync instead of per\nlead. try/finally guarantees endBulk runs even if Sierra throws.\n\nConcrete symptom this fixes: user reported Vendors/Partners taking\n20+ seconds to load. Probed /api/partners with no-auth and got\n401 in 21.7s -- the auth middleware was waiting for the event loop\nto be free.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "31ba40c",
-      "date": "2026-05-20T13:00:25-05:00",
-      "subject": "HOTFIX: checkDbHealth crashes with 'db.get is not a function'",
-      "title": "HOTFIX: checkDbHealth crashes with 'db.get is not a function'",
-      "body": "Health probe at /api/health was calling db.get() where db is the raw\nsql.js Database instance - that object has .exec() and .prepare() but\nNO .get() method. The wrapper get() function (which uses .prepare/.step\ninternally) is defined further down in the same module, but the health\nfunction was using the wrong reference.\n\nResult: every Render health probe failed, which kept the service in a\ndegraded routing state. The home page was taking 22 seconds to respond\nbecause Render couldn't confirm the instance was healthy. Verified by\ncurling /api/health and getting 503 + \"db.get is not a function\".\n\nFixed by calling the local hoisted get() function directly.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "e387ccd",
-      "date": "2026-05-19T10:19:58-05:00",
-      "subject": "Clients list: fix column drift + add customizable columns",
-      "title": "Clients list: fix column drift + add customizable columns",
-      "body": "Two fixes for the list view, motivated by Abel Ortiz's row pushing the\nStatus column right of its header on rows with long unbreakable lead\ntags (\"Past Client Unsubscribed to E-Alerts\").\n\n1. Alignment: switched grid tracks from Xfr to minmax(0, Xfr). CSS Grid\n   defaults to min-content as the floor of a flexible track, so any\n   unbreakable cell forces the track wider and shifts downstream columns\n   right for that single row. minmax(0, Xfr) lets overflow happen inside\n   the cell instead of resizing the grid. All rows now line up.\n\n2. Customizable columns: new \"Columns (N)\" button in the list-view\n   toolbar opens a popover with:\n   - Checkbox per column (Score, Name, Status, Type, Phone, Email,\n     Address, Budget, Visits, Source, Registered) to show/hide\n   - Drag handles to reorder columns left-to-right\n   - Reset button to restore defaults\n   Prefs persist to localStorage (mst_clients_columns_v1). Header + rows\n   are now data-driven from the same column config, so adding new\n   columns later only needs a single LIST_COLUMNS entry.\n\n   Checkbox (left) and Actions (right) are pinned and not user-toggleable\n   - those are the row controls, not display data.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bbc8020",
-      "date": "2026-05-19T09:56:20-05:00",
-      "subject": "Clients: inline status dropdown on cards & list (Sierra-aligned)",
-      "title": "Clients: inline status dropdown on cards & list (Sierra-aligned)",
-      "body": "Status field on each lead card / list row is now a quick-pick dropdown\ninstead of a static badge - no need to open the edit modal to change\nstatus. Same flow as the modal edit: local DB updates first, then if the\nlead has a sierra_lead_id, confirms before pushing to Sierra.\n\nStatus list is now anchored to Sierra's official lead statuses\n(Prime / Active / New / Qualify / Watch / Pending / Closed / Archived /\nJunk / Do Not Contact / Blocked), replacing the old ad-hoc set that\nincluded \"Potential\", \"Under Contract\", \"On Hold\". The edit-modal Status\ndropdown was also updated to use the same source list so cards, rows,\nand modal stay consistent.\n\nPill styling per-status (purple for Prime, red for Junk, etc.) so the\ncurrent status reads at a glance.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9ba7dca",
-      "date": "2026-05-19T09:47:41-05:00",
-      "subject": "Hub-to-Sierra status write-back (status-only, confirm-gated)",
-      "title": "Hub-to-Sierra status write-back (status-only, confirm-gated)",
-      "body": "When you edit a Sierra-sourced client and change the status field, save\nprompts: \"Push status change to Sierra?\". Local hub save always happens\nfirst - the Sierra call is gated on confirmation so accidental flips\ncan't propagate. If Sierra fails, the hub change still persists and an\nalert surfaces the API error.\n\nScope is intentionally narrow: only the status field, only for clients\nwith a sierra_lead_id. Phone/email/notes/tags remain read-only-from-the-\nhub side (still edit those in Sierra).\n\nBackend tries 4 known Sierra endpoint shapes (/leads/edit/:id, /leads/\nupdate/:id, /leads/:id/status, PUT /leads/:id) until one accepts the\nwrite, then logs which shape worked to activity_log. If all fail, the\nresponse includes the full error trail so we can pin the right endpoint.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
