@@ -443,6 +443,17 @@ export function buildClientFilter(q) {
     }
   }
 
+  // FSBO / Cancelled-Expired category include/exclude. Lets you isolate or hide prospecting
+  // leads on any view (e.g. show only the Watch leads that are NOT FSBO / Cancelled-Expired).
+  // Matches the same signals the tabs + smart lists use: the structured columns first, then a
+  // tag/source substring fallback. Values: 'only' (include only these) | 'exclude' (hide these).
+  const FSBO_PRED = "((fsbo_status IS NOT NULL AND fsbo_status != '') OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%fsbo%')"
+  const CX_PRED = "((mls_status IS NOT NULL AND mls_status != '') OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%expired%' OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%cancelled%' OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%canceled%')"
+  if (q.fsbo_mode === 'only') where += ' AND ' + FSBO_PRED
+  else if (q.fsbo_mode === 'exclude') where += ' AND NOT ' + FSBO_PRED
+  if (q.cx_mode === 'only') where += ' AND ' + CX_PRED
+  else if (q.cx_mode === 'exclude') where += ' AND NOT ' + CX_PRED
+
   // AI Applied: has the AI been applied to this lead (enrolled/managed, or it has sent an AI
   // text). 'yes' = applied, 'no' = never touched by the AI.
   if (q.ai_applied === 'yes' || q.ai_applied === 'no') {

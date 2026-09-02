@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T17:06:37.201Z",
+  "generated_at": "2026-09-02T20:08:32.514Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "2a63b90",
+      "date": "2026-09-02T12:06:52-05:00",
+      "subject": "Clients: Zip column header opens a sort + multi-zip search popover",
+      "title": "Clients: Zip column header opens a sort + multi-zip search popover",
+      "body": "Clicking the Zip header now opens a popover to (1) sort 0-9 / 9-0 and (2) search\nand add multiple zip codes to filter by (reuses the same IncludeExcludeSelect +\nzips_include/exclude the Filters panel uses, with include/exclude per zip and a\nClear button). Backend already supports the zip sort + zip filter, so this is a\nfrontend-only wiring via a new ZipColumnHeader.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "134035a",
       "date": "2026-09-02T11:51:35-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Auto-restore: tighten data-preservation guarantee",
       "title": "Auto-restore: tighten data-preservation guarantee",
       "body": "Two changes per user request \"make sure 100% no existing data removed\":\n\n1. Copy corrupt file to sidecar FIRST, then overwrite live file. Was\n   rename-then-copy, which left a brief window where the corrupt bytes\n   only existed in the renamed sidecar - if anything went wrong after\n   the rename but before the backup copy completed, the live position\n   would be missing.\n\n2. If the sidecar copy fails (disk full, permission, etc.), ABORT the\n   entire restore. Crash with the original corruption error and leave\n   the live file untouched. Previous code would still try to overwrite\n   the live file with the backup even if it couldn't preserve the\n   corrupt bytes - that's a hidden data-loss path.\n\nNet safety: regardless of failure mode, the original corrupted bytes\nare either at DB_PATH (if abort) or at DB_PATH.corrupt-{ts} (if\nrestore succeeded). They are never deleted, never overwritten without\na copy existing elsewhere first.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "dc8aa53",
-      "date": "2026-05-20T13:35:15-05:00",
-      "subject": "Auto-restore from newest valid backup when live DB is corrupted",
-      "title": "Auto-restore from newest valid backup when live DB is corrupted",
-      "body": "Today's incident: the bulk-mode commit (4450c8c) corrupted\n/data/realestate-hub.db (\"database disk image is malformed\"). Server\ncorrectly refused to boot (per the no-auto-rename policy that prevents\nsilent data wipes), so deploys went into a crash loop and the service\nsat at 502.\n\nAdded a recovery branch: when sql.js fails to load the DB, walk every\nsidecar file in /data/ and every file in /data/backups/, validate each\nby attempting to load it with sql.js + PRAGMA quick_check, and swap in\nthe newest one that loads cleanly.\n\nSafety properties:\n- Corrupt file is renamed to .corrupt-{timestamp} (never deleted)\n- Skips the pre-boot snapshot taken on THIS boot if it matches the\n  corrupt file's size+mtime (it's a copy of the corrupt file)\n- Falls back to the original crash if NO valid candidate exists\n- Logs are loud so the user sees exactly which file was restored\n\nThe recovery window equals the time since the most recent valid backup\n(typically <24h with the daily 2 AM backup). That's an acceptable cost\nvs. the current state of \"service down indefinitely until a human\nshells into Render and swaps files manually\".\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
