@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T13:51:25.710Z",
+  "generated_at": "2026-09-02T13:53:18.047Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "b893e7e",
+      "date": "2026-09-02T08:51:48-05:00",
+      "subject": "Inbox mobile: single-pane navigation (list XOR full-screen conversation)",
+      "title": "Inbox mobile: single-pane navigation (list XOR full-screen conversation)",
+      "body": "On narrow screens (<=768px) the Inbox no longer stacks the list + open conversation.\nIt shows ONLY the list; tapping a conversation opens it as a full-screen overlay\n(100dvh, safe-area aware) with a '← Inbox' back bar. Device/browser Back returns to\nthe list via history state; list scroll + All/Unread/search/filter state are\npreserved (list stays mounted, just hidden). Desktop split-pane is unchanged.\nMobile starts on the list (auto-open-latest is desktop-only).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "02ce315",
       "date": "2026-09-01T18:09:53-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Wrap client status tabs so all fit without horizontal scroll",
       "title": "Wrap client status tabs so all fit without horizontal scroll",
       "body": "Status tabs row (Prime/Active/New/Qualify/Pending/Watch/Closed/FSBO/\nCancelled-Expired/All) was overflowing horizontally - last tab hidden\nbehind the scroller. Added flex-wrap + tightened tab padding/font so\nall tabs fit on the visible row (and wrap to a second row on narrower\nviewports instead of scrolling).\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e0488cd",
-      "date": "2026-05-15T11:04:56-05:00",
-      "subject": "Light/dark theme toggle + saved-list shortcuts in Clients status tabs",
-      "title": "Light/dark theme toggle + saved-list shortcuts in Clients status tabs",
-      "body": "1. THEME TOGGLE\n   - body[data-theme=\"light\"] CSS overrides everything in app.css using\n     a small set of light-mode variable values (white card bg, light gray\n     page bg, dark text). Same accent so brand stays consistent.\n   - 'Light Mode' / 'Dark Mode' button in the sidebar footer.\n   - Choice persisted to localStorage (mst_theme) — survives reloads.\n\n2. CLIENTS STATUS TABS\n   - Removed the 'Other' dropdown that aggregated Archived/Junk/etc.\n     The user wasn't using it; less-common statuses are still reachable\n     via Advanced Filters.\n   - Added saved-list shortcut tabs after the primary status tabs.\n     Auto-renders any saved list whose name matches /^(FSBO|Cancelled\\/\n     Expired|Cancelled|Expired)/i — so the existing 'FSBO' (73) and\n     'Cancelled/Expired' (176) lists now appear as clickable tabs with\n     a purple dot.\n   - Click → loadSavedList(id) applies the saved filter as if the user\n     picked it from the Saved Lists dropdown.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

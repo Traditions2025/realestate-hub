@@ -4010,3 +4010,19 @@ img[width], img[height] { height: auto; }
   }
   .inbox-mobile-back { display: flex !important; padding-top: calc(11px + env(safe-area-inset-top)) !important; }
 }
+
+/* ============================================================
+   SHARED RESPONSIVE UTILITIES (opt-in; complement the existing
+   box-sizing:border-box, min-width:0 flex children, and .ellipsis).
+   Use these instead of one-off inline fixes for mobile overflow.
+   ============================================================ */
+.wrap-anywhere { overflow-wrap: anywhere; word-break: break-word; }
+.content-shrink { flex: 1 1 auto; min-width: 0; }            /* flex child that must be allowed to shrink */
+.toolbar-responsive { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }  /* wraps instead of overflowing */
+.card-responsive { width: 100%; max-width: 100%; }
+.table-scroll-x { width: 100%; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+@media (max-width: 768px) {
+  .mobile-full-width { width: 100% !important; max-width: 100% !important; }
+  .stack-mobile { flex-direction: column !important; align-items: stretch !important; }
+  .hide-mobile { display: none !important; }
+}
