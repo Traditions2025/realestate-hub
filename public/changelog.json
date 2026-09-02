@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T14:57:40.748Z",
+  "generated_at": "2026-09-02T15:08:54.575Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e072a7f",
+      "date": "2026-09-02T09:58:02-05:00",
+      "subject": "Inbox: collapse AI suggested text by default; expand via a Suggested-text button",
+      "title": "Inbox: collapse AI suggested text by default; expand via a Suggested-text button",
+      "body": "The reply box stays open and usable right away, but the AI suggestion no longer\npre-fills the editor or shows its header/summary/regenerate/context by default.\nA single '✨ Suggested text' button pulls the suggestion in (generating on demand\nif not cached) and expands the AI panel; '▾ Hide' collapses it again. Applies to\nboth desktop and mobile since they share the composer.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "62b4191",
       "date": "2026-09-02T09:48:09-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Tasks: add assignee quick-filter (Matt / Leo / Unassigned)",
       "title": "Tasks: add assignee quick-filter (Matt / Leo / Unassigned)",
       "body": "New dropdown in the Tasks toolbar next to Priority and Status filters.\nSelecting Matt shows only Matt's tasks; Leo shows only Leo's; Unassigned\nshows tasks with no assigned_to value. Applies to both kanban and table\nviews. Case-insensitive match.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7b4029b",
-      "date": "2026-05-19T09:16:00-05:00",
-      "subject": "Sierra incremental sync: also pull by creationDate (catches imports)",
-      "title": "Sierra incremental sync: also pull by creationDate (catches imports)",
-      "body": "Imported leads in Sierra (Source: Import) often preserve the source\nfile's original updateDate rather than setting it to import time. That\nmeans our incremental sync (filter: leadUpdateDateFrom) misses them\neven when they were brought in yesterday.\n\nAdded a second pass with leadCreationDateFrom so newly created leads\nare pulled regardless of whether their updateDate was bumped. processLead\nis idempotent (UPDATE if exists), so a lead caught by both passes is\nno extra work - just one DB row touch.\n\nConcrete case: Kevin Christensen (imported yesterday, status=Watch,\nsource=Import) wasn't in the hub despite 144 incremental runs - because\nhis updateDate carried over from the source file and was older than the\nsync watermark.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

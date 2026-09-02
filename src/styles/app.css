@@ -3948,8 +3948,10 @@ img[width], img[height] { height: auto; }
   .inbox-folders > div { width: 100%; margin: 6px 0 !important; } /* section labels + divider full width */
   .inbox-folders button { width: auto !important; margin: 0 !important; }
   .inbox-folders label { padding: 2px 4px !important; }
-  .inbox-list { width: 100% !important; border-right: none !important; border-bottom: 1px solid var(--border); }
-  .inbox-list > div:last-child { max-height: 48vh; }       /* conversation list scrolls internally */
+  .inbox-list { width: 100% !important; border-right: none !important; }
+  /* The conversation list fills the remaining height via the flex chain (see the
+     .inbox-page block below) — no 48vh cap, which used to stop it ~185px short. */
+  .inbox-list > div:last-child { max-height: none; min-height: 0; }
   .inbox-reading { min-height: 58vh; }
 }
 
@@ -4042,7 +4044,7 @@ img[width], img[height] { height: auto; }
     flex: 1 1 auto !important; min-width: 0 !important; min-height: 0 !important;
     overflow: hidden !important; border-right: none !important;
   }
-  .inbox-list-scroll { flex: 1 1 auto !important; min-height: 0 !important; overflow-y: auto !important; overflow-x: hidden !important; background: var(--bg-primary, var(--bg)); }  /* fills to bottom, vertical scroll only */
+  .inbox-list-scroll { flex: 1 1 auto !important; min-height: 0 !important; max-height: none !important; overflow-y: auto !important; overflow-x: hidden !important; background: var(--bg-primary, var(--bg)); }  /* fills to bottom, vertical scroll only; no vh cap */
   .inbox-panes .inbox-reading { display: none !important; }        /* default: list only */
   /* A conversation is open → hide the list, show the conversation full-screen */
   .inbox-panes.has-selection .inbox-list { display: none !important; }
