@@ -11,7 +11,7 @@ import { computeIntent, saveIntent, getIntent, levelFor } from './intent.js'
 import { applyMemory } from './memory.js'
 import { createAiHandoff } from './handoff.js'
 import { logAiAction } from './audit.js'
-import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS, REVIVE_OPENERS, REVIVE_OPENER_BLOCK, COLD_BUYER_STAGES, COLD_STAGE_BLOCK } from './prompts.js'
+import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS, REVIVE_OPENERS, REVIVE_OPENER_BLOCK, COLD_BUYER_STAGES, COLD_STAGE_BLOCK, FOLLOWUP_DOCTRINE, FOLLOWUP_ANGLES } from './prompts.js'
 
 // Rotate through the revive bank so all 20 openers get used (not just one). A persistent
 // counter in settings advances every time we pick one.
@@ -265,7 +265,7 @@ export async function handleProactive(clientId, { force = false } = {}) {
 
 // Preview the message the AI would send next — WITHOUT sending, logging a send, or
 // changing state. Picks first-touch / reply / follow-up based on the conversation.
-export async function previewMessage(clientId, { context = '' } = {}) {
+export async function previewMessage(clientId, { context = '', approach = '' } = {}) {
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
@@ -286,9 +286,14 @@ export async function previewMessage(clientId, { context = '' } = {}) {
   // home just went pending", "they mentioned they have a dog", "push a Saturday tour").
   const ctxNote = String(context || '').trim()
   const ctxBlock = ctxNote ? `\n\nIMPORTANT — the agent added this context; naturally work it into the message (do not quote it verbatim, do not mention "the agent"):\n${ctxNote.slice(0, 500)}` : ''
+  // Agent-picked follow-up angle (Conversation / Website activity / Soft check-in) + the
+  // never-a-chase doctrine. The doctrine also applies on plain follow-ups with no angle.
+  const angle = FOLLOWUP_ANGLES[approach] || ''
+  const angleBlock = angle ? `\n\n${FOLLOWUP_DOCTRINE}\n\n${angle}`
+    : (kind === 'follow-up' ? `\n\n${FOLLOWUP_DOCTRINE}` : '')
   const userContent = instruction
-    ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}${ctxBlock}\n\nReturn the JSON now.`
-    : buildUserMessage(ctx) + ctxBlock
+    ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}${angleBlock}${ctxBlock}\n\nReturn the JSON now.`
+    : buildUserMessage(ctx) + angleBlock + ctxBlock
   let decision, usage = {}
   try { const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 700, system: buildSystemPrompt(ctx), messages: [{ role: 'user', content: userContent }] }); usage = msg.usage || {}; decision = parseJson(msg.content?.[0]?.text || '') }
   catch (e) { return { ok: false, reason: e.message } }

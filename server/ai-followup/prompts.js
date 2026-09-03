@@ -383,6 +383,17 @@ const playbook = (leadType) => leadType === 'seller'
   ? `SELLER PLAYBOOK: naturally learn property address, reason for selling, timeframe, condition, whether they are also buying, price expectations, and whether another agent is involved. Do not give an unsupported valuation or promise a sale price.`
   : `BUYER PLAYBOOK: naturally learn, one useful question at a time: the area/part of town, price range, property type (ask whether they want a single-family home or a condo), home style (ask if they're looking for a ranch, a two-story, or something else), beds/baths, timeframe, financing (pre-approved?), whether they need to sell first, and must-haves/deal-breakers. Do not interrogate, and answer their questions before asking your own.`
 
+// Applies to EVERY follow-up style message (inbox suggestions AND lead-profile previews):
+// unanswered outbounds never turn the next message into a chase.
+export const FOLLOWUP_DOCTRINE = `FOLLOW-UPS NEVER PRESSURE: If they have not replied to our recent outbound messages, do NOT make this sound like a follow-up or a chase. Banned: "just following up", "circling back", "checking in on my last message", "haven't heard back", "I know I've reached out a few times", or any urgency or guilt. Write it fresh and natural, as if we simply thought of them. The feeling to leave: we're here whenever they're ready or need help, zero pressure. A warm message with no question at all is completely fine.`
+
+// Agent-selectable follow-up angles (the ANGLE picker on AI text suggestions).
+export const FOLLOWUP_ANGLES = {
+  conversation: `FOLLOW-UP ANGLE — CONTINUE THE CONVERSATION: Anchor the message on the thread itself. Pick up naturally from the last thing THEY said or an open loop they left (something they said they'd do or look at, plans they shared, a question left open). Reference it warmly, like a person who simply remembers — NEVER as a reminder that they didn't reply or didn't do it. Do not mention website activity.`,
+  activity: `FOLLOW-UP ANGLE — WEBSITE ACTIVITY: Anchor the message on their recent website activity in the context: a property they viewed or a search they ran. ONLY do this if the data shows genuinely recent activity (roughly within the last 2 weeks). If there is no recent activity, do NOT claim or imply we saw them browsing — write a natural, no-pressure check-in instead. Never mention view counts or how often/how long they looked.`,
+  checkin: `FOLLOW-UP ANGLE — SOFT CHECK-IN: A short, warm presence message only: we thought of them, no rush, we're here whenever they're ready or need anything. NO question and NO call to action — do not ask for a time, a decision, or a reply. One or two sentences.`,
+}
+
 // Classify a lead as a COLD SELLER prospect (FSBO / expired / cancelled / withdrawn). These
 // people did NOT ask us to contact them, so they get a fundamentally different posture than a
 // normal inbound seller. Reads the structured columns first, then falls back to tags/source/status.

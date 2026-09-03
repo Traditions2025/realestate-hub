@@ -4618,15 +4618,17 @@ export function InlineTextComposer({ client, onClose, onSent }) {
   const [aiBusy, setAiBusy] = React.useState(false)
   const [aiOpen, setAiOpen] = React.useState(false) // suggestions only generate when opened
   const [aiContext, setAiContext] = React.useState('')
+  const [aiApproach, setAiApproach] = React.useState('') // follow-up angle: '' auto | conversation | activity | checkin
   React.useEffect(() => { authFetch('/api/templates?type=text').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}); authFetch('/api/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
   // Text-native AI suggestion: drafts the right SMS for where this conversation is
   // (first text / reply / follow-up), strict-Central greeting + compliance-aware.
   // Only runs on demand (View suggested reply / Regenerate) — never auto-fires.
-  const recommendText = React.useCallback(async () => {
+  const recommendText = React.useCallback(async (approach) => {
+    const angle = typeof approach === 'string' ? approach : aiApproach
     setAiOpen(true); setAiBusy(true)
-    try { const r = await authFetch(`/api/ai/lead/${client.id}/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: aiContext.trim() }) }); setAi(await r.json()) }
+    try { const r = await authFetch(`/api/ai/lead/${client.id}/preview`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: aiContext.trim(), approach: angle || '' }) }); setAi(await r.json()) }
     catch (e) { setAi({ ok: false, reason: e.message }) } finally { setAiBusy(false) }
-  }, [client.id, aiContext])
+  }, [client.id, aiContext, aiApproach])
   const useAiText = () => { if (ai?.message) { setBody(ai.message); setAi(a => ({ ...a, used: true })) } }
   const addAgent = (a) => { const key = 'agent:' + a.id; if (!recips.find(r => r.id === key)) setRecips(rs => [...rs, { id: key, agent: true, name: a.name, phone: a.phone }]) }
   const loadScheduled = React.useCallback(() => { authFetch('/api/inbox/scheduled?client_id=' + client.id).then(r => r.json()).then(d => setScheduled(Array.isArray(d) ? d : [])).catch(() => {}) }, [client.id])
@@ -4802,6 +4804,16 @@ export function InlineTextComposer({ client, onClose, onSent }) {
               <span style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>✨ AI text suggestion</span>
               {ai?.ok && ai.kind && <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' }}>{ai.kind}</span>}
               <button onClick={() => { setAiOpen(false); setAi(null) }} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14 }} title="Hide">✕</button>
+            </div>
+            {/* Follow-up angle picker — choose what the draft anchors on (all zero-pressure by doctrine) */}
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+              {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
+                <button key={k || 'auto'} className="btn btn-sm" disabled={aiBusy}
+                  style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
+                  title={k === 'conversation' ? 'Pick up naturally from what they last said or left open' : k === 'activity' ? 'Anchor on what they recently viewed on the website' : k === 'checkin' ? 'Warm, no-ask presence message: we are here when you are ready' : 'Let the AI pick the best angle'}
+                  onClick={() => { setAiApproach(k); recommendText(k) }}>{l}</button>
+              ))}
             </div>
             {/* Optional steer for the AI — a fact to fold into the text */}
             <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>

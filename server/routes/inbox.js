@@ -11,7 +11,7 @@ import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
 import { isStopStatus, stopSequencesForClient } from '../lead-sequences.js'
 import { isUsHoliday } from '../holidays.js'
-import { detectColdSeller, COLD_SELLER_PHILOSOPHY } from '../ai-followup/prompts.js'
+import { detectColdSeller, COLD_SELLER_PHILOSOPHY, FOLLOWUP_DOCTRINE, FOLLOWUP_ANGLES } from '../ai-followup/prompts.js'
 
 // MMS uploads live next to the DB (the persistent /data disk on Render) and are
 // served publicly at /uploads so Twilio can fetch them when sending an MMS.
@@ -1412,16 +1412,6 @@ function threadTranscript(rows) {
     return `[${when}] ${who}${m.subject ? ' — ' + m.subject : ''}${tag}:\n${clip(text, 900)}`
   }).join('\n\n')
 }
-// Applies to EVERY suggestion: unanswered outbounds never turn the next message into a chase.
-const FOLLOWUP_DOCTRINE = `FOLLOW-UPS NEVER PRESSURE: If they have not replied to our recent outbound messages, do NOT make this sound like a follow-up or a chase. Banned: "just following up", "circling back", "checking in on my last message", "haven't heard back", "I know I've reached out a few times", or any urgency or guilt. Write it fresh and natural, as if we simply thought of them. The feeling to leave: we're here whenever they're ready or need help, zero pressure. A warm message with no question at all is completely fine.`
-
-// Agent-selectable follow-up angles for the suggestion (Inbox "Suggested text" panel).
-const FOLLOWUP_ANGLES = {
-  conversation: `FOLLOW-UP ANGLE — CONTINUE THE CONVERSATION: Anchor the message on the thread itself. Pick up naturally from the last thing THEY said or an open loop they left (something they said they'd do or look at, plans they shared, a question left open). Reference it warmly, like a person who simply remembers — NEVER as a reminder that they didn't reply or didn't do it. Do not mention website activity.`,
-  activity: `FOLLOW-UP ANGLE — WEBSITE ACTIVITY: Anchor the message on their recent website activity in the context (recent_web / last_web_activity): a property they viewed or a search they ran. ONLY do this if the data shows genuinely recent activity (roughly within the last 2 weeks). If there is no recent activity, do NOT claim or imply we saw them browsing — write a natural, no-pressure check-in instead. Never mention view counts or how often/how long they looked.`,
-  checkin: `FOLLOW-UP ANGLE — SOFT CHECK-IN: A short, warm presence message only: we thought of them, no rush, we're here whenever they're ready or need anything. NO question and NO call to action — do not ask for a time, a decision, or a reply. One or two sentences.`,
-}
-
 async function generateReply(client, rows, adjustInstruction, context, current, approach) {
   const ai = getAiClient()
   if (!ai) return { error: 'AI is not configured (ANTHROPIC_API_KEY missing).' }

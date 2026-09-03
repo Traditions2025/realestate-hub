@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-09-03T15:20:51.900Z",
+  "generated_at": "2026-09-03T15:34:52.471Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "86df24f",
+      "date": "2026-09-03T10:27:37-05:00",
+      "subject": "Emails/texts: enforce the no-em-dash rule in the TC email templates",
+      "title": "Emails/texts: enforce the no-em-dash rule in the TC email templates",
+      "body": "The transaction email templates (sent to real clients) carried 43 em dashes in\ntheir bodies and the signature block, violating the team's no-em-dash rule that\nevery AI path already enforces (prompt rules + noDash/stripDashes scrubbing on\ninbox suggestions, autopilot, and follow-up emails). Scrubbed all sent content\n(bodies, subjects, signature: dash-as-punctuation -> comma/period/colon, signature\ndash -> hyphen); internal picker labels and code comments are unchanged.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3edeebe",
+      "date": "2026-09-03T10:20:55-05:00",
+      "subject": "Inbox AI suggestions: selectable follow-up angles + never-a-chase doctrine",
+      "title": "Inbox AI suggestions: selectable follow-up angles + never-a-chase doctrine",
+      "body": "The Suggested text panel now has an ANGLE picker instead of one guessed approach:\nAuto, Continue conversation (pick up naturally from what they last said or left\nopen, never as a reminder they didn't reply), Website activity (anchor on recent\nbrowsing; refuses to imply we saw them browsing when there's no recent activity),\nand Soft check-in (warm presence message, no question, no CTA). Every suggestion\nalso gets a universal FOLLOWUP_DOCTRINE: unanswered outbounds never produce\n'just following up / circling back / haven't heard back' or any pressure — the\nmessage reads fresh and leaves the feeling we're here whenever they're ready.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "223bd0b",
       "date": "2026-09-03T09:45:38-05:00",
@@ -3985,22 +4001,6 @@
       "title": "Sierra-sync slowdown: atomic saveDb + bulk-mode batching",
       "body": "saveDb() now writes to a temp file, fsyncs, and atomically renames over\nthe live DB — a crash mid-write can no longer truncate/corrupt the file\n(this was the missing safeguard behind the 2026-05-20 corruption).\n\nWith that in place, the Sierra incremental sync wraps its per-lead upsert\nloop in beginBulk()/endBulk() so every lead flushes as ONE atomic save\ninstead of a full ~40 MB write per lead. Eliminates the 14-23s event-loop\nfreeze (\"saveDb storm\") that made the hub periodically slow. try/finally\nguarantees bulk mode always exits even on sync error.\n\nVerified on a copy of real data: 1743 existing rows preserved, 250 bulk\nupserts persisted, integrity_check ok, no partial .tmp left behind.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "48deb48",
-      "date": "2026-06-09T18:03:54-05:00",
-      "subject": "Pre-listing migration + custom checklist date + New Pre-Listing button",
-      "title": "Pre-listing migration + custom checklist date + New Pre-Listing button",
-      "body": "Three pieces enabling full unification of pre-listings into Transactions.\n\n1. POST /api/pre-listings/migrate-to-transactions endpoint:\n   - dry_run: true returns a preview report (no writes)\n   - dry_run: false creates one transaction per source pre_listing with\n     status='Pre-Listing' type='listing'. Each UNCHECKED checklist item\n     becomes a task (category='Listing', related_type='transaction',\n     related_id=new tx id) so remaining work shows up in the kanban.\n   - CHECKED checklist items are NOT recreated as tasks (they represent\n     completed work).\n   - Source pre_listings rows are marked status='Migrated' (NOT deleted)\n     so the data is recoverable until you confirm everything looks right.\n   - Skips pre-listings whose normalized address already exists as a\n     transaction (idempotent - safe to re-run).\n\n2. Updates -> Bulk Tools tab now has a \"Migrate pre-listings into\n   Transactions\" section with Preview (dry-run) and Run buttons + a\n   per-row report (address, owner, action, detail).\n\n3. + New Pre-Listing button in the Transactions header. Opens the new-tx\n   modal pre-filled with status='Pre-Listing' and type='listing' so the\n   user can quick-add a pre-listing without thinking about field values.\n\n4. Custom checklist (from prior commit) now has a date picker:\n   - New rows can include a due_date when added\n   - Existing rows show an inline date editor; click the date to change\n   - Overdue items (due_date < today AND status != done) get a red border\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e05b02d",
-      "date": "2026-06-09T17:38:24-05:00",
-      "subject": "Unify pre-listings into Transactions + custom checklist per transaction",
-      "title": "Unify pre-listings into Transactions + custom checklist per transaction",
-      "body": "UX consolidation per user request: one tab for all listing states.\n\n1. Pre-Listings hidden from the sidebar nav. The /pre-listings route is\n   still mounted so existing data is reachable by direct URL until we\n   ship the migration tool (next commit). No data deleted or moved.\n\n2. New \"Custom Checklist\" section in the transaction edit modal. Works\n   on any transaction in any status. Each item creates a row in the\n   tasks table with category='Listing', status='todo', related_type=\n   'transaction', related_id=<this tx>. Items show on the Tasks tab\n   under TODO automatically (since the kanban already shows todo tasks),\n   filterable by category=Listing.\n\n3. CustomChecklist sub-component handles add / toggle (done <-> todo) /\n   delete. Calls the existing /api/tasks endpoints, single source of\n   truth. Mark an item done in the modal -> it moves to the DONE column\n   on the Tasks board next refresh.\n\n4. Backend GET /api/tasks now accepts related_type and related_id query\n   params so the modal can pull just this transaction's tasks\n   (idempotent, additive - other callers unaffected).\n\nNext commit will be a one-click migration tool to move existing\npre_listings rows into transactions with status='Pre-Listing'.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }
