@@ -32,6 +32,68 @@ router.get('/smart-lists', (_req, res) => {
   res.json(out)
 })
 
+// Pull a lead's communication history (texts, emails, calls) from Follow Up Boss into the
+// Hub timeline. Deduped by FUB record id (fub_text_/fub_email_/fub_call_ external ids), so
+// it's rerunnable. ?dry=1 returns counts + a raw sample of each type without inserting.
+router.post('/:id/import-fub-comms', async (req, res) => {
+  try {
+    const cid = Number(req.params.id)
+    const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+    if (!client) return res.status(404).json({ error: 'Client not found' })
+    if (!client.fub_person_id) return res.status(400).json({ error: 'No FUB person linked to this lead' })
+    const { fubGet } = await import('../fub-helper.js')
+    const dry = req.query.dry === '1'
+    const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+    const fetchAll = async (endpoint, listKey) => {
+      const out = []
+      for (let offset = 0; offset < 2000; offset += 100) {
+        const j = await fubGet(endpoint, { personId: client.fub_person_id, limit: 100, offset })
+        const items = j?.[listKey] || []
+        out.push(...items)
+        if (items.length < 100) break
+      }
+      return out
+    }
+    const result = { dry, client: name, fub_person_id: client.fub_person_id }
+    const specs = [
+      { key: 'texts', endpoint: '/textMessages', listKey: 'textmessages', channel: 'text' },
+      { key: 'emails', endpoint: '/emails', listKey: 'emails', channel: 'email' },
+      { key: 'calls', endpoint: '/calls', listKey: 'calls', channel: 'call' },
+    ]
+    for (const spec of specs) {
+      try {
+        const items = await fetchAll(spec.endpoint, spec.listKey)
+        result[spec.key] = { found: items.length, sample: items[0] || null }
+        if (dry) continue
+        let inserted = 0, dup = 0
+        for (const m of items) {
+          const ext = `fub_${spec.channel}_${m.id}`
+          if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) { dup++; continue }
+          const incoming = (m.isIncoming ?? m.incoming ?? (String(m.direction || '').toLowerCase() === 'inbound')) ? true : false
+          const when = m.created || m.createdAt || m.timestamp || m.updated || new Date().toISOString()
+          const occurred = new Date(when).toISOString()
+          let body = '', preview = ''
+          if (spec.channel === 'text') { body = String(m.message || m.body || ''); preview = body.replace(/\s+/g, ' ').slice(0, 160) }
+          else if (spec.channel === 'email') { body = String(m.body || m.bodyHtml || m.html || ''); preview = String(m.subject || '').slice(0, 160) || body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) }
+          else { preview = [m.outcome, m.note].filter(Boolean).join(' — ').slice(0, 160) || (incoming ? 'Inbound call' : 'Outbound call') }
+          db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, duration_sec, occurred_at)
+                  VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [spec.channel, incoming ? 'incoming' : 'outgoing', cid, name,
+              incoming ? (m.fromNumber || m.fromEmail || client.phone || '') : '',
+              incoming ? '' : (m.toNumber || m.toEmail || client.phone || ''),
+              spec.channel === 'email' ? (m.subject || null) : null,
+              preview, body, ext, `c${cid}_${spec.channel}`, 'read',
+              spec.channel === 'call' ? (Number(m.duration) || null) : null, occurred])
+          inserted++
+        }
+        result[spec.key].inserted = inserted
+        result[spec.key].duplicates = dup
+      } catch (e) { result[spec.key] = { error: e.message } }
+    }
+    res.json(result)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Remove a wrongly-attached FSBO listing from a lead (phone collision: the number matched
 // but this person isn't the owner). Clears the FSBO fields, pulls them from the FSBO
 // follow-up sequence, and sets fsbo_excluded so the master sync never re-attaches it.
