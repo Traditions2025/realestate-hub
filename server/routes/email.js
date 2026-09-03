@@ -444,8 +444,16 @@ export async function sendSequenceEmail(client, cfg = {}, category = null) {
     try { cards = await buildPropertyCardsLive(client, Number(cfg.max) || 4) } catch {}
     body = /\{\{properties\}\}/.test(body) ? body.replace(/\{\{properties\}\}/g, cards) : (body + cards)
   }
-  await sendViaSendGrid(client.email, `${client.first_name || ''} ${client.last_name || ''}`.trim(), subject, body, cfg.reply_to || null, [], [], [], category)
+  const sgResp = await sendViaSendGrid(client.email, `${client.first_name || ''} ${client.last_name || ''}`.trim(), subject, body, cfg.reply_to || null, [], [], [], category)
   logSentToInbox(client, subject, body, category ? `${category}_${Date.now()}_${client.id}` : null)
+  // Engagement tracking: sequence/drip sends are the bulk of Hub email volume, and they used
+  // to skip email_log entirely — no message id meant the Event Webhook could never attach
+  // opens/clicks. Every send now gets a row with the SendGrid message id.
+  try {
+    db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body, template, status, provider, provider_message_id, sent_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      [client.id, client.email, FROM_EMAIL, (db.getSetting && db.getSetting('email_from_name', '')) || FROM_NAME, subject, body, category || 'sequence', 'sent', 'sendgrid', sgResp?.messageId || null, 'drip'])
+  } catch { /* logging must never break a send */ }
   return { ok: true, subject }
 }
 
