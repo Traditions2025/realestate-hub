@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-02T20:51:28.573Z",
+  "generated_at": "2026-09-03T14:25:51.310Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "189b4d6",
+      "date": "2026-09-02T15:51:39-05:00",
+      "subject": "Clients: Last Text Sent column header popover — sort + 'No text yet' filter",
+      "title": "Clients: Last Text Sent column header popover — sort + 'No text yet' filter",
+      "body": "Clicking the Last Text Sent header now opens a popover to sort newest/oldest and to\nfilter by whether we've texted them: 'No text yet (not texted)' surfaces leads with\nno outgoing text, 'Has been texted' the inverse. Server buildClientFilter gains a\ntexted_out param (never|yes); counts toward the filter badge and clears with the rest.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8651009",
       "date": "2026-09-02T15:40:46-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Sierra incremental sync: bump 10 min -> 60 min interval",
       "title": "Sierra incremental sync: bump 10 min -> 60 min interval",
       "body": "Each sync currently freezes the event loop for 14-23 seconds (measured\nby probing /api/vendors which returned 401 in 14.7-23s repeatedly).\nThat's the per-lead saveDb() storm - a 26MB synchronous write per\nupdated lead. Hourly cadence drops the user-facing probability of\nhitting a frozen window ~6x.\n\nTrade-off: max 60-min delay for Sierra-only changes (vs 10-min before).\nSierra's own email/SMS alerts and webhooks (if configured) still\ndeliver new leads in real time - this poll is only a safety net for\nanything those miss.\n\nReal cure for the per-sync freeze is still Bug B (atomic save +\nbulk mode), which I'll do as a separate, careful change.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1d478db",
-      "date": "2026-05-21T11:31:28-05:00",
-      "subject": "Sierra creationDate pass: format date as MM/dd/yyyy (Sierra's requirement)",
-      "title": "Sierra creationDate pass: format date as MM/dd/yyyy (Sierra's requirement)",
-      "body": "Sierra's API rejects ISO 8601 on leadCreationDateFrom with 400:\n  \"Invalid parameter - leadCreationDateFrom. Please specify date in\n   MM/dd/yyyy format.\"\n\nBut it accepts ISO 8601 on leadUpdateDateFrom (which we've been using\nfor years). Inconsistent formats across filters - had to learn this\nfrom the error reply, not docs.\n\nRender logs confirmed this was failing every 5-13 minutes since at\nleast 4:56 AM 2026-05-21, and probably longer. The creationDate pass\nwas supposed to catch imported leads (Source: Import) whose updateDate\npreserves the source file's old timestamp - meaning Kevin Christensen\nand any other recent import has NOT been syncing despite my prior\n\"fix\". This commit makes the pass actually work.\n\nAdded toSierraDateMMDDYYYY() helper that formats the same UTC instant\nas MM/dd/yyyy (e.g. 05/20/2026). Uses getUTCMonth/Date/FullYear so\nthe date is stable regardless of server timezone.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

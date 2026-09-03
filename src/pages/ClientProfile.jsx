@@ -409,6 +409,22 @@ function CommItem({ m }) {
   const isCallish = m.channel === 'call' || m.channel === 'voicemail'
   const text = commToText(m.body || m.preview || m.subject || '')
   const aiSent = /ai/i.test(m.sent_by_type || m.agent || '')
+  // Texts render as chat bubbles like the Inbox — ours right/blue, theirs left/white — so a
+  // back-and-forth reads at a glance. Emails/calls keep the card layout below.
+  if (m.channel === 'text') {
+    return (
+      <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
+        <div style={{ maxWidth: '78%', minWidth: 110 }}>
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
+            {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')} · {fmtCommWhen(m.occurred_at)}
+          </div>
+          <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
+            {text || '📎 attachment'}
+          </div>
+        </div>
+      </div>
+    )
+  }
   return (
     <div style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 3 }}>
