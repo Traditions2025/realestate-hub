@@ -54,6 +54,11 @@ router.post('/:id/import-fub-comms', async (req, res) => {
       }
       return out
     }
+    // Self-heal: remove redaction stubs imported by runs that predate the privacy guard.
+    if (!dry) {
+      db.run("DELETE FROM communications WHERE client_id=? AND external_id LIKE 'fub_text_%' AND body LIKE '%hidden for privacy%'", [cid])
+      db.run("DELETE FROM communications WHERE client_id=? AND external_id LIKE 'fub_email_%' AND (COALESCE(subject,'') LIKE '%CONTENT HIDDEN%' OR COALESCE(preview,'') LIKE '%CONTENT HIDDEN%')", [cid])
+    }
     const result = { dry, client: name, fub_person_id: client.fub_person_id }
     const specs = [
       { key: 'texts', endpoint: '/textMessages', listKey: 'textmessages', channel: 'text' },
