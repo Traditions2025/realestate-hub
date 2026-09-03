@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-03T17:56:06.012Z",
+  "generated_at": "2026-09-03T19:13:13.759Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4e97e4e",
+      "date": "2026-09-03T12:56:09-05:00",
+      "subject": "Dashboard: accurate Closed This Month + Monthly Volume, new Year Volume card",
+      "title": "Dashboard: accurate Closed This Month + Monthly Volume, new Year Volume card",
+      "body": "closing_date lives in BOTH YYYY-MM-DD and M/D/YYYY forms; the old SQL string\ncompare counted slash-dated closings from ANY month as this month (e.g.\n'8/15/2026' >= '2026-09-01' lexicographically). Stats are now computed in JS with\nboth formats parsed, bounded to the actual Central calendar month/year, and prices\ncleaned before summing. Adds closed_this_year + year_volume and a Year Volume card.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b8a7774",
       "date": "2026-09-03T12:46:41-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Seller Prepaids / Credit field to under-contract transactions",
       "body": "Yes/No selector + amount input, shown in the transaction popup when status is\nUnder Contract / Pending / Clear to Close / Closed. Amount input is disabled\nunless Yes is selected. Backed by two new transactions columns\n(seller_prepaids, seller_prepaids_amount) via idempotent add-if-missing.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "feature"
-    },
-    {
-      "hash": "49bb450",
-      "date": "2026-07-10T12:05:08-05:00",
-      "subject": "Follow Up Boss: establish API connection (no lead/contact sync yet)",
-      "title": "Follow Up Boss: establish API connection (no lead/contact sync yet)",
-      "body": "Adds server/fub-helper.js (Basic-auth client for api.followupboss.com/v1,\nkey read from FUB_API_KEY env or app_settings, never in git) and two\nendpoints: POST /api/fub/config to store+verify the key, GET /api/fub/status\nto report connection state. Connection layer only — no syncing of people or\ncommunications yet, per request.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

@@ -44,6 +44,10 @@ router.get('/', (req, res) => {
       purchases: db.get("SELECT COUNT(*) as count FROM transactions WHERE type = 'purchase' AND property_status NOT IN ('Closed', 'Withdrawn', 'Expired', 'Cancelled')").count,
       listings: db.get("SELECT COUNT(*) as count FROM transactions WHERE type = 'listing' AND property_status NOT IN ('Closed', 'Withdrawn', 'Expired', 'Cancelled')").count,
     },
+    comms: {
+      emails_sent: db.get("SELECT COUNT(*) as count FROM communications WHERE channel = 'email' AND direction = 'outgoing'").count,
+      texts_sent: db.get("SELECT COUNT(*) as count FROM communications WHERE channel = 'text' AND direction = 'outgoing'").count,
+    },
     clients: {
       active_buyers: db.get("SELECT COUNT(*) as count FROM clients WHERE type IN ('buyer', 'both') AND status IN ('active', 'prime')").count,
       active_sellers: db.get("SELECT COUNT(*) as count FROM clients WHERE type IN ('seller', 'both') AND status IN ('active', 'prime')").count,

@@ -106,6 +106,14 @@ export default function Dashboard() {
           <div className="stat-number">{fmt(transactions.year_volume)}</div>
           <div className="stat-label">Year Volume ({transactions.closed_this_year ?? 0} closed)</div>
         </div>
+        <div className="stat-card stat-blue">
+          <div className="stat-number">{(data.comms?.emails_sent ?? 0).toLocaleString()}</div>
+          <div className="stat-label">Emails Sent</div>
+        </div>
+        <div className="stat-card stat-purple">
+          <div className="stat-number">{(data.comms?.texts_sent ?? 0).toLocaleString()}</div>
+          <div className="stat-label">Texts Sent</div>
+        </div>
         <div className="stat-card stat-amber">
           <div className="stat-number">{clients.active_buyers}</div>
           <div className="stat-label">Active Buyers</div>
