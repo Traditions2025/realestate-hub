@@ -72,10 +72,11 @@ export default function Dashboard() {
   const [data, setData] = useState(() => { try { const raw = localStorage.getItem(DASHBOARD_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch { return null } })
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [leadActivity, setLeadActivity] = useState([])
   const [me, setMe] = useState(null)
   useEffect(() => { authFetch('/api/auth/me').then(r => r.json()).then(d => setMe(d?.user || null)).catch(() => {}) }, [])
-  const firstName = me && !me.team && me.name ? me.name.split(' ')[0] : ''
+  // Who to greet: a per-user account name wins; on the shared team login, fall back to the
+  // Inbox "I am …" agent identity (mst_agent) so John sees John and Matt sees Matt.
+  const firstName = (me && !me.team && me.name) ? me.name.split(' ')[0] : ((typeof localStorage !== 'undefined' && localStorage.getItem('mst_agent')) || '')
 
   const load = () => {
     setRefreshing(true)
@@ -84,10 +85,9 @@ export default function Dashboard() {
       try { localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(d)) } catch {}
     }).catch(() => { setLoading(false); setRefreshing(false) })
   }
-  const loadLeadActivity = () => authFetch('/api/track/recent?limit=20').then(r => r.json()).then(rows => { if (Array.isArray(rows)) setLeadActivity(rows) }).catch(() => {})
-  useEffect(() => { load(); loadLeadActivity() }, [])
+  useEffect(() => { load() }, [])
   // Communication/attention data refreshes every 60s; heavier blocks ride along (single endpoint).
-  useEffect(() => { const t = setInterval(load, 60_000); const t2 = setInterval(loadLeadActivity, 30_000); return () => { clearInterval(t); clearInterval(t2) } }, [])
+  useEffect(() => { const t = setInterval(load, 60_000); return () => clearInterval(t) }, [])
 
   if (!data && loading) return <div className="page-loading">Loading dashboard...</div>
   if (!data) return <div className="page-loading">Failed to load dashboard</div>
@@ -325,30 +325,6 @@ export default function Dashboard() {
         )}
       </div>
 
-      {/* ── Live lead activity feed (kept from the old dashboard) ── */}
-      <Section title="Live Lead Activity" link="/clients?smart=viewed_24h" linkLabel="Viewed 24h →">
-        {leadActivity.length === 0 ? <Empty>No website activity yet.</Empty> : (
-          <div className="activity-list">
-            {leadActivity.map(a => {
-              const who = a.first_name ? `${a.first_name} ${a.last_name || ''}` : (a.sierra_lead_id ? `Lead #${a.sierra_lead_id}` : 'Anonymous')
-              const eventLabel = { pageview: '👁 page view', listing_view: '🏠 listing view', save: '⭐ saved', pageduration: '⏱ time on page' }[a.event_type] || a.event_type
-              return (
-                <div key={a.id} className="activity-item">
-                  <div className="activity-dot" style={{ background: a.event_type === 'save' ? '#f59e0b' : a.event_type === 'listing_view' ? '#3b82f6' : '#6b7280' }}></div>
-                  <div className="activity-content">
-                    <span className="activity-action">
-                      {a.client_id ? <Link to={`/clients/${a.client_id}`} style={{ color: 'inherit', fontWeight: 600 }}>{who}</Link> : who}
-                      {' '}{eventLabel}
-                    </span>
-                    <span className="activity-details">{a.listing_mls ? `MLS ${a.listing_mls} · ` : ''}{a.page_title || a.page_url}{a.duration_sec ? ` · ${a.duration_sec}s` : ''}</span>
-                    <span className="activity-time">{timeAgo(a.created_at)}</span>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
-      </Section>
     </div>
   )
 }

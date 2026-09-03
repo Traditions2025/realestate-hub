@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-09-03T19:43:36.992Z",
+  "generated_at": "2026-09-03T20:53:52.784Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "926f227",
+      "date": "2026-09-03T15:41:19-05:00",
+      "subject": "Email backfill: recover engagement for ALL SendGrid activity, not just logged sends",
+      "title": "Email backfill: recover engagement for ALL SendGrid activity, not just logged sends",
+      "body": "Activity messages with no Hub log row (drip sends from before message-id logging)\nnow match the client by recipient address and create the email_log row\nretroactively (idempotent on provider_message_id), so the full 3-day SendGrid\nwindow backfills opens/clicks for every recipient including past clients.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d507c0d",
+      "date": "2026-09-03T15:10:25-05:00",
+      "subject": "Drip/sequence emails now log to email_log with the SendGrid message id",
+      "title": "Drip/sequence emails now log to email_log with the SendGrid message id",
+      "body": "sendSequenceEmail (the bulk of Hub email volume — past-client drips, seller\nnurture, expired/FSBO campaigns) skipped email_log entirely, so those sends had no\nprovider_message_id and the Event Webhook could never attach opens/clicks. Every\nsequence send now writes a trackable email_log row.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2c2d4cd",
+      "date": "2026-09-03T15:07:20-05:00",
+      "subject": "Email engagement: backfill historical opens/clicks from the SendGrid Activity API",
+      "title": "Email engagement: backfill historical opens/clicks from the SendGrid Activity API",
+      "body": "Walks the activity retention window day by day, matches messages to email_log via\nthe msg_id prefix, writes idempotent bf:-tagged synthetic events (skipping emails\nthat already carry real webhook events), and recomputes email + client rollups.\nCoverage is bounded by SendGrid retention; older emails correctly remain\n'No tracking data'.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "51419bd",
+      "date": "2026-09-03T14:49:34-05:00",
+      "subject": "Email events: setup endpoint also enables SendGrid signed webhooks + stores the key",
+      "title": "Email events: setup endpoint also enables SendGrid signed webhooks + stores the key",
+      "body": "/api/email/events then enforces ECDSA signature verification (403 on forged posts).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b4abade",
+      "date": "2026-09-03T14:43:50-05:00",
+      "subject": "Email engagement tracking: SendGrid Event Webhook end to end",
+      "title": "Email engagement tracking: SendGrid Event Webhook end to end",
+      "body": "Sends now request open+click tracking. New public POST /api/email/events (ECDSA\nsignature verification when the webhook public key is configured) matches events\nto the exact email via sg_message_id prefix = email_log.provider_message_id (+\nrecipient for multi-row sends). Idempotent by construction: raw events dedupe on\nUNIQUE sg_event_id and all summaries are recomputed from raw rows (MIN/MAX/COUNT)\nso retries/out-of-order arrivals never double-count. Adds email_events table,\nemail_log summary fields (delivered/first/last opened+clicked, counts, last URL,\ndelivery_status), and indexed client rollups (last_email_opened_at etc.). Surfaces:\nClients columns Last Email Opened/Clicked + Opens/Clicks with server-side sort,\nopened/clicked filters (ever/never/N days, min counts), smart lists Opened Email\n(7d) + Clicked-No Reply, Inbox engagement chips, profile email cards with an\nexpandable event timeline, Reporting aggregates endpoint, spamreport/unsubscribe\n-> marketing_email_opt_out, and opens/clicks feed the AI behavioral score at the\npre-existing weights (open 1, click 3). Pre-webhook emails show No tracking data,\nnever 'never opened'. Setup endpoint POST /api/email/setup-events-webhook.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "89234f5",
       "date": "2026-09-03T14:28:02-05:00",
@@ -3961,46 +4001,6 @@
       "title": "Transaction + dashboard + Slack/task updates",
       "body": "Transactions modal: remove 'Followed Up on Financing Release'; add Appraisal status 'Approved'; final walkthrough always auto-sets to the weekday before closing; mortgage & appraisal contingency dates are always kept in sync. Slack #transaction-tasks-deadlines: alert window changed to 3-day + 1-day (tomorrow) and added a 1-week-before-closing 'check with Cherryl' reminder. Transaction deadlines (Earnest, Home Inspection, Financing contingency, Final Walkthrough, Closing) now auto-create/maintain tracking tasks titled 'Deadline -- address', deduped and auto-completed when the status is terminal. Dashboard: removed Events/Posts Scheduled/Preferred Vendors/Active Campaigns cards and fixed the pre-listing count to only count active pre-listings (matches the Transactions board).\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "a3f97dc",
-      "date": "2026-07-23T09:02:51-05:00",
-      "subject": "Tasks: due time, 30/5-min Slack reminders, and calendar invite to assignee",
-      "title": "Tasks: due time, 30/5-min Slack reminders, and calendar invite to assignee",
-      "body": "Tasks now take a due time. When a task has a due date+time and an assignee (Matt/Leo), the hub emails that person an .ics calendar invite (lands on their Google Calendar, with 30 and 5 min alarms). A per-minute scheduler tick posts Slack reminders to #transaction-tasks-deadlines 30 min and 5 min before due (idempotent via reminder_30_sent/reminder_5_sent; reset when the time changes). All times are America/Chicago, DST-correct. New server/task-reminders.js + tasks columns due_time/reminder_30_sent/reminder_5_sent/calendar_invited.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9b7c374",
-      "date": "2026-07-22T10:37:04-05:00",
-      "subject": "db-status: report live disk usage (persistent volume) + process memory",
-      "title": "db-status: report live disk usage (persistent volume) + process memory",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8cc7725",
-      "date": "2026-07-22T10:23:19-05:00",
-      "subject": "Inspection contingency: compute as business days from the purchase agreement",
-      "title": "Inspection contingency: compute as business days from the purchase agreement",
-      "body": "The purchase-agreement extraction now reads the contingency PERIOD (number of business days) for inspection, financing, and appraisal, and the server computes the deadline deterministically via addBusinessDays() -- skipping weekends AND all US federal holidays (observed), and NOT counting the acceptance date. The AI supplies the number; the code does the date math (LLMs are unreliable at business-day counting). New server/business-days.js holds the holiday + business-day engine.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b501c4a",
-      "date": "2026-07-16T15:47:37-05:00",
-      "subject": "Pre-listing walkthrough: text field -> dropdown",
-      "title": "Pre-listing walkthrough: text field -> dropdown",
-      "body": "Walkthrough is now a select: Not Scheduled / Scheduled / Not Done / Completed\n(saves on change). Keeps \"Not Scheduled\" so existing records display correctly.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "20eaab8",
-      "date": "2026-07-16T11:52:41-05:00",
-      "subject": "Fix checklist layout: checkbox left of text, 2-column grid",
-      "title": "checklist layout: checkbox left of text, 2-column grid",
-      "body": "Global `label { flex-direction: column }` was stacking the checkbox above the\ntask text. Force row direction + left align on each item, and use the\n2-column checklist-grid (single column on mobile) to maximize space. Applied\nto both the pre-listing popup and the transaction marketing checklist.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

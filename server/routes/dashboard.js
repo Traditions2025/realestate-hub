@@ -148,8 +148,26 @@ router.get('/', (req, res) => {
   stats.today = { date: W.day }
   stats.todays_events = safe(() => db.all('SELECT * FROM calendar_events WHERE event_date = ? ORDER BY COALESCE(start_time, "99:99") ASC', [W.day]), [])
 
+  // ---- Internal people are NOT leads: the team's own records (Matt Smith, John, Hunter),
+  // and professional partners/vendors (closers like Cherryl, lenders, inspectors). Matched by
+  // email + full name against team_agents/partners/vendors + the known internal addresses,
+  // plus any record named "... Matt Smith Team". Excluded from Need Response / Attention. ----
+  const internalIds = safe(() => {
+    const emails = new Set(['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com', 'matt@mattsmithteam.com'])
+    const names = new Set()
+    try { for (const t of db.all('SELECT name FROM team_agents')) names.add(String(t.name).trim().toLowerCase()) } catch {}
+    try { for (const p of db.all("SELECT name, email FROM partners")) { if (p.email) emails.add(String(p.email).trim().toLowerCase()); if (p.name) names.add(String(p.name).trim().toLowerCase()) } } catch {}
+    try { for (const v of db.all("SELECT contact_name, email FROM vendors")) { if (v.email) emails.add(String(v.email).trim().toLowerCase()); if (v.contact_name) names.add(String(v.contact_name).trim().toLowerCase()) } } catch {}
+    const ids = new Set()
+    const rows = db.all("SELECT id, lower(trim(coalesce(first_name,'') || ' ' || coalesce(last_name,''))) nm, lower(coalesce(email,'')) em FROM clients WHERE merged_into IS NULL AND (email IS NOT NULL OR first_name IS NOT NULL)")
+    for (const r of rows) {
+      if ((r.em && emails.has(r.em)) || (r.nm && names.has(r.nm)) || (r.nm && r.nm.includes('matt smith team'))) ids.add(r.id)
+    }
+    return ids
+  }, new Set())
+
   // ---- Need response (count + top rows with evidence) ----
-  const needRows = safe(() => db.all(`
+  const needRowsAll = safe(() => db.all(`
     SELECT c.id, c.first_name, c.last_name, c.agent_assigned, t.li AS last_inbound_at
     FROM (SELECT client_id,
             MAX(CASE WHEN direction='incoming' THEN occurred_at END) li,
@@ -160,6 +178,7 @@ router.get('/', (req, res) => {
     WHERE t.li IS NOT NULL AND (t.lo IS NULL OR t.li > t.lo)
       AND c.merged_into IS NULL AND lower(coalesce(c.status,'')) NOT IN ('junk','donotcontact')
     ORDER BY t.li DESC`), [])
+  const needRows = needRowsAll.filter(r => !internalIds.has(r.id))
   const needTop = needRows.slice(0, 8).map(r => safe(() => {
     const m = db.get("SELECT channel, preview, body FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [r.id]) || {}
     const intent = db.get('SELECT intent_score FROM lead_intelligence WHERE client_id=?', [r.id])?.intent_score ?? null
@@ -169,12 +188,14 @@ router.get('/', (req, res) => {
   // ---- Open AI handoffs ----
   const handoffs = safe(() => db.all(`SELECT h.id, h.client_id, h.reason, h.summary, h.urgency, h.recommended_action, h.intent_score, h.created_at, c.first_name, c.last_name
     FROM ai_handoffs h LEFT JOIN clients c ON c.id = h.client_id WHERE h.status='open' ORDER BY h.created_at DESC LIMIT 10`), [])
+    .filter(h => !internalIds.has(h.client_id))
 
   // ---- Missed calls + failed messages today ----
   const missedCalls = safe(() => db.all(`SELECT co.client_id, co.from_addr, co.occurred_at, c.first_name, c.last_name
     FROM communications co LEFT JOIN clients c ON c.id = co.client_id
     WHERE co.channel='call' AND co.direction='incoming' AND (co.duration_sec IS NULL OR co.duration_sec = 0)
       AND co.occurred_at >= ? AND co.occurred_at < ? ORDER BY co.occurred_at DESC LIMIT 6`, [W.startUtc, W.endUtc]), [])
+    .filter(m => !internalIds.has(m.client_id))
   const failedToday = safe(() => db.get(`SELECT COUNT(*) c FROM communications WHERE direction='outgoing'
     AND delivery_status IN ('failed','undelivered') AND occurred_at >= ? AND occurred_at < ?`, [W.startUtc, W.endUtc]).c, 0)
 
