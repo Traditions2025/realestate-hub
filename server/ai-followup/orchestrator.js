@@ -291,7 +291,10 @@ export async function previewMessage(clientId, { context = '', approach = '' } =
   const angle = FOLLOWUP_ANGLES[approach] || ''
   const angleBlock = angle ? `\n\n${FOLLOWUP_DOCTRINE}\n\n${angle}`
     : (kind === 'follow-up' ? `\n\n${FOLLOWUP_DOCTRINE}` : '')
-  const userContent = instruction
+  // A chosen angle on an existing conversation must anchor on the THREAD, so swap the canned
+  // discovery instruction (facts-only, no transcript) for the transcript-based prompt.
+  const useThread = !!angle && (kind === 'follow-up' || kind === 'reply')
+  const userContent = (instruction && !useThread)
     ? `CONTEXT (JSON, trusted):\n${JSON.stringify(ctx.facts)}\n\n${instruction}${angleBlock}${ctxBlock}\n\nReturn the JSON now.`
     : buildUserMessage(ctx) + angleBlock + ctxBlock
   let decision, usage = {}
