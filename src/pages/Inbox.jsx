@@ -126,6 +126,7 @@ export default function Inbox() {
   const [sending, setSending] = useState(false)
   const [replyOpen, setReplyOpen] = useState(true)   // reply composer open by default so you can type right away
   const [aiOpen, setAiOpen] = useState(false)        // AI suggested text collapsed by default; expand via the "Suggested text" button
+  const [aiApproach, setAiApproach] = useState('')   // follow-up angle: '' auto | conversation | activity | checkin
   const [openMsgs, setOpenMsgs] = useState({})        // per-message expand overrides (Gmail-style thread collapse)
   const [replyMedia, setReplyMedia] = useState([])    // outgoing MMS photos: [{url,type}]
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
@@ -193,7 +194,7 @@ export default function Inbox() {
     if (!clientId) return
     setUnknownSel(null); setGroupSel(null)
     setSel(clientId)
-    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setAiOpen(false); setOpenMsgs({}); setReplyMedia([])
+    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setAiOpen(false); setAiApproach(''); setOpenMsgs({}); setReplyMedia([])
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
     // AI: restore a saved draft if one exists. The AI suggestion stays minimized — the user pulls
@@ -226,11 +227,12 @@ export default function Inbox() {
 
   // Generate/regenerate the AI suggestion. force=true overwrites the editor
   // (Regenerate / first open); otherwise it only fills an empty editor.
-  const generateSuggestion = async (cid, force) => {
+  const generateSuggestion = async (cid, force, approach) => {
     cid = cid || sel; if (!cid) return
+    const angle = approach !== undefined ? approach : aiApproach
     setAiBusy('suggest')
     try {
-      const r = await authFetch(`/api/inbox/thread/${cid}/ai/suggest`, { method: 'POST' })
+      const r = await authFetch(`/api/inbox/thread/${cid}/ai/suggest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approach: angle || '' }) })
       const d = await r.json()
       if (d.error) setAi(a => ({ ...(a || {}), error: d.error }))
       else {
@@ -568,6 +570,17 @@ export default function Inbox() {
                         {ai && ai.stale && <span style={{ fontSize: 11, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
                         <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={!!aiBusy} onClick={() => generateSuggestion(sel, true)}>{aiBusy === 'suggest' ? '…' : '↻ Regenerate'}</button>
                         <button className="btn btn-sm btn-secondary" onClick={() => setAiOpen(false)} title="Hide the suggestion">▾ Hide</button>
+                      </div>
+                      {/* Follow-up angle picker: choose WHAT the suggestion anchors on instead of letting
+                          the AI guess. Every angle stays natural and zero-pressure by doctrine. */}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+                        {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
+                          <button key={k || 'auto'} className="btn btn-sm" disabled={!!aiBusy}
+                            style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
+                            title={k === 'conversation' ? 'Pick up naturally from what they last said or left open' : k === 'activity' ? 'Anchor on what they recently viewed on the website' : k === 'checkin' ? 'Warm, no-ask presence message: we are here when you are ready' : 'Let the AI pick the best angle'}
+                            onClick={() => { setAiApproach(k); generateSuggestion(sel, true, k) }}>{l}</button>
+                        ))}
                       </div>
                       {ai && ai.ai_available === false && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>AI is not configured on the server.</div>}
                       {ai && ai.error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{ai.error}</div>}
