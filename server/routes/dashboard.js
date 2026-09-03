@@ -178,7 +178,26 @@ router.get('/', (req, res) => {
     WHERE t.li IS NOT NULL AND (t.lo IS NULL OR t.li > t.lo)
       AND c.merged_into IS NULL AND lower(coalesce(c.status,'')) NOT IN ('junk','donotcontact')
     ORDER BY t.li DESC`), [])
-  const needRows = needRowsAll.filter(r => !internalIds.has(r.id))
+  // AI loop-closure filter — the same signal as the Inbox intent badge: a latest inbound
+  // already classified "No Response Needed" (they just gave us the info we asked for, said
+  // thanks/ok) is not attention-worthy. Classification is keyed to the latest incoming
+  // message id, so an OLD label never suppresses a NEW reply.
+  const classified = new Map()
+  safe(() => { for (const r of db.all('SELECT client_id, intent, based_on_msg_id FROM inbox_ai WHERE intent IS NOT NULL')) classified.set(r.client_id, r) })
+  const _incIdCache = new Map()
+  const latestIncId = (cid) => {
+    if (_incIdCache.has(cid)) return _incIdCache.get(cid)
+    const id = safe(() => db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [cid])?.id ?? null, null)
+    _incIdCache.set(cid, id); return id
+  }
+  const noRespNeeded = (cid) => { const c = classified.get(cid); return !!(c && c.intent === 'No Response Needed' && c.based_on_msg_id === latestIncId(cid)) }
+  const needRows = needRowsAll.filter(r => !internalIds.has(r.id) && !noRespNeeded(r.id))
+  // Background: classify up to 5 top unclassified candidates (fire-and-forget, tiny token
+  // cost) so accuracy improves by the next refresh without anyone opening the Inbox first.
+  safe(() => {
+    const todo = needRows.filter(r => { const c = classified.get(r.id); return !(c && c.based_on_msg_id === latestIncId(r.id)) }).slice(0, 5)
+    if (todo.length) import('./inbox.js').then(m => { for (const r of todo) m.classifyLatestInbound(r.id).catch(() => {}) }).catch(() => {})
+  })
   const needTop = needRows.slice(0, 8).map(r => safe(() => {
     const m = db.get("SELECT channel, preview, body FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [r.id]) || {}
     const intent = db.get('SELECT intent_score FROM lead_intelligence WHERE client_id=?', [r.id])?.intent_score ?? null

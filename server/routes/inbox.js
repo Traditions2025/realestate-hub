@@ -1429,6 +1429,29 @@ function threadTranscript(rows) {
     return `[${when}] ${who}${m.subject ? ' — ' + m.subject : ''}${tag}:\n${clip(text, 900)}`
   }).join('\n\n')
 }
+// Classification-only: label the LATEST inbound message (no reply drafted — tiny token cost).
+// Used by the Dashboard so "Needs Attention" can drop loop-closing messages ("here's my email
+// address", "thanks!", "ok sounds good") exactly the way the Inbox intent badge does. Cached in
+// inbox_ai keyed to the latest incoming message id; a stale cached suggestion is cleared when
+// the key moves so the Inbox never shows an old draft as fresh.
+export async function classifyLatestInbound(cid) {
+  const ai = getAiClient(); if (!ai) return null
+  const rows = db.all('SELECT * FROM communications WHERE client_id=? ORDER BY occurred_at ASC', [Number(cid)])
+  const inc = latestIncoming(rows); if (!inc) return null
+  const existing = db.get('SELECT based_on_msg_id, intent FROM inbox_ai WHERE client_id=?', [Number(cid)])
+  if (existing && existing.based_on_msg_id === inc.id && existing.intent) return existing.intent
+  const transcript = threadTranscript(rows.slice(-6))
+  const sys = `You label the latest inbound message in a real-estate team's CRM thread. Return ONLY JSON: {"intent": one of ${JSON.stringify(INTENTS)}}. Use "No Response Needed" when the message simply closes a loop and no human reply is required: they provided info we asked for (an email address, a door code, a confirmation), said thanks/ok/sounds good, or acknowledged something. Use "Needs Response" or a more specific label whenever a person should actually reply.`
+  try {
+    const msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 50, system: sys, messages: [{ role: 'user', content: `THREAD (oldest to newest):\n${transcript}\n\nLatest inbound:\n"${String(inc.body || inc.preview || '').slice(0, 600)}"\n\nReturn the JSON now.` }] })
+    const out = parseJson(msg.content?.[0]?.text || '')
+    const intent = INTENTS.includes(out?.intent) ? out.intent : null
+    if (intent) db.run(`INSERT INTO inbox_ai (client_id, based_on_msg_id, intent, suggestion, updated_at) VALUES (?,?,?,NULL,?)
+      ON CONFLICT(client_id) DO UPDATE SET based_on_msg_id=excluded.based_on_msg_id, intent=excluded.intent, suggestion=NULL, updated_at=excluded.updated_at`, [Number(cid), inc.id, intent, nowIso()])
+    return intent
+  } catch { return null }
+}
+
 async function generateReply(client, rows, adjustInstruction, context, current, approach) {
   const ai = getAiClient()
   if (!ai) return { error: 'AI is not configured (ANTHROPIC_API_KEY missing).' }
