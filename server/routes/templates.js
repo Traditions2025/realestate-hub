@@ -2,9 +2,42 @@ import { Router } from 'express'
 import db from '../database.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { fillTemplate } from './email.js'
+import { readdirSync, existsSync } from 'fs'
+import { join, dirname } from 'path'
+import { fileURLToPath } from 'url'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
+
+// Maintenance: surgically restore specific template rows (and optionally one drip campaign
+// row) from the NEWEST daily disk backup — the raw DB copies in <DB_DIR>/backups. Used when
+// content was overwritten in place and the prior version is needed back.
+router.post('/restore-from-backup', (req, res) => {
+  try {
+    const ids = (Array.isArray(req.body?.template_ids) ? req.body.template_ids : []).map(Number).filter(Boolean)
+    const dripId = Number(req.body?.drip_id) || null
+    if (!ids.length && !dripId) return res.status(400).json({ error: 'template_ids or drip_id required' })
+    const DB_DIR = process.env.DB_DIR || join(dirname(fileURLToPath(import.meta.url)), '..', '..')
+    const dir = join(DB_DIR, 'backups')
+    if (!existsSync(dir)) return res.status(404).json({ error: 'no backups directory' })
+    const file = readdirSync(dir).filter(f => f.startsWith('realestate-hub.db.daily-')).sort().pop()
+    if (!file) return res.status(404).json({ error: 'no daily backup found' })
+    const p = join(dir, file).replace(/'/g, "''")
+    db.run(`ATTACH DATABASE '${p}' AS bak`)
+    let restoredTemplates = 0, restoredDrip = false
+    try {
+      if (ids.length) {
+        db.run(`INSERT OR REPLACE INTO templates SELECT * FROM bak.templates WHERE id IN (${ids.join(',')})`)
+        restoredTemplates = db.get(`SELECT COUNT(*) c FROM bak.templates WHERE id IN (${ids.join(',')})`).c
+      }
+      if (dripId) {
+        db.run(`INSERT OR REPLACE INTO drip_campaigns SELECT * FROM bak.drip_campaigns WHERE id = ${dripId}`)
+        restoredDrip = !!db.get(`SELECT 1 x FROM bak.drip_campaigns WHERE id = ${dripId}`)
+      }
+    } finally { db.run('DETACH DATABASE bak') }
+    res.json({ success: true, backup: file, restored_templates: restoredTemplates, restored_drip: restoredDrip })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 
 // Render a template body/subject with a specific lead's data (live preview of merge fields).
 router.post('/render', (req, res) => {
