@@ -67,7 +67,7 @@ function fmtLongDate(dateStr) {
 
 const SIG = `
 
-— Matt Smith Team
+- Matt Smith Team
 RE/MAX Concepts
 (319) 431-5859 | matt@mattsmithteam.com
 5235 Buffalo Rdg Dr NE, Cedar Rapids, IA 52411
@@ -170,23 +170,23 @@ The inspection period is now your opportunity to get a thorough, professional lo
 WHAT THE INSPECTION IS DESIGNED TO DO
 A home inspection exists to identify major concerns in four specific categories: structural integrity, mechanical systems (HVAC, electrical, plumbing), safety hazards, and health-related conditions like active moisture or air quality issues. That is its purpose. It is not designed to make an older home new, to surface every item that could theoretically be improved, or to serve as a tool to renegotiate the purchase price.
 
-THE REPORT WILL BE LONG — THAT DOESN'T MEAN THE HOME IS IN BAD SHAPE
+THE REPORT WILL BE LONG. THAT DOESN'T MEAN THE HOME IS IN BAD SHAPE
 A thorough inspector notes everything they observe, including items that are aging but functional, items that don't meet current code but were built legally under older standards, and general maintenance observations. A long report is the sign of a thorough inspector, not a troubled home. We'll go through it together and identify what actually requires attention.
 
 HOW WE BUILD A REPAIR REQUEST THAT WORKS
-The requests that hold up — and that move us toward closing efficiently — are focused on items that are genuinely non-functional, pose a safety risk, or represent a health concern. Items that typically fall outside a seller's obligation include:
+The requests that hold up, and that move us toward closing efficiently, are focused on items that are genuinely non-functional, pose a safety risk, or represent a health concern. Items that typically fall outside a seller's obligation include:
 - Cosmetic wear consistent with the age and condition of the home
 - Components that work but that you'd prefer to have newer or upgraded
 - Items the inspector recommends "monitoring" rather than addressing now
 - General maintenance that comes with owning any home
 - Anything that would bring the home beyond its current condition
 
-A focused, reasonable repair request built around what genuinely matters is what moves a transaction forward. It protects the progress we've made and keeps both parties working toward the same goal — closing. We'll build it that way together, and we'll be right there with you at every step.
+A focused, reasonable repair request built around what genuinely matters is what moves a transaction forward. It protects the progress we've made and keeps both parties working toward the same goal: closing. We'll build it that way together, and we'll be right there with you at every step.
 
 YOU HAVE A REAL SAFETY NET
-Our job throughout this process is to make sure you have complete clarity on what you're buying — so that when we get to the closing table, you're arriving with full confidence, no surprises, and no second-guessing. That protection is real, and we will always make sure you know your options clearly. The goal is to use this process for exactly what it's designed for — getting the full picture on the home you're excited about and closing with confidence.
+Our job throughout this process is to make sure you have complete clarity on what you're buying, so that when we get to the closing table, you're arriving with full confidence, no surprises, and no second-guessing. That protection is real, and we will always make sure you know your options clearly. The goal is to use this process for exactly what it's designed for: getting the full picture on the home you're excited about and closing with confidence.
 
-Please let us know if you have any questions. Come in curious, not worried — this is the process working exactly as it should, and we've got you covered.${SIG}`,
+Please let us know if you have any questions. Come in curious, not worried, this is the process working exactly as it should, and we've got you covered.${SIG}`,
   },
 
   buyer_utilities_reminder: {
@@ -196,7 +196,7 @@ Please let us know if you have any questions. Come in curious, not worried — t
     subject: 'Action needed: Set up utilities for {{property_address}} before {{closing_date}}',
     body: `Hi {{first_name}},
 
-Quick reminder — closing on {{property_address}} is coming up on {{closing_date}}, which means it's time to set up your utilities.
+Quick reminder, closing on {{property_address}} is coming up on {{closing_date}}, which means it's time to set up your utilities.
 
 You'll want everything turned on in your name so service starts the morning of closing day. Please contact each provider at least 1 business week (5 business days) before closing.
 
@@ -224,7 +224,7 @@ WHAT TO TELL EACH PROVIDER
 - Property address: {{property_address}}
 - You're the new owner
 
-Once everything's scheduled, just reply and let us know — we'll note it in the file. If you need help with any of these, give us a call at (319) 431-5859.
+Once everything's scheduled, just reply and let us know, we'll note it in the file. If you need help with any of these, give us a call at (319) 431-5859.
 
 Thanks!${SIG}`,
   },
@@ -233,12 +233,12 @@ Thanks!${SIG}`,
     name: '📅 Buyer — Closing Reminder (1 week out)',
     role: 'buyer',
     recipient: 'client',
-    subject: 'Closing reminders for {{property_address}} — coming up {{closing_date}}',
+    subject: 'Closing reminders for {{property_address}}, coming up {{closing_date}}',
     body: `Hi {{first_name}},
 
 We're one week out from closing on {{property_address}} on {{closing_date}}. Quick reminders so everything stays on track:
 
-UTILITIES — please set up at least 1 business week (5 business days) before closing
+UTILITIES, please set up at least 1 business week (5 business days) before closing
 Set the following in your name effective {{closing_date}}:
 - Electric: Alliant Energy 800-255-4268 (or Linn County REC 800-255-4268 for rural)
 - Gas: MidAmerican Energy 888-427-5632
@@ -252,13 +252,13 @@ FINAL WALKTHROUGH
 Scheduled for {{final_walkthrough}}. We'll confirm the exact time with you a day or two before. Plan on about 30 minutes.
 
 CLOSING DAY
-Scheduled for {{closing_date}}. We'll meet at the lender's office (or wherever {{closer_name}} confirms) — typically an hour. Please bring:
+Scheduled for {{closing_date}}. We'll meet at the lender's office (or wherever {{closer_name}} confirms), typically an hour. Please bring:
 - Government-issued photo ID
 - Cashier's check or wire confirmation for your closing funds
 - Any final documents {{closer_name}} requested
 
-WIRING FUNDS — IMPORTANT
-If you're wiring closing funds, ALWAYS call {{closer_name}} at {{closer_company}} to verbally confirm wire instructions before sending. Wire fraud in real estate is real and rising — never trust wire instructions sent only by email.
+WIRING FUNDS, IMPORTANT
+If you're wiring closing funds, ALWAYS call {{closer_name}} at {{closer_company}} to verbally confirm wire instructions before sending. Wire fraud in real estate is real and rising, never trust wire instructions sent only by email.
 
 Please reach out with any last questions. Almost there!${SIG}`,
   },
@@ -268,7 +268,7 @@ Please reach out with any last questions. Almost there!${SIG}`,
     name: '🎉 Seller — Your Home Is Now Live',
     role: 'seller',
     recipient: 'client',
-    subject: 'Your home is now live! {{property_address}} :) – Matt Smith Team',
+    subject: 'Your home is now live! {{property_address}} :), Matt Smith Team',
     body: `Hello {{first_name}},
 
 We are officially live! :) Your home at {{property_address}} is now active on the MLS and visible to the public.
@@ -297,7 +297,7 @@ Please let us know if you have any questions.${SIG}`,
     name: '✅ Seller — Your Home Is Under Contract',
     role: 'seller',
     recipient: 'client',
-    subject: 'Congratulations {{first_name}} – Your Home Is Now Under Contract! :) | {{property_address}}',
+    subject: 'Congratulations {{first_name}}, Your Home Is Now Under Contract! :) | {{property_address}}',
     body: `Hi {{first_name}},
 
 Congratulations! :)
@@ -313,14 +313,14 @@ We've attached the accepted offer document for your records.
 As we move from contract to closing, here's your personalized timeline and next steps:
 
 KEY STEPS & IMPORTANT DATES
-- Contract Ratification: {{contract_date}} — Both parties have agreed to the terms, and the contract is now officially in effect.
+- Contract Ratification: {{contract_date}}, Both parties have agreed to the terms, and the contract is now officially in effect.
 - Type of Financing: {{type_of_finance}}
 - Purchase Price: {{purchase_price_formatted}}
 - Earnest Money: {{earnest_money}}
 - Inspections: The buyers must complete all inspection results no later than {{inspection_contingency_date}}.
-- Mortgage & Appraisal Contingency: {{mortgage_contingency_date}} — The buyer's financing and appraisal will be finalized by this date.
-- Final Walkthrough: {{final_walkthrough}} — The buyers will make their final walkthrough to make sure the home is in the expected condition before signing final paperwork.
-- Closing Day and Possession: {{closing_date}} — Ownership officially transfers to the buyer.
+- Mortgage & Appraisal Contingency: {{mortgage_contingency_date}}, The buyer's financing and appraisal will be finalized by this date.
+- Final Walkthrough: {{final_walkthrough}}, The buyers will make their final walkthrough to make sure the home is in the expected condition before signing final paperwork.
+- Closing Day and Possession: {{closing_date}}, Ownership officially transfers to the buyer.
 
 CLOSING SUPPORT
 You'll soon hear from {{closer_name}} with {{closer_company}}, our dedicated closing coordinator. {{closer_name}} plays a key role in bringing everything together for a smooth closing. She will help gather all required information, coordinate with the title company, and prepare the final closing documents.
@@ -338,7 +338,7 @@ Warm regards,${SIG}`,
     name: '📸 Seller — Photo Day Prep / Get Home Ready',
     role: 'seller',
     recipient: 'client',
-    subject: 'Getting your home ready – key steps before listing | Matt Smith Team',
+    subject: 'Getting your home ready, key steps before listing | Matt Smith Team',
     body: `Hi {{first_name}},
 
 As we get closer to your move-in date, we've arranged your home photos. The photographers fill up quickly, so please confirm the time slot we sent so we can lock it in.
@@ -347,7 +347,7 @@ In the meantime, here are the key steps to help your home photograph beautifully
 
 KEY REMINDERS FOR PHOTO DAY
 - Remove 30-40% of items from countertops, shelves, and open spaces.
-- Keep all surfaces clear — less makes rooms look larger and brighter.
+- Keep all surfaces clear, less makes rooms look larger and brighter.
 - Turn all lights on and open blinds for maximum light.
 - Use neutral towels, bedding, and décor for a clean, fresh look.
 - Hide trash cans, Kleenex boxes, cords, and paper towels.
@@ -363,7 +363,7 @@ Once photos are complete, it typically takes about 24 hours for the images to co
 - Make the listing active and begin a full marketing launch
 
 SHOWINGS WILL BE BY APPOINTMENT
-All showings will happen by request and with your approval — nothing will be scheduled without your okay. We'll provide at least 1 hour's notice for each showing request so you have enough time to prepare.
+All showings will happen by request and with your approval, nothing will be scheduled without your okay. We'll provide at least 1 hour's notice for each showing request so you have enough time to prepare.
 
 BE OUT DURING SHOWINGS
 We recommend being out of the house during showings. This allows buyers to explore freely, speak openly with their agent, and imagine themselves living there.
@@ -375,7 +375,7 @@ Since you'll still be living in the home until your new place closes, it's impor
 - Make beds, turn on lights, and open blinds
 - Remove personal items from bathrooms and bedrooms
 
-Small details make a big difference — the cleaner and brighter the space, the more buyers will focus on your home's best features.
+Small details make a big difference, the cleaner and brighter the space, the more buyers will focus on your home's best features.
 
 Please let us know if you have any questions. Thanks!${SIG}`,
   },
@@ -408,7 +408,7 @@ Office: 5235 Buffalo Rdg Dr NE, Cedar Rapids, IA 52411`,
     name: '🏦 To Lender — Transaction Intro / PA Attached',
     role: 'lender',
     recipient: 'lender',
-    subject: 'Purchase Agreement — {{property_address}} ({{full_name}})',
+    subject: 'Purchase Agreement, {{property_address}} ({{full_name}})',
     body: `Hi {{lender_name}},
 
 Sending over the signed Purchase Agreement for {{full_name}} on {{property_address}}.
@@ -432,7 +432,7 @@ Thanks!${SIG}`,
     name: '📋 To Cherryl — New Transaction / Loop Setup',
     role: 'closer',
     recipient: 'closer',
-    subject: 'New transaction — {{property_address}} | Closing {{closing_date}}',
+    subject: 'New transaction, {{property_address}} | Closing {{closing_date}}',
     body: `Hi {{closer_name}},
 
 New one for the loop:
@@ -506,7 +506,7 @@ export const PRELISTING_TEMPLATES = {
   prelisting_photo_prep: {
     name: '📸 Pre-Listing — Photo Day Prep',
     recipient: 'client',
-    subject: 'Getting your home ready – key steps before photo day | Matt Smith Team',
+    subject: 'Getting your home ready, key steps before photo day | Matt Smith Team',
     body: TRANSACTION_TEMPLATES.seller_photo_prep.body,
   },
   prelisting_walkthrough_followup: {
@@ -528,7 +528,7 @@ NEXT STEPS FROM US
 - Draft the listing agreement for your signature
 
 NEXT STEPS FROM YOU
-- Address the items we walked through (no big lifts — easy wins)
+- Address the items we walked through (no big lifts, easy wins)
 - Gather any remodel/upgrade dates or warranties you have on file
 - Let us know any preferred dates/times for photos
 
@@ -547,7 +547,7 @@ ONCE YOU SIGN
 - Lockbox + sign installed at the property
 - Listing prepared for MLS submission
 
-Let me know if anything in the agreement looks off, or if you'd rather walk through it together — happy to do either.
+Let me know if anything in the agreement looks off, or if you'd rather walk through it together, happy to do either.
 
 Thanks!${SIG}`,
   },
