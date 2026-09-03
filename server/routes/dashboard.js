@@ -183,14 +183,23 @@ router.get('/', (req, res) => {
   // thanks/ok) is not attention-worthy. Classification is keyed to the latest incoming
   // message id, so an OLD label never suppresses a NEW reply.
   const classified = new Map()
-  safe(() => { for (const r of db.all('SELECT client_id, intent, based_on_msg_id FROM inbox_ai WHERE intent IS NOT NULL')) classified.set(r.client_id, r) })
+  safe(() => { for (const r of db.all('SELECT client_id, intent, summary, based_on_msg_id FROM inbox_ai WHERE intent IS NOT NULL OR summary IS NOT NULL')) classified.set(r.client_id, r) })
   const _incIdCache = new Map()
   const latestIncId = (cid) => {
     if (_incIdCache.has(cid)) return _incIdCache.get(cid)
     const id = safe(() => db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [cid])?.id ?? null, null)
     _incIdCache.set(cid, id); return id
   }
-  const noRespNeeded = (cid) => { const c = classified.get(cid); return !!(c && c.intent === 'No Response Needed' && c.based_on_msg_id === latestIncId(cid)) }
+  // The Inbox AI sometimes labels a loop-closer with a specific intent ("Information Request"
+  // for a provided email address) while its SUMMARY carries the real conclusion ("no further
+  // action is needed"). Honor either — but only when keyed to the LATEST inbound message.
+  const CLOSED_LOOP_RE = /no (further |additional )?(question|action|response|reply|follow[- ]?up)[^.]{0,50}(needed|required|necessary)|no (response|reply|action) (is )?(needed|required|necessary)|nothing (further )?(is )?(needed|required)|doesn'?t (need|require) a (response|reply)/i
+  const noRespNeeded = (cid) => {
+    const c = classified.get(cid)
+    if (!c || c.based_on_msg_id !== latestIncId(cid)) return false
+    if (c.intent === 'No Response Needed') return true
+    return !!(c.summary && CLOSED_LOOP_RE.test(c.summary))
+  }
   const needRows = needRowsAll.filter(r => !internalIds.has(r.id) && !noRespNeeded(r.id))
   // Background: classify up to 5 top unclassified candidates (fire-and-forget, tiny token
   // cost) so accuracy improves by the next refresh without anyone opening the Inbox first.
