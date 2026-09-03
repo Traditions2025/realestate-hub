@@ -149,9 +149,17 @@ router.post('/', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
+// Columns the edit endpoint may write. The list endpoint decorates rows with computed fields
+// (e.g. related_name for client-linked tasks) and the edit modal sends the whole row back —
+// any unknown key used to reach the UPDATE and 500 with "no such column".
+const TASK_UPDATABLE = ['title', 'description', 'priority', 'status', 'due_date', 'due_time',
+  'assigned_to', 'category', 'related_type', 'related_id', 'notes_log', 'completed_at',
+  'reminder_30_sent', 'reminder_5_sent', 'calendar_invited']
+
 router.put('/:id', (req, res) => {
   const id = Number(req.params.id)
-  const fields = req.body
+  const fields = {}
+  for (const k of TASK_UPDATABLE) if (k in (req.body || {})) fields[k] = req.body[k]
   fields.updated_at = new Date().toISOString()
 
   // Auto-stamp completion: when status changes, set/clear completed_at
@@ -192,7 +200,7 @@ router.put('/:id', (req, res) => {
     ? changedKeys.map(k => `${k} → ${String(fields[k] || '').slice(0, 60)}`).join('; ')
     : 'minor update'
   const after = db.get('SELECT * FROM tasks WHERE id = ?', [id])
-  notifyTaskChange('updated', after, { silent: !!fields.silent, changeSummary }).catch(() => {})
+  notifyTaskChange('updated', after, { silent: !!req.body?.silent, changeSummary }).catch(() => {})
   res.json({ success: true })
 })
 
