@@ -116,6 +116,14 @@ Redesigned (2026-09) around "what should I do first?", all Central-time, every n
 - **System Health:** Sierra sync, backup, master syncs, failed messages — one green line when healthy.
 - Server: single aggregation in `server/routes/dashboard.js` (`stats.cards/attention/schedule/pipeline/prospecting/tx/radar/ai/comm_today/business/health`), metric definitions in a comment block there; per-block `safe()` isolation so one failing query never blanks the page. `closing_date` parsed in both `YYYY-MM-DD` and `M/D/YYYY` forms.
 
+### Email engagement tracking (SendGrid Event Webhook, 2026-09)
+- **Event stream:** `POST /api/email/events` (public, ECDSA signature-verified when `SENDGRID_WEBHOOK_PUBLIC_KEY`/setting configured; configure the SendGrid side once via `POST /api/email/setup-events-webhook`). Events matched to the exact email via `sg_message_id` prefix = `email_log.provider_message_id` (+ recipient for multi-row sends) — never subject guessing.
+- **Idempotent by construction:** raw events dedupe on UNIQUE `sg_event_id`; every summary number is RECOMPUTED from raw rows (MIN/MAX/COUNT), so webhook retries and out-of-order arrivals can't double-count or corrupt first/last.
+- **Storage:** `email_events` (normalized) + summary fields on `email_log` (delivered_at, first/last_opened_at, open_count, first/last_clicked_at, click_count, last_clicked_url, delivery_status) + client rollups on `clients` (last_email_opened_at, last_email_clicked_at, email_open_count, email_click_count; indexed for sorting 45K+).
+- **Surfaces:** Clients optional columns Last Email Opened/Clicked + Opens/Clicks (sortable server-side); filters (opened/clicked ever/never/N-days, min counts); smart lists `email_engaged_7d` + `email_clicked_no_reply`; Inbox chips (Delivered / Opened n× / Clicked n×); profile email cards with expandable event timeline (`GET /api/email/engagement/:id/events`); Reporting aggregates (`GET /api/email/engagement-summary`).
+- **Semantics:** opens are TRACKED opens (privacy proxies inflate them) — soft signal; clicks stronger. Pre-webhook emails show "No tracking data", never "never opened". spamreport/unsubscribe set `marketing_email_opt_out`. Opens/clicks feed the AI behavioral score at existing weights (open 1, click 3).
+- All sends now request SendGrid open+click tracking (`tracking_settings` in `sendViaSendGrid`).
+
 ### Clients (`/clients`) — the CRM core
 - Searchable/filterable client list; deep-link to a profile via `?open=<id>`.
 - **Lead profile** with contact info, source, tags, status, FUB link, web activity ("Last Visit", viewed properties).

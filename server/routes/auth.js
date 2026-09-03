@@ -161,6 +161,7 @@ export function requireAuth(req, res, next) {
   if (req.path === '/api/health') return next() // Render health probe — must be unauth
   if (req.path === '/api/sierra/webhook') return next() // Sierra calls this
   if (req.path === '/api/inbox/parse-inbound') return next() // SendGrid Inbound Parse posts here (no token)
+  if (req.path === '/api/email/events') return next() // SendGrid Event Webhook (signature-verified when key configured)
   if (req.path === '/api/inbox/twilio-inbound') return next() // Twilio posts incoming texts here (no token)
   if (req.path === '/api/inbox/twilio-status') return next() // Twilio posts delivery status here (no token)
   if (req.path === '/api/inbox/conversations-webhook') return next() // Twilio Conversations (group MMS) inbound (no token)

@@ -117,6 +117,10 @@ const LIST_COLUMNS = [
   { key: 'last_text', label: 'Last Text (Any)', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_any_oldest', desc: 'last_text_any_recent' } },
   { key: 'last_text_in', label: 'Last Text Received', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_oldest', desc: 'last_text_recent' } },
   { key: 'last_text_out', label: 'Last Text Sent', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_out_oldest', desc: 'last_text_out_recent' } },
+  { key: 'last_email_opened', label: 'Last Email Opened', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_opened_oldest', desc: 'last_email_opened_recent' } },
+  { key: 'last_email_clicked', label: 'Last Email Clicked', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_clicked_oldest', desc: 'last_email_clicked_recent' } },
+  { key: 'email_opens', label: 'Email Opens', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'email_opens_high', desc: 'email_opens_high' } },
+  { key: 'email_clicks', label: 'Email Clicks', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'email_clicks_high', desc: 'email_clicks_high' } },
   { key: 'last_email_in', label: 'Last Email In', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_oldest', desc: 'last_email_recent' } },
   { key: 'last_call_made', label: 'Last Call', defaultVisible: false, size: 'normal', sort: { asc: 'last_call_oldest', desc: 'last_call_recent' } },
 ]
@@ -156,6 +160,8 @@ const SMART_LISTS = [
   { key: 'fsbo_dom14_untexted', label: 'FSBO 14+ DOM · Not Texted', desc: 'FSBOs with 14+ days on market we have never texted' },
   { key: 'cx_no_response', label: 'Cancelled/Expired · No Response', desc: 'Cancelled/Expired with no text back from them (excludes Junk / DNC)' },
   { key: 'fsbo_dom14_no_text_2w', label: 'FSBO 14+ DOM · No Text 2wk', desc: 'FSBOs with 14+ days on market we have not texted in the last 2 weeks' },
+  { key: 'email_engaged_7d', label: 'Opened Email (7d)', desc: 'Opened one of our emails in the last 7 days (tracked opens; excludes Junk/DNC/Closed/Pending)' },
+  { key: 'email_clicked_no_reply', label: 'Clicked · No Reply', desc: 'Clicked an email link in the last 7 days with no message from them since' },
 ]
 
 function loadColumnPrefs() {
@@ -582,6 +588,8 @@ export default function Clients() {
     fsbo_mode: '',  // '' (any) | 'only' (only FSBOs) | 'exclude' (hide FSBOs)
     cx_mode: '',    // '' (any) | 'only' (only Cancelled/Expired) | 'exclude' (hide them)
     texted_out: '', // '' (any) | 'never' (no text sent yet) | 'yes' (has been texted)
+    email_opened: '', email_clicked: '',    // '' | 'ever' | 'never' | N days
+    email_opens_min: '', email_clicks_min: '',
   })
   const [sortBy, setSortBy] = useState(() => localStorage.getItem('clients_sort') || 'recent_activity')
   useEffect(() => { localStorage.setItem('clients_sort', sortBy) }, [sortBy])
@@ -613,6 +621,7 @@ export default function Clients() {
     len(advFilters.sources_include) + len(advFilters.sources_exclude) + len(advFilters.agents_include) + len(advFilters.agents_exclude) + len(advFilters.email_statuses) +
     ((advFilters.last_email_op && advFilters.last_email_days) ? 1 : 0) + ((advFilters.last_text_op && advFilters.last_text_days) ? 1 : 0) + ((advFilters.off_market_op && advFilters.off_market_days) ? 1 : 0) + ((advFilters.fsbo_dom_op && advFilters.fsbo_dom_days !== '') ? 1 : 0) + (advFilters.ai_applied ? 1 : 0) +
     (advFilters.fsbo_mode ? 1 : 0) + (advFilters.cx_mode ? 1 : 0) + (advFilters.texted_out ? 1 : 0) +
+    (advFilters.email_opened ? 1 : 0) + (advFilters.email_clicked ? 1 : 0) + (advFilters.email_opens_min ? 1 : 0) + (advFilters.email_clicks_min ? 1 : 0) +
     (advFilters.has_email ? 1 : 0) + (advFilters.has_phone ? 1 : 0) + (advFilters.exclude_optouts ? 1 : 0) +
     (advFilters.score_min ? 1 : 0) + (advFilters.score_max ? 1 : 0) +
     (advFilters.visits_min ? 1 : 0) + (advFilters.visits_max ? 1 : 0) +
@@ -821,6 +830,10 @@ export default function Clients() {
     if (advFilters.fsbo_mode) params.fsbo_mode = advFilters.fsbo_mode
     if (advFilters.cx_mode) params.cx_mode = advFilters.cx_mode
     if (advFilters.texted_out) params.texted_out = advFilters.texted_out
+    if (advFilters.email_opened) params.email_opened = advFilters.email_opened
+    if (advFilters.email_clicked) params.email_clicked = advFilters.email_clicked
+    if (advFilters.email_opens_min) params.email_opens_min = advFilters.email_opens_min
+    if (advFilters.email_clicks_min) params.email_clicks_min = advFilters.email_clicks_min
     params.sort = sortBy
     return params
   }
@@ -1269,6 +1282,7 @@ export default function Clients() {
       in_drip: '', drip_id: '', has_address: '',
       has_fsbo_status: '', fsbo_statuses_include: [], fsbo_dom_op: '', fsbo_dom_days: '',
       fsbo_mode: '', cx_mode: '', texted_out: '',
+      email_opened: '', email_clicked: '', email_opens_min: '', email_clicks_min: '',
     })
     setTab('all')
     setSearch('')
@@ -2138,6 +2152,37 @@ export default function Clients() {
               </select>
             </div>
             <div className="filter-section">
+              <h5>Email Opened <span style={{ fontWeight: 400, fontSize: 10.5, color: 'var(--text-muted)' }}>(tracked)</span></h5>
+              <select value={advFilters.email_opened} onChange={e => setAdvFilters(p => ({ ...p, email_opened: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
+                <option value="">Any</option>
+                <option value="ever">Ever opened</option>
+                <option value="never">Never opened</option>
+                <option value="1">Today</option>
+                <option value="3">Last 3 days</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+              </select>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Opens ≥</span>
+                <input type="number" min="0" value={advFilters.email_opens_min} onChange={e => setAdvFilters(p => ({ ...p, email_opens_min: e.target.value }))} style={{ width: 70, padding: '6px 8px', fontSize: 13 }} />
+              </div>
+            </div>
+            <div className="filter-section">
+              <h5>Email Clicked</h5>
+              <select value={advFilters.email_clicked} onChange={e => setAdvFilters(p => ({ ...p, email_clicked: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
+                <option value="">Any</option>
+                <option value="ever">Ever clicked</option>
+                <option value="never">Never clicked</option>
+                <option value="1">Today</option>
+                <option value="7">Last 7 days</option>
+                <option value="30">Last 30 days</option>
+              </select>
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Clicks ≥</span>
+                <input type="number" min="0" value={advFilters.email_clicks_min} onChange={e => setAdvFilters(p => ({ ...p, email_clicks_min: e.target.value }))} style={{ width: 70, padding: '6px 8px', fontSize: 13 }} />
+              </div>
+            </div>
+            <div className="filter-section">
               <h5>AI Applied</h5>
               <select value={advFilters.ai_applied} onChange={e => setAdvFilters(p => ({ ...p, ai_applied: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
                 <option value="">Any</option>
@@ -2816,6 +2861,14 @@ export default function Clients() {
               return <div key="last_text_out" className="cl-registered">{fmtCommDate(item.last_text_out)}</div>
             case 'last_text_in':
               return <div key="last_text_in" className="cl-registered">{fmtCommDate(item.last_text_in)}</div>
+            case 'last_email_opened':
+              return <div key="last_email_opened" className="cl-registered" title={item.email_open_count ? `${item.email_open_count} tracked open${item.email_open_count === 1 ? '' : 's'} total` : 'No tracked opens'}>{fmtCommDate(item.last_email_opened_at)}</div>
+            case 'last_email_clicked':
+              return <div key="last_email_clicked" className="cl-registered" title={item.email_click_count ? `${item.email_click_count} click${item.email_click_count === 1 ? '' : 's'} total` : 'No tracked clicks'}>{fmtCommDate(item.last_email_clicked_at)}</div>
+            case 'email_opens':
+              return <div key="email_opens" className="cl-registered">{item.email_open_count || '—'}</div>
+            case 'email_clicks':
+              return <div key="email_clicks" className="cl-registered">{item.email_click_count || '—'}</div>
             case 'last_email_in':
               return <div key="last_email_in" className="cl-registered">{fmtCommDate(item.last_email_in)}</div>
             case 'last_call_made':

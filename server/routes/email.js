@@ -626,6 +626,9 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       from: { email: FROM_EMAIL, name: (db.getSetting && db.getSetting('email_from_name', '')) || FROM_NAME },
       reply_to: { email: replyTo || REPLY_TO, name: (db.getSetting && db.getSetting('email_from_name', '')) || FROM_NAME },
       ...(category ? { categories: [String(category)].slice(0, 1) } : {}),
+      // Engagement tracking: SendGrid rewrites links + adds an open pixel; the Event Webhook
+      // (POST /api/email/events) turns those into per-email open/click stats.
+      tracking_settings: { open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false } },
       subject,
       content: (() => {
         // Two paths:
@@ -1082,6 +1085,129 @@ router.post('/send-transaction', async (req, res) => {
       [n(client?.id), String(to_email || ''), subject, body, n(template_id), 'failed', err.message])
     res.status(500).json({ error: err.message })
   }
+})
+
+// ============================================================================
+// EMAIL ENGAGEMENT — SendGrid Event Webhook (authoritative event stream).
+// Matching: webhook sg_message_id is "<x-message-id>.<internal>"; its first segment equals the
+// provider_message_id we already store on every email_log row, so events map to the exact email
+// (and recipient, when one send produced multiple rows) without subject/recipient guessing.
+// Idempotent by design: raw events dedupe on sg_event_id (UNIQUE), and all summary numbers are
+// RECOMPUTED from the raw rows (MIN/MAX/COUNT), so webhook retries and out-of-order arrivals can
+// never double-count or corrupt first/last timestamps. Opens are a soft signal (privacy proxies
+// preload pixels) — display as "tracked opens"; clicks carry more behavioral weight.
+// ============================================================================
+
+function recomputeEmailEngagement(emailId) {
+  const agg = (t) => db.get('SELECT COUNT(*) n, MIN(occurred_at) f, MAX(occurred_at) l FROM email_events WHERE email_id=? AND event_type=?', [emailId, t])
+  const o = agg('open'), c = agg('click'), d = agg('delivered')
+  const lastClick = db.get("SELECT url FROM email_events WHERE email_id=? AND event_type='click' ORDER BY occurred_at DESC LIMIT 1", [emailId])
+  const bad = db.get("SELECT event_type FROM email_events WHERE email_id=? AND event_type IN ('bounce','dropped','spamreport') ORDER BY occurred_at DESC LIMIT 1", [emailId])
+  const anyEv = db.get('SELECT event_type FROM email_events WHERE email_id=? ORDER BY occurred_at DESC LIMIT 1', [emailId])
+  const status = bad ? bad.event_type : (d.n ? 'delivered' : (anyEv ? anyEv.event_type : null))
+  db.run(`UPDATE email_log SET delivered_at=?, delivery_status=?, first_opened_at=?, last_opened_at=?, open_count=?,
+          first_clicked_at=?, last_clicked_at=?, click_count=?, last_clicked_url=? WHERE id=?`,
+    [d.f || null, status, o.f || null, o.l || null, o.n, c.f || null, c.l || null, c.n, lastClick?.url || null, emailId])
+}
+function recomputeClientEmailRollup(clientId) {
+  const r = db.get(`SELECT MAX(last_opened_at) lo, MAX(last_clicked_at) lc,
+    COALESCE(SUM(open_count),0) oc, COALESCE(SUM(click_count),0) cc FROM email_log WHERE client_id=?`, [clientId])
+  db.run('UPDATE clients SET last_email_opened_at=?, last_email_clicked_at=?, email_open_count=?, email_click_count=? WHERE id=?',
+    [r.lo || null, r.lc || null, r.oc, r.cc, clientId])
+}
+
+// Signature verification (ECDSA) — enforced when a public key is configured
+// (SENDGRID_WEBHOOK_PUBLIC_KEY env or the sendgrid_webhook_public_key setting).
+async function verifySgSignature(req) {
+  const pub = process.env.SENDGRID_WEBHOOK_PUBLIC_KEY || (db.getSetting && db.getSetting('sendgrid_webhook_public_key', '')) || ''
+  if (!pub) return true
+  try {
+    const crypto = await import('crypto')
+    const sig = req.headers['x-twilio-email-event-webhook-signature']
+    const ts = req.headers['x-twilio-email-event-webhook-timestamp']
+    if (!sig || !ts || !req.rawBody) return false
+    const key = crypto.createPublicKey(`-----BEGIN PUBLIC KEY-----\n${pub}\n-----END PUBLIC KEY-----`)
+    const v = crypto.createVerify('sha256')
+    v.update(ts); v.update(req.rawBody)
+    return v.verify(key, Buffer.from(sig, 'base64'))
+  } catch { return false }
+}
+
+const SG_EVENT_TYPES = new Set(['delivered', 'open', 'click', 'bounce', 'dropped', 'deferred', 'spamreport', 'unsubscribe'])
+
+router.post('/events', async (req, res) => {
+  try {
+    if (!(await verifySgSignature(req))) return res.status(403).json({ error: 'bad signature' })
+    const events = Array.isArray(req.body) ? req.body : []
+    const touchedEmails = new Set(), touchedClients = new Set()
+    for (const ev of events) {
+      const type = String(ev.event || '').toLowerCase().replace('_', '')
+      if (!SG_EVENT_TYPES.has(type)) continue
+      const msgId = String(ev.sg_message_id || '').split('.')[0]
+      if (!msgId) continue
+      const sgEventId = String(ev.sg_event_id || '') || `${msgId}_${type}_${ev.timestamp || ''}_${ev.email || ''}`
+      // Exact email row: message id, narrowed by recipient when one send made multiple rows.
+      const row = db.get('SELECT id, client_id FROM email_log WHERE provider_message_id = ? AND lower(to_email) = lower(?)', [msgId, String(ev.email || '')])
+        || db.get('SELECT id, client_id FROM email_log WHERE provider_message_id = ?', [msgId])
+      if (!row) continue
+      const occurred = ev.timestamp ? new Date(Number(ev.timestamp) * 1000).toISOString() : new Date().toISOString()
+      try {
+        db.run('INSERT INTO email_events (email_id, client_id, event_type, sg_message_id, sg_event_id, url, occurred_at) VALUES (?,?,?,?,?,?,?)',
+          [row.id, row.client_id, type, String(ev.sg_message_id || ''), sgEventId, ev.url || null, occurred])
+      } catch { continue }   // UNIQUE(sg_event_id) → duplicate webhook retry, already counted
+      touchedEmails.add(row.id)
+      if (row.client_id) touchedClients.add(row.client_id)
+      // Suppression: spam report / unsubscribe respects the existing marketing opt-out flag.
+      if (row.client_id && (type === 'spamreport' || type === 'unsubscribe')) {
+        try { db.run('UPDATE clients SET marketing_email_opt_out=1 WHERE id=?', [row.client_id]) } catch {}
+      }
+      // Soft behavioral signal for the AI: click > open; never a hard intent jump on its own.
+      if (row.client_id && (type === 'open' || type === 'click')) {
+        try { import('../ai-followup/behavioral.js').then(m => m.recordBehavioralEvent(row.client_id, type === 'click' ? 'email_click' : 'email_open', { source: 'sendgrid', ref: sgEventId })).catch(() => {}) } catch {}
+      }
+    }
+    for (const id of touchedEmails) recomputeEmailEngagement(id)
+    for (const cid of touchedClients) recomputeClientEmailRollup(cid)
+  } catch (e) { console.error('[sg-events]', e.message) }
+  res.status(200).json({ ok: true })   // always 200 so SendGrid doesn't endlessly retry
+})
+
+// One-time: point the SendGrid account's Event Webhook at this Hub.
+router.post('/setup-events-webhook', async (_req, res) => {
+  try {
+    const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    const url = hub + '/api/email/events'
+    const r = await fetch('https://api.sendgrid.com/v3/user/webhooks/event/settings', {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${SENDGRID_API_KEY}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: true, url, delivered: true, open: true, click: true, bounce: true, dropped: true, deferred: true, spam_report: true, unsubscribe: true, group_unsubscribe: false, group_resubscribe: false, processed: false }),
+    })
+    const j = await r.json().catch(() => ({}))
+    res.status(r.ok ? 200 : 502).json({ ok: r.ok, url, sendgrid: j })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Timeline for one email (the "View Engagement" drawer).
+router.get('/engagement/:emailId/events', (req, res) => {
+  const id = Number(req.params.emailId)
+  res.json(db.all('SELECT event_type, url, occurred_at FROM email_events WHERE email_id=? ORDER BY occurred_at ASC LIMIT 200', [id]))
+})
+
+// Tracked engagement aggregates (Reporting).
+router.get('/engagement-summary', (req, res) => {
+  const days = Math.max(1, Math.min(365, Number(req.query.days) || 30))
+  const since = new Date(Date.now() - days * 86400000).toISOString()
+  const g = (sql, p = []) => { try { return db.get(sql, p) } catch { return {} } }
+  const sent = g('SELECT COUNT(*) c FROM email_log WHERE sent_at >= ?', [since]).c || 0
+  const delivered = g("SELECT COUNT(*) c FROM email_log WHERE sent_at >= ? AND delivered_at IS NOT NULL", [since]).c || 0
+  const opened = g('SELECT COUNT(*) c FROM email_log WHERE sent_at >= ? AND open_count > 0', [since]).c || 0
+  const clicked = g('SELECT COUNT(*) c FROM email_log WHERE sent_at >= ? AND click_count > 0', [since]).c || 0
+  const bounced = g("SELECT COUNT(*) c FROM email_log WHERE sent_at >= ? AND delivery_status IN ('bounce','dropped')", [since]).c || 0
+  const spam = g("SELECT COUNT(*) c FROM email_log WHERE sent_at >= ? AND delivery_status = 'spamreport'", [since]).c || 0
+  const topLinks = db.all(`SELECT url, COUNT(*) n FROM email_events WHERE event_type='click' AND occurred_at >= ? AND url IS NOT NULL GROUP BY url ORDER BY n DESC LIMIT 10`, [since])
+  const engagedLeads = db.all(`SELECT c.id, c.first_name, c.last_name, c.agent_assigned, c.last_email_opened_at, c.last_email_clicked_at, c.email_open_count, c.email_click_count
+    FROM clients c WHERE c.last_email_opened_at >= ? AND c.merged_into IS NULL ORDER BY c.last_email_opened_at DESC LIMIT 20`, [since])
+  res.json({ days, sent, delivered, opened, clicked, bounced, spam, top_links: topLinks, engaged_leads: engagedLeads })
 })
 
 export default router

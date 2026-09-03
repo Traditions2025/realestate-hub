@@ -539,6 +539,16 @@ export default function Inbox() {
                       </div>
                       {link0 && <LinkPreview url={link0} />}
                       {dstat && <div style={{ fontSize: 10.5, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+                      {/* Tracked email engagement chips (SendGrid events) — subtle, opens are a soft signal */}
+                      {m.channel === 'email' && out && m.eng && (
+                        <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', marginTop: 3, flexWrap: 'wrap' }}>
+                          {['bounce', 'dropped', 'spamreport'].includes(m.eng.status)
+                            ? <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444' }}>⚠ {m.eng.status}</span>
+                            : (m.eng.delivered_at || m.eng.status === 'delivered') && <span style={{ fontSize: 10, fontWeight: 700, color: '#059669' }}>Delivered</span>}
+                          {m.eng.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb' }}>Opened {m.eng.opens}×</span>}
+                          {m.eng.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed' }}>Clicked {m.eng.clicks}×</span>}
+                        </div>
+                      )}
                       {(isCall || isVoicemail) && <CallDispo m={m} onSaved={() => openThread(sel)} />}
                     </div>
                   )

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-03T19:27:12.535Z",
+  "generated_at": "2026-09-03T19:43:36.992Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "89234f5",
+      "date": "2026-09-03T14:28:02-05:00",
+      "subject": "Dashboard: rebuild as the daily operating command center",
+      "title": "Dashboard: rebuild as the daily operating command center",
+      "body": "One aggregation pass (Central-time day windows, per-block safe() isolation) adds:\naction cards (Priority/Need Response/AI Handoffs/Follow-Ups/Appointments/Overdue),\nNEEDS YOUR ATTENTION (open ai_handoffs + unanswered inbound with message evidence\n+ missed calls, with Reply/Open), Today's Schedule (calendar + closings and\nwalkthroughs today), Lead Pipeline chips (statuses + High Intent >=70 / Need\nResponse / Viewed 24h / AI Managed), Transactions (open, closings 7d, deadlines\ndue today via fetchTodaysDeadlines), Opportunity Radar (re-engaged after 60d gap,\nrepeat viewers 3+/7d, past clients active), HUB AI today, Communication Health\ntoday, Business MTD/YTD (owner/admin backend-gated), System Health line. Clients\ngains dashboard deep-links (?smart/?tab/?list/?sort). Old payload keys kept as a\nsuperset. Docs updated in HUB-SYSTEM-OVERVIEW.md.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e44da68",
       "date": "2026-09-03T14:13:17-05:00",
@@ -3993,14 +4001,6 @@
       "title": "checklist layout: checkbox left of text, 2-column grid",
       "body": "Global `label { flex-direction: column }` was stacking the checkbox above the\ntask text. Force row direction + left align on each item, and use the\n2-column checklist-grid (single column on mobile) to maximize space. Applied\nto both the pre-listing popup and the transaction marketing checklist.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "64356d2",
-      "date": "2026-07-16T11:32:15-05:00",
-      "subject": "Pre-listing checklist: inline checkboxes, relabeled docs, shareable link",
-      "title": "Pre-listing checklist: inline checkboxes, relabeled docs, shareable link",
-      "body": "- Checklist items now single-column with the checkbox inline beside each task\n- Section 1 doc items relabeled \"Add to Dotloop:\" -> \"Signed:\" (Listing\n  Agreement, Agency Agreement, Property Disclosure, Lead-Based Paint if <1978)\n- New \"Copy share link\" button in the pre-listing popup; the link\n  /transactions?prelisting=<id> auto-opens that listing's checklist so it can\n  be shared (e.g. with Matt) for review\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

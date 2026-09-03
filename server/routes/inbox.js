@@ -314,6 +314,23 @@ router.get('/thread/:clientId', (req, res) => {
       rows.sort((a, b) => String(a.occurred_at || '').localeCompare(String(b.occurred_at || '')))
     }
   } catch (e) { console.error('[thread] group-merge:', e.message) }
+  // Decorate OUTGOING emails with tracked engagement (SendGrid Event Webhook summaries on
+  // email_log). Matched by subject + send-time proximity (±30 min); rows without a match are
+  // simply undecorated ("no tracking data"), never claimed unopened. Feeds the Inbox chips
+  // AND the profile Communications cards from this single place.
+  try {
+    const engRows = db.all('SELECT id, subject, sent_at, delivered_at, delivery_status, open_count, last_opened_at, click_count, last_clicked_at, last_clicked_url FROM email_log WHERE client_id=? ORDER BY sent_at DESC LIMIT 300', [cid])
+    if (engRows.length) {
+      const norm = (s) => String(s || '').trim().toLowerCase()
+      for (const r of rows) {
+        if (r.channel !== 'email' || r.direction !== 'outgoing') continue
+        const rT = new Date(r.occurred_at || 0).getTime()
+        const m = engRows.find(e => norm(e.subject) === norm(r.subject) && Math.abs(new Date((e.sent_at || '').replace(' ', 'T') + (String(e.sent_at || '').includes('T') ? '' : 'Z')).getTime() - rT) < 30 * 60000)
+          || engRows.find(e => norm(e.subject) === norm(r.subject))
+        if (m) r.eng = { email_id: m.id, status: m.delivery_status, delivered_at: m.delivered_at, opens: m.open_count || 0, last_opened_at: m.last_opened_at, clicks: m.click_count || 0, last_clicked_at: m.last_clicked_at, last_clicked_url: m.last_clicked_url }
+      }
+    }
+  } catch (e) { console.error('[thread] engagement:', e.message) }
   res.json(rows)
 })
 

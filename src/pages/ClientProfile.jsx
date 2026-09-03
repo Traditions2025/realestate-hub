@@ -407,6 +407,41 @@ function Communications({ client, onOpenText }) {
     </Section>
   )
 }
+// Tracked engagement chips + expandable event timeline for an outbound email.
+// Opens are "tracked opens" (privacy proxies can inflate them) — soft signal; clicks stronger.
+function EmailEngagement({ eng }) {
+  const [open, setOpen] = useState(false)
+  const [events, setEvents] = useState(null)
+  if (!eng) return null
+  const chip = (label, color) => <span key={label} style={{ fontSize: 10.5, fontWeight: 700, color, border: `1px solid ${color}33`, background: `${color}14`, borderRadius: 10, padding: '1px 7px' }}>{label}</span>
+  const chips = []
+  if (['bounce', 'dropped', 'spamreport'].includes(eng.status)) chips.push(chip('⚠ ' + eng.status, '#ef4444'))
+  else if (eng.delivered_at || eng.status === 'delivered') chips.push(chip('Delivered', '#059669'))
+  if (eng.opens) chips.push(chip(`Opened ${eng.opens}×`, '#2563eb'))
+  if (eng.clicks) chips.push(chip(`Clicked ${eng.clicks}×`, '#7c3aed'))
+  if (!chips.length) chips.push(chip('No tracking data', '#6b7280'))
+  const loadEvents = () => {
+    setOpen(o => !o)
+    if (!events) authFetch(`/api/email/engagement/${eng.email_id}/events`).then(r => r.json()).then(d => setEvents(Array.isArray(d) ? d : [])).catch(() => setEvents([]))
+  }
+  return (
+    <div style={{ marginTop: 5 }}>
+      <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
+        {chips}
+        {eng.last_opened_at && <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>last opened {fmtCommWhen(eng.last_opened_at)}</span>}
+        {(eng.opens || eng.clicks) ? <button onClick={loadEvents} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 10.5, color: '#2563eb', padding: 0 }}>{open ? 'hide' : 'engagement ▾'}</button> : null}
+      </div>
+      {open && (
+        <div style={{ marginTop: 5, fontSize: 11.5, color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 8, overflowWrap: 'anywhere' }}>
+          {events === null ? 'Loading…' : events.length === 0 ? 'No events.' : events.map((e, i) => (
+            <div key={i}>{fmtCommWhen(e.occurred_at)} — {e.event_type}{e.url ? `: ${String(e.url).slice(0, 80)}` : ''}</div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function CommItem({ m }) {
   const meta = COMM_META[m.channel] || { icon: '•', label: m.channel, color: 'var(--text-muted)' }
   const out = m.direction === 'outgoing'
@@ -443,6 +478,7 @@ function CommItem({ m }) {
       {text && <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
       {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
       {m.transcript && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
+      {m.channel === 'email' && out && <EmailEngagement eng={m.eng} />}
     </div>
   )
 }

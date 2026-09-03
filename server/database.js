@@ -1714,6 +1714,35 @@ export async function initDb() {
       FOREIGN KEY (client_id) REFERENCES clients(id)
     )
   `)
+  // --- Email engagement (SendGrid Event Webhook) -------------------------------
+  // Per-email summary fields on email_log; raw normalized events in email_events
+  // (deduped on sg_event_id so webhook retries can never double-count); client-level
+  // rollups on clients for list sorting/filtering (last_email_opened_at etc.).
+  for (const [name, type] of [
+    ['delivered_at', 'TEXT'], ['first_opened_at', 'TEXT'], ['last_opened_at', 'TEXT'],
+    ['open_count', 'INTEGER DEFAULT 0'], ['first_clicked_at', 'TEXT'], ['last_clicked_at', 'TEXT'],
+    ['click_count', 'INTEGER DEFAULT 0'], ['last_clicked_url', 'TEXT'], ['delivery_status', 'TEXT'],
+  ]) { try { db.run(`ALTER TABLE email_log ADD COLUMN ${name} ${type}`) } catch {} }
+  db.run(`
+    CREATE TABLE IF NOT EXISTS email_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email_id INTEGER,
+      client_id INTEGER,
+      event_type TEXT,
+      sg_message_id TEXT,
+      sg_event_id TEXT UNIQUE,
+      url TEXT,
+      occurred_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_email_events_email ON email_events(email_id, event_type)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_email_log_pmid ON email_log(provider_message_id)') } catch {}
+  for (const [name, type] of [
+    ['last_email_opened_at', 'TEXT'], ['last_email_clicked_at', 'TEXT'],
+    ['email_open_count', 'INTEGER DEFAULT 0'], ['email_click_count', 'INTEGER DEFAULT 0'],
+  ]) { try { db.run(`ALTER TABLE clients ADD COLUMN ${name} ${type}`) } catch {} }
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_clients_email_opened ON clients(last_email_opened_at)') } catch {}
 
   // =============================================
   // TEMPLATES (email, text, scripts)

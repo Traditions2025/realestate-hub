@@ -443,6 +443,17 @@ export function buildClientFilter(q) {
     }
   }
 
+  // Email engagement filters (tracked opens/clicks from the SendGrid Event Webhook rollups).
+  // email_opened / email_clicked: 'ever' | 'never' | '<N>' (within the last N days).
+  for (const [param, col] of [['email_opened', 'last_email_opened_at'], ['email_clicked', 'last_email_clicked_at']]) {
+    const v = String(q[param] || '')
+    if (v === 'ever') where += ` AND ${col} IS NOT NULL`
+    else if (v === 'never') where += ` AND ${col} IS NULL`
+    else if (/^\d+$/.test(v)) where += ` AND ${col} >= datetime('now','-${Number(v)} days')`
+  }
+  if (q.email_opens_min && /^\d+$/.test(String(q.email_opens_min))) where += ` AND COALESCE(email_open_count,0) >= ${Number(q.email_opens_min)}`
+  if (q.email_clicks_min && /^\d+$/.test(String(q.email_clicks_min))) where += ` AND COALESCE(email_click_count,0) >= ${Number(q.email_clicks_min)}`
+
   // "Last Text Sent" state: never texted (no outgoing text ever) vs has been texted. Lets you
   // filter, from the Last Text Sent column, the leads we have not yet texted.
   if (q.texted_out === 'never') where += " AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id=clients.id AND co.channel='text' AND co.direction='outgoing')"
@@ -520,6 +531,18 @@ export const SMART_LIST_SQL = {
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%fsbo%'
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%expired%'
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%cancelled%')`,
+  // Opened one of our emails in the last 7 days (tracked opens; soft signal). Excludes
+  // Junk/DNC and Closed/Pending — a working list of leads warming up by email.
+  email_engaged_7d:
+    `(clients.last_email_opened_at >= datetime('now','-7 days')
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact','closed','pending'))`,
+  // Clicked an email link in the last 7 days but hasn't messaged us since the click —
+  // a strong follow-up signal (clicks carry more weight than opens).
+  email_clicked_no_reply:
+    `(clients.last_email_clicked_at >= datetime('now','-7 days')
+      AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact')
+      AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id
+        AND co.direction='incoming' AND co.occurred_at >= clients.last_email_clicked_at))`,
   // FSBO with 14+ days on market that we have NOT texted yet (no outgoing text ever). Excludes Junk / DNC.
   fsbo_dom14_untexted:
     `(clients.fsbo_status IS NOT NULL AND clients.fsbo_status != ''
@@ -589,6 +612,12 @@ const SORT_OPTIONS = {
   last_text_any_oldest: 'last_text_any ASC NULLS LAST',
   last_text_out_recent: 'last_text_out DESC NULLS LAST',
   last_text_out_oldest: 'last_text_out ASC NULLS LAST',
+  last_email_opened_recent: 'last_email_opened_at DESC NULLS LAST',
+  last_email_opened_oldest: 'last_email_opened_at ASC NULLS LAST',
+  last_email_clicked_recent: 'last_email_clicked_at DESC NULLS LAST',
+  last_email_clicked_oldest: 'last_email_clicked_at ASC NULLS LAST',
+  email_opens_high: 'COALESCE(email_open_count,0) DESC',
+  email_clicks_high: 'COALESCE(email_click_count,0) DESC',
 }
 
 // Correlated per-lead comm-recency columns (opt-in list columns). MAX(occurred_at) of an

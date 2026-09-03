@@ -211,7 +211,8 @@ async function start() {
   const PORT = process.env.PORT || 3001
 
   app.use(cors())
-  app.use(express.json({ limit: '25mb' }))
+  // Keep the raw body around for webhook signature verification (SendGrid Event Webhook).
+  app.use(express.json({ limit: '25mb', verify: (req, _res, buf) => { req.rawBody = buf } }))
   app.use(express.urlencoded({ extended: false, limit: '2mb' })) // Twilio webhooks post form-urlencoded
 
   // Serve static files in production
