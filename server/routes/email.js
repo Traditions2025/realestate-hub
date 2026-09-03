@@ -1199,6 +1199,55 @@ router.post('/setup-events-webhook', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Backfill historical engagement from the SendGrid Email Activity API (per-message
+// opens/clicks counts). Coverage is bounded by the account's activity retention (3 days
+// standard, 30 with extended history) — messages older than that are unrecoverable
+// per-message and correctly stay "No tracking data". Idempotent: synthetic events carry
+// bf:-prefixed unique ids, and emails that already have real webhook events are skipped.
+// ?days=N (max 30) &dry=1 to preview.
+router.post('/backfill-engagement', async (req, res) => {
+  try {
+    const days = Math.max(1, Math.min(30, Number(req.query.days) || 30))
+    const dry = req.query.dry === '1'
+    const sinceDay = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10)
+    const rows = db.all('SELECT id, client_id, provider_message_id FROM email_log WHERE provider_message_id IS NOT NULL AND sent_at >= ?', [sinceDay])
+    const byPmid = new Map(rows.map(r => [r.provider_message_id, r]))
+    const out = { candidate_rows: rows.length, activity_msgs: 0, matched: 0, updated: 0, skipped_has_events: 0, per_day: {}, dry }
+    const touchedClients = new Set()
+    for (let d = 0; d < days; d++) {
+      const from = new Date(Date.now() - (d + 1) * 86400000).toISOString().slice(0, 19) + 'Z'
+      const to = new Date(Date.now() - d * 86400000).toISOString().slice(0, 19) + 'Z'
+      const q = `last_event_time BETWEEN TIMESTAMP "${from}" AND TIMESTAMP "${to}"`
+      const r = await fetch(`https://api.sendgrid.com/v3/messages?limit=1000&query=${encodeURIComponent(q)}`, { headers: { Authorization: `Bearer ${SENDGRID_API_KEY}` } })
+      if (!r.ok) { out.per_day[to.slice(0, 10)] = 'api ' + r.status; continue }
+      const msgs = (await r.json()).messages || []
+      out.activity_msgs += msgs.length
+      out.per_day[to.slice(0, 10)] = msgs.length
+      for (const m of msgs) {
+        const pmid = String(m.msg_id || '').split('.')[0]
+        const row = byPmid.get(pmid)
+        if (!row) continue
+        out.matched++
+        if (dry) continue
+        // Emails already carrying events (real webhook or a prior backfill) are left alone.
+        if (db.get('SELECT 1 x FROM email_events WHERE email_id=? LIMIT 1', [row.id])) { out.skipped_has_events++; continue }
+        const when = m.last_event_time ? new Date(m.last_event_time).toISOString() : new Date().toISOString()
+        const mk = (type, i) => { try { db.run('INSERT INTO email_events (email_id, client_id, event_type, sg_message_id, sg_event_id, occurred_at) VALUES (?,?,?,?,?,?)', [row.id, row.client_id, type, String(m.msg_id || ''), `bf:${pmid}:${type}:${i}`, when]) } catch {} }
+        if (m.status === 'delivered' || (m.opens_count || 0) > 0 || (m.clicks_count || 0) > 0) mk('delivered', 0)
+        for (let i = 0; i < Math.min(50, m.opens_count || 0); i++) mk('open', i)
+        for (let i = 0; i < Math.min(50, m.clicks_count || 0); i++) mk('click', i)
+        recomputeEmailEngagement(row.id)
+        if (row.client_id) touchedClients.add(row.client_id)
+        out.updated++
+      }
+      await new Promise(rr => setTimeout(rr, 250))   // gentle on the Activity API rate limit
+    }
+    if (!dry) for (const cid of touchedClients) recomputeClientEmailRollup(cid)
+    out.clients_updated = touchedClients.size
+    res.json(out)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Timeline for one email (the "View Engagement" drawer).
 router.get('/engagement/:emailId/events', (req, res) => {
   const id = Number(req.params.emailId)
