@@ -36,6 +36,27 @@ function PhoneStatusBadge({ client }) {
 }
 
 // Clickable status pill (single status control — no redundant copies). Writes to Hub + Sierra.
+// Realist Score badge (same score+grade styling as the Clients list) — click to edit.
+function RealistScoreBadge({ client, onSaved }) {
+  const edit = async () => {
+    const v = window.prompt('Realist Score (0-1000, blank to clear):', client.lead_score ?? '')
+    if (v === null) return
+    const digits = String(v).replace(/[^0-9]/g, '')
+    try {
+      await authFetch(`/api/clients/${client.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lead_score: digits === '' ? null : digits }) })
+      onSaved && onSaved()
+    } catch (e) { alert('Failed to save Realist Score: ' + e.message) }
+  }
+  const has = client.lead_score !== null && client.lead_score !== undefined && client.lead_score !== ''
+  return (
+    <span onClick={edit} title={has ? 'Realist Score — click to edit' : 'Click to enter the Realist Score'} style={{ cursor: 'pointer' }}>
+      {has
+        ? <span className={`lead-score grade-${(client.lead_grade || 'F').replace('+', 'plus').toLowerCase()}`}>{client.lead_score}{client.lead_grade && <span className="lead-grade">{client.lead_grade}</span>}</span>
+        : <span className="cp-badge cp-badge-muted">Realist —</span>}
+    </span>
+  )
+}
+
 function StatusPill({ client, onSaved }) {
   const change = async (v) => {
     try {
@@ -209,6 +230,7 @@ export default function ClientProfile() {
             <TypePill client={client} onSaved={load} />
             <StatusPill client={client} onSaved={load} />
             <AgentPill client={client} onSaved={load} />
+            <RealistScoreBadge client={client} onSaved={load} />
             {client.source && <span className="cp-badge cp-badge-muted">{client.source}</span>}
             {intent != null && <span className="cp-badge" style={{ background: 'rgba(37,99,235,.12)', color: '#2563eb' }}>Intent {intent}</span>}
             {ai?.ai_managed && <span className="cp-badge" style={{ background: 'rgba(124,58,237,.12)', color: '#7c3aed' }}>AI Managed</span>}
@@ -320,6 +342,14 @@ function ClientDetails({ client, onSaved }) {
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Agent:</strong> <AgentPill client={client} onSaved={onSaved} /></p>
           {client.source && <p><strong>Source:</strong> {client.source}</p>}
           {(client.register_date || client.created_at) && <p><strong>Registered:</strong> {new Date(String(client.register_date || client.created_at).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
+          {(client.realist_market_value || client.realist_sell_score || client.realist_year_built) && (
+            <p><strong>Realist:</strong> {[
+              client.realist_market_value ? `$${Number(client.realist_market_value).toLocaleString()} est. value` : null,
+              client.realist_sell_score ? `Sell Score ${client.realist_sell_score}` : null,
+              client.realist_year_built ? `Built ${client.realist_year_built}` : null,
+              client.realist_owner_occupied != null ? (client.realist_owner_occupied ? 'Owner-occupied' : 'Non-owner-occupied') : null,
+            ].filter(Boolean).join(' · ')}</p>
+          )}
         </div>
       </div>
       <div style={{ marginTop: 8 }}><div className="cp-sub">Tags</div><TagEditor client={client} onSaved={onSaved} /></div>

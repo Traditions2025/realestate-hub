@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-09-03T21:09:27.885Z",
+  "generated_at": "2026-09-03T22:58:54.467Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "2b34c03",
+      "date": "2026-09-03T17:47:12-05:00",
+      "subject": "Templates: restore-from-backup maintenance endpoint",
+      "title": "Templates: restore-from-backup maintenance endpoint",
+      "body": "Surgically restores specific template rows (and optionally one drip campaign row)\nfrom the newest daily disk backup via ATTACH DATABASE. Used to bring back V1 of\nThe Comeback after its templates were updated in place; V2 becomes its own\ncampaign instead.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c30fe4b",
+      "date": "2026-09-03T17:04:05-05:00",
+      "subject": "Drive backup: lock the OAuth connect flow to the team's backup account",
+      "title": "Drive backup: lock the OAuth connect flow to the team's backup account",
+      "body": "The connect/callback URLs are public (browser OAuth redirect), so verify which\nGoogle account just authorized before storing its token — a stranger completing\nthe flow can no longer redirect the database backups to their own Drive. Allowed\naccount defaults to mattsmithremax@gmail.com (GDRIVE_ALLOWED_EMAIL env or the\ngdrive_allowed_email setting to change).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e10fc59",
+      "date": "2026-09-03T16:48:19-05:00",
+      "subject": "Add privacy + terms pages for the Google OAuth consent configuration",
+      "title": "privacy + terms pages for the Google OAuth consent configuration",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "ffa9389",
+      "date": "2026-09-03T16:11:46-05:00",
+      "subject": "Attention dismiss: support undo (removes the dismissal / reopens a handoff)",
+      "title": "Attention dismiss: support undo (removes the dismissal / reopens a handoff)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "66a163e",
+      "date": "2026-09-03T16:09:31-05:00",
+      "subject": "Needs Attention: '✓ Done' dismissal per item",
+      "title": "Needs Attention: '✓ Done' dismissal per item",
+      "body": "Each attention card gets a Done action: need-response/missed-call dismissals are\nrecorded in attention_dismissals keyed to the exact message/call (a NEW reply or\ncall from the same person resurfaces them); dismissing an AI handoff resolves it\nin the real ai_handoffs queue. Optimistic removal + card count adjustment on the\nfrontend; counts respect dismissals server-side.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6d6fe8e",
       "date": "2026-09-03T16:04:56-05:00",
@@ -3960,46 +4000,6 @@
       "subject": "FUB activity: fub_activity table + clients.fub_person_id + import/read endpoints",
       "title": "FUB activity: fub_activity table + clients.fub_person_id + import/read endpoints",
       "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "834d264",
-      "date": "2026-08-04T14:14:21-05:00",
-      "subject": "Clients: move All tab to first position + default to All list",
-      "title": "Clients: move All tab to first position + default to All list",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "32d1487",
-      "date": "2026-08-04T12:17:56-05:00",
-      "subject": "Blog calendar: keep only posted + scheduled statuses (drop planned/draft)",
-      "title": "Blog calendar: keep only posted + scheduled statuses (drop planned/draft)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e23c847",
-      "date": "2026-08-04T11:23:23-05:00",
-      "subject": "Add Blog Post Calendar under Marketing (mirrors Social Media)",
-      "title": "Blog Post Calendar under Marketing (mirrors Social Media)",
-      "body": "New blog_posts table + /api/blog-posts CRUD + bulk /import (upsert by slug/title). New Blog Posts page: list + calendar views, filter by status/category, direct 'View post' links to the live mattsmithteam.com URL, full edit modal (title, category, status, post date/time, live URL, slug, tags, meta, cover, notes). Nav added under Marketing.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "f963bd7",
-      "date": "2026-07-29T18:11:19-05:00",
-      "subject": "Final walkthrough: track only day-of/after (form is post-walkthrough)",
-      "title": "Final walkthrough: track only day-of/after (form is post-walkthrough)",
-      "body": "Removed the 3-days-before 'Final Walkthrough' prep task and dropped 'Final walkthrough' from the 3-day/1-day Slack deadline alert. The walkthrough sign-off form is only needed after the buyers walk the house, so it's tracked solely by the day-of 'Final Walkthrough signed by buyers' task and the 5 PM walkthrough-day Slack reminder.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c4d9d94",
-      "date": "2026-07-29T17:23:54-05:00",
-      "subject": "Final walkthrough: day-of signed-by-buyers task + 5PM Slack reminder",
-      "title": "Final walkthrough: day-of signed-by-buyers task + 5PM Slack reminder",
-      "body": "Adds a day-of tracking task 'Final Walkthrough signed by buyers at <address>' (appears on the walkthrough day, window 0). Adds a scheduler tick that posts to #transaction-tasks-deadlines at 5 PM CT on any deal's final walkthrough day, prompting to confirm the buyers signed (idempotent via digest_log period slack_walkthrough). Deadline specs now support per-item windowDays and custom titles.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
