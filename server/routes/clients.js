@@ -65,8 +65,14 @@ router.post('/:id/import-fub-comms', async (req, res) => {
         const items = await fetchAll(spec.endpoint, spec.listKey)
         result[spec.key] = { found: items.length, sample: items[0] || null }
         if (dry) continue
-        let inserted = 0, dup = 0
+        let inserted = 0, dup = 0, hidden = 0
         for (const m of items) {
+          // FUB redacts content when the API key's user lacks conversation visibility
+          // ("* Body is hidden for privacy reasons *" / "[CONTENT HIDDEN]"). Skip those —
+          // a timeline full of redaction stubs is worse than none. Fix on the FUB side:
+          // use an API key from an owner/admin who can view all conversations, then rerun.
+          if (spec.channel === 'text' && /hidden for privacy/i.test(String(m.message || ''))) { hidden++; continue }
+          if (spec.channel === 'email' && (m.showContent === false || /CONTENT HIDDEN/i.test(String(m.subject || '')))) { hidden++; continue }
           const ext = `fub_${spec.channel}_${m.id}`
           if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) { dup++; continue }
           const incoming = (m.isIncoming ?? m.incoming ?? (String(m.direction || '').toLowerCase() === 'inbound')) ? true : false
@@ -88,6 +94,7 @@ router.post('/:id/import-fub-comms', async (req, res) => {
         }
         result[spec.key].inserted = inserted
         result[spec.key].duplicates = dup
+        result[spec.key].hidden_by_fub_privacy = hidden
       } catch (e) { result[spec.key] = { error: e.message } }
     }
     res.json(result)
