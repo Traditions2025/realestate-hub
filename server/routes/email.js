@@ -1183,7 +1183,19 @@ router.post('/setup-events-webhook', async (_req, res) => {
       body: JSON.stringify({ enabled: true, url, delivered: true, open: true, click: true, bounce: true, dropped: true, deferred: true, spam_report: true, unsubscribe: true, group_unsubscribe: false, group_resubscribe: false, processed: false }),
     })
     const j = await r.json().catch(() => ({}))
-    res.status(r.ok ? 200 : 502).json({ ok: r.ok, url, sendgrid: j })
+    // Turn on signed webhooks and store the verification key, so /events enforces ECDSA
+    // signatures from now on (forged engagement posts get a 403).
+    let signed = null
+    try {
+      const sr = await fetch('https://api.sendgrid.com/v3/user/webhooks/event/settings/signed', {
+        method: 'PATCH', headers: { Authorization: `Bearer ${SENDGRID_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: true }),
+      })
+      const sj = await sr.json().catch(() => ({}))
+      if (sj.public_key) { db.setSetting('sendgrid_webhook_public_key', sj.public_key); signed = 'enabled + key stored' }
+      else signed = 'response: ' + JSON.stringify(sj).slice(0, 120)
+    } catch (e) { signed = 'error: ' + e.message }
+    res.status(r.ok ? 200 : 502).json({ ok: r.ok, url, signed, sendgrid: j })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
