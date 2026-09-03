@@ -1430,11 +1430,21 @@ async function generateReply(client, rows, adjustInstruction, context, current, 
   try { dossier = buildDossier(client, await gatherFub(client.fub_person_id)) } catch {}
   const transcript = threadTranscript(rows)
   const angle = FOLLOWUP_ANGLES[approach] || ''
+  // If the thread ends with OUR messages, their last inbound is stale: we may have already
+  // answered it and followed up since. Say so explicitly, or the model replies to an old
+  // message as if it just arrived (and repeats what we already sent).
+  const lastRow = rows.length ? rows[rows.length - 1] : null
+  let staleNote = ''
+  if (inc && lastRow && lastRow.direction === 'outgoing') {
+    const days = Math.max(0, Math.round((Date.now() - new Date(inc.occurred_at).getTime()) / 86400000))
+    const when = days === 0 ? 'earlier today' : days === 1 ? 'yesterday' : `${days} days ago`
+    staleNote = `\nSITUATION: The last message in the thread is OURS. Their most recent message was ${when}, and we have messaged them since. Analyze the WHOLE thread, including every message we sent after their last reply and the time passed. Do NOT respond to their old message as if it just arrived, and do NOT repeat, rephrase, or re-answer anything we already sent. Draft the best fresh next touch for today.\n`
+  }
   const extra = (adjustInstruction || context)
     ? `\nADJUST THE REPLY: ${adjustInstruction || ''}${context ? ` Extra context from the agent, treat as true and important: "${String(context).slice(0, 600)}".` : ''}\n`
       + (current && current.body ? `CURRENT DRAFT to revise:\n${current.subject ? `Subject: ${current.subject}\n` : ''}${current.body}\n` : '')
     : ''
-  const userMsg = `CLIENT CONTEXT (JSON):\n${JSON.stringify(dossier)}\n\n${channel === 'text' ? 'MESSAGE' : 'EMAIL'} THREAD (oldest to newest):\n${transcript}\n${angle ? '\n' + angle + '\n' : ''}${extra}\nReturn the JSON now.`
+  const userMsg = `CLIENT CONTEXT (JSON):\n${JSON.stringify(dossier)}\n\n${channel === 'text' ? 'MESSAGE' : 'EMAIL'} THREAD (oldest to newest):\n${transcript}\n${staleNote}${angle ? '\n' + angle + '\n' : ''}${extra}\nReturn the JSON now.`
   let msg
   try { msg = await ai.messages.create({ model: AI_MODEL, max_tokens: 1200, system, messages: [{ role: 'user', content: userMsg }] }) }
   catch (e) { return { error: e.message } }

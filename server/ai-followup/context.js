@@ -123,5 +123,12 @@ export function buildLeadAiContext(clientId) {
     last_viewed_property: lastViewedProperty,
     recent_properties_viewed: fubViews.map(v => [v.prop_street, v.prop_city, v.prop_mls].filter(Boolean).join(' ')).filter(Boolean),
   }
-  return { client, state, intelligence: li, lead_type: li.lead_type || client.type || 'buyer', persona: cfg.ai_persona, facts, transcript, latestInbound: latestInbound ? (latestInbound.body || latestInbound.preview) : '' }
+  return {
+    client, state, intelligence: li, lead_type: li.lead_type || client.type || 'buyer', persona: cfg.ai_persona, facts, transcript,
+    latestInbound: latestInbound ? (latestInbound.body || latestInbound.preview) : '',
+    // Lets the prompt distinguish a FRESH reply from a stale one we've already answered:
+    // when the last message is OURS, the model must not treat their old text as "just said".
+    latestInboundAt: latestInbound ? latestInbound.occurred_at : null,
+    lastDirection: msgs.length ? msgs[msgs.length - 1].direction : null,
+  }
 }
