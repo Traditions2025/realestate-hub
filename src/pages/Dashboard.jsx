@@ -102,6 +102,10 @@ export default function Dashboard() {
           <div className="stat-number">{fmt(transactions.total_volume)}</div>
           <div className="stat-label">Monthly Volume</div>
         </div>
+        <div className="stat-card stat-teal">
+          <div className="stat-number">{fmt(transactions.year_volume)}</div>
+          <div className="stat-label">Year Volume ({transactions.closed_this_year ?? 0} closed)</div>
+        </div>
         <div className="stat-card stat-amber">
           <div className="stat-number">{clients.active_buyers}</div>
           <div className="stat-label">Active Buyers</div>

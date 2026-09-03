@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-03T17:46:38.510Z",
+  "generated_at": "2026-09-03T17:56:06.012Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "b8a7774",
+      "date": "2026-09-03T12:46:41-05:00",
+      "subject": "Lead profile: MLS # + Off Market Date only for FSBO / Cancelled-Expired leads",
+      "title": "Lead profile: MLS # + Off Market Date only for FSBO / Cancelled-Expired leads",
+      "body": "These prospecting-list fields rendered on every profile. Now shown only when the\nlead is FSBO or Cancelled/Expired (fsbo_status / mls_status / tags-source signal),\nor when either field already holds data so nothing existing gets hidden.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "65cff6c",
       "date": "2026-09-03T12:39:18-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Follow Up Boss: establish API connection (no lead/contact sync yet)",
       "title": "Follow Up Boss: establish API connection (no lead/contact sync yet)",
       "body": "Adds server/fub-helper.js (Basic-auth client for api.followupboss.com/v1,\nkey read from FUB_API_KEY env or app_settings, never in git) and two\nendpoints: POST /api/fub/config to store+verify the key, GET /api/fub/status\nto report connection state. Connection layer only — no syncing of people or\ncommunications yet, per request.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "029fa9a",
-      "date": "2026-07-09T03:15:55-05:00",
-      "subject": "Unified full marketing checklist on pre-listings AND active transactions",
-      "title": "Unified full marketing checklist on pre-listings AND active transactions",
-      "body": "Replaced the marketing checklist with the full 8-section list (Listing Setup,\nProperty Prep, MLS, Showing Setup, Marketing Prep, Launch Day, High-End,\nCondo) and show the SAME list in two places:\n- the pre-listing popup (stored as JSON on the new pre_listings.marketing_tasks)\n- the transaction popup while Pre-Listing/Active (transactions.marketing_tasks)\n\nPre-listing card progress now reflects the unified checklist. Added the\npre_listings.marketing_tasks column (idempotent add-if-missing migration).\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

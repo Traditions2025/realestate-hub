@@ -3,14 +3,44 @@ import db from '../database.js'
 
 const router = Router()
 
+// closing_date is stored in BOTH 'YYYY-MM-DD' and 'M/D/YYYY' forms, so the old SQL string
+// compare ('8/15/2026' >= '2026-09-01' is lexicographically TRUE) badly over-counted "this
+// month". Parse both formats in JS and bound to the actual calendar month/year (Central).
+function parseTxDate(s) {
+  if (!s) return null
+  s = String(s).trim()
+  let d = null
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) d = new Date(s.slice(0, 10) + 'T12:00:00')
+  else if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(s)) { const [m, dd, y] = s.split('/'); d = new Date(+y, +m - 1, +dd, 12) }
+  else { d = new Date(s) }
+  return isNaN(d?.getTime()) ? null : d
+}
+const txPrice = (p) => { const n = parseFloat(String(p == null ? '' : p).replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : n }
+function closedStats() {
+  const rows = db.all("SELECT closing_date, purchase_price FROM transactions WHERE property_status = 'Closed'")
+  const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+  const y = now.getFullYear(), m = now.getMonth()
+  let closedMonth = 0, monthVolume = 0, closedYear = 0, yearVolume = 0
+  for (const r of rows) {
+    const d = parseTxDate(r.closing_date)
+    if (!d || d.getFullYear() !== y) continue
+    closedYear++; yearVolume += txPrice(r.purchase_price)
+    if (d.getMonth() === m) { closedMonth++; monthVolume += txPrice(r.purchase_price) }
+  }
+  return { closedMonth, monthVolume, closedYear, yearVolume }
+}
+
 router.get('/', (req, res) => {
+  const closed = closedStats()
   const stats = {
     transactions: {
       active: db.get("SELECT COUNT(*) as count FROM transactions WHERE property_status IN ('Active', 'Under Contract', 'Pending')").count,
       under_contract: db.get("SELECT COUNT(*) as count FROM transactions WHERE property_status = 'Under Contract'").count,
       clear_to_close: db.get("SELECT COUNT(*) as count FROM transactions WHERE property_status = 'Clear to Close'").count,
-      closed_this_month: db.get("SELECT COUNT(*) as count FROM transactions WHERE property_status = 'Closed' AND closing_date >= date('now', 'start of month')").count,
-      total_volume: db.get("SELECT COALESCE(SUM(purchase_price), 0) as total FROM transactions WHERE property_status = 'Closed' AND closing_date >= date('now', 'start of month')").total,
+      closed_this_month: closed.closedMonth,
+      total_volume: closed.monthVolume,
+      closed_this_year: closed.closedYear,
+      year_volume: closed.yearVolume,
       purchases: db.get("SELECT COUNT(*) as count FROM transactions WHERE type = 'purchase' AND property_status NOT IN ('Closed', 'Withdrawn', 'Expired', 'Cancelled')").count,
       listings: db.get("SELECT COUNT(*) as count FROM transactions WHERE type = 'listing' AND property_status NOT IN ('Closed', 'Withdrawn', 'Expired', 'Cancelled')").count,
     },
