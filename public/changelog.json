@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-03T15:34:52.471Z",
+  "generated_at": "2026-09-03T16:54:19.458Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "0238bff",
+      "date": "2026-09-03T10:52:27-05:00",
+      "subject": "AI suggestions: analyze the whole thread, never treat a stale reply as fresh",
+      "title": "AI suggestions: analyze the whole thread, never treat a stale reply as fresh",
+      "body": "The prompt ended with 'The consumer just said: ...' even when their last message\nwas months old and WE had already answered it and followed up since, so drafts\nre-answered old messages (e.g. re-replying to a June text in September). Now:\ncontext carries lastDirection + latestInboundAt; when the thread ends with OUR\nmessages, buildUserMessage and the inbox suggest path state the real SITUATION\n(their last message was N days ago, we've messaged since, analyze the entire\nconversation including our follow-ups, never repeat or re-answer). The Continue-\nconversation angle now explicitly anchors on the whole thread and picks a\ndifferent anchor when their last line was already answered. Prompt version bumped.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "beb0723",
+      "date": "2026-09-03T10:37:42-05:00",
+      "subject": "Profile preview: angle on an existing conversation anchors on the thread",
+      "title": "Profile preview: angle on an existing conversation anchors on the thread",
+      "body": "The 'follow-up' kind fed the model a canned discovery instruction with facts only\n(no transcript), so the Continue-conversation angle had nothing to anchor on and\nasked a qualifying question instead. With an angle chosen on a follow-up/reply,\npreviewMessage now uses the transcript-based prompt.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a970302",
+      "date": "2026-09-03T10:34:57-05:00",
+      "subject": "Lead profile text composer: same follow-up ANGLE picker as the Inbox",
+      "title": "Lead profile text composer: same follow-up ANGLE picker as the Inbox",
+      "body": "The profile's 'View suggested reply' uses the autopilot preview path, not the inbox\nsuggest endpoint, so the angle picker didn't show there. Moved FOLLOWUP_DOCTRINE +\nFOLLOWUP_ANGLES into shared prompts.js, taught previewMessage the approach option\n(doctrine also applies to plain follow-ups with no angle), and added the ANGLE chips\n(Auto / Continue conversation / Website activity / Soft check-in) to the\nInlineTextComposer suggestion panel.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "86df24f",
       "date": "2026-09-03T10:27:37-05:00",
@@ -3977,30 +4001,6 @@
       "title": "Slack alerts: 10 AM transaction deadlines + new-task notices",
       "body": "Posts to a Slack Incoming Webhook (#transaction-tasks-deadlines):\n- Daily 10 AM CT deadline alert covering every active/under-contract\n  transaction (buy + list) whose deadlines are due TODAY or in exactly 3\n  days. Reuses the email digest's buildActionItems() so logic matches.\n  Idempotent via digest_log period='slack_deadline'.\n- New-task notice fired when a task is created (respects the silent flag).\n\nWebhook URL is read from SLACK_WEBHOOK_URL env or the app_settings table\n(set live via POST /api/slack/config) — never committed to git. Added a\nsmall app_settings key-value table + get/setSetting helpers. Manual preview\nvia POST /api/slack/deadline-now. Verified formatting on a DB copy.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "aa07053",
-      "date": "2026-07-09T02:06:47-05:00",
-      "subject": "Dashboard: drive represented-client name off agency_type",
-      "title": "Dashboard: drive represented-client name off agency_type",
-      "body": "The transaction's agency_type (Buyer's Agent / Listing Agent / Dual Agent,\nset on the Under Contract card) is the source of truth for who we represent.\nShow the seller's name when we're the Listing Agent, the buyer's name when\nwe're the Buyer's Agent, and both on Dual Agency. Case-insensitive so legacy\nspellings (\"Buyers Agent\", \"Dual Agency\") still map correctly. Falls back to\ndeal type when agency_type is blank.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0824834",
-      "date": "2026-07-09T01:59:46-05:00",
-      "subject": "Dashboard: show represented client by deal side",
-      "title": "Dashboard: show represented client by deal side",
-      "body": "Active Transactions now shows the buyer's name on purchases (we're the\nbuyer's agent) and the seller's name on listings (we're the listing agent),\ninstead of always falling back to buyer_name first.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "229e95e",
-      "date": "2026-07-07T15:08:21-05:00",
-      "subject": "Fix Sierra-sync slowdown: atomic saveDb + bulk-mode batching",
-      "title": "Sierra-sync slowdown: atomic saveDb + bulk-mode batching",
-      "body": "saveDb() now writes to a temp file, fsyncs, and atomically renames over\nthe live DB — a crash mid-write can no longer truncate/corrupt the file\n(this was the missing safeguard behind the 2026-05-20 corruption).\n\nWith that in place, the Sierra incremental sync wraps its per-lead upsert\nloop in beginBulk()/endBulk() so every lead flushes as ONE atomic save\ninstead of a full ~40 MB write per lead. Eliminates the 14-23s event-loop\nfreeze (\"saveDb storm\") that made the hub periodically slow. try/finally\nguarantees bulk mode always exits even on sync error.\n\nVerified on a copy of real data: 1743 existing rows preserved, 250 bulk\nupserts persisted, integrity_check ok, no partial .tmp left behind.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

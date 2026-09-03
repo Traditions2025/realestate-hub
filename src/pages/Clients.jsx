@@ -4759,6 +4759,9 @@ export function InlineTextComposer({ client, onClose, onSent }) {
         </select>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
         <button className="btn btn-sm btn-secondary" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? 'Uploading…' : '📷 Photo'}</button>
+        {/* Full https:// URL on its own line = the most reliable rich link preview on their phone */}
+        <button className="btn btn-sm btn-secondary" title="Insert the website link (full URL so their phone shows a preview card)"
+          onClick={() => setBody(b => (b && b.trim() ? b.replace(/\s+$/, '') + '\n' : '') + 'https://mattsmithteam.com/')}>🌐 Insert website</button>
       </div>
       {media.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>

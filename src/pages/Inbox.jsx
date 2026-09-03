@@ -595,6 +595,9 @@ export default function Inbox() {
                     {replyChannel === 'text' && <>
                       <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
                       <button className="btn btn-sm btn-secondary" disabled={uploadingPhoto} onClick={() => fileRef.current?.click()}>{uploadingPhoto ? 'Uploading…' : '📷 Insert photo'}</button>
+                      {/* Full https:// URL on its own line = the most reliable rich link preview on their phone */}
+                      <button className="btn btn-sm btn-secondary" title="Insert the website link (full URL so their phone shows a preview card)"
+                        onClick={() => setReply(v => ({ ...v, body: (v.body && v.body.trim() ? v.body.replace(/\s+$/, '') + '\n' : '') + 'https://mattsmithteam.com/' }))}>🌐 Insert website</button>
                     </>}
                   </div>
                   {replyMedia.length > 0 && (
