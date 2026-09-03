@@ -1173,6 +1173,18 @@ export async function initDb() {
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_aiact_client ON ai_actions(client_id, created_at)') } catch {}
   // High-intent handoffs → the AI Opportunities queue.
+  // Dashboard "Needs Attention" dismissals — keyed to the specific item (the exact inbound
+  // message / missed call), so a NEW reply from the same person resurfaces them.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS attention_dismissals (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      type TEXT,
+      client_id INTEGER,
+      ref TEXT,
+      created_at TEXT DEFAULT (datetime('now')),
+      UNIQUE(type, client_id, ref)
+    )
+  `)
   db.run(`
     CREATE TABLE IF NOT EXISTS ai_handoffs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

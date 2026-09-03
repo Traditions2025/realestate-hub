@@ -200,7 +200,9 @@ router.get('/', (req, res) => {
     if (c.intent === 'No Response Needed') return true
     return !!(c.summary && CLOSED_LOOP_RE.test(c.summary))
   }
-  const needRows = needRowsAll.filter(r => !internalIds.has(r.id) && !noRespNeeded(r.id))
+  // Manually dismissed items ("✓ Done" on the dashboard) — keyed per item so new activity resurfaces.
+  const dismissed = safe(() => new Set(db.all('SELECT type, client_id, ref FROM attention_dismissals').map(r => `${r.type}:${r.client_id}:${r.ref}`)), new Set())
+  const needRows = needRowsAll.filter(r => !internalIds.has(r.id) && !noRespNeeded(r.id) && !dismissed.has(`need_response:${r.id}:${latestIncId(r.id)}`))
   // Background: classify up to 5 top unclassified candidates (fire-and-forget, tiny token
   // cost) so accuracy improves by the next refresh without anyone opening the Inbox first.
   safe(() => {
@@ -219,19 +221,19 @@ router.get('/', (req, res) => {
     .filter(h => !internalIds.has(h.client_id))
 
   // ---- Missed calls + failed messages today ----
-  const missedCalls = safe(() => db.all(`SELECT co.client_id, co.from_addr, co.occurred_at, c.first_name, c.last_name
+  const missedCalls = safe(() => db.all(`SELECT co.id AS comm_id, co.client_id, co.from_addr, co.occurred_at, c.first_name, c.last_name
     FROM communications co LEFT JOIN clients c ON c.id = co.client_id
     WHERE co.channel='call' AND co.direction='incoming' AND (co.duration_sec IS NULL OR co.duration_sec = 0)
       AND co.occurred_at >= ? AND co.occurred_at < ? ORDER BY co.occurred_at DESC LIMIT 6`, [W.startUtc, W.endUtc]), [])
-    .filter(m => !internalIds.has(m.client_id))
+    .filter(m => !internalIds.has(m.client_id) && !dismissed.has(`missed_call:${m.client_id}:${m.comm_id}`))
   const failedToday = safe(() => db.get(`SELECT COUNT(*) c FROM communications WHERE direction='outgoing'
     AND delivery_status IN ('failed','undelivered') AND occurred_at >= ? AND occurred_at < ?`, [W.startUtc, W.endUtc]).c, 0)
 
   // ---- NEEDS YOUR ATTENTION: handoffs first, then unanswered replies, then missed calls ----
   const attention = []
-  for (const h of handoffs) attention.push({ type: 'handoff', client_id: h.client_id, name: `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'Lead', reason: h.reason || 'AI handoff', detail: h.summary || h.recommended_action || '', intent: h.intent_score, urgency: h.urgency || 'high', at: h.created_at })
-  for (const r of needTop) attention.push({ type: 'need_response', client_id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Lead', reason: `Replied by ${r.channel || 'message'}, no response yet`, detail: r.preview, intent: r.intent, agent: r.agent_assigned, at: r.last_inbound_at })
-  for (const m of missedCalls) attention.push({ type: 'missed_call', client_id: m.client_id, name: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.from_addr, reason: 'Missed call today', detail: '', at: m.occurred_at })
+  for (const h of handoffs) attention.push({ type: 'handoff', ref: String(h.id), client_id: h.client_id, name: `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'Lead', reason: h.reason || 'AI handoff', detail: h.summary || h.recommended_action || '', intent: h.intent_score, urgency: h.urgency || 'high', at: h.created_at })
+  for (const r of needTop) attention.push({ type: 'need_response', ref: String(latestIncId(r.id) || ''), client_id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Lead', reason: `Replied by ${r.channel || 'message'}, no response yet`, detail: r.preview, intent: r.intent, agent: r.agent_assigned, at: r.last_inbound_at })
+  for (const m of missedCalls) attention.push({ type: 'missed_call', ref: String(m.comm_id), client_id: m.client_id, name: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.from_addr, reason: 'Missed call today', detail: '', at: m.occurred_at })
   stats.attention = attention.slice(0, 12)
 
   // ---- Task counts on the CT day ----
@@ -384,6 +386,22 @@ router.get('/', (req, res) => {
   }, { ok: true, issues: [] })
 
   res.json(stats)
+})
+
+// Dismiss one Needs-Attention item ("✓ Done — already addressed"). Keyed per item, so a NEW
+// reply/call from the same person resurfaces. Dismissing an AI handoff resolves it in the
+// real handoff queue (same state the AI Opportunities page uses).
+router.post('/attention/dismiss', (req, res) => {
+  const { type, client_id, ref } = req.body || {}
+  if (!type) return res.status(400).json({ error: 'type required' })
+  try {
+    if (type === 'handoff' && ref) {
+      db.run("UPDATE ai_handoffs SET status='resolved', completed_at=datetime('now') WHERE id=?", [Number(ref)])
+    } else {
+      db.run('INSERT OR IGNORE INTO attention_dismissals (type, client_id, ref) VALUES (?,?,?)', [String(type), Number(client_id) || null, String(ref || '')])
+    }
+    res.json({ success: true })
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
 export default router

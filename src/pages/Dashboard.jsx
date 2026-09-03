@@ -111,6 +111,21 @@ export default function Dashboard() {
 
   const row = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 14, marginBottom: 14 }
 
+  // "✓ Done" on an attention card: record the dismissal (item-keyed — new activity resurfaces)
+  // and remove it optimistically; counts adjust without waiting for the next refresh.
+  const dismissAttention = async (a) => {
+    try { await authFetch('/api/dashboard/attention/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: a.type, client_id: a.client_id, ref: a.ref }) }) } catch {}
+    setData(d => ({
+      ...d,
+      attention: (d.attention || []).filter(x => x !== a),
+      cards: {
+        ...d.cards,
+        need_response: a.type === 'need_response' ? Math.max(0, (d.cards?.need_response || 0) - 1) : d.cards?.need_response,
+        ai_handoffs: a.type === 'handoff' ? Math.max(0, (d.cards?.ai_handoffs || 0) - 1) : d.cards?.ai_handoffs,
+      },
+    }))
+  }
+
   const actionCards = [
     { n: cards.priority_leads, label: 'Priority Leads', to: '#attention', cls: 'stat-rose' },
     { n: cards.need_response, label: 'Need Response', to: '/inbox', cls: 'stat-amber' },
@@ -165,6 +180,9 @@ export default function Dashboard() {
                         {a.client_id && <Link className="btn btn-sm btn-primary" to={`/inbox?client=${a.client_id}`}>Reply</Link>}
                         {a.client_id && <Link className="btn btn-sm" to={`/clients/${a.client_id}`}>Open</Link>}
                         {a.type === 'handoff' && <Link className="btn btn-sm" to="/ai-opportunities">Handoff queue</Link>}
+                        <button className="btn btn-sm" style={{ marginLeft: 'auto', color: '#059669', borderColor: 'rgba(5,150,105,.4)' }}
+                          title="Mark as addressed — removes this item (a new reply or call from them will bring them back)"
+                          onClick={() => dismissAttention(a)}>✓ Done</button>
                       </div>
                     </div>
                   )

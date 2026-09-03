@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-03T20:53:52.784Z",
+  "generated_at": "2026-09-03T21:09:27.885Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "6d6fe8e",
+      "date": "2026-09-03T16:04:56-05:00",
+      "subject": "Needs Attention: honor loop-closure conclusions in the AI summary too",
+      "title": "Needs Attention: honor loop-closure conclusions in the AI summary too",
+      "body": "A loop-closer can carry a specific intent ('Information Request' for a provided\nemail address) while the summary states the real conclusion ('no further action\nis needed'). The filter now honors either signal, always keyed to the latest\ninbound message id.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a694846",
+      "date": "2026-09-03T16:01:29-05:00",
+      "subject": "Dashboard Needs Attention: same loop-closure intelligence as the Inbox",
+      "title": "Dashboard Needs Attention: same loop-closure intelligence as the Inbox",
+      "body": "The Inbox already classifies each latest inbound with an intent, including 'No\nResponse Needed' (loop closers like 'here's my email address' or 'thanks!'). The\ndashboard now (1) respects those classifications, keyed to the latest incoming\nmessage id so an old label never suppresses a new reply, and (2) classifies up to\n5 top unclassified candidates per load in the background via a new tiny\nclassification-only model call (classifyLatestInbound, ~50 tokens, cached in\ninbox_ai; clears a stale suggestion when the key moves). Kristine-style 'shared\nthe info we asked for' rows drop off Needs Attention within a refresh cycle.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6d81ad9",
+      "date": "2026-09-03T15:53:56-05:00",
+      "subject": "Dashboard: greet the actual person, exclude internal people from attention, drop live feed",
+      "title": "Dashboard: greet the actual person, exclude internal people from attention, drop live feed",
+      "body": "Greeting uses the per-user account name, falling back to the Inbox agent identity\n(mst_agent) on the shared team login so John sees John and Matt sees Matt. The\nNeeds Attention / Need Response / handoffs / missed-calls signals now exclude\ninternal people: the team's own client records (team_agents names, known team\nemails, any '... Matt Smith Team' record) and professional partners/vendors\n(closers like Cherryl, lenders, inspectors) matched by email + name against the\npartners and vendors tables. Removed the Live Lead Activity feed per request.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "926f227",
       "date": "2026-09-03T15:41:19-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "Final walkthrough: day-of signed-by-buyers task + 5PM Slack reminder",
       "title": "Final walkthrough: day-of signed-by-buyers task + 5PM Slack reminder",
       "body": "Adds a day-of tracking task 'Final Walkthrough signed by buyers at <address>' (appears on the walkthrough day, window 0). Adds a scheduler tick that posts to #transaction-tasks-deadlines at 5 PM CT on any deal's final walkthrough day, prompting to confirm the buyers signed (idempotent via digest_log period slack_walkthrough). Deadline specs now support per-item windowDays and custom titles.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ffa21e9",
-      "date": "2026-07-28T10:07:40-05:00",
-      "subject": "Transaction deadline tasks: only surface within 3 days of due (declutter)",
-      "title": "Transaction deadline tasks: only surface within 3 days of due (declutter)",
-      "body": "Deadline tracking tasks (Earnest, Home Inspection, Financing, Final Walkthrough, Closing) now appear only once the deadline is within 3 days, instead of all at once when the deal goes under contract. Added an hourly scheduler sweep so a task shows up the day its deadline enters the 3-day window without needing a transaction edit. Idempotent.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4d5fb98",
-      "date": "2026-07-28T09:54:12-05:00",
-      "subject": "PDF extraction must not change who we represent (type/agency_type)",
-      "title": "PDF extraction must not change who we represent (type/agency_type)",
-      "body": "We upload a purchase agreement for BOTH sides just to capture contract details. The document does not determine representation -- an active listing that goes under contract stays a listing (seller side). Extraction now preserves the transaction's existing type + agency_type and only fills factual fields. Fixes deals like Deer View being flipped from listing to purchase on PA upload.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b2694f0",
-      "date": "2026-07-28T09:40:59-05:00",
-      "subject": "Transaction + dashboard + Slack/task updates",
-      "title": "Transaction + dashboard + Slack/task updates",
-      "body": "Transactions modal: remove 'Followed Up on Financing Release'; add Appraisal status 'Approved'; final walkthrough always auto-sets to the weekday before closing; mortgage & appraisal contingency dates are always kept in sync. Slack #transaction-tasks-deadlines: alert window changed to 3-day + 1-day (tomorrow) and added a 1-week-before-closing 'check with Cherryl' reminder. Transaction deadlines (Earnest, Home Inspection, Financing contingency, Final Walkthrough, Closing) now auto-create/maintain tracking tasks titled 'Deadline -- address', deduped and auto-completed when the status is terminal. Dashboard: removed Events/Posts Scheduled/Preferred Vendors/Active Campaigns cards and fixed the pre-listing count to only count active pre-listings (matches the Transactions board).\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
