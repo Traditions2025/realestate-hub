@@ -232,7 +232,7 @@ export default function ClientProfile() {
         )}
         {textOpen && client.phone && !client.hub_text_opt_out && <div style={{ marginTop: 8 }}><InlineTextComposer client={client} onClose={() => setTextOpen(false)} onSent={() => { load(); window.dispatchEvent(new CustomEvent('cp-comms-changed')) }} /></div>}
         {emailOpen && client.email && <EmailComposer client={client} initial={emailPrefill} onClose={() => { setEmailOpen(false); setEmailPrefill(null) }} onSent={() => window.dispatchEvent(new CustomEvent('cp-comms-changed'))} />}
-        {taskOpen && <div style={{ marginTop: 8 }}><QuickAddTask clientId={cid} clientName={name} onAdded={() => { setTaskOpen(false); window.dispatchEvent(new CustomEvent('cp-tasks-changed')) }} /></div>}
+        {taskOpen && <div style={{ marginTop: 8 }}><QuickAddTask clientId={cid} clientName={name} clientAddress={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} onAdded={() => { setTaskOpen(false); window.dispatchEvent(new CustomEvent('cp-tasks-changed')) }} /></div>}
       </div>
 
       {/* ── One-page body: two-column command center ──────────────────── */}
@@ -255,7 +255,7 @@ export default function ClientProfile() {
             research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
             plans: () => <ActionPlans cid={cid} />,
-            tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} /></div>,
+            tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} address={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} /></div>,
             txns: () => <TransactionsCard cid={cid} onAdd={addTransaction} navigate={navigate} />,
           }
           return (
@@ -624,7 +624,7 @@ function AiIntelligence({ ai, followup, cid }) {
 }
 
 // ── Sidebar: Tasks ───────────────────────────────────────────────────────
-function TasksCard({ cid, name }) {
+function TasksCard({ cid, name, address }) {
   const [tasks, setTasks] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
   const reload = useCallback(() => authFetch(`/api/tasks?related_type=client&related_id=${cid}`).then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : [])).catch(() => setTasks([])), [cid])
@@ -636,7 +636,7 @@ function TasksCard({ cid, name }) {
   const row = (t, bad) => <div key={t.id} style={{ fontSize: 13, display: 'flex', gap: 6, padding: '3px 0' }}><span>○</span><span style={{ flex: 1 }}>{t.title}</span>{t.due_date && <span style={{ fontSize: 11, color: bad ? '#ef4444' : 'var(--text-muted)' }}>{t.due_date}</span>}</div>
   return (
     <Section title={`Tasks${open.length ? ` (${open.length})` : ''}`} id="taskscard" right={<button className="btn btn-sm" onClick={() => setAddOpen(o => !o)}>+ Add</button>}>
-      {addOpen && <QuickAddTask clientId={cid} clientName={name} onAdded={() => { reload(); setAddOpen(false) }} />}
+      {addOpen && <QuickAddTask clientId={cid} clientName={name} clientAddress={address} onAdded={() => { reload(); setAddOpen(false) }} />}
       {tasks === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
         : !open.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No open tasks.</div>
           : <div style={{ marginTop: addOpen ? 8 : 0 }}>

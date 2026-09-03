@@ -3052,7 +3052,8 @@ export default function Clients() {
                 )}
               </div>
               {taskOpen && (
-                <QuickAddTask clientId={detail.id} clientName={`${detail.first_name || ''} ${detail.last_name || ''}`.trim()} onAdded={() => load()} />
+                <QuickAddTask clientId={detail.id} clientName={`${detail.first_name || ''} ${detail.last_name || ''}`.trim()}
+                  clientAddress={[detail.address, detail.city, detail.state, detail.zip].filter(Boolean).join(', ')} onAdded={() => load()} />
               )}
               {noteOpen && (
                 <div style={{marginTop: 10, display: 'flex', gap: 8, alignItems: 'flex-start'}}>
@@ -4063,7 +4064,7 @@ export function InlineStatus({ detail, onSaved }) {
 const TIMELINE_FILTERS = [['all', 'All'], ['comm', 'Comms'], ['ai', 'AI'], ['note', 'Notes'], ['task', 'Tasks'], ['behavior', 'Activity']]
 // Quick "add task" on the lead profile: text + due date + assignee -> Tasks tab, linked
 // to this lead (related_type=client).
-export function QuickAddTask({ clientId, clientName, onAdded }) {
+export function QuickAddTask({ clientId, clientName, clientAddress, onAdded }) {
   const [text, setText] = React.useState('')
   const [date, setDate] = React.useState('')
   const [time, setTime] = React.useState('')
@@ -4076,7 +4077,10 @@ export function QuickAddTask({ clientId, clientName, onAdded }) {
     if (!text.trim()) return
     setSaving(true); setDone('')
     try {
-      const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: text.trim(), due_date: date || null, due_time: time || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
+      // Title carries the lead's name as a fixed pretext ("Jayne Griffin: <task>"), and the
+      // description auto-fills with the lead's address so it's right there on the task.
+      const title = clientName ? `${clientName}: ${text.trim()}` : text.trim()
+      const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, description: clientAddress || null, due_date: date || null, due_time: time || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
       const d = await r.json()
       if (d && d.error) { alert('Could not add task: ' + d.error); setSaving(false); return }
       setText(''); setDate(''); setTime(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000); onAdded && onAdded()
@@ -4086,8 +4090,9 @@ export function QuickAddTask({ clientId, clientName, onAdded }) {
   return (
     <div style={{ marginTop: 10, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+        {clientName && <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{clientName}:</span>}
         <input autoFocus value={text} onChange={e => setText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') add() }}
-          placeholder={`Task for ${clientName || 'this lead'}…`} style={{ ...inp, flex: '2 1 220px', minWidth: 160, padding: '7px 9px' }} />
+          placeholder="Type the task…" style={{ ...inp, flex: '2 1 200px', minWidth: 150, padding: '7px 9px' }} />
         <input type="date" value={date} onChange={e => setDate(e.target.value)} title="Due date" style={{ ...inp, padding: '6px 9px' }} />
         <input type="time" value={time} onChange={e => setTime(e.target.value)} title="Due time" style={{ ...inp, padding: '6px 9px' }} />
         <select value={assignee} onChange={e => setAssignee(e.target.value)} title="Assignee" style={{ ...inp, padding: '7px 9px' }}>
@@ -4096,6 +4101,7 @@ export function QuickAddTask({ clientId, clientName, onAdded }) {
         </select>
         <button className="btn btn-primary btn-sm" onClick={add} disabled={saving || !text.trim()}>{saving ? 'Adding…' : 'Add Task'}</button>
       </div>
+      {clientAddress && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>📍 {clientAddress} — goes into the task description</div>}
       {done && <div style={{ fontSize: 12, color: '#10b981', marginTop: 6 }}>{done}</div>}
     </div>
   )

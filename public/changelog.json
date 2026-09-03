@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-09-03T14:25:51.310Z",
+  "generated_at": "2026-09-03T14:45:35.082Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a169011",
+      "date": "2026-09-03T09:33:48-05:00",
+      "subject": "Tasks: fix 500 on saving a client-linked task (whitelist PUT columns)",
+      "title": "Tasks: fix 500 on saving a client-linked task (whitelist PUT columns)",
+      "body": "The task list decorates client-linked rows with a computed related_name; the Edit\nTask modal sends the whole row back on save, so the dynamic UPDATE hit 'no such\ncolumn: related_name' and 500'd — only for tasks tied to a lead (e.g. the Jayne\nGriffin task). PUT /:id now whitelists real updatable columns and reads the silent\nnotification flag from the body instead of the filtered field set.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6dc87ea",
+      "date": "2026-09-03T09:25:56-05:00",
+      "subject": "Lead profile: render texts as Inbox-style chat bubbles in Communications",
+      "title": "Lead profile: render texts as Inbox-style chat bubbles in Communications",
+      "body": "Text messages in the profile Communications feed now show as left/right chat\nbubbles (outgoing right + blue, incoming left + white with the contact's name),\nmatching the Inbox conversation view, so a back-and-forth is reviewable at a\nglance. Emails, calls and voicemails keep the existing card layout.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "189b4d6",
       "date": "2026-09-02T15:51:39-05:00",
@@ -3984,22 +4000,6 @@
       "subject": "Lead activity tracking pixel for mattsmithteam.com",
       "title": "Lead activity tracking pixel for mattsmithteam.com",
       "body": "Lets a tracking-pixel JS snippet pasted into Sierra Interactive's tracking\ncode area beacon back to the hub so we can see lead behavior in real time\nand rank leads by site engagement.\n\nBackend pieces:\n- New lead_activity table (client_id FK, sierra_lead_id, event_type,\n  page_url, page_title, listing_mls, duration_sec, ip, ua) with indexes\n  on (client_id, created_at) and (created_at) for fast queries.\n- POST /api/track/beacon (UNAUTH, open CORS) accepts beacon events.\n  Buffered in-memory and flushed in bulk every 10s so a 26MB saveDb()\n  isn't fired per page view. On failed flush, batch is re-queued (capped).\n- GET /api/track/activity/:client_id - last N events + summary\n  (pageviews / listing_views / saves / total time on site).\n- GET /api/track/recent - cross-client live feed for the Dashboard.\n- GET /api/track/top-leads - ranked client IDs by recent activity.\n- Auth bypass added for /api/track/beacon and /track.js (must be public).\n\nTracking snippet:\n- Served by GET /track.js so changes don't need a rebuild. 5-min cache.\n- Detects lead via window.siteData/visitor/lead/currentUser (tries every\n  Sierra shape I'm aware of), URL ?lid= / ?em= params, or session cookie.\n- Tracks: pageview (every page), listing_view (when MLS detected in URL\n  or data-mls attr), save (click watcher for \"save\"/\"favorite\" buttons),\n  pageduration (sent via navigator.sendBeacon on tab close).\n- All beacons identify the lead by sierra_lead_id OR sierra_email so we\n  can match against either column in clients.\n\nFrontend pieces:\n- New \"Live Lead Activity\" panel on Dashboard. Auto-refreshes every 30s.\n  Shows last 25 events with color-coded type indicators and clickable\n  client names for matched leads.\n- New sort option on Clients page: \"Most Active on Site (Tracked)\" - uses\n  a 14-day window count from lead_activity to rank.\n- New \"Site Activity\" section in the client detail modal: pageview /\n  listing-view / save counts, total time on site, and a scrollable event\n  list. Only shown if the client has any tracked activity.\n\nTo enable, paste this into Sierra's tracking code area:\n  <script src=\"https://realestate-hub-1rzu.onrender.com/track.js\"></script>\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9b34d7c",
-      "date": "2026-05-27T16:50:33-05:00",
-      "subject": "Daily per-person task reminder emails at 9 AM CT",
-      "title": "Daily per-person task reminder emails at 9 AM CT",
-      "body": "New server/daily-reminders.js module that runs alongside the existing\n9 AM TC digest. For each team member (Matt, Leo), sends a personal\nemail with:\n  - Tasks due today assigned to THEM only (priority + category)\n  - Transaction deadlines due today (shared across the team)\n  - Any unassigned tasks (surfaced to BOTH so nothing slips through)\n\nRouting matches user spec:\n  - Tasks assigned to \"Matt\"   -> Matt's email only\n  - Tasks assigned to \"Leo\"    -> Leo's email only\n  - Tasks unassigned           -> BOTH\n  - Transaction deadlines      -> BOTH\n\nIdempotent via daily_reminder_log unique(date, recipient). The morning\nslot in checkDigestTick fires sendDailyReminders() right after the\nTC digest succeeds. Recipients also get logged to email_log so the\nsends are visible on Updates -> Email Log.\n\nSkips the email entirely if a person has zero tasks AND zero shared\ndeadlines today (no noise on quiet days).\n\nNew endpoint POST /api/reminders/run-now to manually re-send today's\nreminders (useful if SendGrid hiccups at 9 AM, or for testing format).\nrunDailyRemindersNow() exported from scheduler.js the same way the\nexisting runDigestNow / runIncrementalNow helpers work.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bb6d88d",
-      "date": "2026-05-21T11:51:45-05:00",
-      "subject": "Sierra incremental sync: bump 10 min -> 60 min interval",
-      "title": "Sierra incremental sync: bump 10 min -> 60 min interval",
-      "body": "Each sync currently freezes the event loop for 14-23 seconds (measured\nby probing /api/vendors which returned 401 in 14.7-23s repeatedly).\nThat's the per-lead saveDb() storm - a 26MB synchronous write per\nupdated lead. Hourly cadence drops the user-facing probability of\nhitting a frozen window ~6x.\n\nTrade-off: max 60-min delay for Sierra-only changes (vs 10-min before).\nSierra's own email/SMS alerts and webhooks (if configured) still\ndeliver new leads in real time - this poll is only a safety net for\nanything those miss.\n\nReal cure for the per-sync freeze is still Bug B (atomic save +\nbulk mode), which I'll do as a separate, careful change.\n\nCo-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
