@@ -4759,9 +4759,14 @@ export function InlineTextComposer({ client, onClose, onSent }) {
         </select>
         <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
         <button className="btn btn-sm btn-secondary" disabled={uploading} onClick={() => fileRef.current?.click()}>{uploading ? 'Uploading…' : '📷 Photo'}</button>
-        {/* Full https:// URL on its own line = the most reliable rich link preview on their phone */}
-        <button className="btn btn-sm btn-secondary" title="Insert the website link (full URL so their phone shows a preview card)"
-          onClick={() => setBody(b => (b && b.trim() ? b.replace(/\s+$/, '') + '\n' : '') + 'https://mattsmithteam.com/')}>🌐 Insert website</button>
+        {/* Inserts the full URL AND attaches the branded card image as MMS. iPhones only
+            auto-load link previews from saved contacts, but MMS media always displays. */}
+        <button className="btn btn-sm btn-secondary" title="Insert the website link + branded preview image (the image always shows, even when their phone won't auto-load link previews)"
+          onClick={() => {
+            setBody(b => (b && b.trim() ? b.replace(/\s+$/, '') + '\n' : '') + 'https://mattsmithteam.com/')
+            const cardUrl = window.location.origin + '/website-card.jpg'
+            setMedia(list => list.some(m => m.url === cardUrl) ? list : [...list, { url: cardUrl, type: 'image/jpeg' }])
+          }}>🌐 Insert website</button>
       </div>
       {media.length > 0 && (
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>

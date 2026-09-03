@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-03T16:54:19.458Z",
+  "generated_at": "2026-09-03T17:32:25.783Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c995907",
+      "date": "2026-09-03T11:54:24-05:00",
+      "subject": "Text composers: Insert website button (Inbox + lead profile)",
+      "title": "Text composers: Insert website button (Inbox + lead profile)",
+      "body": "One click drops https://mattsmithteam.com/ into the text, appended on its own line\nwith the full https:// scheme, which is the most reliable way for the recipient's\nphone to render a rich link preview card (the site already serves an og:image +\ntitle).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0238bff",
       "date": "2026-09-03T10:52:27-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Pre-listing opens its own popup; remove Pre-Listing Pipeline page",
       "title": "Pre-listing opens its own popup; remove Pre-Listing Pipeline page",
       "body": "Clicking a pre-listing card in the Transactions board now opens an in-place\npopup (address/owner/walkthrough, the 16-item pre-listing checklist with\nlive progress, notes, and a Promote-to-Active action) instead of redirecting\nto the separate /pre-listings page. That page (the \"Pre-Listing Pipeline\")\nis removed from routing — the Transactions tab is the single place to work a\nlisting through every stage. The Pre-Listing column itself stays.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "44eab7d",
-      "date": "2026-07-09T02:33:15-05:00",
-      "subject": "Slack alerts: 10 AM transaction deadlines + new-task notices",
-      "title": "Slack alerts: 10 AM transaction deadlines + new-task notices",
-      "body": "Posts to a Slack Incoming Webhook (#transaction-tasks-deadlines):\n- Daily 10 AM CT deadline alert covering every active/under-contract\n  transaction (buy + list) whose deadlines are due TODAY or in exactly 3\n  days. Reuses the email digest's buildActionItems() so logic matches.\n  Idempotent via digest_log period='slack_deadline'.\n- New-task notice fired when a task is created (respects the silent flag).\n\nWebhook URL is read from SLACK_WEBHOOK_URL env or the app_settings table\n(set live via POST /api/slack/config) — never committed to git. Added a\nsmall app_settings key-value table + get/setSetting helpers. Manual preview\nvia POST /api/slack/deadline-now. Verified formatting on a DB copy.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
