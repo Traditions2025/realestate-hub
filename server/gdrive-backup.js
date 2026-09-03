@@ -54,6 +54,17 @@ export async function exchangeCode(code, redirectUri) {
   })
   const j = await r.json().catch(() => ({}))
   if (!r.ok) throw new Error(j.error_description || j.error || `token ${r.status}`)
+  // Account lock: the connect flow is a public URL, so verify WHO just authorized before
+  // storing anything — otherwise a stranger completing the flow would silently redirect our
+  // database backups into their own Drive. Only the team's backup account is accepted.
+  const allowed = String(process.env.GDRIVE_ALLOWED_EMAIL || db.getSetting('gdrive_allowed_email', 'mattsmithremax@gmail.com') || '').toLowerCase().trim()
+  if (allowed && j.access_token) {
+    try {
+      const who = await (await fetch('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)', { headers: { Authorization: `Bearer ${j.access_token}` } })).json()
+      const em = String(who?.user?.emailAddress || '').toLowerCase().trim()
+      if (em && em !== allowed) throw new Error(`This Hub's Drive backup is locked to ${allowed}. You connected as ${em}; nothing was stored.`)
+    } catch (e) { if (/locked to/.test(String(e.message))) throw e /* userinfo fetch hiccups don't block */ }
+  }
   if (j.refresh_token) db.setSetting('google_drive_refresh_token', j.refresh_token)
   else if (!refreshToken()) throw new Error('Google did not return a refresh token — revoke prior access and reconnect with prompt=consent.')
   db.setSetting('gdrive_connected_at', new Date().toISOString())
