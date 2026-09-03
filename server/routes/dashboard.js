@@ -392,9 +392,14 @@ router.get('/', (req, res) => {
 // reply/call from the same person resurfaces. Dismissing an AI handoff resolves it in the
 // real handoff queue (same state the AI Opportunities page uses).
 router.post('/attention/dismiss', (req, res) => {
-  const { type, client_id, ref } = req.body || {}
+  const { type, client_id, ref, undo } = req.body || {}
   if (!type) return res.status(400).json({ error: 'type required' })
   try {
+    if (undo) {
+      db.run('DELETE FROM attention_dismissals WHERE type=? AND client_id=? AND ref=?', [String(type), Number(client_id) || null, String(ref || '')])
+      if (type === 'handoff' && ref) db.run("UPDATE ai_handoffs SET status='open', completed_at=NULL WHERE id=?", [Number(ref)])
+      return res.json({ success: true, undone: true })
+    }
     if (type === 'handoff' && ref) {
       db.run("UPDATE ai_handoffs SET status='resolved', completed_at=datetime('now') WHERE id=?", [Number(ref)])
     } else {
