@@ -1233,8 +1233,27 @@ router.post('/backfill-engagement', async (req, res) => {
       out.per_day[to.slice(0, 10)] = msgs.length
       for (const m of msgs) {
         const pmid = String(m.msg_id || '').split('.')[0]
-        const row = byPmid.get(pmid)
-        if (!row) continue
+        if (!pmid) continue
+        let row = byPmid.get(pmid)
+        if (!row) {
+          // No Hub log row — a send from before drip sends stored message ids. Match the
+          // client by recipient address and create the email_log row retroactively so the
+          // engagement has a home (idempotent: keyed on provider_message_id).
+          const prior = db.get('SELECT id, client_id FROM email_log WHERE provider_message_id=?', [pmid])
+          if (prior) { row = prior }
+          else {
+            const to = String(m.to_email || '').trim()
+            if (!to) continue
+            if (dry) { out.matched++; out.would_create = (out.would_create || 0) + 1; continue }
+            const cl = db.get("SELECT id FROM clients WHERE lower(email)=lower(?) AND merged_into IS NULL ORDER BY (CASE WHEN lower(coalesce(status,'')) IN ('junk','donotcontact') THEN 1 ELSE 0 END), id DESC", [to])
+            const when0 = m.last_event_time ? new Date(m.last_event_time).toISOString() : new Date().toISOString()
+            const ins = db.run('INSERT INTO email_log (client_id, to_email, from_email, subject, status, provider, provider_message_id, sent_by, sent_at) VALUES (?,?,?,?,?,?,?,?,?)',
+              [cl ? cl.id : null, to, String(m.from_email || ''), String(m.subject || ''), 'sent', 'sendgrid', pmid, 'backfill', when0])
+            row = { id: ins.lastInsertRowid, client_id: cl ? cl.id : null }
+            out.created_rows = (out.created_rows || 0) + 1
+          }
+          byPmid.set(pmid, row)
+        }
         out.matched++
         if (dry) continue
         // Emails already carrying events (real webhook or a prior backfill) are left alone.
