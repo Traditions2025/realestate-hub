@@ -1,5 +1,24 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { SMART_LIST_SQL } from './clients.js'
+import { fetchTodaysDeadlines } from '../daily-reminders.js'
+
+// ---- Central-time day boundaries. occurred_at is stored as UTC ISO, so "today" counts must
+// use the America/Chicago day window, never the raw UTC date. ----
+function ctWindow() {
+  const now = new Date()
+  const ct = new Date(now.toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+  const pad = (n) => String(n).padStart(2, '0')
+  const day = `${ct.getFullYear()}-${pad(ct.getMonth() + 1)}-${pad(ct.getDate())}`
+  const offsetMs = now.getTime() - ct.getTime()
+  const startUtc = new Date(Date.parse(day + 'T00:00:00Z') + offsetMs).toISOString()
+  const endUtc = new Date(Date.parse(day + 'T00:00:00Z') + offsetMs + 86400000).toISOString()
+  const monthStart = `${ct.getFullYear()}-${pad(ct.getMonth() + 1)}-01`
+  const yearStart = `${ct.getFullYear()}-01-01`
+  return { ct, day, startUtc, endUtc, monthStart, yearStart }
+}
+// Every command-center block is isolated: one failing query never takes the dashboard down.
+const safe = (fn, fallback) => { try { return fn() } catch (e) { console.error('[dashboard]', e.message); return fallback } }
 
 const router = Router()
 
@@ -112,8 +131,208 @@ router.get('/', (req, res) => {
     FROM transactions t LEFT JOIN clients c ON t.client_id = c.id
     WHERE t.property_status IN ('Active', 'Under Contract', 'Pending', 'Clear to Close')
     ORDER BY t.closing_date ASC LIMIT 10`)
-  stats.todays_events = db.all("SELECT * FROM calendar_events WHERE event_date = date('now') ORDER BY start_time ASC")
   stats.last_sierra_sync = db.get('SELECT * FROM sierra_sync_log ORDER BY synced_at DESC LIMIT 1')
+
+  // ================= COMMAND CENTER BLOCKS (all Central-time) =================
+  // Metric definitions (centralized, per HUB-SYSTEM-OVERVIEW.md):
+  //   need_response      = latest text/email on the lead is INCOMING with no outgoing after it
+  //                        (junk/DNC/merged excluded)
+  //   ai_handoffs        = ai_handoffs rows with status='open'
+  //   followups_due      = open tasks due today (CT); overdue_tasks = due before today
+  //   appointments_today = calendar_events with event_date = CT today
+  //   high_intent        = lead_intelligence.intent_score >= 70 (junk/DNC excluded)
+  //   missed_call        = incoming call today with no duration
+  //   failed_message     = delivery_status failed/undelivered today
+  //   re-engaged         = activity in last 7d preceded by a 60+ day quiet gap
+  const W = ctWindow()
+  stats.today = { date: W.day }
+  stats.todays_events = safe(() => db.all('SELECT * FROM calendar_events WHERE event_date = ? ORDER BY COALESCE(start_time, "99:99") ASC', [W.day]), [])
+
+  // ---- Need response (count + top rows with evidence) ----
+  const needRows = safe(() => db.all(`
+    SELECT c.id, c.first_name, c.last_name, c.agent_assigned, t.li AS last_inbound_at
+    FROM (SELECT client_id,
+            MAX(CASE WHEN direction='incoming' THEN occurred_at END) li,
+            MAX(CASE WHEN direction='outgoing' THEN occurred_at END) lo
+          FROM communications WHERE client_id IS NOT NULL AND channel IN ('text','email')
+          GROUP BY client_id) t
+    JOIN clients c ON c.id = t.client_id
+    WHERE t.li IS NOT NULL AND (t.lo IS NULL OR t.li > t.lo)
+      AND c.merged_into IS NULL AND lower(coalesce(c.status,'')) NOT IN ('junk','donotcontact')
+    ORDER BY t.li DESC`), [])
+  const needTop = needRows.slice(0, 8).map(r => safe(() => {
+    const m = db.get("SELECT channel, preview, body FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [r.id]) || {}
+    const intent = db.get('SELECT intent_score FROM lead_intelligence WHERE client_id=?', [r.id])?.intent_score ?? null
+    return { ...r, channel: m.channel || null, preview: String(m.preview || m.body || '').slice(0, 140), intent }
+  }, r))
+
+  // ---- Open AI handoffs ----
+  const handoffs = safe(() => db.all(`SELECT h.id, h.client_id, h.reason, h.summary, h.urgency, h.recommended_action, h.intent_score, h.created_at, c.first_name, c.last_name
+    FROM ai_handoffs h LEFT JOIN clients c ON c.id = h.client_id WHERE h.status='open' ORDER BY h.created_at DESC LIMIT 10`), [])
+
+  // ---- Missed calls + failed messages today ----
+  const missedCalls = safe(() => db.all(`SELECT co.client_id, co.from_addr, co.occurred_at, c.first_name, c.last_name
+    FROM communications co LEFT JOIN clients c ON c.id = co.client_id
+    WHERE co.channel='call' AND co.direction='incoming' AND (co.duration_sec IS NULL OR co.duration_sec = 0)
+      AND co.occurred_at >= ? AND co.occurred_at < ? ORDER BY co.occurred_at DESC LIMIT 6`, [W.startUtc, W.endUtc]), [])
+  const failedToday = safe(() => db.get(`SELECT COUNT(*) c FROM communications WHERE direction='outgoing'
+    AND delivery_status IN ('failed','undelivered') AND occurred_at >= ? AND occurred_at < ?`, [W.startUtc, W.endUtc]).c, 0)
+
+  // ---- NEEDS YOUR ATTENTION: handoffs first, then unanswered replies, then missed calls ----
+  const attention = []
+  for (const h of handoffs) attention.push({ type: 'handoff', client_id: h.client_id, name: `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'Lead', reason: h.reason || 'AI handoff', detail: h.summary || h.recommended_action || '', intent: h.intent_score, urgency: h.urgency || 'high', at: h.created_at })
+  for (const r of needTop) attention.push({ type: 'need_response', client_id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Lead', reason: `Replied by ${r.channel || 'message'}, no response yet`, detail: r.preview, intent: r.intent, agent: r.agent_assigned, at: r.last_inbound_at })
+  for (const m of missedCalls) attention.push({ type: 'missed_call', client_id: m.client_id, name: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.from_addr, reason: 'Missed call today', detail: '', at: m.occurred_at })
+  stats.attention = attention.slice(0, 12)
+
+  // ---- Task counts on the CT day ----
+  const tasksToday = safe(() => db.get("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND due_date = ?", [W.day]).c, 0)
+  const tasksOverdue = safe(() => db.get("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND due_date < ? AND due_date IS NOT NULL AND due_date != ''", [W.day]).c, 0)
+
+  // ---- Action cards ----
+  stats.cards = {
+    need_response: needRows.length,
+    ai_handoffs: handoffs.length,
+    followups_due: tasksToday,
+    overdue_tasks: tasksOverdue,
+    appointments_today: stats.todays_events.length,
+    priority_leads: new Set([...handoffs.map(h => h.client_id), ...needRows.slice(0, 50).map(r => r.id)].filter(Boolean)).size,
+    new_leads_today: safe(() => db.get("SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND substr(COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at),1,10) = ?", [W.day]).c, 0),
+  }
+
+  // ---- Today's schedule: calendar events + transaction closings/walkthroughs today ----
+  const schedule = stats.todays_events.map(e => ({ time: e.start_time || '', title: e.title, kind: e.event_type, location: e.location || '', link: '/calendar' }))
+  safe(() => {
+    for (const t of db.all("SELECT id, property_address, closing_date, final_walkthrough, property_status FROM transactions WHERE property_status NOT IN ('Closed','Cancelled','Withdrawn','Expired')")) {
+      const c = parseTxDate(t.closing_date); const wd = parseTxDate(t.final_walkthrough)
+      const isToday = (d) => d && `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` === W.day
+      if (isToday(c)) schedule.push({ time: '', title: 'Closing', kind: 'Closing', location: t.property_address, link: '/transactions' })
+      if (isToday(wd)) schedule.push({ time: '', title: 'Final Walkthrough', kind: 'Walkthrough', location: t.property_address, link: '/transactions' })
+    }
+  })
+  stats.schedule = schedule
+
+  // ---- Lead pipeline (status counts + dynamic conditions) ----
+  const statusCounts = {}
+  safe(() => { for (const r of db.all('SELECT lower(coalesce(status,\'\')) s, COUNT(*) c FROM clients WHERE merged_into IS NULL GROUP BY 1')) statusCounts[r.s] = r.c })
+  stats.pipeline = {
+    prime: statusCounts.prime || 0, active: statusCounts.active || 0, new: statusCounts.new || 0,
+    qualify: statusCounts.qualify || 0, watch: statusCounts.watch || 0, pending: statusCounts.pending || 0,
+    high_intent: safe(() => db.get(`SELECT COUNT(*) c FROM lead_intelligence li JOIN clients c ON c.id=li.client_id
+      WHERE li.intent_score >= 70 AND c.merged_into IS NULL AND lower(coalesce(c.status,'')) NOT IN ('junk','donotcontact')`).c, 0),
+    need_response: needRows.length,
+    ai_managed: safe(() => db.get('SELECT COUNT(*) c FROM ai_lead_state WHERE ai_managed=1 AND ai_enabled=1').c, 0),
+    viewed_24h: stats.engagement.website_24h,
+  }
+
+  // ---- Prospecting (FSBO + Cancelled/Expired; surface only, never auto-contact) ----
+  stats.prospecting = {
+    fsbo_available: safe(() => db.get("SELECT COUNT(*) c FROM clients WHERE fsbo_status='Available' AND merged_into IS NULL AND lower(coalesce(status,'')) NOT IN ('junk','donotcontact')").c, 0),
+    fsbo_aging_30: safe(() => db.get("SELECT COUNT(*) c FROM clients WHERE fsbo_status='Available' AND merged_into IS NULL AND lower(coalesce(status,'')) NOT IN ('junk','donotcontact') AND fsbo_dom IS NOT NULL AND fsbo_dom != '' AND CAST(fsbo_dom AS INTEGER) >= 30").c, 0),
+    fsbo_followup_due: safe(() => db.get(`SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND ${SMART_LIST_SQL.fsbo_dom14_no_text_2w}`).c, 0),
+    cx_total: safe(() => db.get(`SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND clients.status IN ('new','qualify','watch')
+      AND (clients.tags LIKE '%"Sierra: Cancelled"%' OR clients.tags LIKE '%"Sierra: Expired"%' OR clients.tags LIKE '%"MLS: Cancelled"%' OR clients.tags LIKE '%"MLS: Expired"%')`).c, 0),
+    cx_no_response: safe(() => db.get(`SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND ${SMART_LIST_SQL.cx_no_response}`).c, 0),
+  }
+
+  // ---- Transactions: what's next + what needs action ----
+  stats.tx = safe(() => {
+    const open = db.all("SELECT id, property_address, closing_date, property_status FROM transactions WHERE property_status IN ('Active','Under Contract','Pending','Clear to Close')")
+    const upcoming = []
+    const plus7 = new Date(W.ct.getTime() + 7 * 86400000)
+    for (const t of open) {
+      const d = parseTxDate(t.closing_date)
+      if (d && d >= new Date(W.ct.getFullYear(), W.ct.getMonth(), W.ct.getDate()) && d <= plus7) upcoming.push({ id: t.id, address: t.property_address, date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`, status: t.property_status })
+    }
+    upcoming.sort((a, b) => a.date < b.date ? -1 : 1)
+    const deadlines = safe(() => fetchTodaysDeadlines(W.day), [])
+    return { open: open.length, closings_7d: upcoming.slice(0, 6), deadlines_today: deadlines.length, deadline_items: deadlines.slice(0, 5).map(d => ({ label: d.label || d.field, address: d.address || d.property_address || '' })) }
+  }, { open: 0, closings_7d: [], deadlines_today: 0, deadline_items: [] })
+
+  // ---- Opportunity radar (staff intelligence; counts + a few named examples) ----
+  stats.radar = safe(() => {
+    const nm = (r) => `${r.first_name || ''} ${r.last_name || ''}`.trim()
+    const reengaged = db.all(`SELECT c.id, c.first_name, c.last_name, MAX(fa1.occurred_at) at FROM fub_activity fa1
+      JOIN clients c ON c.id = fa1.client_id
+      WHERE fa1.occurred_at >= datetime('now','-7 days') AND c.merged_into IS NULL
+        AND lower(coalesce(c.status,'')) NOT IN ('junk','donotcontact')
+        AND NOT EXISTS (SELECT 1 FROM fub_activity fa2 WHERE fa2.client_id = fa1.client_id
+          AND fa2.occurred_at < fa1.occurred_at AND fa2.occurred_at >= datetime(fa1.occurred_at,'-60 days'))
+      GROUP BY c.id ORDER BY at DESC LIMIT 50`)
+    const repeat = db.all(`SELECT c.id, c.first_name, c.last_name, fa.prop_street, fa.prop_city, COUNT(*) n
+      FROM fub_activity fa JOIN clients c ON c.id = fa.client_id
+      WHERE fa.occurred_at >= datetime('now','-7 days') AND fa.prop_mls IS NOT NULL AND fa.prop_mls != '' AND c.merged_into IS NULL
+      GROUP BY fa.client_id, fa.prop_mls HAVING COUNT(*) >= 3 ORDER BY n DESC LIMIT 50`)
+    const pcActive = db.all(`SELECT c.id, c.first_name, c.last_name, MAX(fa.occurred_at) at FROM fub_activity fa
+      JOIN clients c ON c.id = fa.client_id
+      WHERE fa.occurred_at >= datetime('now','-7 days')
+        AND (lower(coalesce(c.status,''))='closed' OR (lower(coalesce(c.tags,'')) LIKE '%past client%' AND lower(coalesce(c.tags,'')) NOT LIKE '%unsubscribed%'))
+      GROUP BY c.id ORDER BY at DESC LIMIT 20`)
+    return {
+      reengaged: reengaged.length, repeat_viewers: new Set(repeat.map(r => r.id)).size, past_clients_active: pcActive.length,
+      examples: {
+        reengaged: reengaged.slice(0, 3).map(r => ({ id: r.id, name: nm(r) })),
+        repeat: repeat.slice(0, 3).map(r => ({ id: r.id, name: nm(r), prop: [r.prop_street, r.prop_city].filter(Boolean).join(', '), n: r.n })),
+        past_clients: pcActive.slice(0, 3).map(r => ({ id: r.id, name: nm(r) })),
+      },
+    }
+  }, { reengaged: 0, repeat_viewers: 0, past_clients_active: 0, examples: { reengaged: [], repeat: [], past_clients: [] } })
+
+  // ---- HUB AI today ----
+  stats.ai = safe(() => ({
+    managed: stats.pipeline.ai_managed,
+    handoffs_open: handoffs.length,
+    sent_today: db.get("SELECT COUNT(*) c FROM communications WHERE direction='outgoing' AND sent_by_type IN ('ai','fsbo_ai') AND occurred_at >= ? AND occurred_at < ?", [W.startUtc, W.endUtc]).c,
+    responses_today: db.get(`SELECT COUNT(*) c FROM communications co JOIN ai_lead_state s ON s.client_id = co.client_id AND s.ai_managed = 1
+      WHERE co.direction='incoming' AND co.channel='text' AND co.occurred_at >= ? AND co.occurred_at < ?`, [W.startUtc, W.endUtc]).c,
+    intent_up_today: db.get("SELECT COUNT(*) c FROM ai_actions WHERE created_at >= ? AND created_at < ? AND intent_after > intent_before", [W.startUtc, W.endUtc]).c,
+    failed_today: db.get("SELECT COUNT(*) c FROM ai_actions WHERE created_at >= ? AND created_at < ? AND status NOT IN ('success')", [W.startUtc, W.endUtc]).c,
+  }), { managed: 0, handoffs_open: 0, sent_today: 0, responses_today: 0, intent_up_today: 0, failed_today: 0 })
+
+  // ---- Communication health today ----
+  stats.comm_today = safe(() => {
+    const g = (sql) => db.get(sql, [W.startUtc, W.endUtc]).c
+    return {
+      texts_sent: g("SELECT COUNT(*) c FROM communications WHERE channel='text' AND direction='outgoing' AND occurred_at >= ? AND occurred_at < ?"),
+      texts_received: g("SELECT COUNT(*) c FROM communications WHERE channel='text' AND direction='incoming' AND occurred_at >= ? AND occurred_at < ?"),
+      emails_sent: g("SELECT COUNT(*) c FROM communications WHERE channel='email' AND direction='outgoing' AND occurred_at >= ? AND occurred_at < ?"),
+      calls: g("SELECT COUNT(*) c FROM communications WHERE channel IN ('call','voicemail') AND occurred_at >= ? AND occurred_at < ?"),
+      need_response: needRows.length,
+      missed_calls: missedCalls.length,
+      failed_messages: failedToday,
+    }
+  }, {})
+
+  // ---- Business performance (owner/admin only — backend-gated, not just hidden) ----
+  const role = String(req.user?.role || '').toLowerCase()
+  if (role === 'owner' || role === 'admin' || req.user?.team) {
+    stats.business = safe(() => {
+      const newSince = (d) => db.get("SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND substr(COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at),1,10) >= ?", [d]).c
+      return {
+        mtd: { new_leads: newSince(W.monthStart), closed: closed.closedMonth, volume: closed.monthVolume },
+        ytd: { new_leads: newSince(W.yearStart), closed: closed.closedYear, volume: closed.yearVolume },
+      }
+    }, null)
+  }
+
+  // ---- System health ----
+  stats.health = safe(() => {
+    const issues = []
+    const ageH = (iso) => iso ? (Date.now() - new Date(iso).getTime()) / 3600000 : null
+    const sierraAt = stats.last_sierra_sync?.synced_at || null
+    if (sierraAt !== null && ageH(sierraAt) > 1) issues.push(`Sierra sync last ran ${Math.round(ageH(sierraAt))}h ago`)
+    const backupAt = db.getSetting('gdrive_last_backup_at', null)
+    if (!backupAt || ageH(backupAt) > 26) issues.push('Backup overdue')
+    if (failedToday > 0) issues.push(`${failedToday} failed message${failedToday === 1 ? '' : 's'} today`)
+    if (!process.env.ANTHROPIC_API_KEY) issues.push('AI key missing')
+    return {
+      ok: issues.length === 0,
+      issues,
+      sierra_last: sierraAt, backup_last: backupAt,
+      fsbo_sync_last: db.getSetting('fsbo_master_last_sync', null),
+      expired_sync_last: db.getSetting('expired_master_last_sync', null),
+    }
+  }, { ok: true, issues: [] })
 
   res.json(stats)
 })

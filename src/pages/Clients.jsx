@@ -1113,6 +1113,26 @@ export default function Clients() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Deep-links from the Dashboard: ?smart=<smart list key>, ?tab=<status>, ?list=<saved list name>.
+  const pendingListNameRef = React.useRef(null)
+  React.useEffect(() => {
+    const usp = new URLSearchParams(window.location.search)
+    const smart = usp.get('smart'), tabQ = usp.get('tab'), listQ = usp.get('list'), sortQ = usp.get('sort')
+    if (smart) { setSmartList(smart); setActiveListId(null); setTab('all') }
+    else if (listQ) pendingListNameRef.current = listQ.toLowerCase()   // activated once savedLists load
+    else if (tabQ) setTab(tabQ)
+    if (sortQ) setSortBy(sortQ)
+    if (smart || tabQ || listQ || sortQ) window.history.replaceState({}, '', '/clients')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  React.useEffect(() => {
+    if (!pendingListNameRef.current || !savedLists.length) return
+    const want = pendingListNameRef.current
+    const l = savedLists.find(x => (x.name || '').toLowerCase() === want) || savedLists.find(x => (x.name || '').toLowerCase().startsWith(want))
+    if (l) { pendingListNameRef.current = null; loadSavedList(l.id) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [savedLists])
+
   // Remove a lead from a running plan (drip or automation) from the profile.
   const removePlan = async (kind, enrollmentId) => {
     const url = kind === 'drip'

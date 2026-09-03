@@ -1,19 +1,76 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api, authFetch } from '../api'
-import StatusBadge from '../components/StatusBadge'
+
+// ============================================================================
+// DASHBOARD — the daily operating command center. Answers, within seconds:
+// what needs attention, who to contact, what's happening today, what's coming,
+// what's heating up, is AI waiting on me, are transactions + the Hub healthy.
+// Deep analysis lives in Reporting; every number here clicks through to the
+// underlying records (Inbox, Clients smart lists, AI Opportunities, Tasks, …).
+// ============================================================================
 
 const DASHBOARD_CACHE_KEY = 'mst_dashboard_cache'
 
+const timeAgo = (iso) => {
+  if (!iso) return ''
+  const m = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+  if (isNaN(m)) return ''
+  if (m < 1) return 'just now'
+  if (m < 60) return `${m}m ago`
+  const h = Math.round(m / 60)
+  if (h < 24) return `${h}h ago`
+  return `${Math.round(h / 24)}d ago`
+}
+const fmtMoney = (n) => n ? `$${Number(n).toLocaleString()}` : '$0'
+const fmtTime = (t) => {
+  if (!t) return ''
+  const [h, mm] = String(t).split(':').map(Number)
+  if (isNaN(h)) return t
+  const ap = h >= 12 ? 'PM' : 'AM'
+  return `${((h + 11) % 12) + 1}:${String(mm || 0).padStart(2, '0')} ${ap}`
+}
+const fmtDay = (ymd) => {
+  if (!ymd) return ''
+  const d = new Date(ymd + 'T12:00:00')
+  return isNaN(d) ? ymd : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+// Section shell: consistent title + optional "View →" link, compact body.
+function Section({ title, link, linkLabel, children, accent }) {
+  return (
+    <div className="card" style={{ padding: '14px 16px', borderTop: accent ? `3px solid ${accent}` : undefined }}>
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
+        <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{title}</h3>
+        {link && <Link to={link} style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600 }}>{linkLabel || 'View →'}</Link>}
+      </div>
+      {children}
+    </div>
+  )
+}
+const Empty = ({ children }) => <div style={{ fontSize: 13, color: 'var(--text-muted)', padding: '4px 0' }}>{children}</div>
+
+// A clickable count chip (pipeline / prospecting rows).
+function Chip({ to, label, value, tone }) {
+  const colors = { red: '#ef4444', amber: '#d97706', green: '#059669', purple: '#7c3aed', blue: '#2563eb' }
+  const inner = (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-secondary)', fontSize: 12.5, cursor: to ? 'pointer' : 'default' }}>
+      <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
+      <strong style={{ color: tone ? colors[tone] : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{Number(value || 0).toLocaleString()}</strong>
+    </span>
+  )
+  return to ? <Link to={to} style={{ textDecoration: 'none' }}>{inner}</Link> : inner
+}
+
+const ATTN_META = {
+  handoff: { badge: '🤖 AI HANDOFF', color: '#ef4444' },
+  need_response: { badge: '💬 NEEDS REPLY', color: '#d97706' },
+  missed_call: { badge: '📞 MISSED CALL', color: '#ef4444' },
+}
+
 export default function Dashboard() {
-  // Hydrate from localStorage on first render — instant paint with last-known data
-  const [data, setData] = useState(() => {
-    try {
-      const raw = localStorage.getItem(DASHBOARD_CACHE_KEY)
-      return raw ? JSON.parse(raw) : null
-    } catch { return null }
-  })
-  const [loading, setLoading] = useState(false) // never show full-page loader if we have cached data
+  const [data, setData] = useState(() => { try { const raw = localStorage.getItem(DASHBOARD_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch { return null } })
+  const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [leadActivity, setLeadActivity] = useState([])
   const [me, setMe] = useState(null)
@@ -23,291 +80,275 @@ export default function Dashboard() {
   const load = () => {
     setRefreshing(true)
     api.dashboard().then(d => {
-      setData(d)
-      setLoading(false)
-      setRefreshing(false)
+      setData(d); setLoading(false); setRefreshing(false)
       try { localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(d)) } catch {}
     }).catch(() => { setLoading(false); setRefreshing(false) })
   }
-
-  const loadLeadActivity = () => {
-    authFetch('/api/track/recent?limit=25').then(r => r.json()).then(rows => {
-      if (Array.isArray(rows)) setLeadActivity(rows)
-    }).catch(() => {})
-  }
-
+  const loadLeadActivity = () => authFetch('/api/track/recent?limit=20').then(r => r.json()).then(rows => { if (Array.isArray(rows)) setLeadActivity(rows) }).catch(() => {})
   useEffect(() => { load(); loadLeadActivity() }, [])
-  useEffect(() => {
-    const t = setInterval(loadLeadActivity, 30_000)
-    return () => clearInterval(t)
-  }, [])
+  // Communication/attention data refreshes every 60s; heavier blocks ride along (single endpoint).
+  useEffect(() => { const t = setInterval(load, 60_000); const t2 = setInterval(loadLeadActivity, 30_000); return () => { clearInterval(t); clearInterval(t2) } }, [])
 
-  // Google Sheet sync REMOVED 2026-05-14 — the hub is the master file for
-  // transactions and pre-listings. The 'Sync Google Sheet' and 'Sync
-  // Everything' buttons used to pull the sheet and were creating duplicates
-  // on every run because the sheet has multiple address variants for the
-  // same property. Sierra incremental sync (every 10 min) is still active
-  // and is what keeps Sierra leads up to date.
-
-  // Only show full-page loader on truly first-ever load (no cache + no data yet)
   if (!data && loading) return <div className="page-loading">Loading dashboard...</div>
   if (!data) return <div className="page-loading">Failed to load dashboard</div>
 
-  const { transactions, clients, tasks, projects, pre_listings, marketing, social_media, vendors, partners, calendar, engagement } = data
+  const cards = data.cards || {}
+  const attention = data.attention || []
+  const schedule = data.schedule || []
+  const pipeline = data.pipeline || {}
+  const prospecting = data.prospecting || {}
+  const tx = data.tx || {}
+  const radar = data.radar || { examples: {} }
+  const ai = data.ai || {}
+  const comm = data.comm_today || {}
+  const health = data.health || { ok: true, issues: [] }
+  const business = data.business || null
 
-  const fmt = (n) => n ? `$${Number(n).toLocaleString()}` : '$0'
+  // Central-time greeting + date line.
+  const ctNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
+  const greeting = ctNow.getHours() < 12 ? 'Good morning' : ctNow.getHours() < 17 ? 'Good afternoon' : 'Good evening'
+  const dateLine = ctNow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
 
-  // Show the client we actually represent, driven by the agency_type chosen on
-  // the transaction (Buyer's Agent / Listing Agent / Dual Agent). Whoever we
-  // represent is the name shown. Handles legacy spellings ("Buyers Agent",
-  // "Dual Agency"). Falls back to deal type, then any available name.
-  const representedClient = (t) => {
-    const a = (t.agency_type || '').toLowerCase()
-    if (a.includes('dual') || a.includes('both')) {
-      const both = [t.seller_name, t.buyer_name].filter(Boolean).join(' / ')
-      return both || t.client_name || 'No client'
-    }
-    if (a.includes('listing') || a.includes('seller')) return t.seller_name || t.client_name || t.buyer_name || 'No client'
-    if (a.includes('buyer')) return t.buyer_name || t.client_name || t.seller_name || 'No client'
-    // agency_type not set yet — fall back to the deal type
-    if (t.type === 'listing') return t.seller_name || t.buyer_name || t.client_name || 'No client'
-    if (t.type === 'purchase') return t.buyer_name || t.seller_name || t.client_name || 'No client'
-    return t.buyer_name || t.seller_name || t.client_name || 'No client'
-  }
+  const row = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: 14, marginBottom: 14 }
+
+  const actionCards = [
+    { n: cards.priority_leads, label: 'Priority Leads', to: '#attention', cls: 'stat-rose' },
+    { n: cards.need_response, label: 'Need Response', to: '/inbox', cls: 'stat-amber' },
+    { n: cards.ai_handoffs, label: 'AI Handoffs', to: '/ai-opportunities', cls: 'stat-purple' },
+    { n: cards.followups_due, label: 'Follow-Ups Due', to: '/tasks', cls: 'stat-blue' },
+    { n: cards.appointments_today, label: 'Appointments Today', to: '/calendar', cls: 'stat-teal' },
+    { n: cards.overdue_tasks, label: 'Overdue Tasks', to: '/tasks', cls: 'stat-rose' },
+  ]
 
   return (
     <div className="page">
-      <div className="page-header">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="page-header" style={{ marginBottom: 10 }}>
         <div>
-          <h1>{firstName ? `Welcome, ${firstName}!` : 'Welcome!'} {refreshing && <span style={{fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>· refreshing...</span>}</h1>
-          <p className="page-subtitle">Matt Smith Team Command Center</p>
+          <h1 style={{ marginBottom: 2 }}>{greeting}{firstName ? `, ${firstName}` : ''} {refreshing && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>· refreshing…</span>}</h1>
+          <p className="page-subtitle">{dateLine}</p>
         </div>
       </div>
 
-      {/* Stats Grid */}
-      <div className="stats-grid">
-        <div className="stat-card stat-blue">
-          <div className="stat-number">{transactions.under_contract}</div>
-          <div className="stat-label">Under Contract</div>
-        </div>
-        <div className="stat-card stat-purple">
-          <div className="stat-number">{transactions.active}</div>
-          <div className="stat-label">Active Transactions</div>
-        </div>
-        <div className="stat-card stat-green">
-          <div className="stat-number">{transactions.closed_this_month}</div>
-          <div className="stat-label">Closed This Month</div>
-        </div>
-        <div className="stat-card stat-teal">
-          <div className="stat-number">{fmt(transactions.total_volume)}</div>
-          <div className="stat-label">Monthly Volume</div>
-        </div>
-        <div className="stat-card stat-teal">
-          <div className="stat-number">{fmt(transactions.year_volume)}</div>
-          <div className="stat-label">Year Volume ({transactions.closed_this_year ?? 0} closed)</div>
-        </div>
-        <div className="stat-card stat-blue">
-          <div className="stat-number">{(data.comms?.emails_sent ?? 0).toLocaleString()}</div>
-          <div className="stat-label">Emails Sent</div>
-        </div>
-        <div className="stat-card stat-purple">
-          <div className="stat-number">{(data.comms?.texts_sent ?? 0).toLocaleString()}</div>
-          <div className="stat-label">Texts Sent</div>
-        </div>
-        <div className="stat-card stat-amber">
-          <div className="stat-number">{clients.active_buyers}</div>
-          <div className="stat-label">Active Buyers</div>
-        </div>
-        <div className="stat-card stat-rose">
-          <div className="stat-number">{clients.active_sellers}</div>
-          <div className="stat-label">Active Sellers</div>
-        </div>
-        <div className="stat-card stat-red">
-          <div className="stat-number">{tasks.overdue}</div>
-          <div className="stat-label">Overdue Tasks</div>
-        </div>
-        <div className="stat-card stat-indigo">
-          <div className="stat-number">{pre_listings.total}</div>
-          <div className="stat-label">Pre-Listings</div>
-        </div>
-        <div className="stat-card stat-purple">
-          <div className="stat-number">{engagement?.in_drips ?? 0}</div>
-          <div className="stat-label">In Drip Campaigns</div>
-        </div>
-        <div className="stat-card stat-teal">
-          <div className="stat-number">{engagement?.website_24h ?? 0}</div>
-          <div className="stat-label">Website Visits (24h)</div>
-        </div>
+      {/* ── Row 1: action cards (every card opens its work queue) ── */}
+      <div className="stats-grid" style={{ marginBottom: 14 }}>
+        {actionCards.map(c => (
+          c.to === '#attention'
+            ? <a key={c.label} href="#attention" style={{ textDecoration: 'none' }} onClick={e => { e.preventDefault(); document.getElementById('attention')?.scrollIntoView({ behavior: 'smooth' }) }}>
+                <div className={`stat-card ${c.cls}`} style={{ cursor: 'pointer' }}><div className="stat-number">{c.n ?? 0}</div><div className="stat-label">{c.label}</div></div>
+              </a>
+            : <Link key={c.label} to={c.to} style={{ textDecoration: 'none' }}>
+                <div className={`stat-card ${c.cls}`} style={{ cursor: 'pointer' }}><div className="stat-number">{c.n ?? 0}</div><div className="stat-label">{c.label}</div></div>
+              </Link>
+        ))}
       </div>
 
-      {/* Sierra Sync Status */}
-      {data.last_sierra_sync && (
-        <div className="card" style={{marginBottom: 20}}>
-          <div className="card-body" style={{padding: '12px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center'}}>
-            <span style={{fontSize: 13, color: 'var(--text-muted)'}}>
-              Last Sierra sync: {new Date(data.last_sierra_sync.synced_at).toLocaleString()} &mdash;
-              {data.last_sierra_sync.leads_synced} leads ({data.last_sierra_sync.leads_added} new, {data.last_sierra_sync.leads_updated} updated)
-            </span>
-            <Link to="/clients" className="card-link">View Clients</Link>
-          </div>
-        </div>
-      )}
-
-      <div className="dashboard-grid">
-        {/* Active Transactions */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Active Transactions</h3>
-            <Link to="/transactions" className="card-link">View All</Link>
-          </div>
-          <div className="card-body">
-            {data.active_transactions?.length === 0 ? (
-              <p className="empty-state">No active transactions</p>
-            ) : (
-              <div className="mini-table">
-                {data.active_transactions?.map(t => (
-                  <div key={t.id} className="mini-row">
-                    <div className="mini-row-main">
-                      <span className="mini-row-title">{t.property_address}</span>
-                      <span className="mini-row-sub">{representedClient(t)}</span>
-                    </div>
-                    <div className="mini-row-meta">
-                      <StatusBadge status={t.property_status?.toLowerCase().replace(/ /g, '_')} />
-                      {t.closing_date && <span className="mini-date">Close: {t.closing_date}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Upcoming Tasks */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Upcoming Tasks</h3>
-            <Link to="/tasks" className="card-link">View All</Link>
-          </div>
-          <div className="card-body">
-            {data.upcoming_tasks?.length === 0 ? (
-              <p className="empty-state">No upcoming tasks</p>
-            ) : (
-              <div className="mini-table">
-                {data.upcoming_tasks?.map(t => (
-                  <div key={t.id} className="mini-row">
-                    <div className="mini-row-main">
-                      <span className="mini-row-title">{t.title}</span>
-                      <span className="mini-row-sub">{t.assigned_to || 'Unassigned'}</span>
-                    </div>
-                    <div className="mini-row-meta">
-                      <StatusBadge status={t.priority} />
-                      {t.due_date && (
-                        <span className={`mini-date ${t.due_date < new Date().toISOString().split('T')[0] ? 'overdue' : ''}`}>
-                          {t.due_date}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Today's Events */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Today's Schedule</h3>
-            <Link to="/calendar" className="card-link">Full Calendar</Link>
-          </div>
-          <div className="card-body">
-            {data.todays_events?.length === 0 ? (
-              <p className="empty-state">No events today</p>
-            ) : (
-              <div className="mini-table">
-                {data.todays_events?.map(ev => (
-                  <div key={ev.id} className="mini-row">
-                    <div className="mini-row-main">
-                      <span className="mini-row-title">{ev.title}</span>
-                      <span className="mini-row-sub">{ev.event_type}{ev.location ? ` - ${ev.location}` : ''}</span>
-                    </div>
-                    <div className="mini-row-meta">
-                      {ev.start_time && <span className="mini-date">{ev.start_time}</span>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Activity */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Recent Activity</h3>
-          </div>
-          <div className="card-body">
-            {data.recent_activity?.length === 0 ? (
-              <p className="empty-state">No recent activity</p>
-            ) : (
-              <div className="activity-feed">
-                {data.recent_activity?.map(a => (
-                  <div key={a.id} className="activity-item">
-                    <div className="activity-dot"></div>
-                    <div className="activity-content">
-                      <span className="activity-action">{a.action}</span>
-                      <span className="activity-details">{a.details}</span>
-                      <span className="activity-time">{new Date(a.created_at).toLocaleString()}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Live Lead Activity — from mattsmithteam.com tracking pixel */}
-        <div className="card">
-          <div className="card-header">
-            <h3>Live Lead Activity</h3>
-            <span style={{fontSize: 11, color: 'var(--text-muted)'}}>auto-refresh 30s · last {leadActivity.length}</span>
-          </div>
-          <div className="card-body">
-            {leadActivity.length === 0 ? (
-              <p className="empty-state">No tracked activity yet. Paste the snippet into Sierra (see Updates → Bulk Tools).</p>
-            ) : (
-              <div className="activity-feed">
-                {leadActivity.map(a => {
-                  const who = a.first_name ? `${a.first_name} ${a.last_name || ''}` : (a.sierra_lead_id ? `Lead #${a.sierra_lead_id}` : 'Anonymous')
-                  const eventLabel = {
-                    pageview: '👁 page view',
-                    listing_view: '🏠 listing view',
-                    save: '⭐ saved',
-                    pageduration: '⏱ time on page',
-                  }[a.event_type] || a.event_type
+      {/* ── Row 2: Needs Attention + Today's Schedule ─────────────── */}
+      <div style={{ ...row, gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
+        <div id="attention">
+          <Section title="Needs Your Attention" accent="#ef4444">
+            {attention.length === 0 ? <Empty>Nothing waiting on you right now. 🎉</Empty> : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {attention.map((a, i) => {
+                  const meta = ATTN_META[a.type] || { badge: a.type, color: 'var(--text-muted)' }
                   return (
-                    <div key={a.id} className="activity-item">
-                      <div className="activity-dot" style={{background: a.event_type === 'save' ? '#f59e0b' : a.event_type === 'listing_view' ? '#3b82f6' : '#6b7280'}}></div>
-                      <div className="activity-content">
-                        <span className="activity-action">
-                          {a.client_id ? <Link to="/clients" style={{color: 'inherit', fontWeight: 600}}>{who}</Link> : who}
-                          {' '}{eventLabel}
-                        </span>
-                        <span className="activity-details">
-                          {a.listing_mls ? `MLS ${a.listing_mls} · ` : ''}
-                          {a.page_title || a.page_url}
-                          {a.duration_sec ? ` · ${a.duration_sec}s` : ''}
-                        </span>
-                        <span className="activity-time">{new Date(a.created_at).toLocaleString()}</span>
+                    <div key={i} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 8, padding: '8px 10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                        <strong style={{ fontSize: 13.5 }}>{a.client_id ? <Link to={`/clients/${a.client_id}`} style={{ color: 'inherit' }}>{a.name}</Link> : a.name}</strong>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: meta.color, letterSpacing: '.04em' }}>{meta.badge}</span>
+                        {a.intent != null && <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(37,99,235,.12)', color: '#2563eb', borderRadius: 10, padding: '1px 7px' }}>Intent {a.intent}</span>}
+                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(a.at)}</span>
+                      </div>
+                      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>{a.reason}{a.agent ? ` · ${a.agent}` : ''}</div>
+                      {a.detail && <div style={{ fontSize: 12.5, marginTop: 3, fontStyle: 'italic' }}>“{a.detail}”</div>}
+                      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+                        {a.client_id && <Link className="btn btn-sm btn-primary" to={`/inbox?client=${a.client_id}`}>Reply</Link>}
+                        {a.client_id && <Link className="btn btn-sm" to={`/clients/${a.client_id}`}>Open</Link>}
+                        {a.type === 'handoff' && <Link className="btn btn-sm" to="/ai-opportunities">Handoff queue</Link>}
                       </div>
                     </div>
                   )
                 })}
               </div>
             )}
-          </div>
+          </Section>
         </div>
+        <Section title="Today's Schedule" link="/calendar" linkLabel="View Calendar →">
+          {schedule.length === 0 ? <Empty>No appointments scheduled today.</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {schedule.map((e, i) => (
+                <Link key={i} to={e.link || '/calendar'} style={{ display: 'flex', gap: 10, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: i < schedule.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, minWidth: 66, color: '#2563eb', fontVariantNumeric: 'tabular-nums' }}>{fmtTime(e.time) || '—'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto', textAlign: 'right' }}>{e.location}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+        </Section>
       </div>
+
+      {/* ── Row 3: Pipeline + Transactions ────────────────────────── */}
+      <div style={row}>
+        <Section title="Lead Pipeline" link="/clients" linkLabel="Open Clients →">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            <Chip to="/clients?tab=prime" label="Prime" value={pipeline.prime} />
+            <Chip to="/clients?tab=active" label="Active" value={pipeline.active} />
+            <Chip to="/clients?tab=qualify" label="Qualify" value={pipeline.qualify} />
+            <Chip to="/clients?tab=watch" label="Watch" value={pipeline.watch} />
+            <Chip to="/clients?tab=pending" label="Pending" value={pipeline.pending} />
+            <Chip to="/clients?tab=new" label="New" value={pipeline.new} />
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <Chip to="/clients?sort=highest_score" label="High Intent" value={pipeline.high_intent} tone="red" />
+            <Chip to="/inbox" label="Need Response" value={pipeline.need_response} tone="amber" />
+            <Chip to="/clients?smart=viewed_24h" label="Viewed 24h" value={pipeline.viewed_24h} tone="green" />
+            <Chip to="/clients" label="AI Managed" value={pipeline.ai_managed} tone="purple" />
+          </div>
+        </Section>
+        <Section title="Transactions" link="/transactions" accent="#2563eb">
+          <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
+            <div><div style={{ fontSize: 22, fontWeight: 800 }}>{tx.open ?? 0}</div><div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Open / Pending</div></div>
+            <div><div style={{ fontSize: 22, fontWeight: 800, color: tx.deadlines_today ? '#d97706' : 'var(--text-primary)' }}>{tx.deadlines_today ?? 0}</div><div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Deadlines Today</div></div>
+          </div>
+          {(tx.closings_7d || []).length === 0 ? <Empty>No closings in the next 7 days.</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {tx.closings_7d.map((c, i) => (
+                <Link key={i} to="/transactions" style={{ display: 'flex', gap: 8, fontSize: 12.5, textDecoration: 'none', color: 'inherit' }}>
+                  <strong style={{ minWidth: 52, color: '#2563eb' }}>{fmtDay(c.date)}</strong>
+                  <span>Closing · {c.address}</span>
+                </Link>
+              ))}
+            </div>
+          )}
+          {(tx.deadline_items || []).length > 0 && (
+            <div style={{ marginTop: 8, fontSize: 12, color: '#d97706' }}>
+              {tx.deadline_items.map((d, i) => <div key={i}>⚠ {d.label} · {d.address}</div>)}
+            </div>
+          )}
+        </Section>
+      </div>
+
+      {/* ── Row 4: Opportunity Radar + HUB AI ─────────────────────── */}
+      <div style={row}>
+        <Section title="Opportunity Radar" link="/clients?smart=returned_past_client" linkLabel="View Opportunities →" accent="#059669">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            <Chip label="Re-engaged (7d)" value={radar.reengaged} tone="green" />
+            <Chip label="Repeat Viewers" value={radar.repeat_viewers} tone="green" />
+            <Chip label="Past Clients Active" value={radar.past_clients_active} tone="green" />
+          </div>
+          {[...(radar.examples?.repeat || []).map(r => ({ ...r, note: `viewed ${r.prop} ×${r.n} this week` })),
+            ...(radar.examples?.reengaged || []).map(r => ({ ...r, note: 'back after a long quiet stretch' })),
+            ...(radar.examples?.past_clients || []).map(r => ({ ...r, note: 'past client browsing again' }))].slice(0, 5).map((r, i) => (
+              <div key={i} style={{ fontSize: 12.5, padding: '2px 0' }}>
+                <Link to={`/clients/${r.id}`} style={{ fontWeight: 600 }}>{r.name}</Link>
+                <span style={{ color: 'var(--text-secondary)' }}> — {r.note}</span>
+              </div>
+            ))}
+          {!radar.reengaged && !radar.repeat_viewers && !radar.past_clients_active && <Empty>No new heat this week yet.</Empty>}
+        </Section>
+        <Section title="HUB AI" link="/ai-opportunities" accent="#7c3aed">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            <Chip label="AI-Managed" value={ai.managed} tone="purple" />
+            <Chip to="/ai-opportunities" label="Waiting for Human" value={ai.handoffs_open} tone={ai.handoffs_open ? 'red' : 'purple'} />
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, fontSize: 12.5 }}>
+            <div><strong style={{ fontSize: 18 }}>{ai.sent_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>AI texts today</div></div>
+            <div><strong style={{ fontSize: 18 }}>{ai.responses_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Responses</div></div>
+            <div><strong style={{ fontSize: 18 }}>{ai.intent_up_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Intent increases</div></div>
+            <div><strong style={{ fontSize: 18, color: ai.failed_today ? '#ef4444' : 'inherit' }}>{ai.failed_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Failed actions</div></div>
+          </div>
+        </Section>
+      </div>
+
+      {/* ── Row 5: Prospecting + Communication Health ─────────────── */}
+      <div style={row}>
+        <Section title="Prospecting" link="/clients?list=FSBO" linkLabel="Open lists →">
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>FSBO</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
+            <Chip to="/clients?list=FSBO" label="Available" value={prospecting.fsbo_available} />
+            <Chip to="/clients?list=FSBO" label="Aging 30+" value={prospecting.fsbo_aging_30} tone="amber" />
+            <Chip to="/clients?smart=fsbo_dom14_no_text_2w" label="Follow-Up Due" value={prospecting.fsbo_followup_due} tone="red" />
+          </div>
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>CANCELLED / EXPIRED</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <Chip to="/clients?list=Cancelled" label="On List" value={prospecting.cx_total} />
+            <Chip to="/clients?smart=cx_no_response" label="No Response Yet" value={prospecting.cx_no_response} tone="amber" />
+          </div>
+        </Section>
+        <Section title="Communication Health" link="/inbox" linkLabel="Open Inbox →">
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, fontSize: 12.5, marginBottom: 8 }}>
+            <div><strong style={{ fontSize: 18 }}>{comm.texts_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts sent</div></div>
+            <div><strong style={{ fontSize: 18 }}>{comm.texts_received ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts received</div></div>
+            <div><strong style={{ fontSize: 18 }}>{comm.calls ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Calls</div></div>
+            <div><strong style={{ fontSize: 18 }}>{comm.emails_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails sent</div></div>
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <Chip to="/inbox" label="Need Response" value={comm.need_response} tone="amber" />
+            <Chip to="/inbox" label="Missed Calls" value={comm.missed_calls} tone={comm.missed_calls ? 'red' : undefined} />
+            <Chip to="/inbox" label="Failed Messages" value={comm.failed_messages} tone={comm.failed_messages ? 'red' : undefined} />
+          </div>
+        </Section>
+      </div>
+
+      {/* ── Row 6: Business performance (owner/admin only — backend gated) ── */}
+      {business && (
+        <div style={{ ...row, gridTemplateColumns: 'minmax(330px, 640px)' }}>
+          <Section title="Business Performance" link="/reporting" linkLabel="Reporting →">
+            <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
+              <thead><tr style={{ color: 'var(--text-muted)', fontSize: 11.5, textAlign: 'right' }}><th style={{ textAlign: 'left', fontWeight: 600 }}></th><th style={{ fontWeight: 700 }}>MTD</th><th style={{ fontWeight: 700 }}>YTD</th></tr></thead>
+              <tbody style={{ fontVariantNumeric: 'tabular-nums' }}>
+                <tr><td style={{ padding: '4px 0' }}>New Leads</td><td style={{ textAlign: 'right' }}>{(business.mtd?.new_leads ?? 0).toLocaleString()}</td><td style={{ textAlign: 'right' }}>{(business.ytd?.new_leads ?? 0).toLocaleString()}</td></tr>
+                <tr><td style={{ padding: '4px 0' }}>Closed</td><td style={{ textAlign: 'right' }}>{business.mtd?.closed ?? 0}</td><td style={{ textAlign: 'right' }}>{business.ytd?.closed ?? 0}</td></tr>
+                <tr><td style={{ padding: '4px 0' }}>Volume</td><td style={{ textAlign: 'right' }}>{fmtMoney(business.mtd?.volume)}</td><td style={{ textAlign: 'right' }}>{fmtMoney(business.ytd?.volume)}</td></tr>
+              </tbody>
+            </table>
+          </Section>
+        </div>
+      )}
+
+      {/* ── Row 7: System health ──────────────────────────────────── */}
+      <div style={{ marginBottom: 14 }}>
+        {health.ok ? (
+          <div className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+            <span style={{ color: '#059669', fontWeight: 700 }}>✓ System Healthy</span>
+            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+              Sierra {timeAgo(health.sierra_last) || '—'} · Backup {timeAgo(health.backup_last) || '—'} · FSBO sync {timeAgo(health.fsbo_sync_last) || '—'} · Expired sync {timeAgo(health.expired_sync_last) || '—'}
+            </span>
+          </div>
+        ) : (
+          <div className="card" style={{ padding: '10px 16px', borderLeft: '3px solid #ef4444', fontSize: 13 }}>
+            <strong style={{ color: '#ef4444' }}>⚠ System issues</strong>
+            {health.issues.map((s, i) => <div key={i} style={{ marginTop: 2 }}>⚠ {s}</div>)}
+            <Link to="/updates" style={{ fontSize: 12.5 }}>Open diagnostics →</Link>
+          </div>
+        )}
+      </div>
+
+      {/* ── Live lead activity feed (kept from the old dashboard) ── */}
+      <Section title="Live Lead Activity" link="/clients?smart=viewed_24h" linkLabel="Viewed 24h →">
+        {leadActivity.length === 0 ? <Empty>No website activity yet.</Empty> : (
+          <div className="activity-list">
+            {leadActivity.map(a => {
+              const who = a.first_name ? `${a.first_name} ${a.last_name || ''}` : (a.sierra_lead_id ? `Lead #${a.sierra_lead_id}` : 'Anonymous')
+              const eventLabel = { pageview: '👁 page view', listing_view: '🏠 listing view', save: '⭐ saved', pageduration: '⏱ time on page' }[a.event_type] || a.event_type
+              return (
+                <div key={a.id} className="activity-item">
+                  <div className="activity-dot" style={{ background: a.event_type === 'save' ? '#f59e0b' : a.event_type === 'listing_view' ? '#3b82f6' : '#6b7280' }}></div>
+                  <div className="activity-content">
+                    <span className="activity-action">
+                      {a.client_id ? <Link to={`/clients/${a.client_id}`} style={{ color: 'inherit', fontWeight: 600 }}>{who}</Link> : who}
+                      {' '}{eventLabel}
+                    </span>
+                    <span className="activity-details">{a.listing_mls ? `MLS ${a.listing_mls} · ` : ''}{a.page_title || a.page_url}{a.duration_sec ? ` · ${a.duration_sec}s` : ''}</span>
+                    <span className="activity-time">{timeAgo(a.created_at)}</span>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </Section>
     </div>
   )
 }

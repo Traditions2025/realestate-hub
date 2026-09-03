@@ -51,7 +51,7 @@ const DEADLINE_FIELDS = [
   { col: 'closing_date',               label: 'Closing',                statusCol: null,                            terminal: [] },
 ]
 
-function fetchTodaysDeadlines(todayKey) {
+export function fetchTodaysDeadlines(todayKey) {
   const placeholders = [...ACTIVE_STATUSES].map(() => '?').join(',')
   const txs = db.all(
     `SELECT * FROM transactions WHERE property_status IN (${placeholders})`,

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-03T19:13:13.759Z",
+  "generated_at": "2026-09-03T19:27:12.535Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e44da68",
+      "date": "2026-09-03T14:13:17-05:00",
+      "subject": "Dashboard: Emails Sent + Texts Sent stat cards",
+      "title": "Dashboard: Emails Sent + Texts Sent stat cards",
+      "body": "All-time outgoing counts from the communications feed (channel email/text,\ndirection outgoing), shown next to the volume stats.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4e97e4e",
       "date": "2026-09-03T12:56:09-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Pre-listing checklist: inline checkboxes, relabeled docs, shareable link",
       "body": "- Checklist items now single-column with the checkbox inline beside each task\n- Section 1 doc items relabeled \"Add to Dotloop:\" -> \"Signed:\" (Listing\n  Agreement, Agency Agreement, Property Disclosure, Lead-Based Paint if <1978)\n- New \"Copy share link\" button in the pre-listing popup; the link\n  /transactions?prelisting=<id> auto-opens that listing's checklist so it can\n  be shared (e.g. with Matt) for review\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "afb01bc",
-      "date": "2026-07-14T09:42:38-05:00",
-      "subject": "Add Seller Prepaids / Credit field to under-contract transactions",
-      "title": "Seller Prepaids / Credit field to under-contract transactions",
-      "body": "Yes/No selector + amount input, shown in the transaction popup when status is\nUnder Contract / Pending / Clear to Close / Closed. Amount input is disabled\nunless Yes is selected. Backed by two new transactions columns\n(seller_prepaids, seller_prepaids_amount) via idempotent add-if-missing.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
     }
   ]
 }

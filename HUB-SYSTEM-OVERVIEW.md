@@ -102,8 +102,19 @@ External: Sierra · FUB · Twilio · SendGrid · Gmail IMAP · Google Calendar �
 
 Every tab is a React page backed by one or more API routers.
 
-### Dashboard (`/`)
-Team command center: at-a-glance counts (active transactions, tasks due, new leads), quick links, activity feed.
+### Dashboard (`/`) — the daily operating command center
+Redesigned (2026-09) around "what should I do first?", all Central-time, every number click-through:
+- **Action cards:** Priority Leads, Need Response (→ Inbox), AI Handoffs (→ AI Opportunities), Follow-Ups Due / Overdue Tasks (→ Tasks), Appointments Today (→ Calendar).
+- **Needs Your Attention:** open AI handoffs + unanswered inbound replies (with the actual message, intent, recency) + today's missed calls, each with Reply/Open actions.
+- **Today's Schedule:** calendar events + transaction closings/walkthroughs happening today.
+- **Lead Pipeline:** status chips (Prime/Active/Qualify/Watch/Pending/New) + dynamic conditions (High Intent ≥70, Need Response, Viewed 24h, AI Managed) deep-linking into Clients (`?tab=`, `?smart=`, `?list=`, `?sort=`).
+- **Transactions:** open count, closings next 7 days, deadlines due today (reuses `fetchTodaysDeadlines`).
+- **Opportunity Radar:** re-engaged after 60d+ quiet, repeat property viewers (3+ views/7d), past clients active again — with named examples.
+- **HUB AI:** managed count, handoffs waiting, AI texts/responses/intent-increases/failed actions today.
+- **Communication Health:** today's sent/received/calls + Need Response / Missed Calls / Failed Messages.
+- **Business Performance** (owner/admin only, backend-gated): MTD/YTD new leads, closed, volume.
+- **System Health:** Sierra sync, backup, master syncs, failed messages — one green line when healthy.
+- Server: single aggregation in `server/routes/dashboard.js` (`stats.cards/attention/schedule/pipeline/prospecting/tx/radar/ai/comm_today/business/health`), metric definitions in a comment block there; per-block `safe()` isolation so one failing query never blanks the page. `closing_date` parsed in both `YYYY-MM-DD` and `M/D/YYYY` forms.
 
 ### Clients (`/clients`) — the CRM core
 - Searchable/filterable client list; deep-link to a profile via `?open=<id>`.
