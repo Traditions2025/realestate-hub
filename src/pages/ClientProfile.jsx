@@ -291,6 +291,10 @@ export default function ClientProfile() {
 // ── Client Details (contact + CRM + tags) ────────────────────────────────
 function ClientDetails({ client, onSaved }) {
   const cid = client.id
+  // MLS # / Off Market Date are prospecting-list fields — only shown for FSBO and
+  // Cancelled/Expired leads (or when the fields already hold data, so nothing gets hidden).
+  const showMlsFields = !!(client.fsbo_status || client.mls_status || client.off_market_date || client.mls_number
+    || /fsbo|expired|cancell?ed/i.test(`${client.tags || ''} ${client.source || ''}`))
   return (
     <Section title="Client Details" id="details">
       <div className="cp-two">
@@ -306,8 +310,8 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="City" field="city" value={client.city} clientId={cid} onSaved={onSaved} />
           <InlineField label="State" field="state" value={client.state} clientId={cid} onSaved={onSaved} />
           <InlineField label="Zip" field="zip" value={client.zip} clientId={cid} onSaved={onSaved} />
-          <InlineField label="Off Market Date" field="off_market_date" type="date" value={client.off_market_date} clientId={cid} onSaved={onSaved} />
-          <InlineField label="MLS #" field="mls_number" value={client.mls_number} clientId={cid} onSaved={onSaved} />
+          {showMlsFields && <InlineField label="Off Market Date" field="off_market_date" type="date" value={client.off_market_date} clientId={cid} onSaved={onSaved} />}
+          {showMlsFields && <InlineField label="MLS #" field="mls_number" value={client.mls_number} clientId={cid} onSaved={onSaved} />}
         </div>
         <div>
           <div className="cp-sub">CRM</div>

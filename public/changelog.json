@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-09-03T17:32:25.783Z",
+  "generated_at": "2026-09-03T17:46:38.510Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "65cff6c",
+      "date": "2026-09-03T12:39:18-05:00",
+      "subject": "Website MMS card: kicker now 'Cedar Rapids and Surrounding Areas'",
+      "title": "Website MMS card: kicker now 'Cedar Rapids and Surrounding Areas'",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2311e91",
+      "date": "2026-09-03T12:32:29-05:00",
+      "subject": "Insert website: attach a branded MMS preview card so a visual always shows",
+      "title": "Insert website: attach a branded MMS preview card so a visual always shows",
+      "body": "iPhones only auto-load SMS link previews from senders saved in the recipient's\ncontacts; from our business number they show 'Tap to Load Preview' (Apple's rule,\nnot controllable). So the Insert website button now ALSO attaches a branded\n1200x628 card (Cedar Rapids hero, gold accents, MattSmithTeam.com) as MMS media,\nwhich always displays automatically, with the full https:// link below it still\ntappable. Card is served statically at /website-card.jpg (146KB JPEG).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c995907",
       "date": "2026-09-03T11:54:24-05:00",
@@ -3984,22 +4000,6 @@
       "subject": "Unified full marketing checklist on pre-listings AND active transactions",
       "title": "Unified full marketing checklist on pre-listings AND active transactions",
       "body": "Replaced the marketing checklist with the full 8-section list (Listing Setup,\nProperty Prep, MLS, Showing Setup, Marketing Prep, Launch Day, High-End,\nCondo) and show the SAME list in two places:\n- the pre-listing popup (stored as JSON on the new pre_listings.marketing_tasks)\n- the transaction popup while Pre-Listing/Active (transactions.marketing_tasks)\n\nPre-listing card progress now reflects the unified checklist. Added the\npre_listings.marketing_tasks column (idempotent add-if-missing migration).\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4885372",
-      "date": "2026-07-09T03:02:28-05:00",
-      "subject": "Consolidate listings into Transactions: marketing checklist + remove Listings tab",
-      "title": "Consolidate listings into Transactions: marketing checklist + remove Listings tab",
-      "body": "- transactions gains a marketing_tasks column (JSON checklist), shown in the\n  transaction popup while status is Pre-Listing or Active. Ported the full\n  marketing checklist from the retired Listings tab.\n- Server auto-clears marketing_tasks when a transaction moves to Under\n  Contract (or beyond) — the pre-listing/active marketing push is done.\n- Removed the Listings tab (nav + route + lazy import). Transactions is now\n  the single place to track a listing through every stage.\n\nThe (empty, already-backed-up) listings table is left dormant in the DB\nrather than dropped, because it's still referenced by 15+ code paths\n(syncListingFromTransaction, pre-listing dedup, the listings route); dropping\nit would risk runtime errors for zero data benefit. Can fully retire later.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "af59714",
-      "date": "2026-07-09T02:50:26-05:00",
-      "subject": "Pre-listing opens its own popup; remove Pre-Listing Pipeline page",
-      "title": "Pre-listing opens its own popup; remove Pre-Listing Pipeline page",
-      "body": "Clicking a pre-listing card in the Transactions board now opens an in-place\npopup (address/owner/walkthrough, the 16-item pre-listing checklist with\nlive progress, notes, and a Promote-to-Active action) instead of redirecting\nto the separate /pre-listings page. That page (the \"Pre-Listing Pipeline\")\nis removed from routing — the Transactions tab is the single place to work a\nlisting through every stage. The Pre-Listing column itself stays.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]
