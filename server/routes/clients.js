@@ -193,19 +193,19 @@ export function buildClientFilter(q) {
   // ---- Follow-Up Coverage criteria (from the followup_coverage summary table) ----
   if (q.coverage_status) {
     const arr = String(q.coverage_status).split(',').map(s => s.trim()).filter(s => ['protected', 'at_risk', 'unprotected', 'snoozed', 'excluded'].includes(s))
-    if (arr.length) where += ` AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.coverage_status IN (${arr.map(s => `'${s}'`).join(',')}))`
+    if (arr.length) where += ` AND clients.id IN (SELECT client_id FROM followup_coverage WHERE coverage_status IN (${arr.map(s => `'${s}'`).join(',')}))`
   }
   if (q.relationship_level) {
     const arr = String(q.relationship_level).split(',').map(s => s.trim()).filter(s => ['never_connected', 'connected', 'qualified', 'active_opportunity', 'client'].includes(s))
-    if (arr.length) where += ` AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.relationship_level IN (${arr.map(s => `'${s}'`).join(',')}))`
+    if (arr.length) where += ` AND clients.id IN (SELECT client_id FROM followup_coverage WHERE relationship_level IN (${arr.map(s => `'${s}'`).join(',')}))`
   }
-  if (q.coverage_overdue === '1') where += ' AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.overdue_by_days > 0)'
+  if (q.coverage_overdue === '1') where += ' AND clients.id IN (SELECT client_id FROM followup_coverage WHERE overdue_by_days > 0)'
   if (q.snoozed === '1') where += ' AND clients.snooze_until IS NOT NULL'
   if (q.snoozed === '0') where += ' AND clients.snooze_until IS NULL'
   if (q.no_owner === '1') where += " AND (clients.agent_assigned IS NULL OR trim(clients.agent_assigned) = '')"
-  if (q.next_action === 'none') where += " AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.next_action_at IS NULL AND fc.coverage_status IN ('unprotected','at_risk'))"
-  if (q.next_action === 'has') where += ' AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.next_action_at IS NOT NULL)'
-  if (q.days_since_contact_min) { where += ' AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.days_since_contact >= ?)'; params.push(Number(q.days_since_contact_min) || 0) }
+  if (q.next_action === 'none') where += " AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE client_id = clients.id AND next_action_at IS NULL AND coverage_status IN ('unprotected','at_risk'))"
+  if (q.next_action === 'has') where += ' AND clients.id IN (SELECT client_id FROM followup_coverage WHERE next_action_at IS NOT NULL)'
+  if (q.days_since_contact_min) { where += ' AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE client_id = clients.id AND days_since_contact >= ?)'; params.push(Number(q.days_since_contact_min) || 0) }
 
   // Type filter: 'buyer' / 'seller' includes 'both' (clients flagged as both buyer & seller match either filter)
   if (q.type === 'buyer') {
@@ -697,39 +697,35 @@ export const SMART_LIST_SQL = {
   // one authoritative evaluator in server/followup-coverage.js, never re-derived here) ====
   // The headline list: meaningful (connected+) leads with NO future action of any kind.
   falling_through_cracks:
-    `(EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id
-        AND fc.coverage_status = 'unprotected'
-        AND fc.relationship_level IN ('connected','qualified','active_opportunity','client')))`,
+    `(clients.id IN (SELECT client_id FROM followup_coverage WHERE coverage_status = 'unprotected'
+        AND relationship_level IN ('connected','qualified','active_opportunity','client')))`,
   // Prime/Active pipeline statuses with no future coverage — regardless of relationship level.
   active_no_next_action:
     `(clients.status IN ('prime','active')
-      AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.coverage_status = 'unprotected'))`,
+      AND clients.id IN (SELECT client_id FROM followup_coverage WHERE coverage_status = 'unprotected'))`,
   connected_sellers_going_cold:
-    `(EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.risk_flags LIKE '%seller_going_cold%'))`,
+    `(clients.id IN (SELECT client_id FROM followup_coverage WHERE risk_flags LIKE '%seller_going_cold%'))`,
   connected_buyers_going_cold:
-    `(EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.risk_flags LIKE '%buyer_going_cold%'))`,
+    `(clients.id IN (SELECT client_id FROM followup_coverage WHERE risk_flags LIKE '%buyer_going_cold%'))`,
   high_intent_no_human:
-    `(EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id
-        AND fc.risk_flags LIKE '%high_intent_no_human_contact%' AND fc.coverage_status IN ('unprotected','at_risk')))`,
+    `(clients.id IN (SELECT client_id FROM followup_coverage WHERE risk_flags LIKE '%high_intent_no_human_contact%' AND coverage_status IN ('unprotected','at_risk')))`,
   followup_overdue:
-    `(EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id
-        AND fc.overdue_by_days > 0 AND fc.coverage_status IN ('at_risk','unprotected')))`,
+    `(clients.id IN (SELECT client_id FROM followup_coverage WHERE overdue_by_days > 0 AND coverage_status IN ('at_risk','unprotected')))`,
   // Snoozes waking in the next 7 days (or already due) — plan the week's re-engagement.
   snooze_waking:
     `(clients.snooze_until IS NOT NULL AND clients.snooze_until <= datetime('now','+7 days'))`,
   past_clients_due:
     `(lower(coalesce(clients.status,'')) = 'closed'
-      AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.coverage_status IN ('unprotected','at_risk')))`,
+      AND clients.id IN (SELECT client_id FROM followup_coverage WHERE coverage_status IN ('unprotected','at_risk')))`,
   // Meaningful leads with nobody responsible — an operational error, not a lead state.
   ownerless_meaningful:
     `((clients.agent_assigned IS NULL OR trim(clients.agent_assigned) = '')
-      AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id
-        AND fc.relationship_level IN ('connected','qualified','active_opportunity','client')))`,
+      AND clients.id IN (SELECT client_id FROM followup_coverage WHERE relationship_level IN ('connected','qualified','active_opportunity','client')))`,
   // AI-managed leads whose engine has no scheduled next action (and nothing else covers them).
   ai_no_next_action:
     `(EXISTS (SELECT 1 FROM ai_lead_state s WHERE s.client_id = clients.id AND s.ai_enabled = 1)
       AND NOT EXISTS (SELECT 1 FROM ai_scheduled_actions a WHERE a.client_id = clients.id AND a.state = 'pending')
-      AND EXISTS (SELECT 1 FROM followup_coverage fc WHERE fc.client_id = clients.id AND fc.coverage_status IN ('unprotected','at_risk')))`,
+      AND clients.id IN (SELECT client_id FROM followup_coverage WHERE coverage_status IN ('unprotected','at_risk')))`,
 }
 
 // Map sort key to SQL ORDER BY

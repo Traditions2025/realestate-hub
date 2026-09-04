@@ -988,6 +988,7 @@ export async function initDb() {
     )
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_fc_status ON followup_coverage(coverage_status)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_ai_sched_client ON ai_scheduled_actions(client_id, state)')
   db.run('CREATE INDEX IF NOT EXISTS idx_fc_next ON followup_coverage(next_action_at)')
   // Status TRANSITIONS only (protected→unprotected etc.) — never per-run logs.
   db.run(`

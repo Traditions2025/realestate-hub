@@ -371,17 +371,21 @@ export async function runCoverageAudit({ force = false } = {}) {
     AND (phone IS NOT NULL AND phone != '' OR email IS NOT NULL AND email != '')
     AND lower(coalesce(status,'')) NOT IN ('junk','donotcontact','archived')`)
   let n = 0, unprotectedMeaningful = 0
-  // Chunked with event-loop yields: tens of thousands of leads must never freeze
-  // the API while the audit runs.
-  for (let i = 0; i < rows.length; i += 150) {
-    for (const r of rows.slice(i, i + 150)) {
+  // Small chunks + a real pause between them: the audit must never make the API
+  // feel slow. ~40 evaluations (~0.4s) then 50ms of open event loop keeps request
+  // latency normal while the audit works through the database in the background.
+  for (let i = 0; i < rows.length; i += 40) {
+    for (const r of rows.slice(i, i + 40)) {
       const ev = recalcCoverage(r.id)
       if (ev) { n++; if (ev.coverage_status === 'unprotected' && relIdx(ev.relationship_level) >= 1) unprotectedMeaningful++ }
     }
-    await new Promise(res => setImmediate(res))
+    await new Promise(res => setTimeout(res, 50))
   }
   const ms = Date.now() - t0
   console.log(`[coverage-audit] evaluated ${n} clients in ${Math.round(ms / 1000)}s — ${unprotectedMeaningful} connected+ unprotected`)
   try { db.setSetting('coverage_audit_last_result', JSON.stringify({ day: today, evaluated: n, unprotected_meaningful: unprotectedMeaningful, ms })) } catch {}
+  // Persist the done-stamp NOW: a deploy restart minutes after the audit must not
+  // find a stale DB snapshot and run the whole thing again on the fresh instance.
+  try { db.saveDb() } catch {}
   return { evaluated: n, unprotected_meaningful: unprotectedMeaningful, ms }
 }
