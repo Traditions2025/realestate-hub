@@ -1180,6 +1180,11 @@ router.post('/scrub-line-types', async (req, res) => {
 
 // ===================== GROUP TEXTING (Twilio Conversations / group MMS) =====================
 // Readiness check: is the account/number able to do true group MMS?
+// Per-recipient delivery receipts for a group thread's recent sends.
+router.get('/group-receipts/:convSid', async (req, res) => {
+  try { const { groupDeliveryReceipts } = await import('../twilio-conversations.js'); res.json(await groupDeliveryReceipts(String(req.params.convSid))) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/group-status', async (_req, res) => {
   try { const { conversationsStatus } = await import('../twilio-conversations.js'); res.json(await conversationsStatus()) }
   catch (e) { res.status(500).json({ error: e.message }) }

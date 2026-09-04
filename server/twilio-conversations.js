@@ -101,6 +101,31 @@ export async function sendConversationMessage(convSid, body, author = 'Matt Smit
   return { messageSid: msg.sid }
 }
 
+// Per-recipient delivery receipts for a group conversation's recent outbound
+// messages — the only way to CONFIRM a group text reached each phone (the plain
+// messaging status callbacks don't fire for Conversations sends).
+export async function groupDeliveryReceipts(convSid, limit = 3) {
+  const sid = await ensureConversationsService()
+  const j = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Messages?Order=desc&PageSize=${Math.min(Number(limit) || 3, 10)}`)
+  const out = []
+  for (const m of (j.messages || [])) {
+    if (!m.author || m.author.startsWith('+')) continue // inbound (author = phone) — no receipts
+    let receipts = []
+    try {
+      const r = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Messages/${m.sid}/Receipts?PageSize=50`)
+      receipts = (r.delivery_receipts || []).map(x => ({ to: null, participant_sid: x.participant_sid, status: x.status, error: x.error_code || null }))
+    } catch {}
+    // resolve participant sids to phone numbers for a readable report
+    try {
+      const p = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Participants?PageSize=50`)
+      const byId = new Map((p.participants || []).map(x => [x.sid, x.messaging_binding?.address || null]))
+      for (const rc of receipts) rc.to = byId.get(rc.participant_sid) || null
+    } catch {}
+    out.push({ message_sid: m.sid, body: String(m.body || '').slice(0, 120), date_created: m.date_created, delivery: m.delivery || null, receipts })
+  }
+  return { conversation: convSid, messages: out }
+}
+
 // Fetch a conversation's participant addresses (for labeling inbound replies).
 export async function conversationParticipants(serviceSid, convSid) {
   try {
