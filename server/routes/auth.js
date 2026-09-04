@@ -8,7 +8,6 @@ const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&l
 
 const router = Router()
 
-const TEAM_PASSWORD = process.env.TEAM_PASSWORD || 'mattsmithteam2026'
 // SECRET stays consistent across restarts when set via env var
 const TOKEN_SECRET = process.env.TOKEN_SECRET || 'mst-hub-default-secret-change-me-in-prod'
 const TOKEN_EXPIRY_DAYS = 30
@@ -20,8 +19,6 @@ function signToken(payload) {
   const signature = crypto.createHmac('sha256', TOKEN_SECRET).update(payloadB64).digest('base64url')
   return `${payloadB64}.${signature}`
 }
-// Legacy shared-login token (team principal → treated as owner). Kept for backwards compat.
-function generateToken() { return signToken({ t: 'team' }) }
 // Per-user token, tied to a revocable session (jti).
 function generateUserToken(user, req) {
   const jti = crypto.randomBytes(16).toString('hex')
@@ -48,8 +45,9 @@ function decodeToken(token) {
     return payload
   } catch { return null }
 }
-// Boolean check (kept for the query-token media/recording/stream proxies).
-export function verifyToken(token) { return !!decodeToken(token) }
+// Boolean check (kept for the query-token media/recording/stream proxies). Principal-based,
+// so retired/revoked tokens fail here too — not just signature-valid ones.
+export function verifyToken(token) { return !!principalFor(decodeToken(token)) }
 
 // Resolve the principal for a decoded token: legacy team → owner; user → the DB row.
 function principalFor(payload) {
@@ -62,8 +60,8 @@ function principalFor(payload) {
     try { if (payload.jti) db.run('UPDATE user_sessions SET last_seen_at=datetime(\'now\') WHERE id=?', [payload.jti]) } catch {}
     return { id: u.id, name: u.name, email: u.email, role: u.role, jti: payload.jti }
   }
-  // Legacy shared login = full-access owner principal (backwards compatible).
-  if (payload.t === 'team') return { id: null, name: 'Team', email: null, role: 'owner', team: true }
+  // Legacy shared-login tokens are DEAD (retired 2026-09-04): they were stateless,
+  // irrevocable, and owner-equivalent. Rejecting them here invalidates every outstanding one.
   // Any other token type (e.g. a password-reset token) is NOT a valid auth principal.
   return null
 }
@@ -91,13 +89,10 @@ router.post('/login', (req, res) => {
     logAudit({ user_id: u.id, actor: u.email, action: 'login', req })
     return res.json({ success: true, token, user: { id: u.id, name: u.name, email: u.email, role: u.role } })
   }
-  if (password === TEAM_PASSWORD) {
-    const token = generateToken()
-    logAudit({ actor: 'team', action: 'login.shared', req })
-    return res.json({ success: true, token })
-  }
-  logAudit({ actor: 'team', action: 'login.failed', req })
-  return res.status(401).json({ success: false, error: 'Wrong password' })
+  // Shared team login RETIRED 2026-09-04: everyone has a personal account now, and the old
+  // shared password minted irrevocable owner tokens. Password-only logins are refused.
+  logAudit({ actor: 'team', action: 'login.failed', metadata: { reason: 'shared login retired' }, req })
+  return res.status(401).json({ success: false, error: 'The shared team login has been retired. Sign in with your personal email and password.' })
 })
 
 // Verify token (used by the client on boot).
@@ -107,8 +102,14 @@ router.get('/verify', (req, res) => {
   return res.status(401).json({ valid: false })
 })
 
-// Who am I (attached by requireAuth).
-router.get('/me', (req, res) => res.json({ user: req.user || null }))
+// Who am I. NOTE: this router mounts BEFORE requireAuth (login must be reachable without a
+// token), so req.user is never populated here — resolve the principal from the token directly.
+// (This was the long-standing bug that made /me always return null and left the dashboard
+// greeting nameless even on a valid personal login.)
+router.get('/me', (req, res) => {
+  const p = principalFor(decodeToken(req.headers['x-auth-token']))
+  res.json({ user: p ? (p.team ? { team: true, role: p.role } : { id: p.id, name: p.name, email: p.email, role: p.role }) : null })
+})
 
 // Logout: revoke the current per-user session (legacy team tokens are stateless no-ops).
 router.post('/logout', (req, res) => {
