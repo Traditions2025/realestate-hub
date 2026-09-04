@@ -109,7 +109,13 @@ export async function groupDeliveryReceipts(convSid, limit = 3) {
   const j = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Messages?Order=desc&PageSize=${Math.min(Number(limit) || 3, 10)}`)
   const out = []
   for (const m of (j.messages || [])) {
-    if (!m.author || m.author.startsWith('+')) continue // inbound (author = phone) — no receipts
+    // Inbound group messages (author = a participant's phone): include them with their
+    // author so "who actually sent this?" is answerable — the phones themselves show
+    // every group message as coming from the Hub number with no name attached.
+    if (!m.author || m.author.startsWith('+')) {
+      out.push({ message_sid: m.sid, inbound: true, author: m.author || null, body: String(m.body || '').slice(0, 160), date_created: m.date_created })
+      continue
+    }
     let receipts = []
     try {
       const r = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Messages/${m.sid}/Receipts?PageSize=50`)
