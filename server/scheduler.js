@@ -789,6 +789,9 @@ export function startScheduler() {
   // Scheduled one-to-one texts - check every minute, send any that are due
   // (compliance is re-checked at send time inside the runner).
   setInterval(() => { import('./scheduled-texts.js').then(m => m.runDueScheduledTexts()).catch(() => {}) }, 60 * 1000)
+  // Group-thread safety net: heal any inbound group message whose webhook write was
+  // lost (deploy swap, transient error) from Twilio's own record — every 10 minutes.
+  setInterval(() => { import('./routes/inbox.js').then(m => m.resyncRecentGroupThreads()).catch(() => {}) }, 10 * 60 * 1000)
 
   // HUB AI ISA — drain due AI actions every minute; run enqueue sweeps periodically.
   // All are cheap no-ops when the AI feature flags are off.

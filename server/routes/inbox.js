@@ -1183,27 +1183,46 @@ router.post('/scrub-line-types', async (req, res) => {
 // Heal a group thread from Twilio's own record: insert any inbound group message the
 // conversations-webhook missed (e.g. one that landed during a deploy's rolling swap).
 // Idempotent — keyed to the same conv_<MessageSid> external_id the webhook writes.
+export async function healGroupThread(convSid) {
+  const { groupDeliveryReceipts } = await import('../twilio-conversations.js')
+  const data = await groupDeliveryReceipts(String(convSid), 10)
+  let inserted = 0
+  const healed = []
+  for (const m of (data.messages || []).filter(x => x.inbound && x.body)) {
+    const ext = 'conv_' + m.message_sid
+    if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) continue
+    const author = m.author || ''
+    const match = matchClient('text', author)
+    const name = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : fmtPhone(author)
+    const when = m.date_created ? new Date(m.date_created).toISOString() : nowIso()
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, conversation_sid, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['text', 'incoming', match ? match.id : null, name, author, '', String(m.body).replace(/\s+/g, ' ').slice(0, 160), String(m.body), ext, 'grp_' + String(convSid), 'unread', String(convSid), when])
+    inserted++
+    healed.push({ from: name || author, body: String(m.body).slice(0, 60), at: when })
+    if (match) notifyInboundText(match, String(m.body), author, { group: true }).catch(() => {})
+  }
+  return { ok: true, inserted, healed, scanned: (data.messages || []).length }
+}
+// Scheduled safety net: every group thread with activity in the last 14 days is
+// re-checked against Twilio's own record, so an inbound reply whose webhook write
+// was lost (deploy rolling swap, transient error) reappears within minutes —
+// with the real sender's name, since Twilio stores the author of every message.
+export async function resyncRecentGroupThreads() {
+  const sids = db.all(`SELECT DISTINCT conversation_sid s FROM communications
+    WHERE conversation_sid IS NOT NULL AND occurred_at >= datetime('now','-14 days')
+    UNION SELECT DISTINCT replace(thread_key,'grp_','') s FROM communications
+    WHERE thread_key LIKE 'grp_%' AND occurred_at >= datetime('now','-14 days')`).map(r => r.s).filter(Boolean).slice(0, 20)
+  let healedTotal = 0
+  for (const sid of sids) {
+    try { const r = await healGroupThread(sid); healedTotal += r.inserted } catch {}
+  }
+  if (healedTotal) console.log(`[group-resync] healed ${healedTotal} missed group message(s)`)
+  return { threads: sids.length, healed: healedTotal }
+}
 router.post('/group-resync/:convSid', async (req, res) => {
-  try {
-    const { groupDeliveryReceipts } = await import('../twilio-conversations.js')
-    const data = await groupDeliveryReceipts(String(req.params.convSid), 10)
-    let inserted = 0
-    const healed = []
-    for (const m of (data.messages || []).filter(x => x.inbound && x.body)) {
-      const ext = 'conv_' + m.message_sid
-      if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) continue
-      const author = m.author || ''
-      const match = matchClient('text', author)
-      const name = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : fmtPhone(author)
-      const when = m.date_created ? new Date(m.date_created).toISOString() : nowIso()
-      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, conversation_sid, occurred_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        ['text', 'incoming', match ? match.id : null, name, author, '', String(m.body).replace(/\s+/g, ' ').slice(0, 160), String(m.body), ext, 'grp_' + String(req.params.convSid), 'unread', String(req.params.convSid), when])
-      inserted++
-      healed.push({ from: name || author, body: String(m.body).slice(0, 60), at: when })
-    }
-    res.json({ ok: true, inserted, healed, scanned: (data.messages || []).length })
-  } catch (e) { res.status(500).json({ error: e.message }) }
+  try { res.json(await healGroupThread(String(req.params.convSid))) }
+  catch (e) { res.status(500).json({ error: e.message }) }
 })
 // Per-recipient delivery receipts for a group thread's recent sends.
 router.get('/group-receipts/:convSid', async (req, res) => {
