@@ -509,6 +509,16 @@ function CommItem({ m }) {
       {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
       {m.transcript && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
       {m.channel === 'email' && out && <EmailEngagement eng={m.eng} />}
+      {m.channel === 'email' && (
+        <div style={{ marginTop: 6 }}>
+          <button className="btn btn-sm" title="Reply to this email (opens the composer up top)"
+            onClick={() => {
+              const s = commToText(m.subject || '')
+              window.dispatchEvent(new CustomEvent('cp-compose-email', { detail: { subject: s ? (/^re:/i.test(s) ? s : 'Re: ' + s) : '' } }))
+              window.scrollTo({ top: 0, behavior: 'smooth' })
+            }}>↩ Reply</button>
+        </div>
+      )}
     </div>
   )
 }
@@ -529,6 +539,12 @@ function EmailComposer({ client, onClose, onSent, initial }) {
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState(null)   // {subject, html} or null
   const [previewing, setPreviewing] = useState(false)
+  // AI suggested reply — the SAME engine as the Inbox (thread-aware, cold-seller +
+  // follow-up doctrine, angle picker). Collapsed until the user asks for it.
+  const [aiOpen, setAiOpen] = useState(false)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiSug, setAiSug] = useState(null)       // { intent, summary, suggestion:{subject,body}, error }
+  const [aiApproach, setAiApproach] = useState('')
   const taRef = React.useRef(null)
   useEffect(() => {
     authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {})
@@ -544,6 +560,20 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     const next = body.slice(0, s) + tok + body.slice(e)
     setBody(next)
     requestAnimationFrame(() => { ta.focus(); const p = s + tok.length; ta.setSelectionRange(p, p) })
+  }
+  const suggest = async (angle) => {
+    const a = typeof angle === 'string' ? angle : aiApproach
+    setAiBusy(true)
+    try {
+      const r = await authFetch(`/api/inbox/thread/${client.id}/ai/suggest`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approach: a || '' }) })
+      const d = await r.json()
+      setAiSug(d && d.error ? { error: d.error } : d)
+    } catch (e) { setAiSug({ error: e.message }) } finally { setAiBusy(false) }
+  }
+  const useSuggested = () => {
+    const s = aiSug?.suggestion; if (!s) return
+    if (s.subject) setSubject(s.subject)
+    setBody(withSig(String(s.body || '').trimEnd()))
   }
   const doPreview = async () => {
     setPreviewing(true)
@@ -580,6 +610,40 @@ function EmailComposer({ client, onClose, onSent, initial }) {
           <option value="">+ Insert field…</option>
           {fields.map(f => <option key={f.token} value={f.token}>{f.label}</option>)}
         </select>
+      </div>
+      <div style={{ marginBottom: 6 }}>
+        <button className="btn btn-sm" style={{ color: '#7c3aed', borderColor: 'rgba(124,58,237,.4)' }}
+          onClick={() => { const n = !aiOpen; setAiOpen(n); if (n && !aiSug && !aiBusy) suggest() }}>
+          ✨ Suggested reply {aiOpen ? '▾' : '▸'}
+        </button>
+        {aiOpen && (
+          <div style={{ marginTop: 6, border: '1px solid rgba(124,58,237,.35)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+              {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
+                <button key={k || 'auto'} className="btn btn-sm" disabled={aiBusy}
+                  style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
+                  title={k === 'conversation' ? 'Pick up naturally from what they last said or left open' : k === 'activity' ? 'Anchor on what they recently viewed on the website' : k === 'checkin' ? 'Warm, no-ask presence message: we are here when you are ready' : 'Let the AI pick the best angle'}
+                  onClick={() => { setAiApproach(k); suggest(k) }}>{l}</button>
+              ))}
+            </div>
+            {aiBusy && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
+            {aiSug?.error && <div style={{ fontSize: 12, color: '#ef4444' }}>{aiSug.error}</div>}
+            {aiSug?.summary && !aiBusy && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,.4)', paddingLeft: 8 }}>{aiSug.summary}</div>}
+            {aiSug?.suggestion && !aiBusy && (aiSug.suggestion.body || aiSug.suggestion.subject) && (
+              <>
+                <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, lineHeight: 1.45 }}>
+                  {aiSug.suggestion.subject && <div style={{ fontWeight: 700, marginBottom: 4 }}>{aiSug.suggestion.subject}</div>}
+                  {aiSug.suggestion.body}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm btn-primary" onClick={useSuggested}>Use this</button>
+                  <button className="btn btn-sm" disabled={aiBusy} onClick={() => suggest()}>↻ Regenerate</button>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
       <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={inputStyle} />
       <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Write your email…" style={{ width: '100%', padding: 9, fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
