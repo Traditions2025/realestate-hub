@@ -164,6 +164,9 @@ router.get('/', (req, res) => {
     for (const r of rows) {
       if ((r.em && emails.has(r.em)) || (r.nm && names.has(r.nm)) || (r.nm && r.nm.includes('matt smith team'))) ids.add(r.id)
     }
+    // Anyone with a documented follow-up exclusion (internal record, represented,
+    // wrong person…) never belongs in attention queues either.
+    try { for (const r of db.all('SELECT id FROM clients WHERE exclude_reason IS NOT NULL')) ids.add(r.id) } catch {}
     return ids
   }, new Set())
 
