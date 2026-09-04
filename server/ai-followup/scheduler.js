@@ -135,6 +135,17 @@ export function newLeadSweep() {
     // only for eligible, textable, never-contacted leads
     const contacted = db.get("SELECT id FROM communications WHERE client_id=? LIMIT 1", [c.id])
     if (!contacted && c.phone && !c.hub_text_opt_out) {
+      // Duplicate guard: if ANOTHER live record carries this same phone and already has
+      // a conversation, this "new lead" is a duplicate of a lead the team is already
+      // working (e.g. a Sierra registration syncing in after a manual quick-add) — the
+      // AI must not first-touch someone mid-conversation. Merge the records instead.
+      const p10 = String(c.phone).replace(/\D/g, '').slice(-10)
+      if (p10.length === 10) {
+        const twin = db.all("SELECT id, phone, alt_phones FROM clients WHERE id != ? AND merged_into IS NULL AND (phone LIKE ? OR alt_phones LIKE ?)", [c.id, '%' + p10.slice(-4), '%' + p10.slice(-4) + '%'])
+          .find(x => ([x.phone, ...String(x.alt_phones || '').split(',')].some(p => String(p || '').replace(/\D/g, '').slice(-10) === p10))
+            && db.get('SELECT id FROM communications WHERE client_id=? LIMIT 1', [x.id]))
+        if (twin) continue
+      }
       ensureState(c.id)
       const gate = canSendSms(c, { channel: 'ai', mode: 'proactive' })
       if (gate.ok) scheduleAiAction(c.id, 'AI_INITIAL_OUTREACH', plusMin(delay), { reason: 'new lead first touch', dedupKey: `firsttouch_${c.id}` })
