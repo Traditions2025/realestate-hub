@@ -342,6 +342,7 @@ export default function Settings() {
           <TeamAgents />
 
           <AiFollowUpSettings />
+          <CoverageSettings />
 
           <AiEvalPanel />
 
@@ -462,6 +463,46 @@ function AiExclusions({ cfg, saveCfg }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Follow-Up Coverage: the maximum-silence standards behind Protected / At Risk /
+// Unprotected. Windows are DAYS; a lead with no future action is Unprotected
+// regardless of these numbers — the windows only tune when coverage counts as stale.
+function CoverageSettings() {
+  const [cfg, setCfg] = React.useState(undefined)
+  const [saving, setSaving] = React.useState(false)
+  React.useEffect(() => { authFetch('/api/coverage/settings').then(r => r.json()).then(d => setCfg(d.config)).catch(() => setCfg(null)) }, [])
+  if (cfg === undefined) return null
+  if (cfg === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Follow-Up Coverage</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  const FIELDS = [
+    ['high_intent', 'High intent (days)'], ['active_opportunity', 'Active opportunity (days)'], ['qualified', 'Qualified (days)'],
+    ['connected_buyer', 'Connected buyer (days)'], ['connected_seller', 'Connected seller (days)'], ['watch', 'Watch / longer-term (days)'],
+    ['long_term', 'Long-term nurture (days)'], ['past_client', 'Past client (days)'],
+    ['high_intent_score', 'High-intent score ≥'], ['opportunity_intent_score', 'Opportunity score ≥'],
+  ]
+  const save = async () => {
+    setSaving(true)
+    try { const r = await authFetch('/api/coverage/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cfg) }); const d = await r.json(); if (d.config) setCfg(d.config) }
+    finally { setSaving(false) }
+  }
+  return (
+    <section className="detail-section">
+      <h4 style={{ margin: '0 0 4px' }}>🕳 Follow-Up Coverage (maximum silence)</h4>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+        How long each relationship level may go without a real touch before it shows At Risk. A lead with no future task, AI action, nurture, transaction or snooze is Unprotected regardless.
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
+        {FIELDS.map(([k, label]) => (
+          <label key={k} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+            <span style={{ flex: 1 }}>{label}</span>
+            <input type="number" min="1" value={cfg[k] ?? ''} onChange={e => setCfg(c => ({ ...c, [k]: Number(e.target.value) }))}
+              style={{ width: 64, padding: '4px 6px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+          </label>
+        ))}
+      </div>
+      <button className="btn btn-sm btn-primary" style={{ marginTop: 8 }} disabled={saving} onClick={save}>{saving ? 'Saving…' : 'Save coverage standards'}</button>
+    </section>
   )
 }
 

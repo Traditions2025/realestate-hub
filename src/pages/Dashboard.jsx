@@ -66,6 +66,7 @@ const ATTN_META = {
   handoff: { badge: '🤖 AI HANDOFF', color: '#ef4444' },
   need_response: { badge: '💬 NEEDS REPLY', color: '#d97706' },
   missed_call: { badge: '📞 MISSED CALL', color: '#ef4444' },
+  coverage: { badge: '🕳 NO FOLLOW-UP', color: '#dc2626' },
 }
 
 export default function Dashboard() {
@@ -102,6 +103,7 @@ export default function Dashboard() {
   const radar = data.radar || { examples: {} }
   const ai = data.ai || {}
   const comm = data.comm_today || {}
+  const coverage = data.coverage || null
   const health = data.health || { ok: true, issues: [] }
   const business = data.business || null
 
@@ -299,6 +301,32 @@ export default function Dashboard() {
           </div>
         </Section>
       </div>
+
+      {/* ── Follow-Up Coverage: nobody falls through the cracks. KPI target = 0 ── */}
+      {coverage && (
+        <div style={{ ...row, gridTemplateColumns: '1fr' }}>
+          <Section title="Follow-Up Coverage" accent={coverage.kpi_unprotected_connected ? '#dc2626' : '#059669'} link="/clients?smart=falling_through_cracks" linkLabel="Open list →">
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 26, fontWeight: 800, color: coverage.kpi_unprotected_connected ? '#dc2626' : '#059669' }}>
+                {coverage.kpi_unprotected_connected}
+              </div>
+              <div style={{ fontSize: 13 }}>
+                <div style={{ fontWeight: 700 }}>Connected leads without future coverage</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>Team target: 0 — every connected lead should have a next touch scheduled somewhere.</div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <Chip to="/clients?smart=falling_through_cracks" label="⚠ Unprotected" value={coverage.kpi_unprotected_connected} tone={coverage.kpi_unprotected_connected ? 'red' : undefined} />
+              <Chip to="/clients?smart=followup_overdue" label="⏰ Follow-Ups Overdue" value={coverage.overdue} tone={coverage.overdue ? 'amber' : undefined} />
+              <Chip to="/clients?smart=connected_sellers_going_cold" label="🏠 Sellers Going Cold" value={coverage.sellers_going_cold} tone={coverage.sellers_going_cold ? 'amber' : undefined} />
+              <Chip to="/clients?smart=connected_buyers_going_cold" label="Buyers Going Cold" value={coverage.buyers_going_cold} tone={coverage.buyers_going_cold ? 'amber' : undefined} />
+              <Chip to="/clients?smart=high_intent_no_human" label="🔥 High Intent, No Human Touch" value={coverage.high_intent_no_human} tone={coverage.high_intent_no_human ? 'red' : undefined} />
+              <Chip to="/clients?smart=snooze_waking" label="Snoozes Due" value={coverage.snoozes_due_today} />
+              <Chip to="/clients?smart=ownerless_meaningful" label="No Owner" value={coverage.ownerless} tone={coverage.ownerless ? 'amber' : undefined} />
+            </div>
+          </Section>
+        </div>
+      )}
 
       {/* ── Row 6: Business performance (owner/admin only — backend gated) ── */}
       {business && (

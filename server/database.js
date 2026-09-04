@@ -953,6 +953,57 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}
   // All FSBO listings for one seller (same name+phone = one profile with N listings). JSON array.
   try { db.run('ALTER TABLE clients ADD COLUMN fsbo_listings TEXT') } catch {}
+  // ---- Follow-Up Coverage (fall-through prevention) ----
+  // Relationship level ratchet (never_connected|connected|qualified|active_opportunity|client);
+  // intentional snooze (must carry a future date); documented exclusion with provenance.
+  try { db.run('ALTER TABLE clients ADD COLUMN relationship_level TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN snooze_until TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN snooze_reason TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN exclude_reason TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN excluded_by TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN excluded_at TEXT') } catch {}
+  // Queryable summary of each lead's current follow-up coverage (one row per client;
+  // computed by server/followup-coverage.js — never edit rows by hand).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS followup_coverage (
+      client_id INTEGER PRIMARY KEY,
+      coverage_status TEXT,             -- protected|at_risk|unprotected|snoozed|excluded
+      coverage_type TEXT,               -- human_task|ai|drip|transaction|snooze|excluded
+      relationship_level TEXT,
+      last_meaningful_contact_at TEXT,
+      last_human_contact_at TEXT,
+      next_action_at TEXT,
+      next_action_type TEXT,
+      next_action_owner TEXT,
+      next_action_source TEXT,
+      days_since_contact INTEGER,
+      max_silence_days INTEGER,
+      overdue_by_days INTEGER DEFAULT 0,
+      intent_score INTEGER DEFAULT 0,
+      risk_flags TEXT,                  -- JSON array
+      reason TEXT,
+      recommended_action TEXT,
+      eval_error TEXT,
+      evaluated_at TEXT
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_fc_status ON followup_coverage(coverage_status)')
+  db.run('CREATE INDEX IF NOT EXISTS idx_fc_next ON followup_coverage(next_action_at)')
+  // Status TRANSITIONS only (protected→unprotected etc.) — never per-run logs.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS followup_coverage_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      previous_status TEXT,
+      new_status TEXT,
+      coverage_type TEXT,
+      reason TEXT,
+      actor_type TEXT,
+      actor_id TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_fce_client ON followup_coverage_events(client_id, created_at)')
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

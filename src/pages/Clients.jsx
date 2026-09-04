@@ -123,6 +123,11 @@ const LIST_COLUMNS = [
   { key: 'email_clicks', label: 'Email Clicks', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'email_clicks_high', desc: 'email_clicks_high' } },
   { key: 'last_email_in', label: 'Last Email In', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_oldest', desc: 'last_email_recent' } },
   { key: 'last_call_made', label: 'Last Call', defaultVisible: false, size: 'normal', sort: { asc: 'last_call_oldest', desc: 'last_call_recent' } },
+  // Follow-Up Coverage columns (opt-in via the Columns picker)
+  { key: 'coverage', label: 'Coverage', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'coverage_risk', desc: 'coverage_risk' } },
+  { key: 'next_action', label: 'Next Action', defaultVisible: false, size: 'normal', sort: { asc: 'next_action_soonest', desc: 'next_action_soonest' } },
+  { key: 'days_since_contact', label: 'Days Since Contact', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'longest_since_contact', desc: 'longest_since_contact' } },
+  { key: 'relationship', label: 'Relationship', defaultVisible: false, size: 'compact', align: 'center' },
 ]
 // The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
 // date, MLS status, and MLS #.
@@ -162,6 +167,17 @@ const SMART_LISTS = [
   { key: 'fsbo_dom14_no_text_2w', label: 'FSBO 14+ DOM · No Text 2wk', desc: 'FSBOs with 14+ days on market we have not texted in the last 2 weeks' },
   { key: 'email_engaged_7d', label: 'Opened Email (7d)', desc: 'Opened one of our emails in the last 7 days (tracked opens; excludes Junk/DNC/Closed/Pending)' },
   { key: 'email_clicked_no_reply', label: 'Clicked · No Reply', desc: 'Clicked an email link in the last 7 days with no message from them since' },
+  // Follow-Up Coverage lists — leads at risk of falling through the cracks
+  { key: 'falling_through_cracks', label: '🕳 Falling Through Cracks', desc: 'Connected+ leads with NO future task, AI action, nurture, transaction or snooze' },
+  { key: 'active_no_next_action', label: 'Active · No Next Action', desc: 'Prime/Active status leads with no future coverage of any kind' },
+  { key: 'connected_sellers_going_cold', label: 'Sellers Going Cold', desc: 'Connected sellers past their maximum silence window' },
+  { key: 'connected_buyers_going_cold', label: 'Buyers Going Cold', desc: 'Connected buyers past their maximum silence window' },
+  { key: 'high_intent_no_human', label: '🔥 High Intent · No Human Touch', desc: 'High AI intent with no recent human contact' },
+  { key: 'followup_overdue', label: 'Follow-Up Overdue', desc: 'Past the follow-up standard (overdue task or silence limit exceeded)' },
+  { key: 'snooze_waking', label: '⏰ Snoozes Waking (7d)', desc: 'Snoozed leads whose wake-up date is due or within 7 days' },
+  { key: 'past_clients_due', label: 'Past Clients Due', desc: 'Past clients past the 90-day touch standard' },
+  { key: 'ownerless_meaningful', label: 'No Owner Assigned', desc: 'Connected+ leads with no assigned agent — clear ownership errors' },
+  { key: 'ai_no_next_action', label: 'AI Managed · No Next Action', desc: 'AI-enabled leads whose engine has nothing scheduled and nothing else covers them' },
 ]
 
 function loadColumnPrefs() {
@@ -2873,6 +2889,17 @@ export default function Clients() {
               return <div key="last_email_in" className="cl-registered">{fmtCommDate(item.last_email_in)}</div>
             case 'last_call_made':
               return <div key="last_call_made" className="cl-registered">{fmtCommDate(item.last_call_made)}</div>
+            case 'coverage': {
+              const s = item.coverage_status
+              const C = { protected: ['✓ Protected', '#059669'], at_risk: ['⚠ At Risk', '#d97706'], unprotected: ['✗ Unprotected', '#ef4444'], snoozed: ['⏸ Snoozed', '#7c3aed'], excluded: ['— Excluded', 'var(--text-muted)'] }[s]
+              return <div key="coverage" className="cl-status" style={{ textAlign: 'center' }}>{C ? <span style={{ color: C[1], fontWeight: 700, fontSize: 12 }}>{C[0]}</span> : '—'}</div>
+            }
+            case 'next_action':
+              return <div key="next_action" className="cl-registered">{item.fc_next_action_at ? `${(item.fc_next_action_type || '').replace('human_task', 'Task').replace('transaction', 'Closing').replace('ai', 'AI').replace('drip', 'Nurture')} ${fmtCommDate(item.fc_next_action_at)}` : '—'}</div>
+            case 'days_since_contact':
+              return <div key="days_since_contact" className="cl-registered" style={{ textAlign: 'center' }}>{item.fc_days_since_contact != null ? `${item.fc_days_since_contact}d` : '—'}</div>
+            case 'relationship':
+              return <div key="relationship" className="cl-registered" style={{ textAlign: 'center', fontSize: 12 }}>{item.relationship_level ? String(item.relationship_level).replace(/_/g, ' ') : '—'}</div>
             default: return null
           }
         }

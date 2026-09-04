@@ -296,6 +296,9 @@ Started by `startScheduler()` (`server/scheduler.js`). All times drive off Centr
 | Job | Interval |
 |---|---|
 | Sierra incremental sync (leads updated since last sync) | every 60 min |
+| Follow-Up Coverage incremental sweep (recalc leads with fresh tasks/comms/AI/drip/tx changes + expire snoozes) | every 10 min |
+| Follow-Up Coverage daily audit (full database pass, chunked; self-throttles to once/day) | hourly check |
+| Group-thread resync (heal webhook-missed inbound group messages from Twilio's record) | every 10 min |
 | Google Calendar (iCal) sync | every 5 min |
 | Due scheduled texts | every 60 s |
 | **AI action queue** (`runDueAiActions`) | every 60 s |
@@ -359,6 +362,22 @@ npm test         # node --test test/comms.test.mjs test/hubai.test.mjs
 
 - **Tests:** compliance model, do_not_text vs do_not_call independence, flag gating, force-bypass, AI state transitions, exclusions (tag/status/combination), quiet-hours boundaries, Central greeting, scheduler dedup, manual-mode.
 - **SQLite rule:** never double-quote SQL string literals (single quotes only) with better-sqlite3.
+
+---
+
+## Follow-Up Coverage (fall-through prevention)
+
+The layer above Tasks / AI / Drips / Automations / Transactions that answers one question per lead: **"if we do nothing manually, will this person hear from us again — and soon enough?"** One authoritative evaluator: `server/followup-coverage.js` (`evaluateFollowUpCoverage`). Never re-derive coverage logic elsewhere.
+
+- **Valid coverage** = a future open client task, a scheduled text, a pending AI action (only if textable), an active drip/automation enrollment with a future run (only if emailable/executable), an active (Under Contract) transaction, an intentional future snooze, or a documented exclusion. Completed/failed/paused/expired records never count; SMS-based coverage never counts for a text-opted-out lead.
+- **Relationship level** (separate from CRM status, ratchets at CONNECTED): never_connected → connected (real two-way conversation or a 45s+ call — delivery/opens never count) → qualified (timeframe/budget/preapproval/seller property known) → active_opportunity (intent ≥ threshold, prime, or open AI handoff) → client (Under Contract / pending / closed).
+- **States**: protected / at_risk (silence ≥ 75% of window, overdue task, or window exceeded) / unprotected (no valid future action — an operational failure, surfaced immediately) / snoozed (future date only, with reason) / excluded (documented who/when/why; internal team records are auto-excluded).
+- **Silence windows** are configurable (Settings → Follow-Up Coverage; stored `followup_coverage_config`): high intent 2d, active opportunity 3d, qualified 10d, connected buyer/seller 30d, watch 60d, long-term 75d, past client 90d. Known short timelines (from `lead_intelligence` timeframes) tighten the window; unparseable timelines are never invented.
+- **Persistence**: `followup_coverage` (one summary row per client — status, type, next action, days since contact, risk flags, recommendation) + `followup_coverage_events` (status transitions only). Slack alert fires once per transition when a connected+ lead loses coverage.
+- **Freshness**: direct recalc hooks on task create/complete, client status/agent change, drip enroll/remove; a 10-min sweep recalcs anyone whose comms/tasks/AI/drips/transactions changed; hourly-checked daily audit covers the whole database (chunked, non-blocking). Task completion recalcs IMMEDIATELY — the classic fall-through moment.
+- **Surfaces**: Dashboard "Follow-Up Coverage" section (KPI: *Connected leads without future coverage — target 0*) + Needs Attention items (dismiss-aware, resurface on new transitions); Clients smart lists (`falling_through_cracks`, going-cold sellers/buyers, `followup_overdue`, `snooze_waking`, `ownerless_meaningful`, `ai_no_next_action`, `past_clients_due`, `active_no_next_action`, `high_intent_no_human`); opt-in Clients columns (Coverage, Next Action, Days Since Contact, Relationship) + sorts; profile **Follow-Up Coverage** card (top of right column) with + Follow-Up / Snooze / Exclude actions.
+- **API**: `/api/coverage/summary`, `/:clientId` (evaluate+persist), `/:clientId/snooze|unsnooze|exclude|unexclude`, `/settings`, `/events/:clientId`, `/audit`, `/sweep`. The coverage engine never sends messages — policy.js and existing senders keep that authority.
+- **Tests**: `test/coverage.test.mjs` — 13 fixture scenarios incl. the critical "last task completed → UNPROTECTED" recalc.
 
 ---
 

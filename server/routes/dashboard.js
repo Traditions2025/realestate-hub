@@ -253,7 +253,27 @@ router.get('/', (req, res) => {
   for (const h of handoffs) attention.push({ type: 'handoff', ref: String(h.id), client_id: h.client_id, name: `${h.first_name || ''} ${h.last_name || ''}`.trim() || 'Lead', reason: h.reason || 'AI handoff', detail: h.summary || h.recommended_action || '', intent: h.intent_score, urgency: h.urgency || 'high', at: h.created_at })
   for (const r of needTop) attention.push({ type: 'need_response', ref: String(latestIncId(r.id) || ''), client_id: r.id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Lead', reason: `Replied by ${r.channel || 'message'}, no response yet`, detail: r.preview, intent: r.intent, agent: r.agent_assigned, at: r.last_inbound_at })
   for (const m of missedCalls) attention.push({ type: 'missed_call', ref: String(m.comm_id), client_id: m.client_id, name: `${m.first_name || ''} ${m.last_name || ''}`.trim() || m.from_addr, reason: 'Missed call today', detail: '', at: m.occurred_at })
-  stats.attention = attention.slice(0, 12)
+  // ---- Follow-up coverage failures: connected+ leads with NO future action. Ref is the
+  // latest coverage transition event id, so dismissing one stays dismissed until the lead
+  // LOSES coverage again (a new transition = a new ref = it resurfaces). ----
+  safe(() => {
+    const rows = db.all(`SELECT f.client_id, f.relationship_level, f.days_since_contact, f.reason, f.recommended_action, f.intent_score, f.evaluated_at,
+        c.first_name, c.last_name, c.type, c.agent_assigned,
+        (SELECT MAX(e.id) FROM followup_coverage_events e WHERE e.client_id = f.client_id AND e.new_status='unprotected') ev_id
+      FROM followup_coverage f JOIN clients c ON c.id = f.client_id
+      WHERE f.coverage_status = 'unprotected' AND f.relationship_level IN ('connected','qualified','active_opportunity','client')
+        AND c.merged_into IS NULL
+      ORDER BY f.intent_score DESC, f.days_since_contact DESC LIMIT 6`)
+    for (const r of rows.filter(x => !internalIds.has(x.client_id))) {
+      const ref = String(r.ev_id || 'cur')
+      if (dismissed.has(`coverage:${r.client_id}:${ref}`)) continue
+      attention.push({ type: 'coverage', ref, client_id: r.client_id,
+        name: `${r.first_name || ''} ${r.last_name || ''}`.trim() || 'Lead',
+        reason: `${String(r.relationship_level).replace(/_/g, ' ').toUpperCase()} ${r.type || 'lead'} — no future follow-up${r.days_since_contact != null ? ` (silent ${r.days_since_contact}d)` : ''}`,
+        detail: r.recommended_action || r.reason || '', intent: r.intent_score || null, agent: r.agent_assigned, at: r.evaluated_at })
+    }
+  })
+  stats.attention = attention.slice(0, 14)
 
   // ---- Task counts on the CT day ----
   const tasksToday = safe(() => db.get("SELECT COUNT(*) c FROM tasks WHERE status != 'done' AND due_date = ?", [W.day]).c, 0)
@@ -375,6 +395,23 @@ router.get('/', (req, res) => {
       drip_enrolled: db.get("SELECT COUNT(DISTINCT client_id) c FROM drip_enrollments WHERE status='active'").c,
     }
   }, {})
+
+  // ---- Follow-up coverage (fall-through prevention) — the KPI target is ZERO ----
+  stats.coverage = safe(() => {
+    const g = (sql, p = []) => db.get(sql, p)?.n || 0
+    const MEAN = "relationship_level IN ('connected','qualified','active_opportunity','client')"
+    const live = 'client_id IN (SELECT id FROM clients WHERE merged_into IS NULL)'
+    return {
+      kpi_unprotected_connected: g(`SELECT COUNT(*) n FROM followup_coverage WHERE coverage_status='unprotected' AND ${MEAN} AND ${live}`),
+      at_risk_meaningful: g(`SELECT COUNT(*) n FROM followup_coverage WHERE coverage_status='at_risk' AND ${MEAN} AND ${live}`),
+      sellers_going_cold: g(`SELECT COUNT(*) n FROM followup_coverage WHERE risk_flags LIKE '%seller_going_cold%' AND ${live}`),
+      buyers_going_cold: g(`SELECT COUNT(*) n FROM followup_coverage WHERE risk_flags LIKE '%buyer_going_cold%' AND ${live}`),
+      high_intent_no_human: g(`SELECT COUNT(*) n FROM followup_coverage WHERE risk_flags LIKE '%high_intent_no_human_contact%' AND coverage_status IN ('unprotected','at_risk') AND ${live}`),
+      overdue: g(`SELECT COUNT(*) n FROM followup_coverage WHERE overdue_by_days > 0 AND coverage_status IN ('at_risk','unprotected') AND ${live}`),
+      snoozes_due_today: g('SELECT COUNT(*) n FROM clients WHERE merged_into IS NULL AND snooze_until IS NOT NULL AND substr(snooze_until,1,10) <= ?', [W.day]),
+      ownerless: g(`SELECT COUNT(*) n FROM followup_coverage WHERE risk_flags LIKE '%ownerless%' AND ${live}`),
+    }
+  }, null)
 
   // ---- Business performance (owner/admin only — backend-gated, not just hidden) ----
   const role = String(req.user?.role || '').toLowerCase()

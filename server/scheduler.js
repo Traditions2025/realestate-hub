@@ -792,6 +792,12 @@ export function startScheduler() {
   // Group-thread safety net: heal any inbound group message whose webhook write was
   // lost (deploy swap, transient error) from Twilio's own record — every 10 minutes.
   setInterval(() => { import('./routes/inbox.js').then(m => m.resyncRecentGroupThreads()).catch(() => {}) }, 10 * 60 * 1000)
+  // Follow-Up Coverage: 10-min incremental sweep (recalc leads whose tasks/comms/AI/
+  // drips/transactions just changed + expire due snoozes); hourly call to the daily
+  // audit, which self-throttles to one full-database pass per day.
+  setInterval(() => { import('./followup-coverage.js').then(m => m.runCoverageSweep()).catch(() => {}) }, 10 * 60 * 1000)
+  setInterval(() => { import('./followup-coverage.js').then(m => m.runCoverageAudit()).catch(() => {}) }, 60 * 60 * 1000)
+  setTimeout(() => { import('./followup-coverage.js').then(m => m.runCoverageAudit()).catch(() => {}) }, 3 * 60 * 1000)
 
   // HUB AI ISA — drain due AI actions every minute; run enqueue sweeps periodically.
   // All are cheap no-ops when the AI feature flags are off.

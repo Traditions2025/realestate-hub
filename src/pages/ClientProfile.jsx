@@ -275,6 +275,7 @@ export default function ClientProfile() {
             activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
             notes: () => <NotesSection client={client} onSaved={load} onAdd={() => setNoteOpen(true)} />,
             research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
+            coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
             plans: () => <ActionPlans cid={cid} />,
             tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} address={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} /></div>,
@@ -773,6 +774,8 @@ function TasksCard({ cid, name, address }) {
   const [addOpen, setAddOpen] = useState(false)
   const reload = useCallback(() => authFetch(`/api/tasks?related_type=client&related_id=${cid}`).then(r => r.json()).then(d => setTasks(Array.isArray(d) ? d : [])).catch(() => setTasks([])), [cid])
   useEffect(() => { reload() }, [reload])
+  // The Coverage card's "+ Follow-Up" button opens this add form directly.
+  useEffect(() => { const h = () => setAddOpen(true); window.addEventListener('cp-open-task-add', h); return () => window.removeEventListener('cp-open-task-add', h) }, [])
   const today = new Date().toISOString().slice(0, 10)
   const open = (tasks || []).filter(t => t.status !== 'done')
   const overdue = open.filter(t => t.due_date && t.due_date < today)
@@ -1038,7 +1041,7 @@ function ListingInterest({ client }) {
 }
 
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'notes', 'research'], right: ['ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'notes', 'research'], right: ['coverage', 'ai', 'plans', 'tasks', 'txns'] }
 export function loadLayout() {
   try {
     const s = JSON.parse(localStorage.getItem('cp_layout_v2') || 'null')
@@ -1053,6 +1056,86 @@ export function loadLayout() {
   return DEFAULT_LAYOUT
 }
 export function saveLayout(l) { try { localStorage.setItem('cp_layout_v2', JSON.stringify(l)) } catch {} }
+
+// ── Follow-Up Coverage card ──────────────────────────────────────────────
+// One glance answers: "if we do nothing manually, will this person hear from
+// us again — and soon enough?" Same evaluator as the Dashboard KPI and smart
+// lists (server/followup-coverage.js) — never a separate definition.
+const COV_META = {
+  protected: { label: '✓ PROTECTED', color: '#059669' },
+  at_risk: { label: '⚠ AT RISK', color: '#d97706' },
+  unprotected: { label: '⚠ UNPROTECTED', color: '#dc2626' },
+  snoozed: { label: '⏸ SNOOZED', color: '#7c3aed' },
+  excluded: { label: '— EXCLUDED', color: 'var(--text-muted)' },
+}
+function CoverageCard({ cid, client, onChanged }) {
+  const [cov, setCov] = useState(null)
+  const [snoozeOpen, setSnoozeOpen] = useState(false)
+  const [snoozeDate, setSnoozeDate] = useState('')
+  const [snoozeWhy, setSnoozeWhy] = useState('')
+  const [busy, setBusy] = useState(false)
+  const loadCov = useCallback(() => authFetch('/api/coverage/' + cid).then(r => r.json()).then(setCov).catch(() => setCov(null)), [cid])
+  useEffect(() => { loadCov() }, [loadCov])
+  useEffect(() => { const h = () => loadCov(); window.addEventListener('cp-comms-changed', h); return () => window.removeEventListener('cp-comms-changed', h) }, [loadCov])
+  const act = async (path, body) => {
+    setBusy(true)
+    try {
+      const r = await authFetch(`/api/coverage/${cid}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+      const d = await r.json()
+      if (!r.ok) { alert(d.error || 'Failed'); return }
+      if (d.coverage) setCov(d.coverage); else loadCov()
+      setSnoozeOpen(false); setSnoozeDate(''); setSnoozeWhy('')
+      onChanged && onChanged()
+    } catch (e) { alert(e.message) } finally { setBusy(false) }
+  }
+  const meta = cov ? (COV_META[cov.coverage_status] || COV_META.excluded) : null
+  const fmtD = (v) => v ? new Date(String(v).includes('T') ? v : v.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : null
+  const nextLabel = cov && cov.next_action_at
+    ? `${{ human_task: 'Task', ai: 'AI follow-up', drip: 'Nurture', transaction: 'Transaction' }[cov.next_action_type] || cov.next_action_type} · ${fmtD(cov.next_action_at)}${cov.next_action_label ? ` — ${String(cov.next_action_label).slice(0, 40)}` : ''}`
+    : cov && cov.coverage_type === 'transaction' ? 'Active transaction' : null
+  const openTaskAdd = () => { window.dispatchEvent(new CustomEvent('cp-open-task-add')); document.getElementById('taskscard')?.scrollIntoView({ behavior: 'smooth' }) }
+  return (
+    <Section title="Follow-Up Coverage" id="coverage">
+      {!cov ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Evaluating…</div> : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: meta.color }}>{meta.label}</div>
+          <div style={{ fontSize: 12.5, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px' }}>
+            <span style={{ color: 'var(--text-muted)' }}>Relationship</span><span style={{ textTransform: 'capitalize' }}>{String(cov.relationship_level || '').replace(/_/g, ' ')}</span>
+            <span style={{ color: 'var(--text-muted)' }}>Last real contact</span>
+            <span>{cov.days_since_meaningful_contact != null ? `${cov.days_since_meaningful_contact} days ago` : 'never'}{cov.max_allowed_silence_days ? ` (limit ${cov.max_allowed_silence_days}d)` : ''}</span>
+            <span style={{ color: 'var(--text-muted)' }}>Next action</span><span style={{ color: nextLabel ? 'inherit' : '#dc2626', fontWeight: nextLabel ? 500 : 700 }}>{nextLabel || (cov.coverage_status === 'snoozed' ? `Wakes ${fmtD(cov.snooze_until)}` : 'None scheduled')}</span>
+            {cov.next_action_owner && <><span style={{ color: 'var(--text-muted)' }}>Owner</span><span>{cov.next_action_owner}</span></>}
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{cov.reason}</div>
+          {cov.recommended_action && <div style={{ fontSize: 12.5, fontWeight: 600, color: meta.color }}>Recommended: {cov.recommended_action}</div>}
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <button className="btn btn-sm btn-primary" onClick={openTaskAdd}>+ Follow-Up</button>
+            {cov.coverage_status !== 'snoozed'
+              ? <button className="btn btn-sm" disabled={busy} onClick={() => setSnoozeOpen(o => !o)}>⏸ Snooze</button>
+              : <button className="btn btn-sm" disabled={busy} onClick={() => act('unsnooze')}>Wake now</button>}
+            {!client.exclude_reason
+              ? <button className="btn btn-sm" disabled={busy} style={{ color: 'var(--text-muted)' }}
+                  onClick={() => { const why = prompt('Exclude from follow-up — reason (required, tracked):'); if (why && why.trim()) act('exclude', { reason: why.trim() }) }}>Exclude…</button>
+              : <button className="btn btn-sm" disabled={busy} onClick={() => act('unexclude')}>Remove exclusion</button>}
+          </div>
+          {snoozeOpen && (
+            <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 12, flexDirection: 'row', display: 'flex', alignItems: 'center', gap: 6 }}>Until
+                <input type="date" value={snoozeDate} min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)} onChange={e => setSnoozeDate(e.target.value)} style={{ padding: '3px 6px' }} />
+              </label>
+              <input placeholder="Reason (e.g. reconnect after the holidays, lease ends in March)" value={snoozeWhy} onChange={e => setSnoozeWhy(e.target.value)} style={{ padding: '5px 8px', fontSize: 12.5 }} />
+              <div style={{ display: 'flex', gap: 6 }}>
+                <button className="btn btn-sm btn-primary" disabled={busy || !snoozeDate} onClick={() => act('snooze', { until: snoozeDate, reason: snoozeWhy })}>Snooze</button>
+                <button className="btn btn-sm" onClick={() => setSnoozeOpen(false)}>Cancel</button>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>When the date arrives the lead wakes up, re-evaluates, and surfaces in Needs Attention until covered again.</div>
+            </div>
+          )}
+        </div>
+      )}
+    </Section>
+  )
+}
 
 // ── Alerts ───────────────────────────────────────────────────────────────
 function buildAlerts(client, ai) {

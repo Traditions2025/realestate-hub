@@ -146,6 +146,10 @@ router.post('/', (req, res) => {
   if (created.due_date && created.due_time && created.assigned_to) {
     import('../task-reminders.js').then(m => m.sendTaskCalendarInvite(created)).catch(() => {})
   }
+  // A new client task usually PROTECTS a lead — reflect it in coverage right away.
+  if (created.related_type === 'client' && created.related_id) {
+    import('../followup-coverage.js').then(m => m.recalcCoverage(created.related_id, { actorType: 'task' })).catch(() => {})
+  }
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
@@ -193,6 +197,12 @@ router.put('/:id', (req, res) => {
   const updatedTask = db.get('SELECT * FROM tasks WHERE id = ?', [id])
   if (updatedTask && updatedTask.due_date && updatedTask.due_time && updatedTask.assigned_to) {
     import('../task-reminders.js').then(m => m.sendTaskCalendarInvite(updatedTask)).catch(() => {})
+  }
+  // Follow-up coverage: completing (or rescheduling) a client task is the classic
+  // fall-through moment — recalculate this lead's coverage IMMEDIATELY, so a lead
+  // whose last future task just closed surfaces as UNPROTECTED instead of vanishing.
+  if (updatedTask && updatedTask.related_type === 'client' && updatedTask.related_id) {
+    import('../followup-coverage.js').then(m => m.recalcCoverage(updatedTask.related_id, { actorType: 'task' })).catch(() => {})
   }
   // Build a short "what changed" summary for the notification email
   const changedKeys = Object.keys(fields).filter(k => k !== 'updated_at' && k !== 'notes_log')

@@ -192,10 +192,15 @@ router.post('/:id/enroll', (req, res) => {
   const ids = req.body?.client_ids || []
   let n = 0
   for (const cid of ids) { if (enrollInDrip(Number(req.params.id), Number(cid), { source: 'manual' })) n++ }
+  // Enrollment usually PROTECTS these leads — refresh their coverage now.
+  import('../followup-coverage.js').then(m => { for (const cid of ids) m.recalcCoverage(Number(cid), { actorType: 'drip' }) }).catch(() => {})
   res.json({ success: true, enrolled: n, skipped: ids.length - n, total: ids.length })
 })
 router.post('/enrollments/:eid/remove', (req, res) => {
+  const row = db.get('SELECT client_id FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
   db.run("UPDATE drip_enrollments SET status='removed', completed_at=? WHERE id=?", [nowIso(), Number(req.params.eid)])
+  // Removing a drip can leave the lead with NOTHING — recalc immediately.
+  if (row?.client_id) import('../followup-coverage.js').then(m => m.recalcCoverage(row.client_id, { actorType: 'drip' })).catch(() => {})
   res.json({ success: true })
 })
 
