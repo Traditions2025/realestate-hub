@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-04T13:32:04.634Z",
+  "generated_at": "2026-09-04T13:43:58.081Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "f8fc776",
+      "date": "2026-09-04T08:32:10-05:00",
+      "subject": "Dashboard greeting: pick who this device greets, right in the header",
+      "title": "Dashboard greeting: pick who this device greets, right in the header",
+      "body": "On the shared team login the greeting name comes from the per-device mst_agent\nidentity, which most devices never set (it lived in an Inbox dropdown). The\ngreeting now offers the picker inline (\"Good morning, [who's this?]\") — choose\nonce per device and it sticks (shared with the Inbox 'I am' selector); click the\nname later to change it. Per-user account logins still win automatically.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "347c140",
       "date": "2026-09-03T19:00:06-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-04T17:04:14-05:00",
       "subject": "FUB Realist Score backfill into lead_score (+A-F grade, empty-only) + weekly sync",
       "title": "FUB Realist Score backfill into lead_score (+A-F grade, empty-only) + weekly sync",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a8eb5a9",
-      "date": "2026-08-04T16:02:26-05:00",
-      "subject": "FUB: full-base web-activity sync (all non-junk clients) via lightweight last-visit + lazy live timeline + hourly incremental",
-      "title": "FUB: full-base web-activity sync (all non-junk clients) via lightweight last-visit + lazy live timeline + hourly incremental",
       "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
