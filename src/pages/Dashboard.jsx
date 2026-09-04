@@ -300,6 +300,9 @@ export default function Dashboard() {
             <div><strong style={{ fontSize: 18 }}>{comm.texts_received ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts received</div></div>
             <div><strong style={{ fontSize: 18 }}>{comm.calls ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Calls</div></div>
             <div><strong style={{ fontSize: 18 }}>{comm.emails_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails sent</div></div>
+            <div><strong style={{ fontSize: 18 }}>{comm.emails_month ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails this month</div></div>
+            <div><strong style={{ fontSize: 18 }}>{comm.texts_month ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts this month</div></div>
+            <div><strong style={{ fontSize: 18 }}>{comm.drip_enrolled ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>In drip campaigns</div></div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <Chip to="/inbox" label="Need Response" value={comm.need_response} tone="amber" />

@@ -14,8 +14,9 @@ function ctWindow() {
   const startUtc = new Date(Date.parse(day + 'T00:00:00Z') + offsetMs).toISOString()
   const endUtc = new Date(Date.parse(day + 'T00:00:00Z') + offsetMs + 86400000).toISOString()
   const monthStart = `${ct.getFullYear()}-${pad(ct.getMonth() + 1)}-01`
+  const monthStartUtc = new Date(Date.parse(monthStart + 'T00:00:00Z') + offsetMs).toISOString()
   const yearStart = `${ct.getFullYear()}-01-01`
-  return { ct, day, startUtc, endUtc, monthStart, yearStart }
+  return { ct, day, startUtc, endUtc, monthStart, monthStartUtc, yearStart }
 }
 // Every command-center block is isolated: one failing query never takes the dashboard down.
 const safe = (fn, fallback) => { try { return fn() } catch (e) { console.error('[dashboard]', e.message); return fallback } }
@@ -184,11 +185,27 @@ router.get('/', (req, res) => {
   // message id, so an OLD label never suppresses a NEW reply.
   const classified = new Map()
   safe(() => { for (const r of db.all('SELECT client_id, intent, summary, based_on_msg_id FROM inbox_ai WHERE intent IS NOT NULL OR summary IS NOT NULL')) classified.set(r.client_id, r) })
-  const _incIdCache = new Map()
-  const latestIncId = (cid) => {
-    if (_incIdCache.has(cid)) return _incIdCache.get(cid)
-    const id = safe(() => db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [cid])?.id ?? null, null)
-    _incIdCache.set(cid, id); return id
+  const _incCache = new Map()
+  const latestIncMsg = (cid) => {
+    if (_incCache.has(cid)) return _incCache.get(cid)
+    const row = safe(() => db.get("SELECT id, body, preview FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') ORDER BY occurred_at DESC LIMIT 1", [cid]) ?? null, null)
+    _incCache.set(cid, row); return row
+  }
+  const latestIncId = (cid) => latestIncMsg(cid)?.id ?? null
+  // Deterministic loop-closers — no AI needed, and no waiting on the background
+  // classifier. A reply that is NOTHING BUT the info we asked for (a bare email
+  // address or phone number) or a bare acknowledgment closes the loop on its own.
+  // Anything with more words falls through to the AI classification below.
+  const AUTO_CLOSED = [
+    /^[\w.+-]+@[\w.-]+\.[a-z]{2,}$/i,                                     // just an email address
+    /^\+?[\d\s().-]{7,20}$/,                                              // just a phone number
+    /^(thanks?( you| so much)?|ty|thx|ok(ay)?|sounds good|got it|perfect|great|awesome|will do|no problem|you too|anytime)[.!\s]*$/i,
+    /^[\u{1F44D}\u{1F64F}\u{2764}\u{FE0F}\u{1F600}-\u{1F64F}\s]+$/u,      // just an emoji (thumbs up etc.)
+  ]
+  const autoClosed = (cid) => {
+    const m = latestIncMsg(cid); if (!m) return false
+    const body = String(m.body || m.preview || '').trim()
+    return !!body && body.length <= 80 && AUTO_CLOSED.some(re => re.test(body))
   }
   // The Inbox AI sometimes labels a loop-closer with a specific intent ("Information Request"
   // for a provided email address) while its SUMMARY carries the real conclusion ("no further
@@ -202,11 +219,13 @@ router.get('/', (req, res) => {
   }
   // Manually dismissed items ("✓ Done" on the dashboard) — keyed per item so new activity resurfaces.
   const dismissed = safe(() => new Set(db.all('SELECT type, client_id, ref FROM attention_dismissals').map(r => `${r.type}:${r.client_id}:${r.ref}`)), new Set())
-  const needRows = needRowsAll.filter(r => !internalIds.has(r.id) && !noRespNeeded(r.id) && !dismissed.has(`need_response:${r.id}:${latestIncId(r.id)}`))
-  // Background: classify up to 5 top unclassified candidates (fire-and-forget, tiny token
-  // cost) so accuracy improves by the next refresh without anyone opening the Inbox first.
+  const needRows = needRowsAll.filter(r => !internalIds.has(r.id) && !autoClosed(r.id) && !noRespNeeded(r.id) && !dismissed.has(`need_response:${r.id}:${latestIncId(r.id)}`))
+  // Background: classify unclassified candidates (fire-and-forget, tiny token cost) so
+  // accuracy improves by the next refresh without anyone opening the Inbox first. The
+  // batch must cover at least the 8 visible rows — a smaller cap starves older items
+  // behind a stream of newer ones and they sit on the list unclassified for days.
   safe(() => {
-    const todo = needRows.filter(r => { const c = classified.get(r.id); return !(c && c.based_on_msg_id === latestIncId(r.id)) }).slice(0, 5)
+    const todo = needRows.filter(r => { const c = classified.get(r.id); return !(c && c.based_on_msg_id === latestIncId(r.id)) }).slice(0, 12)
     if (todo.length) import('./inbox.js').then(m => { for (const r of todo) m.classifyLatestInbound(r.id).catch(() => {}) }).catch(() => {})
   })
   const needTop = needRows.slice(0, 8).map(r => safe(() => {
@@ -351,6 +370,9 @@ router.get('/', (req, res) => {
       need_response: needRows.length,
       missed_calls: missedCalls.length,
       failed_messages: failedToday,
+      emails_month: db.get("SELECT COUNT(*) c FROM communications WHERE channel='email' AND direction='outgoing' AND occurred_at >= ?", [W.monthStartUtc]).c,
+      texts_month: db.get("SELECT COUNT(*) c FROM communications WHERE channel='text' AND direction='outgoing' AND occurred_at >= ?", [W.monthStartUtc]).c,
+      drip_enrolled: db.get("SELECT COUNT(DISTINCT client_id) c FROM drip_enrollments WHERE status='active'").c,
     }
   }, {})
 
