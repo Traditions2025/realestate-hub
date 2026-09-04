@@ -319,6 +319,11 @@ function monthlyIntro() {
   return LINES[m] || ''
 }
 
+function timeGreeting() {
+  const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date())) % 24
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
+}
+
 export function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
@@ -334,6 +339,9 @@ export function fillTemplate(text, client) {
     } catch {}
   }
   return text
+    // Time-of-day greeting resolved at send time, Central clock (drip windows can
+    // run into the afternoon, so this can never be hardcoded in a template).
+    .replace(/\{\{time_greeting\}\}/g, timeGreeting())
     .replace(/\{\{first_name\}\}/g, client.first_name || 'there')
     .replace(/\{\{last_name\}\}/g, client.last_name || '')
     .replace(/\{\{full_name\}\}/g, `${client.first_name || ''} ${client.last_name || ''}`.trim())
