@@ -328,16 +328,16 @@ router.get('/', (req, res) => {
         AND lower(coalesce(c.status,'')) NOT IN ('junk','donotcontact')
         AND NOT EXISTS (SELECT 1 FROM fub_activity fa2 WHERE fa2.client_id = fa1.client_id
           AND fa2.occurred_at < fa1.occurred_at AND fa2.occurred_at >= datetime(fa1.occurred_at,'-60 days'))
-      GROUP BY c.id ORDER BY at DESC LIMIT 50`)
+      GROUP BY c.id ORDER BY at DESC LIMIT 50`).filter(r => !internalIds.has(r.id))
     const repeat = db.all(`SELECT c.id, c.first_name, c.last_name, fa.prop_street, fa.prop_city, COUNT(*) n
       FROM fub_activity fa JOIN clients c ON c.id = fa.client_id
       WHERE fa.occurred_at >= datetime('now','-7 days') AND fa.prop_mls IS NOT NULL AND fa.prop_mls != '' AND c.merged_into IS NULL
-      GROUP BY fa.client_id, fa.prop_mls HAVING COUNT(*) >= 3 ORDER BY n DESC LIMIT 50`)
+      GROUP BY fa.client_id, fa.prop_mls HAVING COUNT(*) >= 3 ORDER BY n DESC LIMIT 50`).filter(r => !internalIds.has(r.id))
     const pcActive = db.all(`SELECT c.id, c.first_name, c.last_name, MAX(fa.occurred_at) at FROM fub_activity fa
       JOIN clients c ON c.id = fa.client_id
       WHERE fa.occurred_at >= datetime('now','-7 days')
         AND (lower(coalesce(c.status,''))='closed' OR (lower(coalesce(c.tags,'')) LIKE '%past client%' AND lower(coalesce(c.tags,'')) NOT LIKE '%unsubscribed%'))
-      GROUP BY c.id ORDER BY at DESC LIMIT 20`)
+      GROUP BY c.id ORDER BY at DESC LIMIT 20`).filter(r => !internalIds.has(r.id))
     return {
       reengaged: reengaged.length, repeat_viewers: new Set(repeat.map(r => r.id)).size, past_clients_active: pcActive.length,
       examples: {

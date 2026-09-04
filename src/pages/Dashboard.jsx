@@ -73,6 +73,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [me, setMe] = useState(null)
+  const [schedOpen, setSchedOpen] = useState(false)  // Today's Schedule lives minimized at the bottom
   useEffect(() => { authFetch('/api/auth/me').then(r => r.json()).then(d => setMe(d?.user || null)).catch(() => {}) }, [])
   // Greet by name ONLY when the signed-in account tells us who it is (per-user login).
   // A shared-team session gets a plain greeting — never a "who is this?" prompt.
@@ -191,19 +192,6 @@ export default function Dashboard() {
             )}
           </Section>
         </div>
-        <Section title="Today's Schedule" link="/calendar" linkLabel="View Calendar →">
-          {schedule.length === 0 ? <Empty>No appointments scheduled today.</Empty> : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {schedule.map((e, i) => (
-                <Link key={i} to={e.link || '/calendar'} style={{ display: 'flex', gap: 10, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: i < schedule.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, minWidth: 66, color: '#2563eb', fontVariantNumeric: 'tabular-nums' }}>{fmtTime(e.time) || '—'}</span>
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</span>
-                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto', textAlign: 'right' }}>{e.location}</span>
-                </Link>
-              ))}
-            </div>
-          )}
-        </Section>
       </div>
 
       {/* ── Row 3: Pipeline + Transactions ────────────────────────── */}
@@ -344,6 +332,35 @@ export default function Dashboard() {
             <Link to="/updates" style={{ fontSize: 12.5 }}>Open diagnostics →</Link>
           </div>
         )}
+      </div>
+
+      {/* ── Today's Schedule — minimized at the very bottom (click to expand) ── */}
+      <div style={{ marginBottom: 14 }}>
+        <div className="card" style={{ padding: '10px 16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => setSchedOpen(o => !o)}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginRight: 8 }}>{schedOpen ? '▾' : '▸'}</span>
+            <h3 style={{ margin: 0, fontSize: 13, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+              Today's Schedule{schedule.length ? ` (${schedule.length})` : ''}
+            </h3>
+            {!schedOpen && schedule.length > 0 && (
+              <span style={{ marginLeft: 10, fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {fmtTime(schedule[0].time) || ''} {schedule[0].title}
+              </span>
+            )}
+            <Link to="/calendar" onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap' }}>View Calendar →</Link>
+          </div>
+          {schedOpen && (schedule.length === 0 ? <Empty>No appointments scheduled today.</Empty> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+              {schedule.map((e, i) => (
+                <Link key={i} to={e.link || '/calendar'} style={{ display: 'flex', gap: 10, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: i < schedule.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, minWidth: 66, color: '#2563eb', fontVariantNumeric: 'tabular-nums' }}>{fmtTime(e.time) || '—'}</span>
+                  <span style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</span>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto', textAlign: 'right' }}>{e.location}</span>
+                </Link>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
 
     </div>
