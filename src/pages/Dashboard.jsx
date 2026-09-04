@@ -75,8 +75,14 @@ export default function Dashboard() {
   const [me, setMe] = useState(null)
   useEffect(() => { authFetch('/api/auth/me').then(r => r.json()).then(d => setMe(d?.user || null)).catch(() => {}) }, [])
   // Who to greet: a per-user account name wins; on the shared team login, fall back to the
-  // Inbox "I am …" agent identity (mst_agent) so John sees John and Matt sees Matt.
-  const firstName = (me && !me.team && me.name) ? me.name.split(' ')[0] : ((typeof localStorage !== 'undefined' && localStorage.getItem('mst_agent')) || '')
+  // per-device identity (mst_agent, shared with the Inbox "I am …" selector). If neither is
+  // set, the greeting itself offers a one-time picker so John sees John and Matt sees Matt.
+  const [agents, setAgents] = useState([])
+  const [agentPick, setAgentPick] = useState(() => { try { return localStorage.getItem('mst_agent') || '' } catch { return '' } })
+  const [pickingAgent, setPickingAgent] = useState(false)
+  useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
+  const chooseAgent = (v) => { try { localStorage.setItem('mst_agent', v) } catch {}; setAgentPick(v); setPickingAgent(false) }
+  const firstName = (me && !me.team && me.name) ? me.name.split(' ')[0] : agentPick
 
   const load = () => {
     setRefreshing(true)
@@ -140,7 +146,20 @@ export default function Dashboard() {
       {/* ── Header ─────────────────────────────────────────────── */}
       <div className="page-header" style={{ marginBottom: 10 }}>
         <div>
-          <h1 style={{ marginBottom: 2 }}>{greeting}{firstName ? `, ${firstName}` : ''} {refreshing && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>· refreshing…</span>}</h1>
+          <h1 style={{ marginBottom: 2 }}>
+            {greeting}
+            {(firstName && !pickingAgent)
+              ? <span title="Click to change who this device greets" style={{ cursor: 'pointer' }} onClick={() => setPickingAgent(true)}>, {firstName}</span>
+              : <>
+                  {', '}
+                  <select autoFocus={pickingAgent} value={agentPick} onChange={e => e.target.value && chooseAgent(e.target.value)}
+                    style={{ fontSize: 16, fontWeight: 600, padding: '2px 6px', borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                    <option value="">who's this?</option>
+                    {agents.map(a => <option key={a} value={a}>{a}</option>)}
+                  </select>
+                </>}
+            {' '}{refreshing && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>· refreshing…</span>}
+          </h1>
           <p className="page-subtitle">{dateLine}</p>
         </div>
       </div>

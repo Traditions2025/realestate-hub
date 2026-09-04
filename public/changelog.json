@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-09-03T22:58:54.467Z",
+  "generated_at": "2026-09-04T13:32:04.634Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "347c140",
+      "date": "2026-09-03T19:00:06-05:00",
+      "subject": "FUB privacy probe: which users' conversations are content-hidden via the API",
+      "title": "FUB privacy probe: which users' conversations are content-hidden via the API",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "43594ab",
+      "date": "2026-09-03T18:19:27-05:00",
+      "subject": "FUB comms import: self-heal previously imported redaction stubs on each run",
+      "title": "FUB comms import: self-heal previously imported redaction stubs on each run",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8a2802a",
+      "date": "2026-09-03T18:18:38-05:00",
+      "subject": "FUB comms import: skip content redacted by FUB privacy, report the count",
+      "title": "FUB comms import: skip content redacted by FUB privacy, report the count",
+      "body": "FUB hides text/email bodies when the API key's user can't view other users'\nconversations. Importing redaction stubs would junk the timeline, so they're\nskipped and counted (hidden_by_fub_privacy); rerun after switching to an\nowner/admin API key with full conversation visibility.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bbf98f5",
+      "date": "2026-09-03T18:08:40-05:00",
+      "subject": "Clients: import a lead's FUB communication history (texts, emails, calls)",
+      "title": "Clients: import a lead's FUB communication history (texts, emails, calls)",
+      "body": "POST /api/clients/:id/import-fub-comms pulls the person's textMessages, emails\nand calls from Follow Up Boss (paginated) into the Hub communications timeline\nwith real timestamps and direction, deduped by FUB record id so it's rerunnable.\n?dry=1 previews counts + raw samples without inserting.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "98c8bec",
+      "date": "2026-09-03T17:58:57-05:00",
+      "subject": "Lead profile: show the Realist Score + Realist property data",
+      "title": "Lead profile: show the Realist Score + Realist property data",
+      "body": "Header badge with the same score+grade styling as the Clients list, click-to-edit\n(PUT lead_score, grade re-derived server-side). Client Details gains a Realist\nline (est. market value, Sell Score, year built, owner-occupancy) when the\nenrichment data exists.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "2b34c03",
       "date": "2026-09-03T17:47:12-05:00",
@@ -3959,46 +3999,6 @@
       "date": "2026-08-04T16:02:26-05:00",
       "subject": "FUB: full-base web-activity sync (all non-junk clients) via lightweight last-visit + lazy live timeline + hourly incremental",
       "title": "FUB: full-base web-activity sync (all non-junk clients) via lightweight last-visit + lazy live timeline + hourly incremental",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f7d2fef",
-      "date": "2026-08-04T15:42:18-05:00",
-      "subject": "Clients list: remove the Actions column from the table",
-      "title": "Clients list: remove the Actions column from the table",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "70d1428",
-      "date": "2026-08-04T15:17:47-05:00",
-      "subject": "Last Visit: include city in the last-viewed detail",
-      "title": "Last Visit: include city in the last-viewed detail",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c073f68",
-      "date": "2026-08-04T15:07:34-05:00",
-      "subject": "Clients: Last Visit column (FUB last web activity date + what they viewed) + sort",
-      "title": "Clients: Last Visit column (FUB last web activity date + what they viewed) + sort",
-      "body": "New clients columns last_fub_activity_at/type/detail (maintained on activity import + backfill endpoint). Clients list gets a Last Visit column showing the date with the last viewed property/page below it, sortable via 'Most Recent Web Visit (FUB)'.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fbbc051",
-      "date": "2026-08-04T14:55:46-05:00",
-      "subject": "Clients: show Follow Up Boss web activity panel on client detail",
-      "title": "Clients: show Follow Up Boss web activity panel on client detail",
-      "body": "Adds a 'Follow Up Boss Activity' section to the client detail modal -- property views with address/MLS/price, page visits, saved searches, pulled from the fub_activity table matched by email.\n\nCo-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0392109",
-      "date": "2026-08-04T14:41:55-05:00",
-      "subject": "FUB activity: fub_activity table + clients.fub_person_id + import/read endpoints",
-      "title": "FUB activity: fub_activity table + clients.fub_person_id + import/read endpoints",
       "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
