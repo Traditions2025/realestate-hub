@@ -32,6 +32,45 @@ router.get('/smart-lists', (_req, res) => {
   res.json(out)
 })
 
+// Diagnostic: sample FUB texts/emails account-wide and report which are content-hidden,
+// grouped by owning user/email account — pinpoints WHOSE sharing settings cause redaction.
+router.get('/fub-privacy-probe', async (_req, res) => {
+  try {
+    const { fubGet } = await import('../fub-helper.js')
+    const out = {}
+    try {
+      const u = await fubGet('/users', { limit: 50 })
+      out.users = (u?.users || []).map(x => ({ id: x.id, name: x.name, role: x.role }))
+    } catch (e) { out.users_error = e.message }
+    try {
+      const t = await fubGet('/textMessages', { limit: 50 })
+      const items = t?.textmessages || []
+      const agg = {}
+      for (const m of items) {
+        const k = `user:${m.userId ?? '?'} ${m.userName || ''}`.trim()
+        agg[k] = agg[k] || { total: 0, hidden: 0 }
+        agg[k].total++
+        if (/hidden for privacy/i.test(String(m.message || ''))) agg[k].hidden++
+      }
+      out.texts = agg
+      out.text_visible_sample = items.find(m => m.message && !/hidden for privacy/i.test(m.message))?.message?.slice(0, 60) || null
+    } catch (e) { out.texts_error = e.message }
+    try {
+      const em = await fubGet('/emails', { limit: 50 })
+      const items = em?.emails || []
+      const agg = {}
+      for (const m of items) {
+        const k = `user:${m.userId ?? '?'} acct:${m.emailAccountId ?? '?'}`
+        agg[k] = agg[k] || { total: 0, hidden: 0 }
+        agg[k].total++
+        if (m.showContent === false || /CONTENT HIDDEN/i.test(String(m.subject || ''))) agg[k].hidden++
+      }
+      out.emails = agg
+    } catch (e) { out.emails_error = e.message }
+    res.json(out)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Pull a lead's communication history (texts, emails, calls) from Follow Up Boss into the
 // Hub timeline. Deduped by FUB record id (fub_text_/fub_email_/fub_call_ external ids), so
 // it's rerunnable. ?dry=1 returns counts + a raw sample of each type without inserting.
