@@ -677,8 +677,9 @@ async function start() {
       // Match on the last 4 digits (always contiguous at the end) then confirm the full
       // last-10. A last-7 LIKE misses formatted numbers like "(319) 929-9923" because the
       // dash splits the digits, so the call never attaches to the lead.
-      const match = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-4)])
-        .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
+      const match = db.all('SELECT id, first_name, last_name, phone, alt_phones FROM clients WHERE phone LIKE ? OR alt_phones LIKE ?', ['%' + last10.slice(-4), '%' + last10.slice(-4) + '%'])
+        .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10
+          || String(x.alt_phones || '').split(',').some(p => p.replace(/\D/g, '').slice(-10) === last10))
       const ext = 'twiliocall_' + (f.sid || Date.now())
       const label = channel === 'voicemail' ? 'Voicemail' : `${direction === 'incoming' ? 'Incoming' : 'Outgoing'} call`
       const tail = f.disposition ? ` — ${f.disposition}` : (f.delivery_status && !['completed', 'ringing', 'initiated'].includes(f.delivery_status) ? ` (${f.delivery_status})` : '')
@@ -715,8 +716,9 @@ async function start() {
       if (last10.length < 10) return
       const ext = 'missedcb_' + (callSid || last10)
       if (db.get('SELECT id FROM communications WHERE external_id=?', [ext])) return
-      const match = db.all('SELECT id, first_name, last_name, phone, status, hub_text_opt_out FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-4)])
-        .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10)
+      const match = db.all('SELECT id, first_name, last_name, phone, alt_phones, status, hub_text_opt_out FROM clients WHERE phone LIKE ? OR alt_phones LIKE ?', ['%' + last10.slice(-4), '%' + last10.slice(-4) + '%'])
+        .find(x => String(x.phone || '').replace(/\D/g, '').slice(-10) === last10
+          || String(x.alt_phones || '').split(',').some(p => p.replace(/\D/g, '').slice(-10) === last10))
       if (match && (match.hub_text_opt_out || isDncStatus(match.status))) return
       const msg = db.getSetting('missed_call_textback_message', 'Sorry we missed your call! This is the Matt Smith Team. How can we help? You can reply right here.')
       const { sendSms } = await import('./twilio.js')
@@ -861,7 +863,8 @@ async function start() {
       for (const r of orphans) {
         const last10 = norm(r.direction === 'incoming' ? r.from_addr : r.to_addr)
         if (last10.length < 10) continue
-        const m = db.all('SELECT id, first_name, last_name, phone FROM clients WHERE phone LIKE ?', ['%' + last10.slice(-4)]).find(x => norm(x.phone) === last10)
+        const m = db.all('SELECT id, first_name, last_name, phone, alt_phones FROM clients WHERE phone LIKE ? OR alt_phones LIKE ?', ['%' + last10.slice(-4), '%' + last10.slice(-4) + '%'])
+          .find(x => norm(x.phone) === last10 || String(x.alt_phones || '').split(',').some(p => norm(p) === last10))
         if (!m) continue
         db.run('UPDATE communications SET client_id=?, contact_name=?, thread_key=? WHERE id=?',
           [m.id, `${m.first_name || ''} ${m.last_name || ''}`.trim(), `c${m.id}_call`, r.id])

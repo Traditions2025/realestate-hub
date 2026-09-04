@@ -252,8 +252,8 @@ export default function ClientProfile() {
             <button className="btn btn-primary btn-sm" onClick={saveNote} disabled={savingNote || !noteText.trim()}>{savingNote ? 'Saving…' : 'Save Note'}</button>
           </div>
         )}
-        {textOpen && client.phone && !client.hub_text_opt_out && <div style={{ marginTop: 8 }}><InlineTextComposer client={client} onClose={() => setTextOpen(false)} onSent={() => { load(); window.dispatchEvent(new CustomEvent('cp-comms-changed')) }} /></div>}
-        {emailOpen && client.email && <EmailComposer client={client} initial={emailPrefill} onClose={() => { setEmailOpen(false); setEmailPrefill(null) }} onSent={() => window.dispatchEvent(new CustomEvent('cp-comms-changed'))} />}
+        {textOpen && (client.phone || client.alt_phones) && !client.hub_text_opt_out && <div style={{ marginTop: 8 }}><InlineTextComposer client={client} onClose={() => setTextOpen(false)} onSent={() => { load(); window.dispatchEvent(new CustomEvent('cp-comms-changed')) }} /></div>}
+        {emailOpen && (client.email || client.alt_emails) && <EmailComposer client={client} initial={emailPrefill} onClose={() => { setEmailOpen(false); setEmailPrefill(null) }} onSent={() => window.dispatchEvent(new CustomEvent('cp-comms-changed'))} />}
         {taskOpen && <div style={{ marginTop: 8 }}><QuickAddTask clientId={cid} clientName={name} clientAddress={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} onAdded={() => { setTaskOpen(false); window.dispatchEvent(new CustomEvent('cp-tasks-changed')) }} /></div>}
       </div>
 
@@ -326,8 +326,8 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved} />
           {client.phone && <PhoneStatusBadge client={client} />}
           <InlineField label="Email" field="email" type="email" value={client.email} clientId={cid} onSaved={onSaved} />
-          {client.alt_phones && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other phones:</strong> {client.alt_phones}</p>}
-          {client.alt_emails && <p style={{ margin: '2px 0', fontSize: 12.5, color: 'var(--text-secondary)' }}><strong>Other emails:</strong> {client.alt_emails}</p>}
+          <InlineField label="Other phones" field="alt_phones" value={client.alt_phones} clientId={cid} onSaved={onSaved} />
+          <InlineField label="Other emails" field="alt_emails" type="text" value={client.alt_emails} clientId={cid} onSaved={onSaved} />
           <InlineField label="Address" field="address" value={client.address} clientId={cid} onSaved={onSaved} />
           <InlineField label="City" field="city" value={client.city} clientId={cid} onSaved={onSaved} />
           <InlineField label="State" field="state" value={client.state} clientId={cid} onSaved={onSaved} />
@@ -519,6 +519,9 @@ function CommItem({ m }) {
 // at the cursor, and Preview renders the final email — signature and fields filled in.
 const DEFAULT_BODY = '\n\n{{signature}}'
 function EmailComposer({ client, onClose, onSent, initial }) {
+  // Which of the lead's saved addresses to send to (primary + any alt_emails).
+  const clientEmails = [client.email, ...String(client.alt_emails || '').split(',')].map(e => String(e || '').trim()).filter(Boolean)
+  const [toEmail, setToEmail] = useState('')
   const [subject, setSubject] = useState(initial?.subject || '')
   const [body, setBody] = useState(initial?.body ? String(initial.body).trimEnd() + DEFAULT_BODY : DEFAULT_BODY)
   const [templates, setTemplates] = useState([])
@@ -553,7 +556,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     if (!stripHtml(body).trim()) return
     setSending(true)
     try {
-      const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>') }) })
+      const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, to_email: toEmail || undefined, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>') }) })
       const d = await r.json().catch(() => ({}))
       if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else alert('Email not sent: ' + (d.error || 'unknown'))
     } catch (e) { alert('Email failed: ' + e.message) } finally { setSending(false) }
@@ -562,7 +565,14 @@ function EmailComposer({ client, onClose, onSent, initial }) {
   return (
     <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>To: {client.email}</span>
+        {clientEmails.length > 1 ? (
+          <select value={toEmail || clientEmails[0]} onChange={e => setToEmail(e.target.value)} title="Which of this lead's email addresses to send to"
+            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
+            {clientEmails.map((em, i) => <option key={em} value={em}>To: {em}{i === 0 ? ' (main)' : ''}</option>)}
+          </select>
+        ) : (
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>To: {client.email}</span>
+        )}
         <TemplatePicker templates={templates} onPick={t => { if (t.subject) setSubject(t.subject); setBody(withSig(stripHtml(t.body))) }} />
         <select value="" onChange={e => { if (e.target.value) { insertToken(e.target.value); e.target.value = '' } }}
           title="Insert a merge field at the cursor"

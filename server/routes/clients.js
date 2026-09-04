@@ -1249,6 +1249,10 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const fields = req.body
+  // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
+  // follow the lead once the real number is saved, so capture the pre-edit
+  // state and clear the block below when the phone is actually replaced.
+  const before = db.get('SELECT phone, hub_text_opt_out FROM clients WHERE id = ?', [Number(req.params.id)])
   // Manual Realist Score entry: normalize to digits and derive the A-F grade
   // whenever lead_score is set (or cleared) so the badge stays consistent.
   if (Object.prototype.hasOwnProperty.call(fields, 'lead_score')) {
@@ -1263,6 +1267,21 @@ router.put('/:id', (req, res) => {
 
   db.run(`UPDATE clients SET ${sets} WHERE id = ?`, values)
   logActivity('updated', 'client', Number(req.params.id), 'Updated client')
+
+  {
+    const cid = Number(req.params.id)
+    const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+    const phoneReplaced = before && before.hub_text_opt_out && 'phone' in fields
+      && d10(fields.phone) && d10(fields.phone) !== d10(before.phone)
+    const explicitClear = 'hub_text_opt_out' in fields && !Number(fields.hub_text_opt_out)
+    if (phoneReplaced || explicitClear) {
+      const now = new Date().toISOString()
+      if (phoneReplaced) db.run('UPDATE clients SET hub_text_opt_out = 0, updated_at = ? WHERE id = ?', [now, cid])
+      // Keep the AI-policy prefs in step so autopilot unblocks with the manual side.
+      db.run(`UPDATE communication_preferences SET sms_status = 'eligible', sms_opt_in_timestamp = ?, updated_at = ? WHERE client_id = ?`, [now, now, cid])
+      if (phoneReplaced) logActivity('updated', 'client', cid, `Text opt-out cleared - phone number replaced (STOP came from the old number)`)
+    }
+  }
 
   // Moving a lead to a stop status (Junk) pulls it out of every active drip
   // + automation so no further emails/texts fire.

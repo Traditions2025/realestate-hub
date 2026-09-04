@@ -90,7 +90,10 @@ function matchClient(channel, fromAddr) {
   const k = phoneKey(fromAddr)
   if (!k) return null
   // match on the last 10 digits of the stored phone — never a merged/archived duplicate.
-  const rows = db.all("SELECT id, first_name, last_name, phone, status FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL").filter((c) => phoneKey(c.phone) === k)
+  // alt_phones (comma-separated extra numbers on the lead) match too, so a reply
+  // from a second line lands on the right person instead of an unknown thread.
+  const rows = db.all("SELECT id, first_name, last_name, phone, alt_phones, status FROM clients WHERE ((phone IS NOT NULL AND phone != '') OR (alt_phones IS NOT NULL AND alt_phones != '')) AND merged_into IS NULL")
+    .filter((c) => phoneKey(c.phone) === k || String(c.alt_phones || '').split(',').some(p => phoneKey(p.trim()) === k))
   return pickBestClient(rows)
 }
 
@@ -912,19 +915,29 @@ router.post('/send', async (req, res) => {
     const results = []
     for (const cid of client_ids) {
       const c = db.get('SELECT * FROM clients WHERE id = ?', [Number(cid)])
-      if (!c || !c.phone) { results.push({ client_id: cid, ok: false, error: 'no phone on file' }); continue }
+      const savedNums = c ? [c.phone, ...String(c.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean) : []
+      if (!c || !savedNums.length) { results.push({ client_id: cid, ok: false, error: 'no phone on file' }); continue }
       if (c.hub_text_opt_out) { results.push({ client_id: cid, ok: false, error: 'replied STOP to our number — texting blocked (you can still call)' }); continue }
+      // Optional per-send number pick (single recipient only): must be one of the
+      // lead's saved numbers — primary or alt — never an arbitrary number.
+      let dest = savedNums[0]
+      const want10 = client_ids.length === 1 ? String(req.body?.to_phone || '').replace(/\D/g, '').slice(-10) : ''
+      if (want10) {
+        const hit = savedNums.find(p => p.replace(/\D/g, '').slice(-10) === want10)
+        if (!hit) { results.push({ client_id: cid, ok: false, error: 'that number is not saved on this lead' }); continue }
+        dest = hit
+      }
       const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
       // Fill merge fields per recipient, then strip any UNRESOLVED {{...}} so a
       // customer never receives a raw placeholder.
       const outText = fillTemplate(body || '', c).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
       if (!outText && !media.length) { results.push({ client_id: cid, ok: false, error: 'message empty after merge fields' }); continue }
       try {
-        const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status', mediaUrls: media })
+        const r = await sendSms(dest, outText, { statusCallback: hub + '/api/inbox/twilio-status', mediaUrls: media })
         const preview = (String(outText).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} photo${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, sent_by_type, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', c.phone, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
+          ['text', 'outgoing', c.id, name, '', dest, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
         // A human texting an AI-managed lead → AI backs off (only if AI already touched this lead).
         if (db.get('SELECT client_id FROM ai_lead_state WHERE client_id=?', [c.id])) { try { const { humanTakeover } = await import('../ai-followup/state.js'); humanTakeover(c.id, 'agent sent a text') } catch {} }
         results.push({ client_id: cid, ok: true })

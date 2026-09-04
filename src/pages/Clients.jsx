@@ -4675,6 +4675,9 @@ export function AiIsaCard({ clientId }) {
 // more recipients — sends from the Hub number to everyone in one shot. ---
 export function InlineTextComposer({ client, onClose, onSent }) {
   const [recips, setRecips] = React.useState([client])
+  // Which of the lead's saved numbers to text (primary + any alt_phones).
+  const clientNums = [client.phone, ...String(client.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean)
+  const [toPhone, setToPhone] = React.useState('')
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState([])
   const [body, setBody] = React.useState('')
@@ -4776,7 +4779,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       }
       const client_ids = recips.filter(r => !r.agent).map(r => r.id)
       const phones = recips.filter(r => r.agent).map(r => ({ phone: r.phone, name: r.name }))
-      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids, phones, body: body.trim(), media: media.map(m => m.url) }) })
+      const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids, phones, to_phone: (client_ids.length === 1 && toPhone) || undefined, body: body.trim(), media: media.map(m => m.url) }) })
       const d = await r.json()
       if (d.sent >= 1) {
         setBody(''); setMedia([]); onSent && onSent()
@@ -4792,6 +4795,12 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>💬 Text</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>from your Hub number (319) 343-1562</span>
+        {recips.length === 1 && !recips[0].agent && clientNums.length > 1 && (
+          <select value={toPhone || clientNums[0]} onChange={e => setToPhone(e.target.value)} title="Which of this lead's numbers to text"
+            style={{ marginLeft: 8, fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+            {clientNums.map((p, i) => <option key={p} value={p}>to {p}{i === 0 ? ' (main)' : ''}</option>)}
+          </select>
+        )}
         <button onClick={onClose} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16 }} title="Close">✕</button>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
