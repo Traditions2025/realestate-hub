@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
 import MultiSelect from '../components/MultiSelect'
@@ -180,9 +180,12 @@ const SMART_LISTS = [
   { key: 'ai_no_next_action', label: 'AI Managed · No Next Action', desc: 'AI-enabled leads whose engine has nothing scheduled and nothing else covers them' },
 ]
 
-function loadColumnPrefs() {
+// Per-view prefs: each tab / saved list / smart list stores its own columns under a
+// scoped key; the legacy global key stays as the baseline a new view starts from.
+const prefsKeyFor = (viewKey) => `mst_clients_columns_v2::${viewKey}`
+function loadColumnPrefs(viewKey) {
   try {
-    const raw = localStorage.getItem(COLUMN_PREFS_KEY)
+    const raw = (viewKey && localStorage.getItem(prefsKeyFor(viewKey))) || localStorage.getItem(COLUMN_PREFS_KEY)
     if (!raw) throw new Error('no prefs')
     const parsed = JSON.parse(raw)
     // Validate: keep only known keys; append any new ones at the end
@@ -462,16 +465,28 @@ export default function Clients() {
   // Saved lists + active list live up here so the per-list column prefs below can key off them.
   const [savedLists, setSavedLists] = useState([])
   const [activeListId, setActiveListId] = useState(null)
-  const [colPrefs, setColPrefs] = useState(loadColumnPrefs)                         // main list
+  const [smartList, setSmartList] = useState(null)
+  // EVERY view keeps its OWN columns + widths: each status tab, each saved list, each
+  // smart list. Changing columns or resizing in one view never leaks into another.
+  const viewKey = smartList ? `smart:${smartList}` : activeListId ? `list:${activeListId}` : `tab:${tab}`
+  const [colPrefs, setColPrefs] = useState(() => loadColumnPrefs(viewKey))          // per-view (legacy global = baseline)
+  useEffect(() => { setColPrefs(loadColumnPrefs(viewKey)) }, [viewKey])             // eslint-disable-line react-hooks/exhaustive-deps
   const [expiredColPrefs, setExpiredColPrefs] = useState(loadExpiredColumnPrefs)    // Cancelled/Expired list
   const isExpiredList = /^(cancelled|expired)/i.test((savedLists.find(l => l.id === activeListId)?.name) || '')
   const activeColPrefs = isExpiredList ? expiredColPrefs : colPrefs
   const setActiveColPrefs = isExpiredList ? setExpiredColPrefs : setColPrefs
   const [columnsPickerOpen, setColumnsPickerOpen] = useState(false)
   const [dragColKey, setDragColKey] = useState(null)
-  // Manual column widths (drag-to-resize), persisted per table. One 'clients' layout — the FSBO
-  // and Cancelled/Expired views reuse the same column KEYS (just relabeled), so widths carry over.
-  const { widths: colWidths, setWidthLive: setColWidthLive, commitWidth: commitColWidth, reset: resetColWidths } = useColumnWidths('clients')
+  // Manual column widths (drag-to-resize), persisted PER VIEW (each tab / saved list /
+  // smart list has its own layout). A view seen for the first time inherits the legacy
+  // shared 'clients' layout as its starting point, then diverges independently.
+  useMemo(() => {
+    try {
+      const k = `table_layout::clients::${viewKey}`
+      if (!localStorage.getItem(k)) { const legacy = localStorage.getItem('table_layout::clients'); if (legacy) localStorage.setItem(k, legacy) }
+    } catch {}
+  }, [viewKey])
+  const { widths: colWidths, setWidthLive: setColWidthLive, commitWidth: commitColWidth, reset: resetColWidths } = useColumnWidths(`clients::${viewKey}`)
   const colWidthPx = (c) => colWidths[c.key] || defaultWidthFor(c)
   const colMin = (c) => Number(c.minWidth) || 60
   const resizingRef = useRef(false)   // set true while a resize drag is active, so it never starts a column-reorder drag
@@ -492,7 +507,7 @@ export default function Clients() {
   }, [activeColPrefs, commitColWidth])
   const autoFitVisible = () => { for (const c of visibleColumns) autoFitColumn(c.key) }
 
-  useEffect(() => { try { localStorage.setItem(COLUMN_PREFS_KEY, JSON.stringify(colPrefs)) } catch {} }, [colPrefs])
+  useEffect(() => { try { localStorage.setItem(prefsKeyFor(viewKey), JSON.stringify(colPrefs)) } catch {} }, [colPrefs])  // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { try { localStorage.setItem(COLUMN_PREFS_KEY_EXPIRED, JSON.stringify(expiredColPrefs)) } catch {} }, [expiredColPrefs])
 
   // Columns for the active list (the Cancelled/Expired list has its own set + order).
@@ -612,8 +627,7 @@ export default function Clients() {
   const [filterPanelOpen, setFilterPanelOpen] = useState(false)
   const [filterOptions, setFilterOptions] = useState({ zips: [], cities: [], sources: [], tags: [], viewed_cities: [] })
   const [dripCampaigns, setDripCampaigns] = useState([])
-  // Smart lists: server-computed segments (past-client return, no-email, most-active).
-  const [smartList, setSmartList] = useState(null)
+  // Smart lists state lives up top with tab/savedLists so column prefs can key off the view.
   const [smartCounts, setSmartCounts] = useState({})
   const [saveListOpen, setSaveListOpen] = useState(false)
   const [newListName, setNewListName] = useState('')
