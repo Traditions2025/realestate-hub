@@ -176,6 +176,8 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
              tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, row.mls_status || null, now, now, now])
           // index the new lead so a duplicate row in this same run won't create it twice
           index.set(key, [...candidates, { id: info.lastInsertRowid, first_name: first, last_name: last, address: row.address, city: row.city, status: 'new' }])
+          const { logMasterUpdate } = await import('./master-file-log.js')
+          logMasterUpdate(info.lastInsertRowid, 'expired', 'new_lead', `New ${row.mls_status || 'off-market'} seller lead added from the Cancelled/Expired master file (${row.address || ''}${row.city ? ', ' + row.city : ''})`)
           report.created++
         }
       }
@@ -212,7 +214,12 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       }
       db.run(`UPDATE clients SET ${sets.join(', ')}, updated_at=? WHERE id=?`, [...vals, now, match.id])
       report.wrote++
-      if (doJunk && !isStopStatus(match.status)) { try { stopSequencesForClient(match.id, `expired master: ${reason}`) } catch {} report.junked++ }
+      if (doJunk && !isStopStatus(match.status)) {
+        try { stopSequencesForClient(match.id, `expired master: ${reason}`) } catch {}
+        const { logMasterUpdate } = await import('./master-file-log.js')
+        logMasterUpdate(match.id, 'expired', 'junked', `Status changed to Junk: ${reason} — per the Cancelled/Expired master file (no longer a prospect)`)
+        report.junked++
+      }
     }
   }
   report.match_rate_pct = report.sheet_rows ? Math.round((report.matched / report.sheet_rows) * 100) : 0

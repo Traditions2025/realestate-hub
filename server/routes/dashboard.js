@@ -399,6 +399,13 @@ router.get('/', (req, res) => {
     }
   }, {})
 
+  // ---- Master-file updates (FSBO + Cancelled/Expired) for the dashboard box ----
+  stats.master_updates = safe(() => ({
+    items: db.all('SELECT id, client_id, client_name, list, change, detail, created_at FROM master_file_updates ORDER BY id DESC LIMIT 8'),
+    fsbo_last_sync: db.getSetting('fsbo_master_last_sync', null) || null,
+    expired_last_sync: db.getSetting('expired_master_last_sync', null) || null,
+  }), { items: [] })
+
   // ---- Follow-up coverage (fall-through prevention) — the KPI target is ZERO ----
   stats.coverage = safe(() => {
     const g = (sql, p = []) => db.get(sql, p)?.n || 0

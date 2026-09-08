@@ -1005,6 +1005,20 @@ export async function initDb() {
     )
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_fce_client ON followup_coverage_events(client_id, created_at)')
+  // Master-file sync changes (FSBO + Cancelled/Expired): every status change the syncs
+  // make is recorded here (and as a note on the lead) — feeds the dashboard updates box.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS master_file_updates (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      client_name TEXT,
+      list TEXT,                 -- fsbo | expired
+      change TEXT,               -- status_change | junked | new_lead | removed
+      detail TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  db.run('CREATE INDEX IF NOT EXISTS idx_mfu_at ON master_file_updates(created_at)')
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

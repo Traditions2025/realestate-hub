@@ -104,6 +104,7 @@ export default function Dashboard() {
   const ai = data.ai || {}
   const comm = data.comm_today || {}
   const coverage = data.coverage || null
+  const masterUpdates = data.master_updates || { items: [] }
   const health = data.health || { ok: true, issues: [] }
   const business = data.business || null
 
@@ -116,6 +117,20 @@ export default function Dashboard() {
 
   // "✓ Done" on an attention card: record the dismissal (item-keyed — new activity resurfaces)
   // and remove it optimistically; counts adjust without waiting for the next refresh.
+  // "Check Master Files" — runs the FSBO + Cancelled/Expired syncs on demand.
+  const [mfBusy, setMfBusy] = useState(false)
+  const [mfResult, setMfResult] = useState(null)
+  const syncMasterFiles = async () => {
+    setMfBusy(true); setMfResult(null)
+    try {
+      const r = await authFetch('/api/lists/master-sync', { method: 'POST' })
+      const d = await r.json()
+      setMfResult(d.ok
+        ? `✓ FSBO: ${d.fsbo?.sheet_rows ?? '?'} rows, ${d.fsbo?.created ?? 0} new, ${d.fsbo?.junked_pending ?? 0} junked · Expired: ${d.expired?.sheet_rows ?? '?'} rows, ${d.expired?.created ?? 0} new, ${d.expired?.junked ?? 0} junked`
+        : `⚠ ${d.fsbo?.error || d.expired?.error || 'sync failed'}`)
+      load()
+    } catch (e) { setMfResult('⚠ ' + e.message) } finally { setMfBusy(false) }
+  }
   const dismissAttention = async (a) => {
     try { await authFetch('/api/dashboard/attention/dismiss', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: a.type, client_id: a.client_id, ref: a.ref }) }) } catch {}
     setData(d => ({
@@ -194,6 +209,36 @@ export default function Dashboard() {
             )}
           </Section>
         </div>
+        <Section title="Cancelled/Expired/FSBO Updates" accent="#2563eb"
+          link="/clients?list=fsbo" linkLabel="Open lists →">
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
+            <button className="btn btn-sm btn-primary" disabled={mfBusy} onClick={syncMasterFiles}>
+              {mfBusy ? 'Checking master files…' : '🔄 Check Master Files Now'}
+            </button>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              Auto-checks hourly · Last: {timeAgo(masterUpdates.expired_last_sync || masterUpdates.fsbo_last_sync) || '—'}
+            </span>
+          </div>
+          {mfResult && <div style={{ fontSize: 12, marginBottom: 8, color: mfResult.startsWith('✓') ? '#059669' : '#dc2626' }}>{mfResult}</div>}
+          {(masterUpdates.items || []).length === 0
+            ? <Empty>No master-file changes recorded yet. Changes (status flips, relists junked, new leads) will appear here with a note on each lead.</Empty>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {masterUpdates.items.map(u => {
+                const meta = { status_change: ['↔', '#d97706'], junked: ['✗', '#ef4444'], new_lead: ['＋', '#059669'], removed: ['−', 'var(--text-muted)'] }[u.change] || ['•', 'var(--text-muted)']
+                return (
+                  <Link key={u.id} to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ display: 'flex', gap: 8, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: '1px solid var(--border)' }}>
+                    <span style={{ color: meta[1], fontWeight: 800 }}>{meta[0]}</span>
+                    <span style={{ fontSize: 12.5, flex: 1 }}>
+                      <strong>{u.client_name}</strong>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : 'CX/EXP'}</span>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{u.detail}</div>
+                    </span>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(u.created_at)}</span>
+                  </Link>
+                )
+              })}
+            </div>}
+        </Section>
       </div>
 
       {/* ── Row 3: Pipeline + Transactions ────────────────────────── */}

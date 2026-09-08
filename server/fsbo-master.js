@@ -4,6 +4,7 @@
 // and its FSBO-Status column. Read-only against the sheet; upserts only fsbo_status.
 import db from './database.js'
 import { stopSequencesForClient } from './lead-sequences.js'
+import { logMasterUpdate } from './master-file-log.js'
 
 const nowIso = () => new Date().toISOString()
 
@@ -198,6 +199,7 @@ export async function syncFsboMaster() {
       [first, last, primary.phone, primary.email || null, 'seller', 'watch', primary.source || 'FSBO Master',
        primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null, primary.notes || null, primary.link || null, listingsJson, now, now])
     report.created++
+    logMasterUpdate(info.lastInsertRowid, 'fsbo', 'new_lead', `New FSBO lead added from the master file (${status}${primary.address ? ' — ' + primary.address : ''})`)
     const rec = { id: info.lastInsertRowid, phone: primary.phone, tags: tagsJson(primary.tags), fsbo_status: status, status: 'watch', first_name: first, last_name: last }
     const k = last10(primary.phone); if (k) index.set(k, rec)
   }
@@ -223,6 +225,11 @@ export async function syncFsboMaster() {
     }
     if (!match) { createNew(primary, status, listingsJson, price); continue }
     report.matched++
+    // Record + note any FSBO status transition (Available → Off Market / Pending …)
+    const prevFsbo = db.get('SELECT fsbo_status FROM clients WHERE id=?', [match.id])?.fsbo_status || null
+    if (prevFsbo && status && prevFsbo !== status) {
+      logMasterUpdate(match.id, 'fsbo', 'status_change', `FSBO status changed: ${prevFsbo} → ${status} (per the FSBO master file)`)
+    }
     // Main address MUST equal the FSBO listing address — it's what {{address}} uses in texts/
     // emails, so a stale address would reference the wrong (maybe-not-listed) house. COALESCE
     // keeps the existing value only if the listing address is blank.
@@ -239,7 +246,11 @@ export async function syncFsboMaster() {
   // Prune stragglers: an fsbo_status record whose phone is no longer in the sheet.
   for (const c of db.all("SELECT id, phone FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''")) {
     const k = last10(c.phone)
-    if (!k || !sheetPhones.has(k)) { db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL WHERE id=?', [c.id]); report.pruned++ }
+    if (!k || !sheetPhones.has(k)) {
+      db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL WHERE id=?', [c.id])
+      logMasterUpdate(c.id, 'fsbo', 'removed', 'Removed from the FSBO master file — no longer tracked as a FSBO')
+      report.pruned++
+    }
   }
   // SELF-HEAL: collapse ANY remaining records that share the same name + phone into ONE profile,
   // combining all their listings. This makes multi-listing sellers (and any accidental dup) a
@@ -286,6 +297,7 @@ export async function syncFsboMaster() {
     if (isJunkish(c.status)) continue
     db.run("UPDATE clients SET status='junk', updated_at=? WHERE id=?", [now, c.id])
     try { stopSequencesForClient(c.id, 'FSBO went Pending (under contract)') } catch {}
+    logMasterUpdate(c.id, 'fsbo', 'junked', 'Status changed to Junk: FSBO went Pending (under contract) per the FSBO master file — no longer an active FSBO')
     report.junked_pending++
   }
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n

@@ -343,6 +343,7 @@ export default function Settings() {
 
           <AiFollowUpSettings />
           <CoverageSettings />
+          <MasterFileSettings />
 
           <AiEvalPanel />
 
@@ -463,6 +464,44 @@ function AiExclusions({ cfg, saveCfg }) {
         </div>
       </div>
     </div>
+  )
+}
+
+// Master files (FSBO + Cancelled/Expired): one button re-checks both Google Sheets
+// on demand. Every change the sync makes (status flips, relists junked, new leads)
+// is recorded on the lead's profile as a note and in the dashboard updates box.
+function MasterFileSettings() {
+  const [busy, setBusy] = React.useState(false)
+  const [result, setResult] = React.useState(null)
+  const run = async () => {
+    setBusy(true); setResult(null)
+    try {
+      const r = await authFetch('/api/lists/master-sync', { method: 'POST' })
+      const d = await r.json()
+      setResult(d)
+    } catch (e) { setResult({ ok: false, error: e.message }) } finally { setBusy(false) }
+  }
+  const line = (label, rep) => rep && !rep.error
+    ? `${label}: ${rep.sheet_rows ?? '?'} sheet rows · ${rep.matched ?? '?'} matched · ${rep.created ?? 0} new leads · ${(rep.junked ?? rep.junked_pending) ?? 0} junked · ${rep.updated ?? rep.wrote ?? 0} updated`
+    : `${label}: ⚠ ${rep?.error || 'failed'}`
+  return (
+    <section className="detail-section">
+      <h4 style={{ margin: '0 0 4px' }}>📋 Master Files (FSBO + Cancelled/Expired)</h4>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+        Re-checks both master Google Sheets right now (they also auto-check hourly). Status changes land as a note on each lead and in the dashboard updates box.
+      </div>
+      <button className="btn btn-sm btn-primary" disabled={busy} onClick={run}>{busy ? 'Checking both master files…' : '🔄 Check Master Files Now'}</button>
+      {result && (
+        <div style={{ fontSize: 12.5, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+          <div style={{ color: result.fsbo && !result.fsbo.error ? '#059669' : '#dc2626' }}>{line('FSBO', result.fsbo)}</div>
+          <div style={{ color: result.expired && !result.expired.error ? '#059669' : '#dc2626' }}>{line('Cancelled/Expired', result.expired)}</div>
+          {Array.isArray(result.updates) && result.updates.length > 0 && (
+            <div style={{ color: 'var(--text-secondary)' }}>Latest changes: {result.updates.slice(0, 3).map(u => `${u.client_name} (${u.change.replace('_', ' ')})`).join(' · ')}</div>
+          )}
+          {Array.isArray(result.updates) && result.updates.length === 0 && <div style={{ color: 'var(--text-muted)' }}>No lead changes this run.</div>}
+        </div>
+      )}
+    </section>
   )
 }
 

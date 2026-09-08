@@ -87,6 +87,24 @@ router.put('/:id', (req, res) => {
 
 // FSBO master-file sync: pull the FSBO master Google Sheet onto clients (fsbo_status),
 // and guarantee the FSBO list includes every master FSBO. Returns a reconciliation report.
+// One-click "check master files": runs BOTH the FSBO and Cancelled/Expired syncs
+// and returns a combined summary + the changes they just made (status changes,
+// junked relists, new leads). Powers the Settings button + dashboard box.
+router.post('/master-sync', async (_req, res) => {
+  const t0 = Date.now()
+  const out = { ok: true }
+  try { out.fsbo = await syncFsboMaster() } catch (e) { out.fsbo = { ok: false, error: e.message }; out.ok = false }
+  try { const m = await import('../expired-master.js'); out.expired = await m.syncExpiredMaster() } catch (e) { out.expired = { ok: false, error: e.message }; out.ok = false }
+  out.updates = db.all('SELECT * FROM master_file_updates ORDER BY id DESC LIMIT 12')
+  out.ms = Date.now() - t0
+  res.json(out)
+})
+// Recent master-file changes (feeds the dashboard "Cancelled/Expired/FSBO Updates" box).
+router.get('/master-updates', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 12, 50)
+  res.json(db.all('SELECT * FROM master_file_updates ORDER BY id DESC LIMIT ?', [limit]))
+})
+
 router.post('/fsbo/sync', async (_req, res) => {
   try {
     const report = await syncFsboMaster()
