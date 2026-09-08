@@ -400,11 +400,17 @@ router.get('/', (req, res) => {
   }, {})
 
   // ---- Master-file updates (FSBO + Cancelled/Expired) for the dashboard box ----
-  stats.master_updates = safe(() => ({
-    items: db.all('SELECT id, client_id, client_name, list, change, detail, created_at FROM master_file_updates ORDER BY id DESC LIMIT 8'),
-    fsbo_last_sync: db.getSetting('fsbo_master_last_sync', null) || null,
-    expired_last_sync: db.getSetting('expired_master_last_sync', null) || null,
-  }), { items: [] })
+  stats.master_updates = safe(() => {
+    // The box shows the WHOLE current day's changes; on a quiet day it falls back
+    // to the most recent handful so it's never just empty.
+    const today = db.all('SELECT id, client_id, client_name, list, change, detail, created_at FROM master_file_updates WHERE created_at >= ? ORDER BY id DESC LIMIT 40', [W.startUtc])
+    const items = today.length ? today : db.all('SELECT id, client_id, client_name, list, change, detail, created_at FROM master_file_updates ORDER BY id DESC LIMIT 5')
+    return {
+      items, today_count: today.length, showing: today.length ? 'today' : 'recent',
+      fsbo_last_sync: db.getSetting('fsbo_master_last_sync', null) || null,
+      expired_last_sync: db.getSetting('expired_master_last_sync', null) || null,
+    }
+  }, { items: [], today_count: 0, showing: 'today' })
 
   // ---- Follow-up coverage (fall-through prevention) — the KPI target is ZERO ----
   stats.coverage = safe(() => {

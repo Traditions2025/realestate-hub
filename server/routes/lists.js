@@ -99,6 +99,25 @@ router.post('/master-sync', async (_req, res) => {
   out.ms = Date.now() - t0
   res.json(out)
 })
+// One-time/idempotent: record today's sync-created leads that predate the change
+// logging (so "added today" is complete on the day the feature shipped).
+router.post('/master-updates/backfill-today', async (_req, res) => {
+  const { logMasterUpdate } = await import('../master-file-log.js')
+  const day = new Date().toLocaleDateString('en-CA', { timeZone: 'America/Chicago' })
+  const rows = db.all(`SELECT id, first_name, last_name, address, city, fsbo_status, mls_status, source, created_at FROM clients
+    WHERE merged_into IS NULL AND substr(created_at,1,10) >= ?
+      AND ((fsbo_status IS NOT NULL AND fsbo_status != '') OR source = 'Expired/Cancelled Mls')`, [day])
+  let n = 0
+  for (const c of rows) {
+    if (db.get('SELECT id FROM master_file_updates WHERE client_id = ?', [c.id])) continue
+    const isF = !!c.fsbo_status
+    logMasterUpdate(c.id, isF ? 'fsbo' : 'expired', 'new_lead', isF
+      ? `New FSBO lead added from the master file (${c.fsbo_status}${c.address ? ' — ' + c.address : ''})`
+      : `New ${c.mls_status || 'off-market'} seller lead added from the Cancelled/Expired master file (${c.address || ''}${c.city ? ', ' + c.city : ''})`)
+    n++
+  }
+  res.json({ ok: true, backfilled: n, scanned: rows.length })
+})
 // Recent master-file changes (feeds the dashboard "Cancelled/Expired/FSBO Updates" box).
 router.get('/master-updates', (req, res) => {
   const limit = Math.min(Number(req.query.limit) || 12, 50)

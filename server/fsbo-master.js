@@ -203,10 +203,16 @@ export async function syncFsboMaster() {
     const rec = { id: info.lastInsertRowid, phone: primary.phone, tags: tagsJson(primary.tags), fsbo_status: status, status: 'watch', first_name: first, last_name: last }
     const k = last10(primary.phone); if (k) index.set(k, rec)
   }
+  // Snapshot diff: rows newly ADDED to the master file since the last sync get logged
+  // even when the seller already exists in the Hub — so "what's new on the file today"
+  // shows on the dashboard. The first run only records the baseline.
+  let prevKeys = null
+  try { const s = db.getSetting?.('fsbo_master_seen_keys', null); if (s) prevKeys = new Set(JSON.parse(s)) } catch {}
   for (const grp of groups.values()) {
     const primary = grp.find(r => r.status === 'Available') || grp.find(r => r.status === 'Pending') || grp[0]
     const key = last10(primary.phone)
     if (key) sheetPhones.add(key)
+    const isNewOnFile = !!(key && prevKeys && !prevKeys.has(key))
     // Aggregate status across a seller's listings: Available wins (still has something for
     // sale), else Pending (under contract), else Off Market.
     const status = grp.some(r => r.status === 'Available') ? 'Available'
@@ -229,6 +235,8 @@ export async function syncFsboMaster() {
     const prevFsbo = db.get('SELECT fsbo_status FROM clients WHERE id=?', [match.id])?.fsbo_status || null
     if (prevFsbo && status && prevFsbo !== status) {
       logMasterUpdate(match.id, 'fsbo', 'status_change', `FSBO status changed: ${prevFsbo} → ${status} (per the FSBO master file)`)
+    } else if (isNewOnFile) {
+      logMasterUpdate(match.id, 'fsbo', 'added_to_file', `Added to the FSBO master file (${status}${primary.address ? ' — ' + primary.address : ''})`)
     }
     // Main address MUST equal the FSBO listing address — it's what {{address}} uses in texts/
     // emails, so a stale address would reference the wrong (maybe-not-listed) house. COALESCE
@@ -303,6 +311,7 @@ export async function syncFsboMaster() {
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
   report.on_list = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')").n
   report.unique_sheet_phones = sheetPhones.size
+  try { db.setSetting?.('fsbo_master_seen_keys', JSON.stringify([...sheetPhones])) } catch {}
   db.setSetting?.('fsbo_master_last_sync', now)
   return report
 }

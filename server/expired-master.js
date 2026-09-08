@@ -144,10 +144,17 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     index.get(k).push(c)
   }
 
+  // Snapshot diff — see fsbo-master.js: log rows newly added to the master file even
+  // when the owner already exists in the Hub. First run records the baseline only.
+  let prevKeys = null
+  const seenKeys = new Set()
+  try { const s = db.getSetting?.('expired_master_seen_keys', null); if (s) prevKeys = new Set(JSON.parse(s)) } catch {}
   for (const row of rows) {
     const cls = classifyMlsStatus(row.mls_status)
     report.counts[cls] = (report.counts[cls] || 0) + 1
     const key = addrCityKey(row.address, row.city)
+    if (key) seenKeys.add(key)
+    const isNewOnFile = !!(key && prevKeys && !prevKeys.has(key))
     const candidates = key ? (index.get(key) || []) : []
     // Name-confirm against a candidate already at that address (never write onto a stranger).
     const match = candidates.length ? candidates.find(c => sameName(row.name, c)) : null
@@ -219,11 +226,17 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
         const { logMasterUpdate } = await import('./master-file-log.js')
         logMasterUpdate(match.id, 'expired', 'junked', `Status changed to Junk: ${reason} — per the Cancelled/Expired master file (no longer a prospect)`)
         report.junked++
+      } else if (isNewOnFile) {
+        const { logMasterUpdate } = await import('./master-file-log.js')
+        logMasterUpdate(match.id, 'expired', 'added_to_file', `Added to the Cancelled/Expired master file (${row.mls_status || 'off-market'}${row.address ? ' — ' + row.address : ''}${row.city ? ', ' + row.city : ''})`)
       }
     }
   }
   report.match_rate_pct = report.sheet_rows ? Math.round((report.matched / report.sheet_rows) * 100) : 0
-  if (!dryRun) db.setSetting?.('expired_master_last_sync', now)
+  if (!dryRun) {
+    try { db.setSetting?.('expired_master_seen_keys', JSON.stringify([...seenKeys])) } catch {}
+    db.setSetting?.('expired_master_last_sync', now)
+  }
   return report
 }
 

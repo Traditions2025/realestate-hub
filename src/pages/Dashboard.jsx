@@ -226,11 +226,14 @@ export default function Dashboard() {
             </span>
           </div>
           {mfResult && <div style={{ fontSize: 12, marginBottom: 8, color: mfResult.startsWith('✓') ? '#059669' : '#dc2626' }}>{mfResult}</div>}
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em', marginBottom: 6 }}>
+            {masterUpdates.showing === 'recent' ? 'NO CHANGES YET TODAY — MOST RECENT:' : `TODAY: ${masterUpdates.today_count} CHANGE${masterUpdates.today_count === 1 ? '' : 'S'}`}
+          </div>
           {(masterUpdates.items || []).length === 0
-            ? <Empty>No master-file changes recorded yet. Changes (status flips, relists junked, new leads) will appear here with a note on each lead.</Empty>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            ? <Empty>No master-file changes recorded yet. Changes (new sheet rows, status flips, relists junked, new leads) will appear here with a note on each lead.</Empty>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
               {masterUpdates.items.map(u => {
-                const meta = { status_change: ['↔', '#d97706'], junked: ['✗', '#ef4444'], new_lead: ['＋', '#059669'], removed: ['−', 'var(--text-muted)'] }[u.change] || ['•', 'var(--text-muted)']
+                const meta = { status_change: ['↔', '#d97706'], junked: ['✗', '#ef4444'], new_lead: ['＋', '#059669'], added_to_file: ['＋', '#2563eb'], removed: ['−', 'var(--text-muted)'] }[u.change] || ['•', 'var(--text-muted)']
                 return (
                   <Link key={u.id} to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ display: 'flex', gap: 8, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ color: meta[1], fontWeight: 800 }}>{meta[0]}</span>
