@@ -327,8 +327,8 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved} />
           {client.phone && <PhoneStatusBadge client={client} />}
           <InlineField label="Email" field="email" type="email" value={client.email} clientId={cid} onSaved={onSaved} />
-          <InlineField label="Other phones" field="alt_phones" value={client.alt_phones} clientId={cid} onSaved={onSaved} />
-          <InlineField label="Other emails" field="alt_emails" type="text" value={client.alt_emails} clientId={cid} onSaved={onSaved} />
+          <InlineField label="Additional phones" field="alt_phones" value={client.alt_phones} clientId={cid} onSaved={onSaved} />
+          <InlineField label="Additional emails" field="alt_emails" type="text" value={client.alt_emails} clientId={cid} onSaved={onSaved} />
           <InlineField label="Address" field="address" value={client.address} clientId={cid} onSaved={onSaved} />
           <InlineField label="City" field="city" value={client.city} clientId={cid} onSaved={onSaved} />
           <InlineField label="State" field="state" value={client.state} clientId={cid} onSaved={onSaved} />

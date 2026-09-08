@@ -117,6 +117,8 @@ export default function Inbox() {
   const [unknownSel, setUnknownSel] = useState(null)   // { key, phone, name } for an Unknown-queue conversation
   const [groupSel, setGroupSel] = useState(null)       // { sid, name, group_meta } for a group-MMS conversation
   const [thread, setThread] = useState([])
+  const [selNums, setSelNums] = useState([])   // the selected lead's saved numbers (primary + additional)
+  const [toPhone, setToPhone] = useState('')   // which number the text reply goes to ('' = primary)
   const [compose, setCompose] = useState(false)
   // AI suggested reply + editable draft
   const [ai, setAi] = useState(null)                       // { intent, summary, suggestion, stale, has_incoming, ai_available, error }
@@ -195,6 +197,12 @@ export default function Inbox() {
     setUnknownSel(null); setGroupSel(null)
     setSel(clientId)
     setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setAiOpen(false); setAiApproach(''); setOpenMsgs({}); setReplyMedia([])
+    // Load the lead's saved numbers so the text reply can pick WHICH number to send to.
+    setToPhone(''); setSelNums([])
+    authFetch(`/api/clients/${clientId}`).then(r => r.json()).then(c => {
+      const nums = [c.phone, ...String(c.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean)
+      setSelNums(nums)
+    }).catch(() => {})
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
     // AI: restore a saved draft if one exists. The AI suggestion stays minimized — the user pulls
@@ -311,7 +319,7 @@ export default function Inbox() {
     try {
       let payload
       if (replyChannel === 'text') {
-        payload = { channel: 'text', client_ids: [sel], body: reply.body.trim(), media: replyMedia.map(m => m.url) }
+        payload = { channel: 'text', client_ids: [sel], to_phone: toPhone || undefined, body: reply.body.trim(), media: replyMedia.map(m => m.url) }
       } else {
         const subject = reply.subject.trim() || 'Re: your message'
         const html = reply.body.split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
@@ -651,6 +659,12 @@ export default function Inbox() {
                     ))}
                     <button className="btn btn-sm" disabled={!reply.body.trim() && !replyMedia.length} onClick={clearDraft}>Clear</button>
                     {replyChannel === 'text' && !schedOpen && <button className="btn btn-sm" disabled={!reply.body.trim() && !replyMedia.length} onClick={() => setSchedOpen(true)} title="Schedule for later">🕑 Schedule</button>}
+                    {replyChannel === 'text' && selNums.length > 1 && (
+                      <select value={toPhone || selNums[0]} onChange={e => setToPhone(e.target.value)} title="Which of this lead's numbers to text"
+                        style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+                        {selNums.map((p, i) => <option key={p} value={p}>to {p}{i === 0 ? ' (main)' : ''}</option>)}
+                      </select>
+                    )}
                     <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || (!reply.body.trim() && !(replyChannel === 'text' && replyMedia.length))} onClick={sendReply}>{sending ? 'Sending…' : replyChannel === 'text' ? '💬 Send text' : '✉ Send reply'}</button>
                   </div>
                 </div>
