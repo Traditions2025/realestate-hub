@@ -1019,6 +1019,11 @@ export async function initDb() {
     )
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_mfu_at ON master_file_updates(created_at)')
+  // Display fields for the dashboard feed: clean label + address + DOM + listing URL.
+  try { db.run('ALTER TABLE master_file_updates ADD COLUMN label TEXT') } catch {}
+  try { db.run('ALTER TABLE master_file_updates ADD COLUMN address TEXT') } catch {}
+  try { db.run('ALTER TABLE master_file_updates ADD COLUMN dom TEXT') } catch {}
+  try { db.run('ALTER TABLE master_file_updates ADD COLUMN url TEXT') } catch {}
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}

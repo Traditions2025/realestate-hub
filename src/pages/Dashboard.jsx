@@ -234,16 +234,23 @@ export default function Dashboard() {
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 340, overflowY: 'auto' }}>
               {masterUpdates.items.map(u => {
                 const meta = { status_change: ['↔', '#d97706'], junked: ['✗', '#ef4444'], new_lead: ['＋', '#059669'], added_to_file: ['＋', '#2563eb'], price_change: ['$', '#d97706'], relisted: ['↻', '#ef4444'], removed: ['−', 'var(--text-muted)'] }[u.change] || ['•', 'var(--text-muted)']
+                const label = u.label || ({ new_lead: 'New', added_to_file: 'New', relisted: 'Relisted', junked: 'Junked', removed: 'Removed', status_change: 'Status Change', price_change: 'Price Change' }[u.change] || u.change)
                 return (
-                  <Link key={u.id} to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ display: 'flex', gap: 8, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: '1px solid var(--border)' }}>
+                  <div key={u.id} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 2px', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ color: meta[1], fontWeight: 800 }}>{meta[0]}</span>
                     <span style={{ fontSize: 12.5, flex: 1 }}>
-                      <strong>{u.client_name}</strong>
+                      <Link to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ color: 'inherit', textDecoration: 'none' }}><strong>{u.client_name}</strong></Link>
+                      <span style={{ fontSize: 11, fontWeight: 800, marginLeft: 6, color: meta[1] }}>{label}</span>
                       <span style={{ fontSize: 10.5, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : 'CX/EXP'}</span>
-                      <div style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{u.detail}</div>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                        <span>{u.address || u.detail}</span>
+                        {u.dom != null && u.dom !== '' && <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>DOM {u.dom}</span>}
+                        {u.url && <a href={u.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>View listing →</a>}
+                      </div>
+                      {u.address && /price/i.test(label) && <div style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>{u.detail.split(' — ')[0]}</div>}
                     </span>
                     <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(u.created_at)}</span>
-                  </Link>
+                  </div>
                 )
               })}
             </div>}

@@ -107,16 +107,22 @@ router.post('/master-updates/backfill-today', async (_req, res) => {
   const rows = db.all(`SELECT id, first_name, last_name, address, city, fsbo_status, mls_status, source, created_at FROM clients
     WHERE merged_into IS NULL AND substr(created_at,1,10) >= ?
       AND ((fsbo_status IS NOT NULL AND fsbo_status != '') OR source = 'Expired/Cancelled Mls')`, [day])
-  let n = 0
+  let n = 0, enriched = 0
   for (const c of rows) {
-    if (db.get('SELECT id FROM master_file_updates WHERE client_id = ?', [c.id])) continue
-    const isF = !!c.fsbo_status
-    logMasterUpdate(c.id, isF ? 'fsbo' : 'expired', 'new_lead', isF
-      ? `New FSBO lead added from the master file (${c.fsbo_status}${c.address ? ' — ' + c.address : ''})`
-      : `New ${c.mls_status || 'off-market'} seller lead added from the Cancelled/Expired master file (${c.address || ''}${c.city ? ', ' + c.city : ''})`)
+    const full = db.get('SELECT address, city, fsbo_status, fsbo_list_date, fsbo_dom, fsbo_link, mls_status FROM clients WHERE id=?', [c.id]) || {}
+    const addr = `${full.address || ''}${full.city ? ', ' + full.city : ''}`.trim() || null
+    const isF = !!full.fsbo_status
+    const existing = db.get('SELECT id, label FROM master_file_updates WHERE client_id = ? ORDER BY id DESC LIMIT 1', [c.id])
+    if (existing) {
+      if (!existing.label) { db.run('UPDATE master_file_updates SET label=?, address=?, dom=?, url=? WHERE id=?', ['New', addr, isF ? (full.fsbo_dom || null) : null, isF ? (full.fsbo_link || null) : null, existing.id]); enriched++ }
+      continue
+    }
+    logMasterUpdate(c.id, isF ? 'fsbo' : 'expired', 'new_lead',
+      isF ? `New FSBO (${full.fsbo_status})${addr ? ' — ' + addr : ''}` : `New ${full.mls_status || 'off-market'}${addr ? ' — ' + addr : ''}`,
+      { label: 'New', address: addr, dom: isF ? full.fsbo_dom : null, url: isF ? full.fsbo_link : null })
     n++
   }
-  res.json({ ok: true, backfilled: n, scanned: rows.length })
+  res.json({ ok: true, backfilled: n, enriched, scanned: rows.length })
 })
 // Recent master-file changes (feeds the dashboard "Cancelled/Expired/FSBO Updates" box).
 router.get('/master-updates', (req, res) => {

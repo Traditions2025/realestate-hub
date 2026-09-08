@@ -184,7 +184,8 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
           // index the new lead so a duplicate row in this same run won't create it twice
           index.set(key, [...candidates, { id: info.lastInsertRowid, first_name: first, last_name: last, address: row.address, city: row.city, status: 'new' }])
           const { logMasterUpdate } = await import('./master-file-log.js')
-          logMasterUpdate(info.lastInsertRowid, 'expired', 'new_lead', `New ${row.mls_status || 'off-market'} seller lead added from the Cancelled/Expired master file (${row.address || ''}${row.city ? ', ' + row.city : ''})`)
+          logMasterUpdate(info.lastInsertRowid, 'expired', 'new_lead', `New ${row.mls_status || 'off-market'} — ${row.address || ''}${row.city ? ', ' + row.city : ''}`,
+            { label: 'New', address: `${row.address || ''}${row.city ? ', ' + row.city : ''}`.trim() || null })
           report.created++
         }
       }
@@ -229,14 +230,19 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       if (doJunk && !isStopStatus(match.status)) {
         try { stopSequencesForClient(match.id, `expired master: ${reason}`) } catch {}
         const { logMasterUpdate } = await import('./master-file-log.js')
-        logMasterUpdate(match.id, 'expired', 'junked', `Status changed to Junk: ${reason} — per the Cancelled/Expired master file (no longer a prospect)`)
+        const relist = /back on market/i.test(reason)
+        const exAddr = `${row.address || ''}${row.city ? ', ' + row.city : ''}`.trim() || null
+        logMasterUpdate(match.id, 'expired', 'junked', `${relist ? 'Relisted' : 'Sold'} — status changed to Junk (${reason})${exAddr ? ' — ' + exAddr : ''}`,
+          { label: relist ? 'Relisted' : 'Sold', address: exAddr })
         report.junked++
       } else if (becameRelisted) {
         const { logMasterUpdate } = await import('./master-file-log.js')
-        logMasterUpdate(match.id, 'expired', 'relisted', `Property RELISTED — back on market as ${row.mls_status}${row.address ? ' — ' + row.address : ''}${row.city ? ', ' + row.city : ''} (per the Cancelled/Expired master file)`)
+        const exAddr = `${row.address || ''}${row.city ? ', ' + row.city : ''}`.trim() || null
+        logMasterUpdate(match.id, 'expired', 'relisted', `Relisted — back on market as ${row.mls_status}${exAddr ? ' — ' + exAddr : ''}`, { label: 'Relisted', address: exAddr })
       } else if (isNewOnFile) {
         const { logMasterUpdate } = await import('./master-file-log.js')
-        logMasterUpdate(match.id, 'expired', 'added_to_file', `Added to the Cancelled/Expired master file (${row.mls_status || 'off-market'}${row.address ? ' — ' + row.address : ''}${row.city ? ', ' + row.city : ''})`)
+        const exAddr = `${row.address || ''}${row.city ? ', ' + row.city : ''}`.trim() || null
+        logMasterUpdate(match.id, 'expired', 'added_to_file', `New ${row.mls_status || 'off-market'}${exAddr ? ' — ' + exAddr : ''}`, { label: 'New', address: exAddr })
       }
     }
   }
