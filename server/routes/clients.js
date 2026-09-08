@@ -170,7 +170,9 @@ router.get('/ids', (req, res) => {
     filterInput.exclude_optouts = '1'
   }
   const { where, params } = buildClientFilter(filterInput)
-  const ids = db.all(`SELECT id FROM clients${where} ORDER BY updated_at DESC LIMIT ?`,
+  // Honor the on-screen sort so "select first N" grabs the SAME top N the user sees.
+  const orderBy = SORT_OPTIONS[req.query.sort] || 'updated_at DESC'
+  const ids = db.all(`SELECT id FROM clients${where} ORDER BY ${orderBy} LIMIT ?`,
     [...params, limit]).map(r => r.id)
   res.json({ ids, count: ids.length })
 })

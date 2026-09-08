@@ -1462,7 +1462,6 @@ export default function Clients() {
     const baseParams = buildLoadParams()
     delete baseParams.limit
     delete baseParams.offset
-    delete baseParams.sort
     const params = new URLSearchParams(baseParams)
     params.set('limit', limit || 50000)
     if (opts.emailReady) params.set('email_ready', '1')
@@ -2547,6 +2546,12 @@ export default function Clients() {
           <button className="btn btn-sm btn-secondary" onClick={selectAllVisible}>
             Select Visible ({items.length})
           </button>
+          <select value="" onChange={e => { const n = Number(e.target.value); if (n) selectAllFiltered(n); e.target.value = '' }}
+            title="Select the first N matched leads (in the current sort order)"
+            style={{ fontSize: 12.5, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+            <option value="">Select first…</option>
+            {[100, 200, 300, 400, 500].map(n => <option key={n} value={n}>First {n}</option>)}
+          </select>
           <button
             className="btn btn-sm btn-primary"
             onClick={() => selectAllFiltered(50000)}
