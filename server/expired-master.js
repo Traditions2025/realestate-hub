@@ -211,6 +211,11 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     }
 
     if (!dryRun) {
+      // Detect a RELIST: the sheet's MLS status flipping to back-on-market. The junk
+      // branch below covers leads still live; this also surfaces relists on leads
+      // that were ALREADY junk (previously silent) so the daily report shows them.
+      const prevMls = db.get('SELECT mls_status FROM clients WHERE id=?', [match.id])?.mls_status || null
+      const becameRelisted = cls === 'back_on_market' && prevMls && classifyMlsStatus(prevMls) !== 'back_on_market'
       const sets = ['mls_extract_attempted_at=?'], vals = [now]
       if (row.off_market_date) { sets.push('off_market_date=?'); vals.push(row.off_market_date) }
       if (row.mls_number) { sets.push('mls_number=?'); vals.push(row.mls_number) }
@@ -226,6 +231,9 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
         const { logMasterUpdate } = await import('./master-file-log.js')
         logMasterUpdate(match.id, 'expired', 'junked', `Status changed to Junk: ${reason} — per the Cancelled/Expired master file (no longer a prospect)`)
         report.junked++
+      } else if (becameRelisted) {
+        const { logMasterUpdate } = await import('./master-file-log.js')
+        logMasterUpdate(match.id, 'expired', 'relisted', `Property RELISTED — back on market as ${row.mls_status}${row.address ? ' — ' + row.address : ''}${row.city ? ', ' + row.city : ''} (per the Cancelled/Expired master file)`)
       } else if (isNewOnFile) {
         const { logMasterUpdate } = await import('./master-file-log.js')
         logMasterUpdate(match.id, 'expired', 'added_to_file', `Added to the Cancelled/Expired master file (${row.mls_status || 'off-market'}${row.address ? ' — ' + row.address : ''}${row.city ? ', ' + row.city : ''})`)

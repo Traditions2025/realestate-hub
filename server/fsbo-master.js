@@ -232,11 +232,18 @@ export async function syncFsboMaster() {
     if (!match) { createNew(primary, status, listingsJson, price); continue }
     report.matched++
     // Record + note any FSBO status transition (Available → Off Market / Pending …)
-    const prevFsbo = db.get('SELECT fsbo_status FROM clients WHERE id=?', [match.id])?.fsbo_status || null
+    const prevRow = db.get('SELECT fsbo_status, fsbo_price FROM clients WHERE id=?', [match.id]) || {}
+    const prevFsbo = prevRow.fsbo_status || null
     if (prevFsbo && status && prevFsbo !== status) {
       logMasterUpdate(match.id, 'fsbo', 'status_change', `FSBO status changed: ${prevFsbo} → ${status} (per the FSBO master file)`)
     } else if (isNewOnFile) {
       logMasterUpdate(match.id, 'fsbo', 'added_to_file', `Added to the FSBO master file (${status}${primary.address ? ' — ' + primary.address : ''})`)
+    }
+    // Price movement is a live seller signal — log every change from the master file.
+    const prevPrice = Number(prevRow.fsbo_price || 0) || null
+    const newPrice = Number(price || 0) || null
+    if (prevPrice && newPrice && prevPrice !== newPrice) {
+      logMasterUpdate(match.id, 'fsbo', 'price_change', `FSBO price ${newPrice < prevPrice ? 'REDUCED' : 'increased'}: $${prevPrice.toLocaleString()} → $${newPrice.toLocaleString()}${primary.address ? ' — ' + primary.address : ''}`)
     }
     // Main address MUST equal the FSBO listing address — it's what {{address}} uses in texts/
     // emails, so a stale address would reference the wrong (maybe-not-listed) house. COALESCE
