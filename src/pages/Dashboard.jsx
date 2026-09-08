@@ -75,6 +75,7 @@ export default function Dashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [me, setMe] = useState(null)
   const [schedOpen, setSchedOpen] = useState(false)  // Today's Schedule lives minimized at the bottom
+  const [attnOpen, setAttnOpen] = useState(false)    // Needs Attention shows 3 by default, expandable
   useEffect(() => { authFetch('/api/auth/me').then(r => r.json()).then(d => setMe(d?.user || null)).catch(() => {}) }, [])
   // Greet by name ONLY when the signed-in account tells us who it is (per-user login).
   // A shared-team session gets a plain greeting — never a "who is this?" prompt.
@@ -179,10 +180,10 @@ export default function Dashboard() {
       {/* ── Row 2: Needs Attention + Today's Schedule ─────────────── */}
       <div style={{ ...row, gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>
         <div id="attention">
-          <Section title="Needs Your Attention" accent="#ef4444">
+          <Section title={`Needs Your Attention${attention.length ? ` (${attention.length})` : ''}`} accent="#ef4444">
             {attention.length === 0 ? <Empty>Nothing waiting on you right now. 🎉</Empty> : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {attention.map((a, i) => {
+                {(attnOpen ? attention : attention.slice(0, 3)).map((a, i) => {
                   const meta = ATTN_META[a.type] || { badge: a.type, color: 'var(--text-muted)' }
                   return (
                     <div key={i} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 8, padding: '8px 10px' }}>
@@ -205,6 +206,11 @@ export default function Dashboard() {
                     </div>
                   )
                 })}
+                {attention.length > 3 && (
+                  <button className="btn btn-sm" style={{ alignSelf: 'flex-start' }} onClick={() => setAttnOpen(o => !o)}>
+                    {attnOpen ? '▴ Show less' : `▾ Show all ${attention.length}`}
+                  </button>
+                )}
               </div>
             )}
           </Section>
