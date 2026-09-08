@@ -1290,9 +1290,12 @@ router.get('/:id', (req, res) => {
   const transactions = db.all('SELECT * FROM transactions WHERE client_id = ? ORDER BY updated_at DESC', [id])
   const showings = db.all('SELECT * FROM showings WHERE client_id = ? ORDER BY showing_date DESC', [id])
   const tasks = db.all("SELECT * FROM tasks WHERE related_type = 'client' AND related_id = ? ORDER BY due_date ASC", [id])
-  const notes = db.all("SELECT * FROM notes WHERE related_type = 'client' AND related_id = ? ORDER BY created_at DESC", [id])
+  const noteRecords = db.all("SELECT * FROM notes WHERE related_type = 'client' AND related_id = ? ORDER BY created_at DESC", [id])
 
-  res.json({ ...row, transactions, showings, tasks, notes })
+  // NOTE: the notes-table rows must NOT shadow the clients.notes text column — the
+  // profile's Notes card (and the master-file sync notes) read the string column.
+  // Spreading the array over it made every column note invisible on the profile.
+  res.json({ ...row, transactions, showings, tasks, notes: row.notes || null, note_records: noteRecords })
 })
 
 router.post('/', (req, res) => {
