@@ -241,7 +241,7 @@ export default function Dashboard() {
                     <span style={{ fontSize: 12.5, flex: 1 }}>
                       <Link to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ color: 'inherit', textDecoration: 'none' }}><strong>{u.client_name}</strong></Link>
                       <span style={{ fontSize: 11, fontWeight: 800, marginLeft: 6, color: meta[1] }}>{label}</span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : 'CX/EXP'}</span>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : (u.sub || 'Cancelled/Expired').toUpperCase()}</span>
                       <div style={{ color: 'var(--text-secondary)', fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
                         <span>{u.address || u.detail}</span>
                         {u.dom != null && u.dom !== '' && <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>DOM {u.dom}</span>}

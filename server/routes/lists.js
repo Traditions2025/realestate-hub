@@ -112,9 +112,10 @@ router.post('/master-updates/backfill-today', async (_req, res) => {
     const full = db.get('SELECT address, city, fsbo_status, fsbo_list_date, fsbo_dom, fsbo_link, mls_status FROM clients WHERE id=?', [c.id]) || {}
     const addr = `${full.address || ''}${full.city ? ', ' + full.city : ''}`.trim() || null
     const isF = !!full.fsbo_status
-    const existing = db.get('SELECT id, label FROM master_file_updates WHERE client_id = ? ORDER BY id DESC LIMIT 1', [c.id])
+    const existing = db.get('SELECT id, label, sub FROM master_file_updates WHERE client_id = ? ORDER BY id DESC LIMIT 1', [c.id])
     if (existing) {
-      if (!existing.label) { db.run('UPDATE master_file_updates SET label=?, address=?, dom=?, url=? WHERE id=?', ['New', addr, isF ? (full.fsbo_dom || null) : null, isF ? (full.fsbo_link || null) : null, existing.id]); enriched++ }
+      if (!existing.label) { db.run('UPDATE master_file_updates SET label=?, address=?, dom=?, url=?, sub=? WHERE id=?', ['New', addr, isF ? (full.fsbo_dom || null) : null, isF ? (full.fsbo_link || null) : null, !isF ? (full.mls_status || null) : null, existing.id]); enriched++ }
+      else if (!existing.sub && !isF && full.mls_status) { db.run('UPDATE master_file_updates SET sub=? WHERE id=?', [full.mls_status, existing.id]); enriched++ }
       continue
     }
     logMasterUpdate(c.id, isF ? 'fsbo' : 'expired', 'new_lead',

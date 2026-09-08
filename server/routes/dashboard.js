@@ -403,7 +403,7 @@ router.get('/', (req, res) => {
   stats.master_updates = safe(() => {
     // The box shows the WHOLE current day's changes; on a quiet day it falls back
     // to the most recent handful so it's never just empty.
-    const COLS = 'id, client_id, client_name, list, change, detail, label, address, dom, url, created_at'
+    const COLS = 'id, client_id, client_name, list, change, detail, label, address, dom, url, sub, created_at'
     const today = db.all(`SELECT ${COLS} FROM master_file_updates WHERE created_at >= ? ORDER BY id DESC LIMIT 40`, [W.startUtc])
     const items = today.length ? today : db.all(`SELECT ${COLS} FROM master_file_updates ORDER BY id DESC LIMIT 5`)
     return {

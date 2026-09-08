@@ -8,8 +8,8 @@ export function logMasterUpdate(clientId, list, change, detail, extra = {}) {
   try {
     const c = db.get('SELECT first_name, last_name, notes FROM clients WHERE id=?', [Number(clientId)])
     const name = c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : `#${clientId}`
-    db.run('INSERT INTO master_file_updates (client_id, client_name, list, change, detail, label, address, dom, url, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-      [Number(clientId), name, list, change, detail, extra.label || null, extra.address || null, extra.dom != null ? String(extra.dom) : null, extra.url || null, new Date().toISOString()])
+    db.run('INSERT INTO master_file_updates (client_id, client_name, list, change, detail, label, address, dom, url, sub, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      [Number(clientId), name, list, change, detail, extra.label || null, extra.address || null, extra.dom != null ? String(extra.dom) : null, extra.url || null, extra.sub || null, new Date().toISOString()])
     // Profile note, newest first, in the "[M/D/YYYY] text" format NotesSection renders.
     const stamp = new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' })
     const line = `[${stamp}] ${detail}`

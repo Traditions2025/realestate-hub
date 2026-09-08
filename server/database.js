@@ -1024,6 +1024,7 @@ export async function initDb() {
   try { db.run('ALTER TABLE master_file_updates ADD COLUMN address TEXT') } catch {}
   try { db.run('ALTER TABLE master_file_updates ADD COLUMN dom TEXT') } catch {}
   try { db.run('ALTER TABLE master_file_updates ADD COLUMN url TEXT') } catch {}
+  try { db.run('ALTER TABLE master_file_updates ADD COLUMN sub TEXT') } catch {}   // badge: Cancelled | Expired | Withdrawn (expired-list rows)
   // Add username to an already-created users table (idempotent). SQLite unique
   // indexes treat NULLs as distinct, so accounts without a username coexist.
   try { db.run('ALTER TABLE users ADD COLUMN username TEXT') } catch {}
