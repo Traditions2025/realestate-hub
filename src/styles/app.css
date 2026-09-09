@@ -14,14 +14,75 @@
   --text-primary: #f1f5f9;
   --text-secondary: #94a3b8;
   --text-muted: #64748b;
+  /* ---- Brand accent (theme-controlled via html[data-accent]) ----
+     Semantic colors below (success/warning/danger/info) are NEVER themed. */
   --accent: #3b82f6;
   --accent-hover: #2563eb;
+  --accent-active: #1d4ed8;
+  --accent-soft: rgba(59, 130, 246, 0.16);
+  --accent-subtle: rgba(59, 130, 246, 0.09);
+  --accent-border: rgba(59, 130, 246, 0.55);
+  --accent-contrast: #ffffff;
+  --accent-grad-a: #1d4ed8;
+  --accent-grad-b: #3b82f6;
+  --accent-grad-c: #60a5fa;
   --success: #10b981;
   --warning: #f59e0b;
   --danger: #ef4444;
+  --info: #3b82f6;
   --purple: #8b5cf6;
+  --border-subtle: rgba(148, 163, 184, 0.14);
   --sidebar-width: 240px;
   --sidebar-collapsed: 64px;
+}
+
+/* ============ ACCENT THEMES ============
+   Base values are for DARK mode; the body[data-theme="light"] combos adjust for
+   contrast on white. Gold (Matt Smith Team brand) is the team default. */
+html[data-accent="gold"] {
+  --accent: #d2b461; --accent-hover: #e0c87e; --accent-active: #c0a24c;
+  --accent-soft: rgba(210, 180, 97, 0.16); --accent-subtle: rgba(210, 180, 97, 0.09);
+  --accent-border: rgba(210, 180, 97, 0.55); --accent-contrast: #241a04;
+  --accent-grad-a: #9d7b24; --accent-grad-b: #c4a44a; --accent-grad-c: #e3cd8b;
+}
+html[data-accent="gold"] body[data-theme="light"] {
+  --accent: #9a7a26; --accent-hover: #8a6b1f; --accent-active: #7a5e1a;
+  --accent-soft: rgba(185, 150, 59, 0.15); --accent-subtle: rgba(185, 150, 59, 0.08);
+  --accent-border: rgba(157, 123, 36, 0.5); --accent-contrast: #241a04;
+  --accent-grad-a: #9d7b24; --accent-grad-b: #b9963b; --accent-grad-c: #d6bd72;
+}
+html[data-accent="emerald"] {
+  --accent: #34d399; --accent-hover: #6ee7b7; --accent-active: #10b981;
+  --accent-soft: rgba(52, 211, 153, 0.15); --accent-subtle: rgba(52, 211, 153, 0.08);
+  --accent-border: rgba(52, 211, 153, 0.5); --accent-contrast: #05261a;
+  --accent-grad-a: #047857; --accent-grad-b: #10b981; --accent-grad-c: #6ee7b7;
+}
+html[data-accent="emerald"] body[data-theme="light"] {
+  --accent: #047857; --accent-hover: #065f46; --accent-active: #064e3b;
+  --accent-soft: rgba(5, 150, 105, 0.13); --accent-subtle: rgba(5, 150, 105, 0.07);
+  --accent-border: rgba(4, 120, 87, 0.45); --accent-contrast: #ffffff;
+}
+html[data-accent="purple"] {
+  --accent: #a78bfa; --accent-hover: #c4b5fd; --accent-active: #8b5cf6;
+  --accent-soft: rgba(167, 139, 250, 0.16); --accent-subtle: rgba(167, 139, 250, 0.09);
+  --accent-border: rgba(167, 139, 250, 0.5); --accent-contrast: #1e1339;
+  --accent-grad-a: #6d28d9; --accent-grad-b: #8b5cf6; --accent-grad-c: #c4b5fd;
+}
+html[data-accent="purple"] body[data-theme="light"] {
+  --accent: #6d28d9; --accent-hover: #5b21b6; --accent-active: #4c1d95;
+  --accent-soft: rgba(124, 58, 237, 0.12); --accent-subtle: rgba(124, 58, 237, 0.07);
+  --accent-border: rgba(109, 40, 217, 0.45); --accent-contrast: #ffffff;
+}
+html[data-accent="slate"] {
+  --accent: #94a3b8; --accent-hover: #cbd5e1; --accent-active: #64748b;
+  --accent-soft: rgba(148, 163, 184, 0.16); --accent-subtle: rgba(148, 163, 184, 0.09);
+  --accent-border: rgba(148, 163, 184, 0.5); --accent-contrast: #0f172a;
+  --accent-grad-a: #334155; --accent-grad-b: #64748b; --accent-grad-c: #94a3b8;
+}
+html[data-accent="slate"] body[data-theme="light"] {
+  --accent: #475569; --accent-hover: #334155; --accent-active: #1e293b;
+  --accent-soft: rgba(71, 85, 105, 0.12); --accent-subtle: rgba(71, 85, 105, 0.07);
+  --accent-border: rgba(71, 85, 105, 0.45); --accent-contrast: #ffffff;
 }
 
 /* ---- Light theme overrides ---- */
@@ -38,6 +99,7 @@ body[data-theme="light"] {
   --text-primary: #0f172a;
   --text-secondary: #475569;
   --text-muted: #64748b;
+  --border-subtle: #e8ecf2;
   color-scheme: light;
 }
 body[data-theme="light"] input,
@@ -171,9 +233,12 @@ body {
 }
 .nav-item:hover { background: var(--bg-hover); color: var(--text-primary); }
 .nav-item.active {
-  background: var(--accent);
-  color: white;
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: inset 3px 0 0 var(--accent);
 }
+.nav-item.active .nav-icon { color: var(--accent); }
 
 .nav-icon {
   font-size: 18px;
@@ -256,6 +321,21 @@ body {
   justify-content: space-between;
   align-items: flex-start;
   margin-bottom: 24px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  position: relative;
+}
+/* Thin brand signature line under every page title — the only decorative
+   gradient outside primary buttons. */
+.page-header::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 110px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--accent-grad-a), var(--accent-grad-c));
 }
 
 .page-header h1 {
@@ -289,10 +369,12 @@ body {
 }
 
 .btn-primary {
-  background: var(--accent);
-  color: white;
+  background: linear-gradient(135deg, var(--accent-grad-a), var(--accent-grad-b) 55%, var(--accent-grad-c));
+  color: var(--accent-contrast);
+  font-weight: 600;
 }
-.btn-primary:hover { background: var(--accent-hover); }
+.btn-primary:hover { filter: brightness(1.07); }
+.btn-primary:active { filter: brightness(0.96); }
 
 .btn-secondary {
   background: var(--bg-elevated);
@@ -371,7 +453,10 @@ body {
 .search-input:focus {
   outline: none;
   border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-subtle);
 }
+/* Visible keyboard focus everywhere, in the brand accent. */
+:focus-visible { outline: 2px solid var(--accent-border); outline-offset: 1px; }
 
 /* ---- Stats Grid ---- */
 .stats-grid {
@@ -1909,7 +1994,10 @@ input[type="range"] {
 
 .client-tab.active {
   color: var(--text-primary);
+  font-weight: 600;
   border-bottom-color: var(--accent);
+  background: var(--accent-subtle);
+  border-radius: 6px 6px 0 0;
 }
 
 .tab-dot {
@@ -2119,12 +2207,12 @@ input[type="range"] {
   gap: 12px;
   padding: 10px 14px;
   align-items: center;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--border-subtle);
   font-size: 12px;
 }
 .client-list-row .cl-registered { color: var(--text-secondary); white-space: nowrap; font-size: 11px; }
 
-.client-list-row.selected { background: rgba(59, 130, 246, 0.08); }
+.client-list-row.selected { background: var(--accent-subtle); box-shadow: inset 3px 0 0 var(--accent); }
 .cl-check input[type="checkbox"] { cursor: pointer; }
 
 /* Advanced filter panel */

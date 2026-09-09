@@ -13,6 +13,14 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script>
+    // Apply the accent theme before first paint: user override, else cached team
+    // default, else Matt Smith Gold. App.jsx refreshes the team default after login.
+    try {
+      var a = localStorage.getItem('hub_accent') || localStorage.getItem('hub_accent_team') || 'gold'
+      document.documentElement.setAttribute('data-accent', a)
+    } catch (e) { document.documentElement.setAttribute('data-accent', 'gold') }
+  </script>
   <!-- Twilio Voice SDK (browser softphone). Loads a global window.Twilio.Device.
        `defer` keeps it off the critical path but still runs before the app module. -->
   <script defer src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.3/dist/twilio.min.js"></script>

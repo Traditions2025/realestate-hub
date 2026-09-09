@@ -1864,14 +1864,14 @@ export default function Clients() {
               )}
           </div>
           <button
-            className="btn btn-primary"
+            className="btn btn-secondary"
             onClick={() => syncSierra(false, 'all')}
             disabled={sierraStatus === 'syncing'}
             title="Pulls every Sierra lead - all statuses"
           >
             {sierraStatus === 'syncing' ? 'Syncing Sierra...' : `Sync All Sierra Leads${sierraCounts ? ` (${sierraCounts.total.toLocaleString()})` : ''}`}
           </button>
-          <button className="btn btn-secondary" onClick={openNew}>+ Add Client</button>
+          <button className="btn btn-primary" onClick={openNew}>+ Add Client</button>
         </div>
       </div>
 

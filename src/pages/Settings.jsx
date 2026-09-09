@@ -252,6 +252,9 @@ export default function Settings() {
             <RichTextEditor value={signature} onChange={setSignature} minHeight={160} />
           </section>
             </SettingsGroup>
+            <SettingsGroup id="appearance" title="Appearance" desc="Accent theme — Matt Smith Gold by default; per-user override available.">
+          <AppearanceSettings />
+            </SettingsGroup>
             <SettingsGroup id="ai" title="AI Follow-Up" desc="HUB AI ISA, Autopilot flags, follow-up coverage standards, regression eval.">
           <AiFollowUpSettings />
           <CoverageSettings />
@@ -477,6 +480,65 @@ function AiExclusions({ cfg, saveCfg }) {
   )
 }
 
+
+// Appearance: application accent theme. Team default (server, owner/admin) with an
+// optional per-user override (this browser). Semantic colors (red/green/amber) are
+// never themed — the accent drives selection, focus, primary CTAs and active nav.
+const ACCENT_OPTIONS = [
+  ['gold', 'Matt Smith Gold', '#B9963B'],
+  ['blue', 'Blue', '#3b82f6'],
+  ['emerald', 'Emerald', '#10b981'],
+  ['purple', 'Purple', '#8b5cf6'],
+  ['slate', 'Slate', '#64748b'],
+]
+function AppearanceSettings() {
+  const [teamAccent, setTeamAccent] = React.useState(null)
+  const [override, setOverride] = React.useState(() => { try { return localStorage.getItem('hub_accent') || '' } catch { return '' } })
+  const [saving, setSaving] = React.useState(false)
+  React.useEffect(() => { authFetch('/api/settings/appearance').then(r => r.json()).then(d => setTeamAccent(d.team_accent || 'gold')).catch(() => setTeamAccent('gold')) }, [])
+  const effective = override || teamAccent || 'gold'
+  const apply = (accent) => document.documentElement.setAttribute('data-accent', accent)
+  const chooseMine = (key) => {
+    try { key === (teamAccent || 'gold') ? localStorage.removeItem('hub_accent') : localStorage.setItem('hub_accent', key) } catch {}
+    setOverride(key === (teamAccent || 'gold') ? '' : key)
+    apply(key)
+  }
+  const setTeam = async (key) => {
+    setSaving(true)
+    try {
+      const r = await authFetch('/api/settings/appearance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_accent: key }) })
+      const d = await r.json()
+      if (!r.ok) { alert(d.error || 'Not allowed'); return }
+      setTeamAccent(d.team_accent)
+      try { localStorage.setItem('hub_accent_team', d.team_accent) } catch {}
+      if (!override) apply(d.team_accent)
+    } finally { setSaving(false) }
+  }
+  return (
+    <section className="detail-section">
+      <h4 style={{ margin: '0 0 4px' }}>🎨 Accent Theme</h4>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+        Team default: <strong style={{ textTransform: 'capitalize' }}>{teamAccent || '…'}</strong>{override ? <> · your override: <strong style={{ textTransform: 'capitalize' }}>{override}</strong></> : ' · you follow the team default'}
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {ACCENT_OPTIONS.map(([key, label, swatch]) => (
+          <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8, border: `1px solid ${effective === key ? 'var(--accent-border)' : 'var(--border)'}`, background: effective === key ? 'var(--accent-subtle)' : 'transparent' }}>
+            <span style={{ width: 16, height: 16, borderRadius: '50%', background: swatch, flex: '0 0 auto', boxShadow: effective === key ? '0 0 0 2px var(--accent-border)' : 'none' }} />
+            <span style={{ fontSize: 13, flex: 1 }}>{label}{key === teamAccent && <span style={{ fontSize: 10.5, color: 'var(--text-muted)', marginLeft: 6 }}>team default</span>}</span>
+            <button className="btn btn-sm btn-secondary" onClick={() => chooseMine(key)}>{effective === key ? '✓ In use' : 'Use'}</button>
+            <button className="btn btn-sm" disabled={saving || key === teamAccent} title="Owner/admin: make this the default for the whole team" onClick={() => setTeam(key)}>Set for team</button>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.05em', color: 'var(--text-muted)' }}>PREVIEW</span>
+        <button className="btn btn-sm btn-primary">+ Add Client</button>
+        <span style={{ fontSize: 13, fontWeight: 600, borderBottom: '2px solid var(--accent)', paddingBottom: 2 }}>Selected tab</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />Active element</span>
+      </div>
+    </section>
+  )
+}
 
 // Collapsible settings category. Children stay MOUNTED when collapsed (display:none)
 // so unsaved field values survive and nothing reloads on toggle.

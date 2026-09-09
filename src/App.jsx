@@ -272,6 +272,19 @@ export default function App() {
   }, [theme])
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
 
+  // Accent theme: the boot script in index.html applied user override / cached team
+  // default before paint. Here we refresh the TEAM default from the server; users
+  // without a personal override follow it live. Settings → Appearance writes both.
+  useEffect(() => {
+    authFetch('/api/settings/appearance').then(r => r.json()).then(d => {
+      if (!d || !d.team_accent) return
+      try {
+        localStorage.setItem('hub_accent_team', d.team_accent)
+        if (!localStorage.getItem('hub_accent')) document.documentElement.setAttribute('data-accent', d.team_accent)
+      } catch {}
+    }).catch(() => {})
+  }, [])
+
   // PWA install: Chrome/Android fire beforeinstallprompt; iOS Safari needs a
   // manual "Add to Home Screen", so we show a short how-to there instead.
   const [installPrompt, setInstallPrompt] = useState(null)

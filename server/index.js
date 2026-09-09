@@ -543,6 +543,19 @@ async function start() {
 
   // Twilio texting config. The Auth Token is write-only from the UI's side — we never
   // send it back, only whether it's set + the last 4 chars, so it can't leak via the API.
+  // ---- Appearance: team default accent theme (user override lives client-side) ----
+  app.get('/api/settings/appearance', (_req, res) => {
+    res.json({ team_accent: db.getSetting('team_accent_theme', 'gold') || 'gold' })
+  })
+  app.post('/api/settings/appearance', (req, res) => {
+    const role = String(req.user?.role || '').toLowerCase()
+    if (!(role === 'owner' || role === 'admin' || req.user?.team)) return res.status(403).json({ error: 'Owner/admin only' })
+    const accent = String(req.body?.team_accent || '')
+    if (!['gold', 'blue', 'emerald', 'purple', 'slate'].includes(accent)) return res.status(400).json({ error: 'Unknown accent theme' })
+    db.setSetting('team_accent_theme', accent)
+    res.json({ success: true, team_accent: accent })
+  })
+
   app.get('/api/settings/twilio', async (_req, res) => {
     const { twilioConfig } = await import('./twilio.js')
     const c = twilioConfig()
