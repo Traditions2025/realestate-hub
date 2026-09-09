@@ -1808,13 +1808,10 @@ export default function Clients() {
 
   return (
     <div className="page page-wide">
-      <div className="page-header clients-header">
+      <div className="page-header">
         <div>
           <h1>Clients</h1>
           <p className="page-subtitle">All leads (buyers + sellers) synced from Sierra Interactive</p>
-        </div>
-        <div className="clients-header-search">
-          <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
         </div>
         <div className="header-actions">
           <button className="btn btn-secondary" onClick={() => setDialerOpen(true)} title="Dial any number (even one not in the database)">☎ Dialer</button>
@@ -1955,6 +1952,7 @@ export default function Clients() {
       </div>
 
       <div className="toolbar">
+        <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
         <select value={activeListId || ''} onChange={e => loadSavedList(e.target.value ? Number(e.target.value) : null)} title="Saved lists">
           <option value="">— Saved Lists —</option>
           {savedLists.map(l => (

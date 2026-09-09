@@ -37,7 +37,7 @@ function GlobalSearch() {
   }
   return (
     <div ref={boxRef} style={{ position: 'sticky', top: 0, zIndex: 40, padding: '10px 0 6px', background: 'var(--bg-primary, var(--bg))' }}>
-      <div style={{ position: 'relative', maxWidth: 560 }}>
+      <div style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
         <input value={q} onChange={e => setQ(e.target.value)} onFocus={() => res && setOpen(true)} onKeyDown={onKey}
           placeholder="Search everything — people, transactions, tasks, notes…"
           className="input" style={{ width: '100%', padding: '9px 12px 9px 32px' }} />
