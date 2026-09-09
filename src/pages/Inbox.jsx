@@ -273,13 +273,17 @@ export default function Inbox() {
   const clearDraft = () => { setReply({ subject: '', body: '' }); setReplyMedia([]) }
   // Which channel the reply sends on: mirrors the last message VISIBLE in the thread
   // (so with the Texts filter on, a reply is a text even if the client also emailed).
-  // The Inbox shows ONLY the newest EMAIL per conversation — accumulated email
-  // history lives on the lead profile, not stacked in the reading pane. Texts,
-  // calls and voicemails still read as a full chat.
+  // The Inbox shows only the CURRENT email exchange per conversation: their newest
+  // inbound email plus every reply we've sent after it. Older email history lives on
+  // the lead profile. Texts, calls and voicemails still read as a full chat.
   const filteredThread = thread.filter(m => channels.includes(m.channel))
-  const lastEmailIdx = (() => { for (let i = filteredThread.length - 1; i >= 0; i--) if (filteredThread[i].channel === 'email') return i; return -1 })()
-  const hiddenEmails = filteredThread.filter((m, i) => m.channel === 'email' && i !== lastEmailIdx).length
-  const shownThread = filteredThread.filter((m, i) => m.channel !== 'email' || i === lastEmailIdx)
+  const anchorEmailIdx = (() => {
+    let lastIn = -1, lastAny = -1
+    filteredThread.forEach((m, i) => { if (m.channel === 'email') { lastAny = i; if (m.direction === 'incoming') lastIn = i } })
+    return lastIn >= 0 ? lastIn : lastAny
+  })()
+  const hiddenEmails = filteredThread.filter((m, i) => m.channel === 'email' && i < anchorEmailIdx).length
+  const shownThread = filteredThread.filter((m, i) => m.channel !== 'email' || i >= anchorEmailIdx)
   const lastShown = shownThread.length ? shownThread[shownThread.length - 1] : (thread.length ? thread[thread.length - 1] : null)
   const replyChannel = lastShown && lastShown.channel === 'text' ? 'text' : 'email'
   // Load templates for the reply channel when the composer is open.
