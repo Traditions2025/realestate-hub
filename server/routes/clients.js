@@ -186,6 +186,41 @@ router.get('/breakdown', (req, res) => {
 })
 
 // Build the WHERE clause + params from query/body filters
+// Paste-a-full-address support: "3191 SILVER OAK TRL, MARION, IA 52302" typed into
+// the Address field splits into address/city/state/zip and gets its casing fixed
+// (directionals stay NE/SW, ordinals stay 1st/2nd, states go IA). Mixed-case input
+// is respected — only ALL-CAPS / all-lowercase text is re-cased.
+export function smartParseAddress(raw) {
+  const clean = String(raw || '').trim().replace(/\s+/g, ' ')
+  if (!clean) return null
+  const titleWord = (w) => {
+    if (/^(NE|NW|SE|SW|N|S|E|W)$/i.test(w)) return w.toUpperCase()
+    if (/^\d+(ST|ND|RD|TH)$/i.test(w)) return w.toLowerCase()
+    if (/^\d/.test(w)) return w.toUpperCase() === w && /[A-Z]/.test(w) ? w : w // "52402", "123A" untouched
+    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+  }
+  const tc = (s) => s.split(' ').map(titleWord).join(' ')
+  const fixCase = (s) => (s === s.toUpperCase() || s === s.toLowerCase()) ? tc(s) : s
+  const parts = clean.split(',').map(p => p.trim()).filter(Boolean)
+  let street = clean, city = null, state = null, zip = null
+  const stZip = /^([A-Za-z]{2}|iowa)\.?\s*(\d{5})(?:-\d{4})?$/i
+  const zipOnly = /^(\d{5})(?:-\d{4})?$/
+  const cityStZip = /^(.+?)[\s]+([A-Za-z]{2}|iowa)\.?\s+(\d{5})(?:-\d{4})?$/i
+  let m
+  if (parts.length >= 3 && (m = parts[parts.length - 1].match(stZip))) {
+    state = m[1]; zip = m[2]; city = parts[parts.length - 2]; street = parts.slice(0, -2).join(', ')
+  } else if (parts.length >= 4 && (m = parts[parts.length - 1].match(zipOnly))) {
+    zip = m[1]; state = parts[parts.length - 2]; city = parts[parts.length - 3]; street = parts.slice(0, -3).join(', ')
+  } else if (parts.length >= 2 && (m = parts[parts.length - 1].match(cityStZip))) {
+    city = m[1]; state = m[2]; zip = m[3]; street = parts.slice(0, -1).join(', ')
+  }
+  const out = { address: fixCase(street) }
+  if (city) out.city = fixCase(city)
+  if (state) out.state = /^iowa$/i.test(state) ? 'IA' : state.toUpperCase()
+  if (zip) out.zip = zip
+  return out
+}
+
 export function buildClientFilter(q) {
   let where = ' WHERE 1=1'
   const params = []
@@ -1315,6 +1350,15 @@ router.post('/', (req, res) => {
 
 router.put('/:id', (req, res) => {
   const fields = req.body
+  // A full address pasted into the Address field auto-splits into city/state/zip
+  // (only filling those when the request didn't set them itself) and fixes casing.
+  if (typeof fields.address === 'string' && fields.address.trim()) {
+    const parsed = smartParseAddress(fields.address)
+    if (parsed) {
+      fields.address = parsed.address
+      for (const k of ['city', 'state', 'zip']) if (parsed[k] && !(k in fields)) fields[k] = parsed[k]
+    }
+  }
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
   // follow the lead once the real number is saved, so capture the pre-edit
   // state and clear the block below when the phone is actually replaced.
