@@ -273,7 +273,13 @@ export default function Inbox() {
   const clearDraft = () => { setReply({ subject: '', body: '' }); setReplyMedia([]) }
   // Which channel the reply sends on: mirrors the last message VISIBLE in the thread
   // (so with the Texts filter on, a reply is a text even if the client also emailed).
-  const shownThread = thread.filter(m => channels.includes(m.channel))
+  // The Inbox shows ONLY the newest EMAIL per conversation — accumulated email
+  // history lives on the lead profile, not stacked in the reading pane. Texts,
+  // calls and voicemails still read as a full chat.
+  const filteredThread = thread.filter(m => channels.includes(m.channel))
+  const lastEmailIdx = (() => { for (let i = filteredThread.length - 1; i >= 0; i--) if (filteredThread[i].channel === 'email') return i; return -1 })()
+  const hiddenEmails = filteredThread.filter((m, i) => m.channel === 'email' && i !== lastEmailIdx).length
+  const shownThread = filteredThread.filter((m, i) => m.channel !== 'email' || i === lastEmailIdx)
   const lastShown = shownThread.length ? shownThread[shownThread.length - 1] : (thread.length ? thread[thread.length - 1] : null)
   const replyChannel = lastShown && lastShown.channel === 'text' ? 'text' : 'email'
   // Load templates for the reply channel when the composer is open.
@@ -478,6 +484,12 @@ export default function Inbox() {
                 <button className="btn btn-sm btn-secondary" onClick={() => closeThread(sel)}>Close</button>
               </div>
               <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+                {hiddenEmails > 0 && (
+                  <a href={'/clients/' + sel} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); navigate('/clients/' + sel) }}
+                    style={{ alignSelf: 'center', fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none', border: '1px dashed var(--border)', borderRadius: 999, padding: '4px 14px' }}>
+                    {hiddenEmails} earlier email{hiddenEmails === 1 ? '' : 's'} — view on the lead profile →
+                  </a>
+                )}
                 {shownThread.length === 0 ? <div style={{ color: 'var(--text-muted)' }}>No messages.</div> : shownThread.map((m, idx) => {
                   const meta = chMeta(m.channel)
                   const out = m.direction === 'outgoing'
