@@ -64,9 +64,10 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   if (!drip) return null
   const steps = parse(drip.steps, [])
   if (!steps.length) return null
-  // never enroll a lead we've been told to stop contacting (Junk / DNC)
+  // never enroll a lead we've been told to stop contacting (Junk / DNC), or one who
+  // confirmed they're Not in Market (only the annual human recheck touches them)
   const cli = db.get('SELECT status, email, email_status FROM clients WHERE id = ?', [Number(clientId)])
-  if (cli && isStopStatus(cli.status)) return null
+  if (cli && (isStopStatus(cli.status) || String(cli.status || '').toLowerCase() === 'not_in_market')) return null
   // drips are email-only: skip contacts we could never actually email (no address,
   // throwaway domain, prior spam complaint, known-bad address) so they don't clutter
   // the roster as enrolled-but-silent. Mirrors emailHardBlock at send time. Opt-outs

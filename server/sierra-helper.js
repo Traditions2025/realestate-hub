@@ -142,7 +142,8 @@ export function processLead(lead, sierraStatusOverride) {
       state   = CASE WHEN COALESCE(fsbo_status,'')!='' THEN state   ELSE ? END,
       zip     = CASE WHEN COALESCE(fsbo_status,'')!='' THEN zip     ELSE ? END,
       type=?,
-      budget_min=?, budget_max=?, agent_assigned=?, status=?,
+      budget_min=?, budget_max=?, agent_assigned=?,
+      status=CASE WHEN status='not_in_market' THEN status ELSE ? END, -- Hub-native status: Sierra has no equivalent, never overwrite it
       lead_score=COALESCE(?, lead_score), lead_grade=COALESCE(?, lead_grade), visits=?, email_status=?, phone_status=?,
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
       marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,

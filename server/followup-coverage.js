@@ -184,7 +184,8 @@ export function evaluateFollowUpCoverage(clientId) {
 
   // ---- silence window ------------------------------------------------------
   let windowKey =
-    status === 'closed' ? 'past_client'
+    status === 'not_in_market' ? null   // intentionally quiet: the annual recheck task IS the coverage, no silence standard
+    : status === 'closed' ? 'past_client'
     : intent >= cfg.high_intent_score ? 'high_intent'
     : level === 'active_opportunity' ? 'active_opportunity'
     : level === 'qualified' ? 'qualified'

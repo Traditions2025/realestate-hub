@@ -758,6 +758,20 @@ export const SMART_LIST_SQL = {
   ownerless_meaningful:
     `((clients.agent_assigned IS NULL OR trim(clients.agent_assigned) = '')
       AND clients.id IN (SELECT client_id FROM followup_coverage WHERE relationship_level IN ('connected','qualified','active_opportunity','client')))`,
+  // ==== NOT IN MARKET lists ====
+  // Confirmed no-current-intent leads recently moved in (review window).
+  nim_recent:
+    `(clients.status = 'not_in_market' AND clients.not_in_market_at >= datetime('now','-30 days'))`,
+  // Annual recheck due or coming within 30 days — the intentional yearly touch.
+  nim_recheck_due:
+    `(clients.status = 'not_in_market' AND EXISTS (SELECT 1 FROM tasks t WHERE t.related_type='client' AND t.related_id=clients.id
+        AND t.title='Annual Not in Market Recheck' AND t.status NOT IN ('done','completed','cancelled','canceled')
+        AND t.due_date <= date('now','+30 days')))`,
+  // Signals they may be BACK: meaningful inbound message in 14d, or real browsing again.
+  nim_possible_return:
+    `(clients.status = 'not_in_market'
+      AND (EXISTS (SELECT 1 FROM communications co WHERE co.client_id=clients.id AND co.direction='incoming' AND co.occurred_at >= datetime('now','-14 days'))
+           OR (SELECT COUNT(*) FROM fub_activity fa WHERE fa.client_id=clients.id AND fa.occurred_at >= datetime('now','-7 days')) >= 3))`,
   // AI-managed leads whose engine has no scheduled next action (and nothing else covers them).
   ai_no_next_action:
     `(EXISTS (SELECT 1 FROM ai_lead_state s WHERE s.client_id = clients.id AND s.ai_enabled = 1)
@@ -1348,7 +1362,7 @@ router.post('/', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const fields = req.body
   // A full address pasted into the Address field auto-splits into city/state/zip
   // (only filling those when the request didn't set them itself) and fixes casing.
@@ -1362,7 +1376,7 @@ router.put('/:id', (req, res) => {
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
   // follow the lead once the real number is saved, so capture the pre-edit
   // state and clear the block below when the phone is actually replaced.
-  const before = db.get('SELECT phone, hub_text_opt_out FROM clients WHERE id = ?', [Number(req.params.id)])
+  const before = db.get('SELECT phone, hub_text_opt_out, status FROM clients WHERE id = ?', [Number(req.params.id)])
   // Manual Realist Score entry: normalize to digits and derive the A-F grade
   // whenever lead_score is set (or cleared) so the badge stays consistent.
   if (Object.prototype.hasOwnProperty.call(fields, 'lead_score')) {
@@ -1414,11 +1428,22 @@ router.put('/:id', (req, res) => {
         `Removed from ${r.drips} drip(s) + ${r.automations} automation(s) — status ${fields.status}`)
     }
   }
+  // NOT IN MARKET transition — centralized cleanup (stop drips/AI/scheduled sales
+  // outreach, close sales tasks, create the annual recheck). Fires on ENTERING the
+  // status only; repeat saves are no-ops beyond the idempotent service itself.
+  let nimSummary = null
+  if (fields.status === 'not_in_market' && before && before.status !== 'not_in_market') {
+    try { const m = await import('../not-in-market.js'); nimSummary = m.executeNotInMarketTransition(Number(req.params.id), { actor: req.user?.name || 'user' }) }
+    catch (e) { console.error('[not-in-market]', e.message); logActivity('error', 'client', Number(req.params.id), 'Not in Market cleanup FAILED: ' + e.message) }
+  } else if (before && before.status === 'not_in_market' && fields.status && fields.status !== 'not_in_market') {
+    try { const m = await import('../not-in-market.js'); m.exitNotInMarket(Number(req.params.id), fields.status) }
+    catch (e) { console.error('[not-in-market-exit]', e.message) }
+  }
   // Follow-up coverage refreshes on status / agent / contactability changes.
   if ('status' in fields || 'agent_assigned' in fields || 'phone' in fields || 'email' in fields || 'type' in fields) {
     import('../followup-coverage.js').then(m => m.recalcCoverage(Number(req.params.id), { actorType: 'client_update' })).catch(() => {})
   }
-  res.json({ success: true })
+  res.json({ success: true, ...(nimSummary ? { not_in_market: nimSummary } : {}) })
 })
 
 // Active plans (drips + automations) currently running for this lead — powers

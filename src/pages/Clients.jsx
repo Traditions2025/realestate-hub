@@ -178,6 +178,10 @@ const SMART_LISTS = [
   { key: 'past_clients_due', label: 'Past Clients Due', desc: 'Past clients past the 90-day touch standard' },
   { key: 'ownerless_meaningful', label: 'No Owner Assigned', desc: 'Connected+ leads with no assigned agent — clear ownership errors' },
   { key: 'ai_no_next_action', label: 'AI Managed · No Next Action', desc: 'AI-enabled leads whose engine has nothing scheduled and nothing else covers them' },
+  // Not in Market lifecycle
+  { key: 'nim_recent', label: 'Not in Market · Recent (30d)', desc: 'Confirmed no current buying/selling intent within the last 30 days' },
+  { key: 'nim_recheck_due', label: 'Not in Market · Recheck Due', desc: 'Annual recheck due or coming within 30 days' },
+  { key: 'nim_possible_return', label: '🔄 Possible Return to Market', desc: 'Not in Market leads showing new inbound messages or real browsing activity again' },
 ]
 
 // Per-view prefs: each tab / saved list / smart list stores its own columns under a
@@ -230,6 +234,7 @@ export const SIERRA_STATUSES = [
   { value: 'watch',         label: 'Watch' },
   { value: 'pending',       label: 'Pending' },
   { value: 'closed',        label: 'Closed' },
+  { value: 'not_in_market', label: 'Not in Market' },
   { value: 'archived',      label: 'Archived' },
   { value: 'junk',          label: 'Junk' },
   { value: 'donotcontact',  label: 'DNC' },

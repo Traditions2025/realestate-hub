@@ -204,6 +204,22 @@ router.put('/:id', (req, res) => {
   if (updatedTask && updatedTask.related_type === 'client' && updatedTask.related_id) {
     import('../followup-coverage.js').then(m => m.recalcCoverage(updatedTask.related_id, { actorType: 'task' })).catch(() => {})
   }
+  // Not in Market annual loop: completing the annual recheck while the lead is STILL
+  // Not in Market schedules the next one a year out — the relationship never expires.
+  if (updatedTask && fields.status === 'done' && updatedTask.related_type === 'client' && updatedTask.related_id
+      && updatedTask.title === 'Annual Not in Market Recheck') {
+    try {
+      const cli = db.get('SELECT status, first_name, last_name, agent_assigned FROM clients WHERE id=?', [updatedTask.related_id])
+      const open = db.get("SELECT id FROM tasks WHERE related_type='client' AND related_id=? AND title='Annual Not in Market Recheck' AND status NOT IN ('done','completed','cancelled','canceled')", [updatedTask.related_id])
+      if (cli && String(cli.status).toLowerCase() === 'not_in_market' && !open) {
+        const due = new Date(); due.setFullYear(due.getFullYear() + 1)
+        db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id) VALUES (?,?,?,?,?,?,?,?,?)`,
+          ['Annual Not in Market Recheck', `${(cli.first_name || '') + ' ' + (cli.last_name || '')}`.trim() + ' was still Not in Market at the last recheck. Reconnect and re-check plans.',
+            'low', 'todo', due.toISOString().slice(0, 10), updatedTask.assigned_to || cli.agent_assigned || 'Matt Smith', 'follow-up', 'client', updatedTask.related_id])
+        logActivity('created', 'task', updatedTask.related_id, `Next Annual Not in Market Recheck scheduled for ${due.toISOString().slice(0, 10)} (still Not in Market)`)
+      }
+    } catch (e) { console.error('[nim-annual-loop]', e.message) }
+  }
   // Build a short "what changed" summary for the notification email
   const changedKeys = Object.keys(fields).filter(k => k !== 'updated_at' && k !== 'notes_log')
   const changeSummary = changedKeys.length

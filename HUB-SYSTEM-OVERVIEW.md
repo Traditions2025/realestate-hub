@@ -382,6 +382,21 @@ The layer above Tasks / AI / Drips / Automations / Transactions that answers one
 
 ---
 
+## Not in Market (CRM status)
+
+Hub-native status (value `not_in_market`, neutral slate badge) meaning: **we connected and the person explicitly confirmed no current buying/selling intent** ("we're not moving anymore"). Never applied for mere inactivity. Distinct from Watch (possible future intent worth nurturing).
+
+- **Centralized transition** (`server/not-in-market.js`, invoked by the clients PUT on entering the status — profile, inline, bulk, API all route through it): stops active drips + automations, cancels scheduled texts and pending AI actions, pauses HUB AI (`AI_DISABLED`), sets current intent LOW (history/peak preserved), closes clearly sales-patterned open tasks, then creates ONE **"Annual Not in Market Recheck"** task a year out assigned to the lead's agent (idempotent — an open annual task is reused). `clients.not_in_market_at` records entry.
+- **Guards:** the Sierra sync never overwrites this status (Sierra has no equivalent; nothing is pushed to Sierra either — unmapped statuses are skipped); `enrollInDrip` refuses these leads; AI policy denies proactive outreach (replies stay allowed, but AI is off by default).
+- **Active transaction conflict:** transaction workflow and its tasks are never touched; the conflict is logged for review.
+- **Coverage:** protected by the annual human task; no silence standard applies (quiet is intentional).
+- **Annual loop:** completing the annual recheck while still Not in Market auto-creates the next year's task (tasks PUT hook). Leaving the status for an active stage closes the annual task; nothing auto-restarts old campaigns.
+- **Smart lists:** `nim_recent` (entered ≤30d), `nim_recheck_due` (annual task due ≤30d), `nim_possible_return` (new inbound in 14d or 3+ property views in 7d).
+- "Never contact me again" is NOT this status — that's the opt-out/exclusion path with no annual task.
+- Tests: `test/not-in-market.test.mjs`.
+
+---
+
 ## 15. Data Flow Summary
 
 1. **In:** Sierra incremental sync pulls new/updated leads hourly; FUB syncs web activity, viewed properties, scores, budgets.

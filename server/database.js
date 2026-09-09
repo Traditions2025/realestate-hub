@@ -962,6 +962,7 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN exclude_reason TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN excluded_by TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN excluded_at TEXT') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN not_in_market_at TEXT') } catch {}   // when they entered Not in Market (drives smart lists)
   // Queryable summary of each lead's current follow-up coverage (one row per client;
   // computed by server/followup-coverage.js — never edit rows by hand).
   db.run(`

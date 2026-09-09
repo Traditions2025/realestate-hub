@@ -55,6 +55,9 @@ export function canSendSms(client, context = {}) {
   if (p?.sms_status === 'blocked') return deny('SMS blocked')
   // Campaign-style + AI channels also exclude Do Not Contact / Junk status:
   if (channel !== 'manual' && isStopStatus(client.status)) return deny(`lead status ${client.status}`)
+  // Not in Market: no PROACTIVE automated outreach (the annual human recheck is the
+  // touch). Replies to their inbound messages stay allowed under normal policy.
+  if (channel !== 'manual' && context.mode !== 'responsive' && String(client.status || '').toLowerCase() === 'not_in_market') return deny('Not in Market — proactive outreach paused')
   // ...and numbers a prior send hard-failed as landline / can't-receive-SMS (auto-cleared if they text us).
   if (channel !== 'manual' && client.sms_undeliverable) return deny('number is undeliverable (likely a landline)')
   // No automated/campaign/AI texts on US federal holidays (Central). Manual 1:1 replies still work,
