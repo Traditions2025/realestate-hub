@@ -312,8 +312,35 @@ export default function ClientProfile() {
 }
 
 // ── Client Details (contact + CRM + tags) ────────────────────────────────
+// Tiny inline adder: appends one more phone/email to the comma-separated alt list.
+// Opened by the ＋ next to the pencil on the Phone / Email rows.
+function AltQuickAdd({ cid, field, placeholder, existing, onSaved, onClose }) {
+  const [val, setVal] = useState('')
+  const [saving, setSaving] = useState(false)
+  const save = async () => {
+    if (!val.trim()) { onClose(); return }
+    setSaving(true)
+    try {
+      const combined = existing ? `${existing}, ${val.trim()}` : val.trim()
+      await authFetch(`/api/clients/${cid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: combined }) })
+      onSaved && onSaved(); onClose()
+    } catch (e) { alert('Could not save: ' + e.message) } finally { setSaving(false) }
+  }
+  return (
+    <p style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <input autoFocus value={val} placeholder={placeholder} onChange={e => setVal(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose() }}
+        style={{ flex: 1, minWidth: 160, padding: '3px 6px' }} />
+      <button className="btn btn-sm btn-primary" disabled={saving} onClick={save}>{saving ? '…' : 'Save'}</button>
+      <button className="btn btn-sm btn-secondary" onClick={onClose}>Cancel</button>
+    </p>
+  )
+}
+const plusBtnStyle = { border: '1px solid var(--accent-border)', background: 'none', color: 'var(--accent)', borderRadius: 6, width: 20, height: 20, lineHeight: '16px', fontSize: 14, cursor: 'pointer', padding: 0 }
+
 function ClientDetails({ client, onSaved }) {
   const cid = client.id
+  const [altAdd, setAltAdd] = useState(null) // 'phones' | 'emails' | null
   // MLS # / Off Market Date are prospecting-list fields — only shown for FSBO and
   // Cancelled/Expired leads (or when the fields already hold data, so nothing gets hidden).
   const showMlsFields = !!(client.fsbo_status || client.mls_status || client.off_market_date || client.mls_number
@@ -324,13 +351,15 @@ function ClientDetails({ client, onSaved }) {
         <div>
           <div className="cp-sub">Contact</div>
           <InlineName detail={client} onSaved={onSaved} />
-          <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved} />
+          <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved}
+            statusTag={<button title="Add another phone number for this lead" style={plusBtnStyle} onClick={() => setAltAdd(v => v === 'phones' ? null : 'phones')}>＋</button>} />
+          {altAdd === 'phones' && <AltQuickAdd cid={cid} field="alt_phones" placeholder="(319) 555-0100" existing={client.alt_phones} onSaved={onSaved} onClose={() => setAltAdd(null)} />}
           {client.phone && <PhoneStatusBadge client={client} />}
-          <InlineField label="Email" field="email" type="email" value={client.email} clientId={cid} onSaved={onSaved} />
-          <InlineField label="Additional phones" field="alt_phones" value={client.alt_phones} clientId={cid} onSaved={onSaved}
-            addLabel="+ Add phone" placeholder="(319) 555-0100, (319) 555-0200 — comma separated" />
-          <InlineField label="Additional emails" field="alt_emails" type="text" value={client.alt_emails} clientId={cid} onSaved={onSaved}
-            addLabel="+ Add email" placeholder="name@gmail.com, work@company.com — comma separated" />
+          {client.alt_phones && <InlineField label="Additional phones" field="alt_phones" value={client.alt_phones} clientId={cid} onSaved={onSaved} placeholder="(319) 555-0100, (319) 555-0200 — comma separated" />}
+          <InlineField label="Email" field="email" type="email" value={client.email} clientId={cid} onSaved={onSaved}
+            statusTag={<button title="Add another email address for this lead" style={plusBtnStyle} onClick={() => setAltAdd(v => v === 'emails' ? null : 'emails')}>＋</button>} />
+          {altAdd === 'emails' && <AltQuickAdd cid={cid} field="alt_emails" placeholder="name@gmail.com" existing={client.alt_emails} onSaved={onSaved} onClose={() => setAltAdd(null)} />}
+          {client.alt_emails && <InlineField label="Additional emails" field="alt_emails" type="text" value={client.alt_emails} clientId={cid} onSaved={onSaved} placeholder="name@gmail.com, work@company.com — comma separated" />}
           <InlineField label="Address" field="address" value={client.address} clientId={cid} onSaved={onSaved} />
           <InlineField label="City" field="city" value={client.city} clientId={cid} onSaved={onSaved} />
           <InlineField label="State" field="state" value={client.state} clientId={cid} onSaved={onSaved} />
