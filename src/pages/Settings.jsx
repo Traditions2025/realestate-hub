@@ -213,8 +213,10 @@ export default function Settings() {
       </div>
 
       {loading ? <p style={{ color: 'var(--text-muted)' }}>Loading…</p> : (
-        <div style={{ display: 'grid', gap: 24, maxWidth: 760, width: '100%', gridTemplateColumns: 'minmax(0, 1fr)' }}>
-          <ServiceBalances />
+        <>
+        <div className="settings-cols">
+          <div className="settings-col">
+            <SettingsGroup id="general" title="General" desc="Account identity and the email signature used across the Hub." defaultOpen>
           {/* Account info */}
           <section className="detail-section">
             <h4>Account Info</h4>
@@ -240,7 +242,6 @@ export default function Settings() {
               </label>
             </div>
           </section>
-
           {/* Email signature */}
           <section className="detail-section">
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -250,7 +251,87 @@ export default function Settings() {
             <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>This is added to the bottom of emails you compose and generate (e.g. “Homes They Viewed”).</p>
             <RichTextEditor value={signature} onChange={setSignature} minHeight={160} />
           </section>
-
+            </SettingsGroup>
+            <SettingsGroup id="ai" title="AI Follow-Up" desc="HUB AI ISA, Autopilot flags, follow-up coverage standards, regression eval.">
+          <AiFollowUpSettings />
+          <CoverageSettings />
+          <AiEvalPanel />
+            </SettingsGroup>
+            <SettingsGroup id="comms" title="Communications" desc="Twilio texting, call routing and business hours, A2P business registration.">
+          <section className="detail-section">
+            <h4 style={{ margin: 0 }}>Text Messaging (Twilio)</h4>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+              Connect Twilio to text clients from the Hub and get their replies in the Inbox. Your <strong>Account SID</strong> + <strong>Auth Token</strong> come from the Twilio Console; the <strong>From number</strong> is your Twilio phone number (or set a Messaging Service SID instead). Credentials are stored securely here, never in code.
+            </p>
+            <div style={grid}>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Account SID
+                <input style={fld} value={tw.account_sid || ''} onChange={e => setTw(t => ({ ...t, account_sid: e.target.value }))} placeholder="AC…" />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Auth Token
+                <input style={fld} type="password" value={twToken} onChange={e => setTwToken(e.target.value)} placeholder={tw.auth_token_set ? `•••• saved (…${tw.auth_token_last4})` : 'your 32-char auth token'} />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>From number
+                <input style={fld} value={tw.from_number || ''} onChange={e => setTw(t => ({ ...t, from_number: e.target.value }))} placeholder="+13194088407" />
+              </label>
+              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Messaging Service SID (optional)
+                <input style={fld} value={tw.messaging_service_sid || ''} onChange={e => setTw(t => ({ ...t, messaging_service_sid: e.target.value }))} placeholder="MG… (use instead of From)" />
+              </label>
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--text-primary)' }}>
+              <input type="checkbox" checked={!!tw.enabled} onChange={e => setTw(t => ({ ...t, enabled: e.target.checked }))} />
+              Texting enabled
+            </label>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
+              <button className="btn btn-sm btn-primary" onClick={saveTwilio} disabled={twBusy}>{twBusy ? 'Saving…' : 'Save & Test'}</button>
+              <button className="btn btn-sm btn-secondary" onClick={testTwilio} disabled={twBusy}>Test connection</button>
+              {twStatus && (twStatus.ok
+                ? <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>● Connected ({twStatus.status}){twStatus.name ? ' · ' + twStatus.name : ''}</span>
+                : <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⚠ {twStatus.error || ('code ' + twStatus.code)}</span>)}
+            </div>
+            <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+              <div><strong>Inbound webhook</strong> — in Twilio, open your number → Messaging → “A message comes in” → set to <em>Webhook (HTTP POST)</em> and paste:</div>
+              <code style={{ display: 'inline-block', marginTop: 4, padding: '5px 9px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, wordBreak: 'break-all', color: 'var(--text-primary)' }}>{tw.inbound_webhook}</code>
+              <div style={{ marginTop: 6 }}>That routes replies (and STOP/START opt-outs) into the Inbox automatically.</div>
+            </div>
+          </section>
+          <VoiceRouting />
+          {/* Business Registration (Twilio A2P) */}
+          <section className="detail-section">
+            <h4 style={{ margin: 0 }}>Business Registration</h4>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+              Required by major cell carriers and Twilio (our dialer/texting provider) to verify the business and keep text messages deliverable. This is stored here so it's ready when we turn on texting.
+            </p>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '4px 0 8px', fontWeight: 700 }}>General</div>
+            <div style={grid}>
+              {bfield('Business Name', 'business_name', business, bf, fld)}
+              {bfield('Business Type', 'business_type', business, bf, fld)}
+              {bfield('Website', 'website', business, bf, fld, '1 / -1')}
+            </div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Physical Address</div>
+            <div style={grid}>
+              {bfield('Address Line 1', 'address1', business, bf, fld, '1 / -1')}
+              {bfield('Address Line 2', 'address2', business, bf, fld, '1 / -1')}
+              {bfield('City', 'city', business, bf, fld)}
+              {bfield('State', 'state', business, bf, fld)}
+              {bfield('Zip Code', 'zip', business, bf, fld)}
+              {bfield('Country', 'country', business, bf, fld)}
+            </div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Registration & Status</div>
+            <div style={grid}>
+              {bfield('Company Status', 'company_status', business, bf, fld)}
+              {bfield('Business Registration # (EIN)', 'ein', business, bf, fld)}
+            </div>
+            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Points of Contact</div>
+            <div style={grid}>
+              {bfield('Name', 'poc_name', business, bf, fld)}
+              {bfield('Email', 'poc_email', business, bf, fld)}
+              {bfield('Title', 'poc_title', business, bf, fld)}
+              {bfield('Phone Number', 'poc_phone', business, bf, fld)}
+              {bfield('Job Position', 'poc_job_position', business, bf, fld)}
+            </div>
+          </section>
+            </SettingsGroup>
+            <SettingsGroup id="email" title="Email & Inbox" desc="Connected mailboxes feeding the Inbox tab.">
           {/* Inbox email connections (multiple mailboxes) */}
           <section className="detail-section">
             <h4 style={{ margin: 0 }}>Inbox Email Connections</h4>
@@ -298,97 +379,26 @@ export default function Settings() {
               <button className="btn btn-sm btn-secondary" onClick={() => setMbAdvanced(a => !a)}>{mbAdvanced ? 'Hide advanced' : 'Advanced'}</button>
             </div>
           </section>
-
-          {/* Text Messaging (Twilio) */}
-          <section className="detail-section">
-            <h4 style={{ margin: 0 }}>Text Messaging (Twilio)</h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
-              Connect Twilio to text clients from the Hub and get their replies in the Inbox. Your <strong>Account SID</strong> + <strong>Auth Token</strong> come from the Twilio Console; the <strong>From number</strong> is your Twilio phone number (or set a Messaging Service SID instead). Credentials are stored securely here, never in code.
-            </p>
-            <div style={grid}>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Account SID
-                <input style={fld} value={tw.account_sid || ''} onChange={e => setTw(t => ({ ...t, account_sid: e.target.value }))} placeholder="AC…" />
-              </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Auth Token
-                <input style={fld} type="password" value={twToken} onChange={e => setTwToken(e.target.value)} placeholder={tw.auth_token_set ? `•••• saved (…${tw.auth_token_last4})` : 'your 32-char auth token'} />
-              </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>From number
-                <input style={fld} value={tw.from_number || ''} onChange={e => setTw(t => ({ ...t, from_number: e.target.value }))} placeholder="+13194088407" />
-              </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Messaging Service SID (optional)
-                <input style={fld} value={tw.messaging_service_sid || ''} onChange={e => setTw(t => ({ ...t, messaging_service_sid: e.target.value }))} placeholder="MG… (use instead of From)" />
-              </label>
-            </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--text-primary)' }}>
-              <input type="checkbox" checked={!!tw.enabled} onChange={e => setTw(t => ({ ...t, enabled: e.target.checked }))} />
-              Texting enabled
-            </label>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 12, flexWrap: 'wrap' }}>
-              <button className="btn btn-sm btn-primary" onClick={saveTwilio} disabled={twBusy}>{twBusy ? 'Saving…' : 'Save & Test'}</button>
-              <button className="btn btn-sm btn-secondary" onClick={testTwilio} disabled={twBusy}>Test connection</button>
-              {twStatus && (twStatus.ok
-                ? <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>● Connected ({twStatus.status}){twStatus.name ? ' · ' + twStatus.name : ''}</span>
-                : <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⚠ {twStatus.error || ('code ' + twStatus.code)}</span>)}
-            </div>
-            <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
-              <div><strong>Inbound webhook</strong> — in Twilio, open your number → Messaging → “A message comes in” → set to <em>Webhook (HTTP POST)</em> and paste:</div>
-              <code style={{ display: 'inline-block', marginTop: 4, padding: '5px 9px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, wordBreak: 'break-all', color: 'var(--text-primary)' }}>{tw.inbound_webhook}</code>
-              <div style={{ marginTop: 6 }}>That routes replies (and STOP/START opt-outs) into the Inbox automatically.</div>
-            </div>
-          </section>
-
-          <CommsDiagnostics />
-
+            </SettingsGroup>
+          </div>
+          <div className="settings-col">
+            <SettingsGroup id="team" title="Team & Users" desc="Agents available for assignment and call routing.">
           <TeamAgents />
-
-          <AiFollowUpSettings />
-          <CoverageSettings />
+            </SettingsGroup>
+            <SettingsGroup id="data" title="Data / Imports" desc="Master-file checks and data imports.">
           <MasterFileSettings />
-
-          <AiEvalPanel />
-
-          <VoiceRouting />
-
-          {/* Business Registration (Twilio A2P) */}
-          <section className="detail-section">
-            <h4 style={{ margin: 0 }}>Business Registration</h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
-              Required by major cell carriers and Twilio (our dialer/texting provider) to verify the business and keep text messages deliverable. This is stored here so it's ready when we turn on texting.
-            </p>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '4px 0 8px', fontWeight: 700 }}>General</div>
-            <div style={grid}>
-              {bfield('Business Name', 'business_name', business, bf, fld)}
-              {bfield('Business Type', 'business_type', business, bf, fld)}
-              {bfield('Website', 'website', business, bf, fld, '1 / -1')}
-            </div>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Physical Address</div>
-            <div style={grid}>
-              {bfield('Address Line 1', 'address1', business, bf, fld, '1 / -1')}
-              {bfield('Address Line 2', 'address2', business, bf, fld, '1 / -1')}
-              {bfield('City', 'city', business, bf, fld)}
-              {bfield('State', 'state', business, bf, fld)}
-              {bfield('Zip Code', 'zip', business, bf, fld)}
-              {bfield('Country', 'country', business, bf, fld)}
-            </div>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Registration & Status</div>
-            <div style={grid}>
-              {bfield('Company Status', 'company_status', business, bf, fld)}
-              {bfield('Business Registration # (EIN)', 'ein', business, bf, fld)}
-            </div>
-            <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Points of Contact</div>
-            <div style={grid}>
-              {bfield('Name', 'poc_name', business, bf, fld)}
-              {bfield('Email', 'poc_email', business, bf, fld)}
-              {bfield('Title', 'poc_title', business, bf, fld)}
-              {bfield('Phone Number', 'poc_phone', business, bf, fld)}
-              {bfield('Job Position', 'poc_job_position', business, bf, fld)}
-            </div>
-          </section>
-
-          <div>
-            <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}</button>
+          <RealistImportSettings />
+            </SettingsGroup>
+            <SettingsGroup id="system" title="System / Diagnostics" desc="Service balances and communications diagnostics.">
+          <ServiceBalances />
+          <CommsDiagnostics />
+            </SettingsGroup>
           </div>
         </div>
+        <div style={{ marginTop: 16 }}>
+          <button className="btn btn-primary" onClick={save} disabled={saving}>{saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Changes'}</button>
+        </div>
+        </>
       )}
     </div>
   )
@@ -464,6 +474,57 @@ function AiExclusions({ cfg, saveCfg }) {
         </div>
       </div>
     </div>
+  )
+}
+
+
+// Collapsible settings category. Children stay MOUNTED when collapsed (display:none)
+// so unsaved field values survive and nothing reloads on toggle.
+function SettingsGroup({ id, title, desc, defaultOpen = false, children }) {
+  const [open, setOpen] = React.useState(() => { try { const v = localStorage.getItem('settings_group_' + id); return v == null ? defaultOpen : v === '1' } catch { return defaultOpen } })
+  const toggle = () => setOpen(o => { try { localStorage.setItem('settings_group_' + id, o ? '0' : '1') } catch {}; return !o })
+  return (
+    <div className="settings-group">
+      <button type="button" className="settings-group-header" onClick={toggle}>
+        <span className="settings-group-chev">{open ? '\u25be' : '\u25b8'}</span>
+        <span style={{ minWidth: 0 }}><strong>{title}</strong>{desc && <span className="settings-group-desc">{desc}</span>}</span>
+      </button>
+      <div className="settings-group-body" style={{ display: open ? undefined : 'none' }}>{children}</div>
+    </div>
+  )
+}
+
+// Import Realist CSV — moved here from the Clients toolbar (an admin action, not a
+// daily lead-management one). Same importer + endpoint, untouched.
+function RealistImportSettings() {
+  const [busy, setBusy] = React.useState(false)
+  const [result, setResult] = React.useState(null)
+  return (
+    <section className="detail-section">
+      <h4 style={{ margin: '0 0 4px' }}>\ud83c\udfd8 Import Realist CSV</h4>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+        Upload a Realist export to enrich leads with home values, sale prices, year built, sell score and owner-occupied flags. Records auto-match to clients by address.
+      </p>
+      <label className="btn btn-sm btn-secondary" style={{ cursor: 'pointer', position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
+        {busy ? 'Importing\u2026' : 'Choose CSV file\u2026'}
+        <input type="file" accept=".csv,text/csv" disabled={busy}
+          style={{ position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+          onChange={async (e) => {
+            const file = e.target.files?.[0]
+            if (!file) return
+            if (!confirm('Import ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)?\n\nThis will add/update Realist property records and auto-match them to clients by address.')) { e.target.value = ''; return }
+            setBusy(true); setResult(null)
+            try {
+              const csv = await file.text()
+              const r = await authFetch('/api/realist/import', { method: 'POST', headers: { 'Content-Type': 'text/csv' }, body: csv })
+              const d = await r.json()
+              setResult(d.error ? ('\u26a0 ' + d.error) : ('\u2713 ' + d.properties_imported + ' properties imported \u00b7 ' + d.client_matches_enriched + ' clients enriched \u00b7 ' + d.errors + ' errors'))
+            } catch (err) { setResult('\u26a0 ' + err.message) }
+            finally { setBusy(false); e.target.value = '' }
+          }} />
+      </label>
+      {result && <div style={{ fontSize: 12.5, marginTop: 8, color: result.startsWith('\u2713') ? '#059669' : '#dc2626' }}>{result}</div>}
+    </section>
   )
 }
 

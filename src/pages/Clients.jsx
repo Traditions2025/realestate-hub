@@ -786,7 +786,6 @@ export default function Clients() {
       setTimeout(() => URL.revokeObjectURL(url), 2000)
     } catch (e) { alert('Could not export CSV: ' + e.message) } finally { setBulkExporting(false) }
   }
-  const [view, setView] = useState(() => localStorage.getItem('clients_view') || 'list')
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
 
@@ -1794,7 +1793,6 @@ export default function Clients() {
   const PRIMARY_STATUSES = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'closed']
   const OTHER_STATUSES = ['archived', 'donotcontact', 'junk', 'blocked']
   const ALL_STATUSES = [...PRIMARY_STATUSES, ...OTHER_STATUSES]
-  useEffect(() => { localStorage.setItem('clients_view', view) }, [view])
 
   // Build the tabs list: combine all known statuses + any extras from DB, with counts
   const countsMap = Object.fromEntries(statusCounts.map(s => [s.status, s.count]))
@@ -1809,20 +1807,18 @@ export default function Clients() {
   }
 
   return (
-    <div className={`page ${view === 'list' ? 'page-wide' : ''}`}>
-      <div className="page-header">
+    <div className="page page-wide">
+      <div className="page-header clients-header">
         <div>
           <h1>Clients</h1>
           <p className="page-subtitle">All leads (buyers + sellers) synced from Sierra Interactive</p>
         </div>
+        <div className="clients-header-search">
+          <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
+        </div>
         <div className="header-actions">
           <button className="btn btn-secondary" onClick={() => setDialerOpen(true)} title="Dial any number (even one not in the database)">☎ Dialer</button>
-          <div className="view-toggle">
-            <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')}>List</button>
-            <button className={view === 'card' ? 'active' : ''} onClick={() => setView('card')}>Cards</button>
-          </div>
-          {view === 'list' && (
-            <div className="columns-picker-wrap">
+          <div className="columns-picker-wrap">
               <button className="btn btn-secondary" onClick={() => setColumnsPickerOpen(o => !o)} title="Show/hide and reorder columns">
                 Columns ({visibleColumns.length})
               </button>
@@ -1869,8 +1865,7 @@ export default function Clients() {
                   </div>
                 </>
               )}
-            </div>
-          )}
+          </div>
           <button
             className="btn btn-primary"
             onClick={() => syncSierra(false, 'all')}
@@ -1879,40 +1874,7 @@ export default function Clients() {
           >
             {sierraStatus === 'syncing' ? 'Syncing Sierra...' : `Sync All Sierra Leads${sierraCounts ? ` (${sierraCounts.total.toLocaleString()})` : ''}`}
           </button>
-          <label className="btn btn-secondary" style={{cursor: 'pointer', position: 'relative', overflow: 'hidden'}} title="Upload a Realist CSV to enrich leads with home values, sale prices, year built, sell score, owner-occupied flag">
-            🏘 Import Realist CSV
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              style={{position: 'absolute', opacity: 0, top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer'}}
-              onChange={async (e) => {
-                const file = e.target.files?.[0]
-                if (!file) return
-                if (!confirm(`Import ${file.name} (${(file.size / 1024).toFixed(0)} KB)?\n\nThis will add/update Realist property records and auto-match them to clients by address.`)) {
-                  e.target.value = ''
-                  return
-                }
-                try {
-                  const csv = await file.text()
-                  const r = await authFetch('/api/realist/import', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/csv' },
-                    body: csv,
-                  })
-                  const d = await r.json()
-                  if (d.error) { alert('Import failed: ' + d.error); return }
-                  alert(`✓ Realist import complete:\n${d.properties_imported} properties imported\n${d.client_matches_enriched} client matches enriched\n${d.errors} errors`)
-                  loadRealistStats()
-                  load()
-                } catch (err) {
-                  alert('Import failed: ' + err.message)
-                } finally {
-                  e.target.value = ''
-                }
-              }}
-            />
-          </label>
-          <button className="btn btn-secondary" onClick={openNew}>+ Add Manually</button>
+          <button className="btn btn-secondary" onClick={openNew}>+ Add Client</button>
         </div>
       </div>
 
@@ -1993,7 +1955,6 @@ export default function Clients() {
       </div>
 
       <div className="toolbar">
-        <input type="text" placeholder="Search name, email, phone, address, city, zip..." value={search} onChange={e => setSearch(e.target.value)} className="search-input" />
         <select value={activeListId || ''} onChange={e => loadSavedList(e.target.value ? Number(e.target.value) : null)} title="Saved lists">
           <option value="">— Saved Lists —</option>
           {savedLists.map(l => (
@@ -2631,12 +2592,12 @@ export default function Clients() {
       </div>
 
       {/* Client List View */}
-      {view === 'list' && items.length === 0 && (
+      {items.length === 0 && (
         <div className="empty-state-full">
           {sierraStatus === 'syncing' ? 'Syncing clients from Sierra...' : 'No clients found in this status. Try another tab or sync from Sierra.'}
         </div>
       )}
-      {view === 'list' && items.length > 0 && (() => {
+      {items.length > 0 && (() => {
         // Build grid-template-columns dynamically from the user's visible/ordered cols.
         // First track = checkbox (30px). All middle = minmax(0, Xfr). (Actions column removed.)
         // Fixed pixel widths: columns keep the width the user set and never redistribute; when
@@ -3008,78 +2969,6 @@ export default function Clients() {
         )
       })()}
 
-      {/* Client Cards */}
-      {view === 'card' && (
-      <div className="client-grid">
-        {items.length === 0 ? (
-          <div className="empty-state-full">
-            {sierraStatus === 'syncing' ? 'Syncing clients from Sierra...' : 'No clients found. Sync from Sierra or add one manually.'}
-          </div>
-        ) : items.map(item => (
-          <div key={item.id} className="client-card" onClick={() => openFullProfile(item.id)}>
-            <div className="client-card-header">
-              <div className="client-avatar" style={{background: item.sierra_lead_id ? '#8b5cf6' : '#3b82f6'}}>
-                {item.first_name?.[0]}{item.last_name?.[0]}
-              </div>
-              <div style={{flex: 1}}>
-                <div className="client-name">{item.first_name} {item.last_name}</div>
-                <div className="client-type">
-                  <span className={`client-type-badge type-${item.type}`}>{item.type}</span>
-                </div>
-              </div>
-              {item.lead_score !== null && item.lead_score !== undefined && (
-                <span className={`lead-score grade-${(item.lead_grade || 'F').replace('+','plus').toLowerCase()}`}>
-                  {item.lead_score}
-                  {item.lead_grade && <span className="lead-grade">{item.lead_grade}</span>}
-                </span>
-              )}
-            </div>
-            <div className="client-card-body">
-              {item.phone && <div className="client-info">{item.phone}</div>}
-              {item.email && <div className="client-info">{item.email}</div>}
-              {(item.address || item.city) && (
-                <div className="client-info">
-                  {item.address}{item.address && item.city ? ', ' : ''}{item.city}{item.state ? `, ${item.state}` : ''}{item.zip ? ` ${item.zip}` : ''}
-                </div>
-              )}
-              {item.source && <div className="client-info" style={{color: 'var(--text-muted)'}}>Source: {item.source}</div>}
-              {(item.budget_min || item.budget_max) && (
-                <div className="client-info budget">
-                  {formatCurrency(item.budget_min)} - {formatCurrency(item.budget_max)}
-                </div>
-              )}
-            </div>
-            <div className="client-card-footer" onClick={e => e.stopPropagation()}>
-              <select
-                className={`status-quick-select status-${item.status}`}
-                value={item.status || ''}
-                onChange={e => quickStatusChange(item, e.target.value, e)}
-                title={item.sierra_lead_id ? 'Changes will optionally push to Sierra' : 'Local hub only'}
-              >
-                {SIERRA_STATUSES.map(s => (
-                  <option key={s.value} value={s.value}>{s.label}</option>
-                ))}
-              </select>
-              {item.agent_assigned && <span className="client-agent">{item.agent_assigned}</span>}
-            </div>
-            <div className="client-actions" onClick={e => e.stopPropagation()}>
-              <button className="action-btn action-prelisting" onClick={e => addToPreListing(item, e)} title="Add to Pre-Listings">
-                Pre-List
-              </button>
-              <button className="action-btn action-active-listing" onClick={e => addTransaction(item, 'listing', e, 'Active')} title="Active Listing (live on MLS)">
-                Active
-              </button>
-              <button className="action-btn action-purchase" onClick={e => addTransaction(item, 'purchase', e)} title="Purchase Under Contract">
-                Purchase
-              </button>
-              <button className="action-btn action-listing" onClick={e => addTransaction(item, 'listing', e)} title="Listing Under Contract">
-                Listing
-              </button>
-            </div>
-          </div>
-        ))}
-      </div>
-      )}
 
       {/* Load More */}
       {hasMore && (

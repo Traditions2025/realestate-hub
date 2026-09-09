@@ -988,7 +988,8 @@ export async function initDb() {
     )
   `)
   db.run('CREATE INDEX IF NOT EXISTS idx_fc_status ON followup_coverage(coverage_status)')
-  db.run('CREATE INDEX IF NOT EXISTS idx_ai_sched_client ON ai_scheduled_actions(client_id, state)')
+  // (index on ai_scheduled_actions lives next to that table's CREATE below — it does
+  // not exist yet at this point on a fresh database)
   db.run('CREATE INDEX IF NOT EXISTS idx_fc_next ON followup_coverage(next_action_at)')
   // Status TRANSITIONS only (protected→unprotected etc.) — never per-run logs.
   db.run(`
@@ -1332,6 +1333,7 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_aisched_due ON ai_scheduled_actions(state, execute_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_ai_sched_client ON ai_scheduled_actions(client_id, state)') } catch {}
   // Intent score history (explainable, trended).
   db.run(`
     CREATE TABLE IF NOT EXISTS ai_intent_history (

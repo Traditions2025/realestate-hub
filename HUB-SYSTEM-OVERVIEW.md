@@ -125,7 +125,7 @@ Redesigned (2026-09) around "what should I do first?", all Central-time, every n
 - All sends now request SendGrid open+click tracking (`tracking_settings` in `sendViaSendGrid`).
 
 ### Clients (`/clients`) — the CRM core
-- Searchable/filterable client list; deep-link to a profile via `?open=<id>`.
+- Searchable/filterable client list; deep-link to a profile via `?open=<id>`. **List view only** (the Cards view + toggle were removed 2026-09-09); the main search bar sits centered in the page header (title left, actions right: Dialer / Columns / Sync / + Add Client). Admin actions like the Realist CSV import live in Settings, not here.
 - **Lead profile** with contact info, source, tags, status, FUB link, web activity ("Last Visit", viewed properties).
 - **Communication buttons:** Text, Call, Email — each opens inline (no modal-behind-profile).
 - **Inline Text composer** (`InlineTextComposer`): send SMS/MMS from the Hub number, insert templates, merge fields, attach photos, add more recipients, **loop in a teammate** (from the team agent directory), schedule for later.
@@ -197,6 +197,7 @@ Vendor and referral-partner directories.
 Changelog / release notes surfaced in-app.
 
 ### Settings (`/settings`)
+Organized (2026-09-09) into **collapsible categories in two balanced desktop columns** (one column on mobile; sections stay mounted when collapsed so unsaved edits survive; open/closed state persists per user): LEFT — General (account info + email signature), AI Follow-Up (AI ISA + coverage standards + regression eval), Communications (Twilio + call routing + A2P business registration), Email & Inbox (connected mailboxes); RIGHT — Team & Users (team agents), Data / Imports (master-file check + **Import Realist CSV**, moved from Clients), System / Diagnostics (service balances + comms diagnostics). The global Save Changes button sits below the columns.
 - **AI Follow-Up settings:** Autopilot toggle (OFF by default), feature flags, config (delays, quiet hours, persona, handoff threshold), diagnostics.
 - **AI Exclusions:** search-with-suggestions chip picker (exclude by tag, status, or tag+status combination) so prospecting imports (FSBO / expired / cancelled) are never auto-contacted.
 - **Team Agents:** manage the roster (name, phone, title) used for looping teammates into texts and for assignment.
