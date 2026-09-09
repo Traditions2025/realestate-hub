@@ -4,7 +4,7 @@ import { authFetch } from '../api'
 import TemplatePicker from '../components/TemplatePicker'
 import {
   InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard, SocialProfiles,
-  InlineTextComposer, COMM_META, commToText, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
+  InlineTextComposer, COMM_META, commToText, stripQuotedDisplay, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
 } from './Clients'
 
 // Phone deliverability badge — shows what Twilio Lookup / delivery results told us:
@@ -508,7 +508,8 @@ function CommItem({ m }) {
   const meta = COMM_META[m.channel] || { icon: '•', label: m.channel, color: 'var(--text-muted)' }
   const out = m.direction === 'outgoing'
   const isCallish = m.channel === 'call' || m.channel === 'voicemail'
-  const text = commToText(m.body || m.preview || m.subject || '')
+  const rawBody = m.body || m.preview || m.subject || ''
+  const text = commToText(m.channel === 'email' && m.direction === 'incoming' ? stripQuotedDisplay(rawBody) : rawBody)
   const aiSent = /ai/i.test(m.sent_by_type || m.agent || '')
   // Texts render as chat bubbles like the Inbox — ours right/blue, theirs left/white — so a
   // back-and-forth reads at a glance. Emails/calls keep the card layout below.

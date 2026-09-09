@@ -4407,6 +4407,26 @@ export const COMM_META = {
 export const fmtCommWhen = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
 // Turn a logged email's raw HTML into a clean, readable preview (drop tracking pixels,
 // style/script, tags; keep link text; decode entities). Plain text passes through.
+// Display-side quote stripper for INBOUND emails stored before store-time stripping
+// existed: hides the "On ... wrote:" history so the inbox shows just the new message.
+export function stripQuotedDisplay(input) {
+  const raw = String(input || '')
+  let s = raw
+  if (/<\s*(html|body|div|p|br|table|tr|td|span|blockquote|a|img|strong|em)\b/i.test(s)) {
+    s = s.replace(/<div[^>]*class=["']?gmail_quote[\s\S]*$/i, '').replace(/<blockquote[\s\S]*$/i, '')
+  } else {
+    const cuts = [
+      /\r?\n\s*On (Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*, .{4,90}wrote:\s*[\s\S]*$/,
+      /\bOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*, [A-Z][a-z]{2,8} \d{1,2}, \d{4},? at .{1,50}wrote:[\s\S]*$/,
+      /\r?\n-{3,}\s*Original Message\s*-{3,}[\s\S]*$/i,
+      /(\r?\n\s*>[^\n]*){2,}[\s\S]*$/,
+    ]
+    for (const re of cuts) s = s.replace(re, '')
+  }
+  const out = s.trim()
+  return out || raw
+}
+
 export function commToText(s) {
   s = String(s || '')
   if (!/<[a-z/!][^>]*>/i.test(s)) return s

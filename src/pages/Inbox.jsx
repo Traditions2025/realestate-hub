@@ -4,6 +4,7 @@ import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import RichTextEditor from '../components/RichTextEditor'
 import TemplatePicker from '../components/TemplatePicker'
+import { stripQuotedDisplay } from './Clients'
 
 const CHANNELS = [
   { key: 'email', label: 'Emails', icon: '✉', color: '#2563eb' },
@@ -498,7 +499,9 @@ export default function Inbox() {
                   }
                   // Emails: render the HTML in a sandboxed frame (like a real mail client).
                   if (m.channel === 'email') {
-                    const html = m.body || ''
+                    // Inbound replies show ONLY the new message — the quoted history is
+                    // stripped (each earlier email is its own item in the thread/profile).
+                    const html = m.direction === 'incoming' ? stripQuotedDisplay(m.body || '') : (m.body || '')
                     const isHtml = /<[a-z!][\s\S]*>/i.test(html)
                     // Force the email to fit the frame width — many marketing/listing
                     // emails (e.g. Sierra) use a fixed ~600px table that would otherwise

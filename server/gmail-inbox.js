@@ -42,6 +42,33 @@ function cleanReplySubject(subject) {
   return { clean: s, isReply }
 }
 
+// Strip the quoted history ("On Wed, Sep 9 ... wrote:", gmail_quote blocks,
+// "> " lines) from an inbound reply so each stored email holds ONLY the new
+// message. Earlier emails already live as their own items on the lead profile.
+// Never strips down to nothing — falls back to the original when unsure.
+export function stripQuotedReply(input) {
+  const raw = String(input || '')
+  let s = raw
+  // Real markup only — "<matt@mattsmithteam.com>" in a plain-text reply is NOT HTML.
+  const isHtml = /<\s*(html|body|div|p|br|table|tr|td|span|blockquote|a|img|strong|em)\b/i.test(s)
+  if (isHtml) {
+    s = s.replace(/<div[^>]*class=["']?gmail_quote[\s\S]*$/i, '')
+      .replace(/<blockquote[\s\S]*$/i, '')
+      .replace(/<div[^>]*id=["']?(divRplyFwdMsg|appendonsend)[\s\S]*$/i, '')
+  } else {
+    const cuts = [
+      /\r?\n\s*On (Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*, .{4,90}wrote:\s*[\s\S]*$/,
+      /\bOn (Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*, [A-Z][a-z]{2,8} \d{1,2}, \d{4},? at .{1,50}wrote:[\s\S]*$/,
+      /\r?\n-{3,}\s*Original Message\s*-{3,}[\s\S]*$/i,
+      /\r?\nFrom:\s?.{1,120}\r?\n(Sent|Date):[\s\S]*$/i,
+      /(\r?\n\s*>[^\n]*){2,}[\s\S]*$/,
+    ]
+    for (const re of cuts) s = s.replace(re, '')
+  }
+  const out = s.trim()
+  return out || raw
+}
+
 export async function notifyNewInbound(client, subject, preview, fromEmail) {
   if (skipInboxNotify(fromEmail, subject, client)) return
   // John + Matt always, plus any configured extra recipients.
@@ -65,6 +92,7 @@ export async function notifyNewInbound(client, subject, preview, fromEmail) {
     <p style="margin:0 0 12px;font-size:16px;color:#0f172a;"><strong>&ldquo;${esc(shortClean || subject || '(no subject)')}&rdquo;</strong></p>
     <p style="margin:0 0 4px;"><strong>From:</strong> ${esc(fromEmail)}</p>
     <p style="margin:0 0 14px;color:#475569;">${esc(preview || '')}</p>
+    <p style="margin:0 0 12px;"><a href="${hub}/clients/${client.id}" style="display:inline-block;background:#B9963B;color:#241a04;font-weight:700;padding:9px 16px;border-radius:8px;text-decoration:none;">Open Lead Profile</a></p>
     <p style="margin:0;"><a href="${hub}/inbox" style="color:#2563eb;font-weight:600;">Open it in the Hub Inbox</a></p>
   </div>`
   await sendViaSendGrid(recipients.join(','), 'Matt Smith Team', notifySubject, html, null, [], [], [], 'inbox_notify')
@@ -148,13 +176,16 @@ async function pollOne(m) {
           if (!c) continue
           const extId = 'gmail_' + (parsed.messageId || `${m.user}_${msg.uid}`)
           if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) continue
-          const text = String(parsed.text || parsed.html || '').replace(/<[^>]+>/g, ' ')
-          const preview = text.replace(/\s+/g, ' ').trim().slice(0, 160)
+          // Store ONLY the new message — the quoted history below "On ... wrote:" is
+          // noise here; every earlier email is already its own item on the profile.
+          const bodyStored = stripQuotedReply(String(parsed.html || parsed.text || ''))
+          const text = stripQuotedReply(String(parsed.text || '')) || bodyStored.replace(/<[^>]+>/g, ' ')
+          const preview = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
           const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
           db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, occurred_at)
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             ['email', 'incoming', c.id, name, fromEmail, m.user, parsed.subject || '(no subject)', preview,
-              String(parsed.html || parsed.text || ''), extId, `c${c.id}_email`, 'unread',
+              bodyStored, extId, `c${c.id}_email`, 'unread',
               (parsed.attachments && parsed.attachments.length) ? 1 : 0, (msg.internalDate || parsed.date || new Date()).toISOString()])
           m.imported = (m.imported || 0) + 1
           notifyNewInbound(c, parsed.subject, preview, fromEmail).catch(() => {})
