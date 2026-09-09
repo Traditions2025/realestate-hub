@@ -3992,7 +3992,7 @@ function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
 // --- Inline field editors for the lead profile (edit a single field in place) ---
 // Saves to the Hub, then pushes to Sierra (no-op for non-Sierra leads) so the edit
 // sticks past the next sync. onSaved refreshes the profile.
-export function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text' }) {
+export function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text', addLabel = null, placeholder = '' }) {
   const [editing, setEditing] = React.useState(false)
   const [val, setVal] = React.useState(value || '')
   const [saving, setSaving] = React.useState(false)
@@ -4011,7 +4011,7 @@ export function InlineField({ label, value, field, clientId, onSaved, statusTag 
       <strong>{label}:</strong>
       {editing ? (
         <>
-          <input type={type} value={val} autoFocus onChange={e => setVal(e.target.value)}
+          <input type={type} value={val} autoFocus placeholder={placeholder} onChange={e => setVal(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') { setVal(value || ''); setEditing(false) } }}
             style={{ flex: 1, minWidth: 140, padding: '3px 6px' }} />
           <button className="btn btn-sm btn-primary" onClick={save} disabled={saving}>{saving ? '…' : 'Save'}</button>
@@ -4019,7 +4019,9 @@ export function InlineField({ label, value, field, clientId, onSaved, statusTag 
         </>
       ) : (
         <>
-          <span>{value || '—'}</span>{statusTag}
+          {(!value && addLabel)
+            ? <button className="btn btn-sm" style={{ padding: '2px 10px', fontSize: 12, color: 'var(--accent)', borderColor: 'var(--accent-border)' }} onClick={() => setEditing(true)}>{addLabel}</button>
+            : <span>{value || '—'}</span>}{statusTag}
           <button title={`Edit ${label.toLowerCase()}`} onClick={() => setEditing(true)}
             style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 4px' }}>✎</button>
         </>

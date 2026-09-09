@@ -1337,8 +1337,8 @@ router.put('/:id', (req, res) => {
   {
     const cid = Number(req.params.id)
     const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
-    const phoneReplaced = before && before.hub_text_opt_out && 'phone' in fields
-      && d10(fields.phone) && d10(fields.phone) !== d10(before.phone)
+    const newPhone = 'phone' in fields && d10(fields.phone) && before && d10(fields.phone) !== d10(before.phone)
+    const phoneReplaced = newPhone && before.hub_text_opt_out
     const explicitClear = 'hub_text_opt_out' in fields && !Number(fields.hub_text_opt_out)
     if (phoneReplaced || explicitClear) {
       const now = new Date().toISOString()
@@ -1346,6 +1346,18 @@ router.put('/:id', (req, res) => {
       // Keep the AI-policy prefs in step so autopilot unblocks with the manual side.
       db.run(`UPDATE communication_preferences SET sms_status = 'eligible', sms_opt_in_timestamp = ?, updated_at = ? WHERE client_id = ?`, [now, now, cid])
       if (phoneReplaced) logActivity('updated', 'client', cid, `Text opt-out cleared - phone number replaced (STOP came from the old number)`)
+    }
+    // A REPLACED number also sheds the OLD number's line verdict: the landline /
+    // undeliverable flag and the cached line-type check belong to the number, not
+    // the person. Clearing sms_line_checked_at makes the AI pre-send screen run a
+    // fresh Twilio Lookup on the new number before any automated text.
+    if (newPhone) {
+      const row = db.get('SELECT sms_undeliverable, sms_line_checked_at FROM clients WHERE id = ?', [cid])
+      if (row && (row.sms_undeliverable || row.sms_line_checked_at)) {
+        db.run(`UPDATE clients SET sms_undeliverable = 0, sms_undeliverable_reason = NULL, sms_undeliverable_at = NULL,
+                sms_line_type = NULL, sms_line_checked_at = NULL, updated_at = ? WHERE id = ?`, [new Date().toISOString(), cid])
+        if (row.sms_undeliverable) logActivity('updated', 'client', cid, 'Landline/undeliverable block cleared - phone number replaced (old verdict belonged to the old number; new number will be line-checked fresh)')
+      }
     }
   }
 
