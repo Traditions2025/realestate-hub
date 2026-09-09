@@ -4191,3 +4191,63 @@ img[width], img[height] { height: auto; }
 .settings-group-body { padding: 4px 14px 14px; display: grid; gap: 18px; }
 .settings-group-body .detail-section { border: none; padding: 0; margin: 0; box-shadow: none; background: none; }
 .settings-group-body > * + * { border-top: 1px solid var(--border); padding-top: 14px; }
+
+/* ============ DESIGN SYSTEM PASS 2: type / spacing / radius tokens ============
+   Semantic scales the whole app can lean on. Existing values are close to these
+   already — the tokens make future work consistent without a risky mass rewrite. */
+:root {
+  --text-page-title: 26px;
+  --text-section: 16px;
+  --text-body: 14px;
+  --text-table: 13px;
+  --text-meta: 12px;
+  --text-caption: 11px;
+  --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px;
+  --radius-sm: 6px; --radius: 8px; --radius-lg: 12px;
+}
+.page-header h1 { font-size: var(--text-page-title); letter-spacing: -0.015em; }
+.page-subtitle { font-size: var(--text-meta); }
+
+/* ---- Badge/chip normalization: one metric system for every pill ---- */
+.status-quick-select, .tab-count, .status-badge, .lead-score {
+  border-radius: 999px;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  line-height: 1.6;
+}
+.tab-count { padding: 1px 8px; background: var(--bg-elevated); color: var(--text-secondary); }
+.client-tab.active .tab-count { background: var(--accent-soft); color: var(--text-primary); }
+
+/* ---- Empty states: quiet, centered, consistent ---- */
+.empty-state, .empty-state-full {
+  text-align: center;
+  color: var(--text-muted);
+  font-size: var(--text-body);
+  padding: var(--space-6) var(--space-4);
+}
+
+/* ---- Loading skeleton (opt-in class for predictable-layout loads) ---- */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-elevated) 25%, var(--bg-hover) 50%, var(--bg-elevated) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.2s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  color: transparent !important;
+}
+@keyframes skeleton-shimmer { from { background-position: 200% 0 } to { background-position: -200% 0 } }
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none } }
+
+/* ---- Micro-interactions: one consistent timing ---- */
+.btn, .client-tab, .nav-item, .client-list-row, .settings-group-header, .status-quick-select {
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, filter 0.15s ease;
+}
+
+/* ---- Table header: calmer, sticky where the list scrolls ---- */
+.client-list-header {
+  font-size: var(--text-caption);
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-secondary);
+}
