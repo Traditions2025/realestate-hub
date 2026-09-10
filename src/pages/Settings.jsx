@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import RichTextEditor from '../components/RichTextEditor'
 
@@ -388,7 +388,8 @@ export default function Settings() {
             <SettingsGroup id="team" title="Team & Users" desc="Agents available for assignment and call routing.">
           <TeamAgents />
             </SettingsGroup>
-            <SettingsGroup id="data" title="Data / Imports" desc="Master-file checks and data imports.">
+            <SettingsGroup id="data" title="Data / Imports" desc="Sierra full sync, master-file checks, and data imports.">
+          <SierraSyncSettings />
           <MasterFileSettings />
           <RealistImportSettings />
             </SettingsGroup>
@@ -593,6 +594,59 @@ function RealistImportSettings() {
 // Master files (FSBO + Cancelled/Expired): one button re-checks both Google Sheets
 // on demand. Every change the sync makes (status flips, relists junked, new leads)
 // is recorded on the lead's profile as a note and in the dashboard updates box.
+// Full Sierra pull — moved here from the Clients toolbar (2026-09-11). The
+// incremental 10-min sync runs on its own; this is the manual everything pull.
+function SierraSyncSettings() {
+  const [counts, setCounts] = useState(null)
+  const [status, setStatus] = useState(null)  // null | 'starting' | {syncing, progress} | {total_synced,...} | {error}
+  const pollRef = useRef(null)
+  useEffect(() => {
+    authFetch('/api/sierra/counts').then(r => r.json()).then(setCounts).catch(() => {})
+    return () => { if (pollRef.current) clearInterval(pollRef.current) }
+  }, [])
+  const run = async () => {
+    setStatus('starting')
+    try {
+      const d = await authFetch('/api/sierra/sync?statuses=all', { method: 'POST' }).then(r => r.json())
+      if (d.error) { setStatus({ error: d.error }); return }
+      pollRef.current = setInterval(async () => {
+        try {
+          const s = await authFetch('/api/sierra/sync-status').then(r => r.json())
+          if (s.running) setStatus({ syncing: true, progress: s.progress })
+          else {
+            clearInterval(pollRef.current); pollRef.current = null
+            setStatus(s.error ? { error: s.error } : (s.lastResult || null))
+          }
+        } catch { clearInterval(pollRef.current); pollRef.current = null }
+      }, 2000)
+    } catch (e) { setStatus({ error: e.message }) }
+  }
+  const busy = status === 'starting' || (status && status.syncing)
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <h3 style={{ fontSize: 14, margin: '0 0 6px' }}>Sierra Full Sync</h3>
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+        Pulls every Sierra lead across all statuses. The regular incremental sync already runs every 10 minutes — use this only when you want a full refresh.
+      </p>
+      <button className="btn btn-secondary" onClick={run} disabled={busy}>
+        {busy ? 'Syncing Sierra…' : `Sync All Sierra Leads${counts ? ` (${counts.total.toLocaleString()})` : ''}`}
+      </button>
+      {status === 'starting' && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)' }}>Starting Sierra sync…</div>}
+      {status && status.syncing && status.progress && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)' }}>
+          Syncing… {status.progress.synced} synced{status.progress.currentStatus ? ` (currently: ${status.progress.currentStatus})` : ''}
+        </div>
+      )}
+      {status && status.total_synced !== undefined && (
+        <div style={{ marginTop: 8, fontSize: 12.5, color: '#059669' }}>
+          ✓ Sync complete: {status.total_synced} leads ({status.added} new, {status.updated} updated)
+        </div>
+      )}
+      {status && status.error && <div style={{ marginTop: 8, fontSize: 12.5, color: '#ef4444' }}>Sync error: {status.error}</div>}
+    </div>
+  )
+}
+
 function MasterFileSettings() {
   const [busy, setBusy] = React.useState(false)
   const [result, setResult] = React.useState(null)

@@ -2101,6 +2101,13 @@ export async function initDb() {
     console.error('[migration] transactions new cols failed:', e.message)
   }
 
+  // User profile photo: small square-cropped data URI (client resizes to ~256px
+  // before upload, server caps size), shown as the header avatar + on /profile.
+  try {
+    const uCols = db.all('PRAGMA table_info(users)').map(r => r.name)
+    if (!uCols.includes('avatar')) db.run('ALTER TABLE users ADD COLUMN avatar TEXT')
+  } catch (e) { console.error('[migration] users avatar col failed:', e.message) }
+
   // Campaign-match enrollment tracking: record WHY + the match score when a
   // contact is enrolled via AI Campaign Match (the "records why/when" requirement).
   try {

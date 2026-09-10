@@ -12,6 +12,55 @@ const router = Router()
 const pub = (u) => u && ({ id: u.id, name: u.name, username: u.username || null, email: u.email, phone: u.phone, role: u.role, status: u.status, two_factor_enabled: !!u.two_factor_enabled, last_login_at: u.last_login_at, created_at: u.created_at })
 const takenUsername = (username, exceptId = null) => db.get('SELECT id FROM users WHERE lower(username)=lower(?)' + (exceptId ? ' AND id<>?' : ''), exceptId ? [username, exceptId] : [username])
 
+// ── Self-service profile (any authenticated user, own row only) ──────────────
+// Registered BEFORE the '/:id' admin routes so '/me' never falls through to them.
+// The user id always comes from the session principal (req.user), never the body.
+
+// Who am I, with avatar — powers the /profile page + header avatar.
+router.get('/me', (req, res) => {
+  const u = db.get('SELECT id, name, email, phone, role, avatar FROM users WHERE id=?', [req.user?.id])
+  if (!u) return res.status(404).json({ error: 'User not found.' })
+  res.json(u)
+})
+
+// Edit own display name / phone. Email, role, and status stay admin-managed
+// (Settings → Team & Users) — self-service can't touch them.
+router.put('/me', (req, res) => {
+  const u = db.get('SELECT * FROM users WHERE id=?', [req.user?.id]); if (!u) return res.status(404).json({ error: 'User not found.' })
+  const b = req.body || {}
+  const sets = [], vals = []
+  if (b.name !== undefined) { if (!String(b.name).trim()) return res.status(400).json({ error: 'Name is required.' }); sets.push('name=?'); vals.push(String(b.name).trim().slice(0, 120)) }
+  if (b.phone !== undefined) { sets.push('phone=?'); vals.push(b.phone ? String(b.phone).trim().slice(0, 40) : null) }
+  if (!sets.length) return res.json({ success: true })
+  sets.push("updated_at=datetime('now')"); vals.push(u.id)
+  db.run(`UPDATE users SET ${sets.join(', ')} WHERE id=?`, vals)
+  logAudit({ user_id: u.id, actor: u.email, action: 'user.profile_updated', entity_type: 'user', entity_id: u.id, req })
+  res.json({ success: true })
+})
+
+// Upload / replace own profile photo. The client sends a small square-cropped
+// data URI (canvas-resized to ~256px); the server re-validates the MIME from the
+// data URI header (never a file extension) and caps the payload size.
+router.post('/me/avatar', (req, res) => {
+  const u = db.get('SELECT id, email FROM users WHERE id=?', [req.user?.id]); if (!u) return res.status(404).json({ error: 'User not found.' })
+  const data = String(req.body?.data || '')
+  if (!/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(data)) return res.status(400).json({ error: 'Unsupported image. Use a JPG, PNG, or WEBP photo.' })
+  if (data.length > 400000) return res.status(400).json({ error: 'Photo too large after processing. Try a smaller image.' })
+  // Sanity-check the payload actually decodes as base64 (rejects malformed uploads).
+  try { Buffer.from(data.split(',')[1], 'base64') } catch { return res.status(400).json({ error: 'Malformed image data.' }) }
+  db.run("UPDATE users SET avatar=?, updated_at=datetime('now') WHERE id=?", [data, u.id])
+  logAudit({ user_id: u.id, actor: u.email, action: 'user.avatar_updated', entity_type: 'user', entity_id: u.id, req })
+  res.json({ success: true })
+})
+
+// Remove own profile photo — back to initials.
+router.delete('/me/avatar', (req, res) => {
+  const u = db.get('SELECT id, email FROM users WHERE id=?', [req.user?.id]); if (!u) return res.status(404).json({ error: 'User not found.' })
+  db.run("UPDATE users SET avatar=NULL, updated_at=datetime('now') WHERE id=?", [u.id])
+  logAudit({ user_id: u.id, actor: u.email, action: 'user.avatar_removed', entity_type: 'user', entity_id: u.id, req })
+  res.json({ success: true })
+})
+
 // Reference data for the UI, including the full role -> permission matrix.
 router.get('/roles', requirePermission('users.manage'), (_req, res) => {
   const matrix = {}; for (const r of ROLES) matrix[r] = PERMISSIONS.filter(p => can(r, p))

@@ -572,7 +572,6 @@ export default function Clients() {
     authFetch('/api/realist/stats').then(r => r.json()).then(setRealistStats).catch(() => {})
   }
   const [syncMenuOpen, setSyncMenuOpen] = useState(false)
-  const [sierraCounts, setSierraCounts] = useState(null)
   const hasSynced = useRef(false)
 
   // Advanced filters
@@ -918,8 +917,6 @@ export default function Clients() {
       if (logs.length > 0) setSyncLog(logs[0])
     })
     loadRealistStats()
-    // Load Sierra lead counts so the button shows the total
-    authFetch('/api/sierra/counts').then(r => r.json()).then(setSierraCounts).catch(() => {})
   }, [])
 
   // Close sync menu when clicking outside
@@ -1829,7 +1826,6 @@ export default function Clients() {
       <div className="page-header">
         <div>
           <h1>Clients</h1>
-          <p className="page-subtitle">All leads (buyers + sellers) synced from Sierra Interactive</p>
         </div>
         <div className="header-actions">
           <button className="btn btn-secondary" onClick={() => setDialerOpen(true)} title="Dial any number (even one not in the database)">☎ Dialer</button>
@@ -1882,14 +1878,7 @@ export default function Clients() {
                 </>
               )}
           </div>
-          <button
-            className="btn btn-secondary"
-            onClick={() => syncSierra(false, 'all')}
-            disabled={sierraStatus === 'syncing'}
-            title="Pulls every Sierra lead - all statuses"
-          >
-            {sierraStatus === 'syncing' ? 'Syncing Sierra...' : `Sync All Sierra Leads${sierraCounts ? ` (${sierraCounts.total.toLocaleString()})` : ''}`}
-          </button>
+          {/* "Sync All Sierra Leads" moved to Settings → Data / Imports (2026-09-11). */}
           <button className="btn btn-primary" onClick={openNew}>+ Add Client</button>
         </div>
       </div>

@@ -108,7 +108,12 @@ router.get('/verify', (req, res) => {
 // greeting nameless even on a valid personal login.)
 router.get('/me', (req, res) => {
   const p = principalFor(decodeToken(req.headers['x-auth-token']))
-  res.json({ user: p ? (p.team ? { team: true, role: p.role } : { id: p.id, name: p.name, email: p.email, role: p.role }) : null })
+  if (!p) return res.json({ user: null })
+  if (p.team) return res.json({ user: { team: true, role: p.role } })
+  // Avatar rides along so the header can render the profile photo on boot.
+  let avatar = null
+  try { avatar = db.get('SELECT avatar FROM users WHERE id=?', [p.id])?.avatar || null } catch {}
+  res.json({ user: { id: p.id, name: p.name, email: p.email, role: p.role, avatar } })
 })
 
 // Logout: revoke the current per-user session (legacy team tokens are stateless no-ops).

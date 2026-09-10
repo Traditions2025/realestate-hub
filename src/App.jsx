@@ -139,6 +139,62 @@ function NotificationBell() {
   )
 }
 
+// ── Account menu: header avatar + dropdown (Profile / Settings / Appearance / Log Out) ──
+const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', agent: 'Agent', transaction_coordinator: 'TC', isa: 'ISA', marketing: 'Marketing', read_only: 'Read Only' }
+const initialsOf = (name) => String(name || '').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?'
+
+function Avatar({ me, size = 34 }) {
+  return me?.avatar
+    ? <img src={me.avatar} alt={`${me.name} profile photo`} className="account-avatar-img" style={{ width: size, height: size }} />
+    : <span className="account-avatar-initials" style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }} aria-hidden="true">{initialsOf(me?.name)}</span>
+}
+
+function AccountMenu({ me, theme, toggleTheme, logout, size = 34 }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  const navigate = useNavigate()
+  useEffect(() => {
+    if (!open) return
+    const click = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const key = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', click); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key) }
+  }, [open])
+  const go = (path) => { setOpen(false); navigate(path) }
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className={`account-avatar-btn ${open ? 'open' : ''}`} onClick={() => setOpen(o => !o)}
+        title="Account" aria-label="Open account menu" aria-haspopup="menu" aria-expanded={open}>
+        <Avatar me={me} size={size} />
+      </button>
+      {open && (
+        <div className="account-menu" role="menu">
+          <div className="account-menu-head">
+            <Avatar me={me} size={40} />
+            <div style={{ minWidth: 0 }}>
+              <div className="account-menu-name">{me?.name || 'Account'}</div>
+              <div className="account-menu-sub">{[ROLE_LABELS[me?.role] || me?.role, me?.email].filter(Boolean).join(' · ')}</div>
+            </div>
+          </div>
+          <div className="account-menu-sep" />
+          <button className="account-menu-item" role="menuitem" onClick={() => go('/profile')}>Profile</button>
+          <button className="account-menu-item" role="menuitem" onClick={() => go('/settings')}>Settings</button>
+          <div className="account-menu-sep" />
+          <div className="account-menu-row">
+            <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Appearance</span>
+            <div className="account-theme-seg" role="group" aria-label="Theme">
+              <button className={theme === 'light' ? 'active' : ''} aria-pressed={theme === 'light'} onClick={() => theme !== 'light' && toggleTheme()}>☼ Light</button>
+              <button className={theme === 'dark' ? 'active' : ''} aria-pressed={theme === 'dark'} onClick={() => theme !== 'dark' && toggleTheme()}>☾ Dark</button>
+            </div>
+          </div>
+          <div className="account-menu-sep" />
+          <button className="account-menu-item account-menu-logout" role="menuitem" onClick={() => { setOpen(false); logout() }}>⎋ Log Out</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Lazy load pages so initial bundle is smaller
 // A failed dynamic import almost always means a NEW build was deployed while this tab was open
 // (the old chunk hash no longer exists). Reload once to pick up the fresh build instead of
@@ -175,6 +231,7 @@ const Settings = lazyWithReload(() => import('./pages/Settings'))
 const Admin = lazyWithReload(() => import('./pages/Admin'))
 const Automations = lazyWithReload(() => import('./pages/Automations'))
 const Reporting = lazyWithReload(() => import('./pages/Reporting'))
+const Profile = lazyWithReload(() => import('./pages/Profile'))
 
 const navSections = [
   { label: 'MAIN', items: [
@@ -307,6 +364,12 @@ export default function App() {
 
   // Who is signed in (per-user account, or the shared team login).
   const [me, setMe] = useState(null)
+  const loadMe = () => {
+    const token = localStorage.getItem('mst_token')
+    if (!token) return
+    fetch('/api/auth/me', { headers: { 'x-auth-token': token } })
+      .then(r => r.ok ? r.json() : null).then(d => setMe(d?.user || null)).catch(() => {})
+  }
   useEffect(() => {
     const token = localStorage.getItem('mst_token')
     if (!token) return
@@ -314,9 +377,14 @@ export default function App() {
     fetch('/api/auth/verify', { headers: { 'x-auth-token': token } })
       .then(r => { if (!r.ok) { localStorage.removeItem('mst_token'); setAuthed(false) } })
       .catch(() => {})
-    fetch('/api/auth/me', { headers: { 'x-auth-token': token } })
-      .then(r => r.ok ? r.json() : null).then(d => setMe(d?.user || null)).catch(() => {})
+    loadMe()
   }, [authed])
+  // The Profile page fires this after a name/photo change so the header avatar updates instantly.
+  useEffect(() => {
+    const h = () => loadMe()
+    window.addEventListener('mst-me-changed', h)
+    return () => window.removeEventListener('mst-me-changed', h)
+  }, [])
 
   const logout = () => {
     const token = localStorage.getItem('mst_token')
@@ -342,7 +410,7 @@ export default function App() {
           {sidebarOpen ? '\u2715' : '\u2630'}
         </button>
         <img src="/logo.png" alt="Matt Smith Team" className="mobile-logo" />
-        <div className="mobile-topbar-actions">{isMobile && <NotificationBell />}</div>
+        <div className="mobile-topbar-actions">{isMobile && <><NotificationBell /><AccountMenu me={me} theme={theme} toggleTheme={toggleTheme} logout={logout} size={28} /></>}</div>
       </div>
 
       {/* Overlay */}
@@ -383,26 +451,20 @@ export default function App() {
               <span style={{ fontVariantEmoji: 'text' }}>⤓ Install App</span>
             </button>
           )}
-          <button
-            className="theme-toggle"
-            onClick={toggleTheme}
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-            aria-label="Toggle theme"
-          >
-            <span style={{ fontVariantEmoji: 'text' }}>{theme === 'dark' ? '☼ Light Mode' : '☾ Dark Mode'}</span>
-          </button>
-          <button className="theme-toggle" onClick={logout} title="Log out and return to the sign-in screen">
-            <span style={{ fontVariantEmoji: 'text' }}>⎋ Log Out</span>
-          </button>
-          {me && !me.team && <div className="team-sub" style={{ marginTop: 6 }}>Signed in as {me.name}</div>}
+          {/* Theme, Log Out, and "Signed in as" moved to the header account menu (avatar, top-right). */}
           <div className="team-sub">RE/MAX Concepts &middot; Cedar Rapids IA</div>
         </div>
       </aside>
 
       <main className="main-content">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 40, background: 'var(--bg-primary, var(--bg))' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 40, background: 'var(--bg-primary, var(--bg))', paddingRight: 4 }}>
           <div style={{ flex: 1 }}><GlobalSearch /></div>
-          {!isMobile && <NotificationBell />}
+          {!isMobile && (
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <NotificationBell />
+              <AccountMenu me={me} theme={theme} toggleTheme={toggleTheme} logout={logout} />
+            </div>
+          )}
         </div>
         <ErrorBoundary>
         <Suspense fallback={<div className="page-loading">Loading...</div>}>
@@ -429,6 +491,7 @@ export default function App() {
             <Route path="/templates" element={<Templates />} />
             <Route path="/updates" element={<Updates />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/profile" element={<Profile />} />
             <Route path="/admin" element={<Admin />} />
             <Route path="/duplicates" element={<Duplicates />} />
             <Route path="/automations" element={<Automations />} />
