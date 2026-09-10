@@ -17,6 +17,20 @@ function resolveDynamic(filter) {
   return buildClientFilterForList(filter)
 }
 
+// Shared: resolve a saved list's member ids (static list OR dynamic filter).
+// Used by this router and by the Cancelled/Expired connection campaign.
+export function resolveListMemberIds(list) {
+  if (!list) return []
+  if (list.is_dynamic && list.filter_criteria) {
+    try {
+      const filter = JSON.parse(list.filter_criteria)
+      const { where, params } = resolveDynamic(filter)
+      return db.all(`SELECT c.id FROM clients c${where}`, params).map(r => r.id)
+    } catch { return [] }
+  }
+  try { return JSON.parse(list.client_ids || '[]') } catch { return [] }
+}
+
 // List all saved client lists
 router.get('/', (req, res) => {
   const lists = db.all('SELECT id, name, description, is_dynamic, filter_criteria, client_ids, created_at, updated_at FROM client_lists ORDER BY updated_at DESC')

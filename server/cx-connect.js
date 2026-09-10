@@ -283,8 +283,8 @@ export async function enrollClient(clientId, enrolledBy = 'manual') {
 export async function enrollList() {
   const list = db.get("SELECT * FROM client_lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
   if (!list) return { ok: false, reason: 'Cancelled/Expired saved list not found' }
-  let ids = []
-  try { ids = JSON.parse(list.client_ids || '[]') } catch {}
+  const { resolveListMemberIds } = await import('./routes/lists.js')
+  const ids = resolveListMemberIds(list)   // static ids OR a dynamic filter
   const out = { enrolled: [], skipped: [] }
   for (const id of ids) {
     const r = await enrollClient(id, 'bulk')
@@ -470,9 +470,8 @@ export async function previewNext(limit = 5) {
     .map(e => ({ id: e.client_id, attempt: (e.attempt_count || 0) + 1 }))
   if (!candidates.length) {
     const list = db.get("SELECT * FROM client_lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
-    let ids = []
-    try { ids = JSON.parse(list?.client_ids || '[]') } catch {}
-    candidates = ids.map(id => ({ id, attempt: 1 }))
+    const { resolveListMemberIds } = await import('./routes/lists.js')
+    candidates = resolveListMemberIds(list).map(id => ({ id, attempt: 1 }))
   }
   const previews = [], skipped = []
   for (const cand of candidates) {

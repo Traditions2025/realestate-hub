@@ -238,6 +238,8 @@ test('angles respect the age bucket', () => {
 test('previewNext is a pure dry run: composes real messages, writes nothing, sends nothing', async () => {
   const c = mkClient({ off_market_date: '2023-07-05' })   // ancient bucket
   await cx.enrollClient(c.id)
+  // Sort first so the preview cap can't push this lead out (test DB accumulates enrollments).
+  db.run("UPDATE cx_campaign SET next_send_at='2000-01-01T00:00:00.000Z' WHERE client_id=?", [c.id])
   const before = db.get('SELECT COUNT(*) n FROM communications').n
   const logBefore = db.get('SELECT COUNT(*) n FROM cx_campaign_log').n
   const p = await cx.previewNext(25)
