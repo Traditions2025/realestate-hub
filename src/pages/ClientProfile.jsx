@@ -241,7 +241,7 @@ export default function ClientProfile() {
         </div>
         <div className="cp-actions">
           {client.phone && !client.hub_text_opt_out && <button className="lead-action-btn" onClick={() => { setTextOpen(v => !v); setEmailOpen(false) }}><span className="lead-action-icon">💬</span><span>Text</span></button>}
-          {client.phone && <button className="lead-action-btn" onClick={() => window.hubCall && window.hubCall(client.phone, name)}><span className="lead-action-icon">📞</span><span>Call</span></button>}
+          {(client.phone || client.alt_phones) && <CallActionButton client={client} name={name} />}
           {client.email && <button className="lead-action-btn" onClick={() => { setEmailOpen(v => !v); setTextOpen(false) }}><span className="lead-action-icon">✉</span><span>Email</span></button>}
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
@@ -310,6 +310,48 @@ export default function ClientProfile() {
           )
         })()}
       </div>
+    </div>
+  )
+}
+
+// ── Call button with number picker ───────────────────────────────────────
+// One number: dials it directly, same as before. Two or more (primary +
+// Additional phones): opens a small picker so you choose which one to call.
+function CallActionButton({ client, name }) {
+  const nums = [client.phone, ...String(client.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean)
+  const uniq = [...new Set(nums)]
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    if (!open) return
+    const click = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    const key = (e) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', click); document.addEventListener('keydown', key)
+    return () => { document.removeEventListener('mousedown', click); document.removeEventListener('keydown', key) }
+  }, [open])
+  const dial = (num) => { setOpen(false); if (window.hubCall) window.hubCall(num, name) }
+  if (!uniq.length) return null
+  if (uniq.length === 1) {
+    return <button className="lead-action-btn" onClick={() => dial(uniq[0])}><span className="lead-action-icon">📞</span><span>Call</span></button>
+  }
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button className="lead-action-btn" onClick={() => setOpen(o => !o)} title="Choose which number to call" aria-haspopup="menu" aria-expanded={open}>
+        <span className="lead-action-icon">📞</span><span>Call ▾</span>
+      </button>
+      {open && (
+        <div role="menu" style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,.18)', zIndex: 80, minWidth: 190, overflow: 'hidden' }}>
+          {uniq.map(num => (
+            <button key={num} role="menuitem" onClick={() => dial(num)}
+              style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: '8px 12px' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{num}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{num === String(client.phone || '').trim() ? 'Primary' : 'Additional'}</div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
