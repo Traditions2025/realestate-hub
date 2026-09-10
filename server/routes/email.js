@@ -608,6 +608,20 @@ function parseEmails(input) {
 }
 
 // Send a single email via SendGrid (supports multiple To, CC, BCC, attachments)
+// Auto-BCC for HUMAN-sent emails only (Inbox replies + personal one-offs) so Matt's
+// mailbox holds a copy — drips/automations/notifications are never BCC'd (volume).
+// Setting 'personal_email_bcc' (default matt@mattsmithteam.com; set empty to disable).
+// Never BCCs an address that is already a recipient (SendGrid rejects duplicates).
+export function withPersonalBcc(bccList = [], recipients = '') {
+  const addr = String(db.getSetting('personal_email_bcc', 'matt@mattsmithteam.com') || '').trim().toLowerCase()
+  if (!addr) return bccList
+  const rec = String(recipients || '').toLowerCase()
+  const list = Array.isArray(bccList) ? [...bccList] : []
+  if (rec.includes(addr)) return list
+  if (!list.some(e => String(e).toLowerCase() === addr)) list.push(addr)
+  return list
+}
+
 export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList = [], attachments = [], bccList = [], category = null) {
   if (!SENDGRID_API_KEY) {
     throw new Error('SENDGRID_API_KEY not set on server. Add it as an environment variable on Render.')
@@ -716,7 +730,7 @@ router.post('/send', async (req, res) => {
       REPLY_TO,
       Array.isArray(cc) ? cc : [],
       Array.isArray(attachments) ? attachments : [],
-      Array.isArray(bcc) ? bcc : []
+      withPersonalBcc(Array.isArray(bcc) ? bcc : [], recipient)
     )
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
       template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,

@@ -969,7 +969,8 @@ router.post('/send', async (req, res) => {
     // Opted-out contacts are allowed (tagged in the UI), per team policy.
     const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
     try {
-      await sendViaSendGrid(c.email, name, subject, body, null, [], [], [], 'inbox_compose')
+      const { withPersonalBcc } = await import('./email.js')
+      await sendViaSendGrid(c.email, name, subject, body, null, [], [], withPersonalBcc([], c.email), 'inbox_compose')
       const preview = String(body).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
       db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
