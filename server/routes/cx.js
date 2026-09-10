@@ -1,11 +1,16 @@
 // Cancelled/Expired Connection Campaign API (see server/cx-connect.js).
 import { Router } from 'express'
 import db from '../database.js'
-import { enrollClient, enrollList, pauseCampaign, resumeCampaign, removeFromCampaign, campaignState, campaignStats, cxEnabled } from '../cx-connect.js'
+import { enrollClient, enrollList, pauseCampaign, resumeCampaign, removeFromCampaign, campaignState, campaignStats, cxEnabled, previewNext } from '../cx-connect.js'
 
 const router = Router()
 
 router.get('/stats', (_req, res) => { try { res.json(campaignStats()) } catch (e) { res.status(500).json({ error: e.message }) } })
+
+// Dry run: the exact next texts the campaign would send (nothing is sent or written).
+router.get('/preview', async (req, res) => {
+  try { res.json(await previewNext(req.query.limit)) } catch (e) { res.status(500).json({ error: e.message }) }
+})
 
 // Master switch. OFF by default; enabling it is a deliberate action.
 router.post('/toggle', (req, res) => {

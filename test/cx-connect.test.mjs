@@ -234,3 +234,20 @@ test('angles respect the age bucket', () => {
     db.run("INSERT INTO cx_campaign_log (client_id, event, angle, created_at) VALUES (?,?,?,?)", [c.id, 'sent', angle, nowIso()])
   }
 })
+
+test('previewNext is a pure dry run: composes real messages, writes nothing, sends nothing', async () => {
+  const c = mkClient({ off_market_date: '2023-07-05' })   // ancient bucket
+  await cx.enrollClient(c.id)
+  const before = db.get('SELECT COUNT(*) n FROM communications').n
+  const logBefore = db.get('SELECT COUNT(*) n FROM cx_campaign_log').n
+  const p = await cx.previewNext(25)
+  assert.equal(p.dry_run, true)
+  const mine = [...p.previews, ...p.skipped].find(x => x.client_id === c.id)
+  assert.ok(mine, 'enrolled lead appears in preview')
+  assert.equal(mine.attempt, 1)
+  assert.equal(mine.age_bucket, 'ancient')
+  assert.match(mine.message, /older listing/i)
+  assert.ok(!/recently/i.test(mine.message))
+  assert.equal(db.get('SELECT COUNT(*) n FROM communications').n, before, 'no message rows written')
+  assert.equal(db.get('SELECT COUNT(*) n FROM cx_campaign_log').n, logBefore, 'no log rows written')
+})

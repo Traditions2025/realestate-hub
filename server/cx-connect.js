@@ -459,6 +459,46 @@ export function removeFromCampaign(clientId) {
   return { ok: true }
 }
 
+// ---------- dry-run preview (never sends, never writes) ----------
+// "What would the next text be?" for N leads — exact message, angle, age bucket,
+// and eligibility verdict, composed by the same code paths the sweep uses.
+export async function previewNext(limit = 5) {
+  limit = Math.min(Math.max(Number(limit) || 5, 1), 25)
+  // Enrolled active leads first; if none are enrolled yet, simulate attempt 1
+  // across the Cancelled/Expired saved list.
+  let candidates = db.all("SELECT client_id, attempt_count FROM cx_campaign WHERE status='active' ORDER BY next_send_at ASC LIMIT 200")
+    .map(e => ({ id: e.client_id, attempt: (e.attempt_count || 0) + 1 }))
+  if (!candidates.length) {
+    const list = db.get("SELECT * FROM lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
+    let ids = []
+    try { ids = JSON.parse(list?.client_ids || '[]') } catch {}
+    candidates = ids.map(id => ({ id, attempt: 1 }))
+  }
+  const previews = [], skipped = []
+  for (const cand of candidates) {
+    if (previews.length >= limit) break
+    const c = db.get('SELECT * FROM clients WHERE id=?', [cand.id])
+    if (!c) continue
+    const days = daysSinceOffMarket(c)
+    const bucket = ageBucket(days)
+    const street = streetOf(c)
+    let body, angle
+    if (cand.attempt === 1) { body = INITIAL[bucket](street, salutation()); angle = 'INTRO' }
+    else if (cand.attempt === 2) { body = SECOND[bucket](street); angle = 'FOLLOW_UP' }
+    else { angle = pickAngle(c.id, bucket); body = ANGLES[angle].text(street, bucket) }
+    const ver = await evaluateEligibility(c, { atEnroll: cand.attempt === 1 })
+    const row = {
+      client_id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), phone: c.phone,
+      off_market_date: c.off_market_date || null, days_off_market: days, age_bucket: bucket,
+      attempt: cand.attempt, angle, message: body,
+      would_send: ver.ok, blocked: ver.ok ? null : `${ver.code}: ${ver.detail}`,
+    }
+    if (ver.ok) previews.push(row)
+    else skipped.push(row)
+  }
+  return { dry_run: true, note: 'Nothing was sent or written. Window/collision rules are re-checked again at real send time.', previews, skipped: skipped.slice(0, 25) }
+}
+
 // ---------- read model for the UI ----------
 export function campaignState(clientId) {
   const en = db.get('SELECT * FROM cx_campaign WHERE client_id=?', [clientId])
