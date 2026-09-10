@@ -295,13 +295,29 @@ export async function enrollList() {
 }
 
 // ---------- cadence ----------
-// Attempt 1 -> +2 days. Attempt 2 -> +5 days (lands ~day 7). Then weekly. Every
-// date shifts off weekends. There is no attempt cap: the lead simply stays enrolled
-// while eligible, and re-verification happens before every single send.
-function nextDelayDays(attemptJustSent) {
-  if (attemptJustSent === 1) return 2
-  if (attemptJustSent === 2) return 5
-  return 7
+// Attempt 1 -> day 2 OR 3 (randomly). Attempt 2 -> ~day 7. Then approximately
+// weekly — deliberately varied so sends never settle into one fixed day/time:
+//   * weekly gaps are 6-8 days, so the weekday drifts over the campaign
+//   * a weekend landing resolves randomly to Friday (back) or Monday (forward)
+//   * the send time is randomized inside the 9AM-4PM Central window
+// Every send logs its exact timestamp + attempt + angle, so we can analyze which
+// days and times actually generate responses. No attempt cap: the lead stays
+// enrolled while eligible, re-verified before every single send.
+export function scheduleNext(attemptJustSent, from = new Date()) {
+  const baseDays = attemptJustSent === 1 ? 2 : attemptJustSent === 2 ? 5 : 7
+  const jitter = attemptJustSent === 1 ? Math.round(Math.random())            // day 2 or 3
+    : attemptJustSent >= 3 ? Math.floor(Math.random() * 3) - 1 : 0            // weekly: 6-8 days
+  let d = new Date(from.getTime() + (baseDays + jitter) * DAY)
+  // Saturday resolves randomly to Friday or Monday; Sunday always to Monday —
+  // so the weekly gap never compresses below ~5 days.
+  const wd = () => chi(d).weekday
+  if (wd() === 'Sat') d = new Date(d.getTime() + (Math.random() < 0.5 ? -DAY : 2 * DAY))
+  else if (wd() === 'Sun') d = new Date(d.getTime() + DAY)
+  // Random time inside the window: 9:00 AM - 3:59 PM Central.
+  const targetHour = 9 + Math.floor(Math.random() * 7)
+  d = new Date(d.getTime() + (targetHour - chi(d).hour) * 3600000)
+  d = new Date(d.getTime() + (Math.floor(Math.random() * 60) - d.getUTCMinutes()) * 60000)
+  return d
 }
 
 // ---------- the sweep ----------
@@ -362,7 +378,7 @@ async function sendNextForEnrollment(en) {
   const ins = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     ['text', 'outgoing', c.id, name, '', c.phone, body.replace(/\s+/g, ' ').slice(0, 160), body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', 'CX Connect', 'cx_connect', nowIso()])
-  const next = toWeekday(new Date(Date.now() + nextDelayDays(attempt) * DAY)).toISOString()
+  const next = scheduleNext(attempt).toISOString()
   db.run('UPDATE cx_campaign SET attempt_count=?, last_sent_at=?, last_angle=?, next_send_at=?, updated_at=? WHERE client_id=?',
     [attempt, nowIso(), angle, next, nowIso(), en.client_id])
   logCx(en.client_id, 'sent', { ...base, angle, template_key: templateKey, comm_id: ins.lastInsertRowid, body, eligibility_result: 'ok' })

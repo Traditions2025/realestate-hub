@@ -72,6 +72,31 @@ test('weekend sends shift to a weekday', () => {
   assert.equal(cx.toWeekday(wed).getTime(), wed.getTime(), 'weekday stays put')
 })
 
+test('weekly scheduling varies day and time, never weekends, gap stays ~weekly', () => {
+  const from = new Date('2026-09-14T15:00:00Z')   // a Monday
+  const days = new Set(), hours = new Set()
+  for (let i = 0; i < 60; i++) {
+    const d = cx.scheduleNext(5, from)
+    const gap = (d.getTime() - from.getTime()) / 86400000
+    assert.ok(gap >= 5 && gap <= 9.2, `gap ${gap.toFixed(1)}d out of range`)
+    const parts = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(d)
+    const wd = parts.find(p => p.type === 'weekday').value
+    const hr = Number(parts.find(p => p.type === 'hour').value)
+    assert.ok(!['Sat', 'Sun'].includes(wd), 'landed on ' + wd)
+    assert.ok(hr >= 9 && hr < 16, 'hour ' + hr + ' outside 9AM-4PM window')
+    days.add(wd); hours.add(hr)
+  }
+  assert.ok(days.size >= 2, 'sends cluster on one weekday: ' + [...days])
+  assert.ok(hours.size >= 3, 'sends cluster at one hour: ' + [...hours])
+  // Second attempt lands day 2 OR 3.
+  const gaps2 = new Set()
+  for (let i = 0; i < 40; i++) {
+    const d = cx.scheduleNext(1, new Date('2026-09-14T15:00:00Z'))
+    gaps2.add(Math.round((d.getTime() - from.getTime()) / 86400000))
+  }
+  for (const g of gaps2) assert.ok(g >= 1 && g <= 4, 'second attempt gap ' + g)
+})
+
 // ---- historical conversation suppression ----
 test('prior "for rent" reply blocks enrollment', async () => {
   const c = mkClient({})
