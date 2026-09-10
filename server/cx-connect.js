@@ -281,7 +281,7 @@ export async function enrollClient(clientId, enrolledBy = 'manual') {
 // Bulk enroll: every member of the Cancelled/Expired saved list, each individually
 // eligibility-checked. Returns a full summary so nothing is silent.
 export async function enrollList() {
-  const list = db.get("SELECT * FROM lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
+  const list = db.get("SELECT * FROM client_lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
   if (!list) return { ok: false, reason: 'Cancelled/Expired saved list not found' }
   let ids = []
   try { ids = JSON.parse(list.client_ids || '[]') } catch {}
@@ -469,7 +469,7 @@ export async function previewNext(limit = 5) {
   let candidates = db.all("SELECT client_id, attempt_count FROM cx_campaign WHERE status='active' ORDER BY next_send_at ASC LIMIT 200")
     .map(e => ({ id: e.client_id, attempt: (e.attempt_count || 0) + 1 }))
   if (!candidates.length) {
-    const list = db.get("SELECT * FROM lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
+    const list = db.get("SELECT * FROM client_lists WHERE lower(name) LIKE '%cancelled%' OR lower(name) LIKE '%expired%' ORDER BY id LIMIT 1")
     let ids = []
     try { ids = JSON.parse(list?.client_ids || '[]') } catch {}
     candidates = ids.map(id => ({ id, attempt: 1 }))

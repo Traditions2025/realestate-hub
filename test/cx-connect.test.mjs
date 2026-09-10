@@ -251,3 +251,17 @@ test('previewNext is a pure dry run: composes real messages, writes nothing, sen
   assert.equal(db.get('SELECT COUNT(*) n FROM communications').n, before, 'no message rows written')
   assert.equal(db.get('SELECT COUNT(*) n FROM cx_campaign_log').n, logBefore, 'no log rows written')
 })
+
+test('bulk enroll reads the real client_lists table and eligibility-checks members', async () => {
+  const good = mkClient({})
+  const rented = mkClient({})
+  addInbound(rented.id, 'we are renting it out now')
+  db.run("INSERT INTO client_lists (name, client_ids) VALUES (?,?)", ['Cancelled/Expired CxTest', JSON.stringify([good.id, rented.id])])
+  const r = await cx.enrollList()
+  assert.equal(r.ok, true, JSON.stringify(r))
+  assert.ok(r.enrolled >= 1)
+  assert.ok(r.skipped.some(s => s.id === rented.id && /RENTED/.test(s.reason)), JSON.stringify(r.skipped.slice(0,3)))
+  const p = await cx.previewNext(25)
+  assert.ok(p.previews.length + p.skipped.length > 0)
+  db.run("DELETE FROM client_lists WHERE name='Cancelled/Expired CxTest'")
+})
