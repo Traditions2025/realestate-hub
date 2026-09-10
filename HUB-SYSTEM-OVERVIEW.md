@@ -94,6 +94,8 @@ External: Sierra · FUB · Twilio · SendGrid · Gmail IMAP · Google Calendar �
 
 **User management** (`/api/users`, owner/admin only): list/create/update users, set roles, reset passwords, disable, revoke sessions; `/api/users/roles` and `/api/users/audit` for the UI. An initial OWNER is seeded on boot (`OWNER_EMAIL`/`OWNER_PASSWORD`, else the primary account + shared password) if the users table is empty.
 
+**Self-service profile** (`/api/users/me`, any authenticated user, own row only — registered before the `/:id` admin routes): GET returns own record incl. `avatar`; PUT edits name/phone only (email/role/status stay admin-managed); POST/DELETE `/me/avatar` set/clear the profile photo. The photo is a small square data URI — the client canvas-crops to 256px JPEG, the server re-validates the MIME from the data-URI header and caps size (~300KB), stored in `users.avatar`. The header account menu (top-right avatar next to the notification bell, `AccountMenu` in `src/App.jsx`) shows photo-or-initials and holds Profile (`/profile`, `src/pages/Profile.jsx`), Settings, the Light/Dark toggle, and Log Out — the old sidebar theme/logout controls moved there (2026-09-11). `/api/auth/me` also returns `avatar` so the header renders it on boot; a `mst-me-changed` window event refreshes it after profile edits.
+
 *Follow-on increments: per-route permission enforcement everywhere, session-management UI (logout/revoke-all/login history), optional TOTP 2FA + recovery codes.*
 
 ---
