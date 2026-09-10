@@ -35,6 +35,22 @@ test('plain street stays street; all-lowercase is re-cased; mixed case is respec
   assert.equal(mixed.city, undefined)
 })
 
+test('Henry Yost case: no comma between street and city, IA stays ALL CAPS', () => {
+  const r = smartParseAddress('1606 HUNTERS GREEN WAY MARION, IA 52302')
+  assert.deepEqual(r, { address: '1606 Hunters Green Way', city: 'Marion', state: 'IA', zip: '52302' })
+})
+
+test('two-word city peels off the street tail', () => {
+  const r = smartParseAddress('600 Carlton Rd SE Cedar Rapids, IA 52403')
+  assert.equal(r.city, 'Cedar Rapids')
+  assert.equal(r.address, '600 Carlton Rd SE')
+})
+
+test('embedded state abbrev never becomes title case', () => {
+  const r = smartParseAddress('1606 HUNTERS GREEN WAY MARION IA')
+  assert.ok(!/\bIa\b/.test(r.address), 'no "Ia" in ' + r.address)
+})
+
 test('zip+4 keeps the 5-digit zip', () => {
   const r = smartParseAddress('77 Oak St, Marion, IA 52302-1234')
   assert.equal(r.zip, '52302')

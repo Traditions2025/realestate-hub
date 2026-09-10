@@ -195,6 +195,9 @@ export function smartParseAddress(raw) {
   if (!clean) return null
   const titleWord = (w) => {
     if (/^(NE|NW|SE|SW|N|S|E|W)$/i.test(w)) return w.toUpperCase()
+    // State abbreviations stay ALL CAPS (IA, never Ia). Only unambiguous ones —
+    // never tokens that double as English words (in, or, me, ok, hi...).
+    if (/^(IA|IL|MN|MO|SD|WI|KS|TX|FL|AZ|CO|IA\.)$/i.test(w.replace(/,$/, ''))) return w.toUpperCase()
     if (/^\d+(ST|ND|RD|TH)$/i.test(w)) return w.toLowerCase()
     if (/^\d/.test(w)) return w.toUpperCase() === w && /[A-Z]/.test(w) ? w : w // "52402", "123A" untouched
     return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
@@ -213,6 +216,18 @@ export function smartParseAddress(raw) {
     zip = m[1]; state = parts[parts.length - 2]; city = parts[parts.length - 3]; street = parts.slice(0, -3).join(', ')
   } else if (parts.length >= 2 && (m = parts[parts.length - 1].match(cityStZip))) {
     city = m[1]; state = m[2]; zip = m[3]; street = parts.slice(0, -1).join(', ')
+  } else if (parts.length === 2 && (m = parts[1].match(stZip))) {
+    // "1606 Hunters Green Way Marion, IA 52302" — no comma between street and city.
+    // Split off state+zip, then peel the city from the street's tail: 1-2 words after
+    // the last street-suffix/directional word are the city; otherwise city stays blank.
+    state = m[1]; zip = m[2]; street = parts[0]
+    const words = street.split(' ')
+    const SUFFIX = /^(RD|ST|AVE|DR|CT|LN|CIR|TRL|BLVD|PKWY|TER|PL|WAY|RIDGE|RUN|LOOP|NE|NW|SE|SW|ROAD|STREET|AVENUE|DRIVE|COURT|LANE|CIRCLE|TRAIL|BOULEVARD|PARKWAY|TERRACE|PLACE)\.?$/i
+    for (let tail = 2; tail >= 1; tail--) {
+      if (words.length > tail + 1 && SUFFIX.test(words[words.length - tail - 1]) && words.slice(-tail).every(w => /^[A-Za-z.'-]+$/.test(w))) {
+        city = words.slice(-tail).join(' '); street = words.slice(0, -tail).join(' '); break
+      }
+    }
   }
   const out = { address: fixCase(street) }
   if (city) out.city = fixCase(city)
@@ -1376,6 +1391,8 @@ router.put('/:id', async (req, res) => {
       for (const k of ['city', 'state', 'zip']) if (parsed[k] && !(k in fields)) fields[k] = parsed[k]
     }
   }
+  // State typed directly always stores ALL CAPS (ia/Ia -> IA).
+  if (typeof fields.state === 'string' && /^[A-Za-z]{2}$/.test(fields.state.trim())) fields.state = fields.state.trim().toUpperCase()
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
   // follow the lead once the real number is saved, so capture the pre-edit
   // state and clear the block below when the phone is actually replaced.
