@@ -133,6 +133,16 @@ const LIST_COLUMNS = [
 // The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
 // date, MLS status, and MLS #.
 const EXPIRED_COLUMN_KEYS = ['score', 'name', 'status', 'type', 'phone', 'email', 'address', 'source', 'off_market_date', 'mls_status', 'mls_number']
+// The Name column is pinned: always visible and always FIRST (right after the checkbox) on
+// every tab / stage / smart list / saved list, and it sticks to the left edge while the list
+// scrolls sideways — so you can always see whose row you're looking at.
+const pinNameFirst = (cs) => {
+  const i = cs.findIndex(c => c.key === 'name')
+  if (i === 0) return cs
+  if (i > 0) { const copy = [...cs]; const [n] = copy.splice(i, 1); return [n, ...copy] }
+  const n = LIST_COLUMNS.find(c => c.key === 'name')
+  return n ? [n, ...cs] : cs
+}
 const COLUMN_PREFS_KEY = 'mst_clients_columns_v1'
 
 // Live days-on-market for the FSBO list: always today - List Date, so it's current the
@@ -498,7 +508,7 @@ export default function Clients() {
   const resizingRef = useRef(false)   // set true while a resize drag is active, so it never starts a column-reorder drag
   // Auto-fit a column to its rendered header + cell content (double-click the divider, or menu).
   const autoFitColumn = React.useCallback((key) => {
-    const vis = activeColPrefs.order.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(c => c && activeColPrefs.visible[c.key])
+    const vis = pinNameFirst(activeColPrefs.order.map(k => LIST_COLUMNS.find(c => c.key === k)).filter(c => c && activeColPrefs.visible[c.key]))
     const i = vis.findIndex(c => c.key === key); if (i < 0) return
     const col = vis[i]; const childIdx = i + 1   // grid child 0 is the checkbox cell
     let max = 40
@@ -517,19 +527,21 @@ export default function Clients() {
   useEffect(() => { try { localStorage.setItem(COLUMN_PREFS_KEY_EXPIRED, JSON.stringify(expiredColPrefs)) } catch {} }, [expiredColPrefs])
 
   // Columns for the active list (the Cancelled/Expired list has its own set + order).
-  const visibleColumns = activeColPrefs.order
+  // Name is always forced to the front, whatever the stored prefs say.
+  const visibleColumns = pinNameFirst(activeColPrefs.order
     .map(k => LIST_COLUMNS.find(c => c.key === k))
-    .filter(c => c && activeColPrefs.visible[c.key])
+    .filter(c => c && activeColPrefs.visible[c.key]))
 
   // Toggle visibility; if turning ON a column not yet in this list's order (e.g. adding Last
   // Text to the Cancelled/Expired list, whose default set is fixed), append it so it renders.
-  const toggleColumn = (key) => setActiveColPrefs(p => {
+  const toggleColumn = (key) => key !== 'name' && setActiveColPrefs(p => {
     const on = !p.visible[key]
     const order = (on && !p.order.includes(key)) ? [...p.order, key] : p.order
     return { ...p, order, visible: { ...p.visible, [key]: on } }
   })
   const reorderColumn = (fromKey, toKey) => {
     if (!fromKey || !toKey || fromKey === toKey) return
+    if (fromKey === 'name' || toKey === 'name') return   // Name is pinned first — can't be moved or displaced
     setActiveColPrefs(p => {
       const order = [...p.order]
       const fromIdx = order.indexOf(fromKey)
@@ -1848,11 +1860,12 @@ export default function Clients() {
                             onDrop={e => { e.preventDefault(); reorderColumn(dragColKey, key); setDragColKey(null) }}
                             onDragEnd={() => setDragColKey(null)}
                           >
-                            <span className="drag-handle" title="Drag to reorder">⋮⋮</span>
+                            <span className="drag-handle" title={key === 'name' ? 'Name is pinned as the first column' : 'Drag to reorder'}>{key === 'name' ? '📌' : '⋮⋮'}</span>
                             <label>
                               <input
                                 type="checkbox"
-                                checked={!!activeColPrefs.visible[key]}
+                                checked={key === 'name' ? true : !!activeColPrefs.visible[key]}
+                                disabled={key === 'name'}
                                 onChange={() => toggleColumn(key)}
                               />
                               {col.label}
@@ -2732,7 +2745,7 @@ export default function Clients() {
               // tags still render on each lead's profile detail drawer. The name is a real
               // link so right-click / middle-click / Cmd-click can open the full-screen
               // profile in a new tab; a plain click falls through to the row handler.
-              return <div key="name" className="cl-name">
+              return <div key="name" className="cl-name cl-pin-name">
                 <a href={'/clients/' + item.id} className="cl-name-link"
                   onClick={e => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) { e.stopPropagation(); return } e.preventDefault() /* let the row onClick open full screen */ }}
                   style={{ color: 'inherit', textDecoration: 'none' }}>
@@ -2899,16 +2912,16 @@ export default function Clients() {
                   onChange={e => { if (e.target.checked) selectAllVisible(); else clearSelection() }} />
               </div>
               {cols.map(col => (
-                <div key={col.key} draggable
-                  onDragStart={e => { if (resizingRef.current) { e.preventDefault(); return } setDragColKey(col.key); e.dataTransfer.effectAllowed = 'move' }}
+                <div key={col.key} draggable={col.key !== 'name'}
+                  onDragStart={e => { if (resizingRef.current || col.key === 'name') { e.preventDefault(); return } setDragColKey(col.key); e.dataTransfer.effectAllowed = 'move' }}
                   onDragOver={e => { e.preventDefault(); e.dataTransfer.dropEffect = 'move' }}
                   onDrop={e => { e.preventDefault(); reorderColumn(dragColKey, col.key); setDragColKey(null) }}
                   onDragEnd={() => setDragColKey(null)}
-                  className="cl-col-drag"
-                  style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: col.align === 'center' ? 'center' : col.align === 'right' ? 'flex-end' : 'flex-start', minWidth: 0, cursor: 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
-                  onDragEnter={e => { if (dragColKey && dragColKey !== col.key) e.currentTarget.style.borderLeft = '2px solid var(--accent, #2563eb)' }}
+                  className={`cl-col-drag${col.key === 'name' ? ' cl-pin-name' : ''}`}
+                  style={{ position: col.key === 'name' ? 'sticky' : 'relative', display: 'flex', alignItems: 'center', justifyContent: col.align === 'center' ? 'center' : col.align === 'right' ? 'flex-end' : 'flex-start', minWidth: 0, cursor: col.key === 'name' ? 'default' : 'grab', opacity: dragColKey === col.key ? 0.4 : 1, borderLeft: dragColKey && dragColKey !== col.key ? '2px solid transparent' : undefined }}
+                  onDragEnter={e => { if (dragColKey && dragColKey !== col.key && col.key !== 'name') e.currentTarget.style.borderLeft = '2px solid var(--accent, #2563eb)' }}
                   onDragLeave={e => { e.currentTarget.style.borderLeft = '2px solid transparent' }}
-                  title="Drag to move this column">
+                  title={col.key === 'name' ? 'Name is pinned as the first column' : 'Drag to move this column'}>
                   {renderHeaderCell(col)}
                   <ResizeHandle
                     getWidth={() => colWidthPx(col)} min={colMin(col)}

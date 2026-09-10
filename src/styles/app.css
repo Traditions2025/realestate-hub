@@ -2223,6 +2223,28 @@ input[type="range"] {
 .client-list-row.selected { background: var(--accent-subtle); box-shadow: inset 3px 0 0 var(--accent); }
 .cl-check input[type="checkbox"] { cursor: pointer; }
 
+/* ── Pinned Name column ───────────────────────────────────────────────────
+   The checkbox and Name cells stick to the left edge while the list scrolls
+   sideways, so the lead's name is always in view. Solid backgrounds (tints
+   layered over --bg-card, since hover/selected tints are translucent) keep
+   the columns scrolling underneath from showing through. */
+.client-list-header .cl-check, .client-list-row .cl-check {
+  position: sticky; left: 0; z-index: 2;
+  align-self: stretch; display: flex; align-items: center;
+  background: var(--bg-card);
+}
+.client-list-header .cl-pin-name, .client-list-row .cl-pin-name {
+  position: sticky; left: 42px; z-index: 2;
+  align-self: stretch;
+  background: var(--bg-card);
+}
+.client-list-row .cl-pin-name { display: flex; align-items: center; }
+/* Cover the 12px grid gap between the pinned checkbox and Name cells. */
+.cl-pin-name::before { content: ''; position: absolute; top: 0; bottom: 0; left: -13px; width: 13px; background: inherit; }
+.client-list-header .cl-check, .client-list-header .cl-pin-name { background: var(--bg-elevated); }
+.client-list-row:hover .cl-check, .client-list-row:hover .cl-pin-name { background: var(--bg-hover); }
+.client-list-row.selected .cl-check, .client-list-row.selected .cl-pin-name { background: linear-gradient(var(--accent-subtle), var(--accent-subtle)) var(--bg-card); }
+
 /* Advanced filter panel */
 .filter-panel {
   background: var(--bg-card);

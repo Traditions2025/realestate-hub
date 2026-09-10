@@ -130,10 +130,13 @@ export default function ClientProfile() {
   const [dragKey, setDragKey] = useState(null)
   const [dragArmed, setDragArmed] = useState(null)
   const moveSection = (fromKey, toKey, toCol) => {
+    if (fromKey === 'details') { setDragKey(null); setDragArmed(null); return }   // Client Details is locked in place
     setLayout(prev => {
-      const next = { left: prev.left.filter(k => k !== fromKey), right: prev.right.filter(k => k !== fromKey) }
+      let next = { left: prev.left.filter(k => k !== fromKey), right: prev.right.filter(k => k !== fromKey) }
       const arr = next[toCol]; const at = toKey ? arr.indexOf(toKey) : arr.length
-      arr.splice(at < 0 ? arr.length : at, 0, fromKey); saveLayout(next); return next
+      arr.splice(at < 0 ? arr.length : at, 0, fromKey)
+      next = lockDetailsFirst(next)   // nothing can land above Client Details
+      saveLayout(next); return next
     })
     setDragKey(null); setDragArmed(null)
   }
@@ -266,14 +269,13 @@ export default function ClientProfile() {
           const renderers = {
             details: () => <ClientDetails client={client} onSaved={load} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
-            comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
+            comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             propact: () => <PropertyActivity client={client} onSaved={load} />,
             interest: () => <ListingInterest client={client} />,
             website: () => <WebsiteActivity cid={cid} />,
             fub: () => <FubActivity cid={cid} />,
             sierra: () => <SierraActivity client={client} />,
             activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
-            notes: () => <NotesSection client={client} onSaved={load} onAdd={() => setNoteOpen(true)} />,
             research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
             coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
@@ -290,13 +292,14 @@ export default function ClientProfile() {
                   {layout[col].filter(k => renderers[k]).map(key => {
                     const node = renderers[key]()
                     if (!node) return null
+                    const locked = key === 'details'   // Client Details never moves — no grip, not draggable
                     return (
-                      <div key={key} className={`cp-drag-wrap ${dragKey === key ? 'dragging' : ''}`} draggable={dragArmed === key}
-                        onDragStart={() => setDragKey(key)}
+                      <div key={key} className={`cp-drag-wrap ${dragKey === key ? 'dragging' : ''}`} draggable={!locked && dragArmed === key}
+                        onDragStart={e => { if (locked) { e.preventDefault(); return } setDragKey(key) }}
                         onDragOver={e => { if (dragKey && dragKey !== key) { e.preventDefault(); e.stopPropagation() } }}
                         onDrop={e => { if (dragKey) { e.preventDefault(); e.stopPropagation(); moveSection(dragKey, key, col) } }}
                         onDragEnd={() => { setDragKey(null); setDragArmed(null) }}>
-                        <span className="cp-drag-grip" title="Drag to rearrange this box" onMouseDown={() => setDragArmed(key)} onMouseUp={() => setDragArmed(null)}>⋮⋮</span>
+                        {!locked && <span className="cp-drag-grip" title="Drag to rearrange this box" onMouseDown={() => setDragArmed(key)} onMouseUp={() => setDragArmed(null)}>⋮⋮</span>}
                         {node}
                       </div>
                     )
@@ -445,7 +448,7 @@ function BuyerSellerProfile({ client, ai }) {
 }
 
 // ── Communications (major inline section) ────────────────────────────────
-function Communications({ client, onOpenText }) {
+function Communications({ client, onOpenText, onAddNote }) {
   const cid = client.id
   const [rows, setRows] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -454,18 +457,38 @@ function Communications({ client, onOpenText }) {
   const load = useCallback(() => authFetch('/api/inbox/thread/' + cid).then(r => r.json()).then(d => setRows(Array.isArray(d) ? d.slice().reverse() : [])).catch(() => setRows([])), [cid])
   useEffect(() => { load() }, [load])
   useEffect(() => { const h = () => load(); window.addEventListener('cp-comms-changed', h); return () => window.removeEventListener('cp-comms-changed', h) }, [load])
-  const FILTERS = [['all', 'All'], ['text', 'Texts'], ['call', 'Calls'], ['email', 'Emails']]
+  // Notes live here now: the standalone Notes box merged into this tab strip.
+  const noteLines = client.notes ? String(client.notes).split('\n').filter(Boolean) : []
+  const FILTERS = [['all', 'All'], ['text', 'Texts'], ['call', 'Calls'], ['email', 'Emails'], ['note', noteLines.length ? `Notes (${noteLines.length})` : 'Notes']]
   let items = (rows || []).filter(m => m.channel !== 'note').filter(m => filter === 'all' ? true : m.channel === filter)
   if (q.trim()) { const t = q.toLowerCase(); items = items.filter(m => `${m.body || ''} ${m.preview || ''} ${m.subject || ''}`.toLowerCase().includes(t)) }
   const shown = items.slice(0, limit)
+  let notes = noteLines
+  if (q.trim()) { const t = q.toLowerCase(); notes = notes.filter(ln => ln.toLowerCase().includes(t)) }
+  const shownNotes = notes.slice(0, limit)
   return (
     <Section title="Communications" id="comms"
-      right={<div style={{ display: 'flex', gap: 4 }}>{FILTERS.map(([k, l]) => <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(k)}>{l}</button>)}<button className="btn btn-sm btn-primary" onClick={onOpenText}>+ New</button></div>}>
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search communications…" style={{ width: '100%', padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, marginBottom: 10 }} />
-      {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>
-        : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nothing here yet.</div>
-          : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
-      {items.length > shown.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({items.length - shown.length})</button>}
+      right={<div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{FILTERS.map(([k, l]) => <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setFilter(k); setLimit(15) }}>{l}</button>)}{filter === 'note'
+        ? <button className="btn btn-sm btn-primary" onClick={onAddNote}>+ Add Note</button>
+        : <button className="btn btn-sm btn-primary" onClick={onOpenText}>+ New</button>}</div>}>
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder={filter === 'note' ? 'Search notes…' : 'Search communications…'} style={{ width: '100%', padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, marginBottom: 10 }} />
+      {filter === 'note' ? (
+        <>
+          {!notes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No notes yet.</div>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map((ln, i) => {
+              const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
+              return <div key={i} style={{ fontSize: 13, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
+            })}</div>}
+          {notes.length > shownNotes.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({notes.length - shownNotes.length})</button>}
+        </>
+      ) : (
+        <>
+          {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>
+            : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nothing here yet.</div>
+              : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
+          {items.length > shown.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({items.length - shown.length})</button>}
+        </>
+      )}
     </Section>
   )
 }
@@ -732,23 +755,6 @@ function PropertyActivity({ client, onSaved }) {
       ))}
       {!listings.length && client.fsbo_status && <div style={{ fontSize: 13, marginBottom: 6 }}>FSBO status: <span className="cp-badge">{client.fsbo_status}</span></div>}
       {lastViewed && <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Last website activity: {lastViewed}{client.last_fub_activity_type ? ` · ${client.last_fub_activity_type}` : ''}</div>}
-    </Section>
-  )
-}
-
-// ── Notes ────────────────────────────────────────────────────────────────
-function NotesSection({ client, onSaved, onAdd }) {
-  const lines = client.notes ? String(client.notes).split('\n').filter(Boolean) : []
-  const [showAll, setShowAll] = useState(false)
-  const shown = showAll ? lines : lines.slice(0, 5)
-  return (
-    <Section title="Notes" id="notes" right={<button className="btn btn-sm" onClick={onAdd}>+ Add</button>}>
-      {!lines.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No notes yet.</div>
-        : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shown.map((ln, i) => {
-          const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
-          return <div key={i} style={{ fontSize: 13, borderLeft: '3px solid #f59e0b', paddingLeft: 8, background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
-        })}</div>}
-      {lines.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setShowAll(s => !s)}>{showAll ? 'Show less' : `View all (${lines.length})`}</button>}
     </Section>
   )
 }
@@ -1073,7 +1079,14 @@ function ListingInterest({ client }) {
 }
 
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'notes', 'research'], right: ['coverage', 'ai', 'plans', 'tasks', 'txns'] }
+// 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
+// strip now, so loadLayout silently drops it from any saved layout.
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'ai', 'plans', 'tasks', 'txns'] }
+// Client Details is locked: always the first box in the left column, never draggable —
+// an accidental drag can't move it out of place.
+export function lockDetailsFirst(l) {
+  return { left: ['details', ...l.left.filter(k => k !== 'details')], right: l.right.filter(k => k !== 'details') }
+}
 export function loadLayout() {
   try {
     const s = JSON.parse(localStorage.getItem('cp_layout_v2') || 'null')
@@ -1082,7 +1095,7 @@ export function loadLayout() {
       const have = new Set([...s.left, ...s.right])
       const left = [...s.left.filter(k => all.includes(k)), ...DEFAULT_LAYOUT.left.filter(k => !have.has(k))]
       const right = [...s.right.filter(k => all.includes(k)), ...DEFAULT_LAYOUT.right.filter(k => !have.has(k))]
-      return { left, right }
+      return lockDetailsFirst({ left, right })
     }
   } catch {}
   return DEFAULT_LAYOUT
