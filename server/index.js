@@ -46,6 +46,7 @@ import dialerRouter from './routes/dialer.js'
 import voicemailsRouter from './routes/voicemails.js'
 import aiRouter from './routes/ai.js'
 import coverageRouter from './routes/coverage.js'
+import cxRouter from './routes/cx.js'
 import agentsRouter from './routes/agents.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 import followupRouter from './routes/followup.js'
@@ -344,6 +345,7 @@ async function start() {
   app.use('/api/voicemails', voicemailsRouter)
   app.use('/api/ai', aiRouter)
   app.use('/api/coverage', coverageRouter)
+  app.use('/api/cx', cxRouter)
   app.use('/api/agents', agentsRouter)
   app.use('/api/followup', followupRouter)
   app.use('/api/track', trackingRouter)

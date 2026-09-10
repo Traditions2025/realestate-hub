@@ -2101,6 +2101,38 @@ export async function initDb() {
     console.error('[migration] transactions new cols failed:', e.message)
   }
 
+  // Cancelled/Expired Connection Campaign (cx-connect.js): one enrollment row per
+  // lead + a full decision/audit log (every send, suppression, stop, and response).
+  try {
+    db.run(`
+      CREATE TABLE IF NOT EXISTS cx_campaign (
+        client_id INTEGER PRIMARY KEY,
+        status TEXT NOT NULL DEFAULT 'active',
+        enrolled_at TEXT, enrolled_by TEXT,
+        attempt_count INTEGER DEFAULT 0,
+        last_sent_at TEXT, last_angle TEXT,
+        next_send_at TEXT,
+        stop_reason TEXT, stopped_at TEXT,
+        response_comm_id INTEGER, response_at TEXT, response_class TEXT,
+        updated_at TEXT
+      )
+    `)
+    db.run(`
+      CREATE TABLE IF NOT EXISTS cx_campaign_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        client_id INTEGER NOT NULL,
+        event TEXT NOT NULL,
+        message_number INTEGER, angle TEXT, template_key TEXT,
+        off_market_date TEXT, days_since_off_market INTEGER, age_bucket TEXT,
+        eligibility_result TEXT, suppression_reason TEXT,
+        comm_id INTEGER, body TEXT,
+        created_at TEXT DEFAULT (datetime('now'))
+      )
+    `)
+    db.run('CREATE INDEX IF NOT EXISTS idx_cx_log_client ON cx_campaign_log(client_id)')
+    db.run('CREATE INDEX IF NOT EXISTS idx_cx_campaign_due ON cx_campaign(status, next_send_at)')
+  } catch (e) { console.error('[migration] cx_campaign tables failed:', e.message) }
+
   // User profile photo: small square-cropped data URI (client resizes to ~256px
   // before upload, server caps size), shown as the header avatar + on /profile.
   try {

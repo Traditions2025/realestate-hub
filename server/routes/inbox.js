@@ -618,6 +618,12 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         try { import('../ai-followup/behavioral.js').then(m => m.recordBehavioralEvent(client.id, 'inbound_text', { source: 'sms', ref: externalId })).catch(() => {}) } catch {}
         // P2-4: notification for the inbound text.
         try { import('../notifications.js').then(m => m.notify({ type: 'inbound_text', title: `New text from ${name}`, body: (body || '[media]').slice(0, 160), link: `/clients?open=${client.id}`, client_id: client.id, dedupKey: 'inbound_' + externalId })).catch(() => {}) } catch {}
+        // Cancelled/Expired Connection Campaign: STOP FIRST, CLASSIFY SECOND.
+        // Any inbound from an enrolled lead halts the campaign immediately and
+        // flags human follow-up — and the AI must NEVER reply to these leads,
+        // so a truthy result here also blocks the HUB AI hand-off below.
+        let cxLead = false
+        try { const cx = await import('../cx-connect.js'); const lastComm = db.get('SELECT id FROM communications WHERE external_id=?', [externalId]); cxLead = cx.handleCxInbound(client.id, body, lastComm?.id || null) } catch (e) { console.error('[cx-connect]', e.message) }
         // FSBO smart follow-up: if this lead is in the FSBO sequence, run the scripted reply.
         try { import('../fsbo-followup.js').then(m => m.handleFsboReply(client.id, body)).catch(() => {}) } catch {}
         // Automation triggers: incoming text (always) + text reply (if we've texted them before)
@@ -627,7 +633,8 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
           if (priorOut) m.emitAutomationEvent('text_replied', client.id, { body }, 'reply_' + externalId)
         }).catch(() => {})
         // HUB AI responsive follow-up — fully gated + fail-safe; never blocks the webhook.
-        if (body && !kw) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
+        // Skipped entirely for Cancelled/Expired connection-campaign leads (cxLead).
+        if (body && !kw && !cxLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
       } else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }

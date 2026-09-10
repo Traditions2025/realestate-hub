@@ -257,6 +257,7 @@ export default function Settings() {
             </SettingsGroup>
             <SettingsGroup id="ai" title="AI Follow-Up" desc="HUB AI ISA, Autopilot flags, follow-up coverage standards, regression eval.">
           <AiFollowUpSettings />
+          <CxCampaignSettings />
           <CoverageSettings />
           <AiEvalPanel />
             </SettingsGroup>
@@ -594,6 +595,56 @@ function RealistImportSettings() {
 // Master files (FSBO + Cancelled/Expired): one button re-checks both Google Sheets
 // on demand. Every change the sync makes (status flips, relists junked, new leads)
 // is recorded on the lead's profile as a note and in the dashboard updates box.
+// Cancelled/Expired Connection Campaign — persistent make-contact SMS drip.
+// Master switch (OFF by default), bulk enroll of the C/E saved list, live stats.
+// AI never replies to enrolled leads; a response stops everything for a human.
+function CxCampaignSettings() {
+  const [stats, setStats] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [enrollResult, setEnrollResult] = useState(null)
+  const loadStats = () => authFetch('/api/cx/stats').then(r => r.json()).then(setStats).catch(() => {})
+  useEffect(() => { loadStats() }, [])
+  const toggle = async () => {
+    setBusy(true)
+    try { await authFetch('/api/cx/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !stats?.enabled }) }); loadStats() }
+    finally { setBusy(false) }
+  }
+  const bulkEnroll = async () => {
+    if (!confirm('Enroll every eligible member of the Cancelled/Expired list in the connection campaign? Each lead is eligibility-checked (prior responses, sold/relisted, DNC, wrong numbers are skipped).')) return
+    setBusy(true)
+    try { setEnrollResult(await authFetch('/api/cx/enroll-list', { method: 'POST' }).then(r => r.json())); loadStats() }
+    catch (e) { alert('Failed: ' + e.message) } finally { setBusy(false) }
+  }
+  const n = (s) => (stats?.statuses || []).find(x => x.status === s)?.n || 0
+  return (
+    <div style={{ marginBottom: 18 }}>
+      <h3 style={{ fontSize: 14, margin: '0 0 6px' }}>Cancelled/Expired Connection Campaign</h3>
+      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+        Persistent make-contact texting for Cancelled/Expired leads: two intro attempts, then weekly rotating check-ins (weekdays 9AM-4PM only) until they respond.
+        A response stops everything and flags human follow-up — the AI never replies to these leads.
+      </p>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className={`btn btn-sm ${stats?.enabled ? 'btn-primary' : 'btn-secondary'}`} onClick={toggle} disabled={busy || !stats}>
+          {stats?.enabled ? '● Campaign ON — click to turn OFF' : '○ Campaign OFF — click to turn ON'}
+        </button>
+        <button className="btn btn-sm btn-secondary" onClick={bulkEnroll} disabled={busy}>Enroll Cancelled/Expired list…</button>
+      </div>
+      {stats && (
+        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 8 }}>
+          Active {n('active')} · Responded {n('response_received')} · Paused {n('paused')} · Stopped {n('ineligible')} · Sent {stats.sent_total} texts · {stats.responses} responses
+        </div>
+      )}
+      {enrollResult && (
+        <div style={{ fontSize: 12.5, marginTop: 6 }}>
+          {enrollResult.ok
+            ? <>✓ Enrolled {enrollResult.enrolled} of {enrollResult.total} from "{enrollResult.list}". Skipped {enrollResult.skipped?.length || 0}{enrollResult.skipped?.length ? ` (top reasons: ${[...new Set(enrollResult.skipped.slice(0, 6).map(s => String(s.reason).split(':')[0]))].join(', ')})` : ''}.</>
+            : <span style={{ color: '#ef4444' }}>Enroll failed: {enrollResult.reason || enrollResult.error}</span>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Full Sierra pull — moved here from the Clients toolbar (2026-09-11). The
 // incremental 10-min sync runs on its own; this is the manual everything pull.
 function SierraSyncSettings() {

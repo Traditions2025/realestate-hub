@@ -70,6 +70,14 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
+  // Cancelled/Expired connection-campaign leads: the AI NEVER composes or sends a
+  // reply to them, not even via manual force — these sellers are delicate and a
+  // human always answers. (The inbox webhook also skips this path; this is
+  // defense in depth for every other caller.)
+  try {
+    const cx = db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [cid])
+    if (cx) return { ok: false, reason: 'Cancelled/Expired connection campaign — AI never replies to these leads; respond personally' }
+  } catch {}
   ensureState(cid)
   if (!force) { markInbound(cid); cancelPendingScheduled(cid, 'lead replied') }   // never talk over a live reply
 

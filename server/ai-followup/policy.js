@@ -63,6 +63,12 @@ export function canSendSms(client, context = {}) {
   // No automated/campaign/AI texts on US federal holidays (Central). Manual 1:1 replies still work,
   // so you can answer a lead who texts you on a holiday.
   if (channel !== 'manual' && isUsHoliday()) return deny('US holiday — automated sends paused')
+  // Cancelled/Expired connection-campaign leads: the AI never texts them at all —
+  // not responsive, not proactive, not forced. The campaign's approved templates
+  // (channel 'automation'/'drip') and human 1:1 sends are the only outbound paths.
+  if (channel === 'ai') {
+    try { if (db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [client.id])) return deny('Cancelled/Expired connection campaign — AI never texts these leads') } catch {}
+  }
   // AI-specific gates — skipped for a manual agent-triggered send (context.force),
   // which only needs the hard compliance blocks above (STOP / opt-out / status).
   if (channel === 'ai' && !context.force) {

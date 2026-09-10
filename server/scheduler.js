@@ -818,6 +818,10 @@ export function startScheduler() {
   // FSBO smart follow-up sequence - every 15 min (self-gates to weekdays 9AM-4PM CT).
   setInterval(() => { import('./fsbo-followup.js').then(m => m.runFsboFollowups()).catch(() => {}) }, 15 * 60 * 1000)
 
+  // Cancelled/Expired Connection Campaign - every 15 min (self-gates: master switch,
+  // weekdays 9AM-4PM CT window, per-send eligibility re-verification).
+  setInterval(() => { import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)
+
   // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
   setInterval(checkSlackDeadlineTick, 60 * 1000)
   setTimeout(checkSlackDeadlineTick, 50 * 1000)  // also shortly after boot in case we deployed past 10 AM

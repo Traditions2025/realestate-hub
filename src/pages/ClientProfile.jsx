@@ -278,6 +278,7 @@ export default function ClientProfile() {
             activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
             research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
             coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
+            cxcamp: () => (client.mls_status || client.off_market_date) ? <CxCampaignCard cid={cid} client={client} /> : null,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
             plans: () => <ActionPlans cid={cid} />,
             tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} address={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} /></div>,
@@ -311,6 +312,77 @@ export default function ClientProfile() {
         })()}
       </div>
     </div>
+  )
+}
+
+// ── Cancelled/Expired Connection Campaign card ───────────────────────────
+// Persistent make-contact SMS drip for Cancelled/Expired leads. Shows enrollment
+// status, next outreach, attempt count, last angle, off-market age, and the send/
+// suppression log. A response flips the card to HUMAN FOLLOW-UP REQUIRED and the
+// AI never replies to these leads.
+const CX_STATUS_META = {
+  active: { label: 'ACTIVE', color: '#059669' },
+  response_received: { label: 'RESPONSE RECEIVED — HUMAN FOLLOW-UP REQUIRED', color: '#dc2626' },
+  paused: { label: 'PAUSED', color: '#d97706' },
+  ineligible: { label: 'STOPPED', color: 'var(--text-muted)' },
+  removed: { label: 'REMOVED', color: 'var(--text-muted)' },
+}
+function CxCampaignCard({ cid, client }) {
+  const [st, setSt] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [showLog, setShowLog] = useState(false)
+  const loadCx = useCallback(() => authFetch('/api/cx/' + cid).then(r => r.json()).then(setSt).catch(() => setSt(null)), [cid])
+  useEffect(() => { loadCx() }, [loadCx])
+  const act = async (path) => {
+    setBusy(true)
+    try {
+      const r = await authFetch(`/api/cx/${cid}/${path}`, { method: 'POST' })
+      const d = await r.json()
+      if (d && d.ok === false && d.reason) alert('Not possible: ' + d.reason)
+      loadCx()
+    } catch (e) { alert('Failed: ' + e.message) } finally { setBusy(false) }
+  }
+  if (!st) return null
+  const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) } catch { return '—' } }
+  const meta = CX_STATUS_META[st.status] || { label: String(st.status || '').toUpperCase(), color: 'var(--text-muted)' }
+  return (
+    <Section title="Cancelled/Expired Campaign" id="cxcamp">
+      {!st.enrolled ? (
+        <div style={{ fontSize: 13 }}>
+          <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>Not enrolled in the connection campaign.</div>
+          <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('enroll')}>Enroll in Campaign</button>
+          {!st.enabled && <div style={{ fontSize: 11.5, color: '#d97706', marginTop: 6 }}>Master switch is OFF (Settings) — enrolled leads won't be texted until it's on.</div>}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <div style={{ fontWeight: 800, color: meta.color, marginBottom: 4 }}>{meta.label}</div>
+          {st.status === 'ineligible' && st.stop_reason && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {st.stop_reason}</div>}
+          {st.status === 'response_received' && st.response_class && <div style={{ fontSize: 12, marginBottom: 4 }}>Classified: <strong>{st.response_class}</strong> — reply personally; the AI stays silent on this lead.</div>}
+          <div><strong>Attempts:</strong> {st.attempt_count || 0}{st.last_angle ? ` · last angle ${st.last_angle}` : ''}</div>
+          {st.status === 'active' && <div><strong>Next outreach:</strong> {st.next_send_at ? fmtD(st.next_send_at) : '—'} (weekday window)</div>}
+          <div><strong>Off market:</strong> {client.off_market_date || 'unknown'}{st.days_off_market != null ? ` · ${st.days_off_market}d · ${st.age_bucket}` : ` · ${st.age_bucket} language`}</div>
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {st.status === 'active' && <button className="btn btn-sm" disabled={busy} onClick={() => act('pause')}>⏸ Pause</button>}
+            {(st.status === 'paused' || st.status === 'ineligible' || st.status === 'response_received' || st.status === 'removed') && <button className="btn btn-sm" disabled={busy} onClick={() => act('resume')}>▶ {st.status === 'paused' ? 'Resume' : 'Re-enroll'}</button>}
+            {st.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Remove this lead from the campaign?')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
+            {(st.log || []).length > 0 && <button className="btn btn-sm" onClick={() => setShowLog(v => !v)}>{showLog ? 'Hide log' : `Log (${st.log.length})`}</button>}
+          </div>
+          {showLog && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+              {st.log.map(l => (
+                <div key={l.id} style={{ fontSize: 11.5, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{fmtD(l.created_at)} · </span>
+                  <strong>{l.event}</strong>
+                  {l.angle ? ` · ${l.angle}` : ''}{l.age_bucket ? ` · ${l.age_bucket}` : ''}
+                  {l.suppression_reason ? ` · ${l.suppression_reason}` : ''}
+                  {l.body ? <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{String(l.body).slice(0, 160)}</div> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Section>
   )
 }
 
@@ -1123,7 +1195,7 @@ function ListingInterest({ client }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'cxcamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {
