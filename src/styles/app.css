@@ -966,7 +966,8 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   position: absolute; top: calc(100% + 6px); right: 0; z-index: 51;
   background: var(--bg-secondary); border: 1px solid var(--border);
   border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.3);
-  padding: 12px; min-width: 240px;
+  padding: 12px; width: 480px; max-width: min(92vw, 520px);
+  max-height: 70vh; overflow-y: auto;
 }
 .columns-picker-header {
   display: flex; justify-content: space-between; align-items: center;
@@ -980,11 +981,12 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 .columns-picker-hint {
   font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
 }
-.columns-picker-list { list-style: none; margin: 0; padding: 0; }
+/* Two-column grid so the picker is a compact rectangle, not a tall strip. */
+.columns-picker-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
 .columns-picker-item {
   display: flex; align-items: center; gap: 8px;
-  padding: 6px 4px; border-radius: 4px; cursor: grab;
-  transition: background-color 0.1s;
+  padding: 4px; border-radius: 4px; cursor: grab;
+  transition: background-color 0.1s; min-width: 0;
 }
 .columns-picker-item:hover { background: var(--bg-hover); }
 .columns-picker-item.dragging { opacity: 0.4; cursor: grabbing; }
@@ -994,7 +996,11 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 .columns-picker-item label {
   display: flex; align-items: center; gap: 8px;
-  font-size: 13px; cursor: pointer; flex: 1;
+  /* beats the app-wide `label { flex-direction: column }` rule that was stacking
+     the checkbox above its name and stretching the popover into a tall strip */
+  flex-direction: row !important;
+  font-size: 12.5px; cursor: pointer; flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .columns-picker-item input[type="checkbox"] { cursor: pointer; }
 

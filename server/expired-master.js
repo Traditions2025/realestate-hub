@@ -109,7 +109,11 @@ export async function fetchExpiredMasterRows() {
   const header = rows[0].map(h => String(h || '').trim())
   const idx = (name) => header.findIndex(h => h.toLowerCase() === name.toLowerCase())
   const iName = idx('Name 1'), iPhone = idx('Phone 1'), iEmail = idx('Email 1'), iAddr = idx('Street Address'), iCity = idx('City'), iState = idx('State'), iZip = idx('Zipcode')
-  const iTags = idx('Tags'), iStatus = idx('Status'), iNotes = idx('Notes'), iMls = idx('MLS #'), iOff = idx('Off Market Date'), iAgent = idx('Listing Agent')
+  // 'Status' now holds the derived Watch/Junk workflow label (added 2026-09-10); the raw MLS
+  // status word (Cancelled/Active/Pending/Sold) this sync actually keys its logic on moved to
+  // 'MLS Status'. Read that one under the mls_status field name below so nothing else here
+  // has to change.
+  const iTags = idx('Tags'), iStatus = idx('MLS Status'), iNotes = idx('Notes'), iMls = idx('MLS #'), iOff = idx('Off Market Date'), iAgent = idx('Listing Agent')
   const cell = (row, i) => i >= 0 ? String(row[i] || '').trim() : ''
   const out = []
   for (let r = 1; r < rows.length; r++) {

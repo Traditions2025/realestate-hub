@@ -121,7 +121,8 @@ const LIST_COLUMNS = [
   { key: 'last_email_clicked', label: 'Last Email Clicked', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_clicked_oldest', desc: 'last_email_clicked_recent' } },
   { key: 'email_opens', label: 'Email Opens', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'email_opens_high', desc: 'email_opens_high' } },
   { key: 'email_clicks', label: 'Email Clicks', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'email_clicks_high', desc: 'email_clicks_high' } },
-  { key: 'last_email_in', label: 'Last Email In', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_oldest', desc: 'last_email_recent' } },
+  { key: 'last_email_in', label: 'Last Email Received', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_oldest', desc: 'last_email_recent' } },
+  { key: 'last_email_out', label: 'Last Email Sent', defaultVisible: false, size: 'normal', sort: { asc: 'last_email_out_oldest', desc: 'last_email_out_recent' } },
   { key: 'last_call_made', label: 'Last Call', defaultVisible: false, size: 'normal', sort: { asc: 'last_call_oldest', desc: 'last_call_recent' } },
   // Follow-Up Coverage columns (opt-in via the Columns picker)
   { key: 'coverage', label: 'Coverage', defaultVisible: false, size: 'compact', align: 'center', sort: { asc: 'coverage_risk', desc: 'coverage_risk' } },
@@ -2872,6 +2873,8 @@ export default function Clients() {
               return <div key="last_email_in" className="cl-registered">{fmtCommDate(item.last_email_in)}</div>
             case 'last_call_made':
               return <div key="last_call_made" className="cl-registered">{fmtCommDate(item.last_call_made)}</div>
+            case 'last_email_out':
+              return <div key="last_email_out" className="cl-registered">{fmtCommDate(item.last_email_out)}</div>
             case 'coverage': {
               const s = item.coverage_status
               const C = { protected: ['✓ Protected', '#059669'], at_risk: ['⚠ At Risk', '#d97706'], unprotected: ['✗ Unprotected', '#ef4444'], snoozed: ['⏸ Snoozed', '#7c3aed'], excluded: ['— Excluded', 'var(--text-muted)'] }[s]
