@@ -36,7 +36,7 @@ function GlobalSearch() {
     else if (e.key === 'Escape') setOpen(false)
   }
   return (
-    <div ref={boxRef} style={{ position: 'sticky', top: 0, zIndex: 40, padding: '10px 0 6px', background: 'var(--bg-primary, var(--bg))' }}>
+    <div ref={boxRef} style={{ position: 'sticky', top: 0, zIndex: 40, padding: '8px 0', background: 'var(--bg-primary, var(--bg))' }}>
       <div style={{ position: 'relative', maxWidth: 560, margin: '0 auto' }}>
         <input value={q} onChange={e => setQ(e.target.value)} onFocus={() => res && setOpen(true)} onKeyDown={onKey}
           placeholder="Search everything — people, transactions, tasks, notes…"
@@ -112,9 +112,9 @@ function NotificationBell() {
   const fmt = (iso) => { try { return new Date(String(iso).includes('Z') ? iso : iso + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return '' } }
   return (
     <div ref={ref} style={{ position: 'relative' }}>
-      <button className="theme-toggle" onClick={openList} title="Notifications" style={{ position: 'relative', padding: '8px 12px' }}>
+      <button className="header-icon-btn" onClick={openList} title="Notifications" aria-label="Notifications" style={{ position: 'relative' }}>
         <span style={{ fontVariantEmoji: 'text' }}>🔔</span>
-        {unread > 0 && <span style={{ position: 'absolute', top: 2, right: 4, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
+        {unread > 0 && <span style={{ position: 'absolute', top: -2, right: -4, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
         <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 340, maxWidth: 'calc(100vw - 24px)', maxHeight: 460, overflowY: 'auto', background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 60 }}>
@@ -149,7 +149,7 @@ function Avatar({ me, size = 34 }) {
     : <span className="account-avatar-initials" style={{ width: size, height: size, fontSize: Math.round(size * 0.38) }} aria-hidden="true">{initialsOf(me?.name)}</span>
 }
 
-function AccountMenu({ me, theme, toggleTheme, logout, size = 34 }) {
+function AccountMenu({ me, theme, toggleTheme, logout, size = 32 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef(null)
   const navigate = useNavigate()
@@ -457,10 +457,12 @@ export default function App() {
       </aside>
 
       <main className="main-content">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 40, background: 'var(--bg-primary, var(--bg))', paddingRight: 4 }}>
+        {/* Right padding matches .page (32px) so the bell + avatar line up with the
+            right edge of the content boxes below instead of hanging past them. */}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', position: 'sticky', top: 0, zIndex: 40, background: 'var(--bg-primary, var(--bg))', paddingRight: isMobile ? 0 : 32 }}>
           <div style={{ flex: 1 }}><GlobalSearch /></div>
           {!isMobile && (
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <NotificationBell />
               <AccountMenu me={me} theme={theme} toggleTheme={toggleTheme} logout={logout} />
             </div>
