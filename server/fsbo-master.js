@@ -267,8 +267,11 @@ export async function syncFsboMaster() {
   for (const c of db.all("SELECT id, phone FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''")) {
     const k = last10(c.phone)
     if (!k || !sheetPhones.has(k)) {
-      db.run('UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL WHERE id=?', [c.id])
-      logMasterUpdate(c.id, 'fsbo', 'removed', 'No longer tracked as a FSBO (dropped off the master file)', { label: 'Removed' })
+      // Dropping off the master file removes them from the LIST (fsbo_status drives
+      // membership) but their listing history STAYS on the profile — fsbo_listings,
+      // list date, DOM, price, link and notes are part of the relationship record.
+      db.run('UPDATE clients SET fsbo_status=NULL WHERE id=?', [c.id])
+      logMasterUpdate(c.id, 'fsbo', 'removed', 'No longer tracked as a FSBO (dropped off the master file) — listing history kept on the profile', { label: 'Removed' })
       report.pruned++
     }
   }
