@@ -799,6 +799,9 @@ function EmailComposer({ client, onClose, onSent, initial }) {
             </div>
             {aiBusy && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
             {aiSug?.error && <div style={{ fontSize: 12, color: '#ef4444' }}>{aiSug.error}</div>}
+            {aiSug && aiSug.has_incoming === false && !aiBusy && !aiSug.error && (
+              <div style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 600 }}>First outreach — they haven't written back yet, so this drafts an opener instead of a reply.</div>
+            )}
             {aiSug?.summary && !aiBusy && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,.4)', paddingLeft: 8 }}>{aiSug.summary}</div>}
             {aiSug?.suggestion && !aiBusy && (aiSug.suggestion.body || aiSug.suggestion.subject) && (
               <>
@@ -811,6 +814,9 @@ function EmailComposer({ client, onClose, onSent, initial }) {
                   <button className="btn btn-sm" disabled={aiBusy} onClick={() => suggest()}>↻ Regenerate</button>
                 </div>
               </>
+            )}
+            {aiSug && !aiBusy && !aiSug.error && !(aiSug.suggestion && (aiSug.suggestion.body || aiSug.suggestion.subject)) && (
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No draft came back. Pick an angle above or hit an angle button again to retry.</div>
             )}
           </div>
         )}

@@ -1545,6 +1545,11 @@ async function generateReply(client, rows, adjustInstruction, context, current, 
   // message as if it just arrived (and repeats what we already sent).
   const lastRow = rows.length ? rows[rows.length - 1] : null
   let staleNote = ''
+  if (!inc) {
+    // No inbound at all: this is proactive OUTREACH, not a reply. (Before 2026-09-11 the
+    // suggest route refused these leads outright and the profile composer looked broken.)
+    staleNote = `\nSITUATION: This lead has NEVER replied to us${rows.length ? ' (every message in the thread is ours)' : ' and there is no conversation yet'}. This is proactive outreach, not a reply: draft a natural, zero-pressure email that opens a door, grounded in the client context and any website activity. Never reference a conversation that did not happen, and never guilt them about not replying.\n`
+  }
   if (inc && lastRow && lastRow.direction === 'outgoing') {
     const days = Math.max(0, Math.round((Date.now() - new Date(inc.occurred_at).getTime()) / 86400000))
     const when = days === 0 ? 'earlier today' : days === 1 ? 'yesterday' : `${days} days ago`
@@ -1596,15 +1601,16 @@ router.post('/thread/:clientId/ai/suggest', async (req, res) => {
   if (!client) return res.status(404).json({ error: 'Client not found' })
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC', [cid])
   const inc = latestIncoming(rows)
-  if (!inc) return res.json({ has_incoming: false })
+  // No inbound? Still draft — as proactive OUTREACH instead of a reply (the lead-profile
+  // composer offers "Suggested reply" on any lead, including ones who've never written back).
   const out = await generateReply(client, rows, null, null, null, String(req.body?.approach || ''))
   if (out.error) return res.status(502).json({ error: out.error })
   const suggestion = out.reply ? JSON.stringify(out.reply) : null
   const existing = db.get('SELECT draft FROM inbox_ai WHERE client_id = ?', [cid])
   db.run(`INSERT INTO inbox_ai (client_id, based_on_msg_id, intent, summary, suggestion, draft, updated_at) VALUES (?,?,?,?,?,?,?)
           ON CONFLICT(client_id) DO UPDATE SET based_on_msg_id=excluded.based_on_msg_id, intent=excluded.intent, summary=excluded.summary, suggestion=excluded.suggestion, updated_at=excluded.updated_at`,
-    [cid, inc.id, out.intent || null, out.summary || null, suggestion, existing ? existing.draft : null, nowIso()])
-  res.json({ has_incoming: true, channel: out.channel, intent: out.intent || null, summary: out.summary || null, suggestion: out.reply || null, stale: false })
+    [cid, inc ? inc.id : null, out.intent || null, out.summary || null, suggestion, existing ? existing.draft : null, nowIso()])
+  res.json({ has_incoming: !!inc, channel: out.channel, intent: out.intent || null, summary: out.summary || null, suggestion: out.reply || null, stale: false })
 })
 
 // adjust the reply (shorter/casual/direct/warmer/regenerate/free-text context)
