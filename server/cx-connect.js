@@ -336,8 +336,15 @@ export async function runCxSweep() {
   try {
     const due = db.all("SELECT * FROM cx_campaign WHERE status='active' AND next_send_at IS NOT NULL AND next_send_at <= ? ORDER BY next_send_at ASC LIMIT 25", [nowIso()])
     for (const en of due) {
+      // Trickle, never a blast (John, 2026-09-11: "don't send all at one time…
+      // at least a minute or 2 per lead"): one text every 1-2.5 minutes. The
+      // `sweeping` guard keeps overlapping ticks out while a long trickle is
+      // still working through its batch, and the window is re-checked before
+      // EVERY send so a run that crosses 4PM Central stops mid-batch (the rest
+      // stay due for the next weekday tick).
+      if (!cxEnabled() || !inCxWindow()) break
       try { await sendNextForEnrollment(en) } catch (e) { console.error('[cx-connect] send failed for', en.client_id, e.message) }
-      await new Promise(r => setTimeout(r, 1500))   // pace sends; never a burst
+      await new Promise(r => setTimeout(r, 60000 + Math.floor(Math.random() * 90000)))
     }
   } finally { sweeping = false }
 }
