@@ -152,6 +152,34 @@ router.post('/fsbo/sync', async (_req, res) => {
     res.json({ ok: true, source: fsboMasterCsvUrl(), ...report, list: listFix })
   } catch (e) { res.status(500).json({ ok: false, error: e.message }) }
 })
+// One-time repair: the FSBO prune used to WIPE fsbo_listings/list_date/dom when a
+// seller dropped off the master file (fixed 2026-09-10 — history now stays). Rebuild
+// a listing entry for every wiped profile from what survived: the fsbo_link/price/
+// notes columns, the profile address, and the master_file_updates log (address/dom/
+// url captured at the time). dry_run previews. Never touches records that still
+// have their listings.
+router.post('/fsbo/restore-history', (req, res) => {
+  const dry = !!req.body?.dry_run
+  const wiped = db.all(`SELECT id, first_name, last_name, address, city, fsbo_status, fsbo_link, fsbo_price, fsbo_notes, fsbo_list_date, fsbo_dom
+    FROM clients WHERE (fsbo_listings IS NULL OR fsbo_listings = '') AND merged_into IS NULL
+      AND ((fsbo_link IS NOT NULL AND fsbo_link != '') OR fsbo_price IS NOT NULL
+           OR EXISTS (SELECT 1 FROM master_file_updates u WHERE u.client_id = clients.id AND u.list = 'fsbo'))`)
+  let restored = 0
+  const out = []
+  for (const c of wiped) {
+    const u = db.get("SELECT address, dom, url FROM master_file_updates WHERE client_id=? AND list='fsbo' AND (url IS NOT NULL OR address IS NOT NULL OR dom IS NOT NULL) ORDER BY id DESC LIMIT 1", [c.id]) || {}
+    const link = c.fsbo_link || u.url || null
+    const address = c.address || (u.address ? String(u.address).split(',')[0] : null)
+    if (!link && !address) continue   // nothing meaningful to rebuild
+    const entry = { address, city: c.city || null, list_date: c.fsbo_list_date || null, dom: c.fsbo_dom ?? u.dom ?? null,
+      price: c.fsbo_price || null, status: c.fsbo_status || 'Off Market', link, notes: c.fsbo_notes || null }
+    restored++
+    out.push({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), link, address })
+    if (!dry) db.run('UPDATE clients SET fsbo_listings=?, updated_at=? WHERE id=?', [JSON.stringify([entry]), new Date().toISOString(), c.id])
+  }
+  res.json({ dry_run: dry, candidates: wiped.length, restored, leads: out })
+})
+
 router.get('/fsbo/status', (_req, res) => {
   const counts = db.all("SELECT fsbo_status s, COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' GROUP BY fsbo_status")
   res.json({ last_sync: db.getSetting?.('fsbo_master_last_sync') || null, source: fsboMasterCsvUrl(), counts })
