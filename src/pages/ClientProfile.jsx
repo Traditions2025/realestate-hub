@@ -715,6 +715,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
   const [aiBusy, setAiBusy] = useState(false)
   const [aiSug, setAiSug] = useState(null)       // { intent, summary, suggestion:{subject,body}, error }
   const [aiApproach, setAiApproach] = useState('')
+  const [aiCtx, setAiCtx] = useState('')         // free-text context for the adjust flow (same as Inbox)
   const taRef = React.useRef(null)
   useEffect(() => {
     authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {})
@@ -744,6 +745,17 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     const s = aiSug?.suggestion; if (!s) return
     if (s.subject) setSubject(s.subject)
     setBody(withSig(String(s.body || '').trimEnd()))
+  }
+  // Adjust the suggestion (tone buttons + free-text context) — same /ai/adjust flow as the Inbox.
+  const adjustSuggestion = async (instruction, context) => {
+    const current = aiSug?.suggestion || { subject, body: stripHtml(body).replace(/\{\{signature\}\}/g, '').trim() }
+    setAiBusy(true)
+    try {
+      const r = await authFetch(`/api/inbox/thread/${client.id}/ai/adjust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction: instruction || '', context: context || '', current }) })
+      const d = await r.json()
+      if (d.error) setAiSug(s => ({ ...(s || {}), error: d.error }))
+      else if (d.reply) { setAiSug(s => ({ ...(s || {}), suggestion: d.reply, error: null })); if (context) setAiCtx('') }
+    } catch (e) { setAiSug(s => ({ ...(s || {}), error: e.message })) } finally { setAiBusy(false) }
   }
   const doPreview = async () => {
     setPreviewing(true)
@@ -809,9 +821,19 @@ function EmailComposer({ client, onClose, onSent, initial }) {
                   {aiSug.suggestion.subject && <div style={{ fontWeight: 700, marginBottom: 4 }}>{aiSug.suggestion.subject}</div>}
                   {aiSug.suggestion.body}
                 </div>
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                   <button className="btn btn-sm btn-primary" onClick={useSuggested}>Use this</button>
                   <button className="btn btn-sm" disabled={aiBusy} onClick={() => suggest()}>↻ Regenerate</button>
+                  {[['shorter', 'Shorter'], ['casual', 'More casual'], ['direct', 'More direct'], ['warmer', 'Warmer']].map(([k, l]) => (
+                    <button key={k} className="btn btn-sm" disabled={aiBusy} onClick={() => adjustSuggestion(k)}>{l}</button>
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <input value={aiCtx} onChange={e => setAiCtx(e.target.value)}
+                    placeholder="Add context for the AI (e.g. spoke on the phone yesterday, mention the open house)…"
+                    onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustSuggestion('', aiCtx.trim()) }}
+                    style={{ flex: 1, padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12.5 }} />
+                  <button className="btn btn-sm" disabled={aiBusy || !aiCtx.trim()} onClick={() => adjustSuggestion('', aiCtx.trim())}>Apply</button>
                 </div>
               </>
             )}
