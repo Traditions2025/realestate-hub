@@ -69,6 +69,32 @@ test('Not in Market still cannot be overwritten by Sierra status', () => {
   assert.equal(c.status, 'not_in_market')
 })
 
+test('sync BACKFILLS contact fields only when the Hub field is empty', () => {
+  const s = sid()
+  const r = db.run(`INSERT INTO clients (first_name, last_name, type, status, sierra_lead_id, phone, email, address)
+                    VALUES (?,?,?,?,?,NULL,NULL,NULL)`, ['Hub', 'Empty', 'buyer', 'new', String(s)])
+  processLead(sierraLead(s))
+  const c = db.get('SELECT * FROM clients WHERE id=?', [r.lastInsertRowid])
+  assert.equal(c.phone, '(319) 555-9999', 'empty phone backfilled from Sierra')
+  assert.equal(c.email, 'sierra@example.com', 'empty email backfilled')
+  assert.equal(c.address, '99 Sierra Ave', 'empty address backfilled')
+  // ...but a lead WITH Hub values keeps them (covered above) — run once more to
+  // prove the backfilled values now stick even if Sierra changes again.
+  processLead(sierraLead(s, { phone: '(319) 555-0000', email: 'other@example.com' }))
+  const c2 = db.get('SELECT phone, email FROM clients WHERE id=?', [r.lastInsertRowid])
+  assert.equal(c2.phone, '(319) 555-9999')
+  assert.equal(c2.email, 'sierra@example.com')
+})
+
+test('backfill never uses a notvalidemail placeholder', () => {
+  const s = sid()
+  const r = db.run(`INSERT INTO clients (first_name, last_name, type, status, sierra_lead_id, email)
+                    VALUES (?,?,?,?,?,NULL)`, ['Hub', 'Empty2', 'buyer', 'new', String(s)])
+  processLead(sierraLead(s, { email: 'x123@notvalidemail.com' }))
+  const c = db.get('SELECT email FROM clients WHERE id=?', [r.lastInsertRowid])
+  assert.equal(c.email, null)
+})
+
 test('new Sierra leads still insert with full contact data', () => {
   const s = sid()
   processLead(sierraLead(s))

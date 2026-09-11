@@ -137,11 +137,19 @@ export function processLead(lead, sierraStatusOverride) {
     // and profile data. On an EXISTING lead the sync writes ONLY what Sierra
     // genuinely owns — status (junk safety; NIM-guarded), website visits,
     // validation statuses, Sierra dates/pond, opt-outs, summary, tags, lender
-    // info, saved-search criteria. It NEVER touches name, email, phone, address,
+    // info, saved-search criteria. It NEVER REPLACES name, email, phone, address,
     // type, budgets, agent assignment, or the Realist score/grade: Hub edits to
     // those used to be silently reverted by the next sync pass (39 Forewarn-
-    // verified phone numbers on 2026-09-10). New leads still INSERT in full.
+    // verified phone numbers on 2026-09-10). The one exception: an EMPTY Hub
+    // contact field is backfilled from Sierra (a lead adding their phone/email
+    // on the website is new data, not an overwrite). New leads INSERT in full.
     db.run(`UPDATE clients SET
+      phone   = CASE WHEN phone   IS NULL OR phone   = '' THEN ? ELSE phone   END,
+      email   = CASE WHEN (email  IS NULL OR email   = '') AND COALESCE(?, '') NOT LIKE '%notvalidemail%' THEN ? ELSE email END,
+      address = CASE WHEN address IS NULL OR address = '' THEN ? ELSE address END,
+      city    = CASE WHEN city    IS NULL OR city    = '' THEN ? ELSE city    END,
+      state   = CASE WHEN state   IS NULL OR state   = '' THEN ? ELSE state   END,
+      zip     = CASE WHEN zip     IS NULL OR zip     = '' THEN ? ELSE zip     END,
       status=CASE WHEN status='not_in_market' THEN status ELSE ? END, -- Hub-native status: Sierra has no equivalent, never overwrite it
       visits=?, email_status=?, phone_status=?,
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
@@ -150,7 +158,8 @@ export function processLead(lead, sierraStatusOverride) {
       search_price_min=?, search_price_max=?, search_beds_min=?, search_baths_min=?,
       search_sqft_min=?, search_regions=?, search_property_types=?, has_saved_search=?,
       updated_at=datetime('now') WHERE id=?`,
-      [clientStatus,
+      [phone, email, email, address, city, state, zip,
+        clientStatus,
         visits, emailStatus, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
         meOptOut, textOptOut, ealertOptOut, shortSummary,
