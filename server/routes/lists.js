@@ -169,7 +169,9 @@ router.post('/fsbo/restore-history', (req, res) => {
   for (const c of wiped) {
     const u = db.get("SELECT address, dom, url FROM master_file_updates WHERE client_id=? AND list='fsbo' AND (url IS NOT NULL OR address IS NOT NULL OR dom IS NOT NULL) ORDER BY id DESC LIMIT 1", [c.id]) || {}
     const link = c.fsbo_link || u.url || null
-    const address = c.address || (u.address ? String(u.address).split(',')[0] : null)
+    // The update-log address is the LISTING address captured at the time; the profile
+    // address may have moved on since. Prefer the log so the card matches the link.
+    const address = (u.address ? String(u.address).split(',')[0].trim() : null) || c.address
     if (!link && !address) continue   // nothing meaningful to rebuild
     const entry = { address, city: c.city || null, list_date: c.fsbo_list_date || null, dom: c.fsbo_dom ?? u.dom ?? null,
       price: c.fsbo_price || null, status: c.fsbo_status || 'Off Market', link, notes: c.fsbo_notes || null }
