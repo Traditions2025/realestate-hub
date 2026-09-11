@@ -2133,6 +2133,13 @@ export async function initDb() {
     db.run('CREATE INDEX IF NOT EXISTS idx_cx_campaign_due ON cx_campaign(status, next_send_at)')
   } catch (e) { console.error('[migration] cx_campaign tables failed:', e.message) }
 
+  // Hub-side phone edits survive Sierra sync: the Sierra-side number that a Hub
+  // edit replaced. While Sierra still reports it, processLead keeps the Hub phone.
+  try {
+    const cCols = db.all('PRAGMA table_info(clients)').map(r => r.name)
+    if (!cCols.includes('phone_sierra_shadow')) db.run('ALTER TABLE clients ADD COLUMN phone_sierra_shadow TEXT')
+  } catch (e) { console.error('[migration] phone_sierra_shadow failed:', e.message) }
+
   // User profile photo: small square-cropped data URI (client resizes to ~256px
   // before upload, server caps size), shown as the header avatar + on /profile.
   try {

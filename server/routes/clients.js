@@ -1404,6 +1404,16 @@ router.put('/:id', async (req, res) => {
     fields.lead_score = digits || null
     fields.lead_grade = fields.lead_score ? gradeFromRealistScore(fields.lead_score) : null
   }
+  // A Hub-side phone edit must SURVIVE the Sierra incremental sync. Remember the
+  // number we replaced ('' when there was none) in phone_sierra_shadow: while
+  // Sierra still reports that stale number, processLead keeps the Hub's phone.
+  // A genuinely NEW number in Sierra later wins and clears the shadow.
+  // (Found 2026-09-11: 39 of 61 Forewarn phone updates were silently reverted by
+  // the next sync pass before this guard existed.)
+  if ('phone' in fields && before) {
+    const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+    if (d10(fields.phone) !== d10(before.phone)) fields.phone_sierra_shadow = before.phone || ''
+  }
   fields.updated_at = new Date().toISOString()
   const keys = Object.keys(fields)
   const sets = keys.map(k => `${k} = ?`).join(', ')

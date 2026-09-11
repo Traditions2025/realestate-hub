@@ -198,6 +198,9 @@ export async function evaluateEligibility(client, { atEnroll = false } = {}) {
   if (!client) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'client not found' }
   if (client.merged_into) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'merged into another record' }
   if (!client.phone) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: 'no phone on file' }
+  // Every approved template is built around the street address ("the home at X").
+  // Without one the text is meaningless to a cold recipient — never send it.
+  if (!String(client.address || '').trim()) return { ok: false, terminal: true, code: 'NO_ADDRESS', detail: 'no property address on file' }
 
   // Property status from the master-file-synced fields: anything back on/off the
   // market in the wrong direction stops prospecting.
@@ -261,6 +264,9 @@ export async function enrollClient(clientId, enrolledBy = 'manual') {
   const existing = db.get('SELECT * FROM cx_campaign WHERE client_id=?', [clientId])
   if (existing && existing.status === 'active') return { ok: false, reason: 'already enrolled' }
   if (existing && existing.status === 'response_received') return { ok: false, reason: 'response received — human must decide before re-enrollment' }
+  // A human's pause/remove sticks: bulk enroll never silently re-activates those.
+  // The profile card's Resume/Re-enroll button (resumeCampaign) is the explicit path back in.
+  if (existing && ['paused', 'removed'].includes(existing.status)) return { ok: false, reason: `${existing.status} by a human — use Resume/Re-enroll on the lead profile` }
   const ver = await evaluateEligibility(c, { atEnroll: true })
   if (!ver.ok) {
     logCx(clientId, 'enroll_refused', { eligibility_result: ver.code, suppression_reason: ver.detail })

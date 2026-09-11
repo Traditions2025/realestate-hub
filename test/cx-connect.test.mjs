@@ -267,3 +267,24 @@ test('bulk enroll reads the real client_lists table and eligibility-checks membe
   assert.ok(p.previews.length + p.skipped.length > 0)
   db.run("DELETE FROM client_lists WHERE name='Cancelled/Expired CxTest'")
 })
+
+test('no property address is terminal — the templates need a street', async () => {
+  const c = mkClient({ address: '' })
+  db.run("UPDATE clients SET address=NULL WHERE id=?", [c.id])
+  const v = await cx.evaluateEligibility(db.get('SELECT * FROM clients WHERE id=?', [c.id]))
+  assert.equal(v.ok, false); assert.equal(v.terminal, true); assert.equal(v.code, 'NO_ADDRESS')
+})
+
+test('bulk enroll never re-activates a human pause or removal', async () => {
+  const c = mkClient({})
+  await cx.enrollClient(c.id)
+  cx.pauseCampaign(c.id)
+  const r1 = await cx.enrollClient(c.id, 'bulk')
+  assert.equal(r1.ok, false); assert.match(r1.reason, /paused/)
+  cx.removeFromCampaign(c.id)
+  const r2 = await cx.enrollClient(c.id, 'bulk')
+  assert.equal(r2.ok, false); assert.match(r2.reason, /removed/)
+  // The explicit human path back in still works.
+  const r3 = await cx.resumeCampaign(c.id)
+  assert.equal(r3.ok, true)
+})
