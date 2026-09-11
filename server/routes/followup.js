@@ -90,11 +90,29 @@ async function gatherFub(personId) {
     texts: firstArray(texts), tasks: firstArray(tasks), appts: firstArray(appts), events: firstArray(events) }
 }
 
+// Sierra lead notes, fetched live (short + fail-safe): often the only written
+// history for leads with no online activity. HTML-stripped, humans-first.
+async function gatherSierraNotes(client) {
+  if (!client?.sierra_lead_id) return []
+  try {
+    const { sierraGet } = await import('../sierra-helper.js')
+    const data = await sierraGet(`/notes/${client.sierra_lead_id}`, { pageSize: 50, pageNumber: 1 })
+    const records = data?.data?.records || []
+    const clean = (n) => ({ when: dt(n.dateCreated), by: n.byUser?.name || 'Unknown', system: !!n.isSystemItem,
+      body: (n.contents || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().substring(0, 450) })
+    const human = records.filter(n => !n.isSystemItem).map(clean)
+    // Human-written notes carry the story; pad with system notes only when there are few.
+    return [...human, ...(human.length >= 5 ? [] : records.filter(n => n.isSystemItem).map(clean))].slice(0, 15)
+  } catch { return [] }
+}
+
 // Shape the HUB + FUB data into a compact, factual dossier for the model.
-function buildDossier(client, fub) {
+function buildDossier(client, fub, sierraNotes) {
   const hubActivity = db.all(
     `SELECT type, prop_street, prop_city, prop_price, prop_mls, page_title, occurred_at
      FROM fub_activity WHERE client_id = ? ORDER BY occurred_at DESC, id DESC LIMIT 15`, [client.id])
+  // Structured Hub notes (the notes TABLE — separate from the clients.notes text column).
+  const noteRecords = db.all("SELECT title, content, created_at FROM notes WHERE related_type = 'client' AND related_id = ? ORDER BY created_at DESC LIMIT 12", [client.id])
 
   const d = { today: centralToday(), hub: {}, fub: { available: !!fub.available } }
   d.hub = {
@@ -112,6 +130,8 @@ function buildDossier(client, fub) {
     marketing_opt_out: !!client.marketing_email_opt_out,
     short_summary: clip(client.short_summary, 300) || null,
     hub_notes: clip(client.notes, 1500) || null,
+    hub_note_records: noteRecords.map(x => ({ when: dt(x.created_at), title: clip(x.title, 100), body: clip(x.content, 400) })),
+    sierra_notes: (sierraNotes || []).length ? sierraNotes : undefined,
     recent_web: hubActivity.map(a => ({ when: dt(a.occurred_at), what: a.type, prop: a.prop_street ? `${a.prop_street}, ${a.prop_city || ''}${a.prop_price ? ' $' + a.prop_price : ''}` : (a.page_title || '') })),
   }
   if (fub.available) {
@@ -136,6 +156,7 @@ function buildDossier(client, fub) {
 function hasSignal(dossier) {
   const h = dossier.hub, f = dossier.fub
   const c = (h.hub_notes ? 1 : 0) + (h.short_summary ? 1 : 0) + (h.recent_web?.length || 0) + (h.last_web_activity ? 1 : 0)
+    + (h.hub_note_records?.length || 0) + (h.sierra_notes?.length || 0)
     + (f.notes?.length || 0) + (f.calls?.length || 0) + (f.emails?.length || 0) + (f.texts?.length || 0)
     + (f.appointments?.length || 0) + (f.tasks?.length || 0)
   return c >= 2
@@ -213,8 +234,8 @@ router.post('/:clientId/analyze', async (req, res) => {
   if (!ai) return res.status(503).json({ error: 'AI is not configured (ANTHROPIC_API_KEY missing).' })
 
   try {
-    const fub = await gatherFub(client.fub_person_id)
-    const dossier = buildDossier(client, fub)
+    const [fub, sierraNotes] = await Promise.all([gatherFub(client.fub_person_id), gatherSierraNotes(client)])
+    const dossier = buildDossier(client, fub, sierraNotes)
     if (!hasSignal(dossier)) {
       const data = { enough_data: false, summary: '', recommendation: { action: 'none', label: 'Not enough history yet', rationale: '' }, why: [], known: [], email: null }
       const fp = activityFingerprint(client); const at = nowIso()
@@ -292,6 +313,6 @@ router.post('/:clientId/email', async (req, res) => {
 
 // Reusable AI + context building blocks for other features (e.g. the Inbox
 // suggested-reply). Same Claude client, FUB pull, dossier, and dash scrubbing.
-export { MODEL as AI_MODEL, getClient as getAiClient, gatherFub, buildDossier, noDash }
+export { MODEL as AI_MODEL, getClient as getAiClient, gatherFub, gatherSierraNotes, buildDossier, noDash }
 
 export default router

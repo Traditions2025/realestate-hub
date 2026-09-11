@@ -6,7 +6,7 @@ import { fileURLToPath } from 'url'
 import { randomUUID, createHash } from 'crypto'
 import db from '../database.js'
 import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
-import { getAiClient, gatherFub, buildDossier, noDash, AI_MODEL } from './followup.js'
+import { getAiClient, gatherFub, gatherSierraNotes, buildDossier, noDash, AI_MODEL } from './followup.js'
 import { notifyNewInbound } from '../gmail-inbox.js'
 import { twilioWebhookGuard } from '../twilio-webhook.js'
 import { isStopStatus, stopSequencesForClient } from '../lead-sequences.js'
@@ -1537,7 +1537,7 @@ async function generateReply(client, rows, adjustInstruction, context, current, 
   const cold = detectColdSeller(client)
   if (cold) system += '\n\n' + COLD_SELLER_PHILOSOPHY(cold)
   let dossier = {}
-  try { dossier = buildDossier(client, await gatherFub(client.fub_person_id)) } catch {}
+  try { const [fub, sn] = await Promise.all([gatherFub(client.fub_person_id), gatherSierraNotes(client)]); dossier = buildDossier(client, fub, sn) } catch {}
   const transcript = threadTranscript(rows)
   const angle = FOLLOWUP_ANGLES[approach] || ''
   // If the thread ends with OUR messages, their last inbound is stale: we may have already
