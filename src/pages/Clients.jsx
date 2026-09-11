@@ -4652,6 +4652,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
   const [labels, setLabels] = React.useState(() => phoneLabelMap(client))
   const clientNums = [...new Set([client.phone, ...String(client.alt_phones || '').split(','), ...extraNums].map(p => String(p || '').trim()).filter(Boolean))]
   const [toPhone, setToPhone] = React.useState('')
+  const [groupAll, setGroupAll] = React.useState(false)   // one group MMS to ALL the lead's numbers
   // "+ Add another number…" straight from the picker: saves to Additional phones
   // (with an optional nickname) and selects it for this send.
   const addNumberInline = async () => {
@@ -4754,6 +4755,21 @@ export function InlineTextComposer({ client, onClose, onSent }) {
     if (!recips.length) { alert('Add at least one recipient.'); return }
     setSending(true)
     try {
+      // "Text ALL of this lead's numbers" → one true group MMS containing every
+      // saved number (main + additionals), so both phones get it in one shared
+      // thread and see each other's replies — same engine as multi-person groups.
+      if (groupAll && recips.length === 1 && !recips[0].agent && clientNums.length > 1) {
+        if (media.length) { alert('Group texts cannot include a photo yet. Remove the photo or untick "all numbers".'); setSending(false); return }
+        const nm = `${recips[0].first_name || ''} ${recips[0].last_name || ''}`.trim() || recips[0].name || 'Lead'
+        const recipients = clientNums.map((p, i) => i === 0
+          ? { client_id: recips[0].id, name: nm }
+          : { phone: p, name: `${nm} (${labels[phoneD10(p)] || 'additional'})` })
+        const resp = await authFetch('/api/inbox/group-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: body.trim(), recipients }) })
+        const d = await resp.json()
+        if (d.success) { setBody(''); onSent && onSent(); onClose() }
+        else alert('Group text failed: ' + (d.error || 'unknown error'))
+        return
+      }
       // 2+ recipients + no photo → true group MMS (one shared thread, replies grouped).
       if (recips.length >= 2 && !media.length) {
         const recipients = recips.map(r => r.agent
@@ -4787,11 +4803,18 @@ export function InlineTextComposer({ client, onClose, onSent }) {
         <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>💬 Text</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>from your Hub number (319) 343-1562</span>
         {recips.length === 1 && !recips[0].agent && (
-          <select value={toPhone || clientNums[0]} onChange={e => { if (e.target.value === '__add__') { addNumberInline() } else setToPhone(e.target.value) }} title="Which of this lead's numbers to text (nicknames set on the profile show here)"
-            style={{ marginLeft: 8, fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+          <select value={toPhone || clientNums[0]} disabled={groupAll} onChange={e => { if (e.target.value === '__add__') { addNumberInline() } else setToPhone(e.target.value) }} title={groupAll ? 'Sending to ALL numbers as one group text' : "Which of this lead's numbers to text (nicknames set on the profile show here)"}
+            style={{ marginLeft: 8, fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', opacity: groupAll ? 0.5 : 1 }}>
             {clientNums.map((p, i) => <option key={p} value={p}>to {p} ({labels[phoneD10(p)] || (i === 0 ? 'main' : 'additional')})</option>)}
             <option value="__add__">＋ Add another number…</option>
           </select>
+        )}
+        {recips.length === 1 && !recips[0].agent && clientNums.length > 1 && (
+          <label title="One group MMS to every saved number — both phones get it in one shared thread and see each other's replies"
+            style={{ marginLeft: 8, fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: groupAll ? 'var(--accent)' : 'var(--text-muted)', fontWeight: groupAll ? 700 : 500 }}>
+            <input type="checkbox" checked={groupAll} onChange={e => setGroupAll(e.target.checked)} style={{ cursor: 'pointer' }} />
+            👥 all {clientNums.length} numbers
+          </label>
         )}
         <button onClick={onClose} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16 }} title="Close">✕</button>
       </div>
