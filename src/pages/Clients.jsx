@@ -4755,26 +4755,27 @@ export function InlineTextComposer({ client, onClose, onSent }) {
     if (!recips.length) { alert('Add at least one recipient.'); return }
     setSending(true)
     try {
-      // "Text ALL of this lead's numbers" → one true group MMS containing every
-      // saved number (main + additionals), so both phones get it in one shared
-      // thread and see each other's replies — same engine as multi-person groups.
-      if (groupAll && recips.length === 1 && !recips[0].agent && clientNums.length > 1) {
-        if (media.length) { alert('Group texts cannot include a photo yet. Remove the photo or untick "all numbers".'); setSending(false); return }
-        const nm = `${recips[0].first_name || ''} ${recips[0].last_name || ''}`.trim() || recips[0].name || 'Lead'
-        const recipients = clientNums.map((p, i) => i === 0
-          ? { client_id: recips[0].id, name: nm }
-          : { phone: p, name: `${nm} (${labels[phoneD10(p)] || 'additional'})` })
-        const resp = await authFetch('/api/inbox/group-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: body.trim(), recipients }) })
-        const d = await resp.json()
-        if (d.success) { setBody(''); onSent && onSent(); onClose() }
-        else alert('Group text failed: ' + (d.error || 'unknown error'))
-        return
+      // Build the group participant list. With "all numbers" ticked, the LEAD
+      // expands into EVERY saved number (main + additionals with nicknames) —
+      // and that expansion survives adding teammates or more recipients, so
+      // "Dave + Liz's number + Matt" is one thread with all three phones.
+      const groupRecipients = []
+      for (const r of recips) {
+        if (r.agent) { groupRecipients.push({ phone: r.phone, name: r.name }); continue }
+        const nm = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.name || 'Lead'
+        if (groupAll && r.id === client.id && clientNums.length > 1) {
+          clientNums.forEach((p, i) => groupRecipients.push(i === 0
+            ? { client_id: r.id, name: nm }
+            : { phone: p, name: `${nm} (${labels[phoneD10(p)] || 'additional'})` }))
+        } else groupRecipients.push({ client_id: r.id, name: nm })
       }
-      // 2+ recipients + no photo → true group MMS (one shared thread, replies grouped).
-      if (recips.length >= 2 && !media.length) {
-        const recipients = recips.map(r => r.agent
-          ? { phone: r.phone, name: r.name }
-          : { client_id: r.id, name: r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() })
+      // Photos can't ride a group MMS yet — never silently drop the extra numbers.
+      if (groupAll && clientNums.length > 1 && media.length) {
+        alert('Group texts cannot include a photo yet. Remove the photo or untick "all numbers".'); setSending(false); return
+      }
+      // 2+ participants + no photo → true group MMS (one shared thread, replies grouped).
+      if (groupRecipients.length >= 2 && !media.length) {
+        const recipients = groupRecipients
         const resp = await authFetch('/api/inbox/group-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: body.trim(), recipients }) })
         const d = await resp.json()
         if (d.success) {
@@ -4809,8 +4810,8 @@ export function InlineTextComposer({ client, onClose, onSent }) {
             <option value="__add__">＋ Add another number…</option>
           </select>
         )}
-        {recips.length === 1 && !recips[0].agent && clientNums.length > 1 && (
-          <label title="One group MMS to every saved number — both phones get it in one shared thread and see each other's replies"
+        {clientNums.length > 1 && recips.some(r => !r.agent && r.id === client.id) && (
+          <label title="One group MMS to every saved number — all phones get it in one shared thread and see each other's replies (teammates you loop in join the same thread)"
             style={{ marginLeft: 8, fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: groupAll ? 'var(--accent)' : 'var(--text-muted)', fontWeight: groupAll ? 700 : 500 }}>
             <input type="checkbox" checked={groupAll} onChange={e => setGroupAll(e.target.checked)} style={{ cursor: 'pointer' }} />
             👥 all {clientNums.length} numbers
@@ -4824,6 +4825,14 @@ export function InlineTextComposer({ client, onClose, onSent }) {
             {r.agent && <span title="Team agent" style={{ fontSize: 10 }}>👤</span>}
             {r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone}
             {recips.length > 1 && <button onClick={() => removeRecip(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>}
+          </span>
+        ))}
+        {/* "All numbers" mode: every extra number rides along as its own visible chip
+            so nobody silently disappears from the send. Unticking removes them. */}
+        {groupAll && recips.some(r => !r.agent && r.id === client.id) && clientNums.slice(1).map(p => (
+          <span key={'alt_' + p} title={`Included via "all numbers" — ${p}`}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--accent-subtle)', border: '1px solid var(--accent-border)', borderRadius: 14, padding: '3px 10px', fontSize: 12, color: 'var(--accent)' }}>
+            👥 {labels[phoneD10(p)] || p}
           </span>
         ))}
       </div>
