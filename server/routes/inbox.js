@@ -1296,7 +1296,25 @@ router.post('/group-text', async (req, res) => {
     db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, group_meta, occurred_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ['text', 'outgoing', null, `Group: ${names}`.slice(0, 120), '', '', body.replace(/\s+/g, ' ').slice(0, 160), body, 'conv_' + out.messageSid, 'grp_' + out.conversationSid, 'read', 'human', out.conversationSid, meta, nowIso()])
-    res.json({ success: true, conversation_sid: out.conversationSid, sent_to: out.participants.length, skipped: out.skipped, blocked })
+    // Twilio binds a phone + our Hub number to ONE group conversation at a time, so
+    // someone already sitting in another group thread (e.g. Matt in the team group)
+    // can't join a second one. Never leave them out silently: send a labeled 1:1
+    // copy of the group message instead, and tell the UI who got copies.
+    const copies = []
+    for (const s of (out.skipped || [])) {
+      try {
+        const { sendSms } = await import('../twilio.js')
+        const copyBody = `[Copy of a group text with ${out.participants.map(p => p.name || p.phone).slice(0, 3).join(' & ')}]\n${body}`
+        const r2 = await sendSms(s.phone, copyBody, {})
+        const d10c = String(s.phone || '').replace(/\D/g, '').slice(-10)
+        db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'outgoing', s.client_id || null, s.name || s.phone, '', s.phone, copyBody.replace(/\s+/g, ' ').slice(0, 160), copyBody,
+            'twilio_' + r2.sid, s.client_id ? `c${s.client_id}_text` : `u_${d10c}`, 'read', 'human', nowIso()])
+        copies.push({ phone: s.phone, name: s.name || s.phone })
+      } catch (e) { console.error('[group-text] copy fallback failed for', s.phone, e.message) }
+    }
+    res.json({ success: true, conversation_sid: out.conversationSid, sent_to: out.participants.length, skipped: out.skipped, copies, blocked })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 // Inbound: Twilio Conversations onMessageAdded webhook (group replies). Public.

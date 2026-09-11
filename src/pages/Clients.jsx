@@ -4780,7 +4780,12 @@ export function InlineTextComposer({ client, onClose, onSent }) {
         const d = await resp.json()
         if (d.success) {
           setBody(''); onSent && onSent()
-          const notes = [...(d.blocked || []).map(b => `${b.name || b.phone || 'one'} skipped (${b.reason})`), ...(d.skipped || []).map(s => `${s.name || s.phone} couldn't be added`)]
+          const copied = new Set((d.copies || []).map(c => c.phone))
+          const notes = [
+            ...(d.blocked || []).map(b => `${b.name || b.phone || 'one'} skipped (${b.reason})`),
+            ...(d.copies || []).map(c => `${c.name} is already in another group thread with our number, so they got a separate 1:1 copy instead`),
+            ...(d.skipped || []).filter(s => !copied.has(s.phone)).map(s => `${s.name || s.phone} couldn't be added`),
+          ]
           if (notes.length) alert(`Group text sent to ${d.sent_to}.\n${notes.join('\n')}`); else onClose()
         } else alert('Group text failed: ' + (d.error || 'unknown error'))
         return
