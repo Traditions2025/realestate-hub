@@ -862,6 +862,37 @@ router.post('/render-preview', async (req, res) => {
   })
 })
 
+// One-time backfill: emails sent BEFORE 2026-08-07 (when logSentToInbox landed)
+// exist only in email_log and are invisible on profile threads (found via Rachel
+// Taylor 2026-09-11). Copy every historical sent email into communications,
+// skipping any that already have a thread row (same client + subject within 30
+// minutes). Idempotent via external_id 'elog_<id>'. dry_run previews counts.
+router.post('/backfill-thread-log', (req, res) => {
+  const dry = !!req.body?.dry_run
+  const rows = db.all("SELECT * FROM email_log WHERE status='sent' AND client_id IS NOT NULL AND to_email IS NOT NULL ORDER BY sent_at ASC")
+  let inserted = 0, skipped = 0
+  const tsec = "strftime('%s', replace(replace(?, 'T', ' '), 'Z', ''))"
+  for (const r of rows) {
+    const extId = 'elog_' + r.id
+    if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) { skipped++; continue }
+    const near = db.get(
+      `SELECT id FROM communications WHERE client_id = ? AND channel = 'email' AND direction = 'outgoing'
+         AND subject = ? AND ABS(strftime('%s', replace(replace(occurred_at, 'T', ' '), 'Z', '')) - ${tsec}) < 1800 LIMIT 1`,
+      [r.client_id, r.subject || '', r.sent_at])
+    if (near) { skipped++; continue }
+    inserted++
+    if (!dry) {
+      const preview = String(r.body || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+      const name = (db.get('SELECT first_name, last_name FROM clients WHERE id = ?', [r.client_id]) || {})
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['email', 'outgoing', r.client_id, `${name.first_name || ''} ${name.last_name || ''}`.trim(), r.from_email || FROM_EMAIL, r.to_email,
+          r.subject || '', preview, r.body || '', extId, `c${r.client_id}_email`, 'read', r.sent_at])
+    }
+  }
+  res.json({ dry_run: dry, examined: rows.length, inserted, skipped })
+})
+
 // Email history for a client
 router.get('/history/:clientId', (req, res) => {
   const rows = db.all('SELECT * FROM email_log WHERE client_id = ? ORDER BY sent_at DESC LIMIT 50',
