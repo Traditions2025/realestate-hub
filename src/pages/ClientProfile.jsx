@@ -5,6 +5,7 @@ import TemplatePicker from '../components/TemplatePicker'
 import {
   InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard, SocialProfiles,
   InlineTextComposer, COMM_META, commToText, stripQuotedDisplay, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
+  phoneD10, phoneLabelMap,
 } from './Clients'
 
 // Phone deliverability badge — shows what Twilio Lookup / delivery results told us:
@@ -419,7 +420,7 @@ function CallActionButton({ client, name }) {
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{num}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{num === String(client.phone || '').trim() ? 'Primary' : 'Additional'}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
             </button>
           ))}
         </div>
@@ -431,15 +432,25 @@ function CallActionButton({ client, name }) {
 // ── Client Details (contact + CRM + tags) ────────────────────────────────
 // Tiny inline adder: appends one more phone/email to the comma-separated alt list.
 // Opened by the ＋ next to the pencil on the Phone / Email rows.
-function AltQuickAdd({ cid, field, placeholder, existing, onSaved, onClose }) {
+function AltQuickAdd({ cid, field, placeholder, existing, existingLabels, onSaved, onClose }) {
   const [val, setVal] = useState('')
+  const [nick, setNick] = useState('')
   const [saving, setSaving] = useState(false)
+  const isPhone = field === 'alt_phones'
   const save = async () => {
     if (!val.trim()) { onClose(); return }
     setSaving(true)
     try {
       const combined = existing ? `${existing}, ${val.trim()}` : val.trim()
-      await authFetch(`/api/clients/${cid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: combined }) })
+      const body = { [field]: combined }
+      // Additional phones can carry a nickname ("Wife - Sarah", "Work") so every
+      // number picker can say who the number belongs to.
+      if (isPhone && nick.trim()) {
+        let map = {}; try { map = JSON.parse(existingLabels || '{}') } catch {}
+        map[phoneD10(val)] = nick.trim()
+        body.alt_phone_labels = JSON.stringify(map)
+      }
+      await authFetch(`/api/clients/${cid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       onSaved && onSaved(); onClose()
     } catch (e) { alert('Could not save: ' + e.message) } finally { setSaving(false) }
   }
@@ -447,9 +458,41 @@ function AltQuickAdd({ cid, field, placeholder, existing, onSaved, onClose }) {
     <p style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       <input autoFocus value={val} placeholder={placeholder} onChange={e => setVal(e.target.value)}
         onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose() }}
-        style={{ flex: 1, minWidth: 160, padding: '3px 6px' }} />
+        style={{ flex: 1, minWidth: 140, padding: '3px 6px' }} />
+      {isPhone && <input value={nick} placeholder="Nickname (e.g. Wife - Sarah)" onChange={e => setNick(e.target.value)}
+        onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose() }}
+        style={{ flex: 1, minWidth: 130, padding: '3px 6px' }} />}
       <button className="btn btn-sm btn-primary" disabled={saving} onClick={save}>{saving ? '…' : 'Save'}</button>
       <button className="btn btn-sm btn-secondary" onClick={onClose}>Cancel</button>
+    </p>
+  )
+}
+
+// Nickname chips for the Additional phones row: shows each extra number with its
+// label and lets you set/rename it in place.
+function AltPhoneLabels({ client, onSaved }) {
+  const nums = String(client.alt_phones || '').split(',').map(p => p.trim()).filter(Boolean)
+  if (!nums.length) return null
+  const map = phoneLabelMap(client)
+  const rename = async (p) => {
+    const cur = map[phoneD10(p)] || ''
+    const nick = window.prompt(`Nickname for ${p} (who is this number?):`, cur)
+    if (nick === null) return
+    const next = { ...map }
+    if (nick.trim()) next[phoneD10(p)] = nick.trim(); else delete next[phoneD10(p)]
+    try {
+      await authFetch(`/api/clients/${client.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_phone_labels: JSON.stringify(next) }) })
+      onSaved && onSaved()
+    } catch (e) { alert('Could not save: ' + e.message) }
+  }
+  return (
+    <p style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
+      {nums.map(p => (
+        <button key={p} onClick={() => rename(p)} title="Click to set who this number belongs to"
+          style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 9px', cursor: 'pointer' }}>
+          {p} — {map[phoneD10(p)] || 'set nickname ✎'}
+        </button>
+      ))}
     </p>
   )
 }
@@ -470,9 +513,10 @@ function ClientDetails({ client, onSaved }) {
           <InlineName detail={client} onSaved={onSaved} />
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved}
             statusTag={<button title="Add another phone number for this lead" style={plusBtnStyle} onClick={() => setAltAdd(v => v === 'phones' ? null : 'phones')}>＋</button>} />
-          {altAdd === 'phones' && <AltQuickAdd cid={cid} field="alt_phones" placeholder="(319) 555-0100" existing={client.alt_phones} onSaved={onSaved} onClose={() => setAltAdd(null)} />}
+          {altAdd === 'phones' && <AltQuickAdd cid={cid} field="alt_phones" placeholder="(319) 555-0100" existing={client.alt_phones} existingLabels={client.alt_phone_labels} onSaved={onSaved} onClose={() => setAltAdd(null)} />}
           {client.phone && <PhoneStatusBadge client={client} />}
           {client.alt_phones && <InlineField label="Additional phones" field="alt_phones" value={client.alt_phones} clientId={cid} onSaved={onSaved} placeholder="(319) 555-0100, (319) 555-0200 — comma separated" />}
+          {client.alt_phones && <AltPhoneLabels client={client} onSaved={onSaved} />}
           <InlineField label="Email" field="email" type="email" value={client.email} clientId={cid} onSaved={onSaved}
             statusTag={<button title="Add another email address for this lead" style={plusBtnStyle} onClick={() => setAltAdd(v => v === 'emails' ? null : 'emails')}>＋</button>} />
           {altAdd === 'emails' && <AltQuickAdd cid={cid} field="alt_emails" placeholder="name@gmail.com" existing={client.alt_emails} onSaved={onSaved} onClose={() => setAltAdd(null)} />}

@@ -4635,14 +4635,40 @@ export function AiIsaCard({ clientId }) {
   )
 }
 
+// Nicknames for a lead's ADDITIONAL numbers (clients.alt_phone_labels: JSON keyed by
+// the number's last 10 digits) so every picker can say WHO a number belongs to.
+export const phoneD10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+export const phoneLabelMap = (c) => { try { return JSON.parse(c?.alt_phone_labels || '{}') } catch { return {} } }
+export const phoneLabelFor = (c, p, idx) => phoneLabelMap(c)[phoneD10(p)] || (idx === 0 ? 'main' : 'additional')
+
 // --- Inline text box on the lead profile: opens under the action buttons (not a
 // modal behind the drawer). Text, template, merge fields, photo (MMS), and add
 // more recipients — sends from the Hub number to everyone in one shot. ---
 export function InlineTextComposer({ client, onClose, onSent }) {
   const [recips, setRecips] = React.useState([client])
-  // Which of the lead's saved numbers to text (primary + any alt_phones).
-  const clientNums = [client.phone, ...String(client.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean)
+  // Which of the lead's saved numbers to text (primary + any alt_phones). Numbers
+  // added inline through the picker land in extraNums until the profile reloads.
+  const [extraNums, setExtraNums] = React.useState([])
+  const [labels, setLabels] = React.useState(() => phoneLabelMap(client))
+  const clientNums = [...new Set([client.phone, ...String(client.alt_phones || '').split(','), ...extraNums].map(p => String(p || '').trim()).filter(Boolean))]
   const [toPhone, setToPhone] = React.useState('')
+  // "+ Add another number…" straight from the picker: saves to Additional phones
+  // (with an optional nickname) and selects it for this send.
+  const addNumberInline = async () => {
+    const num = window.prompt('New phone number for this lead:')
+    if (!num || !phoneD10(num) || phoneD10(num).length < 10) { if (num) alert('That does not look like a full phone number.'); return }
+    const nick = window.prompt('Nickname for this number (optional — e.g. "Wife - Sarah", "Work"):') || ''
+    try {
+      const combined = client.alt_phones ? `${client.alt_phones}, ${num.trim()}` : num.trim()
+      const newLabels = { ...labels }
+      if (nick.trim()) newLabels[phoneD10(num)] = nick.trim()
+      await authFetch(`/api/clients/${client.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_phones: combined, alt_phone_labels: JSON.stringify(newLabels) }) })
+      client.alt_phones = combined   // keep the local record in step for a second add
+      setLabels(newLabels)
+      setExtraNums(v => [...v, num.trim()])
+      setToPhone(num.trim())
+    } catch (e) { alert('Could not save the number: ' + e.message) }
+  }
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState([])
   const [body, setBody] = React.useState('')
@@ -4760,10 +4786,11 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>💬 Text</span>
         <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>from your Hub number (319) 343-1562</span>
-        {recips.length === 1 && !recips[0].agent && clientNums.length > 1 && (
-          <select value={toPhone || clientNums[0]} onChange={e => setToPhone(e.target.value)} title="Which of this lead's numbers to text"
+        {recips.length === 1 && !recips[0].agent && (
+          <select value={toPhone || clientNums[0]} onChange={e => { if (e.target.value === '__add__') { addNumberInline() } else setToPhone(e.target.value) }} title="Which of this lead's numbers to text (nicknames set on the profile show here)"
             style={{ marginLeft: 8, fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-            {clientNums.map((p, i) => <option key={p} value={p}>to {p}{i === 0 ? ' (main)' : ''}</option>)}
+            {clientNums.map((p, i) => <option key={p} value={p}>to {p} ({labels[phoneD10(p)] || (i === 0 ? 'main' : 'additional')})</option>)}
+            <option value="__add__">＋ Add another number…</option>
           </select>
         )}
         <button onClick={onClose} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 16 }} title="Close">✕</button>

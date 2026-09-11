@@ -2138,7 +2138,10 @@ export async function initDb() {
   try {
     const cCols = db.all('PRAGMA table_info(clients)').map(r => r.name)
     if (!cCols.includes('phone_sierra_shadow')) db.run('ALTER TABLE clients ADD COLUMN phone_sierra_shadow TEXT')
-  } catch (e) { console.error('[migration] phone_sierra_shadow failed:', e.message) }
+    // Nicknames for additional phone numbers ("Wife - Sarah", "Work"): JSON object
+    // keyed by the number's last 10 digits. Shown in every number picker.
+    if (!cCols.includes('alt_phone_labels')) db.run('ALTER TABLE clients ADD COLUMN alt_phone_labels TEXT')
+  } catch (e) { console.error('[migration] clients phone cols failed:', e.message) }
 
   // User profile photo: small square-cropped data URI (client resizes to ~256px
   // before upload, server caps size), shown as the header avatar + on /profile.

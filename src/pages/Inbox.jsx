@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
+import { phoneD10, phoneLabelMap } from './Clients'
 import Modal from '../components/Modal'
 import RichTextEditor from '../components/RichTextEditor'
 import TemplatePicker from '../components/TemplatePicker'
@@ -699,7 +700,7 @@ export default function Inbox() {
                     {replyChannel === 'text' && selNums.length > 1 && (
                       <select value={toPhone || selNums[0]} onChange={e => setToPhone(e.target.value)} title="Which of this lead's numbers to text"
                         style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
-                        {selNums.map((p, i) => <option key={p} value={p}>to {p}{i === 0 ? ' (main)' : ''}</option>)}
+                        {selNums.map((p, i) => <option key={p} value={p}>to {p} ({(selLead && phoneLabelMap(selLead)[phoneD10(p)]) || (i === 0 ? 'main' : 'additional')})</option>)}
                       </select>
                     )}
                     <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || (!reply.body.trim() && !(replyChannel === 'text' && replyMedia.length))} onClick={sendReply}>{sending ? 'Sending…' : replyChannel === 'text' ? '💬 Send text' : '✉ Send reply'}</button>
