@@ -119,6 +119,7 @@ export default function Inbox() {
   const [groupSel, setGroupSel] = useState(null)       // { sid, name, group_meta } for a group-MMS conversation
   const [thread, setThread] = useState([])
   const [selNums, setSelNums] = useState([])   // the selected lead's saved numbers (primary + additional)
+  const [selLead, setSelLead] = useState(null) // the selected lead's record (header status pill: FSBO / Cancelled / Expired)
   const [toPhone, setToPhone] = useState('')   // which number the text reply goes to ('' = primary)
   const [compose, setCompose] = useState(false)
   // AI suggested reply + editable draft
@@ -198,11 +199,13 @@ export default function Inbox() {
     setUnknownSel(null); setGroupSel(null)
     setSel(clientId)
     setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setAiOpen(false); setAiApproach(''); setOpenMsgs({}); setReplyMedia([])
-    // Load the lead's saved numbers so the text reply can pick WHICH number to send to.
-    setToPhone(''); setSelNums([])
+    // Load the lead's saved numbers so the text reply can pick WHICH number to send to
+    // (and keep the record for the header's FSBO / Cancelled / Expired status pill).
+    setToPhone(''); setSelNums([]); setSelLead(null)
     authFetch(`/api/clients/${clientId}`).then(r => r.json()).then(c => {
       const nums = [c.phone, ...String(c.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean)
       setSelNums(nums)
+      setSelLead(c)
     }).catch(() => {})
     authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
@@ -480,6 +483,21 @@ export default function Inbox() {
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>{selConvo?.contact_name || 'Conversation'}</div>
                 <a href={'/clients/' + sel} className="btn btn-sm btn-secondary" style={{ textDecoration: 'none' }} title="Open the full-screen profile (right-click or Ctrl/Cmd-click to open in a new tab)" onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); navigate('/clients/' + sel) }}>◉ View profile</a>
+                {(() => {
+                  // Seller-context pill: what kind of listing lead is texting us —
+                  // Cancelled / Expired / Withdrawn (MLS status), or FSBO + its
+                  // current status. Former FSBOs (history kept, off the file) show
+                  // FSBO Off Market so the context never disappears mid-conversation.
+                  const c = selLead
+                  if (!c || Number(c.id) !== Number(sel)) return null
+                  let label = null, color = null
+                  if (c.fsbo_status) { label = `FSBO ${c.fsbo_status}`; color = c.fsbo_status === 'Available' ? '#059669' : '#d97706' }
+                  else if (c.fsbo_listings && c.fsbo_listings !== '[]') { label = 'FSBO Off Market'; color = '#d97706' }
+                  else if (c.mls_status && !/sold/i.test(c.mls_status)) { label = c.mls_status; color = /cancel/i.test(c.mls_status) ? '#d97706' : '#dc2626' }
+                  else if (c.mls_status) { label = c.mls_status; color = '#059669' }
+                  if (!label) return null
+                  return <span title="Listing context from the master files" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
+                })()}
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
                   style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
                   <option value="">Unassigned</option>
