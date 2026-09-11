@@ -699,7 +699,9 @@ function CommItem({ m }) {
       <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
         <div style={{ maxWidth: '78%', minWidth: 110 }}>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
-            {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')} · {fmtCommWhen(m.occurred_at)}
+            {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')}
+            {!out && m.conversation_sid && m.from_addr ? ` · ${(() => { const d = String(m.from_addr).replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : m.from_addr })()}` : ''}
+            {' · '}{fmtCommWhen(m.occurred_at)}
           </div>
           <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
             {text || '📎 attachment'}

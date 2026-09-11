@@ -822,6 +822,17 @@ function GroupPane({ sel, onClose }) {
   }
   let participants = []
   try { participants = (JSON.parse(sel.group_meta || '{}').participants || []).map(p => p.name || p.phone) } catch {}
+  // Per-message sender resolution: match the message's from number against the
+  // participant list so replies show WHO + WHICH NUMBER ("Dave Deutsch (Liz) ·
+  // (319) 504-6694") — two numbers on one lead otherwise look identical.
+  let partByPhone = {}
+  try { for (const p of (JSON.parse(sel.group_meta || '{}').participants || [])) partByPhone[phoneD10(p.phone)] = p } catch {}
+  const prettyPhone = (p) => { const d = phoneD10(p); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (p || '') }
+  const senderLine = (m) => {
+    const p = partByPhone[phoneD10(m.from_addr)]
+    const nm = (p && p.name) || m.contact_name || 'Reply'
+    return m.from_addr ? `${nm} · ${prettyPhone(m.from_addr)}` : nm
+  }
   return (
     <>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -834,7 +845,7 @@ function GroupPane({ sel, onClose }) {
           const out = m.direction === 'outgoing'
           return (
             <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : (m.contact_name || 'Reply')} · {fmtDate(m.occurred_at)}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : senderLine(m)} · {fmtDate(m.occurred_at)}</div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
                 <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
               </div>
