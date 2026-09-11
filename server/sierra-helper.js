@@ -131,41 +131,27 @@ export function processLead(lead, sierraStatusOverride) {
   const lenderStatus = n(lead.lenderStatus)
   const listingAgentStatus = n(lead.listingAgentStatus)
 
-  const existing = db.get('SELECT id, status, phone, phone_sierra_shadow FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  const existing = db.get('SELECT id, status FROM clients WHERE sierra_lead_id = ?', [sierraId])
   if (existing) {
-    // Hub-side phone edits SURVIVE the sync (2026-09-11: a sync pass silently
-    // reverted 39 Forewarn-verified numbers before this guard existed):
-    //  - Sierra reports NO number      -> never wipe a Hub number.
-    //  - Sierra reports the OLD number the Hub replaced (phone_sierra_shadow)
-    //                                  -> Sierra is stale, keep the Hub number.
-    //  - Sierra reports a genuinely NEW number -> Sierra wins, shadow clears.
-    const dg = (s) => String(s || '').replace(/\D/g, '')
-    let phoneOut = phone, shadowOut = existing.phone_sierra_shadow ?? null
-    if (!dg(phone)) phoneOut = existing.phone
-    else if (shadowOut != null && dg(phone) === dg(shadowOut)) phoneOut = existing.phone
-    else if (dg(phone) === dg(existing.phone)) shadowOut = null      // back in sync
-    else if (shadowOut != null) shadowOut = null                     // new Sierra number accepted
-    db.run(`UPDATE clients SET first_name=?, last_name=?,
-      email = CASE WHEN ? LIKE '%notvalidemail%' AND email IS NOT NULL AND email != '' AND email NOT LIKE '%notvalidemail%' THEN email ELSE ? END,
-      phone=?, phone_sierra_shadow=?,
-      source=?,
-      address = CASE WHEN COALESCE(fsbo_status,'')!='' THEN address ELSE ? END,
-      city    = CASE WHEN COALESCE(fsbo_status,'')!='' THEN city    ELSE ? END,
-      state   = CASE WHEN COALESCE(fsbo_status,'')!='' THEN state   ELSE ? END,
-      zip     = CASE WHEN COALESCE(fsbo_status,'')!='' THEN zip     ELSE ? END,
-      type=?,
-      budget_min=?, budget_max=?, agent_assigned=?,
+    // FIELD OWNERSHIP (policy set 2026-09-11): the Hub is the master for contact
+    // and profile data. On an EXISTING lead the sync writes ONLY what Sierra
+    // genuinely owns — status (junk safety; NIM-guarded), website visits,
+    // validation statuses, Sierra dates/pond, opt-outs, summary, tags, lender
+    // info, saved-search criteria. It NEVER touches name, email, phone, address,
+    // type, budgets, agent assignment, or the Realist score/grade: Hub edits to
+    // those used to be silently reverted by the next sync pass (39 Forewarn-
+    // verified phone numbers on 2026-09-10). New leads still INSERT in full.
+    db.run(`UPDATE clients SET
       status=CASE WHEN status='not_in_market' THEN status ELSE ? END, -- Hub-native status: Sierra has no equivalent, never overwrite it
-      lead_score=COALESCE(?, lead_score), lead_grade=COALESCE(?, lead_grade), visits=?, email_status=?, phone_status=?,
+      visits=?, email_status=?, phone_status=?,
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
       marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,
       tags=?, lender_name=?, lender_status=?, listing_agent_status=?,
       search_price_min=?, search_price_max=?, search_beds_min=?, search_baths_min=?,
       search_sqft_min=?, search_regions=?, search_property_types=?, has_saved_search=?,
       updated_at=datetime('now') WHERE id=?`,
-      [firstName, lastName, email, email, phoneOut, shadowOut, source, address, city, state, zip,
-        type, budgetMin, budgetMax, agentAssigned, clientStatus,
-        leadScore, leadGrade, visits, emailStatus, phoneStatus,
+      [clientStatus,
+        visits, emailStatus, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
         meOptOut, textOptOut, ealertOptOut, shortSummary,
         tagsStr, lenderName, lenderStatus, listingAgentStatus,
