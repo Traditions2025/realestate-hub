@@ -1881,6 +1881,19 @@ export default function Transactions() {
                 title="Copy a link that opens this checklist — share it with Matt to review">
                 {shareCopied ? '✓ Link copied' : '🔗 Copy share link'}
               </button>
+              <button type="button" className="btn btn-secondary" style={{ color: '#ef4444', borderColor: 'rgba(239,68,68,.4)' }}
+                title="Permanently delete this pre-listing (the lead's profile is not touched)"
+                onClick={async () => {
+                  const addr = plEditing.property_address || 'this pre-listing'
+                  if (!window.confirm(`Delete ${addr}? This removes the pre-listing card and its checklist permanently. The client profile is not affected.`)) return
+                  try {
+                    await authFetch(`/api/pre-listings/${plEditing.id}`, { method: 'DELETE' })
+                    setPreListings(prev => prev.filter(p => p.id !== plEditing.id))
+                    setPlModalOpen(false)
+                  } catch (e) { alert('Delete failed: ' + e.message) }
+                }}>
+                🗑 Delete
+              </button>
               <button type="button" className="btn btn-secondary"
                 onClick={() => { const pl = plEditing; setPlModalOpen(false); promotePreListingToTransaction(pl, 'Active') }}>
                 Promote to Active
