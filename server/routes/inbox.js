@@ -1260,9 +1260,11 @@ router.post('/group-text', async (req, res) => {
   for (const r of raw) {
     if (r.client_id) {
       const c = db.get('SELECT * FROM clients WHERE id=?', [Number(r.client_id)])
-      if (!c || !c.phone) { blocked.push({ ...r, reason: 'no phone' }); continue }
+      if (!c || !(r.phone || c.phone)) { blocked.push({ ...r, reason: 'no phone' }); continue }
       if (c.hub_text_opt_out) { blocked.push({ name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), reason: 'replied STOP' }); continue }
-      recipients.push({ phone: c.phone, name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, client_id: c.id })
+      // r.phone (when given) is WHICH of the lead's saved numbers to use — the
+      // composer's picker choice (e.g. the Additional "Liz" number, not the primary).
+      recipients.push({ phone: r.phone || c.phone, name: r.name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, client_id: c.id })
     } else if (r.phone) {
       recipients.push({ phone: r.phone, name: r.name || null })
     }

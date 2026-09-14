@@ -4767,6 +4767,10 @@ export function InlineTextComposer({ client, onClose, onSent }) {
           clientNums.forEach((p, i) => groupRecipients.push(i === 0
             ? { client_id: r.id, name: nm }
             : { phone: p, name: `${nm} (${labels[phoneD10(p)] || 'additional'})` }))
+        } else if (r.id === client.id && toPhone && phoneD10(toPhone) !== phoneD10(client.phone)) {
+          // The picker chose one of the lead's ADDITIONAL numbers — the group must
+          // use that number, not silently fall back to the primary.
+          groupRecipients.push({ client_id: r.id, phone: toPhone, name: `${nm}${labels[phoneD10(toPhone)] ? ` (${labels[phoneD10(toPhone)]})` : ''}` })
         } else groupRecipients.push({ client_id: r.id, name: nm })
       }
       // Photos can't ride a group MMS yet — never silently drop the extra numbers.

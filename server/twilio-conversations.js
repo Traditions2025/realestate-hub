@@ -80,14 +80,35 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
   const conv = await tw('POST', `/Services/${sid}/Conversations`, { FriendlyName: 'Group text ' + new Date().toISOString() })
   const convSid = conv.sid
   const participants = [], skipped = []
+  // Twilio binds a phone + our proxy to ONE conversation. When someone is stuck in
+  // an OLD group (e.g. Dave in a superseded thread), pull them out of that
+  // conversation and retry — the new group wins. The old thread keeps its history;
+  // it simply stops including this participant.
+  const addParticipant = (phone) => tw('POST', `/Services/${sid}/Conversations/${convSid}/Participants`, {
+    'MessagingBinding.Address': phone,
+    'MessagingBinding.ProxyAddress': proxy,
+  })
+  const removeFromConversation = async (oldConvSid, phone) => {
+    const j = await tw('GET', `/Services/${sid}/Conversations/${oldConvSid}/Participants?PageSize=50`)
+    const p = (j.participants || []).find(x => (x.messaging_binding?.address || '') === phone)
+    if (!p) return false
+    await tw('DELETE', `/Services/${sid}/Conversations/${oldConvSid}/Participants/${p.sid}`)
+    return true
+  }
   for (const rp of clean) {
     try {
-      await tw('POST', `/Services/${sid}/Conversations/${convSid}/Participants`, {
-        'MessagingBinding.Address': rp.phone,
-        'MessagingBinding.ProxyAddress': proxy,
-      })
+      await addParticipant(rp.phone)
       participants.push(rp)
-    } catch (e) { skipped.push({ ...rp, error: e.message }) }
+    } catch (e) {
+      const m = String(e.message || '').match(/already exists in Conversation (CH[a-f0-9]{32})/i)
+      if (m) {
+        try {
+          const moved = await removeFromConversation(m[1], rp.phone)
+          if (moved) { await addParticipant(rp.phone); participants.push({ ...rp, migrated_from: m[1] }); continue }
+        } catch (e2) { skipped.push({ ...rp, error: e2.message }); continue }
+      }
+      skipped.push({ ...rp, error: e.message })
+    }
   }
   if (!participants.length) { try { await tw('DELETE', `/Services/${sid}/Conversations/${convSid}`) } catch {}; throw new Error('Could not add any participants: ' + (skipped[0]?.error || 'unknown')) }
   const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: author, Body: body })
