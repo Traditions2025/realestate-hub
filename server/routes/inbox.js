@@ -829,7 +829,11 @@ router.get('/campaigns', (_req, res) => {
       WHERE direction='incoming' AND channel='text' AND occurred_at > ?
         AND client_id IN (SELECT DISTINCT client_id FROM communications WHERE campaign_id=?)`, [camp.created_at, camp.id])?.n || 0
     const optOuts = db.get(`SELECT COUNT(*) n FROM clients WHERE hub_text_opt_out=1 AND id IN (SELECT DISTINCT client_id FROM communications WHERE campaign_id=?)`, [camp.id])?.n || 0
-    return { ...camp, sent: agg.sent || 0, delivered: agg.delivered || 0, failed: agg.failed || 0, replies, opt_outs: optOuts }
+    // WHY the failed ones failed (Twilio error text captured by the status webhook).
+    const failureReasons = (agg.failed || 0) > 0 ? db.all(`SELECT COALESCE(error_message, 'no reason recorded') reason, COUNT(*) n
+      FROM communications WHERE campaign_id=? AND direction='outgoing' AND delivery_status IN ('failed','undelivered')
+      GROUP BY COALESCE(error_message, 'no reason recorded') ORDER BY n DESC`, [camp.id]) : []
+    return { ...camp, sent: agg.sent || 0, delivered: agg.delivered || 0, failed: agg.failed || 0, replies, opt_outs: optOuts, failure_reasons: failureReasons }
   })
   res.json(out)
 })

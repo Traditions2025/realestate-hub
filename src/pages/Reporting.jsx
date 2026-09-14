@@ -331,7 +331,15 @@ function Campaigns() {
                 <td style={td}><div style={{ fontWeight: 600 }}>{c.name || '(unnamed)'}</div><div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.body}</div></td>
                 <td style={td}>{c.sent}{c.status === 'sending' && <span style={{ color: '#f59e0b' }}> …</span>}</td>
                 <td style={{ ...td, color: '#10b981' }}>{c.delivered}</td>
-                <td style={{ ...td, color: c.failed ? '#ef4444' : 'inherit' }}>{c.failed}</td>
+                <td style={{ ...td, color: c.failed ? '#ef4444' : 'inherit' }}
+                  title={(c.failure_reasons || []).map(r => `${r.n}× ${r.reason}`).join('\n') || undefined}>
+                  {c.failed}
+                  {c.failed > 0 && (c.failure_reasons || []).length > 0 && (
+                    <div style={{ fontSize: 10.5, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
+                      {(c.failure_reasons || []).slice(0, 2).map(r => `${r.n}× ${String(r.reason).slice(0, 34)}`).join(' · ')}
+                    </div>
+                  )}
+                </td>
                 <td style={{ ...td, color: '#8b5cf6' }}>{c.replies}</td>
                 <td style={{ ...td, color: c.opt_outs ? '#ef4444' : 'inherit' }}>{c.opt_outs}</td>
                 <td style={{ ...td, color: 'var(--text-muted)' }}>{fmt(c.created_at)}</td>
