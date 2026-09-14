@@ -236,7 +236,7 @@ async function pollOne(m) {
 // against existing rows, so a Hub-sent email that also passes through the mailbox
 // never doubles up. Counts as HUMAN contact (campaigns/AI defer around it).
 const TEAM_ADDRESSES = new Set(['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com', 'matt@mattsmithteam.com', 'automation@mattsmithteam.com'])
-export function logDirectOutboundEmail(mailboxUser, parsed, whenIso) {
+export function logDirectOutboundEmail(mailboxUser, parsed, whenIso, { excludeStatuses = [] } = {}) {
   const extId = 'gmail_' + (parsed.messageId || `${mailboxUser}_${whenIso}`)
   if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) return 0
   const rcpts = [...(parsed.to?.value || []), ...(parsed.cc?.value || [])]
@@ -246,6 +246,10 @@ export function logDirectOutboundEmail(mailboxUser, parsed, whenIso) {
   for (const addr of [...new Set(rcpts)].slice(0, 5)) {
     const c = matchClientByEmail(addr)
     if (!c) continue
+    if (excludeStatuses.length) {
+      const st = String(db.get('SELECT status FROM clients WHERE id=?', [c.id])?.status || '').toLowerCase()
+      if (excludeStatuses.includes(st)) continue
+    }
     // proximity dedupe: an outgoing email to this client with the same subject ±45 min
     const near = db.all(`SELECT id, subject FROM communications WHERE client_id=? AND channel='email' AND direction='outgoing'
       AND datetime(occurred_at) BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, whenIso, whenIso])
@@ -343,6 +347,55 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
 // profile feed. Deduped by Message-ID and by same-direction same-subject ±45 min, so
 // Hub-logged sends and already-polled emails never double up. Explicit action only —
 // the live poller stays cursor-based.
+// Backfill: walk a mailbox's SENT folder for the last N days and log every
+// directly-sent email onto matching lead profiles (junk / do-not-contact leads
+// skipped; Message-ID + subject-proximity dedupe means safe to re-run).
+export async function backfillSentFolder({ mailboxUser, days = 30 } = {}) {
+  const boxes = getMailboxes().filter(m => m.enabled !== false && m.app_password
+    && (!mailboxUser || m.user.toLowerCase() === String(mailboxUser).toLowerCase()))
+  if (!boxes.length) return { error: 'mailbox not found or not configured' }
+  const since = new Date(Date.now() - (Number(days) || 30) * 86400000)
+  const byClient = new Map()
+  let scanned = 0, logged = 0
+  for (const m of boxes) {
+    const pass = String(m.app_password || '').replace(/\s+/g, '')
+    const client = new ImapFlow({ host: m.host || 'imap.gmail.com', port: m.port || 993, secure: true, auth: { user: m.user, pass }, logger: false, greetingTimeout: 12000, socketTimeout: 60000 })
+    client.on('error', () => {})
+    try {
+      await client.connect()
+      let sentPath = null
+      try { const list = await client.list(); const s = list.find(b => b.specialUse === '\\Sent') || list.find(b => /sent/i.test(b.path)); if (s) sentPath = s.path } catch {}
+      if (!sentPath) { await client.logout(); continue }
+      const lock = await client.getMailboxLock(sentPath)
+      try {
+        const uids = await client.search({ since }, { uid: true }) || []
+        for await (const msg of client.fetch(uids, { uid: true, source: true, internalDate: true }, { uid: true })) {
+          scanned++
+          let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
+          const when = (msg.internalDate || parsed.date || new Date()).toISOString()
+          const before = logged
+          const n = logDirectOutboundEmail(m.user, parsed, when, { excludeStatuses: ['junk', 'donotcontact'] })
+          logged += n
+          if (n) {
+            const rcpts = [...(parsed.to?.value || [])].map(v => String(v.address || '').toLowerCase())
+            for (const a of rcpts) {
+              const c = matchClientByEmail(a)
+              if (c) {
+                const k = c.id
+                if (!byClient.has(k)) byClient.set(k, { client_id: k, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), email: a, count: 0 })
+                byClient.get(k).count++
+              }
+            }
+          }
+          void before
+        }
+      } finally { lock.release() }
+      await client.logout()
+    } catch (e) { try { await client.logout() } catch {}; return { error: e.message, scanned, logged } }
+  }
+  return { days: Number(days) || 30, scanned_sent_emails: scanned, logged, clients: [...byClient.values()].sort((a, b) => b.count - a.count) }
+}
+
 // Remove Gmail-imported rows that duplicate an existing non-Gmail record (same
 // direction + subject within 45 min) — self-heals any over-import.
 export function cleanupImportDuplicates(clientId) {
