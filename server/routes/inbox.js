@@ -122,7 +122,7 @@ const unknownKey = (phone) => { const k = phoneKey(phone); return k ? 'u_' + k :
 
 // Re-point every unknown (client_id NULL) communication in a thread onto a real
 // client, so the conversation becomes a normal lead thread going forward.
-function relinkUnknownThread(key, clientId, name) {
+export function relinkUnknownThread(key, clientId, name) {
   if (!key) return 0
   const rows = db.all('SELECT id, channel FROM communications WHERE thread_key = ? AND client_id IS NULL', [key])
   for (const row of rows) db.run('UPDATE communications SET client_id=?, contact_name=?, thread_key=? WHERE id=?', [clientId, name, `c${clientId}_${row.channel}`, row.id])
@@ -388,6 +388,36 @@ router.post('/unknown/create-lead', (req, res) => {
   const n = relinkUnknownThread(k, cid, name || fmtPhone(last10))
   res.json({ success: true, client_id: cid, linked_messages: n, existing: !!already })
 })
+// AUTO-LINK: claim every unknown (client_id NULL) call/text/voicemail thread whose
+// number now belongs to this client (main phone OR any alt number). Called whenever
+// a profile's numbers change, so "I talked to this number, then added it to the
+// profile" pulls the earlier call history onto the profile automatically.
+export function claimUnknownCommsForClient(clientId) {
+  const c = db.get('SELECT id, first_name, last_name, phone, alt_phones FROM clients WHERE id=?', [Number(clientId)])
+  if (!c) return 0
+  const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+  let n = 0
+  const nums = [c.phone, ...String(c.alt_phones || '').split(',')].map(p => phoneKey(p)).filter(Boolean)
+  for (const k of new Set(nums)) n += relinkUnknownThread('u_' + k, c.id, name || fmtPhone(k))
+  if (n) { try { import('../followup-coverage.js').then(m => m.recalcCoverage(c.id, { actorType: 'system' })).catch(() => {}) } catch {} }
+  return n
+}
+// Backlog sweep: link EVERY unknown thread whose number matches an existing client.
+router.post('/unknown/relink-all', (_req, res) => {
+  const keys = db.all("SELECT DISTINCT thread_key FROM communications WHERE client_id IS NULL AND thread_key LIKE 'u_%'").map(r => r.thread_key)
+  const out = []
+  for (const key of keys) {
+    const k = key.slice(2)
+    const match = db.all("SELECT id, first_name, last_name, phone, alt_phones FROM clients WHERE merged_into IS NULL AND (phone LIKE ? OR alt_phones LIKE ?)", ['%' + k.slice(-4), '%' + k.slice(-4) + '%'])
+      .find(c => phoneKey(c.phone) === k || String(c.alt_phones || '').split(',').some(p => phoneKey(p.trim()) === k))
+    if (!match) continue
+    const name = `${match.first_name || ''} ${match.last_name || ''}`.trim()
+    const n = relinkUnknownThread(key, match.id, name || fmtPhone(k))
+    if (n) out.push({ client_id: match.id, name, phone_last10: k, linked: n })
+  }
+  res.json({ scanned_unknown_threads: keys.length, linked_threads: out.length, details: out })
+})
+
 // Link an unknown conversation to an existing client.
 router.post('/unknown/link', (req, res) => {
   const { key, client_id } = req.body || {}

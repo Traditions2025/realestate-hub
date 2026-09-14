@@ -1410,6 +1410,8 @@ router.post('/', (req, res) => {
       n(b.preapproval_lender), n(b.notes)])
 
   logActivity('created', 'client', result.lastInsertRowid, `New ${b.type}: ${b.first_name} ${b.last_name}`)
+  // A brand-new lead with a phone claims any unknown call/text history from that number.
+  if (b.phone) { try { import('./inbox.js').then(m => m.claimUnknownCommsForClient(result.lastInsertRowid)).catch(() => {}) } catch {} }
   // FRESH-LANE hook: evaluate the new lead for AI auto-enrollment (no-op unless the
   // enrollment mode is on; the evaluator's own rules decide).
   try { import('../ai-enrollment.js').then(m => m.maybeAutoEnrollFresh(result.lastInsertRowid)).catch(() => {}) } catch {}
@@ -1504,6 +1506,15 @@ router.put('/:id', async (req, res) => {
   } else if (before && before.status === 'not_in_market' && fields.status && fields.status !== 'not_in_market') {
     try { const m = await import('../not-in-market.js'); m.exitNotInMarket(Number(req.params.id), fields.status) }
     catch (e) { console.error('[not-in-market-exit]', e.message) }
+  }
+  // A number added/changed on the profile AUTO-CLAIMS any unknown call/text/voicemail
+  // history from that number ("I talked to (319) 432-9939, then saved it on the
+  // profile" → the earlier call record appears on the profile automatically).
+  if ('phone' in fields || 'alt_phones' in fields) {
+    import('./inbox.js').then(m => {
+      const n = m.claimUnknownCommsForClient(Number(req.params.id))
+      if (n) logActivity('updated', 'client', Number(req.params.id), `Linked ${n} earlier call/text record(s) from this number to the profile`)
+    }).catch(() => {})
   }
   // Follow-up coverage refreshes on status / agent / contactability changes.
   if ('status' in fields || 'agent_assigned' in fields || 'phone' in fields || 'email' in fields || 'type' in fields) {
