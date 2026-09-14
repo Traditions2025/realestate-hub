@@ -756,6 +756,8 @@ export const SMART_LIST_SQL = {
       AND (clients.fsbo_status IS NULL OR clients.fsbo_status='')
       AND (clients.mls_status IS NULL OR clients.mls_status='')
       AND lower(trim(coalesce(clients.source,''))) NOT IN ('realist','import','imported','csv import','piesync','forewarn','batchleads','fsbo','fsbo zillow','expired','expired/cancelled mls','cancelled','cancel','withdrawn','foreclosure','foreclosures')
+      AND trim(coalesce(clients.first_name,'')) != '' AND trim(coalesce(clients.last_name,'')) != ''
+      AND clients.first_name NOT LIKE '%@%' AND clients.last_name NOT LIKE '%@%'
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%mls: expired%'
       AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%mls: cancelled%'
       AND NOT EXISTS (SELECT 1 FROM cx_campaign cx WHERE cx.client_id = clients.id)

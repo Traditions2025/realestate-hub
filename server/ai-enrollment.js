@@ -71,6 +71,30 @@ export function nextAllowedIso(from = new Date()) {
   return t.toISOString()
 }
 
+// ---- name quality ---------------------------------------------------------
+// Good leads only (John, 2026-09-14): a lead must carry a REAL first + last name.
+// Spammy registrations (email in the name field, digits, gibberish, placeholder
+// words, single names) are excluded from auto-enrollment — an agent can still
+// enable AI manually after cleaning the record up.
+const NAME_BAD_WORDS = new Set(['test', 'testing', 'unknown', 'none', 'noname', 'n/a', 'na', 'asdf', 'asdfasdf', 'qwerty', 'fake', 'sample', 'admin', 'user', 'null', 'undefined', 'lead', 'buyer', 'seller', 'info', 'contact', 'customer', 'client', 'anonymous', 'anon', 'guest', 'firstname', 'lastname'])
+export function looksRealName(first, last) {
+  const f = String(first || '').trim(), l = String(last || '').trim()
+  if (!f || !l) return false                                       // both parts required
+  const full = f + ' ' + l
+  if (/[@\d_]/.test(full)) return false                            // emails, digits, handles
+  if (/https?:|www\.|\.com|\.net|\.org/i.test(full)) return false  // URLs / domains
+  if (/[^\p{L}\s.'-]/u.test(full)) return false                    // only letters ' - . allowed
+  const letters = (s) => s.replace(/[^\p{L}]/gu, '')
+  if (letters(f).length < 2 || letters(l).length < 2) return false // "J." / bare initials
+  const tokens = full.toLowerCase().split(/[\s.'-]+/).filter(Boolean)
+  for (const t of tokens) {
+    if (NAME_BAD_WORDS.has(t)) return false                        // placeholder words
+    if (t.length > 3 && !/[aeiouyàáâäãéèêëíìîïóòôöõúùûü]/.test(t)) return false // vowel-less gibberish ("sdjkfh")
+    if (t.length > 3 && /^(.)\1+$/.test(t)) return false           // "aaaa"
+  }
+  return true
+}
+
 // ---- the central evaluator ------------------------------------------------
 const EXCLUDED = (code, reason, extra = {}) => ({ decision: 'excluded', reason_code: code, reason, ...extra })
 const DEFERRED = (code, reason, retry_after = null, extra = {}) => ({ decision: 'deferred', reason_code: code, reason, retry_after, ...extra })
@@ -116,6 +140,9 @@ export function evaluateAiEnrollmentEligibility(clientId) {
   const cfg = enrollmentConfig()
   const src = String(c.source || '').trim().toLowerCase()
   if (src && cfg.source_exclude.includes(src)) return fin(EXCLUDED('SOURCE_' + src.replace(/[^a-z0-9]+/g, '_').toUpperCase(), `source '${c.source}' is a prospecting/import origin`))
+
+  // 7b) Name quality — good leads only. Spammy/placeholder registrations are out.
+  if (!looksRealName(c.first_name, c.last_name)) return fin(EXCLUDED('NAME_QUALITY', `name '${`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(empty)'}' is missing or does not look like a real first + last name`))
 
   // 8) Contactability.
   const d10 = String(c.phone || '').replace(/\D/g, '')
@@ -270,6 +297,8 @@ function reactivationCandidates(cursor, limit, sourceExclude) {
     AND phone IS NOT NULL AND phone != '' AND COALESCE(hub_text_opt_out,0)=0 AND COALESCE(sms_undeliverable,0)=0
     AND (fsbo_status IS NULL OR fsbo_status='') AND (mls_status IS NULL OR mls_status='')
     AND lower(trim(COALESCE(source,''))) NOT IN (${notIn})
+    AND trim(COALESCE(first_name,'')) != '' AND trim(COALESCE(last_name,'')) != ''
+    AND first_name NOT LIKE '%@%' AND last_name NOT LIKE '%@%'
     ORDER BY id ASC LIMIT ?`, [Number(cursor) || 0, ...sourceExclude, limit])
 }
 

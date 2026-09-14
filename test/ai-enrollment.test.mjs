@@ -12,8 +12,10 @@ const eng = await import('../server/ai-enrollment.js')
 let seq = 0
 function mkClient(fields = {}) {
   const tag = `${Date.now()}${++seq}`
+  // letters-only name tag (digits in a name now fail the NAME_QUALITY gate)
+  const alphaTag = tag.replace(/\d/g, d => 'abcdefghij'[Number(d)])
   const cols = {
-    first_name: 'Test', last_name: 'Enroll' + tag, type: fields.type ?? 'buyer',
+    first_name: 'Tessa', last_name: 'Enroll' + alphaTag, type: fields.type ?? 'buyer',
     phone: fields.phone === null ? null : (fields.phone || '(319) 555-' + tag.slice(-4)),
     status: fields.status ?? 'new', source: fields.source ?? 'Mattsmithteam.com',
     created_at: fields.created_at || new Date().toISOString(),
@@ -100,6 +102,36 @@ test('already-enrolled (ai_enabled / ai_managed / pending action) is excluded, n
   const c = mkClient({})
   db.run('INSERT OR IGNORE INTO ai_lead_state (client_id, ai_enabled, ai_managed, ai_state) VALUES (?, 1, 1, ?)', [c.id, 'AI_WAITING_FOR_REPLY'])
   assert.equal(evalIt(c.id).reason_code, 'ALREADY_ENROLLED')
+})
+
+// ---- name quality (good leads only) ----
+test('spammy / placeholder / incomplete names are excluded (NAME_QUALITY)', () => {
+  const bad = [
+    { first_name: 'veta', last_name: '' },                       // single name
+    { first_name: 'john@gmail.com', last_name: 'Smith' },        // email as name
+    { first_name: 'Test', last_name: 'Test' },                   // placeholder
+    { first_name: 'sdjkfh', last_name: 'qwrtpl' },               // gibberish (no vowels)
+    { first_name: 'Mary2', last_name: 'Jones' },                 // digits
+    { first_name: 'aaaa', last_name: 'bbbb' },                   // repeated chars
+    { first_name: 'J.', last_name: 'S.' },                       // bare initials
+  ]
+  for (const n of bad) {
+    const ev = evalIt(mkClient(n).id)
+    assert.equal(ev.reason_code, 'NAME_QUALITY', JSON.stringify(n) + ' → ' + ev.reason_code)
+  }
+})
+
+test('real names pass the quality gate, including hyphens, apostrophes and accents', () => {
+  const good = [
+    { first_name: 'Mary-Jo', last_name: "O'Brien" },
+    { first_name: 'José', last_name: 'Muñoz' },
+    { first_name: 'Al', last_name: 'Ng' },
+    { first_name: 'Chad', last_name: 'Rubner' },
+  ]
+  for (const n of good) {
+    const ev = evalIt(mkClient(n).id)
+    assert.equal(ev.decision, 'eligible', JSON.stringify(n) + ' → ' + ev.reason_code)
+  }
 })
 
 // ---- deferrals ----

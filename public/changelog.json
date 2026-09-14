@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-14T17:44:57.627Z",
+  "generated_at": "2026-09-14T17:59:31.796Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "47c0964",
+      "date": "2026-09-14T12:45:29-05:00",
+      "subject": "AI Auto-Enrollment Engine: fresh-lead speed-to-lead + database reactivation (ships OFF)",
+      "title": "AI Auto-Enrollment Engine: fresh-lead speed-to-lead + database reactivation (ships OFF)",
+      "body": "One central evaluator (evaluateAiEnrollmentEligibility) over the Status=New pool\n(New is a status, not an age — age never excludes). Three decisions\n(eligible/deferred/excluded) with reason codes; four classifications\n(fresh / cold never-connected / cold previously-connected / re-engaged dormant);\ntwo lanes: fresh = event hooks + 10-min sweep, immediate + uncapped;\nreactivation = hourly weekday-window batches, daily cap (150), priority-ordered,\n2-3 min staggered first sends. Hard exclusions always win: prospecting source\norigins (exact source-field match from the audited production distribution;\nmigration != origin), FSBO/MLS identity, CX Connect fence, STOP/DNT/undeliverable,\nautopilot tag excludes, active transactions, durable manual exclusion, already\nAI-managed. Enrollment != sending — full policy stack still gates every send.\n\nDeduped audit log (ai_enrollment_log) + ai_lead_state exclusion columns;\n/api/ai/enrollment/* routes incl. zero-write dry-run preview; Settings card with\nmodes Manual / Fresh only / Fresh + Reactivation; smart lists (candidates,\nenrolled today); profile decision line + exclude button; 23-test suite\n(230/230 green; CX dry-run test de-flaked to per-lead counts).\n\nai_auto_enroll_mode defaults 'off' — staged rollout, nothing autonomous changes\nuntil the mode is switched on.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "48feea7",
       "date": "2026-09-14T10:30:15-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-07T12:04:47-05:00",
       "subject": "Blog posts: a scheduled post whose date has arrived shows as Posted (derived on read, status filter honors it; stored value untouched)",
       "title": "Blog posts: a scheduled post whose date has arrived shows as Posted (derived on read, status filter honors it; stored value untouched)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "23cd34d",
-      "date": "2026-08-07T11:57:03-05:00",
-      "subject": "Clients profile: sort Sierra notes + FUB activity newest-first (notes already prepend newest)",
-      "title": "Clients profile: sort Sierra notes + FUB activity newest-first (notes already prepend newest)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
