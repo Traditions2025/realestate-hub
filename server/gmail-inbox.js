@@ -216,8 +216,8 @@ async function pollOne(m) {
               maxUid = Math.max(maxUid, msg.uid)
               let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
               const when = (msg.internalDate || parsed.date || new Date()).toISOString()
-              const n = logDirectOutboundEmail(m.user, parsed, when)
-              if (n) m.imported = (m.imported || 0) + n
+              const r2 = logDirectOutboundEmail(m.user, parsed, when)
+              if (r2.logged) m.imported = (m.imported || 0) + r2.logged
             }
             m.sent_cursor = maxUid
           }
@@ -238,10 +238,11 @@ async function pollOne(m) {
 const TEAM_ADDRESSES = new Set(['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com', 'matt@mattsmithteam.com', 'automation@mattsmithteam.com'])
 export function logDirectOutboundEmail(mailboxUser, parsed, whenIso, { excludeStatuses = [] } = {}) {
   const extId = 'gmail_' + (parsed.messageId || `${mailboxUser}_${whenIso}`)
-  if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) return 0
+  if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) return { logged: 0, clients: [] }
   const rcpts = [...(parsed.to?.value || []), ...(parsed.cc?.value || [])]
     .map(v => String(v.address || '').toLowerCase()).filter(a => a && !TEAM_ADDRESSES.has(a))
   let logged = 0
+  const loggedClients = []
   const subjNorm = String(parsed.subject || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase()
   for (const addr of [...new Set(rcpts)].slice(0, 5)) {
     const c = matchClientByEmail(addr)
@@ -265,9 +266,10 @@ export function logDirectOutboundEmail(mailboxUser, parsed, whenIso, { excludeSt
         bodyStored, logged ? extId + '_' + c.id : extId, `c${c.id}_email`, 'read',
         (parsed.attachments && parsed.attachments.length) ? 1 : 0, mailboxUser, 'human', whenIso])
     try { import('./followup-coverage.js').then(x => x.recalcCoverage(c.id, { actorType: 'system' })).catch(() => {}) } catch {}
+    loggedClients.push({ id: c.id, name, email: addr })
     logged++
   }
-  return logged
+  return { logged, clients: loggedClients }
 }
 
 let _polling = false
@@ -373,21 +375,12 @@ export async function backfillSentFolder({ mailboxUser, days = 30 } = {}) {
           scanned++
           let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
           const when = (msg.internalDate || parsed.date || new Date()).toISOString()
-          const before = logged
-          const n = logDirectOutboundEmail(m.user, parsed, when, { excludeStatuses: ['junk', 'donotcontact'] })
-          logged += n
-          if (n) {
-            const rcpts = [...(parsed.to?.value || [])].map(v => String(v.address || '').toLowerCase())
-            for (const a of rcpts) {
-              const c = matchClientByEmail(a)
-              if (c) {
-                const k = c.id
-                if (!byClient.has(k)) byClient.set(k, { client_id: k, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), email: a, count: 0 })
-                byClient.get(k).count++
-              }
-            }
+          const r2 = logDirectOutboundEmail(m.user, parsed, when, { excludeStatuses: ['junk', 'donotcontact'] })
+          logged += r2.logged
+          for (const lc of r2.clients) {
+            if (!byClient.has(lc.id)) byClient.set(lc.id, { client_id: lc.id, name: lc.name, email: lc.email, count: 0 })
+            byClient.get(lc.id).count++
           }
-          void before
         }
       } finally { lock.release() }
       await client.logout()
