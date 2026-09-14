@@ -92,7 +92,7 @@ function street(c) { return c.address || 'the property' }
 function msgStep1(c) { return `${greeting()}, I'm John with Matt Smith Team at RE/MAX. Our team noticed your place on ${street(c)} for sale, beautiful home. Just want to make sure it's still available? MattSmithTeam.com` }
 // The market-analysis message (sent as Text 3) is broken into 3 shorter texts (no wall of text).
 const MSG_ANALYSIS = [
-  "Hi, it's John again with Matt Smith Team at RE/MAX. A little about us, we've sold over 2,000 homes throughout Cedar Rapids and the surrounding areas over the past 35+ years. One thing we've learned is that the first 14 days on the market are usually the most critical, and that's when most of the activity tends to happen. By the third week, activity can start to slow down.",
+  "Hi, it's John again with Matt Smith Team at RE/MAX. A little about us, we've sold over 2,000 homes throughout Cedar Rapids and the surrounding areas over the past 35+ years. One thing we've learned is that the first 2 weeks on the market are usually the most critical, and that's when most of the activity tends to happen. By the third week, activity can start to slow down.",
   "At this point, you might be thinking about adjusting the price. Before making a price reduction, though, it can be worth looking at whether price is actually the issue or if there are a few things that could be adjusted with the marketing or positioning first.",
   "Our team would be happy to put together an analysis of your home and give you our perspective if that would be helpful.",
 ]
