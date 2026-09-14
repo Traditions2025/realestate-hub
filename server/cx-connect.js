@@ -326,11 +326,36 @@ export function scheduleNext(attemptJustSent, from = new Date()) {
   return d
 }
 
+// ---------- auto-enroll (2026-09-14: "once they get tracked there, enroll them") ----------
+// New Cancelled/Expired leads created by the hourly master-file sync flow into the
+// campaign automatically: an hourly pass re-runs the bulk enroll over the saved
+// list. enrollClient() makes this safe to repeat — already-enrolled leads return
+// immediately, human pauses/removals/responses always stick, and every newcomer
+// gets the full eligibility screen (prior replies, wrong numbers, sold/relisted,
+// no address). Tied to the master switch; a notification announces new joiners.
+export async function autoEnrollTick() {
+  const last = db.getSetting ? db.getSetting('cx_auto_enroll_last', null) : null
+  if (last && Date.now() - new Date(last).getTime() < 55 * 60 * 1000) return null
+  try { db.setSetting && db.setSetting('cx_auto_enroll_last', nowIso()) } catch {}
+  const r = await enrollList()
+  if (r && r.ok && r.enrolled > 0) {
+    console.log('[cx-connect] auto-enrolled', r.enrolled, 'new Cancelled/Expired lead(s)')
+    try {
+      const { notify } = await import('./notifications.js')
+      notify({ type: 'cx_enroll', title: `CX campaign: ${r.enrolled} new Cancelled/Expired lead${r.enrolled === 1 ? '' : 's'} auto-enrolled`,
+        body: 'Tracked by the master-file sync; first text goes out at the next weekday trickle slot.',
+        link: '/clients?list=Cancelled%2FExpired', dedupKey: 'cx_auto_' + new Date().toISOString().slice(0, 13) })
+    } catch {}
+  }
+  return r
+}
+
 // ---------- the sweep ----------
 let sweeping = false
 export async function runCxSweep() {
   if (sweeping) return
   if (!cxEnabled()) return
+  try { await autoEnrollTick() } catch (e) { console.error('[cx-connect] auto-enroll:', e.message) }
   if (!inCxWindow()) return
   sweeping = true
   try {

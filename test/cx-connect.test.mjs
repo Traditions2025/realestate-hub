@@ -288,3 +288,19 @@ test('bulk enroll never re-activates a human pause or removal', async () => {
   const r3 = await cx.resumeCampaign(c.id)
   assert.equal(r3.ok, true)
 })
+
+test('auto-enroll tick pulls new list members in, respects the hourly stamp and human removals', async () => {
+  db.run("UPDATE app_settings SET value=NULL WHERE key='cx_auto_enroll_last'")
+  try { db.run("DELETE FROM app_settings WHERE key='cx_auto_enroll_last'") } catch {}
+  const fresh = mkClient({})                      // newly "tracked" C/E lead
+  const removed = mkClient({})
+  await cx.enrollClient(removed.id); cx.removeFromCampaign(removed.id)
+  db.run("INSERT INTO client_lists (name, client_ids) VALUES (?,?)", ['Cancelled/Expired AutoTest', JSON.stringify([fresh.id, removed.id])])
+  const r = await cx.autoEnrollTick()
+  assert.ok(r && r.ok, JSON.stringify(r))
+  assert.equal(db.get('SELECT status FROM cx_campaign WHERE client_id=?', [fresh.id])?.status, 'active', 'new lead auto-enrolled')
+  assert.equal(db.get('SELECT status FROM cx_campaign WHERE client_id=?', [removed.id])?.status, 'removed', 'human removal sticks')
+  const again = await cx.autoEnrollTick()
+  assert.equal(again, null, 'second tick within the hour is a no-op')
+  db.run("DELETE FROM client_lists WHERE name='Cancelled/Expired AutoTest'")
+})
