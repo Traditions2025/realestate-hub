@@ -79,7 +79,7 @@ test('FSBO and MLS-tracked identities are excluded regardless of source', () => 
 
 test('CX Connect fence: a campaign lead is excluded, always', () => {
   const c = mkClient({})
-  db.run("INSERT INTO cx_campaign (client_id, status, enrolled_at) VALUES (?, 'active', datetime('now'))", [c.id])
+  db.run("INSERT INTO cx_campaign (client_id, status, enrolled_at, next_send_at) VALUES (?, 'active', datetime('now'), '2099-01-01T00:00:00.000Z')", [c.id])
   assert.equal(evalIt(c.id).reason_code, 'CX_CAMPAIGN')
 })
 

@@ -81,7 +81,7 @@ test('S7: landline / undeliverable is excluded from the SMS campaign', async () 
 })
 test('conflicting automation excluded: CX campaign + AI-managed leads', async () => {
   const cx = mkFsbo({})
-  db.run("INSERT INTO cx_campaign (client_id, status, enrolled_at) VALUES (?, 'active', datetime('now'))", [cx.id])
+  db.run("INSERT INTO cx_campaign (client_id, status, enrolled_at, next_send_at) VALUES (?, 'active', datetime('now'), '2099-01-01T00:00:00.000Z')", [cx.id])
   assert.equal((await evalIt(cx.id)).reason_code, 'CONFLICTING_CAMPAIGN')
   const aim = mkFsbo({})
   db.run('INSERT OR IGNORE INTO ai_lead_state (client_id, ai_managed) VALUES (?, 1)', [aim.id])
