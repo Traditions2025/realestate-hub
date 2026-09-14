@@ -289,6 +289,11 @@ router.get('/contact-emails', async (req, res) => {
   try { const { searchMailboxesForContact } = await import('../gmail-inbox.js'); res.json(await searchMailboxesForContact(email, { max: Number(req.query.max) || 600 })) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Import a contact's full Gmail history into their profile feed (deduped; explicit).
+router.post('/contact-emails/import', async (req, res) => {
+  try { const { importContactHistory } = await import('../gmail-inbox.js'); res.json(await importContactHistory(Number(req.body?.client_id))) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
 
 // ---- one contact's full thread ----
 router.get('/thread/:clientId', (req, res) => {

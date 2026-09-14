@@ -194,11 +194,76 @@ async function pollOne(m) {
       }
       m.connected = true; m.last_error = ''; m.last_poll = nowIso()
     } finally { lock.release() }
+    // ---- SENT-FOLDER SYNC: emails Matt sends DIRECTLY from Gmail (composing or
+    // replying in the mail client, not through the Hub) auto-log onto the matching
+    // client's profile as outgoing human email. Own cursor per mailbox; first
+    // connect starts from "now" (no backfill flood — history imports are explicit).
+    try {
+      let sentPath = null
+      try { const list = await client.list(); const s = list.find(b => b.specialUse === '\\Sent') || list.find(b => /sent/i.test(b.path)); if (s) sentPath = s.path } catch {}
+      if (sentPath) {
+        const lock2 = await client.getMailboxLock(sentPath)
+        try {
+          const st = await client.status(sentPath, { uidNext: true })
+          const uidNext = st.uidNext || 1
+          if (!m.sent_cursor) {
+            m.sent_cursor = uidNext - 1
+          } else if (uidNext - 1 > m.sent_cursor) {
+            let maxUid = m.sent_cursor, count = 0
+            for await (const msg of client.fetch(`${m.sent_cursor + 1}:*`, { uid: true, source: true, internalDate: true }, { uid: true })) {
+              if (!msg.uid || msg.uid <= m.sent_cursor) continue
+              if (++count > 200) break
+              maxUid = Math.max(maxUid, msg.uid)
+              let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
+              const when = (msg.internalDate || parsed.date || new Date()).toISOString()
+              const n = logDirectOutboundEmail(m.user, parsed, when)
+              if (n) m.imported = (m.imported || 0) + n
+            }
+            m.sent_cursor = maxUid
+          }
+        } finally { lock2.release() }
+      }
+    } catch (e) { console.error('[gmail-inbox] sent-folder sync:', e.message || e) }
     await client.logout()
   } catch (e) {
     m.connected = false; m.last_error = e.message || String(e)
     try { await client.logout() } catch {}
   }
+}
+
+// Log one directly-sent Gmail message onto every matching client profile (To + CC,
+// team addresses skipped). Deduped by Message-ID AND by same-subject-within-45-min
+// against existing rows, so a Hub-sent email that also passes through the mailbox
+// never doubles up. Counts as HUMAN contact (campaigns/AI defer around it).
+const TEAM_ADDRESSES = new Set(['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com', 'matt@mattsmithteam.com', 'automation@mattsmithteam.com'])
+export function logDirectOutboundEmail(mailboxUser, parsed, whenIso) {
+  const extId = 'gmail_' + (parsed.messageId || `${mailboxUser}_${whenIso}`)
+  if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) return 0
+  const rcpts = [...(parsed.to?.value || []), ...(parsed.cc?.value || [])]
+    .map(v => String(v.address || '').toLowerCase()).filter(a => a && !TEAM_ADDRESSES.has(a))
+  let logged = 0
+  const subjNorm = String(parsed.subject || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase()
+  for (const addr of [...new Set(rcpts)].slice(0, 5)) {
+    const c = matchClientByEmail(addr)
+    if (!c) continue
+    // proximity dedupe: an outgoing email to this client with the same subject ±45 min
+    const near = db.all(`SELECT id, subject FROM communications WHERE client_id=? AND channel='email' AND direction='outgoing'
+      AND occurred_at BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, whenIso, whenIso])
+      .some(r => String(r.subject || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase() === subjNorm)
+    if (near) continue
+    const bodyStored = stripQuotedReply(String(parsed.html || parsed.text || ''))
+    const text = stripQuotedReply(String(parsed.text || '')) || bodyStored.replace(/<[^>]+>/g, ' ')
+    const preview = text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+    const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, agent, sent_by_type, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['email', 'outgoing', c.id, name, mailboxUser, addr, parsed.subject || '(no subject)', preview,
+        bodyStored, logged ? extId + '_' + c.id : extId, `c${c.id}_email`, 'read',
+        (parsed.attachments && parsed.attachments.length) ? 1 : 0, mailboxUser, 'human', whenIso])
+    try { import('./followup-coverage.js').then(x => x.recalcCoverage(c.id, { actorType: 'system' })).catch(() => {}) } catch {}
+    logged++
+  }
+  return logged
 }
 
 let _polling = false
@@ -272,6 +337,37 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
   for (const x of out) { if (seen.has(x.messageId)) continue; seen.add(x.messageId); dedup.push(x) }
   dedup.sort((a, b) => new Date(a.date) - new Date(b.date))
   return { email: target, count: dedup.length, mailboxes: boxInfo, messages: dedup }
+}
+
+// Import a contact's FULL Gmail history (both directions, all mailboxes) into their
+// profile feed. Deduped by Message-ID and by same-direction same-subject ±45 min, so
+// Hub-logged sends and already-polled emails never double up. Explicit action only —
+// the live poller stays cursor-based.
+export async function importContactHistory(clientId) {
+  const c = db.get('SELECT id, first_name, last_name, email FROM clients WHERE id=?', [Number(clientId)])
+  if (!c) return { error: 'client not found' }
+  if (!c.email) return { error: 'client has no email on file' }
+  const res = await searchMailboxesForContact(c.email)
+  const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+  let imported = 0, skipped = 0
+  const norm = (s) => String(s || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase()
+  for (const msg of res.messages || []) {
+    const extId = 'gmail_' + msg.messageId
+    if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) { skipped++; continue }
+    const near = db.all(`SELECT subject FROM communications WHERE client_id=? AND channel='email' AND direction=?
+      AND occurred_at BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, msg.direction, msg.date, msg.date])
+      .some(r => norm(r.subject) === norm(msg.subject))
+    if (near) { skipped++; continue }
+    const body = stripQuotedReply(msg.body || '')
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, agent, sent_by_type, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['email', msg.direction, c.id, name, msg.from || '', msg.to || '', msg.subject || '(no subject)',
+        body.replace(/\s+/g, ' ').trim().slice(0, 160), body, extId, `c${c.id}_email`, 'read',
+        msg.direction === 'outgoing' ? msg.mailbox : null, msg.direction === 'outgoing' ? 'human' : null, msg.date])
+    imported++
+  }
+  if (imported) { try { import('./followup-coverage.js').then(x => x.recalcCoverage(c.id, { actorType: 'system' })).catch(() => {}) } catch {} }
+  return { client_id: c.id, email: c.email, found_in_gmail: res.count, imported, skipped_duplicates: skipped }
 }
 
 // legacy status helper (kept so any old caller keeps working)
