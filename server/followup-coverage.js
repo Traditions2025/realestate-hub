@@ -163,6 +163,12 @@ export function evaluateFollowUpCoverage(clientId) {
   if (task) candidates.push({ type: 'human_task', at: task.due_date.length <= 10 ? task.due_date + 'T17:00:00Z' : task.due_date, raw_at: task.due_date, owner: task.assigned_to || c.agent_assigned || null, source: 'task', label: task.title, overdue: task.due_date.slice(0, 10) < nowStr.slice(0, 10) })
   const schedText = textable ? db.get("SELECT id, send_at FROM scheduled_texts WHERE client_id=? AND status='scheduled' AND send_at > ? ORDER BY send_at ASC LIMIT 1", [cid, nowStr]) : null
   if (schedText) candidates.push({ type: 'human_task', at: schedText.send_at, owner: c.agent_assigned || null, source: 'scheduled_text', label: 'Scheduled text' })
+  // FSBO campaign: an ACTIVE enrollment with a future send is real coverage — but only
+  // while the lead is textable and the listing is still Available (a dead campaign
+  // must never show as Protected).
+  const fsboNext = textable && c.fsbo_status === 'Available'
+    ? db.get("SELECT next_send_at FROM fsbo_followups WHERE client_id=? AND status='active' AND next_send_at > ? LIMIT 1", [cid, nowStr]) : null
+  if (fsboNext) candidates.push({ type: 'drip', at: fsboNext.next_send_at, owner: 'FSBO Campaign', source: 'fsbo_campaign', label: 'FSBO campaign text' })
   const aiAct = textable ? db.get("SELECT id, action_type, execute_at FROM ai_scheduled_actions WHERE client_id=? AND state='pending' ORDER BY execute_at ASC LIMIT 1", [cid]) : null
   if (aiAct) candidates.push({ type: 'ai', at: aiAct.execute_at, owner: 'HUB AI', source: 'ai_scheduled_actions', label: aiAct.action_type })
   const drip = emailable ? db.get(`SELECT e.id, e.next_run_at, d.name FROM drip_enrollments e LEFT JOIN drip_campaigns d ON d.id=e.drip_id

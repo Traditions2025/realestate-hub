@@ -2,6 +2,7 @@ import { Router } from 'express'
 import db from '../database.js'
 import { compileAudience, previewAudience, fieldMeta } from '../smart-audience.js'
 import { syncFsboMaster, ensureFsboListIncludesMaster, fsboMasterCsvUrl } from '../fsbo-master.js'
+import { requirePermission } from './auth.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -326,7 +327,46 @@ router.get('/fsbo/followup', (_req, res) => {
   }
   res.json(totals)
 })
-router.post('/fsbo/followup/toggle', (req, res) => { const on = req.body?.enabled === true || req.body?.enabled === '1'; db.setSetting('fsbo_followup_enabled', on ? '1' : '0'); res.json({ enabled: on }) })
+router.post('/fsbo/followup/toggle', requirePermission('settings.edit'), (req, res) => { const on = req.body?.enabled === true || req.body?.enabled === '1'; db.setSetting('fsbo_followup_enabled', on ? '1' : '0'); res.json({ enabled: on }) })
+
+// ---- FSBO AUTOMATIC TEXT FOLLOW-UP CAMPAIGN (server/fsbo-followup.js) ----
+router.get('/fsbo/campaign/stats', async (_req, res) => {
+  const m = await import('../fsbo-followup.js'); res.json(m.fsboCampaignStats())
+})
+// DRY RUN — evaluates the whole FSBO tracked set with ZERO writes.
+router.get('/fsbo/campaign/preview', async (_req, res) => {
+  const m = await import('../fsbo-followup.js'); res.json(await m.previewFsboCampaign())
+})
+router.get('/fsbo/campaign/:clientId', async (req, res) => {
+  const m = await import('../fsbo-followup.js')
+  const cid = Number(req.params.clientId)
+  res.json({ ...m.fsboCampaignState(cid), evaluation: await m.evaluateFsboCampaignEligibility(cid) })
+})
+router.post('/fsbo/campaign/:clientId/pause', async (req, res) => {
+  const m = await import('../fsbo-followup.js'); res.json(m.pauseFsboCampaign(Number(req.params.clientId), req.user?.email || 'agent'))
+})
+router.post('/fsbo/campaign/:clientId/resume', async (req, res) => {
+  const m = await import('../fsbo-followup.js'); res.json(await m.resumeFsboCampaign(Number(req.params.clientId), req.user?.email || 'agent'))
+})
+router.post('/fsbo/campaign/:clientId/remove', async (req, res) => {
+  const m = await import('../fsbo-followup.js'); res.json(m.removeFromFsboCampaign(Number(req.params.clientId), req.user?.email || 'agent', String(req.body?.reason || '')))
+})
+// Preview the next text the campaign would send this lead (no send, no writes).
+router.get('/fsbo/campaign/:clientId/preview-next', async (req, res) => {
+  const m = await import('../fsbo-followup.js')
+  const cid = Number(req.params.clientId)
+  const ev = await m.evaluateFsboCampaignEligibility(cid)
+  if (ev.decision !== 'eligible') return res.json({ eligible: false, reason: `${ev.reason_code}: ${ev.reason}` })
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  const row = db.get('SELECT * FROM fsbo_followups WHERE client_id=?', [cid])
+  const attempt = (Number(row?.attempt_count) || 0) + 1
+  let body, angle
+  if (attempt === 1) { angle = 'AVAILABILITY_CHECK'; body = null }   // step-1 copy renders live greeting at send time
+  else if (attempt === 2) { angle = 'MARKET_ANALYSIS'; body = '(3-part market analysis message — approved Step 2 copy)' }
+  else if (attempt === 3) { angle = 'STILL_AVAILABLE'; body = null }
+  else { angle = m.pickFsboAngle(cid, ev.dom); body = m.FSBO_ANGLES[angle].text(c.address || 'the property') }
+  res.json({ eligible: true, attempt, angle, message: body || '(approved step copy, greeting rendered at send time)', dom: ev.dom, next_send_at: row?.next_send_at || null })
+})
 router.post('/fsbo/followup/run', async (_req, res) => {
   try { const m = await import('../fsbo-followup.js'); res.json(await m.runFsboFollowups()) } catch (e) { res.status(500).json({ error: e.message }) }
 })

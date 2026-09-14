@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-14T17:59:31.796Z",
+  "generated_at": "2026-09-14T19:07:20.173Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "5b16677",
+      "date": "2026-09-14T12:59:58-05:00",
+      "subject": "AI auto-enrollment: name-quality gate — good leads only",
+      "title": "AI auto-enrollment: name-quality gate — good leads only",
+      "body": "looksRealName requires a real first + last name; excludes (NAME_QUALITY, audited)\nemail-as-name, digits/underscores, URLs, placeholder words (test/unknown/asdf...),\nvowel-less gibberish, repeated-char runs, bare initials and single names.\nAccented, hyphenated and apostrophe names pass. Cheap name pre-filter added to the\nreactivation candidate SQL + the AI Enroll Candidates smart list; Settings copy\nupdated. 2 new tests (232/232 green).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "47c0964",
       "date": "2026-09-14T12:45:29-05:00",
@@ -3993,14 +4001,6 @@
       "title": "AI Suggested Follow-Up to client dashboard (HUB + FUB → Claude)",
       "body": "- server/routes/followup.js: gathers HUB client data + FUB comms (notes, calls, emails, texts, tasks, appointments, stage, tags, source, timeline via fub-helper), asks Claude for a recommended next action + factual why + relationship summary + a warm, specific follow-up email. Cached per client (followup_recommendations); GET is instant + flags stale when new activity lands; analyze runs only on first open / manual refresh. Email rewrite endpoint (regenerate/shorter/casual/direct/add-context) reuses cached dossier. Opt-out + no-fabrication + not-enough-history guards.\n- Clients.jsx detail drawer: 'Suggested Follow-Up' section — recommendation, why bullets, known context, summary, editable suggested email with controls (regenerate/shorter/casual/direct/add context/copy/use-in-composer), Refresh + last-analyzed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "feature"
-    },
-    {
-      "hash": "be59502",
-      "date": "2026-08-07T12:04:47-05:00",
-      "subject": "Blog posts: a scheduled post whose date has arrived shows as Posted (derived on read, status filter honors it; stored value untouched)",
-      "title": "Blog posts: a scheduled post whose date has arrived shows as Posted (derived on read, status filter honors it; stored value untouched)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

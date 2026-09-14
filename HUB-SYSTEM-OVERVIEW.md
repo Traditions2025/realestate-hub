@@ -165,6 +165,21 @@ Feeds the AI ISA automatically from the **Status = New** pool ("New" is a CRM st
 
 ---
 
+## 9b. FSBO Automatic Text Campaign (`server/fsbo-followup.js`)
+
+The FSBO smart follow-up sequence, grown into a full persistent campaign on the CX Connect model. Purpose: **no eligible FSBO reaches 14 days on market and then gets forgotten.**
+
+- **Trigger:** LIVE listing DOM ≥ 14 (setting `fsbo_campaign_dom_threshold`), from the FSBO master sync's authoritative DOM (recomputed from List Date daily) — never "days since the Hub saw the lead"; a property imported at DOM 27 qualifies immediately. DOM < 14 = WAITING, never texted.
+- **One evaluator** (`evaluateFsboCampaignEligibility`) behind auto-enroll, every send, the profile card, the Settings preview, and the smart lists. Decisions: eligible / waiting / deferred / excluded with reason codes.
+- **Exclusions:** not Available (Off Market/sold/pending/agent-listed/dropped off master), STOP/DNT, landline (line-type screened before the first send, verdict cached), prior meaningful seller response (full history scan via the shared `classifyInbound` — sold/agent/not-interested/wrong-number/any real reply), CX-campaign or AI-managed leads (no parallel prospecting, RULE 10), active transaction, duplicate phone (one campaign per number), durable manual removal. **Deferrals:** human contact within 24h, pending manual scheduled text.
+- **Cadence:** approved opening copy unchanged — availability check (Step 1) → +7d the 35-years/first-14-days 3-part message (Step 2) → +7d still-available (Step 3) — then **~weekly forever** (6–8-day jitter, Sat→Fri/Mon, Sun→Mon) with a rotating low-pressure angle bank (no repeat within last 3; DOM-gated wording so old listings never sound "recently listed"; never "we have a buyer", never "how has activity been"). Persistence ≠ pressure. Identity safety: "the home at {address}", no first names in cold texts.
+- **Sends:** weekdays 9AM–4PM CT only, trickled 1–2.5 min apart, switch+window re-checked per send, through `canSendSms('automation')` + the collision gate. **Eligibility re-verified before EVERY send.**
+- **Response = STOP FIRST:** any inbound sets `responded`, kills the next send, logs, notifies, creates a high-priority **FSBO Response task** (one per conversation) — then the approved scripted acknowledgment + best-email ask still run. Humans own it; no silent resume. An inbound on any channel since enrollment (email, voicemail) also stops it at the next evaluation.
+- **State** (`fsbo_followups`, extended additively) + permanent `fsbo_campaign_log`; Off-Market stops preserve all history, and a listing that returns Available re-qualifies only through a full fresh evaluation (manual pause/remove/responded never auto re-enroll).
+- **Ops:** master switch `fsbo_followup_enabled` (**OFF**, admin-gated via `settings.edit`), Settings → AI card with stats + zero-write dry run, profile FSBO Campaign card (pause/resume/remove/preview-next/log), smart lists (Reaching 14 Days / Campaign Active / Response Received), Follow-Up Coverage counts an active future send as protection. 22-scenario test suite (`test/fsbo-campaign.test.mjs`).
+
+---
+
 ## 10. Follow-Up Coverage (fall-through prevention)
 
 One authoritative evaluator (`server/followup-coverage.js`) answers per lead: *"if we do nothing manually, will this person hear from us again — and soon enough?"* Valid coverage = future task / scheduled text / pending AI action / active drip-automation with a future run / active transaction / intentional snooze / documented exclusion — with channel sanity (SMS coverage never counts for a text-opted-out lead). Relationship levels ratchet at *connected*; silence windows are configurable per level; states protected / at_risk / unprotected / snoozed / excluded. 10-min incremental sweep + chunked daily audit + immediate recalc on the classic fall-through moments (last task completed, status change). Surfaces: Dashboard KPI + attention items, smart lists, opt-in columns, profile card. The evaluator never sends anything.

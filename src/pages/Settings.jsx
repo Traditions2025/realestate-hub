@@ -259,6 +259,7 @@ export default function Settings() {
           <AiFollowUpSettings />
           <AiEnrollmentSettings />
           <CxCampaignSettings />
+          <FsboCampaignSettings />
           <CoverageSettings />
           <AiEvalPanel />
             </SettingsGroup>
@@ -599,6 +600,74 @@ function RealistImportSettings() {
 // Cancelled/Expired Connection Campaign — persistent make-contact SMS drip.
 // Master switch (OFF by default), bulk enroll of the C/E saved list, live stats.
 // AI never replies to enrolled leads; a response stops everything for a human.
+// FSBO AUTOMATIC TEXT FOLLOW-UP — DOM-14 auto-enroll campaign (fsbo-followup.js).
+function FsboCampaignSettings() {
+  const [stats, setStats] = React.useState(undefined)
+  const [preview, setPreview] = React.useState(null)
+  const [previewing, setPreviewing] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const load = () => authFetch('/api/lists/fsbo/campaign/stats').then(r => r.json()).then(setStats).catch(() => setStats(null))
+  React.useEffect(() => { load() }, [])
+  const toggle = async (on) => {
+    setSaving(true)
+    try { await authFetch('/api/lists/fsbo/followup/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: on }) }); load() } finally { setSaving(false) }
+  }
+  const runPreview = async () => {
+    setPreviewing(true)
+    try { const r = await authFetch('/api/lists/fsbo/campaign/preview'); setPreview(await r.json()) } catch { setPreview(null) } finally { setPreviewing(false) }
+  }
+  if (stats === undefined) return null
+  if (stats === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>🏠 FSBO Auto Text Campaign</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  return (
+    <section className="detail-section">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <h4 style={{ margin: 0 }}>🏠 FSBO Auto Text Campaign</h4>
+        <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999, fontWeight: 600, background: stats.enabled ? '#dcfce7' : 'var(--bg-secondary)', color: stats.enabled ? '#15803d' : 'var(--text-muted)' }}>{stats.enabled ? 'ON' : 'OFF'}</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+          <input type="checkbox" checked={!!stats.enabled} disabled={saving} onChange={e => toggle(e.target.checked)} /> Master switch
+        </label>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+        No eligible FSBO reaches 14 days on market and gets forgotten: at <strong>DOM {stats.dom_threshold}</strong> an Available FSBO with a valid mobile auto-enrolls and gets the approved availability-check text at the next weekday 9AM–4PM CT slot, then the approved 2-week sequence and a low-pressure weekly rotation while it stays Available. Sends trickle 1–2.5 min apart; eligibility rechecks before every text; a reply stops everything and hands the seller to a human; Off Market stops the campaign; manual pause/remove always wins; history is permanent.
+      </p>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 10 }}>
+        <span>Active: <strong>{stats.active}</strong></span>
+        <span>Responses: <strong>{stats.responded}</strong></span>
+        <span>Paused: <strong>{stats.paused}</strong> · Removed: <strong>{stats.removed}</strong> · Stopped: <strong>{stats.stopped}</strong></span>
+        <span>Sent 7d: <strong>{stats.sent_7d}</strong> · Responses 7d: <strong>{stats.responses_7d}</strong></span>
+        <span>Due now: <strong>{stats.due_now}</strong></span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary" disabled={previewing} onClick={runPreview}>{previewing ? 'Evaluating…' : '🔍 Dry run (no writes)'}</button>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Evaluates every tracked FSBO and shows who would enroll — sends nothing.</span>
+      </div>
+      {preview && (
+        <div style={{ marginTop: 10, fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg-secondary)' }}>
+          <div style={{ marginBottom: 6 }}>
+            Evaluated <strong>{preview.evaluated}</strong> → would enroll <strong>{preview.would_enroll}</strong>.
+            {' '}{Object.entries(preview.by_decision || {}).map(([k, v]) => `${k}: ${v}`).join(' · ')}
+          </div>
+          <div style={{ marginBottom: 6, color: 'var(--text-muted)' }}>{Object.entries(preview.by_reason || {}).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 560 }}>
+              <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}><th>Lead</th><th>Property</th><th>DOM</th><th>Status</th><th>Phone</th><th>State</th><th>Decision</th><th>Next send</th></tr></thead>
+              <tbody>{(preview.table || []).slice(0, 40).map(t => (
+                <tr key={t.client_id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '3px 6px 3px 0' }}><a href={`/clients/${t.client_id}`}>{t.name || '#' + t.client_id}</a></td>
+                  <td>{t.property || '—'}</td><td>{t.dom}</td><td>{t.fsbo_status}</td><td>{t.phone_status}</td>
+                  <td>{t.campaign_state || '—'}</td>
+                  <td title={t.reason}>{t.decision}{t.decision !== 'eligible' ? ` (${t.reason})` : ''}</td>
+                  <td>{t.next_proposed_send ? new Date(t.next_proposed_send).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT' : '—'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
 // AI TEXTING AUTO-ENROLLMENT — fresh-lead speed-to-lead + database reactivation.
 // Modes: Manual (off) / Fresh only / Fresh + Reactivation. Dry run shows what WOULD
 // happen with zero writes. Enrollment != sending: every send still passes full policy.

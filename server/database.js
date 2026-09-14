@@ -1193,6 +1193,37 @@ export async function initDb() {
     )
   `)
 
+  // FSBO CAMPAIGN upgrade (2026-09-14): the smart follow-up sequence becomes a full
+  // persistent campaign (DOM-14 auto-enroll, ongoing rotation, pause/remove, response
+  // state). Additive columns on the existing state table — history is preserved.
+  for (const [col, type] of [
+    ['enrolled_at', 'TEXT'], ['started_dom', 'INTEGER'], ['attempt_count', 'INTEGER DEFAULT 0'],
+    ['last_sent_at', 'TEXT'], ['next_send_at', 'TEXT'], ['last_angle', 'TEXT'],
+    ['responded_at', 'TEXT'], ['response_class', 'TEXT'],
+    ['paused_at', 'TEXT'], ['paused_by', 'TEXT'], ['removed_at', 'TEXT'], ['removed_by', 'TEXT'],
+    ['stop_reason', 'TEXT'], ['listing_address', 'TEXT'],
+  ]) { try { db.run(`ALTER TABLE fsbo_followups ADD COLUMN ${col} ${type}`) } catch {} }
+  // FSBO campaign decision/audit log (permanent — never pruned with the master list).
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fsbo_campaign_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      event TEXT NOT NULL,               -- enrolled|sent|deferred|stopped|response|paused|resumed|removed|error
+      angle TEXT,
+      template_key TEXT,
+      reason TEXT,
+      dom INTEGER,
+      listing_status TEXT,
+      body TEXT,
+      comm_id INTEGER,
+      next_send_at TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbolog_client ON fsbo_campaign_log(client_id, created_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbolog_event ON fsbo_campaign_log(event, created_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbofu_next ON fsbo_followups(status, next_send_at)') } catch {}
+
   // P2-3: web-push subscriptions (one row per browser/device that opted in).
   db.run(`
     CREATE TABLE IF NOT EXISTS push_subscriptions (

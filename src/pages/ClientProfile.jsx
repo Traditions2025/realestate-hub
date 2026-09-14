@@ -280,6 +280,7 @@ export default function ClientProfile() {
             research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
             coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
             cxcamp: () => (client.mls_status || client.off_market_date) ? <CxCampaignCard cid={cid} client={client} /> : null,
+            fsbocamp: () => (client.fsbo_status || client.fsbo_listings) ? <FsboCampaignCard cid={cid} client={client} /> : null,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
             plans: () => <ActionPlans cid={cid} />,
             tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} address={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} /></div>,
@@ -328,6 +329,83 @@ const CX_STATUS_META = {
   ineligible: { label: 'STOPPED', color: 'var(--text-muted)' },
   removed: { label: 'REMOVED', color: 'var(--text-muted)' },
 }
+// FSBO Automatic Text Campaign card — same shape as the CX card: state, attempts,
+// next send, controls, log. RESPONSE RECEIVED gets the strong banner.
+const FSBO_STATUS_META = {
+  active: { label: 'ACTIVE', color: '#15803d' },
+  responded: { label: '📨 RESPONSE RECEIVED', color: '#d97706' },
+  paused: { label: 'PAUSED', color: '#b45309' },
+  removed: { label: 'REMOVED', color: '#ef4444' },
+  stopped: { label: 'STOPPED', color: 'var(--text-muted)' },
+}
+function FsboCampaignCard({ cid, client }) {
+  const [st, setSt] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [showLog, setShowLog] = useState(false)
+  const [next, setNext] = useState(null)
+  const load = useCallback(() => authFetch('/api/lists/fsbo/campaign/' + cid).then(r => r.json()).then(setSt).catch(() => setSt(null)), [cid])
+  useEffect(() => { load() }, [load])
+  const act = async (path, body) => {
+    setBusy(true)
+    try {
+      const r = await authFetch(`/api/lists/fsbo/campaign/${cid}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+      const d = await r.json()
+      if (d && d.ok === false && d.reason) alert('Not possible: ' + d.reason)
+      load()
+    } catch (e) { alert('Failed: ' + e.message) } finally { setBusy(false) }
+  }
+  const previewNext = async () => {
+    try { const r = await authFetch(`/api/lists/fsbo/campaign/${cid}/preview-next`); setNext(await r.json()) } catch { setNext(null) }
+  }
+  if (!st) return null
+  const en = st.enrollment
+  const ev = st.evaluation || {}
+  const fmtD = (iso) => { try { return new Date(iso).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT' } catch { return '—' } }
+  const meta = en ? (FSBO_STATUS_META[en.status] || { label: String(en.status || '').toUpperCase(), color: 'var(--text-muted)' }) : null
+  return (
+    <Section title="FSBO Campaign" id="fsbocamp">
+      {!en ? (
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          {ev.decision === 'waiting'
+            ? <div><strong style={{ color: '#2563eb' }}>WAITING FOR DOM</strong> — DOM {ev.dom}, campaign starts at DOM {ev.dom + (ev.days_until || 0)} ({ev.days_until} day{ev.days_until === 1 ? '' : 's'} away).</div>
+            : ev.decision === 'eligible'
+              ? <div><strong style={{ color: '#15803d' }}>ELIGIBLE</strong> — DOM {ev.dom}; the next sweep will auto-enroll (master switch permitting).</div>
+              : <div style={{ color: 'var(--text-muted)' }}>Not in the campaign — {ev.reason_code}: {ev.reason}</div>}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+          <div style={{ fontWeight: 800, color: meta.color, marginBottom: 4 }}>{meta.label}</div>
+          {en.status === 'responded' && <div style={{ fontSize: 12, marginBottom: 4 }}>{en.response_class ? <>Classified: <strong>{en.response_class}</strong> — </> : null}the campaign has stopped; reply personally.</div>}
+          {en.status === 'stopped' && en.stop_reason && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {en.stop_reason}</div>}
+          <div><strong>Property:</strong> {en.listing_address || client.address || '—'} · DOM {ev.dom ?? client.fsbo_dom ?? '?'} · {client.fsbo_status || 'off list'}</div>
+          <div><strong>Attempts:</strong> {en.attempt_count || 0}{en.last_angle ? ` · last angle ${en.last_angle}` : ''}{en.started_dom != null ? ` · started at DOM ${en.started_dom}` : ''}</div>
+          {en.status === 'active' && <div><strong>Next send:</strong> {en.next_send_at ? fmtD(en.next_send_at) : '—'} (weekday 9–4 window)</div>}
+          {en.last_sent_at && <div><strong>Last sent:</strong> {fmtD(en.last_sent_at)}</div>}
+          <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            {en.status === 'active' && <button className="btn btn-sm" disabled={busy} onClick={() => act('pause')}>⏸ Pause</button>}
+            {['paused', 'stopped'].includes(en.status) && <button className="btn btn-sm" disabled={busy} onClick={() => act('resume')}>▶ Resume</button>}
+            {en.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Remove this lead from the FSBO campaign? Sweeps will never re-enroll them.')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
+            {en.status === 'active' && <button className="btn btn-sm" onClick={previewNext}>👁 Preview next</button>}
+            {(st.log || []).length > 0 && <button className="btn btn-sm" onClick={() => setShowLog(v => !v)}>{showLog ? 'Hide log' : `Log (${st.log.length})`}</button>}
+          </div>
+          {next && <div style={{ marginTop: 8, fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)' }}>{next.eligible ? <><strong>Attempt {next.attempt} · {next.angle}:</strong> {next.message}</> : <>Would not send: {next.reason}</>}</div>}
+          {showLog && (
+            <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
+              {st.log.map(l => (
+                <div key={l.id} style={{ fontSize: 11.5, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
+                  <span style={{ color: 'var(--text-muted)' }}>{fmtD(l.created_at)} · </span>
+                  <strong>{l.event}</strong>{l.angle ? ` · ${l.angle}` : ''}{l.reason ? ` · ${l.reason}` : ''}{l.dom != null ? ` · DOM ${l.dom}` : ''}
+                  {l.body ? <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{String(l.body).slice(0, 160)}</div> : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 function CxCampaignCard({ cid, client }) {
   const [st, setSt] = useState(null)
   const [busy, setBusy] = useState(false)
@@ -1292,7 +1370,7 @@ function ListingInterest({ client }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'cxcamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {

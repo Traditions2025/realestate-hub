@@ -745,6 +745,18 @@ export const SMART_LIST_SQL = {
       AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact')
       AND clients.fsbo_dom IS NOT NULL AND clients.fsbo_dom != '' AND CAST(clients.fsbo_dom AS INTEGER) >= 14
       AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='outgoing' AND co.occurred_at >= datetime('now','-14 days')))`,
+  // ==== FSBO CAMPAIGN lists (server/fsbo-followup.js evaluator is authoritative;
+  // these are fast SQL views of the campaign state + the approach to the threshold) ====
+  // Available FSBOs at DOM 10-13 — reaching the auto-campaign threshold soon.
+  fsbo_reaching_dom14:
+    `(clients.fsbo_status='Available'
+      AND CAST(COALESCE(NULLIF(clients.fsbo_dom,''),'0') AS INTEGER) BETWEEN 10 AND 13)`,
+  // Actively enrolled in the FSBO campaign with a future send.
+  fsbo_campaign_active:
+    `(EXISTS (SELECT 1 FROM fsbo_followups ff WHERE ff.client_id = clients.id AND ff.status='active'))`,
+  // FSBO campaign leads who responded — humans own these conversations now.
+  fsbo_campaign_responded:
+    `(EXISTS (SELECT 1 FROM fsbo_followups ff WHERE ff.client_id = clients.id AND (ff.status='responded' OR ff.replied=1)))`,
   // ==== AI AUTO-ENROLLMENT lists (server/ai-enrollment.js is the authoritative
   // evaluator; the candidate list is a fast SQL APPROXIMATION of its cheap pre-filter) ====
   // New-status leads that LOOK auto-enrollable (textable, non-prospecting source, not
