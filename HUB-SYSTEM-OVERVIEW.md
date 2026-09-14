@@ -1,437 +1,257 @@
 # Matt Smith Team — Hub System Overview
 
 **Real Estate Command Center** for the Matt Smith Team (RE/MAX Real Estate Concepts, Cedar Rapids / Marion, Iowa).
-This is the single source of truth for how the Hub is built, what it does, the tools it depends on, and every moving part.
+This is the single source of truth for how the Hub is built, what it does, the thinking behind it, and every moving part.
 
 - **Live app:** https://realestate-hub-1rzu.onrender.com
 - **Repo:** github.com/Traditions2025/realestate-hub
 - **Version:** 2.0.0
-- **Last documented:** 2026-08-21
+- **Last documented:** 2026-09-14
 
 ---
 
 ## 1. What the Hub Is
 
-A self-hosted CRM + operations platform that sits on top of the team's existing lead sources (Sierra Interactive, Follow Up Boss) and communication rails (Twilio, SendGrid, Gmail). It is **the master system of record** for transactions and the team's daily workflow. It replaces a patchwork of spreadsheets, Zapier flows, and manual copy-paste with one installable web app.
+A self-hosted CRM + operations platform that sits on top of the team's existing lead sources (Sierra Interactive, Follow Up Boss) and communication rails (Twilio, SendGrid, Gmail). It is **the master system of record** for the team's daily workflow: leads, conversations, transactions, tasks, prospecting lists, drip campaigns, and the AI follow-up layer. It replaced a patchwork of spreadsheets, Zapier flows, and manual copy-paste with one installable web app.
 
-Core idea: leads and web activity flow IN from Sierra and FUB; the team works them inside the Hub (texting, calling, email, tasks, transactions, AI follow-up); status and tags flow BACK OUT to Sierra.
-
-**Key principle:** The Hub DB is master. Transactions are never synced from the Google Sheet. Sierra is read-mostly (we pull leads in; we push only status + tags back).
+Core loop: leads and web activity flow IN from Sierra, FUB, and the MLS master files; the team works them inside the Hub (texting, calling, email, tasks, transactions, AI follow-up, connection campaigns); status flows BACK OUT to Sierra.
 
 ---
 
-## 2. Tech Stack & Tools
+## 2. The Overall Thinking (design principles)
+
+These are the rules that shaped every subsystem. They are enforced in code, not just convention.
+
+1. **The Hub DB is master.** Transactions are never synced from the Google Sheet. Sierra supplies leads and its own signals; it can never overwrite what the team edits in the Hub (see Field Ownership, §12).
+2. **History is never destroyed.** Communications, FSBO listing history, notes, and campaign logs are permanent parts of the relationship record. Leaving a list clears list *membership*, never the data (learned the hard way; now structural).
+3. **Automation is manual-first and safety-gated.** Every autonomous feature ships OFF behind a flag or master switch. Compliance (STOP, DNC, quiet hours, holidays, undeliverable numbers) is centralized in one policy layer that every send path must consult — hard blocks always win.
+4. **Evaluate before every send, not just at enrollment.** Campaigns re-check eligibility (property status, conversation history, manual human activity, opt-outs) before each individual message. Enroll-once-blast-forever does not exist here.
+5. **Persistence ≠ pressure.** Outreach campaigns create more *chances to respond*, never more sales pressure. Message 10 is no more aggressive than message 1. The moment a lead replies, automation stops and a human takes over.
+6. **The AI never speaks to delicate leads.** Cancelled/Expired campaign leads are triple-fenced from AI replies (webhook skip, orchestrator gate, policy deny). The AI's job on those is deciding *whether/which approved message* — never composing to the seller.
+7. **Texts trickle, never blast.** Automated text campaigns pace 1–2.5 minutes between leads with randomized send days/times, and re-check the weekday 9AM–4PM Central window before every single send.
+8. **One authoritative evaluator per concept.** Follow-up coverage, eligibility, phone compliance — each has exactly one implementation that every surface (dashboard, smart lists, profile cards) calls. No re-derived logic.
+9. **All times are Central.** Greetings, windows, schedules, digests.
+10. **Verify live, test the class.** Every change ships with tests (207 across 19 suites), deploys are gated on the changelog hash, features are verified in the deployed app (often by screenshot), and when a bug class appears twice it gets a permanent guard test (e.g. the React hook-import scanner).
+11. **Never guess identity.** Skip-traced numbers are only accepted when Forewarn's address history proves the person; campaign texts reference "the home at {address}", never "your home", until the recipient establishes themselves.
+
+---
+
+## 3. Tech Stack & Tools
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 18 + Vite (JSX), React Router 6 |
+| Frontend | React 18 + Vite (JSX), React Router 6, single CSS system (`src/styles/app.css`) |
 | Backend | Node.js + Express 4 (ESM modules) |
-| Database | better-sqlite3 (single-file SQLite, ~40 MB) |
-| AI | Anthropic Claude (`@anthropic-ai/sdk`), model via `ANTHROPIC_MODEL` (Claude Sonnet) |
-| Texting / Calling | Twilio (direct REST, Basic auth) |
-| Email (outbound) | SendGrid |
+| Database | better-sqlite3 (single-file SQLite, ~40 MB, atomic saves) |
+| AI | Anthropic Claude (`@anthropic-ai/sdk`), model via `ANTHROPIC_MODEL` |
+| Texting / Calling | Twilio (REST) + Twilio Conversations (group MMS) |
+| Email (outbound) | SendGrid (+ Event Webhook engagement tracking) |
 | Email (inbound) | Gmail IMAP (`imapflow` + `mailparser`) and/or SendGrid Inbound Parse |
-| Uploads | `busboy` (multipart) |
-| Mobile | PWA (installable) + Capacitor scaffolding for native shells |
-| Hosting | Render (auto-deploy on `git push`) |
+| Mobile | PWA (installable); responsive layer; no native shell |
+| Hosting | Render (auto-deploy on `git push`, persistent disk for the DB) |
 | Automation glue | n8n (social publishing), legacy Zapier |
 
-**External data sources / APIs the Hub talks to:**
-- **Sierra Interactive API** — lead pull + status/tag write-back (lead-only API).
-- **Follow Up Boss API** — web activity, property views, custom fields (Realist Sell Score, budget ranges), templates. FUB is used where Sierra doesn't share data (e.g. web-activity history).
-- **Twilio** — SMS/MMS, voice calls, voicemail, browser softphone.
-- **SendGrid** — outbound email + engagement stats (opens/clicks) + inbound parse.
-- **Google Calendar** — iCal feed sync (read-only).
-- **Slack** — deadline alerts + ops notifications (incoming webhook).
-- **Anthropic Claude** — AI ISA follow-up, listing descriptions, transaction parsing, suggested follow-ups.
+**External systems:** Sierra Interactive API (leads in, status back) · Follow Up Boss API (web activity, notes, templates, custom fields) · Twilio · SendGrid · Google Calendar (iCal) · Slack (alerts) · Anthropic Claude · Forewarn (via the separate `mls-expired-cancelled/` tooling) · Google Sheets master files (FSBO + Expired/Cancelled).
 
 ---
 
-## 3. Hosting & Deployment
+## 4. Hosting, Deployment & Process
 
-- **Host:** Render web service. `npm start` → `node server/index.js`. Express serves both the API and the built React bundle from `dist/`.
-- **Deploy:** `git push origin HEAD` triggers auto-deploy (~2–3 min). There is a brief 502 / blank-root swap window during restart.
-- **Verify a deploy:** the frontend bundle hash changes (`dist/index.html` references new `index-*.js` / `Clients-*.js`); server health returns 200 after the swap. The server process can lag slightly behind the new frontend bundle.
-- **Persistence:** SQLite DB lives on a Render persistent disk at `DB_DIR`.
+- **Host:** Render web service. `npm start` → `node server/index.js`; Express serves both the API and the built React bundle from `dist/`.
+- **Deploy:** `git push origin HEAD` auto-deploys (~1–3 min). A brief 502/blank swap window occurs; rolling swaps can drop in-flight webhook writes (a 10-min group-thread resync heals those).
+- **Deploy gate (team practice):** after pushing, poll `GET /changelog.json` until it contains the new commit hash, then verify the feature live. Never assume.
+- **Pre-deploy check:** confirm no sync/import/digest node process is running locally.
 - **Build:** `npm run build` = regenerate changelog + `vite build`.
+- **Process:** test-first where practical (red → green), full suite before deploy, commit messages describe the why, memory/docs updated when architecture changes.
 
 ---
 
-## 4. Architecture
+## 5. Architecture
 
 ```
 Browser (React SPA, PWA)
         │  authFetch (x-auth-token)
         ▼
 Express (server/index.js)
-        ├── /api/* routers (35 route modules)      → business logic
-        ├── background scheduler (setInterval jobs) → syncs, digests, AI queue
-        ├── server/ai-followup/*                    → HUB AI ISA engine
-        └── better-sqlite3 (server/database.js)     → single-file SQLite master DB
+        ├── /api/* routers (37 route modules)       → business logic
+        ├── background scheduler (setInterval jobs)  → syncs, sweeps, campaigns, digests
+        ├── server/ai-followup/*                     → HUB AI ISA engine
+        ├── server/cx-connect.js                     → Cancelled/Expired connection campaign
+        ├── server/followup-coverage.js              → coverage evaluator
+        ├── server/fsbo-master.js / expired-master.js→ master-file syncs
+        └── better-sqlite3 (server/database.js)      → single-file SQLite master DB
         ▲
-        │  pulls in / pushes back
-External: Sierra · FUB · Twilio · SendGrid · Gmail IMAP · Google Calendar · Slack · Anthropic
+External: Sierra · FUB · Twilio · SendGrid · Gmail IMAP · GCal · Slack · Anthropic · Google Sheets
 ```
 
-- **Frontend** lives in `src/pages/*.jsx` (one file per tab) + shared components. Routes are declared in `src/App.jsx`.
-- **Backend routers** live in `server/routes/*.js`, each mounted under `/api/<name>` in `server/index.js`.
-- **Schema** is defined and migrated in `server/database.js` (idempotent `CREATE TABLE IF NOT EXISTS` + a `_migrations` runner).
-- **Background work** is started by `startScheduler()` in `server/scheduler.js`.
+- **Frontend:** `src/pages/*.jsx` (one file per tab) + shared components; routes in `src/App.jsx`. The global shell = sidebar nav, centered Search-everything bar, top-right utility cluster (🔔 notifications + user avatar/account menu).
+- **Backend routers:** `server/routes/*.js`, mounted under `/api/<name>`.
+- **Schema:** defined + migrated idempotently in `server/database.js` (try/catch `ALTER`s; indexes created only after their tables).
+- **Theme system:** semantic accent tokens with 5 themes (Matt Smith Gold default, team-wide setting + per-user override, pre-paint boot script), dark/light via `body[data-theme]`.
 
 ---
 
-## 5. Authentication & Access Control
+## 6. Authentication & Access Control
 
-**Two coexisting login paths (backwards compatible):**
-- **Legacy shared login** — the single `TEAM_PASSWORD` still works and issues a stateless owner-scoped "team" token (`TOKEN_SECRET`, HMAC-SHA256, 30-day expiry).
-- **Individual user accounts** (Phase 1, `server/auth/*` + `server/routes/users.js`) — per-user email + password login. Passwords hashed with **scrypt** (`server/auth/passwords.js`, no plaintext). Per-user tokens carry `uid`+`role`+`jti` and are tied to a **revocable session** (`user_sessions`).
-- Frontend stores the token and sends it as `x-auth-token` on every request via `authFetch`.
-- `requireAuth` verifies the token and attaches **`req.user`** (`{id, role, name, email}`; a legacy team token resolves to a full-access `owner` principal). Public exceptions: inbound Twilio/SendGrid webhooks, tracking pixels, and query-token media/recording/stream proxies.
-
-**RBAC** (`server/auth/rbac.js`): roles = owner / admin / agent / transaction_coordinator / isa / marketing / read_only, each mapped to a permission set. Central `can(role, permission)` is the single authorization source; `requirePermission(perm)` guards routes (applied to `/api/users` now; rolled out to other routes incrementally).
-
-**Audit log** (`server/auth/audit.js`, `audit_log` table): system actions — logins (success/failed/shared), user created/updated, role/status change, password reset, session revoke, permission-denied — captured with actor, IP, and user-agent. Communication content stays in its own tables, not here.
-
-**User management** (`/api/users`, owner/admin only): list/create/update users, set roles, reset passwords, disable, revoke sessions; `/api/users/roles` and `/api/users/audit` for the UI. An initial OWNER is seeded on boot (`OWNER_EMAIL`/`OWNER_PASSWORD`, else the primary account + shared password) if the users table is empty.
-
-**Self-service profile** (`/api/users/me`, any authenticated user, own row only — registered before the `/:id` admin routes): GET returns own record incl. `avatar`; PUT edits name/phone only (email/role/status stay admin-managed); POST/DELETE `/me/avatar` set/clear the profile photo. The photo is a small square data URI — the client canvas-crops to 256px JPEG, the server re-validates the MIME from the data-URI header and caps size (~300KB), stored in `users.avatar`. The header account menu (top-right avatar next to the notification bell, `AccountMenu` in `src/App.jsx`) shows photo-or-initials and holds Profile (`/profile`, `src/pages/Profile.jsx`), Settings, the Light/Dark toggle, and Log Out — the old sidebar theme/logout controls moved there (2026-09-11). `/api/auth/me` also returns `avatar` so the header renders it on boot; a `mst-me-changed` window event refreshes it after profile edits.
-
-*Follow-on increments: per-route permission enforcement everywhere, session-management UI (logout/revoke-all/login history), optional TOTP 2FA + recovery codes.*
+- **Per-user accounts only** (the shared team login was retired 2026-09-04 and legacy team tokens are rejected). Passwords scrypt-hashed; 30-day tokens carry `uid`+`role`+`jti` tied to revocable `user_sessions`. Sent as **`x-auth-token`** on every request (not Authorization Bearer).
+- **RBAC** (`server/auth/rbac.js`): owner / admin / agent / transaction_coordinator / isa / marketing / read_only → permission sets; `requirePermission()` guards admin routes; full **audit log** of auth/system actions.
+- **User management** (`/api/users`, owner/admin): create/update users, roles, password resets, session revocation.
+- **Self-service profile** (`/api/users/me`): own name/phone + avatar (client square-crops to 256px; server validates MIME + size; stored on the user row). The **header account menu** (avatar next to the bell) holds Profile, Settings, Light/Dark, Log Out.
+- **Automation account:** `automation@mattsmithteam.com` (admin) — all API tooling authenticates as this user; creds live in the project memory folder.
 
 ---
 
-## 6. Modules (Tabs) & Their Functions
+## 7. Frontend Modules (Tabs)
 
-Every tab is a React page backed by one or more API routers.
-
-### Dashboard (`/`) — the daily operating command center
-Redesigned (2026-09) around "what should I do first?", all Central-time, every number click-through:
-- **Action cards:** Priority Leads, Need Response (→ Inbox), AI Handoffs (→ AI Opportunities), Follow-Ups Due / Overdue Tasks (→ Tasks), Appointments Today (→ Calendar).
-- **Needs Your Attention:** open AI handoffs + unanswered inbound replies (with the actual message, intent, recency) + today's missed calls, each with Reply/Open actions.
-- **Today's Schedule:** calendar events + transaction closings/walkthroughs happening today.
-- **Lead Pipeline:** status chips (Prime/Active/Qualify/Watch/Pending/New) + dynamic conditions (High Intent ≥70, Need Response, Viewed 24h, AI Managed) deep-linking into Clients (`?tab=`, `?smart=`, `?list=`, `?sort=`).
-- **Transactions:** open count, closings next 7 days, deadlines due today (reuses `fetchTodaysDeadlines`).
-- **Opportunity Radar:** re-engaged after 60d+ quiet, repeat property viewers (3+ views/7d), past clients active again — with named examples.
-- **HUB AI:** managed count, handoffs waiting, AI texts/responses/intent-increases/failed actions today.
-- **Communication Health:** today's sent/received/calls + Need Response / Missed Calls / Failed Messages.
-- **Business Performance** (owner/admin only, backend-gated): MTD/YTD new leads, closed, volume.
-- **System Health:** Sierra sync, backup, master syncs, failed messages — one green line when healthy.
-- Server: single aggregation in `server/routes/dashboard.js` (`stats.cards/attention/schedule/pipeline/prospecting/tx/radar/ai/comm_today/business/health`), metric definitions in a comment block there; per-block `safe()` isolation so one failing query never blanks the page. `closing_date` parsed in both `YYYY-MM-DD` and `M/D/YYYY` forms.
-
-### Email engagement tracking (SendGrid Event Webhook, 2026-09)
-- **Event stream:** `POST /api/email/events` (public, ECDSA signature-verified when `SENDGRID_WEBHOOK_PUBLIC_KEY`/setting configured; configure the SendGrid side once via `POST /api/email/setup-events-webhook`). Events matched to the exact email via `sg_message_id` prefix = `email_log.provider_message_id` (+ recipient for multi-row sends) — never subject guessing.
-- **Idempotent by construction:** raw events dedupe on UNIQUE `sg_event_id`; every summary number is RECOMPUTED from raw rows (MIN/MAX/COUNT), so webhook retries and out-of-order arrivals can't double-count or corrupt first/last.
-- **Storage:** `email_events` (normalized) + summary fields on `email_log` (delivered_at, first/last_opened_at, open_count, first/last_clicked_at, click_count, last_clicked_url, delivery_status) + client rollups on `clients` (last_email_opened_at, last_email_clicked_at, email_open_count, email_click_count; indexed for sorting 45K+).
-- **Surfaces:** Clients optional columns Last Email Opened/Clicked + Opens/Clicks (sortable server-side); filters (opened/clicked ever/never/N-days, min counts); smart lists `email_engaged_7d` + `email_clicked_no_reply`; Inbox chips (Delivered / Opened n× / Clicked n×); profile email cards with expandable event timeline (`GET /api/email/engagement/:id/events`); Reporting aggregates (`GET /api/email/engagement-summary`).
-- **Semantics:** opens are TRACKED opens (privacy proxies inflate them) — soft signal; clicks stronger. Pre-webhook emails show "No tracking data", never "never opened". spamreport/unsubscribe set `marketing_email_opt_out`. Opens/clicks feed the AI behavioral score at existing weights (open 1, click 3).
-- All sends now request SendGrid open+click tracking (`tracking_settings` in `sendViaSendGrid`).
+### Dashboard (`/`)
+"What should I do first?" — action cards (Priority Leads, Need Response, AI Handoffs, Follow-Ups Due, Appointments, Overdue Tasks), **Needs Your Attention** (collapsible, 3 by default; excludes internal team records), **Cancelled/Expired/FSBO Updates** box (today's master-file changes with clean labels, full address, DOM, View-Listing links + a Check Master Files Now button), Lead Pipeline chips deep-linking into Clients, Transactions & deadlines, Opportunity Radar (re-engaged 60d+, repeat viewers, past clients active — FUB-driven), HUB AI stats, Communication Health, Follow-Up Coverage KPI (*connected leads without future coverage — target 0*), Business Performance (owner/admin), System Health. Today's Schedule sits minimized at the bottom.
 
 ### Clients (`/clients`) — the CRM core
-- Searchable/filterable client list; deep-link to a profile via `?open=<id>`. **List view only** (the Cards view + toggle were removed 2026-09-09); the main search bar sits centered in the page header (title left, actions right: Dialer / Columns / Sync / + Add Client). Admin actions like the Realist CSV import live in Settings, not here.
-- **Lead profile** with contact info, source, tags, status, FUB link, web activity ("Last Visit", viewed properties).
-- **Communication buttons:** Text, Call, Email — each opens inline (no modal-behind-profile).
-- **Inline Text composer** (`InlineTextComposer`): send SMS/MMS from the Hub number, insert templates, merge fields, attach photos, add more recipients, **loop in a teammate** (from the team agent directory), schedule for later.
-  - **AI text suggestion** (newest): auto-drafts an SMS-appropriate message (first text / reply / follow-up aware), strict-Central greeting, compliance-aware, with Use this / Regenerate / Copy.
-- **AI Suggested Follow-Up** (`🧭`): analyzes the client's history and recommends the next step + drafts a suggested email (regenerate / shorter / casual / direct / apply-context).
-- **HUB AI ISA card:** enable/stop AI management per lead, preview, send-now (respects quiet hours), pause/resume/human-takeover.
-- **Manual Dialer button (`☎ Dialer`):** dial any number not in the database.
-- **Bulk actions:** bulk SMS, add to list, and **Power Dialer** (bulk call session).
-- Editing is inline (name, phone, email, address) and writes through to the DB.
+- **List:** status tabs + smart lists + saved lists (static or dynamic-filter). **Name column is pinned** — always first and sticky during horizontal scroll. Columns + widths are **per view** (each tab/saved list/smart list remembers its own). Column picker is a compact 2-column popover with reset/auto-fit. Select Visible / Select first 100–500 / Select All Matched. Comm-recency columns + sorts (Last Text/Email/Call, Last Email Received/Sent, opens/clicks).
+- **Cancelled/Expired list** has its own column set (Off Market Date, MLS Status, MLS #); FSBO list injects FSBO Status (Available/Off Market) + Price + live DOM.
+- **Lead profile** (`/clients/:id`, full-screen route): draggable two-column card layout (per-user, persisted) with **Client Details locked first**; Communications box with All/Texts/Calls/Emails/**Notes** tabs (notes live here, not a separate box); Buyer/Seller profile; Property Activity; Website/FUB/Sierra activity; Follow-Up Coverage card; **Cancelled/Expired Campaign card**; AI card; Action Plans; Tasks; Transactions.
+- **Contact fields:** primary + **additional phones/emails** (＋ beside the pencil), **nicknames per additional number** ("Wife - Sarah") shown in every picker, editable via chips.
+- **Texting from the profile:** number picker with nicknames, **"+ Add another number…" inline**, and a **👥 all-N-numbers group toggle** that sends one true group MMS to every saved number (survives adding teammates; extra numbers appear as chips). **Call ▾ picker** when 2+ numbers. Full composer: templates, merge fields, MMS, scheduling, teammate loop-in, AI text suggestion.
+- **Email from the profile:** composer with templates/merge fields/preview, **✨ Suggested reply** (same engine as Inbox — works even when the lead has never replied: drafts a first-outreach opener), angle chips (Continue conversation / Website activity / Soft check-in), **adjust row** (Shorter/Casual/Direct/Warmer + free-text context), Reply buttons on every email in history.
+- **Address intelligence:** pasting a full address into Address auto-splits street/city/state/zip and fixes casing; state abbreviations always ALL CAPS.
 
-### Inbox (`/inbox`) — unified communications
-- Unified thread view of **texts, emails, and calls** in one place.
-- Channel filters (e.g. Text-only shows only texts, not emails from the same person).
-- Inbound MMS photo rendering, link previews, AI badge on AI-sent messages.
-- **Reply composer** adapts per channel: for text it hides Subject and adds template picker + insert-photo.
-- **AI suggested response** for inbound texts.
-- **View profile** button jumps to the lead's Clients profile.
-- Assignment filters (Mine / assign to a team agent).
-- Live updates via SSE stream.
+### Inbox (`/inbox`)
+Unified texts/emails/calls. Email threads show **only the current exchange** (latest inbound + every reply after it; older mail lives on the profile with a count pill). Thread header shows a **seller-context pill** (CANCELLED / EXPIRED / WITHDRAWN / FSBO + status) for listing leads. Reply picker shows number nicknames. **Group MMS threads** with per-message sender attribution (**name + number**), delivery receipts per recipient, 10-min self-healing resync from Twilio's record. AI suggested replies with adjust/context. Unknown-sender queue with create/link-to-lead.
 
-### AI Opportunities (`/ai-opportunities`)
-Surfaces leads the AI flags as worth acting on (high intent, re-engagement candidates).
-
-### Power Dialer (`/dialer`)
-Bulk call session engine (also reachable as a Clients bulk action): work a call list, log dispositions, custom voicemail greeting, live-call **voicemail drop**, call-list reporting.
-
-### Transactions (`/transactions`) — TC system
-- Master transaction tracker (buy/list side), representation type, key dates/deadlines.
-- **Deadline → task sync**, walkthrough reminders, closing-invite emails.
-- **AI email scrubbing / parsing** to pull deal data from inbound emails.
-- Dotloop-aware; morning/afternoon TC digests to John and Matt.
-- Transaction people (parties) tracked in `transaction_people`.
-
-### Tasks (`/tasks`)
-Task list with priorities, reminders (daily reminder emails to Matt/Leo), notify recipients, deadline-driven tasks from transactions.
-
-### Projects (`/projects`), Notes (`/notes`)
-Internal project tracking and freeform notes.
-
-### Marketing (`/marketing`), Social Media (`/social-media`), Blog Posts (`/blog-posts`)
-- Marketing campaign records.
-- Social post generation/scheduling; auto-publish via **n8n** (Hub stores + schedules, n8n posts).
-- Blog post management (the auto-publisher to Sierra runs as a separate tooling layer).
-
-### Campaign Match (`/campaign-match`)
-Matches leads to the right drip campaign (e.g. Past Client Nurture = Closed status only).
-
-### Calendar (`/calendar`)
-Shows Google Calendar events (synced from iCal feeds every 5 min).
-
-### Templates (`/templates`)
-- Email + text templates with merge fields.
-- **FUB template import** (`/import-fub`): maps FUB tokens (`%contact_first_name%` → `{{first_name}}`, `%greeting_time%` → "Hi", etc.), skips Ylopo-link templates, updates existing imported ones.
-- **Voicemail library** (upload/manage voicemail greetings and drops).
-
-### Automations (`/automations`)
-Workflow builder + execution engine (triggers, conditions, actions) **plus drip campaigns**. Enrollments, versions, executions, and event log are all tracked.
-
-### Reporting (`/reporting`)
-- **Texting** and **Calls** as separate tabs.
-- **Campaigns** table (bulk text campaigns).
-- Email engagement (SendGrid `messageActivityStats` — opens/clicks).
-- **AI Follow-Up** tab: analytics, scheduler health, quality review (👍/👎 rating of AI actions).
-
-### Vendors (`/vendors`), Partners (`/partners`)
-Vendor and referral-partner directories.
-
-### Updates (`/updates`), WhatsNew
-Changelog / release notes surfaced in-app.
-
-### Settings (`/settings`)
-Organized (2026-09-09) into **collapsible categories in two balanced desktop columns** (one column on mobile; sections stay mounted when collapsed so unsaved edits survive; open/closed state persists per user): LEFT — General (account info + email signature), AI Follow-Up (AI ISA + coverage standards + regression eval), Communications (Twilio + call routing + A2P business registration), Email & Inbox (connected mailboxes); RIGHT — Team & Users (team agents), Data / Imports (master-file check + **Import Realist CSV**, moved from Clients), System / Diagnostics (service balances + comms diagnostics). The global Save Changes button sits below the columns.
-- **AI Follow-Up settings:** Autopilot toggle (OFF by default), feature flags, config (delays, quiet hours, persona, handoff threshold), diagnostics.
-- **AI Exclusions:** search-with-suggestions chip picker (exclude by tag, status, or tag+status combination) so prospecting imports (FSBO / expired / cancelled) are never auto-contacted.
-- **Team Agents:** manage the roster (name, phone, title) used for looping teammates into texts and for assignment.
-- **Voice routing**, comms diagnostics.
+### Other tabs
+- **AI Opportunities / AI Sandbox** — AI-flagged leads; sandboxed prompt experiments.
+- **Power Dialer** — bulk call sessions, dispositions, voicemail drop.
+- **Transactions** — the TC system: tracker, deadlines→tasks, digests (9AM/1PM CT), AI email parsing, closing invites.
+- **Tasks / Projects / Notes** — ops basics; annual Not-in-Market recheck loop lives in Tasks.
+- **Automations** — workflow builder + execution engine + drip campaigns (enrollments/versions/executions/events).
+- **Marketing / Social / Blog / Campaign Match / Calendar / Templates / Vendors / Partners / Reporting / Updates / Duplicates / Admin** — as before; Reporting includes texting, calls, campaigns, email engagement, and AI quality review.
+- **Settings** — collapsible two-column categories: General (account + signature) · Appearance (accent themes; team default + personal override) · AI Follow-Up (ISA flags, **CX campaign master switch + bulk enroll + stats**, coverage standards, regression eval) · Communications (Twilio, routing, A2P) · Email & Inbox (mailboxes) ·· Team & Users · Data / Imports (**Sierra Full Sync**, master-file check button, Realist CSV import) · System / Diagnostics.
 
 ---
 
-## 7. HUB AI ISA (AI Inside Sales Agent)
+## 8. HUB AI ISA (AI Inside Sales Agent)
 
-A native AI real-estate follow-up + qualification system. **Manual-first and safety-gated:** every autonomous feature ships OFF; the AI only touches leads an agent explicitly enables until Autopilot is turned on.
+Native AI follow-up + qualification. **Manual-first:** every autonomous feature ships OFF; the AI only touches leads an agent enables (or Autopilot, when on, for non-excluded new leads).
 
-### Engine modules (`server/ai-followup/`)
-| Module | Responsibility |
-|---|---|
-| `policy.js` | Centralized compliance: `canSendSms`, `canAiCall`, opt-out application. Hard blocks always win. |
-| `state.js` | 19 AI lead states, transitions, enable/stop/pause/resume, human takeover, exclusion logic. |
-| `flags.js` | Feature flags + config defaults, quiet-hours math, autopilot check. |
-| `intent.js` | Intent scoring (`computeIntent`, high-intent regex), history. |
-| `context.js` | `buildLeadAiContext` + strict-Central `centralGreeting`. |
-| `prompts.js` | Persona, style rules, buyer/seller playbooks, first-message directive. |
-| `orchestrator.js` | The brain: inbound handling, proactive, follow-up, nurture, preview, finalize/guard. |
-| `scheduler.js` | Drains the AI action queue; new-lead / re-engagement / behavioral sweeps. |
-| `handoff.js` | Creates + notifies on human handoff at high intent. |
-| `intent.js`, `memory.js`, `events.js`, `audit.js` | Intent, structured lead memory, event log, action audit trail. |
-
-### Identity & voice
-- Persona: **"John with Matt Smith Team at RE/MAX Concepts"** — never "the Matt Smith Team", never claims to be Matt.
-- **First text** = warm time-of-day greeting + `MattSmithTeam.com` + the lead's search city + last viewed property; framed as "thanks for stopping by" (never surveillance-y "saw you browsing"); no city after the RE/MAX intro.
-- **Follow-ups** open with "Hi"/"Hello" (never a time greeting, never "Hey"), and ask ONE qualifying question at a time: for buyers — area → price → property type → style → beds → timeframe → financing; for sellers — address → timeframe → motivation.
-
-### Time & compliance guardrails
-- **Strict Central time.** `centralGreeting()` is always `America/Chicago`. `finalizeAiText()` server-forces the correct greeting on the first text and strips any time greeting from follow-ups so the model can't override it.
-- **Quiet hours** (default 21:00 → 08:00 CT) apply to ALL AI sends, including manual "Send AI now".
-- **Hard text block** only when the lead texted STOP to the Hub number (`hub_text_opt_out`); `do_not_text` and `do_not_call` are independent; calling is never blocked by a text opt-out.
-- **Exclusions:** imported prospecting lists (default `fsbo, mls: expired, mls: cancelled`, plus status and tag+status rules) are never auto-treated as new leads. An agent can still enable AI on one manually.
-
-### Feature flags (all default OFF)
-`ai_followup_enabled` (master), `ai_autopilot`, `ai_responsive_text_enabled`, `ai_proactive_text_enabled`, `ai_nurture_enabled`, `ai_behavioral_enabled`, `ai_voice_enabled` (future), `ai_auto_handoff_enabled`.
-
-### Key config defaults
-new-lead delay 5 min · first follow-up 10 min · max 4 follow-ups/day · quiet hours 21:00–08:00 CT · handoff intent threshold 70 · pause after human/after call · persona as above.
-
-> **AI Voice** (Twilio ConversationRelay) is documented on the roadmap but intentionally not built until AI Text is stable in production.
+- **Engine** (`server/ai-followup/`): policy (compliance) · state (19 lead states) · flags · intent scoring · context/prompts (persona "John with Matt Smith Team at RE/MAX", strict-Central greetings, one-question-at-a-time playbooks) · orchestrator (the brain) · scheduler (queue + sweeps) · handoff (notify at intent ≥ 70) · memory/events/audit.
+- **Cold-seller philosophy:** FSBO/expired/cancelled = relationship, not pitch — overrides discovery/objection playbooks.
+- **Cold buyer drip:** staged SMS revive (Day 1/4/9/17/30/50 + long-term nurture), weekdays only, autopilot+nurture gated.
+- **Guardrails:** quiet hours 21:00–08:00 CT on all AI sends; STOP-to-Hub-number is the only text hard-block (calling never blocked); prospecting imports are excluded from auto-treatment; `finalizeAiText` server-forces greetings; **CX-campaign leads are never AI-texted or AI-answered, ever** (three independent fences).
+- **AI-assisted, human-sent surfaces:** Inbox/profile Suggested replies and the Suggested Follow-Up card share one dossier built from Hub data + **Hub notes + notes-table records + Sierra lead notes (live) + FUB notes/calls/emails/texts/events** — so drafts are grounded in real history even for leads with zero web activity. Drafts are never auto-sent.
 
 ---
 
-## 8. Communications Center
+## 9. Cancelled/Expired Connection Campaign ("CX Connect") — LIVE
 
-- **Hub phone number:** +1 (319) 343-1562 (Twilio, A2P 10DLC verified).
-- **Texting:** SMS + MMS via Twilio REST; templates, merge fields, media, scheduling, bulk campaigns.
-- **Calling:** browser softphone (`window.hubCall`), call logging, dispositions, Power Dialer, live voicemail drop.
-- **Voicemail:** custom greetings + a drop library (Templates tab).
-- **Team agent directory:** Matt Smith (319-431-5859, Broker Associate), Hunter Caves (319-447-7337, Realtor), John Solamo (319-343-1562). Loop-in-a-teammate on any client text; agents skip the consumer compliance gate.
-- **Inbound:** Twilio webhooks (signature-verified) for texts/calls; Gmail IMAP + SendGrid inbound for email.
-- **Opt-out handling:** STOP routes through `policy.applyOptOut`; manual sends are tagged `sent_by_type='human'` and trigger human-takeover so the AI never talks over a live conversation.
+`server/cx-connect.js` + `/api/cx` + profile card + Settings card. Purpose: **make contact** with cold Cancelled/Expired sellers; persistence = more chances to respond.
 
----
-
-## 9. Database (SQLite, master system of record)
-
-Defined in `server/database.js`. Core tables:
-
-**CRM & pipeline:** `clients`, `transactions`, `transaction_people`, `pre_listings`, `listings`, `realist_properties`, `showings`, `client_lists`, `lead_activity`, `activity_log`.
-
-**Communications:** `communications` (+ `sent_by_type`, `ai_action_id`, `campaign_id`), `inbox_ai`, `text_campaigns`, `scheduled_texts`, `dialer_log`, `voicemails`, `team_agents`, `email_log`.
-
-**HUB AI ISA:** `communication_preferences`, `ai_lead_state` (incl. `ai_managed`), `lead_intelligence`, `lead_events`, `ai_actions` (incl. `rating`), `ai_handoffs`, `ai_scheduled_actions`, `ai_intent_history`.
-
-**Automations & drips:** `automations`, `automation_runs`, `automation_versions`, `automation_enrollments`, `automation_executions`, `automation_events`, `email_campaigns`, `drip_campaigns`, `drip_enrollments`, `drip_executions`, `followup_recommendations`.
-
-**Content & ops:** `tasks`, `projects`, `notes`, `marketing`, `vendors`, `partners`, `social_posts`, `blog_posts`, `calendar_events`, `templates`.
-
-**Integrations & system:** `fub_activity`, `sierra_sync_log`, `digest_log`, `app_settings` (flags/config), `_migrations`.
+- **Pipeline (fully automatic since 2026-09-14):** hourly master-file sync tracks a new cancellation/expiry → creates the lead → **hourly auto-enroll pass** screens and enrolls it (notification announces joiners) → Day-1 intro at the next trickle slot → replies stop everything for a human.
+- **Eligibility, re-verified before EVERY send:** skips prior responders (full conversation-history scan: rented/sold/other-agent/keeping/not-interested/wrong-number/future-timeframe), STOP/DNC, undeliverable landlines, Sold/Pending/Active-relisted MLS status, junked leads, no-address, merged records, AI-managed leads; recent manual human contact defers (never talks over you); central collision gate adds dedup/quiet-hours/holiday. Human pause/remove/response can never be silently re-enrolled.
+- **Cadence:** Day 1 intro → day 2–3 second attempt → ~weekly forever while eligible, with 6–8-day jitter, random in-window times, Sat→Fri/Mon, Sun→Mon. **Trickle: 1–2.5 min between sends**, window (weekday 9AM–4PM CT) re-checked per send.
+- **Language:** approved template library only — 18 rotating angles (no repeat within last 3), age-bucketed by off-market date (0-30 recent / 31-90 / 91-365 / 365+; unknown date = old-listing language; buckets migrate automatically). Street-address only, no names, no ownership assumptions, no activity questions, no manufactured hooks, never "recently" on old listings.
+- **Response = STOP FIRST:** inbound instantly halts that lead, classifies internally (keywords, no model in the path), notifies + creates a high-priority **CX Response task**. The AI never replies — the human does.
+- **Ops:** master switch (Settings), per-lead card (status incl. RESPONSE RECEIVED banner, next send, attempts, angle, log, pause/resume/remove), dry-run preview endpoint (`GET /api/cx/preview`) that composes real next texts without sending, full decision/audit log (`cx_campaign_log`) powering future angle/day/time analytics.
+- **Companion:** "Second Act" email drips (0-30/31-90/90+; 30 emails each) exist and render clean but are enrolled separately (currently not enrolled).
 
 ---
 
-## 10. API Route Map
+## 10. Follow-Up Coverage (fall-through prevention)
 
-All under `/api`, guarded by `requireAuth` (except public webhooks/tracking):
+One authoritative evaluator (`server/followup-coverage.js`) answers per lead: *"if we do nothing manually, will this person hear from us again — and soon enough?"* Valid coverage = future task / scheduled text / pending AI action / active drip-automation with a future run / active transaction / intentional snooze / documented exclusion — with channel sanity (SMS coverage never counts for a text-opted-out lead). Relationship levels ratchet at *connected*; silence windows are configurable per level; states protected / at_risk / unprotected / snoozed / excluded. 10-min incremental sweep + chunked daily audit + immediate recalc on the classic fall-through moments (last task completed, status change). Surfaces: Dashboard KPI + attention items, smart lists, opt-in columns, profile card. The evaluator never sends anything.
 
-`auth · seed · transactions · clients · tasks · projects · notes · marketing · showings · dashboard · pre-listings · listings · realist · vendors · partners · social-media · blog-posts · calendar · sierra · email · lists · templates · automations · reporting · drips · campaign-match · inbox · dialer · voicemails · ai · agents · followup · track`
+## 11. Not in Market (CRM status)
 
-Notable endpoints:
-- `POST /api/ai/lead/:id/preview` — draft an SMS for a lead (used by the composer's AI suggestion + the AI ISA card).
-- `POST /api/ai/lead/:id/send-now`, `/enable`, `/stop`, `/pause`, `/resume`, `/takeover`, `/settings`, `/facets` (exclusion picker suggestions).
-- `POST /api/inbox/send` — send text/email; text branch accepts a `phones` array for raw agent numbers.
-- `POST /api/fub/link/:clientId` — link a Sierra-origin client to its FUB person and backfill web activity.
-- `GET/POST/PUT/DELETE /api/agents` — team agent directory.
-- `POST /api/templates/import-fub` — import + token-convert FUB text templates.
+Hub-native status for "we connected and they confirmed no current intent." One centralized transition stops drips/automations/scheduled texts/AI, sets intent LOW, closes sales-patterned tasks, and creates ONE annual recheck task (self-renewing loop on completion). Sierra can never overwrite it; drips refuse these leads; coverage counts the annual task as protection. Distinct from Watch (future intent) and from opt-out ("never contact me").
 
 ---
 
-## 11. Background / Scheduled Jobs
+## 12. Sierra Sync — Field Ownership (2026-09-11)
 
-Started by `startScheduler()` (`server/scheduler.js`). All times drive off Central where user-facing.
+The hourly incremental sync (updated + created passes, bulk-mode atomic save) now follows a strict ownership doctrine:
+
+- **Existing leads:** the sync writes ONLY what Sierra owns — status (junk safety, Not-in-Market-guarded), website visits, email/phone validation statuses, Sierra dates/pond, marketing/text/ealert opt-outs, summary, tags, lender fields, saved-search criteria. It **never replaces** name, email, phone, address, type, budgets, agent assignment, or Realist score/grade — Hub edits to contact data are permanent. One exception: an **empty** Hub phone/email/address is backfilled from Sierra (new website-provided data, never an overwrite; `notvalidemail` placeholders excluded).
+- **New leads:** insert in full.
+- **Hub → Sierra:** status (and tags) push back on change; nothing else.
+- Why: a sync pass silently reverted 39 Forewarn-verified phone numbers the day after they were written. Now structurally impossible.
+- **Corollary for the team: contact edits happen in the Hub.** Corrections made inside Sierra no longer flow onto existing leads.
+
+## 13. Master-File Prospecting Syncs
+
+- **FSBO** (`server/fsbo-master.js`, ~hourly): Google Sheet → `fsbo_status` (phone-matched), listing groups (`fsbo_listings` JSON), price/DOM/link/notes; logs New/Price Reduction/Price Increase/Status change/Removed to `master_file_updates` + profile notes; phone-collision guard; name+phone self-heal dedupe. **Dropping off the file clears membership only — listing history stays forever** (and a one-time restore endpoint rebuilt the 22 profiles the old prune had wiped).
+- **Expired/Cancelled** (`server/expired-master.js`, ~hourly): master sheet (reads the `MLS Status` column; the `Status` column is the team's Watch/Junk workflow) → creates leads, stamps off-market date/MLS #/listing agent, junks relists, logs New/Relisted with Cancelled/Expired/Withdrawn subtypes. Feeds the dynamic Cancelled/Expired list → **CX campaign auto-enroll**.
+- The sheets themselves are produced by the separate daily `mls-expired-cancelled/` tooling (MLS pull → screens → Forewarn phone lookups with the address-verification safety rule + deep address-history recovery for movers → sheet). The Hub never writes the sheets.
+
+---
+
+## 14. Communications Center
+
+- **Hub number:** +1 (319) 343-1562 (Twilio, A2P verified). Team: Matt (319-431-5859), Hunter (319-447-7337), John (Hub line).
+- **Texting:** SMS/MMS, templates, merge fields, scheduling (compliance re-checked at send time), bulk campaigns, teammate loop-in.
+- **Group MMS** (Twilio Conversations): real shared threads (`grp_<sid>`); exact-participant-set reuse; per-message sender name + number; per-recipient delivery receipts; 10-min webhook-healing resync; participants who can't join (Twilio's one-group-per-number rule) automatically get a **labeled 1:1 copy**. Group threads surface on every member's profile.
+- **Calling:** browser softphone, dispositions, Power Dialer, live voicemail drop; calling is never blocked by text opt-outs.
+- **Inbound text pipeline** (webhook, signature-verified): undeliverable-flag self-clear → STOP/START + natural-language opt-out via policy → store → notify (+web push) → behavioral event → **CX stop-first hook** → FSBO scripted reply → automation triggers → HUB AI responsive (skipped for CX leads).
+- **Line intelligence:** undeliverable/landline verdicts belong to the *number* — replaced numbers shed the old verdict and STOP flag automatically.
+- **Notifications:** in-app bell + optional web push; inbound texts/emails, CX responses/enrollments, handoffs.
+
+## 15. Email System
+
+- **Outbound:** SendGrid with open/click tracking; drips/sequences (`sendSequenceEmail`), transaction/pre-listing mail (team CC), composer sends. **Every client-facing send is logged to the profile thread** (`logSentToInbox`; pre-Aug-7 history was backfilled — 250 emails restored). **Auto-BCC to matt@mattsmithteam.com on human-sent emails** (Inbox replies + one-offs; never drips). `{{time_greeting}}` and rotating greetings across 72 drip templates; Comeback V2 steps window 9:00–16:00.
+- **Engagement:** SendGrid Event Webhook → `email_events` (idempotent, signature-verified) → summaries on `email_log` + client rollups; surfaces in Clients columns/filters/smart lists, Inbox chips, profile timelines, Reporting. Opens are soft signals; clicks strong; both feed AI intent.
+- **Inbound:** Gmail IMAP + Inbound Parse; store-time quoted-history stripping (strict HTML detection) so threads show only the new message; lead-profile button on notify emails.
+
+---
+
+## 16. Database (SQLite, master record)
+
+Core groups (all in `server/database.js`):
+- **CRM:** `clients` (incl. `alt_phones`, `alt_phone_labels`, `phone_sierra_shadow`, FSBO fields, `off_market_date`, `mls_status`, `not_in_market_at`), `transactions`, `transaction_people`, `client_lists` (static + dynamic), `notes`, `tasks`, `showings`, `activity_log`, `master_file_updates`.
+- **Comms:** `communications` (unified thread; `sent_by_type`, `conversation_sid`, `group_meta`), `scheduled_texts`, `text_campaigns`, `dialer_log`, `voicemails`, `team_agents`, `email_log`, `email_events`, `inbox_ai`, `notifications`.
+- **AI:** `ai_lead_state`, `ai_actions`, `ai_scheduled_actions`, `ai_handoffs`, `ai_intent_history`, `lead_intelligence`, `lead_events`, `communication_preferences`, `followup_recommendations`.
+- **Campaigns:** `drip_campaigns/enrollments/executions`, `automations*`, **`cx_campaign` + `cx_campaign_log`**, `followup_coverage` + `_events`.
+- **System:** `users` (avatar), `user_sessions`, `audit_log`, `fub_activity`, `sierra_sync_log`, `app_settings`, `_migrations`.
+
+Rules: single-quoted SQL literals only; migrations are idempotent try/catch ALTERs; indexes after their tables; scheduled syncs use bulk mode **only** with the atomic save pairing.
+
+## 17. API Route Map
+
+All under `/api`, behind `requireAuth` (public: inbound webhooks, tracking, query-token media):
+
+`auth · users (admin + /me self-service) · clients · transactions · tasks · projects · notes · showings · dashboard · listings · pre-listings · realist · vendors · partners · marketing · social-media · blog-posts · calendar · sierra · email · lists (incl. master-file + FSBO restore) · templates · automations · drips · campaign-match · reporting · inbox (incl. group-text/receipts/resync) · dialer · voicemails · ai · agents · followup · coverage · cx (campaign: stats/preview/toggle/enroll-list/:id actions) · admin · seed · track`
+
+## 18. Background Jobs (`server/scheduler.js`)
 
 | Job | Interval |
 |---|---|
-| Sierra incremental sync (leads updated since last sync) | every 60 min |
-| Follow-Up Coverage incremental sweep (recalc leads with fresh tasks/comms/AI/drip/tx changes + expire snoozes) | every 10 min |
-| Follow-Up Coverage daily audit (full database pass, chunked; self-throttles to once/day) | hourly check |
-| Group-thread resync (heal webhook-missed inbound group messages from Twilio's record) | every 10 min |
-| Google Calendar (iCal) sync | every 5 min |
-| Due scheduled texts | every 60 s |
-| **AI action queue** (`runDueAiActions`) | every 60 s |
-| AI new-lead sweep (autopilot only) | every 5 min |
-| AI re-engagement + behavioral sweeps (autopilot only) | every 60 min |
-| Transaction digest tick (morning/afternoon TC updates) | every 60 s (fires at target times) |
-| Slack deadline alert (10 AM CT) | every 60 s (fires once/day) |
-| Walkthrough reminder tick | every 60 s |
-| Deadline → task sync | every 60 min |
-| Backup tick | every 60 s (fires on schedule) |
-| FUB web-activity incremental sync | every 60 min |
-| FUB enrichment tick | every 20 min |
-| FUB Realist Sell Score sync | every 7 days |
-| FUB budget-range sync | every 7 days |
+| Sierra incremental sync (field-ownership rules; FSBO + Expired master syncs piggyback ~hourly) | 60 min |
+| **CX campaign sweep** (auto-enroll hourly pass + trickle sends, self-gated) | 15 min |
+| FSBO smart follow-up sequence | 15 min |
+| Follow-Up Coverage sweep / daily audit | 10 min / hourly check |
+| Group-thread resync | 10 min |
+| Google Calendar sync | 5 min |
+| Scheduled texts · AI action queue | 60 s |
+| AI new-lead sweep · re-engagement/behavioral sweeps | 5 min / 60 min (autopilot only) |
+| TC digests · Slack deadline alert · walkthrough reminders · backups | 60 s ticks firing at target times |
+| Deadline→task sync · FUB activity/enrichment | 60 min / 20 min |
+| FUB Realist-score + budget syncs | 7 days |
 
-> AI follow-up runs on the server, so it works even when your computer is off — the queue drains on Render every 60 s.
+## 19. Data Protection
 
----
+Atomic `saveDb()` everywhere (bulk mode only with the atomic pairing) · scheduled backups emailed + on-disk · idempotent migrations · Hub-is-master doctrine · field-ownership guard against sync overwrites · audit log · 5-layer strategy born from the 5/11 corruption incident.
 
-## 12. Data Protection
-
-5-layer backup strategy (added after a prior corruption incident):
-- Bulk-mode syncs use a single atomic `saveDb()` (never `beginBulk/endBulk` on scheduled syncs without atomic save).
-- Sierra incremental sync defers disk writes so all upserts flush as one write.
-- Scheduled DB backups (`server/backup.js`) to `DB_DIR`, emailed to `BACKUP_RECIPIENTS`.
-- Idempotent migrations via `_migrations`.
-- Hub DB remains master; Sierra write-back is limited to status + tags.
-
----
-
-## 13. Environment Variables
-
-| Variable | Purpose |
-|---|---|
-| `PORT`, `DB_DIR` | Server port; SQLite persistent-disk directory |
-| `TEAM_PASSWORD`, `TOKEN_SECRET` | Auth |
-| `HUB_BASE_URL` | Public base URL for webhooks/links |
-| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude AI (ISA, listings, transactions, follow-ups) |
-| `SIERRA_API_KEY` | Sierra Interactive lead pull + write-back |
-| `FUB_API_KEY` | Follow Up Boss (web activity, templates, custom fields) |
-| Twilio creds | SMS/MMS, voice, voicemail (Basic auth to Twilio REST) |
-| `SENDGRID_API_KEY`, `SENDGRID_FROM_EMAIL`, `SENDGRID_FROM_NAME`, `SENDGRID_REPLY_TO` | Outbound email + engagement stats |
-| `SLACK_WEBHOOK_URL` | Slack alerts |
-| `GOOGLE_CALENDAR_ICAL_URL` | Calendar sync feed(s) |
-| `TASK_REMINDER_MATT`, `TASK_REMINDER_LEO`, `TASK_NOTIFY_RECIPIENTS` | Reminder recipients |
-| `TC_DIGEST_RECIPIENTS`, `TEAM_CLOSING_INVITE_RECIPIENTS` | TC digest + closing invites |
-| `CLOSER_NAME/COMPANY/EMAIL/PHONE` | Closing email signature |
-| `BACKUP_RECIPIENTS` | DB backup emails |
-
----
-
-## 14. Running & Testing
+## 20. Running & Testing
 
 ```bash
-npm run dev      # server + vite dev together (concurrently)
-npm run server   # backend only
-npm run build    # changelog + vite production build → dist/
-npm start        # production: node server/index.js (serves API + dist)
-npm test         # node --test test/comms.test.mjs test/hubai.test.mjs
+npm run dev / server / build / start
+npm test   # 19 suites, 207 tests
 ```
+Suites: comms & compliance, HUB AI (+scenarios), auth/RBAC, collision guard, failures/backup, routing, memory classifier, smart audiences, AI eval, FSBO master, behavioral, **coverage**, **address parser**, **not-in-market**, **cx-connect (23: history suppression, buckets, weekend/jitter scheduling, response-stops-everything, AI-never-replies, angle rotation, auto-enroll)**, **hook-imports guard**, **phone-shadow / sierra-field-ownership**.
 
-- **Tests:** compliance model, do_not_text vs do_not_call independence, flag gating, force-bypass, AI state transitions, exclusions (tag/status/combination), quiet-hours boundaries, Central greeting, scheduler dedup, manual-mode.
-- **SQLite rule:** never double-quote SQL string literals (single quotes only) with better-sqlite3.
+## 21. Data Flow Summary
 
----
-
-## Follow-Up Coverage (fall-through prevention)
-
-The layer above Tasks / AI / Drips / Automations / Transactions that answers one question per lead: **"if we do nothing manually, will this person hear from us again — and soon enough?"** One authoritative evaluator: `server/followup-coverage.js` (`evaluateFollowUpCoverage`). Never re-derive coverage logic elsewhere.
-
-- **Valid coverage** = a future open client task, a scheduled text, a pending AI action (only if textable), an active drip/automation enrollment with a future run (only if emailable/executable), an active (Under Contract) transaction, an intentional future snooze, or a documented exclusion. Completed/failed/paused/expired records never count; SMS-based coverage never counts for a text-opted-out lead.
-- **Relationship level** (separate from CRM status, ratchets at CONNECTED): never_connected → connected (real two-way conversation or a 45s+ call — delivery/opens never count) → qualified (timeframe/budget/preapproval/seller property known) → active_opportunity (intent ≥ threshold, prime, or open AI handoff) → client (Under Contract / pending / closed).
-- **States**: protected / at_risk (silence ≥ 75% of window, overdue task, or window exceeded) / unprotected (no valid future action — an operational failure, surfaced immediately) / snoozed (future date only, with reason) / excluded (documented who/when/why; internal team records are auto-excluded).
-- **Silence windows** are configurable (Settings → Follow-Up Coverage; stored `followup_coverage_config`): high intent 2d, active opportunity 3d, qualified 10d, connected buyer/seller 30d, watch 60d, long-term 75d, past client 90d. Known short timelines (from `lead_intelligence` timeframes) tighten the window; unparseable timelines are never invented.
-- **Persistence**: `followup_coverage` (one summary row per client — status, type, next action, days since contact, risk flags, recommendation) + `followup_coverage_events` (status transitions only). Slack alert fires once per transition when a connected+ lead loses coverage.
-- **Freshness**: direct recalc hooks on task create/complete, client status/agent change, drip enroll/remove; a 10-min sweep recalcs anyone whose comms/tasks/AI/drips/transactions changed; hourly-checked daily audit covers the whole database (chunked, non-blocking). Task completion recalcs IMMEDIATELY — the classic fall-through moment.
-- **Surfaces**: Dashboard "Follow-Up Coverage" section (KPI: *Connected leads without future coverage — target 0*) + Needs Attention items (dismiss-aware, resurface on new transitions); Clients smart lists (`falling_through_cracks`, going-cold sellers/buyers, `followup_overdue`, `snooze_waking`, `ownerless_meaningful`, `ai_no_next_action`, `past_clients_due`, `active_no_next_action`, `high_intent_no_human`); opt-in Clients columns (Coverage, Next Action, Days Since Contact, Relationship) + sorts; profile **Follow-Up Coverage** card (top of right column) with + Follow-Up / Snooze / Exclude actions.
-- **API**: `/api/coverage/summary`, `/:clientId` (evaluate+persist), `/:clientId/snooze|unsnooze|exclude|unexclude`, `/settings`, `/events/:clientId`, `/audit`, `/sweep`. The coverage engine never sends messages — policy.js and existing senders keep that authority.
-- **Tests**: `test/coverage.test.mjs` — 13 fixture scenarios incl. the critical "last task completed → UNPROTECTED" recalc.
+1. **In:** Sierra sync (leads + Sierra-owned signals) · FUB (web activity, notes, scores) · master files (FSBO + Cancelled/Expired prospects) · inbound texts/emails/calls.
+2. **Work:** the team operates in the Hub — conversations (individual + group), tasks, transactions, campaigns; the AI drafts and (only where enabled) sends compliant follow-ups; CX Connect persistently works cold sellers; coverage watches that nobody falls through.
+3. **Out:** status/tags to Sierra; texts/emails/calls to leads (trickled, windowed, compliance-gated); alerts to Slack; digests to the team.
 
 ---
 
-## Not in Market (CRM status)
-
-Hub-native status (value `not_in_market`, neutral slate badge) meaning: **we connected and the person explicitly confirmed no current buying/selling intent** ("we're not moving anymore"). Never applied for mere inactivity. Distinct from Watch (possible future intent worth nurturing).
-
-- **Centralized transition** (`server/not-in-market.js`, invoked by the clients PUT on entering the status — profile, inline, bulk, API all route through it): stops active drips + automations, cancels scheduled texts and pending AI actions, pauses HUB AI (`AI_DISABLED`), sets current intent LOW (history/peak preserved), closes clearly sales-patterned open tasks, then creates ONE **"Annual Not in Market Recheck"** task a year out assigned to the lead's agent (idempotent — an open annual task is reused). `clients.not_in_market_at` records entry.
-- **Guards:** the Sierra sync never overwrites this status (Sierra has no equivalent; nothing is pushed to Sierra either — unmapped statuses are skipped); `enrollInDrip` refuses these leads; AI policy denies proactive outreach (replies stay allowed, but AI is off by default).
-- **Active transaction conflict:** transaction workflow and its tasks are never touched; the conflict is logged for review.
-- **Coverage:** protected by the annual human task; no silence standard applies (quiet is intentional).
-- **Annual loop:** completing the annual recheck while still Not in Market auto-creates the next year's task (tasks PUT hook). Leaving the status for an active stage closes the annual task; nothing auto-restarts old campaigns.
-- **Smart lists:** `nim_recent` (entered ≤30d), `nim_recheck_due` (annual task due ≤30d), `nim_possible_return` (new inbound in 14d or 3+ property views in 7d).
-- "Never contact me again" is NOT this status — that's the opt-out/exclusion path with no annual task.
-- Tests: `test/not-in-market.test.mjs`.
-
----
-
-## 15. Data Flow Summary
-
-1. **In:** Sierra incremental sync pulls new/updated leads hourly; FUB syncs web activity, viewed properties, scores, budgets.
-2. **Work:** the team texts/calls/emails inside the Hub; transactions, tasks, and notes are managed here; the AI ISA (when enabled per lead) drafts and sends compliant, Central-time follow-ups and hands off at high intent.
-3. **Out:** lead status + tags write back to Sierra; the Google Sheet is display-only downstream, never a source for transactions.
-
----
-
-## Client Profile workspace (`/clients/:id`)
-
-A full-screen, routed CRM workspace for a single lead — being migrated in from the old
-oversized modal (the modal still exists and remains reachable until parity is confirmed).
-
-- **Route:** `src/pages/ClientProfile.jsx` at `/clients/:id` (real URL: direct access, refresh,
-  back/forward, bookmarkable). Reuses HUB's existing sub-components + APIs — no duplicated
-  SMS/email/AI/task/transaction/Sierra systems.
-- **Reused components** (exported from `Clients.jsx`): `InlineName/InlineField/InlineStatus`
-  (inline editing), `InlineTextComposer` (SMS: templates, merge fields, MMS, AI suggestions,
-  scheduling, teammate loop), `ContactTimeline` (Activity), `AiIsaCard` (AI management),
-  `QuickAddTask`, plus `COMM_META/commToText/fmtCommWhen/fmtDur/recUrl`.
-- **Navigation state:** `src/lib/clientsNav.js` snapshots the Clients list state into
-  sessionStorage when a lead is opened — `ids` (matched result set for **Prev/Next · X of Y**),
-  `backLabel`, and `restore` (activeListId, search, advFilters) + scrollY. "← Back to Clients"
-  restores exactly that view. Sort/pageSize/view/column widths/visibility/order already persist
-  in localStorage and are owned by the Clients table (untouched by profile nav).
-- **Tabs:** Overview (contact/CRM/AI-summary/FSBO listings/notes/research, 2-col desktop),
-  Communications (All/Texts/Calls/Emails/Notes filters + search + composer, from
-  `/api/inbox/thread/:id`), Activity (`ContactTimeline`), Transactions (`/api/transactions`),
-  Tasks (`/api/tasks` + QuickAddTask), AI (`AiIsaCard`).
-- **Migration status:** additive — row-click still opens the classic modal; the modal now has a
-  "⤢ Full screen" button to the new route. Email/Add-Transaction full composers still live in
-  the modal; port those, then flip row-click to the route and deprecate the modal.
-
----
-
-*This document reflects the live codebase as of 2026-08-21 (Client Profile workspace added 2026-08-27). When features change, update this file alongside the code.*
+*Reflects the live codebase as of 2026-09-14. When features change, update this file alongside the code.*
