@@ -372,11 +372,19 @@ export async function importContactHistory(clientId) {
   for (const msg of res.messages || []) {
     const extId = 'gmail_' + msg.messageId
     if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) { skipped++; continue }
-    const near = db.all(`SELECT subject FROM communications WHERE client_id=? AND channel='email' AND direction=?
+    const near = db.all(`SELECT id, subject, body FROM communications WHERE client_id=? AND channel='email' AND direction=?
       AND external_id NOT LIKE 'gmail_%'
       AND datetime(occurred_at) BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, msg.direction, msg.date, msg.date])
-      .some(r => norm(r.subject) === norm(msg.subject))
-    if (near) { skipped++; continue }
+      .find(r => norm(r.subject) === norm(msg.subject))
+    if (near) {
+      // Same email already logged by the Hub — but if that record is a bodyless
+      // shell, fill it from the Gmail copy instead of losing the content.
+      if (!String(near.body || '').trim() && String(msg.body || '').trim()) {
+        const b = stripQuotedReply(msg.body)
+        db.run('UPDATE communications SET body=?, preview=? WHERE id=?', [b, b.replace(/\s+/g, ' ').trim().slice(0, 160), near.id])
+      }
+      skipped++; continue
+    }
     const body = stripQuotedReply(msg.body || '')
     db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, agent, sent_by_type, occurred_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
