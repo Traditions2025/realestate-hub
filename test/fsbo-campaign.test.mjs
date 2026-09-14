@@ -88,6 +88,12 @@ test('conflicting automation excluded: CX campaign + AI-managed leads', async ()
   assert.equal((await evalIt(aim.id)).reason_code, 'AI_MANAGED')
 })
 
+test('LLC / corporate owners are excluded; trusts and estates are not entities', async () => {
+  assert.equal((await evalIt(mkFsbo({ first_name: 'Father Filtered', last_name: 'LLC' }).id)).reason_code, 'ENTITY_OWNER')
+  assert.equal((await evalIt(mkFsbo({ first_name: 'Acme', last_name: 'Properties' }).id)).reason_code, 'ENTITY_OWNER')
+  assert.equal((await evalIt(mkFsbo({ first_name: 'Mary Smith', last_name: 'Trust' }).id)).decision, 'eligible', 'trusts stay eligible')
+})
+
 // ---- deferrals (Scenario 8) ----
 test('S8: recent human text defers, never talked over', async () => {
   const c = mkFsbo({}); addHumanOut(c.id, 2)

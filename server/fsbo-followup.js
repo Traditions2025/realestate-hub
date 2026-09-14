@@ -168,6 +168,13 @@ export async function evaluateFsboCampaignEligibility(clientId) {
   // (A campaign stopped ONLY because the listing went Off Market may re-qualify if
   //  the listing is Available again — that is exactly this fresh evaluation.)
 
+  // Team doctrine: no LLC / corporate owners in cold prospecting (trusts and estates
+  // are people-backed and are NOT entities — they stay eligible).
+  const fullName = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase()
+  if (/\b(llc|l\.l\.c|inc\b|incorporated|corp\b|corporation|ltd\b|properties|investments|holdings|enterprises)\b/.test(fullName)) {
+    return out('excluded', 'ENTITY_OWNER', 'LLC/corporate owner — no cold prospecting to entities')
+  }
+
   // Contactability
   if (!c.phone || !phone10(c.phone)) return out('excluded', 'NO_PHONE', 'no valid phone on file')
   if (c.hub_text_opt_out) return out('excluded', 'STOP', 'replied STOP to our number')
