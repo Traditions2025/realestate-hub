@@ -362,8 +362,8 @@ router.get('/fsbo/campaign/:clientId/preview-next', async (req, res) => {
   const attempt = (Number(row?.attempt_count) || 0) + 1
   let body, angle
   if (attempt === 1) { angle = 'AVAILABILITY_CHECK'; body = null }   // step-1 copy renders live greeting at send time
-  else if (attempt === 2) { angle = 'MARKET_ANALYSIS'; body = '(3-part market analysis message — approved Step 2 copy)' }
-  else if (attempt === 3) { angle = 'STILL_AVAILABLE'; body = null }
+  else if (attempt === 2) { angle = 'STILL_AVAILABLE'; body = null }
+  else if (attempt === 3) { angle = 'MARKET_ANALYSIS'; body = '(3-part market analysis message — approved copy)' }
   else { angle = m.pickFsboAngle(cid, ev.dom); body = m.FSBO_ANGLES[angle].text(c.address || 'the property') }
   res.json({ eligible: true, attempt, angle, message: body || '(approved step copy, greeting rendered at send time)', dom: ev.dom, next_send_at: row?.next_send_at || null })
 })

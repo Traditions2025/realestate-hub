@@ -628,7 +628,7 @@ function FsboCampaignSettings() {
         </label>
       </div>
       <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
-        No eligible FSBO reaches 14 days on market and gets forgotten: at <strong>DOM {stats.dom_threshold}</strong> an Available FSBO with a valid mobile auto-enrolls and gets the approved availability-check text at the next weekday 9AM–4PM CT slot, then the approved 2-week sequence and a low-pressure weekly rotation while it stays Available. Sends trickle 1–2.5 min apart; eligibility rechecks before every text; a reply stops everything and hands the seller to a human; Off Market stops the campaign; manual pause/remove always wins; history is permanent.
+        No eligible FSBO reaches 14 days on market and gets forgotten: at <strong>DOM {stats.dom_threshold}</strong> an Available FSBO with a valid mobile auto-enrolls and gets the approved availability-check text at the next weekday 9AM–4PM CT slot, the still-available check +7 days, the market-analysis message +7 more — then an availability check every 40+ days while it stays Available. Sends trickle 1–2.5 min apart; eligibility rechecks before every text; a reply stops everything and hands the seller to a human (<strong>no auto-replies, ever</strong>); Off Market stops the campaign; manual pause/remove always wins; history is permanent.
       </p>
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 10 }}>
         <span>Active: <strong>{stats.active}</strong></span>

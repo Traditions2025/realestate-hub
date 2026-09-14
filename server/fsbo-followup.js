@@ -8,15 +8,15 @@
 //     DOM is the authoritative listing DOM from the FSBO master sync (computed from
 //     List Date daily), NOT "days since the Hub first saw the lead" — a property
 //     imported at DOM 27 qualifies immediately.
-//   - Opening cadence keeps the team's approved copy: availability check → (+7d) the
-//     35-years / first-14-days message → (+7d) still-available check — then continues
-//     ~weekly (6-8 day jitter) with a low-pressure rotating angle bank while the
-//     listing stays Available. Persistence ≠ pressure: text ten reads like text one.
+//   - Opening cadence keeps the team's approved copy: availability check → (+7d)
+//     still-available check → (+7d) the 35-years / first-14-days message — then a
+//     low-pressure availability-only rotation every 40+ days while the listing stays
+//     Available. Persistence ≠ pressure: text ten reads like text one.
 //   - Eligibility is re-verified before EVERY send (Available? still FSBO? no STOP?
 //     no response? no recent human contact? not paused/removed?).
-//   - An inbound reply STOPS AUTOMATION FIRST (state → responded), then the approved
-//     scripted acknowledgment + best-email ask run, a high-priority FSBO Response
-//     task is created and the team notified. Humans own it from there.
+//   - An inbound reply STOPS AUTOMATION FIRST (state → responded), a high-priority
+//     FSBO Response task is created and the team notified. NO automated replies of
+//     any kind — every response is answered personally (John, 2026-09-14).
 //   - Off Market / sold / agent-listed / master-file removal stop future sends;
 //     HISTORY IS PERMANENT (fsbo_campaign_log, communications, listing history).
 //   - Manual pause/remove always wins; sweeps never silently resume or re-enroll.
@@ -70,9 +70,10 @@ export function nextValidSlot(from = new Date()) {
   return d
 }
 // Next touch after attempt N just sent: +7d flat after attempts 1 and 2 (the approved
-// opening cadence), then ~weekly with 6-8-day jitter so the pattern never looks robotic.
+// opening cadence), then every 40+ days (40-47 jitter) — a low-pressure availability
+// check roughly every 6 weeks for as long as the listing stays Available.
 export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
-  const baseDays = attemptJustSent <= 2 ? 7 : 7 + (Math.floor(Math.random() * 3) - 1)   // 6-8
+  const baseDays = attemptJustSent <= 2 ? 7 : 40 + Math.floor(Math.random() * 8)   // 40-47
   let d = new Date(from.getTime() + baseDays * DAY)
   const wd = () => chi(d).weekday
   if (wd() === 'Sat') d = new Date(d.getTime() + (Math.random() < 0.5 ? -DAY : 2 * DAY))
@@ -86,31 +87,24 @@ export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
 // ---- approved message library ----
 // Identity safety: cold texts reference "the home at {street}" / the address — never
 // "your home" until they establish ownership, and no first names in cold prospecting
-// (Step 3 legacy copy is the one historical exception, kept as approved).
+// (the still-available Text 2 copy is the one historical exception, kept as approved).
 function street(c) { return c.address || 'the property' }
 function msgStep1(c) { return `${greeting()}, I'm John with Matt Smith Team at RE/MAX. Our team noticed your place on ${street(c)} for sale, beautiful home. Just want to make sure it's still available? MattSmithTeam.com` }
-const MSG_EMAIL_ASK = "Hope to be in touch soon. What's the best email we can reach you at?"
-const MSG_POSITIVE = 'Very good, thanks for letting me know'
-const MSG_BUYER_Q = "At this time, we're just checking it's availability :)"
-// Step 2 is sent the same day but broken into 3 shorter texts (no wall of text).
-const MSG_STEP2 = [
+// The market-analysis message (sent as Text 3) is broken into 3 shorter texts (no wall of text).
+const MSG_ANALYSIS = [
   "Hi, it's John again with Matt Smith Team at RE/MAX. A little about us, we've sold over 2,000 homes throughout Cedar Rapids and the surrounding areas over the past 35+ years. One thing we've learned is that the first 14 days on the market are usually the most critical, and that's when most of the activity tends to happen. By the third week, activity can start to slow down.",
   "At this point, you might be thinking about adjusting the price. Before making a price reduction, though, it can be worth looking at whether price is actually the issue or if there are a few things that could be adjusted with the marketing or positioning first.",
   "Our team would be happy to put together an analysis of your home and give you our perspective if that would be helpful.",
 ]
-function msgStep3(c) { return `Hi ${c.first_name || 'there'}, It's John with Matt Smith Team at REMAX wanted to see if your home at ${street(c)} is still available for sale? It still shows active on Zillow site but those sites don't always tell me everything I need to know.` }
+function msgStillAvailable(c) { return `Hi ${c.first_name || 'there'}, It's John with Matt Smith Team at REMAX wanted to see if your home at ${street(c)} is still available for sale? It still shows active on Zillow site but those sites don't always tell me everything I need to know.` }
 
-// Attempt 4+ rotation: low-pressure angles. No manufactured hooks, no "we have a
-// buyer", no "how has activity been", truthful about listing age. LONG_HAUL only
-// speaks once DOM is genuinely high.
+// Attempt 4+ rotation (every 40+ days): availability checks only — low pressure,
+// no manufactured hooks, no "we have a buyer", no "how has activity been".
 export const FSBO_ANGLES = {
   AVAILABILITY_RECHECK: { minDom: 0, text: (s) => `Hi, it's John with Matt Smith Team at RE/MAX. Just checking in, is the home at ${s} still available? MattSmithTeam.com` },
   STILL_FOR_SALE: { minDom: 0, text: (s) => `Hi, John with Matt Smith Team at RE/MAX. Is the home at ${s} still for sale? The websites don't always keep up, so figured I'd ask directly.` },
   CONTACT_PREFERENCE: { minDom: 0, text: (s) => `Hi, it's John with Matt Smith Team at RE/MAX. If it's ever easier to talk by email or a quick call about the home at ${s}, happy to do that instead. Otherwise text works great.` },
   GENERAL_CHECKIN: { minDom: 0, text: (s) => `Hi, John with Matt Smith Team at RE/MAX here. Wanted to touch base on the home at ${s}. Still moving ahead with the sale on your own?` },
-  TIMING: { minDom: 21, text: (s) => `Hi, it's John with Matt Smith Team at RE/MAX. Curious how the timeline is looking for the home at ${s}. Is there a date you're hoping to have it sold by?` },
-  SOFT_RESOURCE: { minDom: 21, text: (s) => `Hi, John with Matt Smith Team at RE/MAX. If it would ever help to compare notes on pricing or positioning for the home at ${s}, happy to share what we're seeing in the area. No strings attached.` },
-  LONG_HAUL: { minDom: 61, text: (s) => `Hi, it's John with Matt Smith Team at RE/MAX. The home at ${s} has been on the market a while now. If you'd ever like a second set of eyes on what might be holding it back, glad to help.` },
 }
 // Rotate angles: never repeat any of the last 3 sent to this lead; respect DOM gates.
 export function pickFsboAngle(clientId, domNow) {
@@ -303,7 +297,7 @@ export async function runFsboFollowups() {
   sweeping = true
   try {
     migrateLegacyRows()
-    const out = { enrolled: 0, sent: 0, deferred: 0, stopped: 0, email_ask: 0, window: inProactiveWindow() }
+    const out = { enrolled: 0, sent: 0, deferred: 0, stopped: 0, window: inProactiveWindow() }
 
     // 0) Event-follow-up: actives whose listing left Available stop right away.
     for (const r of db.all(`SELECT f.client_id, c.fsbo_status FROM fsbo_followups f JOIN clients c ON c.id=f.client_id
@@ -334,14 +328,9 @@ export async function runFsboFollowups() {
       out.enrolled++
     }
 
-    // 2) Scripted email-ask follow-through for responded leads (responsive, any weekday time).
-    for (const r of db.all("SELECT * FROM fsbo_followups WHERE email_ask_at IS NOT NULL AND email_asked=0 AND email_ask_at <= ?", [nowIso()])) {
-      const c = fresh(r.client_id); if (!c) continue
-      const s = await sendFsbo(c, MSG_EMAIL_ASK, { proactive: false })
-      if (s.ok) { db.run('UPDATE fsbo_followups SET email_asked=1, email_ask_at=NULL, updated_at=? WHERE client_id=?', [nowIso(), r.client_id]); out.email_ask++ }
-    }
-
-    // 3) DUE SENDS — trickled 1-2.5 min apart, window + switch re-checked per send.
+    // 2) DUE SENDS — trickled 1-2.5 min apart, window + switch re-checked per send.
+    //    (No automated replies of any kind: a response only ever stops the campaign
+    //    and hands the seller to a human.)
     if (!inProactiveWindow()) return out
     const due = db.all("SELECT * FROM fsbo_followups WHERE status='active' AND next_send_at IS NOT NULL AND next_send_at <= ? ORDER BY next_send_at ASC LIMIT 30", [nowIso()])
     for (let i = 0; i < due.length; i++) {
@@ -399,8 +388,8 @@ async function sendNextFsbo(row) {
   const attempt = (Number(row.attempt_count) || 0) + 1
   let body, angle, templateKey, multi = null
   if (attempt === 1) { body = msgStep1(c); angle = 'AVAILABILITY_CHECK'; templateKey = 'step1' }
-  else if (attempt === 2) { multi = MSG_STEP2; body = MSG_STEP2[0]; angle = 'MARKET_ANALYSIS'; templateKey = 'step2' }
-  else if (attempt === 3) { body = msgStep3(c); angle = 'STILL_AVAILABLE'; templateKey = 'step3' }
+  else if (attempt === 2) { body = msgStillAvailable(c); angle = 'STILL_AVAILABLE'; templateKey = 'step2' }
+  else if (attempt === 3) { multi = MSG_ANALYSIS; body = MSG_ANALYSIS[0]; angle = 'MARKET_ANALYSIS'; templateKey = 'step3' }
   else { angle = pickFsboAngle(cid, ev.dom); templateKey = `angle_${angle}`; body = FSBO_ANGLES[angle].text(street(c)) }
   const r = multi ? await sendFsboSeq(c, multi) : await sendFsbo(c, body)
   if (!r.ok) {
@@ -421,8 +410,9 @@ const OPTOUT_RE = /\b(stop|unsubscribe|not interested|remove me|leave me alone|d
 const BUYER_Q_RE = /\b(buyer|do you have|are you interested|interested in|want to (see|buy|tour|view)|see the|show|tour|showing|offer|represent|are you an? agent|working with)\b/i
 
 // Handle an inbound reply from an FSBO in the campaign. RESPONSE STOPS AUTOMATION
-// FIRST — then the approved scripted acknowledgment + best-email ask run, and a
-// human gets a high-priority FSBO Response task. Returns true if handled.
+// FIRST, a human gets a high-priority FSBO Response task + notification, and NOTHING
+// auto-replies — every response is answered personally (John, 2026-09-14). Returns
+// true if this lead is in the campaign.
 export async function handleFsboReply(clientId, body) {
   const row = fu(clientId)
   if (!row) return false
@@ -438,20 +428,8 @@ export async function handleFsboReply(clientId, body) {
   } else {
     db.run('UPDATE fsbo_followups SET replied=1, updated_at=? WHERE client_id=?', [nowIso(), clientId])
   }
-  if (!fsboEnabled()) return wasActive
-  const c = fresh(clientId); if (!c) return wasActive
-  const text = String(body || '')
-  if (OPTOUT_RE.test(text)) { db.run("UPDATE fsbo_followups SET status='stopped', stop_reason='STOP: opt-out reply', updated_at=? WHERE client_id=?", [nowIso(), clientId]); return true }  // policy/opt-out handles the rest
-  // Approved scripted acknowledgment (availability check flow), then the best-email
-  // ask ~7 min later (once) — the historical, approved behavior, unchanged. Only
-  // after we have actually texted them (never a scripted reply to a cold inbound).
-  if ((wasActive || row.status === 'responded') && (Number(row.attempt_count) || row.step)) {
-    const reply = BUYER_Q_RE.test(text) ? MSG_BUYER_Q : MSG_POSITIVE
-    await sendFsbo(c, reply, { proactive: false })
-    if (!row.email_asked && !row.email_ask_at) {
-      db.run('UPDATE fsbo_followups SET email_ask_at=?, updated_at=? WHERE client_id=?', [new Date(Date.now() + 7 * 60000).toISOString(), nowIso(), clientId])
-    }
-  }
+  // An opt-out phrasing additionally hard-stops the record (policy handles the number).
+  if (OPTOUT_RE.test(String(body || ''))) db.run("UPDATE fsbo_followups SET status='stopped', stop_reason='STOP: opt-out reply', updated_at=? WHERE client_id=?", [nowIso(), clientId])
   return true
 }
 

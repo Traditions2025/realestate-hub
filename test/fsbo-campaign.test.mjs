@@ -184,28 +184,44 @@ test('S15: Saturday/after-hours threshold rolls to a valid weekday window', () =
   const wd2 = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(evening)
   assert.equal(wd2, 'Thu')
 })
-test('weekly cadence lands on weekdays with 6-8 day jitter after attempt 3', () => {
+test('cadence: +7d after attempts 1-2, then 40+ days, always on weekdays', () => {
+  for (const attempt of [1, 2]) {
+    const d = f.scheduleNextFsbo(attempt, new Date('2026-09-16T15:00:00Z'))
+    const gap = (d - new Date('2026-09-16T15:00:00Z')) / 86400000
+    assert.ok(gap >= 5.5 && gap <= 8.5, `attempt ${attempt} gap ~7d: ` + gap.toFixed(1))
+  }
   for (let i = 0; i < 25; i++) {
     const d = f.scheduleNextFsbo(3 + (i % 4), new Date('2026-09-16T15:00:00Z'))
     const wd = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(d)
     assert.ok(!['Sat', 'Sun'].includes(wd), 'never a weekend: ' + wd)
     const gap = (d - new Date('2026-09-16T15:00:00Z')) / 86400000
-    assert.ok(gap >= 5 && gap <= 10, 'gap stays roughly weekly: ' + gap.toFixed(1))
+    assert.ok(gap >= 38 && gap <= 50, 'long-term gap is 40+ days: ' + gap.toFixed(1))
   }
 })
 
 // ---- rotation (Scenario 17) ----
-test('S17: angle rotation avoids the last 3 and respects DOM gates', () => {
+test('S17: angle rotation avoids the last 3; bank is availability-only', () => {
   const c = mkFsbo({ fsbo_dom: '20' })
   for (const a of ['AVAILABILITY_RECHECK', 'STILL_FOR_SALE', 'CONTACT_PREFERENCE']) {
     db.run("INSERT INTO fsbo_campaign_log (client_id, event, angle) VALUES (?, 'sent', ?)", [c.id, a])
   }
   for (let i = 0; i < 20; i++) {
     const pick = f.pickFsboAngle(c.id, 20)
-    assert.ok(!['AVAILABILITY_RECHECK', 'STILL_FOR_SALE', 'CONTACT_PREFERENCE'].includes(pick), 'no repeat within last 3: ' + pick)
-    assert.notEqual(pick, 'LONG_HAUL', 'LONG_HAUL never speaks at DOM 20')
-    assert.notEqual(pick, 'TIMING', 'TIMING gated to DOM 21+')
+    assert.equal(pick, 'GENERAL_CHECKIN', 'only unused angle remains: ' + pick)
   }
+  assert.deepEqual(Object.keys(f.FSBO_ANGLES).sort(), ['AVAILABILITY_RECHECK', 'CONTACT_PREFERENCE', 'GENERAL_CHECKIN', 'STILL_FOR_SALE'], 'availability-focused bank only')
+})
+
+test('NO AUTO REPLY: an inbound response sends nothing back automatically', async () => {
+  db.setSetting('fsbo_followup_enabled', '1')   // even with the campaign ON
+  try {
+    const c = mkFsbo({})
+    enrollActive(c.id, { attempt_count: 1 })
+    const before = db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND direction='outgoing'", [c.id]).n
+    await f.handleFsboReply(c.id, 'Yes still available, are you interested?')
+    assert.equal(db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND direction='outgoing'", [c.id]).n, before, 'zero automated outgoing messages')
+    assert.equal(db.get('SELECT status FROM fsbo_followups WHERE client_id=?', [c.id]).status, 'responded')
+  } finally { db.setSetting('fsbo_followup_enabled', '0') }
 })
 
 // ---- identity safety ----
