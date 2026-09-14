@@ -101,12 +101,13 @@ function nextBusinessSlot(gapDays, offsetMin = 0) { return businessSlot(new Date
 // gated by autopilot — but nothing SENDS until ai_followup_enabled is on AND each date
 // arrives. The perpetual loop (stage 10) is chained by the drain after LTN4. Idempotent
 // via dedup_key `coldbuyer_<cid>_<stage>`. Returns the scheduled rows for display.
-export function enrollColdBuyerSequence(clientId, { fromStage = 0, anchorIso = null } = {}) {
-  const anchor = anchorIso ? new Date(anchorIso) : new Date()
+export function enrollColdBuyerSequence(clientId, { fromStage = 0, anchorIso = null, firstAtIso = null } = {}) {
+  const anchor = anchorIso ? new Date(anchorIso) : (firstAtIso ? new Date(firstAtIso) : new Date())
   const off = coldSendOffsetMin(clientId)   // spread this lead's sends across the daytime window
   const out = []
   for (let k = Math.max(0, Number(fromStage) || 0); k < COLD_DAYS.length; k++) {
-    const when = k === 0 ? plusMin(2) : businessSlot(new Date(anchor.getTime() + (COLD_DAYS[k] - COLD_DAYS[0]) * 86400000), off)
+    // firstAtIso (auto-enrollment) staggers Text 1 to a specific slot; default is +2 min
+    const when = k === 0 ? (firstAtIso || plusMin(2)) : businessSlot(new Date(anchor.getTime() + (COLD_DAYS[k] - COLD_DAYS[0]) * 86400000), off)
     scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: `cold buyer stage ${k + 1} (enrolled)`, payload: { stage: k, preScheduled: true }, dedupKey: `coldbuyer_${clientId}_${k}` })
     out.push({ stage: k + 1, execute_at: when })
   }

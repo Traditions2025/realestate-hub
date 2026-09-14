@@ -190,6 +190,12 @@ export function processLead(lead, sierraStatusOverride) {
         tagsStr, lenderName, lenderStatus, listingAgentStatus,
         searchPriceMin, searchPriceMax, searchBedsMin, searchBathsMin,
         searchSqftMin, searchRegions, searchPropertyTypes, hasSavedSearch])
+    // FRESH-LANE hook: a brand-new incoming lead goes straight to the AI enrollment
+    // evaluator (speed-to-lead). No-op unless ai_auto_enroll_mode is fresh/full.
+    try {
+      const newId = db.get('SELECT id FROM clients WHERE sierra_lead_id=?', [sierraId])?.id
+      if (newId) import('./ai-enrollment.js').then(m => m.maybeAutoEnrollFresh(newId)).catch(() => {})
+    } catch {}
     return 'added'
   }
 }

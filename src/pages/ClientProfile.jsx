@@ -962,15 +962,38 @@ function Research({ client }) {
 // ── Sidebar: AI intelligence + next best action ──────────────────────────
 function AiIntelligence({ ai, followup, cid }) {
   const [full, setFull] = useState(false)
+  const [enroll, setEnroll] = useState(null)
   const intent = ai?.intent?.score ?? ai?.intent ?? null
   const level = ai?.intent?.level
   const rec = followup && followup.exists !== false ? followup : null
+  useEffect(() => { authFetch('/api/ai/enrollment/evaluate/' + cid).then(r => r.json()).then(setEnroll).catch(() => setEnroll(null)) }, [cid])
+  const toggleExclude = async () => {
+    const excluding = enroll?.reason_code !== 'MANUAL_EXCLUDE'
+    if (excluding && !confirm('Exclude this lead from AI auto-enrollment? (You can still enable AI manually.)')) return
+    await authFetch(`/api/ai/enrollment/${excluding ? 'exclude' : 'include'}/${cid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+    authFetch('/api/ai/enrollment/evaluate/' + cid).then(r => r.json()).then(setEnroll).catch(() => {})
+  }
   return (
     <Section title="AI Intelligence" id="ai" right={<button className="btn btn-sm" onClick={() => setFull(f => !f)}>{full ? 'Hide' : 'Open Full AI'}</button>}>
       <div style={{ fontSize: 13, lineHeight: 1.7 }}>
         <div><strong>Intent:</strong> {intent ?? '—'} {level ? `· ${String(level).toUpperCase()}` : ''}</div>
         <div><strong>AI:</strong> {ai?.ai_managed ? 'Managed' : 'Manual'}</div>
         {ai?.ai_state && <div><strong>State:</strong> {String(ai.ai_state).replace(/_/g, ' ').toLowerCase()}</div>}
+        {enroll && enroll.decision && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <strong>Auto-enroll:</strong>
+            <span style={{ color: enroll.decision === 'eligible' ? '#15803d' : enroll.decision === 'deferred' ? '#b45309' : 'var(--text-muted)' }}>
+              {enroll.decision === 'eligible'
+                ? `eligible · ${String(enroll.classification || '').replace(/_/g, ' ').toLowerCase()} · priority ${enroll.priority_score}`
+                : `${enroll.decision} · ${enroll.reason || enroll.reason_code}`}
+            </span>
+            {!['ALREADY_ENROLLED', 'NOT_FOUND', 'MERGED'].includes(enroll.reason_code) && (
+              <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={toggleExclude}>
+                {enroll.reason_code === 'MANUAL_EXCLUDE' ? 'Allow auto-enroll' : 'Exclude'}
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {rec && (rec.recommended_action || rec.recommendation || rec.reason || rec.summary) && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(124,58,237,.06)', border: '1px solid rgba(124,58,237,.25)', borderRadius: 8 }}>

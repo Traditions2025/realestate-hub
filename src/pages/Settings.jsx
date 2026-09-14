@@ -257,6 +257,7 @@ export default function Settings() {
             </SettingsGroup>
             <SettingsGroup id="ai" title="AI Follow-Up" desc="HUB AI ISA, Autopilot flags, follow-up coverage standards, regression eval.">
           <AiFollowUpSettings />
+          <AiEnrollmentSettings />
           <CxCampaignSettings />
           <CoverageSettings />
           <AiEvalPanel />
@@ -598,6 +599,110 @@ function RealistImportSettings() {
 // Cancelled/Expired Connection Campaign — persistent make-contact SMS drip.
 // Master switch (OFF by default), bulk enroll of the C/E saved list, live stats.
 // AI never replies to enrolled leads; a response stops everything for a human.
+// AI TEXTING AUTO-ENROLLMENT — fresh-lead speed-to-lead + database reactivation.
+// Modes: Manual (off) / Fresh only / Fresh + Reactivation. Dry run shows what WOULD
+// happen with zero writes. Enrollment != sending: every send still passes full policy.
+function AiEnrollmentSettings() {
+  const [sum, setSum] = React.useState(undefined)
+  const [preview, setPreview] = React.useState(null)
+  const [previewing, setPreviewing] = React.useState(false)
+  const [saving, setSaving] = React.useState(false)
+  const load = () => authFetch('/api/ai/enrollment/summary').then(r => r.json()).then(setSum).catch(() => setSum(null))
+  React.useEffect(() => { load() }, [])
+  const save = async (body) => {
+    setSaving(true)
+    try { const r = await authFetch('/api/ai/enrollment/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }); const d = await r.json(); if (d.config) setSum(d) } finally { setSaving(false) }
+  }
+  const runPreview = async () => {
+    setPreviewing(true)
+    try { const r = await authFetch('/api/ai/enrollment/preview?scan=800&limit=15'); setPreview(await r.json()) } catch { setPreview(null) } finally { setPreviewing(false) }
+  }
+  if (sum === undefined) return null
+  if (sum === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>🎯 AI Auto-Enrollment</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  const cfg = sum.config || {}
+  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const mode = cfg.mode || 'off'
+  const modeLabel = { off: 'Manual (engine off)', fresh: 'Fresh leads only', full: 'Fresh + Reactivation' }
+  const todayFresh = (sum.enrolled_today || {}).fresh || 0
+  const todayReact = (sum.enrolled_today || {}).reactivation || 0
+  return (
+    <section className="detail-section">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <h4 style={{ margin: 0 }}>🎯 AI Auto-Enrollment</h4>
+        <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999, fontWeight: 600, background: mode === 'off' ? 'var(--bg-secondary)' : mode === 'fresh' ? '#dbeafe' : '#dcfce7', color: mode === 'off' ? 'var(--text-muted)' : mode === 'fresh' ? '#1d4ed8' : '#15803d' }}>{modeLabel[mode]}</span>
+      </div>
+      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+        Automatically hands eligible <strong>New-status</strong> leads to the AI texting system. <strong>Fresh lane</strong>: brand-new incoming leads get an immediate first touch (never capped — speed to lead). <strong>Reactivation lane</strong>: works through the old New-status database in small daily batches (weekdays 9AM-4PM, staggered sends). Hard exclusions always win: prospecting imports (Realist, Import, Forewarn…), FSBO, Cancelled/Expired + CX Connect leads, STOP/opt-outs, landlines. "New" is a status, not an age — old leads are never excluded for being old.
+      </p>
+      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
+        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Mode
+          <select style={inp} value={mode} disabled={saving} onChange={e => save({ mode: e.target.value })}>
+            <option value="off">Manual (off)</option>
+            <option value="fresh">Fresh leads only</option>
+            <option value="full">Fresh + Reactivation</option>
+          </select>
+        </label>
+        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Reactivation / day
+          <input style={{ ...inp, width: 70 }} type="number" min="1" defaultValue={cfg.daily_limit} disabled={saving} onBlur={e => Number(e.target.value) !== cfg.daily_limit && save({ daily_limit: Number(e.target.value) })} />
+        </label>
+        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Fresh window (days)
+          <input style={{ ...inp, width: 55 }} type="number" min="1" defaultValue={cfg.fresh_window_days} disabled={saving} onBlur={e => Number(e.target.value) !== cfg.fresh_window_days && save({ fresh_window_days: Number(e.target.value) })} />
+        </label>
+        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Hold after human contact (h)
+          <input style={{ ...inp, width: 55 }} type="number" min="1" defaultValue={cfg.defer_human_hours} disabled={saving} onBlur={e => Number(e.target.value) !== cfg.defer_human_hours && save({ defer_human_hours: Number(e.target.value) })} />
+        </label>
+      </div>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 10 }}>
+        <span>Enrolled today: <strong>{todayFresh}</strong> fresh · <strong>{todayReact}</strong> reactivation{mode === 'full' ? ` / ${cfg.daily_limit}` : ''}</span>
+        <span>All-time: <strong>{(sum.enrolled_total || {}).fresh || 0}</strong> fresh · <strong>{(sum.enrolled_total || {}).reactivation || 0}</strong> reactivation</span>
+        <span style={{ color: 'var(--text-muted)' }}>{sum.in_window ? 'Inside the send window now' : 'Outside the send window (weekdays 9AM-4PM CT)'}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <button className="btn btn-secondary" disabled={previewing} onClick={runPreview}>{previewing ? 'Evaluating…' : '🔍 Dry run (no writes)'}</button>
+        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Evaluates the next batch of candidates and shows what WOULD happen — enrolls nobody, sends nothing.</span>
+      </div>
+      {preview && (
+        <div style={{ marginTop: 10, fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg-secondary)' }}>
+          <div style={{ marginBottom: 6 }}>
+            Scanned <strong>{preview.scanned}</strong> candidates → <strong>{(preview.by_decision || {}).eligible || 0}</strong> eligible, {(preview.by_decision || {}).deferred || 0} deferred, {(preview.by_decision || {}).excluded || 0} excluded.
+            {' '}Fresh-lane KPI (eligible fresh not yet enrolled): <strong style={{ color: preview.fresh_eligible_unenrolled ? '#b45309' : '#15803d' }}>{preview.fresh_eligible_unenrolled}</strong>
+          </div>
+          {Object.keys(preview.by_classification || {}).length > 0 && (
+            <div style={{ marginBottom: 6, color: 'var(--text-muted)' }}>{Object.entries(preview.by_classification).map(([k, v]) => `${k}: ${v}`).join(' · ')}</div>
+          )}
+          {(preview.would_enroll_first || []).length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)' }}><th>Lead</th><th>Class</th><th>Priority</th><th>Source</th><th>First action</th></tr></thead>
+              <tbody>{preview.would_enroll_first.map(p => (
+                <tr key={p.client_id} style={{ borderTop: '1px solid var(--border)' }}>
+                  <td style={{ padding: '3px 6px 3px 0' }}><a href={`/clients/${p.client_id}`}>{p.name || '#' + p.client_id}</a></td>
+                  <td>{(p.classification || '').replace(/_/g, ' ').toLowerCase()}</td>
+                  <td>{p.priority_score}</td>
+                  <td>{p.source || '—'}</td>
+                  <td>{p.route ? `${p.route.action} @ ${new Date(p.route.at).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })} CT` : '—'}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          )}
+        </div>
+      )}
+      {(sum.recent_enrollments || []).length > 0 && (
+        <details style={{ marginTop: 10, fontSize: 12 }}>
+          <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Recent enrollments ({sum.recent_enrollments.length})</summary>
+          <div style={{ marginTop: 6 }}>
+            {sum.recent_enrollments.map(r => (
+              <div key={r.id} style={{ padding: '3px 0', borderTop: '1px solid var(--border)' }}>
+                <a href={`/clients/${r.client_id}`}>{`${r.first_name || ''} ${r.last_name || ''}`.trim() || '#' + r.client_id}</a>
+                {' '}· {r.lane} · {(r.classification || '').replace(/_/g, ' ').toLowerCase()} · {r.enrolled_at ? new Date(r.enrolled_at).toLocaleString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' CT' : ''}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </section>
+  )
+}
+
 function CxCampaignSettings() {
   const [stats, setStats] = useState(null)
   const [busy, setBusy] = useState(false)

@@ -1357,6 +1357,36 @@ export async function initDb() {
   // Explicit per-lead AI enrollment. In manual mode (autopilot off), AI only acts on
   // leads an agent turned on here. Autopilot on = AI may act on all eligible leads.
   try { db.run('ALTER TABLE ai_lead_state ADD COLUMN ai_managed INTEGER DEFAULT 0') } catch {}
+  // Durable per-lead opt-out from AUTO-enrollment (an agent can still enable AI manually).
+  try { db.run('ALTER TABLE ai_lead_state ADD COLUMN auto_enroll_excluded INTEGER DEFAULT 0') } catch {}
+  try { db.run('ALTER TABLE ai_lead_state ADD COLUMN auto_enroll_excluded_by TEXT') } catch {}
+  try { db.run('ALTER TABLE ai_lead_state ADD COLUMN auto_enroll_excluded_at TEXT') } catch {}
+  try { db.run('ALTER TABLE ai_lead_state ADD COLUMN auto_enroll_excluded_reason TEXT') } catch {}
+
+  // AI auto-enrollment audit log (server/ai-enrollment.js). One row per DISTINCT
+  // (client, decision, reason_code); repeats bump times_seen/last_seen_at instead of
+  // flooding the table. Enrollments carry enrolled=1 + lane + classification.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ai_enrollment_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      decision TEXT NOT NULL,              -- eligible|deferred|excluded
+      reason_code TEXT NOT NULL,
+      reason TEXT,
+      classification TEXT,                 -- FRESH_INCOMING|COLD_NEVER_CONNECTED|COLD_PREVIOUSLY_CONNECTED|REENGAGED_DORMANT
+      lane TEXT,                           -- fresh|reactivation
+      priority_score INTEGER,
+      enrolled INTEGER DEFAULT 0,          -- 1 = this row is an actual enrollment
+      enrolled_at TEXT,
+      actor TEXT,                          -- system sweep name or user
+      times_seen INTEGER DEFAULT 1,
+      first_seen_at TEXT DEFAULT (datetime('now')),
+      last_seen_at TEXT DEFAULT (datetime('now')),
+      UNIQUE (client_id, decision, reason_code)
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_aienroll_enrolled ON ai_enrollment_log(enrolled, enrolled_at)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_aienroll_client ON ai_enrollment_log(client_id, last_seen_at)') } catch {}
 
   // inbound event queue (property_viewed, contact_created, tag_added, ...)
   db.run(`

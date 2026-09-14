@@ -139,6 +139,16 @@ Native AI follow-up + qualification. **Manual-first:** every autonomous feature 
 - **Guardrails:** quiet hours 21:00–08:00 CT on all AI sends; STOP-to-Hub-number is the only text hard-block (calling never blocked); prospecting imports are excluded from auto-treatment; `finalizeAiText` server-forces greetings; **CX-campaign leads are never AI-texted or AI-answered, ever** (three independent fences).
 - **AI-assisted, human-sent surfaces:** Inbox/profile Suggested replies and the Suggested Follow-Up card share one dossier built from Hub data + **Hub notes + notes-table records + Sierra lead notes (live) + FUB notes/calls/emails/texts/events** — so drafts are grounded in real history even for leads with zero web activity. Drafts are never auto-sent.
 
+### 8b. AI Auto-Enrollment Engine (`server/ai-enrollment.js`)
+
+Feeds the AI ISA automatically from the **Status = New** pool ("New" is a CRM status, NOT "recently created" — age never excludes; a 3-year-old New lead is a reactivation candidate, not trash). One central evaluator, `evaluateAiEnrollmentEligibility`, returns **eligible / deferred / excluded** with a reason code, classification, lane, and priority.
+
+- **Two lanes.** *Fresh* (FRESH_INCOMING: created within the fresh window, never worked by a human): event hooks on Sierra new-lead insert + manual client create, plus a 10-min safety sweep — immediate first touch, **never capped** (speed-to-lead). *Reactivation* (cold never-connected / cold previously-connected / re-engaged dormant): hourly batches inside weekdays 9AM–4PM CT, **capped per day** (default 150), cursor-walked through the pool, highest priority first, first sends staggered 2–3 min apart (drip pacing rule).
+- **Hard exclusions always win:** non-New status · prospecting source origins by exact source-field match (Realist, Import/Imported/Csv Import, Piesync, Forewarn, FSBO, Expired/Cancelled…, from the audited production distribution; a genuine origin like Zillow that *arrived* via import is NOT excluded — migration ≠ origin) · FSBO/MLS-tracked identity · **CX Connect leads (the fence)** · autopilot tag excludes · STOP/DNT/undeliverable/no-phone · active transactions · durable per-lead manual exclusion (profile button) · already AI-managed/working.
+- **Deferrals are temporary:** human contact within 24h (configurable), HUMAN_TAKEOVER, pending manual scheduled text — re-evaluated on the next pass with a retry-after.
+- **Routing:** fresh → `AI_INITIAL_OUTREACH`; reactivation sellers → contextual `AI_REENGAGE` (cold-seller philosophy applies); reactivation buyers/untyped → the staged cold-buyer drip. **Enrollment ≠ sending** — every send still passes the full policy stack at execute time.
+- **Modes** (`ai_auto_enroll_mode`, Settings → AI): `off` (default — total no-op) / `fresh` / `full`. Dry-run preview (`GET /api/ai/enrollment/preview`) evaluates candidates with zero writes. Deduped audit log (`ai_enrollment_log`), smart lists (🤖 AI Enroll Candidates / Enrolled Today), profile decision line, KPI: eligible fresh not yet enrolled should be 0.
+
 ---
 
 ## 9. Cancelled/Expired Connection Campaign ("CX Connect") — LIVE
@@ -230,6 +240,7 @@ All under `/api`, behind `requireAuth` (public: inbound webhooks, tracking, quer
 | Google Calendar sync | 5 min |
 | Scheduled texts · AI action queue | 60 s |
 | AI new-lead sweep · re-engagement/behavioral sweeps | 5 min / 60 min (autopilot only) |
+| **AI auto-enrollment**: fresh safety sweep · reactivation tick | 10 min / 60 min (mode-gated, off by default) |
 | TC digests · Slack deadline alert · walkthrough reminders · backups | 60 s ticks firing at target times |
 | Deadline→task sync · FUB activity/enrichment | 60 min / 20 min |
 | FUB Realist-score + budget syncs | 7 days |

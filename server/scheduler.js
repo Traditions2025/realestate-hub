@@ -805,6 +805,13 @@ export function startScheduler() {
   setInterval(() => { import('./ai-followup/scheduler.js').then(m => m.newLeadSweep()).catch(() => {}) }, 5 * 60 * 1000)
   setInterval(() => { import('./ai-followup/scheduler.js').then(m => { m.reengagementSweep(); m.behavioralSweep() }).catch(() => {}) }, 60 * 60 * 1000)
 
+  // AI auto-enrollment engine (server/ai-enrollment.js) — self-gates on
+  // ai_auto_enroll_mode ('off' default = cheap no-op). Fresh lane safety sweep every
+  // 10 min (event hooks handle the instant path); reactivation lane hourly (self-gates
+  // to weekdays 9AM-4PM CT + the daily cap).
+  setInterval(() => { import('./ai-enrollment.js').then(m => m.freshEnrollSweep()).catch(() => {}) }, 10 * 60 * 1000)
+  setInterval(() => { import('./ai-enrollment.js').then(m => m.reactivationTick()).catch(() => {}) }, 60 * 60 * 1000)
+
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
   setInterval(checkDigestTick, 60 * 1000)
 

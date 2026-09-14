@@ -1,7 +1,591 @@
 {
-  "generated_at": "2026-09-04T13:43:58.081Z",
+  "generated_at": "2026-09-14T17:44:57.627Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "48feea7",
+      "date": "2026-09-14T10:30:15-05:00",
+      "subject": "Bulk campaigns report: show WHY texts failed (Twilio error breakdown per campaign)",
+      "title": "Bulk campaigns report: show WHY texts failed (Twilio error breakdown per campaign)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e165417",
+      "date": "2026-09-14T10:14:48-05:00",
+      "subject": "Pre-listing modal: Delete button (confirm-guarded; client profile untouched)",
+      "title": "Pre-listing modal: Delete button (confirm-guarded; client profile untouched)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "17bba65",
+      "date": "2026-09-14T09:28:37-05:00",
+      "subject": "Group text fixes: migrate binding-stuck participants into the new group; honor the picked number",
+      "title": "Group text fixes: migrate binding-stuck participants into the new group; honor the picked number",
+      "body": "- A participant whose phone is bound to an OLD conversation is pulled out of it\n  and re-added to the new group (newest group wins); 1:1 copy remains the fallback\n- Group sends with a client_id now use the composer's picked number (e.g. the\n  Additional \"Liz\" line), never silently the primary\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9ce45f1",
+      "date": "2026-09-14T09:18:38-05:00",
+      "subject": "Docs: full HUB-SYSTEM-OVERVIEW rewrite — current as of 2026-09-14",
+      "title": "Docs: full HUB-SYSTEM-OVERVIEW rewrite — current as of 2026-09-14",
+      "body": "Adds the design-principles layer plus everything since 2026-08-21: CX Connect\ncampaign (+auto-enroll), Sierra field ownership, master-file syncs, group MMS,\nphone nicknames, notes-grounded AI suggestions, email backfill/BCC, account\nmenu/profile, pinned Name column, theme system, current jobs/tests/API map.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "docs"
+    },
+    {
+      "hash": "1acc86f",
+      "date": "2026-09-14T09:09:48-05:00",
+      "subject": "CX campaign: hourly auto-enroll — new tracked Cancelled/Expired leads join the drip automatically",
+      "title": "CX campaign: hourly auto-enroll — new tracked Cancelled/Expired leads join the drip automatically",
+      "body": "The master-file sync creates the lead; the campaign sweep's hourly pass now bulk-\nenrolls the saved list (idempotent: already-enrolled return early, human pauses/\nremovals/responses always stick, full eligibility screen for newcomers). A\nnotification announces new joiners. Tied to the master switch.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8e557ad",
+      "date": "2026-09-11T15:50:14-05:00",
+      "subject": "Group texts: every inbound reply shows the sender's NUMBER (+ participant nickname)",
+      "title": "Group texts: every inbound reply shows the sender's NUMBER (+ participant nickname)",
+      "body": "Two numbers on one lead looked identical in a group thread (\"Dave Deutsch\" twice)\n— which hid a wrong-number reply. Inbox group pane resolves the sender against\nthe participant list and always appends the from number; profile thread bubbles\nshow the group sender's number too.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ec1e645",
+      "date": "2026-09-11T15:45:04-05:00",
+      "subject": "Group text: participants who can't join (Twilio one-group-per-number rule) get a labeled 1:1 copy",
+      "title": "Group text: participants who can't join (Twilio one-group-per-number rule) get a labeled 1:1 copy",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3de6b0a",
+      "date": "2026-09-11T15:38:21-05:00",
+      "subject": "Fix: \"all numbers\" group survives adding teammates; extra numbers get visible chips",
+      "title": "Fix: \"all numbers\" group survives adding teammates; extra numbers get visible chips",
+      "body": "The toggle only applied with the lead as sole recipient — looping in a teammate\nsilently dropped the additional number from the send. The lead now expands into\nevery saved number inside ANY group composition, each extra number shows as its\nown chip, and a photo + all-numbers combo errors instead of silently narrowing.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "e0d5dd4",
+      "date": "2026-09-11T15:30:44-05:00",
+      "subject": "Profile text composer: \"all numbers\" group-text toggle (one shared MMS thread)",
+      "title": "Profile text composer: \"all numbers\" group-text toggle (one shared MMS thread)",
+      "body": "When a lead has 2+ saved numbers, tick \"👥 all N numbers\" to send ONE group MMS\nto every number (nicknamed participants) instead of picking a single one — same\nTwilio Conversations engine as multi-person groups, thread reuse included.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d27c74a",
+      "date": "2026-09-11T15:19:07-05:00",
+      "subject": "Additional phone numbers: nicknames + add-from-the-text-picker",
+      "title": "Additional phone numbers: nicknames + add-from-the-text-picker",
+      "body": "- clients.alt_phone_labels (JSON by last-10 digits): nickname per additional number\n- Profile text composer: number picker shows nicknames and offers \"+ Add another\n  number…\" inline (saves to Additional phones with optional nickname, selects it)\n- The + adder on the Phone row takes an optional nickname\n- Additional phones row: chips per number, click to set/rename who it belongs to\n- Call picker and Inbox reply picker show nicknames instead of main/additional\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "824b416",
+      "date": "2026-09-11T12:50:32-05:00",
+      "subject": "Inbox: seller-context pill in the thread header (Cancelled / Expired / FSBO + status)",
+      "title": "Inbox: seller-context pill in the thread header (Cancelled / Expired / FSBO + status)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "92628cd",
+      "date": "2026-09-11T12:41:44-05:00",
+      "subject": "FSBO restore: prefer the log's listing address over the profile address",
+      "title": "FSBO restore: prefer the log's listing address over the profile address",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "650bf68",
+      "date": "2026-09-11T12:39:47-05:00",
+      "subject": "FSBO: restore-history endpoint rebuilds listing cards the old prune wiped",
+      "title": "FSBO: restore-history endpoint rebuilds listing cards the old prune wiped",
+      "body": "Rebuilds fsbo_listings for profiles wiped before the 2026-09-10 keep-history fix,\nfrom the surviving link/price/notes columns + the master_file_updates log.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "454e36a",
+      "date": "2026-09-11T12:30:15-05:00",
+      "subject": "CX campaign: trickle sends 1-2.5 min apart, never a burst; window re-checked per send",
+      "title": "CX campaign: trickle sends 1-2.5 min apart, never a burst; window re-checked per send",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fa412a8",
+      "date": "2026-09-11T11:25:53-05:00",
+      "subject": "Backfill endpoint: historical email_log sends into profile threads",
+      "title": "Backfill endpoint: historical email_log sends into profile threads",
+      "body": "Emails sent before logSentToInbox existed (2026-08-07) are only in email_log and\ninvisible on profiles (Rachel Taylor case). POST /api/email/backfill-thread-log\ncopies them into communications, deduped by external_id elog_<id> and a same-\nsubject 30-minute proximity check; dry_run previews.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6e64cc3",
+      "date": "2026-09-11T11:14:24-05:00",
+      "subject": "Profile email composer: adjust row for the AI suggestion (context box + tone buttons)",
+      "title": "Profile email composer: adjust row for the AI suggestion (context box + tone buttons)",
+      "body": "Same /ai/adjust flow as the Inbox: free-text context (\"spoke yesterday, mention\nthe open house\") plus Shorter / More casual / More direct / Warmer, operating on\nthe current suggestion.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "378c7f9",
+      "date": "2026-09-11T11:01:26-05:00",
+      "subject": "AI suggestions grounded in ALL notes: Sierra lead notes + Hub note records join the dossier",
+      "title": "AI suggestions grounded in ALL notes: Sierra lead notes + Hub note records join the dossier",
+      "body": "gatherSierraNotes() pulls the lead's Sierra notes live (HTML-stripped,\nhuman-written first, fail-safe); the notes TABLE records join clients.notes\nin the dossier; hasSignal counts them so notes-only leads (no web activity)\nstill get an analysis. Used by the profile/Inbox Suggested reply AND the\nfollow-up recommender.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4fb654a",
+      "date": "2026-09-11T10:57:09-05:00",
+      "subject": "Suggested reply works on leads who never replied: drafts proactive OUTREACH",
+      "title": "Suggested reply works on leads who never replied: drafts proactive OUTREACH",
+      "body": "The suggest route refused threads with no inbound ({has_incoming:false}) and the\nprofile composer showed nothing. Now it drafts an opener (context + website\nactivity, follow-up doctrine, never referencing a conversation that didn't\nhappen), the UI labels it \"First outreach\", and an empty result shows a hint\ninstead of silence.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "667afb0",
+      "date": "2026-09-11T10:19:18-05:00",
+      "subject": "Sierra sync: backfill EMPTY Hub contact fields from Sierra (fill, never replace)",
+      "title": "Sierra sync: backfill EMPTY Hub contact fields from Sierra (fill, never replace)",
+      "body": "A lead adding their phone/email/address on the website is new data the Hub\nwants; an existing Hub value still always wins. notvalidemail placeholders\nare never backfilled. Test-first; 206 total passing.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2fc27f8",
+      "date": "2026-09-11T10:14:46-05:00",
+      "subject": "Sierra sync field ownership: Hub is master for contact/profile data",
+      "title": "Sierra sync field ownership: Hub is master for contact/profile data",
+      "body": "Existing leads: the sync now writes ONLY Sierra-owned fields (status w/ junk\nsafety + NIM guard, visits, validation statuses, opt-outs, tags, lender,\nsaved-search criteria, Sierra dates). It never touches name, email, phone,\naddress, type, budgets, agent assignment, or Realist score/grade — Hub edits\nto those were being silently reverted (39 phones on 2026-09-10). New leads\nstill insert in full; Hub->Sierra status push unchanged. Test-first (red/green),\n7 tests across sierra-field-ownership + phone-shadow; 204 total passing.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "373e831",
+      "date": "2026-09-11T09:46:56-05:00",
+      "subject": "Pre-activation safety fixes: Sierra sync must not revert Hub phone edits; CX guards",
+      "title": "Pre-activation safety fixes: Sierra sync must not revert Hub phone edits; CX guards",
+      "body": "- phone_sierra_shadow: a Hub-side phone edit records the replaced Sierra number;\n  processLead keeps the Hub phone while Sierra still reports the stale one, an\n  empty Sierra phone never wipes a Hub number, a genuinely new Sierra number wins.\n  (A sync pass had silently reverted 39 of 61 Forewarn-verified numbers.)\n- CX eligibility: leads with no property address are terminal (templates need one)\n- CX bulk enroll never re-activates a human pause/removal (Resume is the path back)\n- 10 new tests (201 total passing)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "35d4980",
+      "date": "2026-09-10T18:36:09-05:00",
+      "subject": "CX campaign: resolve DYNAMIC saved lists (shared resolveListMemberIds) for preview + bulk enroll",
+      "title": "CX campaign: resolve DYNAMIC saved lists (shared resolveListMemberIds) for preview + bulk enroll",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a139790",
+      "date": "2026-09-10T18:33:50-05:00",
+      "subject": "CX campaign fix: saved lists live in client_lists, not lists (preview + bulk enroll)",
+      "title": "CX campaign fix: saved lists live in client_lists, not lists (preview + bulk enroll)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "0f3ac9e",
+      "date": "2026-09-10T18:32:00-05:00",
+      "subject": "CX campaign: dry-run preview endpoint (exact next texts, nothing sent or written)",
+      "title": "CX campaign: dry-run preview endpoint (exact next texts, nothing sent or written)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2650e22",
+      "date": "2026-09-10T18:24:45-05:00",
+      "subject": "Test guard: bare React hook calls must be imported (catches the useRef/useMemo bug class)",
+      "title": "Test guard: bare React hook calls must be imported (catches the useRef/useMemo bug class)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9efd30f",
+      "date": "2026-09-10T18:24:12-05:00",
+      "subject": "HOTFIX: lead profile crashed (useRef not imported in ClientProfile)",
+      "title": "HOTFIX: lead profile crashed (useRef not imported in ClientProfile)",
+      "body": "The call-number picker (796991b) used useRef without importing it; Vite builds\nfine but every /clients/:id render threw ReferenceError at runtime.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "cda58e3",
+      "date": "2026-09-10T18:18:40-05:00",
+      "subject": "CX campaign: vary weekly send day + time (never a fixed Monday slot)",
+      "title": "CX campaign: vary weekly send day + time (never a fixed Monday slot)",
+      "body": "Weekly gaps jitter 6-8 days so the weekday drifts; Saturday resolves randomly to\nFriday or Monday, Sunday to Monday; send time randomizes inside the 9AM-4PM CT\nwindow. Exact timestamps logged per send for day/time response analytics.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5eb5852",
+      "date": "2026-09-10T18:13:59-05:00",
+      "subject": "Cancelled/Expired Persistent Connection SMS Campaign (CX Connect)",
+      "title": "Cancelled/Expired Persistent Connection SMS Campaign (CX Connect)",
+      "body": "- server/cx-connect.js: enrollment + eligibility engine, approved message library\n  (18 rotating angles + age-bucketed intro/follow-up), off-market age buckets\n  (0-30/31-90/91-365/365+, unknown = old-listing language), Day1/Day2-3/weekly\n  cadence with weekend shifting, per-send re-verification, full decision log\n- Response = STOP FIRST: inbound webhook halts the campaign, cancels pending,\n  classifies internally, notifies + creates a human follow-up task\n- AI never replies to enrolled leads: inbox skip + orchestrator gate (force incl.)\n  + policy canSendSms 'ai' deny — three independent fences\n- History analysis blocks enrollment/sends on prior responses (rented/sold/agent/\n  keeping/not-interested/wrong-number/future-timeframe); manual human contact\n  defers sends; MLS Sold/Pending/Active and junked relists are terminal\n- cx_campaign + cx_campaign_log tables; /api/cx routes; 15-min sweep\n  (master switch OFF by default, weekday 9AM-4PM CT window)\n- UI: profile campaign card (status incl. RESPONSE RECEIVED banner, next send,\n  attempts, angle, log, pause/resume/remove) + Settings master switch/bulk enroll\n- 17 new tests (191 total passing)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "796991b",
+      "date": "2026-09-10T17:05:32-05:00",
+      "subject": "Lead profile: Call button picks which number to dial when the lead has 2+",
+      "title": "Lead profile: Call button picks which number to dial when the lead has 2+",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "108eff3",
+      "date": "2026-09-10T12:27:35-05:00",
+      "subject": "Header: align bell + avatar with page content edge and with each other",
+      "title": "Header: align bell + avatar with page content edge and with each other",
+      "body": "Bell gets a 36px circular icon-button style (drops the sidebar theme-toggle class\nwhose margin-bottom knocked it off center); cluster right padding matches .page's\n32px so the icons line up with the content boxes below; symmetric search-row padding.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b5d319b",
+      "date": "2026-09-10T12:20:21-05:00",
+      "subject": "Docs: account menu + self-service profile in system overview",
+      "title": "Docs: account menu + self-service profile in system overview",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "docs"
+    },
+    {
+      "hash": "41d4153",
+      "date": "2026-09-10T12:18:07-05:00",
+      "subject": "Header account menu + My Profile page; Sierra full sync moved to Settings",
+      "title": "Header account menu + My Profile page; Sierra full sync moved to Settings",
+      "body": "- Top-right utility cluster: notification bell + user avatar (photo or initials)\n- Avatar dropdown: user summary, Profile, Settings, Light/Dark toggle, Log Out\n- /profile page: photo upload (square-crop to 256px client-side, MIME+size validated server-side), name/phone self-service; email/role stay admin-managed\n- users.avatar column + self-service /api/users/me endpoints (own row only)\n- Sidebar cleanup: Dark Mode / Log Out / Signed-in-as moved into the account menu\n- Mobile: bell + 28px avatar in the top bar, same dropdown\n- Clients: removed subtitle, moved Sync All Sierra Leads to Settings > Data / Imports\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "80e00a3",
+      "date": "2026-09-10T11:47:33-05:00",
+      "subject": "Profile: Notes tab inside Communications, Client Details locked in place; Clients list: Name column pinned first + sticky on horizontal scroll",
+      "title": "Profile: Notes tab inside Communications, Client Details locked in place; Clients list: Name column pinned first + sticky on horizontal scroll",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "69a87fb",
+      "date": "2026-09-10T10:30:55-05:00",
+      "subject": "Address parser: no-comma street+city split, state abbrevs always ALL CAPS (IA not Ia)",
+      "title": "Address parser: no-comma street+city split, state abbrevs always ALL CAPS (IA not Ia)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "4737866",
+      "date": "2026-09-10T10:18:43-05:00",
+      "subject": "FSBO prune keeps the listing history on the profile — only list membership (fsbo_status) clears",
+      "title": "FSBO prune keeps the listing history on the profile — only list membership (fsbo_status) clears",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8b21fa2",
+      "date": "2026-09-10T09:59:34-05:00",
+      "subject": "Columns picker: compact 2-column rectangle; add Last Email Sent column+sort; rename Last Email In -> Last Email Received",
+      "title": "Columns picker: compact 2-column rectangle; add Last Email Sent column+sort; rename Last Email In -> Last Email Received",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7f7bbba",
+      "date": "2026-09-10T09:35:26-05:00",
+      "subject": "Auto-BCC matt@mattsmithteam.com on HUMAN-sent emails (Inbox replies + personal one-offs)",
+      "title": "Auto-BCC matt@mattsmithteam.com on HUMAN-sent emails (Inbox replies + personal one-offs)",
+      "body": "Drips, automations, bulk sends and notifications are never BCC'd. Setting\npersonal_email_bcc controls the address (empty disables). Never duplicates\nan address already in To.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fc9174f",
+      "date": "2026-09-09T16:41:29-05:00",
+      "subject": "Inbox: keep our replies visible — pane shows the latest inbound email plus every reply sent after it",
+      "title": "Inbox: keep our replies visible — pane shows the latest inbound email plus every reply sent after it",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "56c0201",
+      "date": "2026-09-09T15:31:31-05:00",
+      "subject": "Inbox: reading pane shows only the NEWEST email per conversation",
+      "title": "Inbox: reading pane shows only the NEWEST email per conversation",
+      "body": "Older emails live on the lead profile (dashed pill links there with the\ncount). Texts/calls/voicemails still render as a full chat thread.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "73bb208",
+      "date": "2026-09-09T13:59:17-05:00",
+      "subject": "Inbound emails: store/show only the new message (quoted history stripped); lead-profile button on notify emails",
+      "title": "Inbound emails: store/show only the new message (quoted history stripped); lead-profile button on notify emails",
+      "body": "- gmail-inbox stores the reply body with 'On ... wrote:' / gmail_quote /\n  '>' history removed (each earlier email is already its own thread item);\n  falls back to full body when unsure, never strips to empty\n- Inbox + profile also strip quoted history from PREVIOUSLY stored inbound\n  emails at display time\n- 'Open Lead Profile' gold button added to the reply notification email,\n  linking straight to /clients/<id>\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "48f46d0",
+      "date": "2026-09-09T13:39:05-05:00",
+      "subject": "Design pass 2: type/spacing/radius tokens, badge + empty-state + skeleton + transition standardization",
+      "title": "Design pass 2: type/spacing/radius tokens, badge + empty-state + skeleton + transition standardization",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fe9e0bf",
+      "date": "2026-09-09T13:38:19-05:00",
+      "subject": "New CRM status: Not in Market — centralized transition, cleanup, annual recheck loop",
+      "title": "New CRM status: Not in Market — centralized transition, cleanup, annual recheck loop",
+      "body": "Contact confirmed no current buying/selling intent. Entering the status\nstops drips/automations, cancels scheduled texts + pending AI actions,\npauses HUB AI, sets intent LOW (history kept), closes sales-patterned open\ntasks and creates ONE annual recheck task (+1 year, idempotent, assigned\nagent). Sierra sync can never overwrite it; drips refuse enrollment; AI\npolicy denies proactive sends. Completing the annual task while still Not\nin Market schedules the next year. Leaving the status closes the task.\nActive-transaction conflicts are preserved + flagged. Smart lists for\nrecent/recheck-due/possible-return. 5 scenario tests (171 total).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "cf54347",
+      "date": "2026-09-09T12:29:30-05:00",
+      "subject": "Lead profile: paste a full address into Address and it auto-splits city/state/zip + fixes casing",
+      "title": "Lead profile: paste a full address into Address and it auto-splits city/state/zip + fixes casing",
+      "body": "ALL-CAPS or lowercase input is title-cased (directionals stay NE/SW, ordinals\n1st/2nd, Iowa -> IA); mixed-case input is left alone; explicit city/state/zip\nin the same request are never overridden. 6 parser tests.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2b81bf9",
+      "date": "2026-09-09T11:53:33-05:00",
+      "subject": "Profile: small + beside the pencil on Phone/Email rows adds an additional number/email",
+      "title": "Profile: small + beside the pencil on Phone/Email rows adds an additional number/email",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a850d31",
+      "date": "2026-09-09T11:49:33-05:00",
+      "subject": "Replaced phone sheds the old number's landline verdict; + Add buttons for additional phones/emails",
+      "title": "Replaced phone sheds the old number's landline verdict; + Add buttons for additional phones/emails",
+      "body": "- clients PUT: a changed number clears sms_undeliverable + cached line-type\n  check so the AI pre-send screen re-runs Twilio Lookup on the NEW number\n  (verdicts belong to numbers, not people) with an activity note\n- profile: empty Additional phones/emails rows now show '+ Add phone' /\n  '+ Add email' buttons with format placeholders instead of a bare pencil\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f92c157",
+      "date": "2026-09-09T10:09:19-05:00",
+      "subject": "Design system: semantic accent tokens + 5 accent themes, Matt Smith Gold default",
+      "title": "Design system: semantic accent tokens + 5 accent themes, Matt Smith Gold default",
+      "body": "- accent token set (accent/hover/active/soft/subtle/border/contrast/gradient)\n  with dark + light variants per theme; semantic colors (success/warning/\n  danger/info, buyer-blue, AI purple) untouched by theming\n- Matt Smith Gold default: muted premium gold, dark text on gold CTAs for\n  contrast; boot script applies accent before first paint (no flash)\n- team default accent (app_settings, owner/admin) + per-user override\n  (localStorage); Settings -> Appearance with swatches + live preview\n- refinements: sidebar active = soft tint + 3px gold bar + gold icon;\n  primary buttons use restrained brand gradient; accent focus rings;\n  selected tabs/smart lists/table rows use accent subtly; lighter row\n  rules (border-subtle); thin brand gradient hairline under page headers\n- Clients: + Add Client is the primary CTA; Sync Sierra de-emphasized\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9c37bab",
+      "date": "2026-09-09T09:32:08-05:00",
+      "subject": "Clients search back in the toolbar; global Search-everything bar centered",
+      "title": "Clients search back in the toolbar; global Search-everything bar centered",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ecf9512",
+      "date": "2026-09-09T09:24:30-05:00",
+      "subject": "UI cleanup: Clients simplified, Settings organized into collapsible two-column categories",
+      "title": "UI cleanup: Clients simplified, Settings organized into collapsible two-column categories",
+      "body": "Clients: List is the only view (Cards + toggle removed), Realist CSV import\nmoved to Settings, Add Manually renamed Add Client, search bar centered in\nthe header (title left, actions right).\n\nSettings: 7 collapsible categories in two balanced desktop columns (General,\nAI Follow-Up, Communications, Email & Inbox | Team & Users, Data / Imports,\nSystem / Diagnostics); sections stay mounted when collapsed; state persists.\n\nAlso fixes fresh-database boot: idx_ai_sched_client index moved after its\ntable's CREATE (was breaking initDb on a blank DB).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5d80293",
+      "date": "2026-09-08T18:07:03-05:00",
+      "subject": "Clients: Select first 100-500 dropdown; /ids honors the on-screen sort order",
+      "title": "Clients: Select first 100-500 dropdown; /ids honors the on-screen sort order",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "31655de",
+      "date": "2026-09-08T16:55:01-05:00",
+      "subject": "Clients table: columns + widths are now PER VIEW (each tab, saved list, smart list)",
+      "title": "Clients table: columns + widths are now PER VIEW (each tab, saved list, smart list)",
+      "body": "Changing visible columns or resizing in one view no longer affects any other.\nExisting global layout seeds each view's starting point, then they diverge.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "387618d",
+      "date": "2026-09-08T16:28:24-05:00",
+      "subject": "Inbox reply: pick which of the lead's saved numbers to text; clearer Additional phones/emails labels",
+      "title": "Inbox reply: pick which of the lead's saved numbers to text; clearer Additional phones/emails labels",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5c182c4",
+      "date": "2026-09-08T13:52:42-05:00",
+      "subject": "Master-file feed badge: show Cancelled/Expired/Withdrawn specifically instead of CX/EXP",
+      "title": "Master-file feed badge: show Cancelled/Expired/Withdrawn specifically instead of CX/EXP",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9e24667",
+      "date": "2026-09-08T11:17:24-05:00",
+      "subject": "Master-file feed: clean labels (New/Relisted/Price Reduction/FSBO Off Market), full address, DOM, View Listing link",
+      "title": "Master-file feed: clean labels (New/Relisted/Price Reduction/FSBO Off Market), full address, DOM, View Listing link",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a726b80",
+      "date": "2026-09-08T10:45:31-05:00",
+      "subject": "Master-file daily report: FSBO price changes + relist events (incl. already-junk leads)",
+      "title": "Master-file daily report: FSBO price changes + relist events (incl. already-junk leads)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8d58f6d",
+      "date": "2026-09-08T10:35:02-05:00",
+      "subject": "Master-file updates box: full current-day view + rows newly added to either sheet",
+      "title": "Master-file updates box: full current-day view + rows newly added to either sheet",
+      "body": "- snapshot diff in both syncs logs 'added to the master file' even when the\n  owner already exists in the Hub (baseline recorded on first run)\n- dashboard box shows the whole day's changes (falls back to recent on quiet\n  days), scrollable, with a today count header\n- backfill endpoint records today's sync-created leads that predate logging\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "02a2930",
+      "date": "2026-09-08T10:29:44-05:00",
+      "subject": "Dashboard: Needs Attention collapsed to 3 items with Show all toggle",
+      "title": "Dashboard: Needs Attention collapsed to 3 items with Show all toggle",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "391b20c",
+      "date": "2026-09-08T10:19:57-05:00",
+      "subject": "Fix: notes-table rows no longer shadow the clients.notes column on GET /:id",
+      "title": "Fix: notes-table rows no longer shadow the clients.notes column on GET /:id",
+      "body": "The array spread made every profile note (including master-file sync notes)\ninvisible in the Notes card. Table rows now come back as note_records.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "41ec779",
+      "date": "2026-09-08T10:00:50-05:00",
+      "subject": "Master files: one-click check button + change notes on leads + dashboard updates box",
+      "title": "Master files: one-click check button + change notes on leads + dashboard updates box",
+      "body": "- POST /api/lists/master-sync runs FSBO + Cancelled/Expired syncs together\n- every sync change (FSBO status flip, relist junked, new lead, removed)\n  writes a dated note on the lead profile and a master_file_updates row\n- dashboard: Needs Attention now shares its row 50/50 with a new\n  'Cancelled/Expired/FSBO Updates' box (change feed + Check Now button)\n- Settings: Master Files card with the same one-click check\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "afe0ab9",
+      "date": "2026-09-04T17:02:34-05:00",
+      "subject": "Coverage perf: polite audit chunks (40 + 50ms), persist audit stamp, IN-subqueries for smart lists, ai_scheduled_actions index",
+      "title": "Coverage perf: polite audit chunks (40 + 50ms), persist audit stamp, IN-subqueries for smart lists, ai_scheduled_actions index",
+      "body": "The post-deploy re-audit was hogging the event loop and slowing every API\ncall; audits now leave the loop open and never re-run after a restart.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "260eb24",
+      "date": "2026-09-04T16:55:24-05:00",
+      "subject": "Dashboard: excluded leads (internal/team records) never appear in attention queues",
+      "title": "Dashboard: excluded leads (internal/team records) never appear in attention queues",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "18b5bfc",
+      "date": "2026-09-04T14:41:13-05:00",
+      "subject": "Follow-Up Coverage: fall-through prevention system",
+      "title": "Follow-Up Coverage: fall-through prevention system",
+      "body": "One authoritative evaluator (server/followup-coverage.js) above Tasks/AI/\nDrips/Automations/Transactions. Every eligible meaningful lead must have a\nfuture human task, scheduled AI action, active nurture touch, active\ntransaction, intentional snooze, or documented exclusion - otherwise it is\nUNPROTECTED and surfaced immediately.\n\n- relationship levels (never_connected..client) with CONNECTED ratchet\n- executable-coverage rules (opted-out SMS / bounced email never count)\n- configurable silence windows + timeline-aware tightening\n- followup_coverage summary table + transition-only event log + Slack alert\n- immediate recalc on task create/complete, status/agent change, drip\n  enroll/remove; 10-min sweep; chunked daily audit\n- snooze (future date + reason, auto-wake) and documented exclusions\n- dashboard KPI (connected leads without coverage, target 0) + cards +\n  Needs Attention integration; 10 smart lists; opt-in Clients columns and\n  sorts; profile coverage card; Settings silence-window editor\n- 13 fixture scenario tests incl. task-completion fall-through (160 total)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e19703b",
+      "date": "2026-09-04T13:52:04-05:00",
+      "subject": "AI new-lead sweep: never first-touch a duplicate of an already-worked phone number",
+      "title": "AI new-lead sweep: never first-touch a duplicate of an already-worked phone number",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6ddadeb",
+      "date": "2026-09-04T12:28:44-05:00",
+      "subject": "Group threads: 10-min scheduled resync heals any webhook-missed inbound reply",
+      "title": "Group threads: 10-min scheduled resync heals any webhook-missed inbound reply",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "56d815f",
+      "date": "2026-09-04T12:24:33-05:00",
+      "subject": "Group threads: resync endpoint heals webhook-missed inbound messages from Twilio",
+      "title": "Group threads: resync endpoint heals webhook-missed inbound messages from Twilio",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "561ee4f",
+      "date": "2026-09-04T12:22:02-05:00",
+      "subject": "Group receipts: include inbound messages with author phone",
+      "title": "Group receipts: include inbound messages with author phone",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3c87777",
+      "date": "2026-09-04T12:14:02-05:00",
+      "subject": "Profile: Reply on email comms + Inbox-grade AI suggested reply in the email composer",
+      "title": "Profile: Reply on email comms + Inbox-grade AI suggested reply in the email composer",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "94d5d92",
+      "date": "2026-09-04T12:09:22-05:00",
+      "subject": "Dashboard: schedule minimized at bottom; radar excludes internal people",
+      "title": "Dashboard: schedule minimized at bottom; radar excludes internal people",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8d553f2",
+      "date": "2026-09-04T11:03:46-05:00",
+      "subject": "Group texts: per-recipient delivery receipts endpoint",
+      "title": "Group texts: per-recipient delivery receipts endpoint",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4dec968",
+      "date": "2026-09-04T10:30:51-05:00",
+      "subject": "Dashboard: deterministic loop-closer filter, wider classify batch, email/drip stats",
+      "title": "Dashboard: deterministic loop-closer filter, wider classify batch, email/drip stats",
+      "body": "- Needs Attention drops replies that are just the info we asked for (a bare\n  email address or phone number) or a bare thanks/ok/emoji - no AI wait\n- background classifier batch 5 -> 12 so older visible items stop starving\n  behind newer ones\n- Communication Health adds Emails this month, Texts this month, and total\n  leads in active drip campaigns\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3f05707",
+      "date": "2026-09-04T09:52:33-05:00",
+      "subject": "Multi phone/email per lead + STOP clears when a number is replaced",
+      "title": "Multi phone/email per lead + STOP clears when a number is replaced",
+      "body": "- alt_phones / alt_emails editable on the profile (comma separated)\n- inbound texts and calls match alt numbers to the right lead\n- text composer picks which saved number to send to (to_phone, validated)\n- email composer picks which saved address (to_email)\n- replacing a lead's phone clears hub_text_opt_out: STOP belongs to the\n  number, not the person (wrong-number STOPs no longer follow the lead)\n- explicit hub_text_opt_out=0 also resets AI prefs sms_status to eligible\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e84d851",
+      "date": "2026-09-04T09:26:58-05:00",
+      "subject": "Add {{time_greeting}} merge token (CT clock at send time) for drip greetings",
+      "title": "{{time_greeting}} merge token (CT clock at send time) for drip greetings",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "45e84b6",
+      "date": "2026-09-04T09:08:38-05:00",
+      "subject": "Auth: retire the shared team login; fix /api/auth/me returning null",
+      "title": "Auth: retire the shared team login; fix /api/auth/me returning null",
+      "body": "/me mounts before requireAuth so req.user was NEVER populated — it always returned\nnull, which is why the dashboard greeting stayed nameless even on valid personal\nlogins. It now resolves the principal from the token directly.\n\nShared login retired: the password-only branch is refused with a clear message,\nlegacy t=team tokens are rejected in principalFor (invalidating every outstanding\nstateless owner token immediately), and verifyToken is principal-based so the\nquery-token media proxies reject them too. Automation now runs on its own\ntracked, revocable 'Hub Automation' admin account.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3bc34f6",
+      "date": "2026-09-04T08:44:01-05:00",
+      "subject": "Dashboard greeting: name comes from the login only, never a who-is-this prompt",
+      "title": "Dashboard greeting: name comes from the login only, never a who-is-this prompt",
+      "body": "Personal account session -> 'Good morning, John'. Shared-team session -> plain\n'Good morning'. Removed the device picker.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f8fc776",
       "date": "2026-09-04T08:32:10-05:00",
@@ -3416,590 +4000,6 @@
       "subject": "Clients profile: sort Sierra notes + FUB activity newest-first (notes already prepend newest)",
       "title": "Clients profile: sort Sierra notes + FUB activity newest-first (notes already prepend newest)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7cf7613",
-      "date": "2026-08-07T11:47:04-05:00",
-      "subject": "Responsive: Clients list view uses a condensed mobile card (name, status, last activity) instead of the crammed multi-column row",
-      "title": "Responsive: Clients list view uses a condensed mobile card (name, status, last activity) instead of the crammed multi-column row",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6c21b27",
-      "date": "2026-08-07T11:29:14-05:00",
-      "subject": "Responsive: header action buttons wrap 2-per-row on mobile instead of shrinking into a cramped cut-off row",
-      "title": "Responsive: header action buttons wrap 2-per-row on mobile instead of shrinking into a cramped cut-off row",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fac2519",
-      "date": "2026-08-07T11:23:00-05:00",
-      "subject": "Responsive: constrain Settings content grid so nested auto-fit grid collapses to 1 col on mobile (minmax(0,1fr) + width:100%)",
-      "title": "Responsive: constrain Settings content grid so nested auto-fit grid collapses to 1 col on mobile (minmax(0,1fr) + width:100%)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0327575",
-      "date": "2026-08-07T11:15:10-05:00",
-      "subject": "Responsive: site-wide mobile layer (safe areas, media, touch targets), stack Inbox panes, collapse Settings grids, scrollable tab bars",
-      "title": "Responsive: site-wide mobile layer (safe areas, media, touch targets), stack Inbox panes, collapse Settings grids, scrollable tab bars",
-      "body": "- index.html: viewport-fit=cover for notch/safe-area support\n- app.css: reusable responsive layer — env() safe-area insets on topbar/sidebar/modals, img/media max-width, 40px touch targets, 16px inputs (no iOS zoom), header/toolbar/tab wrapping + horizontal-scroll tab bars, extra-small phone tuning\n- Inbox: 3-pane desktop layout stacks vertically on mobile (folders wrap, list + reading full-width)\n- Settings: 2-col account grids auto-collapse via auto-fit minmax; signature header wraps\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a0c77d3",
-      "date": "2026-08-07T10:53:42-05:00",
-      "subject": "Clients: status change always pushes to Sierra automatically (remove confirm prompt)",
-      "title": "Clients: status change always pushes to Sierra automatically (remove confirm prompt)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c029dc7",
-      "date": "2026-08-07T10:46:54-05:00",
-      "subject": "Leads: junk removes active drips/automations; block @notvalidemail.com sends; show Active Plans on lead profile",
-      "title": "Leads: junk removes active drips/automations; block @notvalidemail.com sends; show Active Plans on lead profile",
-      "body": "- lead-sequences.js: stopSequencesForClient (drip+automation) + activeSequencesForClient\n- Junk transition wired into PUT /clients/:id, Sierra sync upsert, and automation change_status action\n- email.js: isBlockedEmail gate in sendSequenceEmail + sendViaSendGrid (to/cc/bcc); @notvalidemail.com never sent\n- clients.js: GET /:id/sequences endpoint\n- Clients.jsx: Active Plans section (drips+automations, next-send, Remove) on lead profile\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7f7572a",
-      "date": "2026-08-06T18:22:40-05:00",
-      "subject": "Drips: add step preview endpoint (renders merge fields + signature + property cards without sending)",
-      "title": "Drips: add step preview endpoint (renders merge fields + signature + property cards without sending)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cd9c013",
-      "date": "2026-08-06T17:55:52-05:00",
-      "subject": "Drips: enrolling after the send window rolls Day-0 to the next day's window",
-      "title": "Drips: enrolling after the send window rolls Day-0 to the next day's window",
-      "body": "nextSendIso now picks a random time in [send_time, send_time_end] on the target\nday, and if that day's window has already passed (enrolled after 11am), rolls to\nthe next day — so a send never fires outside the configured window.",
-      "category": "other"
-    },
-    {
-      "hash": "7a32708",
-      "date": "2026-08-06T17:42:46-05:00",
-      "subject": "Drips: random send time within a window (send_time..send_time_end); Homes template signature",
-      "title": "Drips: random send time within a window (send_time..send_time_end); Homes template signature",
-      "body": "- nextSendIso picks a random minute in [send_time, send_time_end] when a window\n  is set (e.g. 9:00-11:00), else fixed. Drip editor now has a 'between X and Y'\n  time window per step (default 9:00-11:00).\n- Homes They Viewed template got {{signature}} (was the only drip email missing it).",
-      "category": "other"
-    },
-    {
-      "hash": "2b09046",
-      "date": "2026-08-06T17:29:07-05:00",
-      "subject": "Holidays: no automated email/text on US federal holidays + bulk apply automation/drip",
-      "title": "Holidays: no automated email/text on US federal holidays + bulk apply automation/drip",
-      "body": "- server/holidays.js: US federal holidays (Chicago calendar, weekend-observed).\n- Drip engine (nextSendIso) + automation delays (applyDelay) never schedule onto\n  a holiday; messaging actions/drip sends are also gated at send time and deferred\n  to the next non-holiday day.\n- Clients bulk actions: 'Apply Drip Campaign' + 'Apply Automation' -> pick one,\n  enrolls the selected clients (uses existing enroll endpoints; active automations\n  only).",
-      "category": "other"
-    },
-    {
-      "hash": "bd7bd41",
-      "date": "2026-08-06T17:05:44-05:00",
-      "subject": "Email: configurable 'From' name (email_from_name setting) + Settings field",
-      "title": "Email: configurable 'From' name (email_from_name setting) + Settings field",
-      "body": "Sender name now reads from app_settings email_from_name (falls back to\nSENDGRID_FROM_NAME env / default), so it can be set to 'Matt Smith' instead of\n'Matt Smith Team'. Added a From-name field in Settings > Account Info.",
-      "category": "other"
-    },
-    {
-      "hash": "fc28fc4",
-      "date": "2026-08-06T15:52:04-05:00",
-      "subject": "Remove temp list-MLS extraction endpoint (data captured)",
-      "title": "temp list-MLS extraction endpoint (data captured)",
-      "body": "",
-      "category": "removal"
-    },
-    {
-      "hash": "380b779",
-      "date": "2026-08-06T15:44:48-05:00",
-      "subject": "TEMP list-mls: retry+backoff on Sierra rate limits + pacing",
-      "title": "TEMP list-mls: retry+backoff on Sierra rate limits + pacing",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "1dfe4e6",
-      "date": "2026-08-06T15:42:22-05:00",
-      "subject": "TEMP: paginated list-MLS extractor (full notes, fixed MLS regex)",
-      "title": "TEMP: paginated list-MLS extractor (full notes, fixed MLS regex)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "6eef35e",
-      "date": "2026-08-06T15:28:06-05:00",
-      "subject": "Remove temp list-notes endpoint",
-      "title": "temp list-notes endpoint",
-      "body": "",
-      "category": "removal"
-    },
-    {
-      "hash": "feaf7e1",
-      "date": "2026-08-06T15:24:16-05:00",
-      "subject": "TEMP: expand list-notes endpoint fields to locate MLS",
-      "title": "TEMP: expand list-notes endpoint fields to locate MLS",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "2fe4399",
-      "date": "2026-08-06T15:21:21-05:00",
-      "subject": "TEMP: list members notes endpoint (to extract MLS # from Cancelled/Expired)",
-      "title": "TEMP: list members notes endpoint (to extract MLS # from Cancelled/Expired)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "c178753",
-      "date": "2026-08-06T15:11:15-05:00",
-      "subject": "Clients: 'Update this list' button — overwrite the active saved list with the current filters",
-      "title": "Clients: 'Update this list' button — overwrite the active saved list with the current filters",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "f21a05b",
-      "date": "2026-08-06T14:12:52-05:00",
-      "subject": "Remove temp Sierra notes probe (confirmed: notes/secondary email not exposed by API)",
-      "title": "temp Sierra notes probe (confirmed: notes/secondary email not exposed by API)",
-      "body": "",
-      "category": "removal"
-    },
-    {
-      "hash": "17ad0f9",
-      "date": "2026-08-06T14:10:26-05:00",
-      "subject": "TEMP: wider probe of Sierra timeline/notes endpoints + full detail email scan",
-      "title": "TEMP: wider probe of Sierra timeline/notes endpoints + full detail email scan",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "d441b1d",
-      "date": "2026-08-06T14:05:18-05:00",
-      "subject": "TEMP: probe Sierra note/activity endpoints for secondary email in system notes",
-      "title": "TEMP: probe Sierra note/activity endpoints for secondary email in system notes",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "2b16653",
-      "date": "2026-08-06T13:57:29-05:00",
-      "subject": "Remove temp Sierra raw-lookup diagnostic",
-      "title": "temp Sierra raw-lookup diagnostic",
-      "body": "",
-      "category": "removal"
-    },
-    {
-      "hash": "3fec3ad",
-      "date": "2026-08-06T13:54:12-05:00",
-      "subject": "TEMP: raw Sierra lead lookup by name for secondary-email check",
-      "title": "TEMP: raw Sierra lead lookup by name for secondary-email check",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "85c63f3",
-      "date": "2026-08-06T13:52:57-05:00",
-      "subject": "Remove temporary Sierra email-fields diagnostic (verified: API/export expose only the primary email)",
-      "title": "temporary Sierra email-fields diagnostic (verified: API/export expose only the primary email)",
-      "body": "",
-      "category": "removal"
-    },
-    {
-      "hash": "16c8863",
-      "date": "2026-08-06T13:44:13-05:00",
-      "subject": "Sierra diagnostic: deep-scan lead detail for a 2nd email + report location",
-      "title": "Sierra diagnostic: deep-scan lead detail for a 2nd email + report location",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "991840c",
-      "date": "2026-08-06T13:41:50-05:00",
-      "subject": "Sierra: read-only diagnostic to inspect lead email fields (find vs full detail)",
-      "title": "Sierra: read-only diagnostic to inspect lead email fields (find vs full detail)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "b58fc53",
-      "date": "2026-08-06T13:18:01-05:00",
-      "subject": "Inbox: multi-mailbox support (connect matt@mattsmithteam.com directly, no forwarding)",
-      "title": "Inbox: multi-mailbox support (connect matt@mattsmithteam.com directly, no forwarding)",
-      "body": "- gmail-inbox.js: mailbox LIST in app_settings (inbox_mailboxes), each polled\n  directly over IMAP with its own App Password + host (default imap.gmail.com,\n  overridable for non-Gmail). Per-mailbox cursor/status. One-time migration folds\n  the existing single-mailbox creds into the list so the current connection\n  carries over. Only client-matched mail stored -> promo/spam ignored.\n- Endpoints: GET/POST /api/settings/mailboxes, POST /:id/test, DELETE /:id.\n- Settings UI: multi-mailbox manager (list w/ status + Test/Remove, add form w/\n  Advanced IMAP host). Scheduler already calls pollGmail=pollAllMailboxes.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "04b96b1",
-      "date": "2026-08-06T13:05:33-05:00",
-      "subject": "Inbox: render email bodies as formatted HTML (sandboxed iframe) instead of raw markup; texts stay as chat bubbles",
-      "title": "Inbox: render email bodies as formatted HTML (sandboxed iframe) instead of raw markup; texts stay as chat bubbles",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "453404f",
-      "date": "2026-08-06T12:50:10-05:00",
-      "subject": "Inbox: direct Gmail connection via App Password (no DNS)",
-      "title": "Inbox: direct Gmail connection via App Password (no DNS)",
-      "body": "- server/gmail-inbox.js: IMAP poller (imapflow + mailparser). Reads new mail\n  every 60s, matches sender->client, stores client-matched incoming emails in\n  the Inbox. Cursor-based (seeds to now on connect -> never backfills), deduped\n  by Message-ID, storm-guarded, resilient (errors recorded, never crash tick).\n  Inert until an App Password is saved.\n- Settings endpoints: GET/POST /api/settings/gmail, /gmail/test, /gmail/disconnect\n  (creds in app_settings, never in git).\n- Settings UI: Inbox Email Connection card (address + App Password, Connect/Test/\n  Disconnect, live status) with instructions to generate a Google App Password.\n- Scheduler: 60s gmail poll tick (guarded).\n- Adds imapflow + mailparser deps.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5ab0db9",
-      "date": "2026-08-06T12:37:11-05:00",
-      "subject": "Inbox: compose (Email/Text, multi-recipient) + real-time inbound receiver",
-      "title": "Inbox: compose (Email/Text, multi-recipient) + real-time inbound receiver",
-      "body": "- Composer: 'New Message' -> pick Email/Text, search + add multiple client\n  recipients (chips), subject + rich-text body, send. Email sends via SendGrid\n  and logs to the Sent folder; Text is gated until Twilio.\n- /api/inbox/contacts (recipient search), /api/inbox/send (compose send).\n- REAL-TIME inbound: /api/inbox/parse-inbound receives SendGrid Inbound Parse\n  POSTs (busboy multipart), matches sender->client, stores as incoming. Public\n  route (no token). This is push, not polling. Requires DNS+Parse+Gmail-forward\n  setup to go live.\n- Added busboy dep (scoped to the parse route).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b01c97f",
-      "date": "2026-08-06T12:22:59-05:00",
-      "subject": "Inbox UI: fill viewport height + fix channel filter stacking (global label flex-direction override)",
-      "title": "Inbox UI: fill viewport height + fix channel filter stacking (global label flex-direction override)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "c8fccc6",
-      "date": "2026-08-06T12:06:53-05:00",
-      "subject": "Inbox: add DELETE /:id (remove a message)",
-      "title": "Inbox: add DELETE /:id (remove a message)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "b595c00",
-      "date": "2026-08-06T12:06:07-05:00",
-      "subject": "Inbox tab + Business Registration settings (foundation for texting)",
-      "title": "Inbox tab + Business Registration settings (foundation for texting)",
-      "body": "- communications table (lean: preview + provider id, indexed), stores only\n  client-matched items. routes/inbox.js: threaded list (folders inbox/sent/\n  closed, All/Unread, channel filter, search), per-contact thread, counts,\n  POST /incoming webhook receiver that matches sender->client (email exact or\n  last-10-digit phone) and dedupes by external_id, read/unread/close.\n- Inbox page (FUB-style: folders + Emails/Texts/Calls filter + conversation\n  list + reading pane) + nav item + route. Ready to receive texts when Twilio\n  is connected; empty-state explains it.\n- Settings: Business Registration section (Twilio A2P) prefilled from the A2P\n  screen, saved to app_settings key business_registration. (POC phone shown as\n  (131) in source -> prefilled (319), flagged to verify.)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8467c19",
-      "date": "2026-08-06T10:16:47-04:00",
-      "subject": "Disable Google Sheet import in Hub (sierra bulk-tag-from-sheet)",
-      "title": "Disable Google Sheet import in Hub (sierra bulk-tag-from-sheet)",
-      "body": "Hub is the master file; nothing connects to any Google Sheet anymore.\n- /api/sierra/bulk-tag-from-sheet now returns 410 (short-circuits before any\n  docs.google.com fetch); legacy body retained but unreachable.\n- Removed the 'Bulk-tag from a Google Sheet' UI panel from Updates > Bulk Tools.\n- Verified the other sheet references (prelistings sync-sheet, transactions\n  sheet sync) were already disabled 410 dead code.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3b2bfbb",
-      "date": "2026-08-06T08:46:51-05:00",
-      "subject": "Reporting: fast two-phase load + 10-min stats cache",
-      "title": "Reporting: fast two-phase load + 10-min stats cache",
-      "body": "Reporting took 8-13s because SendGrid's Email Activity API is ~6-7s per call\nand several run per load. Now: render rows instantly from our DB (?stats=0),\nthen fill engagement from SendGrid; cache the SendGrid results 10 min so repeat\nloads are instant; Refresh busts the cache. Parallelized the category-stats\ncalls too.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "36eb7db",
-      "date": "2026-08-06T08:26:17-05:00",
-      "subject": "Reporting: open the sent email + drill into who opened/clicked; monochrome sidebar icons",
-      "title": "Reporting: open the sent email + drill into who opened/clicked; monochrome sidebar icons",
-      "body": "- Click a subject -> modal renders the actual email that went out (from\n  email_log body via /api/reporting/email-content).\n- Click any opens/clicks/unsubscribes/bounces number -> modal lists the exact\n  contacts (from SendGrid Email Activity API; unsubscribes intersected with the\n  global suppression list), matched to CRM names.\n- Sidebar icons forced to monochrome (font-variant-emoji: text + VS15); replaced\n  the chart emoji and sun/moon toggle glyphs with text-presentation symbols.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bf66dbe",
-      "date": "2026-08-06T09:10:31-04:00",
-      "subject": "Reporting: recover opens/clicks for older sends + drop empty drafts",
-      "title": "Reporting: recover opens/clicks for older sends + drop empty drafts",
-      "body": "- messageActivityStats(): pull real opens/clicks/bounces for a subject from\n  SendGrid's Email Activity API, so pre-tracking Hub batches (e.g. 'What was it\n  about these homes...') can show engagement even without a category tag.\n- hub-log campaigns now enriched with that data instead of showing a dash.\n- Filter out empty SendGrid single-send drafts (0 recipients / Untitled).\n- Add /api/reporting/_diag to confirm open/click tracking + activity API access.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "87d0515",
-      "date": "2026-08-05T18:57:20-05:00",
-      "subject": "Email Drip campaigns: multi-step sequences + automation integration",
-      "title": "Email Drip campaigns: multi-step sequences + automation integration",
-      "body": "- drip_campaigns/drip_enrollments/drip_executions tables.\n- routes/drips.js: CRUD + manual enroll + activity + a lightweight engine\n  (dripTick, wired into the 1-min scheduler). Each step sends after N days at a\n  set time (America/Chicago, DST-correct via double tz-offset), idempotent per\n  (enrollment, step), 3-retry on hard failure, opt-out aware.\n- email.js: shared sendSequenceEmail (template resolve + merge + {{properties}}\n  injection + SendGrid category drip_<id> for Reporting), reused by drips.\n- Automations: new live 'Start Drip Campaign' action (send_drip) + drip_ref\n  field; runAction enrolls the contact into the drip. Builder fetches drips.\n- Templates page: new 'Drip Campaigns' sub-tab with a multi-email step editor\n  (delay days + send time per email, subject/body or template, property cards),\n  card list with stats, and per-drip activity view.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "146dc42",
-      "date": "2026-08-05T18:45:51-05:00",
-      "subject": "Automations: production visual workflow builder + execution engine",
-      "title": "Automations: production visual workflow builder + execution engine",
-      "body": "Phase 2-5 of the automation rebuild:\n- shared/automationRegistry.js: isomorphic single source of truth for the full\n  trigger/control/action library (live subset flagged), condition fields,\n  operators, per-node + whole-graph validation, node summaries.\n- DB: graph model (draft_graph/active_graph), versioning, per-contact\n  enrollments, idempotent executions, event queue.\n- routes/automations.js: registry-driven CRUD, draft/publish/activate/pause/\n  resume/duplicate/validate, versions/restore, activity/metrics, manual enroll,\n  retry, test-action. Graph execution engine: event ingestion (property_viewed\n  + contact_created cursors), enrollment with re-entry rules, condition/branch/\n  goal/split routing, delays, wait-until, idempotent action execution with\n  retries. Send Email tags SendGrid category auto_<id> for Reporting.\n- Builder UI: AutomationBuilder (header w/ status+save+activate+pause+menu+\n  unsaved guard+validation summary), searchable categorized sidebar with\n  coming-soon badges, zoom/pan branching canvas, schema-driven ConfigDrawer,\n  step picker, graphOps. Automations list: filters, cards/table, row actions,\n  activity+metrics modal, starter template gallery.\n- Backward compatible: legacy linear flow_data upgraded to graph on read.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b982079",
-      "date": "2026-08-05T18:07:52-05:00",
-      "subject": "Reporting: surface pre-tracking Hub bulk sends from the email log",
-      "title": "Reporting: surface pre-tracking Hub bulk sends from the email log",
-      "body": "Group email_log rows (5+ same subject same day, no campaign_id) into\nHub (log) campaigns so past batches like 'What was it about these homes\nthat caught your attention?' appear in Reporting with recipient counts.\nEngagement shows as not-tracked since they predate category tagging.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c860e95",
-      "date": "2026-08-05T17:56:30-05:00",
-      "subject": "Reporting: also pull existing SendGrid Marketing Single Sends + stats (surfaces pre-Hub batches like 'Deal of the Week')",
-      "title": "Reporting: also pull existing SendGrid Marketing Single Sends + stats (surfaces pre-Hub batches like 'Deal of the Week')",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "be79d70",
-      "date": "2026-08-05T17:49:18-05:00",
-      "subject": "Reporting tab: batch-email campaigns with live SendGrid stats (opens/clicks/unsubscribes/bounces). Bulk sends now create a campaign + tag SendGrid category for per-campaign metrics",
-      "title": "Reporting tab: batch-email campaigns with live SendGrid stats (opens/clicks/unsubscribes/bounces). Bulk sends now create a campaign + tag SendGrid category for per-campaign metrics",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2465ee2",
-      "date": "2026-08-05T17:40:05-05:00",
-      "subject": "Clients filters: sequence load() responses so a stale earlier request can't overwrite the latest filter (fixes custom day-range not applying while typing)",
-      "title": "Clients filters: sequence load() responses so a stale earlier request can't overwrite the latest filter (fixes custom day-range not applying while typing)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "671a603",
-      "date": "2026-08-05T17:22:55-05:00",
-      "subject": "Clients filter: 'Properties viewed (min #)' — leads who actually viewed N+ distinct listings (stricter than website-activity)",
-      "title": "Clients filter: 'Properties viewed (min #)' — leads who actually viewed N+ distinct listings (stricter than website-activity)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2554bb3",
-      "date": "2026-08-05T17:16:54-05:00",
-      "subject": "Bulk preview: graceful retry on mid-deploy (no raw JSON error); clarify listings label (live, not cached)",
-      "title": "Bulk preview: graceful retry on mid-deploy (no raw JSON error); clarify listings label (live, not cached)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9b90c24",
-      "date": "2026-08-05T17:11:55-05:00",
-      "subject": "Bulk email: 'Send' now opens the recipient preview (Next/Prev to verify) with the real Send button inside — review before it actually sends",
-      "title": "Bulk email: 'Send' now opens the recipient preview (Next/Prev to verify) with the real Send button inside — review before it actually sends",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "df8f4eb",
-      "date": "2026-08-05T17:07:22-05:00",
-      "subject": "Automations: visual flow builder (trigger -> steps canvas like Sierra/Zapier): sidebar Triggers/Steps, vertical flow with connectors, click-to-configure nodes, conditions/delays/actions; engine executes flow (conditions->audience, actions per lead)",
-      "title": "Automations: visual flow builder (trigger -> steps canvas like Sierra/Zapier): sidebar Triggers/Steps, vertical flow with connectors, click-to-configure nodes, conditions/delays/actions; engine executes flow (conditions->audience, actions per lead)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a5c8621",
-      "date": "2026-08-05T16:51:53-05:00",
-      "subject": "Automations tab v1: trigger(daily+9AM default) + audience(conditions/include/exclude) + ordered multi-action builder (email/tag/note/status/assign/task); engine + scheduler + run-now + audience preview",
-      "title": "Automations tab v1: trigger(daily+9AM default) + audience(conditions/include/exclude) + ordered multi-action builder (email/tag/note/status/assign/task); engine + scheduler + run-now + audience preview",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d7ae7a7",
-      "date": "2026-08-05T16:46:45-05:00",
-      "subject": "Projects: Miro-style Mind Map workspace (draggable cards, connectors, colors, due dates, assignees, links; auto-saved per project via canvas_data)",
-      "title": "Projects: Miro-style Mind Map workspace (draggable cards, connectors, colors, due dates, assignees, links; auto-saved per project via canvas_data)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fb1df7a",
-      "date": "2026-08-05T16:40:22-05:00",
-      "subject": "Real-time listings: single + bulk + preview pull live from FUB (cache fallback + warms cache); bulk send is now async with live progress",
-      "title": "Real-time listings: single + bulk + preview pull live from FUB (cache fallback + warms cache); bulk send is now async with live progress",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "78c95f1",
-      "date": "2026-08-05T16:22:38-05:00",
-      "subject": "Bulk email composer: same WYSIWYG editor as everywhere (edit the message, not HTML); templates load editable; plain-text auto-converts",
-      "title": "Bulk email composer: same WYSIWYG editor as everywhere (edit the message, not HTML); templates load editable; plain-text auto-converts",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d7b4099",
-      "date": "2026-08-05T16:13:32-05:00",
-      "subject": "Bulk email: per-recipient viewed listings via {{properties}} + Homes option + {{greeting}}/{{signature}}; per-recipient preview (render-preview) to verify before send; prop_zip in import",
-      "title": "Bulk email: per-recipient viewed listings via {{properties}} + Homes option + {{greeting}}/{{signature}}; per-recipient preview (render-preview) to verify before send; prop_zip in import",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f5368a6",
-      "date": "2026-08-05T15:58:45-05:00",
-      "subject": "Clients filters: 'Only clients with listing views' + last-listing-visit day range (preset chips 30/30-60/60-90/90+ or custom min/max days)",
-      "title": "Clients filters: 'Only clients with listing views' + last-listing-visit day range (preset chips 30/30-60/60-90/90+ or custom min/max days)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0b234d7",
-      "date": "2026-08-05T15:44:52-05:00",
-      "subject": "Templates: email body uses same WYSIWYG editor as the Clients composer (edit the message, not HTML); plain-text templates convert on edit; HTML-source toggle retained",
-      "title": "Templates: email body uses same WYSIWYG editor as the Clients composer (edit the message, not HTML); plain-text templates convert on edit; HTML-source toggle retained",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "67fd391",
-      "date": "2026-08-05T15:36:58-05:00",
-      "subject": "Homes They Viewed now an editable template in Templates tab (Dynamic): generator reads its wording + injects live property cards; excluded from composer dropdown to avoid dup",
-      "title": "Homes They Viewed now an editable template in Templates tab (Dynamic): generator reads its wording + injects live property cards; excluded from composer dropdown to avoid dup",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d16987b",
-      "date": "2026-08-05T15:26:04-05:00",
-      "subject": "Cache viewed listings in Hub: Homes They Viewed reads stored fub_activity first (no live FUB); hourly sync caches property views (bounded, pruned to 40/client); prop_zip column",
-      "title": "Cache viewed listings in Hub: Homes They Viewed reads stored fub_activity first (no live FUB); hourly sync caches property views (bounded, pruned to 40/client); prop_zip column",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3bab6eb",
-      "date": "2026-08-05T14:56:07-05:00",
-      "subject": "Homes They Viewed pulls 5; email templates now sourced from editable Templates tab (seed built-ins into templates table, repoint composer endpoints)",
-      "title": "Homes They Viewed pulls 5; email templates now sourced from editable Templates tab (seed built-ins into templates table, repoint composer endpoints)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5e9af93",
-      "date": "2026-08-05T14:46:13-05:00",
-      "subject": "FUB rate-limit hardening: retry property-email on 429; gate heavy budget/realist scans to 6-day cadence (stop re-running on every reboot)",
-      "title": "FUB rate-limit hardening: retry property-email on 429; gate heavy budget/realist scans to 6-day cadence (stop re-running on every reboot)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ff296b3",
-      "date": "2026-08-05T14:38:48-05:00",
-      "subject": "Email composer: Homes They Viewed moved into Template dropdown (lands in Edit view); Cc always-ready with client-search picker (chips); Bcc behind toggle",
-      "title": "Email composer: Homes They Viewed moved into Template dropdown (lands in Edit view); Cc always-ready with client-search picker (chips); Bcc behind toggle",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "abcd57e",
-      "date": "2026-08-05T14:25:33-05:00",
-      "subject": "Add Settings tab (email signature + account info); Gmail-style WYSIWYG email composer (editable templates, source toggle); signature reflected on emails; cleaner email spacing",
-      "title": "Settings tab (email signature + account info); Gmail-style WYSIWYG email composer (editable templates, source toggle); signature reflected on emails; cleaner email spacing",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "00ecbc0",
-      "date": "2026-08-05T14:02:45-05:00",
-      "subject": "Client detail redesign: prev/next nav, Add Note, transaction dropdown, type dropdown, collapsible tags/activity sections, reorder; email composer preview+CC/BCC+property link cards",
-      "title": "Client detail redesign: prev/next nav, Add Note, transaction dropdown, type dropdown, collapsible tags/activity sections, reorder; email composer preview+CC/BCC+property link cards",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "15d2de6",
-      "date": "2026-08-05T13:11:37-05:00",
-      "subject": "Property email: build listing photo URL directly from MLS (loads in recipient client, no server fetch)",
-      "title": "Property email: build listing photo URL directly from MLS (loads in recipient client, no server fetch)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c6bc82f",
-      "date": "2026-08-05T12:58:48-05:00",
-      "subject": "Add /api/sierra/sync-cancel (cooperative cancel flag checked between pages)",
-      "title": "/api/sierra/sync-cancel (cooperative cancel flag checked between pages)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "50ca344",
-      "date": "2026-08-05T12:41:00-05:00",
-      "subject": "Add 'Homes They Viewed' email generator: pulls FUB viewed properties -> cards w/ photo, link, MLS, price",
-      "title": "'Homes They Viewed' email generator: pulls FUB viewed properties -> cards w/ photo, link, MLS, price",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "5ec2a0d",
-      "date": "2026-08-05T12:16:25-05:00",
-      "subject": "Add /api/sierra/sync-since date-scoped backfill (recover new-lead import gap, full pagination)",
-      "title": "/api/sierra/sync-since date-scoped backfill (recover new-lead import gap, full pagination)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "f1a3127",
-      "date": "2026-08-05T11:22:19-05:00",
-      "subject": "Normalize/dedupe viewed-city names (strip trailing commas, fold casing)",
-      "title": "Normalize/dedupe viewed-city names (strip trailing commas, fold casing)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1709179",
-      "date": "2026-08-05T11:17:26-05:00",
-      "subject": "Add 'Looking In' viewed-cities filter (FUB property-view cities) + fold city capture into weekly budget sync",
-      "title": "'Looking In' viewed-cities filter (FUB property-view cities) + fold city capture into weekly budget sync",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "cf8a62f",
-      "date": "2026-08-04T18:24:53-05:00",
-      "subject": "FUB budget range from viewed-property prices: overwrite budget_min/max + weekly sync",
-      "title": "FUB budget range from viewed-property prices: overwrite budget_min/max + weekly sync",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d9f6125",
-      "date": "2026-08-04T18:14:34-05:00",
-      "subject": "Move Sierra sync + Realist status from Clients to Updates > Systems tab",
-      "title": "Move Sierra sync + Realist status from Clients to Updates > Systems tab",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7d86b03",
-      "date": "2026-08-04T17:46:05-05:00",
-      "subject": "Weekly FUB realist-score sync: match by email (dup-proof) instead of fub_person_id",
-      "title": "Weekly FUB realist-score sync: match by email (dup-proof) instead of fub_person_id",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bdfc222",
-      "date": "2026-08-04T17:36:38-05:00",
-      "subject": "realist-score/bulk: accept client_id (dup-proof email match) not just fub_person_id",
-      "title": "realist-score/bulk: accept client_id (dup-proof email match) not just fub_person_id",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4bfbd1c",
-      "date": "2026-08-04T17:17:08-05:00",
-      "subject": "Add index on clients.fub_person_id (speeds FUB realist-score + last-visit syncs)",
-      "title": "index on clients.fub_person_id (speeds FUB realist-score + last-visit syncs)",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "490f59f",
-      "date": "2026-08-04T17:04:14-05:00",
-      "subject": "FUB Realist Score backfill into lead_score (+A-F grade, empty-only) + weekly sync",
-      "title": "FUB Realist Score backfill into lead_score (+A-F grade, empty-only) + weekly sync",
-      "body": "Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>",
       "category": "other"
     }
   ]

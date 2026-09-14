@@ -178,6 +178,8 @@ const SMART_LISTS = [
   { key: 'fsbo_dom14_no_text_2w', label: 'FSBO 14+ DOM · No Text 2wk', desc: 'FSBOs with 14+ days on market we have not texted in the last 2 weeks' },
   { key: 'email_engaged_7d', label: 'Opened Email (7d)', desc: 'Opened one of our emails in the last 7 days (tracked opens; excludes Junk/DNC/Closed/Pending)' },
   { key: 'email_clicked_no_reply', label: 'Clicked · No Reply', desc: 'Clicked an email link in the last 7 days with no message from them since' },
+  { key: 'ai_enroll_candidates', label: '🤖 AI Enroll Candidates', desc: 'New-status leads that look auto-enrollable for AI texting (the evaluator makes the final call)' },
+  { key: 'ai_enrolled_today', label: '🤖 AI Enrolled Today', desc: 'Leads the auto-enrollment engine enrolled today (fresh + reactivation lanes)' },
   // Follow-Up Coverage lists — leads at risk of falling through the cracks
   { key: 'falling_through_cracks', label: '🕳 Falling Through Cracks', desc: 'Connected+ leads with NO future task, AI action, nurture, transaction or snooze' },
   { key: 'active_no_next_action', label: 'Active · No Next Action', desc: 'Prime/Active status leads with no future coverage of any kind' },

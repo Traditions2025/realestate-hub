@@ -541,6 +541,66 @@ router.get('/facets', (_req, res) => {
 })
 
 // ---- settings (flags + config) ----
+// ---- AI AUTO-ENROLLMENT engine (server/ai-enrollment.js) ----
+// Summary for the Settings card: mode, limits, today's counts, recent enrollments.
+router.get('/enrollment/summary', async (_req, res) => {
+  const m = await import('../ai-enrollment.js')
+  res.json(m.enrollmentSummary())
+})
+// DRY RUN — evaluates a scan window with ZERO writes; shows what WOULD happen.
+router.get('/enrollment/preview', async (req, res) => {
+  const m = await import('../ai-enrollment.js')
+  res.json(m.previewEnrollment({ scan: Number(req.query.scan) || 500, limit: Number(req.query.limit) || 25 }))
+})
+// Full decision for one lead (read-only).
+router.get('/enrollment/evaluate/:id', async (req, res) => {
+  const m = await import('../ai-enrollment.js')
+  res.json(m.evaluateAiEnrollmentEligibility(Number(req.params.id)))
+})
+// The audit log (deduped decisions + actual enrollments).
+router.get('/enrollment/log', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 100, 500)
+  const dec = String(req.query.decision || '')
+  const where = ['1=1']; const params = []
+  if (dec) { where.push('l.decision=?'); params.push(dec) }
+  if (String(req.query.enrolled || '') === '1') where.push('l.enrolled=1')
+  res.json(db.all(`SELECT l.*, c.first_name, c.last_name, c.source, c.type FROM ai_enrollment_log l
+    LEFT JOIN clients c ON c.id=l.client_id WHERE ${where.join(' AND ')}
+    ORDER BY l.last_seen_at DESC LIMIT ?`, [...params, limit]))
+})
+// Mode + tuning (mode: off | fresh | full).
+router.post('/enrollment/settings', (req, res) => {
+  const b = req.body || {}
+  if (b.mode !== undefined) {
+    if (!['off', 'fresh', 'full'].includes(String(b.mode))) return res.status(400).json({ error: 'mode must be off | fresh | full' })
+    db.setSetting('ai_auto_enroll_mode', String(b.mode))
+  }
+  if (b.daily_limit !== undefined) db.setSetting('ai_reactivation_daily_limit', String(Math.max(1, Number(b.daily_limit) || 150)))
+  if (b.fresh_window_days !== undefined) db.setSetting('ai_fresh_window_days', String(Math.max(1, Number(b.fresh_window_days) || 7)))
+  if (b.defer_human_hours !== undefined) db.setSetting('ai_enroll_defer_human_hours', String(Math.max(1, Number(b.defer_human_hours) || 24)))
+  if (b.source_exclude !== undefined) db.setSetting('ai_enroll_source_exclude', String(b.source_exclude))
+  import('../ai-enrollment.js').then(m => res.json({ success: true, ...m.enrollmentSummary() }))
+})
+// Durable per-lead auto-enrollment exclusion (an agent can still enable AI manually).
+router.post('/enrollment/exclude/:id', (req, res) => {
+  const cid = Number(req.params.id)
+  ensureState(cid)
+  db.run('UPDATE ai_lead_state SET auto_enroll_excluded=1, auto_enroll_excluded_by=?, auto_enroll_excluded_at=?, auto_enroll_excluded_reason=? WHERE client_id=?',
+    [req.user?.email || 'agent', nowIso(), String(req.body?.reason || 'excluded by agent'), cid])
+  res.json({ success: true })
+})
+router.post('/enrollment/include/:id', (req, res) => {
+  const cid = Number(req.params.id)
+  ensureState(cid)
+  db.run('UPDATE ai_lead_state SET auto_enroll_excluded=0, auto_enroll_excluded_by=NULL, auto_enroll_excluded_at=NULL, auto_enroll_excluded_reason=NULL WHERE client_id=?', [cid])
+  res.json({ success: true })
+})
+// Manual one-off reactivation batch (respects the window + daily cap unless force).
+router.post('/enrollment/run-tick', async (req, res) => {
+  const m = await import('../ai-enrollment.js')
+  res.json(m.reactivationTick({ force: !!req.body?.force }))
+})
+
 router.get('/settings', (_req, res) => res.json({ flags: getFlags(), config: getConfig() }))
 router.post('/settings', (req, res) => {
   const b = req.body || {}

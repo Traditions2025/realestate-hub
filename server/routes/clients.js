@@ -745,6 +745,25 @@ export const SMART_LIST_SQL = {
       AND lower(coalesce(clients.status,'')) NOT IN ('junk','donotcontact')
       AND clients.fsbo_dom IS NOT NULL AND clients.fsbo_dom != '' AND CAST(clients.fsbo_dom AS INTEGER) >= 14
       AND NOT EXISTS (SELECT 1 FROM communications co WHERE co.client_id = clients.id AND co.channel='text' AND co.direction='outgoing' AND co.occurred_at >= datetime('now','-14 days')))`,
+  // ==== AI AUTO-ENROLLMENT lists (server/ai-enrollment.js is the authoritative
+  // evaluator; the candidate list is a fast SQL APPROXIMATION of its cheap pre-filter) ====
+  // New-status leads that LOOK auto-enrollable (textable, non-prospecting source, not
+  // FSBO/C-E-tracked, AI not already on). The evaluator may still defer/exclude them.
+  ai_enroll_candidates:
+    `(lower(coalesce(clients.status,''))='new'
+      AND clients.phone IS NOT NULL AND clients.phone != ''
+      AND COALESCE(clients.hub_text_opt_out,0)=0 AND COALESCE(clients.sms_undeliverable,0)=0
+      AND (clients.fsbo_status IS NULL OR clients.fsbo_status='')
+      AND (clients.mls_status IS NULL OR clients.mls_status='')
+      AND lower(trim(coalesce(clients.source,''))) NOT IN ('realist','import','imported','csv import','piesync','forewarn','batchleads','fsbo','fsbo zillow','expired','expired/cancelled mls','cancelled','cancel','withdrawn','foreclosure','foreclosures')
+      AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%mls: expired%'
+      AND lower(coalesce(clients.tags,'') || ' ' || coalesce(clients.source,'')) NOT LIKE '%mls: cancelled%'
+      AND NOT EXISTS (SELECT 1 FROM cx_campaign cx WHERE cx.client_id = clients.id)
+      AND NOT EXISTS (SELECT 1 FROM ai_lead_state s WHERE s.client_id = clients.id AND (s.ai_managed=1 OR s.ai_enabled=1 OR s.auto_enroll_excluded=1)))`,
+  // Leads the engine actually enrolled today (either lane), from the audit log.
+  ai_enrolled_today:
+    `(EXISTS (SELECT 1 FROM ai_enrollment_log el WHERE el.client_id = clients.id
+        AND el.enrolled=1 AND date(el.enrolled_at)=date('now')))`,
   // ==== FOLLOW-UP COVERAGE lists (driven by the followup_coverage summary table —
   // one authoritative evaluator in server/followup-coverage.js, never re-derived here) ====
   // The headline list: meaningful (connected+) leads with NO future action of any kind.
@@ -1377,6 +1396,9 @@ router.post('/', (req, res) => {
       n(b.preapproval_lender), n(b.notes)])
 
   logActivity('created', 'client', result.lastInsertRowid, `New ${b.type}: ${b.first_name} ${b.last_name}`)
+  // FRESH-LANE hook: evaluate the new lead for AI auto-enrollment (no-op unless the
+  // enrollment mode is on; the evaluator's own rules decide).
+  try { import('../ai-enrollment.js').then(m => m.maybeAutoEnrollFresh(result.lastInsertRowid)).catch(() => {}) } catch {}
   res.status(201).json({ id: result.lastInsertRowid })
 })
 

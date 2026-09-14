@@ -240,8 +240,10 @@ test('previewNext is a pure dry run: composes real messages, writes nothing, sen
   await cx.enrollClient(c.id)
   // Sort first so the preview cap can't push this lead out (test DB accumulates enrollments).
   db.run("UPDATE cx_campaign SET next_send_at='2000-01-01T00:00:00.000Z' WHERE client_id=?", [c.id])
-  const before = db.get('SELECT COUNT(*) n FROM communications').n
-  const logBefore = db.get('SELECT COUNT(*) n FROM cx_campaign_log').n
+  // Count only THIS lead's rows: suites run in parallel against the shared test DB,
+  // so a global count can move underneath the preview and false-fail the dry-run check.
+  const before = db.get('SELECT COUNT(*) n FROM communications WHERE client_id=?', [c.id]).n
+  const logBefore = db.get('SELECT COUNT(*) n FROM cx_campaign_log WHERE client_id=?', [c.id]).n
   const p = await cx.previewNext(25)
   assert.equal(p.dry_run, true)
   const mine = [...p.previews, ...p.skipped].find(x => x.client_id === c.id)
@@ -250,8 +252,8 @@ test('previewNext is a pure dry run: composes real messages, writes nothing, sen
   assert.equal(mine.age_bucket, 'ancient')
   assert.match(mine.message, /older listing/i)
   assert.ok(!/recently/i.test(mine.message))
-  assert.equal(db.get('SELECT COUNT(*) n FROM communications').n, before, 'no message rows written')
-  assert.equal(db.get('SELECT COUNT(*) n FROM cx_campaign_log').n, logBefore, 'no log rows written')
+  assert.equal(db.get('SELECT COUNT(*) n FROM communications WHERE client_id=?', [c.id]).n, before, 'no message rows written')
+  assert.equal(db.get('SELECT COUNT(*) n FROM cx_campaign_log WHERE client_id=?', [c.id]).n, logBefore, 'no log rows written')
 })
 
 test('bulk enroll reads the real client_lists table and eligibility-checks members', async () => {
