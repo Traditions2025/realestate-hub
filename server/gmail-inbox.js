@@ -248,7 +248,7 @@ export function logDirectOutboundEmail(mailboxUser, parsed, whenIso) {
     if (!c) continue
     // proximity dedupe: an outgoing email to this client with the same subject ±45 min
     const near = db.all(`SELECT id, subject FROM communications WHERE client_id=? AND channel='email' AND direction='outgoing'
-      AND occurred_at BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, whenIso, whenIso])
+      AND datetime(occurred_at) BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, whenIso, whenIso])
       .some(r => String(r.subject || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase() === subjNorm)
     if (near) continue
     const bodyStored = stripQuotedReply(String(parsed.html || parsed.text || ''))
@@ -343,10 +343,28 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
 // profile feed. Deduped by Message-ID and by same-direction same-subject ±45 min, so
 // Hub-logged sends and already-polled emails never double up. Explicit action only —
 // the live poller stays cursor-based.
+// Remove Gmail-imported rows that duplicate an existing non-Gmail record (same
+// direction + subject within 45 min) — self-heals any over-import.
+export function cleanupImportDuplicates(clientId) {
+  const norm = (s) => String(s || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase()
+  const rows = db.all("SELECT id, direction, subject, occurred_at FROM communications WHERE client_id=? AND channel='email' AND external_id LIKE 'gmail_%'", [Number(clientId)])
+  let removed = 0
+  for (const r of rows) {
+    const sibling = db.all(`SELECT subject FROM communications WHERE client_id=? AND channel='email' AND direction=? AND id != ?
+        AND external_id NOT LIKE 'gmail_%'
+        AND datetime(occurred_at) BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`,
+      [Number(clientId), r.direction, r.id, r.occurred_at, r.occurred_at])
+      .some(x => norm(x.subject) === norm(r.subject))
+    if (sibling) { db.run('DELETE FROM communications WHERE id=?', [r.id]); removed++ }
+  }
+  return removed
+}
+
 export async function importContactHistory(clientId) {
   const c = db.get('SELECT id, first_name, last_name, email FROM clients WHERE id=?', [Number(clientId)])
   if (!c) return { error: 'client not found' }
   if (!c.email) return { error: 'client has no email on file' }
+  const cleaned = cleanupImportDuplicates(c.id)
   const res = await searchMailboxesForContact(c.email)
   const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
   let imported = 0, skipped = 0
@@ -355,7 +373,8 @@ export async function importContactHistory(clientId) {
     const extId = 'gmail_' + msg.messageId
     if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) { skipped++; continue }
     const near = db.all(`SELECT subject FROM communications WHERE client_id=? AND channel='email' AND direction=?
-      AND occurred_at BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, msg.direction, msg.date, msg.date])
+      AND external_id NOT LIKE 'gmail_%'
+      AND datetime(occurred_at) BETWEEN datetime(?, '-45 minutes') AND datetime(?, '+45 minutes')`, [c.id, msg.direction, msg.date, msg.date])
       .some(r => norm(r.subject) === norm(msg.subject))
     if (near) { skipped++; continue }
     const body = stripQuotedReply(msg.body || '')
@@ -367,7 +386,7 @@ export async function importContactHistory(clientId) {
     imported++
   }
   if (imported) { try { import('./followup-coverage.js').then(x => x.recalcCoverage(c.id, { actorType: 'system' })).catch(() => {}) } catch {} }
-  return { client_id: c.id, email: c.email, found_in_gmail: res.count, imported, skipped_duplicates: skipped }
+  return { client_id: c.id, email: c.email, found_in_gmail: res.count, imported, skipped_duplicates: skipped, removed_prior_duplicates: cleaned }
 }
 
 // legacy status helper (kept so any old caller keeps working)
