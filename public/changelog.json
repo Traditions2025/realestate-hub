@@ -1,7 +1,95 @@
 {
-  "generated_at": "2026-09-14T19:07:20.173Z",
+  "generated_at": "2026-09-15T16:35:56.727Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "f20bc7d",
+      "date": "2026-09-14T17:39:30-05:00",
+      "subject": "Sent-backfill report: attribute counts from the logger's own client list",
+      "title": "Sent-backfill report: attribute counts from the logger's own client list",
+      "body": "The summary recomputed recipients without the team-address/status filters and\ncould show phantom attributions (no data was miswritten — reporting only).\nlogDirectOutboundEmail now returns {logged, clients} and the backfill reports\nexactly what was logged.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9c93ee3",
+      "date": "2026-09-14T17:36:31-05:00",
+      "subject": "Sent-folder backfill: pull directly-sent Gmail mail from the last N days onto profiles",
+      "title": "Sent-folder backfill: pull directly-sent Gmail mail from the last N days onto profiles",
+      "body": "POST /api/inbox/sent-backfill {mailbox, days}: walks the mailbox's Sent folder,\nlogs each send onto matching lead profiles (junk/do-not-contact skipped;\nMessage-ID + subject-proximity dedupe — safe to re-run). Covers the window\nbefore the live Sent sync's cursor started.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e7a034a",
+      "date": "2026-09-14T17:28:13-05:00",
+      "subject": "Gmail import: enrich bodyless Hub email shells from the Gmail copy on dedupe",
+      "title": "Gmail import: enrich bodyless Hub email shells from the Gmail copy on dedupe",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f0bcdf1",
+      "date": "2026-09-14T17:25:40-05:00",
+      "subject": "Gmail import dedupe: fix datetime comparison + self-healing duplicate cleanup",
+      "title": "Gmail import dedupe: fix datetime comparison + self-healing duplicate cleanup",
+      "body": "The proximity dedupe compared ISO 'T' timestamps against SQLite datetime()\nstrings — never equal, so Hub-sent copies re-imported. Wrap stored occurred_at\nin datetime() on both dedupe queries, exclude gmail-imported rows from the\nproximity baseline, and cleanupImportDuplicates() removes any over-imported\nrows (runs automatically at the start of every import).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5480b91",
+      "date": "2026-09-14T17:22:50-05:00",
+      "subject": "Gmail Sent-folder sync: direct-from-Gmail emails now track on profiles",
+      "title": "Gmail Sent-folder sync: direct-from-Gmail emails now track on profiles",
+      "body": "Emails Matt sends or replies to directly in Gmail (matt@mattsmithteam.com /\nmattsmithremax@gmail.com) were invisible to the Hub — the IMAP poller read INBOX\nonly. Now each poll also walks the mailbox's Sent folder (own cursor, starts from\n\"now\") and logs matched sends onto the client profile as outgoing HUMAN email\n(so campaigns/AI defer around the conversation). Deduped by Message-ID and by\nsame-subject-within-45-min so Hub/SendGrid sends never double up; multi-recipient\nmail logs on every matched client (team addresses skipped).\n\nPlus POST /api/inbox/contact-emails/import: pull one contact's complete Gmail\nhistory (All Mail, both directions, all mailboxes) into their feed with the same\ndedupe — for reconstructing threads that predate tracking.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "552b235",
+      "date": "2026-09-14T16:56:25-05:00",
+      "subject": "Auto-link unknown call/text history when a number is saved to a profile",
+      "title": "Auto-link unknown call/text history when a number is saved to a profile",
+      "body": "Calls and texts from numbers not yet on any profile log as unknown threads\n(client_id NULL, thread u_<last10>). Now, saving that number onto a client\n(main phone or alt numbers, on update or create) auto-claims the whole unknown\nthread onto the profile — the call you just had shows in their history the\nmoment you save the number. Reuses relinkUnknownThread (now exported) +\nrecalcs coverage; POST /api/inbox/unknown/relink-all sweeps the whole backlog.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bf27950",
+      "date": "2026-09-14T14:39:22-05:00",
+      "subject": "FSBO Text 3 copy: \"first 2 weeks\" instead of \"first 14 days\"",
+      "title": "FSBO Text 3 copy: \"first 2 weeks\" instead of \"first 14 days\"",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b831052",
+      "date": "2026-09-14T14:34:37-05:00",
+      "subject": "Tests: synthetic cx_campaign rows get a far-future next_send_at",
+      "title": "Tests: synthetic cx_campaign rows get a far-future next_send_at",
+      "body": "NULL next_send_at sorts first in SQLite and crowded the CX previewNext dry-run\ntest's top-25 window when suites run in parallel against the shared test DB.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "26f65ec",
+      "date": "2026-09-14T14:33:38-05:00",
+      "subject": "FSBO campaign per John: no auto-replies, Text 2/3 swapped, 40+ day long-term cadence",
+      "title": "FSBO campaign per John: no auto-replies, Text 2/3 swapped, 40+ day long-term cadence",
+      "body": "- A response now ONLY stops the campaign + creates the FSBO Response task and\n  notification — the scripted acknowledgment and best-email ask are removed;\n  every reply is answered personally.\n- Opening order: availability check → +7d still-available check → +7d the\n  3-part market-analysis message.\n- Text 4 onward: an availability-only check every 40-47 days (TIMING,\n  SOFT_RESOURCE and LONG_HAUL angles removed; 4 availability angles rotate,\n  no repeat within last 3).\n\nTests updated (24 scenarios incl. a no-auto-reply guarantee with the switch ON).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7729d4b",
+      "date": "2026-09-14T14:10:29-05:00",
+      "subject": "FSBO campaign: ENTITY_OWNER exclusion — no cold prospecting to LLC/corporate owners",
+      "title": "FSBO campaign: ENTITY_OWNER exclusion — no cold prospecting to LLC/corporate owners",
+      "body": "Team doctrine applied to the evaluator (dry run surfaced an LLC that would have\nenrolled). Trusts and estates are people-backed, not entities, and stay eligible.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8200dee",
+      "date": "2026-09-14T14:08:08-05:00",
+      "subject": "FSBO Automatic Text Campaign: DOM-14 auto-enroll, persistent follow-up (ships OFF)",
+      "title": "FSBO Automatic Text Campaign: DOM-14 auto-enroll, persistent follow-up (ships OFF)",
+      "body": "The FSBO smart follow-up sequence grows into a full campaign on the CX Connect\nmodel: no eligible FSBO reaches 14 days on market and gets forgotten.\n\nOne authoritative evaluator (evaluateFsboCampaignEligibility) behind auto-enroll,\nevery send, profile card, preview and smart lists. Trigger = LIVE listing DOM >= 14\nfrom the master sync (imported above threshold qualifies immediately; DOM < 14 is\nWAITING, never texted). Exclusions: not Available, STOP/DNT, landline (pre-send\nline screen, cached verdict), prior meaningful seller response (shared\nclassifyInbound history scan), CX/AI-managed conflicts, active transaction,\nduplicate phone, durable manual removal. Deferrals: recent human contact, pending\nmanual text. Approved opening copy unchanged (Steps 1-3), then ~weekly 6-8d-jitter\nrotation from a low-pressure DOM-gated angle bank; \"the home at {address}\", never\n\"your home\". Weekday 9AM-4PM CT, 1-2.5 min trickle, eligibility re-verified before\nEVERY send. Response stops automation FIRST (responded state, high-priority FSBO\nResponse task, notification) then the approved scripted ack + email ask still run.\nOff Market stops; history permanent; pause/remove always win; resume re-evaluates.\n\nAdditive fsbo_followups columns + fsbo_campaign_log; /api/lists/fsbo/campaign/*\n(stats, zero-write preview, per-lead state/pause/resume/remove/preview-next,\nadmin-gated toggle); Settings card with dry run; profile FSBO Campaign card;\n3 smart lists; Follow-Up Coverage counts an active future send. 22-scenario test\nsuite; 254/254 green. Master switch fsbo_followup_enabled stays OFF.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5b16677",
       "date": "2026-09-14T12:59:58-05:00",
@@ -3913,94 +4001,6 @@
       "title": "Native foundation: Capacitor-ready API layer + config (web/PWA unchanged)",
       "body": "- api.js: runtime platform detection (isNativeApp/platform) + centralized API origin. Web/PWA stay same-origin (/api/...); inside a native Capacitor shell, all 200 authFetch/api calls resolve to the absolute Render backend. Dev override via window.__HUB_API_ORIGIN / localStorage hub_api_origin. Zero changes to web behavior.\n- Added @capacitor/core (dep) + cli/ios/android (devDeps) v8.5\n- capacitor.config.json: appId com.mattsmithteam.hub, appName HUB, webDir dist, brand splash/bg\n- Capacitor is NOT bundled into the web build (detected via window.Capacitor global), so web/PWA are untouched\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "a2bfe32",
-      "date": "2026-08-07T17:40:44-05:00",
-      "subject": "PWA: proper install support so the Hub can be installed as an app",
-      "title": "PWA: proper install support so the Hub can be installed as an app",
-      "body": "- Generated real SQUARE icons (192/512 + maskable + apple-touch 180) from the logo on the brand background — the old manifest declared a 1920x1080 image as 512x512, which broke installability\n- manifest.json: id, scope, categories, correct icons + purposes\n- index.html: square apple-touch-icon + 192 favicon\n- sw.js: bump cache to v6, precache new icons\n- App.jsx: 'Install App' button in the sidebar (native beforeinstallprompt on Android/Chrome; iOS shows Add-to-Home-Screen steps); hidden once installed/standalone\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "34ad720",
-      "date": "2026-08-07T17:08:17-05:00",
-      "subject": "Inbox: every client-facing email we send now logs to Sent, not just Inbox replies",
-      "title": "Inbox: every client-facing email we send now logs to Sent, not just Inbox replies",
-      "body": "Shared logSentToInbox() inserts an outgoing communications row (threaded per client) from: sendSequenceEmail (drips/automations-drip/follow-up), /api/email/send (composer + follow-up 'use in composer'), bulk campaign sends, and automation send_email + property-recommendation. Team notifications/digests (no client) are skipped. Best-effort, never breaks a send.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e22aacb",
-      "date": "2026-08-07T16:49:26-05:00",
-      "subject": "Remove temp Sierra text-probe diagnostic (confirmed: Sierra API has no text/SMS endpoints)",
-      "title": "temp Sierra text-probe diagnostic (confirmed: Sierra API has no text/SMS endpoints)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "removal"
-    },
-    {
-      "hash": "a906fcf",
-      "date": "2026-08-07T16:47:30-05:00",
-      "subject": "temp: probe Sierra API for text/SMS endpoints",
-      "title": "temp: probe Sierra API for text/SMS endpoints",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "50753a1",
-      "date": "2026-08-07T16:16:18-05:00",
-      "subject": "Inbox: reply from the Hub with AI Suggested Response + email notification on incoming",
-      "title": "Inbox: reply from the Hub with AI Suggested Response + email notification on incoming",
-      "body": "- inbox.js: /thread/:id/ai (cached), /ai/suggest (generate), /ai/adjust (shorter/casual/direct/warmer/regenerate/free-text context), /draft (persistence). Reuses follow-up AI stack (Claude + HUB/FUB dossier). Classifies intent (Needs Response/Question/Scheduling/Property Interest/High Intent/Info/No Response) + context summary; warm no-em-dash reply tone; never fabricates. Intent hint added to conversation list.\n- Inbox.jsx: reply editor in the reading pane with AI Suggested Response, editable draft, actions (Use suggested/Regenerate/Shorter/Casual/Direct/Warmer/Add context/Clear/Send). Draft persists across leaving the thread; auto-generates on first open / when a newer email arrives; does not overwrite an edited draft unless Regenerate. Sends via existing /api/inbox/send (threads + logs). Intent badges in the list.\n- gmail-inbox.js: emails johnwithmattsmithteam@gmail.com (configurable via inbox_notify_email) when a client emails the inbox.\n- inbox_ai cache table in database.js init.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "34c04fc",
-      "date": "2026-08-07T14:13:20-05:00",
-      "subject": "Follow-up: stop defaulting recommendations to viewed properties — property views are one signal, prefer relationship/timing/life-context angle when the record supports it; clean stray em dashes in prompt",
-      "title": "Follow-up: stop defaulting recommendations to viewed properties — property views are one signal, prefer relationship/timing/life-context angle when the record supports it; clean stray em dashes in prompt",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b782ac3",
-      "date": "2026-08-07T13:48:38-05:00",
-      "subject": "Follow-up: scrub em/en dashes on read too, so cached recommendations display dash-free without re-analysis",
-      "title": "Follow-up: scrub em/en dashes on read too, so cached recommendations display dash-free without re-analysis",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "96d3272",
-      "date": "2026-08-07T13:43:19-05:00",
-      "subject": "Follow-up email: never use em/en dashes (prompt rule + strip safety net on all AI text); replace auto 'Add context' with a free-text context box the agent types to refine the email (e.g. property now pending)",
-      "title": "Follow-up email: never use em/en dashes (prompt rule + strip safety net on all AI text); replace auto 'Add context' with a free-text context box the agent types to refine the email (e.g. property now pending)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "12d0169",
-      "date": "2026-08-07T13:30:01-05:00",
-      "subject": "Resilience: global unhandledRejection handler keeps the Hub up instead of exiting (Node 15+ crashes on unhandled rejection by default = Render 'Exited with status 1'); log uncaughtException before clean restart",
-      "title": "Resilience: global unhandledRejection handler keeps the Hub up instead of exiting (Node 15+ crashes on unhandled rejection by default = Render 'Exited with status 1'); log uncaughtException before clean restart",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1aec2dc",
-      "date": "2026-08-07T13:07:36-05:00",
-      "subject": "Fix: create followup_recommendations table in database.js init (WASM-ready), not at route module load",
-      "title": "Fix: create followup_recommendations table in database.js init (WASM-ready), not at route module load",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "d345891",
-      "date": "2026-08-07T12:58:54-05:00",
-      "subject": "Add AI Suggested Follow-Up to client dashboard (HUB + FUB → Claude)",
-      "title": "AI Suggested Follow-Up to client dashboard (HUB + FUB → Claude)",
-      "body": "- server/routes/followup.js: gathers HUB client data + FUB comms (notes, calls, emails, texts, tasks, appointments, stage, tags, source, timeline via fub-helper), asks Claude for a recommended next action + factual why + relationship summary + a warm, specific follow-up email. Cached per client (followup_recommendations); GET is instant + flags stale when new activity lands; analyze runs only on first open / manual refresh. Email rewrite endpoint (regenerate/shorter/casual/direct/add-context) reuses cached dossier. Opt-out + no-fabrication + not-enough-history guards.\n- Clients.jsx detail drawer: 'Suggested Follow-Up' section — recommendation, why bullets, known context, summary, editable suggested email with controls (regenerate/shorter/casual/direct/add context/copy/use-in-composer), Refresh + last-analyzed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
     }
   ]
 }

@@ -333,6 +333,9 @@ export default function App() {
   // default before paint. Here we refresh the TEAM default from the server; users
   // without a personal override follow it live. Settings → Appearance writes both.
   useEffect(() => {
+    // Only when signed in: on the login screen this fired with no token, got a
+    // 401, and authFetch's reload-on-401 refreshed the login page in a loop.
+    if (!authed) return
     authFetch('/api/settings/appearance').then(r => r.json()).then(d => {
       if (!d || !d.team_accent) return
       try {
@@ -340,7 +343,7 @@ export default function App() {
         if (!localStorage.getItem('hub_accent')) document.documentElement.setAttribute('data-accent', d.team_accent)
       } catch {}
     }).catch(() => {})
-  }, [])
+  }, [authed])
 
   // PWA install: Chrome/Android fire beforeinstallprompt; iOS Safari needs a
   // manual "Add to Home Screen", so we show a short how-to there instead.

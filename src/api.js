@@ -44,9 +44,10 @@ async function request(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   })
   if (res.status === 401) {
-    // Token expired or invalid — force re-login
-    localStorage.removeItem('mst_token')
-    window.location.reload()
+    // Token expired or invalid — force re-login. Only when a token actually
+    // existed: a 401 fired from the login screen (no token yet) must never
+    // reload, or the login page refreshes in an endless loop.
+    if (token) { localStorage.removeItem('mst_token'); window.location.reload() }
     throw new Error('Unauthorized')
   }
   if (!res.ok) throw new Error(`API error: ${res.status}`)
@@ -70,7 +71,7 @@ export const api = {
     const token = getToken()
     const url = apiUrl(`${BASE}/clients?` + new URLSearchParams(params || {}))
     const res = await fetch(url, { headers: { 'Content-Type': 'application/json', 'x-auth-token': token } })
-    if (res.status === 401) { localStorage.removeItem('mst_token'); window.location.reload(); throw new Error('Unauthorized') }
+    if (res.status === 401) { if (token) { localStorage.removeItem('mst_token'); window.location.reload() } throw new Error('Unauthorized') }
     if (!res.ok) throw new Error(`API error: ${res.status}`)
     const data = await res.json()
     return {
@@ -134,7 +135,7 @@ export function authFetch(url, options = {}) {
       ...options.headers,
     },
   }).then(res => {
-    if (res.status === 401) {
+    if (res.status === 401 && token) {
       localStorage.removeItem('mst_token')
       window.location.reload()
     }
