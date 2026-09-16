@@ -28,7 +28,7 @@ export default function Partners() {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (roleFilter) params.set('role', roleFilter)
-    authFetch('/api/partners?' + params).then(r => r.json()).then(setItems)
+    authFetch('/api/partners?' + params).then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])

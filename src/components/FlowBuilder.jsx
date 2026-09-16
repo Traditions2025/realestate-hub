@@ -41,7 +41,7 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
   const [audience, setAudience] = useState(null)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => { authFetch('/api/email/templates').then(r => r.json()).then(setTemplates).catch(() => {}) }, [])
+  useEffect(() => { authFetch('/api/email/templates').then(r => r.json()).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {}) }, [])
   useEffect(() => { if (trigger && tab === 'triggers') setTab('steps') }, [trigger])
 
   const addStep = (item) => {

@@ -44,7 +44,7 @@ export default function SocialMedia() {
     if (filter.platform) params.set('platform', filter.platform)
     if (filter.status) params.set('status', filter.status)
     if (view === 'calendar') params.set('month', currentMonth)
-    authFetch('/api/social-media?' + params).then(r => r.json()).then(setItems)
+    authFetch('/api/social-media?' + params).then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])
@@ -128,21 +128,21 @@ export default function SocialMedia() {
 
   const openSetup = () => {
     setSetupOpen(true)
-    authFetch('/api/social-media/config').then(r => r.json()).then(setConfig)
+    authFetch('/api/social-media/config').then(r => r.json()).then(d => { if (d && !d.error) setConfig(d) }).catch(() => {})
   }
   const saveBaseUrl = async () => {
     await authFetch('/api/social-media/config', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ public_base_url: config.public_base_url })
     })
-    authFetch('/api/social-media/config').then(r => r.json()).then(setConfig)
+    authFetch('/api/social-media/config').then(r => r.json()).then(d => { if (d && !d.error) setConfig(d) }).catch(() => {})
   }
   const regenKey = async () => {
     if (!confirm('Regenerate the publishing key? You will need to update it in n8n.')) return
     await authFetch('/api/social-media/config', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: true })
     })
-    authFetch('/api/social-media/config').then(r => r.json()).then(setConfig)
+    authFetch('/api/social-media/config').then(r => r.json()).then(d => { if (d && !d.error) setConfig(d) }).catch(() => {})
   }
 
   // Calendar helpers

@@ -138,6 +138,10 @@ export function authFetch(url, options = {}) {
     if (res.status === 401 && token) {
       localStorage.removeItem('mst_token')
       window.location.reload()
+      // Throw so callers' .json().then(setState) chains never store the
+      // {error} body in place of an array while the reload is pending —
+      // that's what white-screened the Clients page on session expiry.
+      throw new Error('Unauthorized')
     }
     return res
   })

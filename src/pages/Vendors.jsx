@@ -28,7 +28,7 @@ export default function Vendors() {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (catFilter) params.set('category', catFilter)
-    authFetch('/api/vendors?' + params).then(r => r.json()).then(setItems)
+    authFetch('/api/vendors?' + params).then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])

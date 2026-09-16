@@ -249,7 +249,7 @@ export default function Listings() {
     if (stage !== 'all') params.stage = stage
     if (search) params.search = search
     authFetch('/api/listings?' + new URLSearchParams(params))
-      .then(r => r.json()).then(setItems)
+      .then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => {
@@ -375,7 +375,7 @@ export default function Listings() {
         body: JSON.stringify({ marketing_tasks: updated }),
       })
       authFetch('/api/listings?' + new URLSearchParams(stage !== 'all' ? { stage } : {}))
-        .then(r => r.json()).then(setItems).catch(() => {})
+        .then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
     } catch (e) {
       console.error(e)
     }
@@ -395,7 +395,7 @@ export default function Listings() {
         body: JSON.stringify({ marketing_tasks: current }),
       })
       authFetch('/api/listings?' + new URLSearchParams(stage !== 'all' ? { stage } : {}))
-        .then(r => r.json()).then(setItems).catch(() => {})
+        .then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
     } catch (e) {
       console.error(e)
     }

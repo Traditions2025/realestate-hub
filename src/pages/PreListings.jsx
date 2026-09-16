@@ -83,13 +83,13 @@ export default function PreListings() {
   }
 
   useEffect(() => {
-    authFetch('/api/email/prelisting-templates').then(r => r.json()).then(setEmailTpls).catch(() => {})
+    authFetch('/api/email/prelisting-templates').then(r => r.json()).then(d => setEmailTpls(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const load = () => {
     const params = {}
     if (search) params.search = search
-    authFetch('/api/pre-listings?' + new URLSearchParams(params)).then(r => r.json()).then(setItems)
+    authFetch('/api/pre-listings?' + new URLSearchParams(params)).then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])

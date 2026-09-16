@@ -657,8 +657,8 @@ export default function Clients() {
 
   // Load filter options + saved lists once
   useEffect(() => {
-    authFetch('/api/clients/filter-options').then(r => r.json()).then(setFilterOptions).catch(() => {})
-    authFetch('/api/lists').then(r => r.json()).then(setSavedLists).catch(() => {})
+    authFetch('/api/clients/filter-options').then(r => r.json()).then(d => { if (d && !d.error) setFilterOptions(d) }).catch(() => {})
+    authFetch('/api/lists').then(r => r.json()).then(d => setSavedLists(Array.isArray(d) ? d : [])).catch(() => {})
     authFetch('/api/clients/smart-lists').then(r => r.json()).then(d => setSmartCounts(d || {})).catch(() => {})
     authFetch('/api/drips').then(r => r.json()).then(d => setDripCampaigns(Array.isArray(d) ? d : (d.drips || d.rows || []))).catch(() => {})
   }, [])
@@ -1075,7 +1075,7 @@ export default function Clients() {
 
   // Load email templates on mount
   useEffect(() => {
-    authFetch('/api/email/templates').then(r => r.json()).then(setEmailTemplates).catch(() => {})
+    authFetch('/api/email/templates').then(r => r.json()).then(d => setEmailTemplates(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   // Snapshot the current Clients list state so the full-screen profile can drive Prev/Next and
@@ -1367,7 +1367,7 @@ export default function Clients() {
       alert(`List "${newListName}" saved`)
       setNewListName('')
       setSaveListOpen(false)
-      authFetch('/api/lists').then(r => r.json()).then(setSavedLists)
+      authFetch('/api/lists').then(r => r.json()).then(d => setSavedLists(Array.isArray(d) ? d : [])).catch(() => {})
     }
   }
 
@@ -1385,7 +1385,7 @@ export default function Clients() {
     if (r.ok) {
       const name = savedLists.find(l => l.id === activeListId)?.name || 'List'
       alert(`Updated "${name}" — it now uses the current filters (${totalCount.toLocaleString()} matches).`)
-      authFetch('/api/lists').then(r => r.json()).then(setSavedLists)
+      authFetch('/api/lists').then(r => r.json()).then(d => setSavedLists(Array.isArray(d) ? d : [])).catch(() => {})
     } else alert('Could not update the list.')
   }
 

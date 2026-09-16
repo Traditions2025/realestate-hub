@@ -285,7 +285,7 @@ export default function Transactions() {
 
   useEffect(() => {
     authFetch('/api/transactions/_meta/ai-status').then(r => r.json()).then(d => setAiConfigured(!!d.configured)).catch(() => {})
-    authFetch('/api/email/transaction-templates').then(r => r.json()).then(setEmailTemplates).catch(() => {})
+    authFetch('/api/email/transaction-templates').then(r => r.json()).then(d => setEmailTemplates(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
 
   const openEmailComposer = async (recipientType) => {
@@ -611,7 +611,7 @@ export default function Transactions() {
     // Pre-listings show in pipeline as the first column
     const plParams = new URLSearchParams()
     if (search) plParams.set('search', search)
-    authFetch('/api/pre-listings?' + plParams).then(r => r.json()).then(setPreListings).catch(() => {})
+    authFetch('/api/pre-listings?' + plParams).then(r => r.json()).then(d => setPreListings(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])

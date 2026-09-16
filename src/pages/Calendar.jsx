@@ -27,7 +27,7 @@ export default function Calendar() {
   const load = () => {
     const params = new URLSearchParams({ month: currentMonth })
     if (typeFilter) params.set('event_type', typeFilter)
-    authFetch('/api/calendar?' + params).then(r => r.json()).then(setItems)
+    authFetch('/api/calendar?' + params).then(r => r.json()).then(d => setItems(Array.isArray(d) ? d : [])).catch(() => {})
   }
 
   useEffect(() => { load() }, [])

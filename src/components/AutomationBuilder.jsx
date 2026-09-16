@@ -41,8 +41,8 @@ export default function AutomationBuilder({ automationId, onClose }) {
 
   // ---- load ----
   useEffect(() => {
-    authFetch('/api/email/templates').then(r => r.json()).then(setTemplates).catch(() => {})
-    authFetch('/api/automations').then(r => r.json()).then(setAutomations).catch(() => {})
+    authFetch('/api/email/templates').then(r => r.json()).then(d => setTemplates(Array.isArray(d) ? d : [])).catch(() => {})
+    authFetch('/api/automations').then(r => r.json()).then(d => setAutomations(Array.isArray(d) ? d : [])).catch(() => {})
     authFetch('/api/drips').then(r => r.json()).then(d => setDrips(Array.isArray(d) ? d : [])).catch(() => {})
   }, [])
   useEffect(() => {
