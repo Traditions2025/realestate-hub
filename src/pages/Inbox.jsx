@@ -173,12 +173,12 @@ export default function Inbox() {
   useEffect(() => { load() }, [load])
   useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
   const chooseAgent = (a) => { setMyAgent(a); localStorage.setItem('mst_agent', a) }
-  const assignThread = async (clientId, agent) => { await authFetch(`/api/inbox/thread/${clientId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent }) }).catch(() => {}); load(); if (sel === clientId) authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => {}) }
+  const assignThread = async (clientId, agent) => { await authFetch(`/api/inbox/thread/${clientId}/assign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent }) }).catch(() => {}); load(); if (sel === clientId) authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setThread(d) }).catch(() => {}) }
   // Real-time via Server-Sent Events: refresh the list + open thread the moment a
   // new message/call arrives. A slow poll stays as a backstop if SSE drops.
   const refreshNow = useCallback(() => {
     load()
-    if (sel) authFetch(`/api/inbox/thread/${sel}`).then(r => r.json()).then(setThread).catch(() => {})
+    if (sel) authFetch(`/api/inbox/thread/${sel}`).then(r => r.json()).then(d => { if (Array.isArray(d)) setThread(d) }).catch(() => {})
   }, [load, sel])
   useEffect(() => {
     let es
@@ -213,7 +213,7 @@ export default function Inbox() {
       setSelNums(nums)
       setSelLead(c)
     }).catch(() => {})
-    authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(setThread).catch(() => setThread([]))
+    authFetch(`/api/inbox/thread/${clientId}`).then(r => r.json()).then(d => setThread(Array.isArray(d) ? d : [])).catch(() => setThread([]))
     authFetch(`/api/inbox/thread/${clientId}/read`, { method: 'POST' }).then(() => load()).catch(() => {})
     // AI: restore a saved draft if one exists. The AI suggestion stays minimized — the user pulls
     // it in on demand via the "✨ Suggested text" button (which generates it if not cached).
@@ -285,7 +285,8 @@ export default function Inbox() {
   // The Inbox shows only the CURRENT email exchange per conversation: their newest
   // inbound email plus every reply we've sent after it. Older email history lives on
   // the lead profile. Texts, calls and voicemails still read as a full chat.
-  const filteredThread = thread.filter(m => channels.includes(m.channel))
+  const safeThread = Array.isArray(thread) ? thread : []
+  const filteredThread = safeThread.filter(m => channels.includes(m.channel))
   const anchorEmailIdx = (() => {
     let lastIn = -1, lastAny = -1
     filteredThread.forEach((m, i) => { if (m.channel === 'email') { lastAny = i; if (m.direction === 'incoming') lastIn = i } })
@@ -351,7 +352,7 @@ export default function Inbox() {
       // clear the draft, refresh the thread + list
       await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {})
       setReply({ subject: '', body: '' }); setReplyMedia([])
-      authFetch(`/api/inbox/thread/${sel}`).then(x => x.json()).then(setThread).catch(() => {})
+      authFetch(`/api/inbox/thread/${sel}`).then(x => x.json()).then(d => { if (Array.isArray(d)) setThread(d) }).catch(() => {})
       load()
     } catch (e) { alert(e.message) }
     finally { setSending(false) }
@@ -733,7 +734,7 @@ function Composer({ onClose, onSent }) {
 
   useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return }
-    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(d => setResults(Array.isArray(d) ? d : [])).catch(() => {}), 200)
     return () => clearTimeout(t)
   }, [q])
 
@@ -878,7 +879,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
   React.useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [load])
   React.useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return }
-    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(d => setResults(Array.isArray(d) ? d : [])).catch(() => {}), 200)
     return () => clearTimeout(t)
   }, [q])
   const createLead = async () => {

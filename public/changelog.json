@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-09-15T16:35:56.727Z",
+  "generated_at": "2026-09-16T19:27:08.262Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "0bc262c",
+      "date": "2026-09-16T13:14:12-05:00",
+      "subject": "Unknown-contact pane: show call recordings, not just voicemails",
+      "title": "Unknown-contact pane: show call recordings, not just voicemails",
+      "body": "The pane for threads with no matched client only rendered the audio\nplayer for voicemail rows, so recorded outbound calls to non-client\nnumbers (support lines, vendors) showed duration but no recording.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9a4e63c",
+      "date": "2026-09-16T10:37:03-05:00",
+      "subject": "Inbox: guarantee newest-first thread order",
+      "title": "Inbox: guarantee newest-first thread order",
+      "body": "Older threads were intermittently appearing near the top of the list.\nTwo defenses:\n\n- Client: list requests fire on every filter click and SSE tick; a slow\n  older response (possibly for a different folder, whose threads key on\n  outgoing messages) could land after a newer one and replace the list\n  with stale, wrongly-ordered threads. load() now carries a sequence\n  number and only the latest request is allowed to render.\n- Server: /api/inbox now explicitly sorts threads newest-first by their\n  latest message instead of relying on Map insertion order tracking the\n  SQL sort.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4ae3aa1",
+      "date": "2026-09-16T09:21:40-05:00",
+      "subject": "Softphone: ride out signaling blips (31005) and show ringing state",
+      "title": "Softphone: ride out signaling blips (31005) and show ringing state",
+      "body": "- Device now allows 30s of signaling reconnection (maxCallSignalingTimeoutMs)\n  so a dropped websocket no longer strands the call controls.\n- Error 31005 during a live call shows 'Connection blip - reconnecting...'\n  instead of a red ConnectionError; reconnected clears it. Audio and the\n  dialed leg were never affected by these blips.\n- New 'Ringing...' status while the carrier rings the far end, so the\n  seconds of call setup no longer look like the dialer hanging.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2a760a5",
+      "date": "2026-09-16T09:10:27-05:00",
+      "subject": "Never store an API error body where a page expects an array",
+      "title": "Never store an API error body where a page expects an array",
+      "body": "The Clients page white-screened with 'T.find is not a function' when\n/api/lists returned an error object (session expiry mid-use) and the\nraw JSON was stored into savedLists state.\n\n- authFetch now throws on 401 instead of returning the response, so\n  every caller's .catch() runs while the forced re-login reload is\n  pending - nothing renders from an {error} body anymore.\n- All direct-authFetch list loads (saved lists, templates, calendar,\n  listings, pre-listings, partners, vendors, social media, automations)\n  now guard with Array.isArray before setState, covering non-401\n  error responses too.\n\nPages using the api.* helper were already safe (it throws on !res.ok).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9715c9f",
+      "date": "2026-09-15T11:36:41-05:00",
+      "subject": "Fix login-page refresh loop: never reload on a 401 when no token existed",
+      "title": "login-page refresh loop: never reload on a 401 when no token existed",
+      "body": "The accent-theme effect (added with the design-system accents) called\nauthFetch('/api/settings/appearance') on App mount, which also runs on the\nlogin screen where there is no token yet. The 401 made api.js wipe the\n(nonexistent) token and window.location.reload() — refreshing the login\npage in an endless loop for anyone signed out.\n\nTwo-layer fix: the appearance refresh now waits for authed, and all three\n401 handlers in api.js only wipe + reload when a token was actually sent.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "f20bc7d",
       "date": "2026-09-14T17:39:30-05:00",
@@ -3960,46 +4000,6 @@
       "subject": "Clients list: hide tag chips from rows for a cleaner list view",
       "title": "Clients list: hide tag chips from rows for a cleaner list view",
       "body": "The name cell in the desktop list no longer renders the first-2 tag chips\n(e.g. \"FUB Stage: Past Client\", \"NO_TEXT\", ZIP tags, campaign tags). Tags are\nunchanged on the data and still show in full on each lead's profile detail\ndrawer, and remain filterable via the Tags filter. Kept the small \"Sierra\"\nsource badge (also shown on the mobile card).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7a6bde7",
-      "date": "2026-08-10T13:15:26-05:00",
-      "subject": "Clients filters: add drip-campaign enrollment filter (include/exclude + choose campaign)",
-      "title": "Clients filters: add drip-campaign enrollment filter (include/exclude + choose campaign)",
-      "body": "New \"Drip Campaigns\" filter section on the Clients tab:\n- Any / In a drip / Not in a drip (tri-state)\n- optional campaign dropdown to scope the include/exclude to one specific drip\n\nBackend buildClientFilter() gains in_drip ('1'|'0') + optional drip_id, implemented\nas EXISTS / NOT EXISTS against drip_enrollments where status='active'. SQL uses\nsingle-quoted literals (DQS-safe). Wired through advFilters state, active-filter\ncount, params builder, reset, and saved-list load; campaign list loaded from /api/drips.\nVerified SQL: include, campaign-scoped, and exclude all return the right sets.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "79b6a50",
-      "date": "2026-08-10T13:00:43-05:00",
-      "subject": "Move Drip Campaigns from Templates into the Campaigns (Marketing) tab",
-      "title": "Move Drip Campaigns from Templates into the Campaigns (Marketing) tab",
-      "body": "Per request: Drip Campaigns now live under the existing \"Campaigns\" nav item\n(the Marketing page) as a sub-tab alongside one-off marketing campaigns, instead\nof being buried inside Templates.\n\n- Marketing.jsx: added a mode toggle [Marketing Campaigns | Drip Campaigns];\n  renders the shared DripCampaigns component in drips mode. Page relabeled\n  \"Campaigns\". \"+ New Campaign\" button only shows in the blasts mode.\n- Templates.jsx: removed the drips mode toggle, the DripCampaigns import, and the\n  wrapper conditional. Templates is now templates-only again.\n- Same DripCampaigns component and backend endpoints reused; no data changes.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "196f873",
-      "date": "2026-08-10T12:12:13-05:00",
-      "subject": "Fix Tasks/Projects 500 after DB migration: double-quoted SQL string literals",
-      "title": "Tasks/Projects 500 after DB migration: double-quoted SQL string literals",
-      "body": "better-sqlite3 compiles SQLite with double-quoted-string literals DISABLED\n(the safe default), so ORDER BY CASE priority WHEN \"high\"... treated \"high\" as a\ncolumn name and threw \"no such column: high\", 500ing the tasks and projects lists.\nsql.js had the legacy DQS quirk enabled, which had masked this. Converted the\nCASE literals to single quotes (proper SQL). Full-codebase audit found only these\ntwo occurrences; all other SQL already uses single-quoted literals.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "122dcdd",
-      "date": "2026-08-10T11:38:32-05:00",
-      "subject": "DB engine: migrate sql.js (WASM, whole-DB-in-RAM) to better-sqlite3 (native, reads/writes file directly)",
-      "title": "DB engine: migrate sql.js (WASM, whole-DB-in-RAM) to better-sqlite3 (native, reads/writes file directly)",
-      "body": "Root-cause fix for the 512MB OOM crashes: the old sql.js layer held the entire\n66MB DB in RAM and serialized a fresh copy on every save. better-sqlite3 reads and\nwrites the SQLite file on disk directly, so steady-state memory is a small fraction.\n\n- import better-sqlite3; openDbFile() sets journal_mode=DELETE (file-copy backups\n  stay valid), synchronous=FULL (durable), foreign_keys=OFF (matches prior behavior)\n- makeDbShim() keeps the exact sql.js-compatible surface (run/get/all/exec/prepare/\n  export/pragma/close) so ~200 call sites + schema DDL are unchanged\n- sanitizeParams(): undefined -> NULL, boolean -> 0/1 (better-sqlite3 rejects both)\n- beginBulk/endBulk are now real BEGIN/COMMIT transactions (depth-counted, ROLLBACK\n  on failure); saveDb() is a NO-OP (writes already hit disk). This removes the\n  serialize-on-save path that caused the 2026-05-20 corruption.\n- boot: quick_check on load; candidate/restore validate with a readonly quick_check\n- migration column reads use db.all(\"PRAGMA table_info(x)\").map(r=>r.name) and\n  integrity check uses db.pragma('integrity_check',{simple:true})\n\nVerified locally end-to-end: insert/get/all, undefined->NULL, boolean->int, bulk\ntransactions, update, settings round-trip, health, on-disk persistence (a separate\nconnection sees writes immediately), integrity ok.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "schema"
-    },
-    {
-      "hash": "1108714",
-      "date": "2026-08-07T18:03:36-05:00",
-      "subject": "Native foundation: Capacitor-ready API layer + config (web/PWA unchanged)",
-      "title": "Native foundation: Capacitor-ready API layer + config (web/PWA unchanged)",
-      "body": "- api.js: runtime platform detection (isNativeApp/platform) + centralized API origin. Web/PWA stay same-origin (/api/...); inside a native Capacitor shell, all 200 authFetch/api calls resolve to the absolute Render backend. Dev override via window.__HUB_API_ORIGIN / localStorage hub_api_origin. Zero changes to web behavior.\n- Added @capacitor/core (dep) + cli/ios/android (devDeps) v8.5\n- capacitor.config.json: appId com.mattsmithteam.hub, appName HUB, webDir dist, brand splash/bg\n- Capacitor is NOT bundled into the web build (detected via window.Capacitor global), so web/PWA are untouched\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
