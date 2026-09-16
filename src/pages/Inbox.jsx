@@ -921,7 +921,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
                 {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
                   ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
                   : <div key={i} style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
-                {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
+                {(isVoicemail || isCall) && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                 {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
               </div>
               {link0 && <LinkPreview url={link0} />}
