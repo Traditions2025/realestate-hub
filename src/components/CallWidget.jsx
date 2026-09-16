@@ -38,10 +38,15 @@ export default function CallWidget() {
     callRef.current = call
     try { parentSidRef.current = call.parameters?.CallSid || '' } catch {}
     call.on('accept', () => { setStatus('active'); startTimer(); connectedRef.current = true; try { parentSidRef.current = call.parameters?.CallSid || parentSidRef.current } catch {}; try { window.dispatchEvent(new CustomEvent('hubcall:started')) } catch {} })
+    // Outbound: the carrier is now ringing the far end — tell the user instead of dead air.
+    call.on('ringing', () => { if (!connectedRef.current) setStatus('ringing') })
     call.on('disconnect', () => endLocal())
     call.on('cancel', () => endLocal())
     call.on('reject', () => endLocal())
-    call.on('error', (e) => { setErr(e?.message || 'Call error'); endLocal() })
+    // Transient signaling blips (31005) recover on their own; only real failures stay red.
+    call.on('reconnecting', () => setErr('Connection blip — reconnecting…'))
+    call.on('reconnected', () => setErr(''))
+    call.on('error', (e) => { if (e?.code === 31005) { setErr('Connection blip — reconnecting…'); return } setErr(e?.message || 'Call error'); endLocal() })
   }
   const endLocal = () => {
     stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setVmMenu(false); setPeer({ number: '', name: '' }); callRef.current = null; parentSidRef.current = ''
@@ -70,11 +75,18 @@ export default function CallWidget() {
       if (!tok || !tok.ok || !tok.token) { setReg('error'); setRegErr(tok?.error || 'Voice is not set up yet'); return }
       if (cancelled) return
       try {
-        const device = new Twilio.Device(tok.token, { codecPreferences: ['opus', 'pcmu'], closeProtection: true })
+        // maxCallSignalingTimeoutMs: a dropped signaling websocket (error 31005)
+        // reconnects for up to 30s instead of killing the controls mid-call.
+        const device = new Twilio.Device(tok.token, { codecPreferences: ['opus', 'pcmu'], closeProtection: true, maxCallSignalingTimeoutMs: 30000 })
         deviceRef.current = device
         device.on('registered', () => { setReady(true); setReg('ready'); primeMic() })
         device.on('unregistered', () => setReg('connecting'))
-        device.on('error', (e) => { const m = e?.message || 'Phone error'; setErr(m); setRegErr(m); setReg('error'); if (e?.code === 20104 || e?.code === 31205) refreshToken() })
+        device.on('error', (e) => {
+          // 31005 with a live call = the signaling socket blipped; the audio and the
+          // dialed leg keep going and the SDK reconnects. Don't paint the phone red.
+          if (e?.code === 31005 && callRef.current) { setErr('Connection blip — reconnecting…'); return }
+          const m = e?.message || 'Phone error'; setErr(m); setRegErr(m); setReg('error'); if (e?.code === 20104 || e?.code === 31205) refreshToken()
+        })
         device.on('tokenWillExpire', () => refreshToken())
         device.on('incoming', async (call) => {
           const from = call.parameters?.From || ''
@@ -136,7 +148,7 @@ export default function CallWidget() {
   return (
     <div style={wrap}>
       <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 6 }}>
-        {status === 'incoming' ? 'Incoming call' : status === 'connecting' ? 'Calling…' : status === 'active' ? `On call · ${mmss(seconds)}` : 'Call'}
+        {status === 'incoming' ? 'Incoming call' : status === 'connecting' ? 'Connecting…' : status === 'ringing' ? 'Ringing…' : status === 'active' ? `On call · ${mmss(seconds)}` : 'Call'}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
       {sub && <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>{sub}</div>}
