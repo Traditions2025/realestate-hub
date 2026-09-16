@@ -1357,6 +1357,14 @@ router.post('/export', (req, res) => {
 })
 
 // Get distinct values for filter dropdowns (zips, cities, sources)
+// One-time (authenticated) setup: generates + returns the webhook key for Zapier.
+router.get('/fb-webhook-setup', (req, res) => {
+  let key = db.getSetting('fb_lead_webhook_key', '')
+  if (!key) { key = 'fbw_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10); db.setSetting('fb_lead_webhook_key', key) }
+  const base = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  res.json({ url: `${base}/api/clients/fb-webhook?key=${key}`, fields: ['first_name', 'last_name', 'email', 'phone_number', 'timeline', 'listing (or campaign_name)'] })
+})
+
 router.get('/filter-options', (req, res) => {
   const zips = db.all("SELECT DISTINCT zip FROM clients WHERE zip IS NOT NULL AND zip != '' ORDER BY zip").map(r => r.zip)
   const cities = db.all("SELECT DISTINCT city FROM clients WHERE city IS NOT NULL AND city != '' ORDER BY city").map(r => r.city)
@@ -1475,14 +1483,6 @@ router.post('/fb-webhook', async (req, res) => {
   } catch {}
   res.json({ success: true, client_id: cid, matched_existing: !!existing })
 })
-// One-time (authenticated) setup: generates + returns the webhook key for Zapier.
-router.get('/fb-webhook-setup', (req, res) => {
-  let key = db.getSetting('fb_lead_webhook_key', '')
-  if (!key) { key = 'fbw_' + Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 10); db.setSetting('fb_lead_webhook_key', key) }
-  const base = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
-  res.json({ url: `${base}/api/clients/fb-webhook?key=${key}`, fields: ['first_name', 'last_name', 'email', 'phone_number', 'timeline', 'listing (or campaign_name)'] })
-})
-
 router.put('/:id', async (req, res) => {
   const fields = req.body
   // A full address pasted into the Address field auto-splits into city/state/zip
