@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-16T19:27:08.262Z",
+  "generated_at": "2026-09-16T19:36:09.851Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "031bed1",
+      "date": "2026-09-16T14:27:25-05:00",
+      "subject": "Inbox: never crash on a bad thread response (\"q.filter is not a function\")",
+      "title": "Inbox: never crash on a bad thread response (\"q.filter is not a function\")",
+      "body": "The 45s auto-refresh + SSE refetch stored whatever /api/inbox/thread returned\nstraight into thread state; a transient 500 JSON object then crashed the whole\npage at thread.filter, and every refresh re-crashed it. All setThread paths now\naccept only real arrays (a blip keeps the currently shown conversation instead\nof white-screening), the render guards against bad state anyway, and contact\nsearch results get the same guard. Same class of fix as the earlier Clients\nsession-expiry white screen.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0bc262c",
       "date": "2026-09-16T13:14:12-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Clients: manually enter a Realist Score per lead (inline on the list)",
       "title": "Clients: manually enter a Realist Score per lead (inline on the list)",
       "body": "- Clients list SCORE cell is now click-to-edit: click the score (or the \"—\") to\n  type a Realist Score; Enter/blur saves, Esc cancels. Clearing it resets to \"—\".\n- PUT /api/clients/:id normalizes lead_score to digits and derives the A-F grade\n  (gradeFromRealistScore) so the colored badge stays consistent.\n- Sierra sync no longer nulls the score when Sierra itself has none: lead_score/\n  lead_grade now use COALESCE(?, existing), so a manually entered (or FUB-backfilled)\n  score survives every sync. Sierra still overrides when it actually has a score.\n\nVerified: manual 720->A persists through a no-score Sierra sync, and a real Sierra\nscore (640->C) still takes over.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "83bcfb1",
-      "date": "2026-08-10T15:26:22-05:00",
-      "subject": "Clients list: hide tag chips from rows for a cleaner list view",
-      "title": "Clients list: hide tag chips from rows for a cleaner list view",
-      "body": "The name cell in the desktop list no longer renders the first-2 tag chips\n(e.g. \"FUB Stage: Past Client\", \"NO_TEXT\", ZIP tags, campaign tags). Tags are\nunchanged on the data and still show in full on each lead's profile detail\ndrawer, and remain filterable via the Tags filter. Kept the small \"Sierra\"\nsource badge (also shown on the mobile card).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

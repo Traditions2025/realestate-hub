@@ -1162,7 +1162,7 @@ export default function Clients() {
         .catch(() => setListingInterest({ saved_searches: [], saved_listings: [], listing_activity: [] }))
     }
     // Load email history
-    authFetch(`/api/email/history/${id}`).then(r => r.json()).then(setEmailHistory).catch(() => {})
+    authFetch(`/api/email/history/${id}`).then(r => r.json()).then(d => setEmailHistory(Array.isArray(d) ? d : [])).catch(() => {})
     // Unified communication history — every text, call, voicemail (and logged email)
     // on this lead, newest first, so past conversations + call logs are reviewable.
     authFetch(`/api/inbox/thread/${id}`).then(r => r.json()).then(rows => setCommHistory(Array.isArray(rows) ? rows.slice().reverse() : [])).catch(() => setCommHistory([]))
@@ -1604,7 +1604,7 @@ export default function Clients() {
         alert('Email sent!')
         setEmailModalOpen(false)
         // Refresh history
-        authFetch(`/api/email/history/${detail.id}`).then(r => r.json()).then(setEmailHistory)
+        authFetch(`/api/email/history/${detail.id}`).then(r => r.json()).then(d => setEmailHistory(Array.isArray(d) ? d : [])).catch(() => {})
       }
     } catch (err) {
       alert('Send failed: ' + err.message)
@@ -4732,7 +4732,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
   const fmtWhenLocal = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
   React.useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return }
-    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(setResults).catch(() => {}), 200)
+    const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(d => setResults(Array.isArray(d) ? d : [])).catch(() => {}), 200)
     return () => clearTimeout(t)
   }, [q])
   const stripHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
