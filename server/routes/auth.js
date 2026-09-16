@@ -166,6 +166,7 @@ export function requireAuth(req, res, next) {
   if (req.path === '/api/db-status') return next() // public diagnostics
   if (req.path === '/api/health') return next() // Render health probe — must be unauth
   if (req.path === '/api/sierra/webhook') return next() // Sierra calls this
+  if (req.path === '/api/clients/fb-webhook') return next() // Zapier Facebook Lead Ads intake (checks its own shared key)
   if (req.path === '/api/inbox/parse-inbound') return next() // SendGrid Inbound Parse posts here (no token)
   if (req.path === '/api/email/events') return next() // SendGrid Event Webhook (signature-verified when key configured)
   if (req.path === '/api/inbox/twilio-inbound') return next() // Twilio posts incoming texts here (no token)
