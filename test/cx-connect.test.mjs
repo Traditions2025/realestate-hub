@@ -238,7 +238,10 @@ test('angles respect the age bucket', () => {
 test('previewNext is a pure dry run: composes real messages, writes nothing, sends nothing', async () => {
   const c = mkClient({ off_market_date: '2023-07-05' })   // ancient bucket
   await cx.enrollClient(c.id)
-  // Sort first so the preview cap can't push this lead out (test DB accumulates enrollments).
+  // Sort first so the preview cap can't push this lead out. Prior runs of THIS test
+  // left their own sort-first rows in the persistent test DB — neutralize them, or
+  // after ~25 runs the newest lead falls off the preview window.
+  db.run("UPDATE cx_campaign SET next_send_at='2099-01-01T00:00:00.000Z' WHERE next_send_at='2000-01-01T00:00:00.000Z'")
   db.run("UPDATE cx_campaign SET next_send_at='2000-01-01T00:00:00.000Z' WHERE client_id=?", [c.id])
   // Count only THIS lead's rows: suites run in parallel against the shared test DB,
   // so a global count can move underneath the preview and false-fail the dry-run check.
