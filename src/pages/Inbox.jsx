@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import { phoneD10, phoneLabelMap } from './Clients'
@@ -158,11 +158,16 @@ export default function Inbox() {
   }, [])
   const backToList = () => { if (pushedRef.current) { try { window.history.back(); return } catch {} } clearSelection() }
 
+  // Sequence guard: list requests fire on every filter click and SSE tick, and a slow
+  // older response (possibly for a different folder) can land AFTER a newer one and
+  // replace the list with stale, wrongly-ordered threads. Only the latest request renders.
+  const loadSeqRef = useRef(0)
   const load = useCallback(() => {
+    const seq = ++loadSeqRef.current
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
     if (assignFilter === 'mine' && myAgent) p.set('assigned', myAgent)
     else if (assignFilter === 'unassigned') p.set('assigned', 'unassigned')
-    authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0) }).catch(() => setConvos([]))
+    authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { if (seq !== loadSeqRef.current) return; setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0) }).catch(() => { if (seq === loadSeqRef.current) setConvos([]) })
     authFetch('/api/inbox/counts').then(r => r.json()).then(setCounts).catch(() => {})
   }, [folder, unreadOnly, channels, q, assignFilter, myAgent])
   useEffect(() => { load() }, [load])

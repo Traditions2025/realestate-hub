@@ -258,6 +258,10 @@ router.get('/', (req, res) => {
   const assigned = (req.query.assigned || '').trim()
   if (assigned === 'unassigned') list = list.filter(c => !c.assigned_to)
   else if (assigned) list = list.filter(c => c.assigned_to === assigned)
+  // Explicitly newest-first by each thread's latest message. Insertion order already
+  // tracks the SQL sort, but never rely on that implicitly — any oddly-formatted
+  // occurred_at or future change to the grouping must not scramble the inbox.
+  list.sort((a, b) => new Date(b.last?.occurred_at || 0) - new Date(a.last?.occurred_at || 0))
   const totalUnread = db.get("SELECT COUNT(*) c FROM communications WHERE direction='incoming' AND status='unread'").c
   res.json({ conversations: list, total_unread: totalUnread })
 })
