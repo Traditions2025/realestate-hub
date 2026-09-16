@@ -1,5 +1,8 @@
-// MST Hub service worker — instant-load caching for slow mobile networks
-const CACHE_NAME = 'mst-hub-v7'
+// MST Hub service worker — instant-load caching for slow mobile networks.
+// v8 (2026-09-16): purges v7 caches that were poisoned with HTML stored under
+// /assets/*.js URLs (the server used to SPA-fallback missing chunks), and never
+// caches a response whose content-type doesn't match what the URL should be.
+const CACHE_NAME = 'mst-hub-v8'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {
@@ -30,14 +33,22 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Hashed assets (Vite output: /assets/index-AbC123.js): cache-first, never expire
-  // (filename changes on every deploy, so old cache is automatically obsolete)
+  // (filename changes on every deploy, so old cache is automatically obsolete).
+  // Cache ONLY a healthy response of the right type — an error page or HTML body
+  // under a .js/.css URL must never be stored (that poisoning is what broke the
+  // app in random ways per tab after deploys).
   if (url.pathname.startsWith('/assets/')) {
     event.respondWith((async () => {
       const cached = await caches.match(event.request)
       if (cached) return cached
       const fresh = await fetch(event.request)
-      const cache = await caches.open(CACHE_NAME)
-      cache.put(event.request, fresh.clone())
+      const ct = (fresh.headers.get('content-type') || '').toLowerCase()
+      const wantsCode = /\.(js|mjs|css)$/.test(url.pathname)
+      const typeOk = wantsCode ? (ct.includes('javascript') || ct.includes('css')) : !ct.includes('text/html')
+      if (fresh.ok && typeOk) {
+        const cache = await caches.open(CACHE_NAME)
+        cache.put(event.request, fresh.clone())
+      }
       return fresh
     })())
     return
@@ -52,8 +63,10 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached
       try {
         const fresh = await fetch(event.request)
-        const cache = await caches.open(CACHE_NAME)
-        cache.put(event.request, fresh.clone())
+        if (fresh.ok && !(fresh.headers.get('content-type') || '').toLowerCase().includes('text/html')) {
+          const cache = await caches.open(CACHE_NAME)
+          cache.put(event.request, fresh.clone())
+        }
         return fresh
       } catch (e) {
         return cached || new Response('', { status: 504 })

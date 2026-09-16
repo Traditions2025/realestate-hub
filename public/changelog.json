@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-16T19:36:09.851Z",
+  "generated_at": "2026-09-16T21:41:19.357Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a2ccfbd",
+      "date": "2026-09-16T14:36:13-05:00",
+      "subject": "Clients page: same array-guard hardening as the Inbox crash fix",
+      "title": "Clients page: same array-guard hardening as the Inbox crash fix",
+      "body": "Triple-check sweep found the identical latent crash class on the Clients page:\nemailHistory (one fetch even lacked a catch) and the contact-search results were\nstored raw from fetch and rendered with .map/.slice — a transient 500 JSON object\nwould have white-screened the detail pane exactly like the Inbox. All guarded\nwith Array.isArray now. Reporting/profile panes verified safe (object reads with\noptional chaining / fallbacks).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "031bed1",
       "date": "2026-09-16T14:27:25-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Clients filters: cleaner layout, remove Regions, add Address (has/none) filter",
       "title": "Clients filters: cleaner layout, remove Regions, add Address (has/none) filter",
       "body": "- Filter panel: controls in each row now bottom-align on one line (checkboxes,\n  selects, number inputs share a 30px height); full-width sections get clean\n  top-border separators; selects styled to match inputs.\n- Removed the \"Regions (comma-separated)\" saved-search filter (not needed).\n- Added an Address filter (Any / Has address / No address) in the Other section;\n  backend has_address = '1'|'0' -> address present / blank.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8ca1b4e",
-      "date": "2026-08-10T15:48:06-05:00",
-      "subject": "Clients: manually enter a Realist Score per lead (inline on the list)",
-      "title": "Clients: manually enter a Realist Score per lead (inline on the list)",
-      "body": "- Clients list SCORE cell is now click-to-edit: click the score (or the \"—\") to\n  type a Realist Score; Enter/blur saves, Esc cancels. Clearing it resets to \"—\".\n- PUT /api/clients/:id normalizes lead_score to digits and derives the A-F grade\n  (gradeFromRealistScore) so the colored badge stays consistent.\n- Sierra sync no longer nulls the score when Sierra itself has none: lead_score/\n  lead_grade now use COALESCE(?, existing), so a manually entered (or FUB-backfilled)\n  score survives every sync. Sierra still overrides when it actually has a score.\n\nVerified: manual 720->A persists through a no-score Sierra sync, and a real Sierra\nscore (640->C) still takes over.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

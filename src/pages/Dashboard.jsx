@@ -92,6 +92,12 @@ export default function Dashboard() {
   // Communication/attention data refreshes every 60s; heavier blocks ride along (single endpoint).
   useEffect(() => { const t = setInterval(load, 60_000); return () => clearInterval(t) }, [])
 
+  // ALL hooks must live above the early returns — two useState calls used to sit
+  // below them, so the first data render had more hooks than the loading render
+  // (React #310, "Something went wrong" on any Dashboard open without cached data).
+  const [mfBusy, setMfBusy] = useState(false)
+  const [mfResult, setMfResult] = useState(null)
+
   if (!data && loading) return <div className="page-loading">Loading dashboard...</div>
   if (!data) return <div className="page-loading">Failed to load dashboard</div>
 
@@ -119,8 +125,6 @@ export default function Dashboard() {
   // "✓ Done" on an attention card: record the dismissal (item-keyed — new activity resurfaces)
   // and remove it optimistically; counts adjust without waiting for the next refresh.
   // "Check Master Files" — runs the FSBO + Cancelled/Expired syncs on demand.
-  const [mfBusy, setMfBusy] = useState(false)
-  const [mfResult, setMfResult] = useState(null)
   const syncMasterFiles = async () => {
     setMfBusy(true); setMfResult(null)
     try {

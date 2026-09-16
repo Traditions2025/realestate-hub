@@ -1352,8 +1352,12 @@ ${signature}
     }
   })
 
-  // SPA fallback for production
+  // SPA fallback for production. NEVER for /assets/*: a hashed chunk that no longer
+  // exists (old build, after a deploy) must 404 — serving index.html here poisoned
+  // the service-worker cache with HTML stored under .js URLs, which broke open tabs
+  // in random ways ("q.filter is not a function", React #310) until caches cleared.
   app.get('*', (req, res) => {
+    if (req.path.startsWith('/assets/')) return res.status(404).type('text/plain').send('asset not found (stale build) — reload the app')
     res.sendFile(join(__dirname, '..', 'dist', 'index.html'))
   })
 

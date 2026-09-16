@@ -298,7 +298,9 @@ class ErrorBoundary extends React.Component {
         <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>The rest of the app is fine. Send this to your developer:</p>
         <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 12, maxHeight: 320, overflow: 'auto' }}>{String(this.state.err?.stack || this.state.err)}</pre>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button className="btn btn-primary" onClick={() => this.setState({ err: null })}>Try again</button>
+          {/* A crash often means this tab is running a stale build — a real reload
+              pulls the current one; re-rendering the same broken code never helps. */}
+          <button className="btn btn-primary" onClick={() => window.location.reload()}>Try again</button>
           <button className="btn btn-secondary" onClick={() => window.location.assign('/')}>Go to Dashboard</button>
         </div>
       </div>

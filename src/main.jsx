@@ -35,9 +35,25 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Register service worker for PWA
+// Register service worker for PWA. Long-lived tabs check for a new build hourly,
+// and when a new service worker takes over, the tab reloads itself ONCE so it never
+// keeps running a half-old bundle (the source of the random per-tab crashes).
+const reloadOnce = (key) => {
+  try {
+    if (sessionStorage.getItem(key)) return
+    sessionStorage.setItem(key, '1')
+    setTimeout(() => { try { sessionStorage.removeItem(key) } catch {} }, 30000)
+    window.location.reload()
+  } catch { window.location.reload() }
+}
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {})
+    navigator.serviceWorker.register('/sw.js').then(reg => {
+      setInterval(() => { try { reg.update() } catch {} }, 60 * 60 * 1000)
+    }).catch(() => {})
   })
+  navigator.serviceWorker.addEventListener('controllerchange', () => reloadOnce('sw_reloaded'))
 }
+// A lazy route chunk that fails to load (stale tab requesting a chunk a newer
+// deploy replaced) reloads the app to the current build instead of white-screening.
+window.addEventListener('vite:preloadError', (e) => { e.preventDefault(); reloadOnce('chunk_reloaded') })
