@@ -62,6 +62,52 @@ async function hydrate(e) {
   return full
 }
 
+// ---------------------------------------------------------------------------
+// EMAIL TRIGGER (primary, per John 2026-09-17): FUB's lead-notification emails to
+// Matt's inbox are the signal. The Gmail poller hands every leads@followupboss.com
+// email here. Facebook ones only:
+//   "New Lead from Facebook - <name>"   → pull the lead into the Hub (create,
+//        tag, notify, AI first text via the fresh lane)
+//   "Lead Alert from Facebook - <name>" → existing person re-registered: tag +
+//        note + notification ONLY (no new record, no auto-AI)
+// Hot Sheet digests and other sources (Zillow etc) are ignored. Idempotent by
+// Message-ID; gated by fub_lead_email_enabled (ships OFF).
+export function parseFubLeadEmail(subject, text) {
+  const subj = String(subject || '')
+  const body = String(text || '')
+  const isFacebook = /from facebook/i.test(subj) || /named [^\n]{2,60} from facebook|alert for [^\n]{2,60} from facebook/i.test(body)
+  const isNew = /^new lead from/i.test(subj.trim())
+  const isAlert = /lead alert/i.test(subj)
+  if (!isFacebook || (!isNew && !isAlert)) return null
+  // subject: "New Lead from Facebook - Rich Gholston" / "Lead Alert from Facebook - Steven Franklin - $499,000"
+  const parts = subj.split(' - ').map(s => s.trim())
+  let name = parts[1] || ''
+  if (/^\$[\d,]+/.test(name)) name = parts[2] || ''
+  const nm = name.split(/\s+/)
+  const line = (re) => { const m = body.match(re); return m ? String(m[1]).trim() : '' }
+  const phone = line(/user provided phone number:\s*([+\d()\-. ]{7,})/i) || line(/(\(\d{3}\)\s*\d{3}-\d{4})/)
+  const email = line(/([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/) || null
+  const timeline = (line(/time ?frame to (?:buy|sell|move)\??:?\s*([\w\-+ ]{2,30})/i) || '').replace(/_/g, ' ').trim()
+  const lender = line(/working with a lender\??:?\s*(yes|no)/i)
+  const listing = line(/^form:\s*(.+)$/im) || line(/^ad(?: campaign)?:\s*(.+)$/im) || ''
+  return {
+    kind: isNew ? 'new' : 'alert',
+    first: nm[0] || '', last: nm.slice(1).join(' ') || '',
+    phone, email, listing: String(listing).slice(0, 80),
+    timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(),
+  }
+}
+
+export async function handleFubLeadEmail(parsedMail) {
+  if (db.getSetting('fub_lead_email_enabled', '0') !== '1') return { skipped: 'disabled' }
+  const lead = parseFubLeadEmail(parsedMail.subject, String(parsedMail.text || String(parsedMail.html || '').replace(/<[^>]+>/g, ' ')))
+  if (!lead) return { skipped: 'not a Facebook lead email' }
+  const msgId = String(parsedMail.messageId || '').slice(0, 120)
+  if (msgId && db.get('SELECT id FROM activity_log WHERE details LIKE ?', ['%[fub_email:' + msgId + ']%'])) return { skipped: 'already processed' }
+  const r = ingestFbLead({ ...lead, marker: msgId ? `[fub_email:${msgId}]` : '' })
+  return { processed: lead.kind, ...r }
+}
+
 // Poll the stream. dryRun: report what WOULD be ingested, write nothing, move no cursor.
 export async function pollFubAdLeads({ dryRun = false, sinceIso = null, limit = 100, raw = false } = {}) {
   if (!fubConfigured()) return { skipped: 'FUB not configured' }

@@ -949,17 +949,20 @@ async function start() {
     try { const m = await import('./fub-leads.js'); res.json(await m.pollFubAdLeads({ dryRun: true, raw: String(req.query.raw || '') === '1' })) }
     catch (e) { res.status(500).json({ error: e.message }) }
   })
+  // Enable the PRIMARY trigger: FUB lead-notification EMAILS to Matt's inbox
+  // (leads@followupboss.com, Facebook ones only). The events-API watcher stays a
+  // separate, off-by-default backup (fub_lead_watch_enabled).
   app.post('/api/fub/ad-leads/enable', async (req, res) => {
     const on = req.body?.enabled !== false
-    db.setSetting('fub_lead_watch_enabled', on ? '1' : '0')
-    if (on && !db.getSetting('fub_events_cursor', '')) db.setSetting('fub_events_cursor', new Date().toISOString())
-    res.json({ enabled: on, cursor: db.getSetting('fub_events_cursor', '') })
+    db.setSetting('fub_lead_email_enabled', on ? '1' : '0')
+    res.json({ email_trigger_enabled: on })
   })
   app.get('/api/fub/ad-leads/status', (_req, res) => {
     res.json({
-      enabled: db.getSetting('fub_lead_watch_enabled', '0') === '1',
+      email_trigger_enabled: db.getSetting('fub_lead_email_enabled', '0') === '1',
+      events_watcher_enabled: db.getSetting('fub_lead_watch_enabled', '0') === '1',
       cursor: db.getSetting('fub_events_cursor', '') || null,
-      ingested_total: db.get("SELECT COUNT(*) n FROM activity_log WHERE details LIKE '%[fub_event:%'")?.n || 0,
+      ingested_total: db.get("SELECT COUNT(*) n FROM activity_log WHERE details LIKE '%[fub_e%'")?.n || 0,
     })
   })
 

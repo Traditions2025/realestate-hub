@@ -172,6 +172,14 @@ async function pollOne(m) {
           maxUid = Math.max(maxUid, msg.uid)
           let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
           const fromEmail = (parsed.from?.value?.[0]?.address || '').toLowerCase()
+          // FUB lead-notification emails ARE the Facebook-ad lead trigger (John,
+          // 2026-09-17): "New Lead from Facebook" → pull the lead into the Hub;
+          // "Lead Alert from Facebook" (existing person) → notification only.
+          // Never stored as a client communication; other sources left alone.
+          if (fromEmail === 'leads@followupboss.com') {
+            try { const { handleFubLeadEmail } = await import('./fub-leads.js'); await handleFubLeadEmail(parsed) } catch (e) { console.error('[fub-lead-email]', e.message) }
+            continue
+          }
           const c = matchClientByEmail(fromEmail)
           if (!c) continue
           const extId = 'gmail_' + (parsed.messageId || `${m.user}_${msg.uid}`)

@@ -41,21 +41,20 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
     logActivity('created', 'client', cid, noteLine)
   }
   try { import('./routes/inbox.js').then(m => m.claimUnknownCommsForClient(cid)).catch(() => {}) } catch {}
-  // HOT-LEAD RULE: an ad registration is fresh intent no matter how old the record
-  // is. If the lead passes the full eligibility evaluator (all the usual exclusions
-  // and deferrals apply), enroll NOW for the ~5-minute first text — never park an ad
-  // registrant in the capped reactivation queue. Steven Franklin case, 2026-09-17.
-  try {
-    import('./ai-enrollment.js').then(m => {
-      if ((db.getSetting('ai_auto_enroll_mode', 'off') || 'off') === 'off') return
-      const ev = m.evaluateAiEnrollmentEligibility(cid)
-      m.logEnrollmentDecision(ev, { actor: 'fb_ad_intake' })
-      // Force the fresh route: the first text is Claude-composed from the profile
-      // (which now carries the ad + listing + timeline note), so it speaks to what
-      // they just asked about — not the generic cold-revive opener.
-      if (ev.decision === 'eligible') m.enrollLead({ ...ev, lane: 'fresh' }, { actor: 'fb_ad_intake', firstAtIso: m.nextAllowedIso(new Date(Date.now() + 5 * 60000)) })
-    }).catch(() => {})
-  } catch {}
+  // NEW leads only (John, 2026-09-17): a brand-new ad registrant gets the ~5-minute
+  // AI first text via the fresh route (Claude-composed from the profile note, which
+  // carries the ad + listing + timeline). An EXISTING lead who re-registers gets the
+  // tag + note + notification ONLY — no automatic enrollment; the team decides.
+  if (!existing) {
+    try {
+      import('./ai-enrollment.js').then(m => {
+        if ((db.getSetting('ai_auto_enroll_mode', 'off') || 'off') === 'off') return
+        const ev = m.evaluateAiEnrollmentEligibility(cid)
+        m.logEnrollmentDecision(ev, { actor: 'fb_ad_intake' })
+        if (ev.decision === 'eligible') m.enrollLead({ ...ev, lane: 'fresh' }, { actor: 'fb_ad_intake', firstAtIso: m.nextAllowedIso(new Date(Date.now() + 5 * 60000)) })
+      }).catch(() => {})
+    } catch {}
+  }
   try {
     import('./notifications.js').then(m => m.notify({
       type: 'fb_lead', title: `Facebook ad lead: ${(first + ' ' + last).trim() || phoneFmt || cleanEmail || 'unknown'}${existing ? ' (existing lead!)' : ''}`,
