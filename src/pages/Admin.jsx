@@ -105,7 +105,7 @@ function UsersAdmin() {
               <button className="btn btn-sm" onClick={() => setPwModal(null)}>Cancel</button>
               <button className="btn btn-primary btn-sm" onClick={savePw} disabled={pwBusy}>{pwBusy ? '…' : 'Set password'}</button>
             </div>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>Setting a password signs this user out of all devices.</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Setting a password signs this user out of all devices.</p>
           </div>
         </div>
       )}
@@ -121,7 +121,7 @@ function UsersAdmin() {
           <label style={{ fontSize: 12 }}>Password (optional)<PasswordField value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="min 8 chars, or leave blank to invite" autoComplete="new-password" inputStyle={fld} /></label>
           <button className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : '+ Add user'}</button>
         </form>
-        <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Leave the password blank to create an “invited” account, then set a password later. Passwords are stored hashed (scrypt) — never in plain text.</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Leave the password blank to create an “invited” account, then set a password later. Passwords are stored hashed (scrypt) — never in plain text.</p>
       </div>
 
       {/* User list */}
@@ -129,7 +129,7 @@ function UsersAdmin() {
         <h4>Users ({users.length})</h4>
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-            <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+            <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 12, textTransform: 'uppercase', letterSpacing: '.04em' }}>
               <th style={{ padding: '6px 8px' }}>Name</th><th style={{ padding: '6px 8px' }}>Email</th><th style={{ padding: '6px 8px' }}>Role</th><th style={{ padding: '6px 8px' }}>Status</th><th style={{ padding: '6px 8px' }}>Last login</th><th style={{ padding: '6px 8px' }}>Actions</th>
             </tr></thead>
             <tbody>
@@ -138,7 +138,7 @@ function UsersAdmin() {
                   <td style={{ padding: '7px 8px', fontWeight: 600 }}>
                     {editing?.id === u.id
                       ? <input value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} style={{ ...fld, padding: '4px 6px' }} />
-                      : <>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 11 }}>🔐</span> : null}</>}
+                      : <>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 12 }}>🔐</span> : null}</>}
                   </td>
                   <td style={{ padding: '7px 8px', color: 'var(--text-secondary)' }}>
                     {editing?.id === u.id
@@ -151,7 +151,7 @@ function UsersAdmin() {
                     </select>
                   </td>
                   <td style={{ padding: '7px 8px' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: u.status === 'active' ? 'rgba(16,185,129,.12)' : u.status === 'invited' ? 'rgba(245,158,11,.14)' : 'rgba(239,68,68,.12)', color: u.status === 'active' ? '#10b981' : u.status === 'invited' ? '#b45309' : '#ef4444' }}>{u.status}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: u.status === 'active' ? 'rgba(16,185,129,.12)' : u.status === 'invited' ? 'rgba(245,158,11,.14)' : 'rgba(239,68,68,.12)', color: u.status === 'active' ? '#10b981' : u.status === 'invited' ? '#b45309' : '#ef4444' }}>{u.status}</span>
                   </td>
                   <td style={{ padding: '7px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
                   <td style={{ padding: '7px 8px', whiteSpace: 'nowrap' }}>
@@ -232,7 +232,7 @@ function TeamPanel() {
           <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
             <span style={{ fontWeight: 600 }}>{a.name}</span>
             <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{a.phone || '—'}</span>
-            {a.title && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· {a.title}</span>}
+            {a.title && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {a.title}</span>}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => remove(a.id)}>Remove</button>
           </div>
         ))}
@@ -275,8 +275,8 @@ function EmailPanel() {
         {boxes.map(b => (
           <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
             <span style={{ fontWeight: 600 }}>{b.user}</span>
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: b.connected ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: b.connected ? '#10b981' : '#ef4444' }}>{b.connected ? 'connected' : 'not connected'}</span>
-            {b.last_error && <span style={{ fontSize: 11, color: '#b45309' }}>{b.last_error}</span>}
+            <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: b.connected ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: b.connected ? '#10b981' : '#ef4444' }}>{b.connected ? 'connected' : 'not connected'}</span>
+            {b.last_error && <span style={{ fontSize: 12, color: '#b45309' }}>{b.last_error}</span>}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => test(b.id)}>Test</button>
             <button className="btn btn-sm" onClick={() => remove(b.id)}>Disconnect</button>
           </div>
@@ -322,7 +322,7 @@ function RoutingPanel() {
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <h4 style={{ margin: 0 }}>Automatic lead routing</h4>
-          <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: enabled ? 'rgba(16,185,129,.12)' : 'rgba(107,114,128,.15)', color: enabled ? '#10b981' : 'var(--text-muted)' }}>{enabled ? 'ON' : 'OFF'}</span>
+          <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: enabled ? 'rgba(16,185,129,.12)' : 'rgba(107,114,128,.15)', color: enabled ? '#10b981' : 'var(--text-muted)' }}>{enabled ? 'ON' : 'OFF'}</span>
           <button className={`btn btn-sm ${enabled ? '' : 'btn-primary'}`} style={{ marginLeft: 'auto' }} onClick={toggle}>{enabled ? 'Turn off' : 'Turn on'}</button>
         </div>
         <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>
@@ -343,10 +343,10 @@ function RoutingPanel() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {rules.map(r => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', opacity: r.enabled ? 1 : 0.55 }}>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', width: 34 }}>#{r.priority}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', width: 34 }}>#{r.priority}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
                   <div style={{ fontWeight: 600, fontSize: 13 }}>{r.name}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{METHOD_LABEL[r.method] || r.method} → {(r.targets || []).map(t => t.agent + (r.method === 'weighted' ? ` (${t.weight || 1})` : '')).join(', ') || '(no agents)'}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{METHOD_LABEL[r.method] || r.method} → {(r.targets || []).map(t => t.agent + (r.method === 'weighted' ? ` (${t.weight || 1})` : '')).join(', ') || '(no agents)'}</div>
                 </div>
                 <button className="btn btn-sm" onClick={() => toggleRule(r)}>{r.enabled ? 'Disable' : 'Enable'}</button>
                 <button className="btn btn-sm" onClick={() => setEditing(r)}>Edit</button>
@@ -423,7 +423,7 @@ function RuleEditor({ rule, agents, onClose, onSaved }) {
           <label style={{ fontSize: 12 }}>Priority<input type="number" value={f.priority} onChange={e => setF(s => ({ ...s, priority: e.target.value }))} style={inp} /></label>
           <label style={{ fontSize: 12 }}>Method<select value={f.method} onChange={e => setF(s => ({ ...s, method: e.target.value }))} style={inp}>{Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         </div>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 6px' }}>Conditions (leave blank = matches anything)</div>
+        <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 6px' }}>Conditions (leave blank = matches anything)</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[['sources', 'Sources'], ['cities', 'Cities'], ['zips', 'ZIP codes'], ['types', 'Types (buyer/seller/both)'], ['statuses', 'Statuses'], ['tags_any', 'Tags (any of)']].map(([k, label]) => (
             <label key={k} style={{ fontSize: 12 }}>{label}<input value={csv(f.conditions[k])} onChange={e => setC(k, fromCsv(e.target.value))} placeholder="comma-separated" style={inp} /></label>
@@ -431,7 +431,7 @@ function RuleEditor({ rule, agents, onClose, onSaved }) {
           <label style={{ fontSize: 12 }}>Min price<input type="number" value={f.conditions.price_min || ''} onChange={e => setC('price_min', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
           <label style={{ fontSize: 12 }}>Max price<input type="number" value={f.conditions.price_max || ''} onChange={e => setC('price_max', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
         </div>
-        <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '12px 0 6px' }}>Assign to</div>
+        <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '12px 0 6px' }}>Assign to</div>
         {f.targets.map((t, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
             <select value={t.agent} onChange={e => setF(s => { const ts = [...s.targets]; ts[i] = { ...ts[i], agent: e.target.value }; return { ...s, targets: ts } })} style={{ ...inp, flex: 1 }}>
@@ -491,7 +491,7 @@ function HealthPanel() {
   }
   if (err) return <div className="detail-section"><h4>System Health</h4><div style={{ color: '#ef4444', fontSize: 13 }}>{err}</div></div>
   const b = health?.backup
-  const badge = (ok, okText, badText) => <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
+  const badge = (ok, okText, badText) => <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
   return (
     <div>
       {/* Integrations + queues (P2-6) */}
@@ -502,7 +502,7 @@ function HealthPanel() {
             {Object.entries(intg.integrations).map(([k, v]) => (
               <div key={k} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', minWidth: 150 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{badge(v.ok, 'OK', 'Off')}<span style={{ fontWeight: 600, fontSize: 13, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</span></div>
-                <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 3 }}>{v.detail}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{v.detail}</div>
               </div>
             ))}
           </div>
@@ -511,7 +511,7 @@ function HealthPanel() {
             {Object.entries(intg.queues).map(([k, v]) => (
               <div key={k} style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 20, fontWeight: 800, color: v > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{v}</div>
-                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
               </div>
             ))}
           </div>
@@ -535,14 +535,14 @@ function HealthPanel() {
         <h4>Database</h4>
         {!dbh ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div> : (
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Integrity</div>{badge(dbh.integrity_ok, `✓ ${dbh.quick_check}`, `⚠ ${dbh.quick_check || 'unknown'}`)}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Size</div>{dbh.size_mb} MB</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Persistent</div>{badge(dbh.is_persistent, 'yes (disk)', 'no (ephemeral)')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Journal</div>{dbh.journal_mode || '—'}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tables</div>{dbh.tables ?? '—'}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Migrations</div>{dbh.migrations ?? '—'}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clients</div>{dbh.clients?.toLocaleString?.() ?? '—'}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sync errors (24h)</div>{badge(!dbh.recent_sync_errors, '0', String(dbh.recent_sync_errors))}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Integrity</div>{badge(dbh.integrity_ok, `✓ ${dbh.quick_check}`, `⚠ ${dbh.quick_check || 'unknown'}`)}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Size</div>{dbh.size_mb} MB</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Persistent</div>{badge(dbh.is_persistent, 'yes (disk)', 'no (ephemeral)')}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Journal</div>{dbh.journal_mode || '—'}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tables</div>{dbh.tables ?? '—'}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Migrations</div>{dbh.migrations ?? '—'}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clients</div>{dbh.clients?.toLocaleString?.() ?? '—'}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sync errors (24h)</div>{badge(!dbh.recent_sync_errors, '0', String(dbh.recent_sync_errors))}</div>
           </div>
         )}
       </div>
@@ -552,14 +552,14 @@ function HealthPanel() {
         <h4>Backups</h4>
         {!b ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div> : (
           <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13 }}>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(b.ok, '✓ Healthy', '⚠ Attention')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Newest backup</div>{b.newest ? `${b.newest.name.replace('realestate-hub.db.', '')} · ${b.newest.sizeKb} KB` : '— none —'}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Age</div>{b.age_hours != null ? `${b.age_hours}h ` : '—'}{badge(!b.stale, 'fresh', 'stale')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Verified usable</div>{badge(b.verified, `✓ integrity ok${b.verify?.clients != null ? ` · ${b.verify.clients} clients` : ''}`, '⚠ not verified')}</div>
-            <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total on disk</div>{b.count}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(b.ok, '✓ Healthy', '⚠ Attention')}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Newest backup</div>{b.newest ? `${b.newest.name.replace('realestate-hub.db.', '')} · ${b.newest.sizeKb} KB` : '— none —'}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Age</div>{b.age_hours != null ? `${b.age_hours}h ` : '—'}{badge(!b.stale, 'fresh', 'stale')}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Verified usable</div>{badge(b.verified, `✓ integrity ok${b.verify?.clients != null ? ` · ${b.verify.clients} clients` : ''}`, '⚠ not verified')}</div>
+            <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total on disk</div>{b.count}</div>
           </div>
         )}
-        <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>Each backup is opened and integrity-checked, so “verified usable” means a real, restorable database — not just that the backup job ran.</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Each backup is opened and integrity-checked, so “verified usable” means a real, restorable database — not just that the backup job ran.</p>
       </div>
 
       {/* Off-site backup: Google Drive */}
@@ -593,9 +593,9 @@ function HealthPanel() {
           )
           return (
             <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 13, alignItems: 'center' }}>
-              <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(true, '✓ Connected', '')}</div>
-              <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Folder</div>{g.folder}</div>
-              <div><div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Last off-site backup</div>{g.last_backup_at ? `${new Date(g.last_backup_at).toLocaleString()}${g.last_backup_kb ? ` · ${g.last_backup_kb} KB` : ''}` : '— none yet —'}</div>
+              <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(true, '✓ Connected', '')}</div>
+              <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Folder</div>{g.folder}</div>
+              <div><div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Last off-site backup</div>{g.last_backup_at ? `${new Date(g.last_backup_at).toLocaleString()}${g.last_backup_kb ? ` · ${g.last_backup_kb} KB` : ''}` : '— none yet —'}</div>
               <button className="btn btn-sm" onClick={gdriveBackupNow} disabled={gBusy}>{gBusy ? 'Backing up…' : '⤒ Back up now'}</button>
               <a className="btn btn-sm" href="/api/gdrive/connect" title="Reconnect a different Google account">Reconnect</a>
             </div>
@@ -617,12 +617,12 @@ function HealthPanel() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {failures.map(f => (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,.12)', color: '#ef4444' }}>{f.kind}</span>
+                <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,.12)', color: '#ef4444' }}>{f.kind}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600 }}>{f.summary || '(no summary)'}{f.retry_count > 0 && <span style={{ fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}> · recurred {f.retry_count}×</span>}</div>
-                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.last_error}</div>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{f.summary || '(no summary)'}{f.retry_count > 0 && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}> · recurred {f.retry_count}×</span>}</div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.last_error}</div>
                 </div>
-                <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{f.updated_at ? new Date(f.updated_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
+                <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{f.updated_at ? new Date(f.updated_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
                 <button className="btn btn-sm" onClick={() => resolve(f.id)}>Resolve</button>
               </div>
             ))}
@@ -645,7 +645,7 @@ function AuditPanel() {
       <p style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Logins, user/role changes, password resets, and permission checks. Newest first.</p>
       <div style={{ overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
-          <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase' }}>
+          <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 12, textTransform: 'uppercase' }}>
             <th style={{ padding: '5px 8px' }}>When</th><th style={{ padding: '5px 8px' }}>Action</th><th style={{ padding: '5px 8px' }}>Actor</th><th style={{ padding: '5px 8px' }}>Target</th><th style={{ padding: '5px 8px' }}>IP</th>
           </tr></thead>
           <tbody>
@@ -655,7 +655,7 @@ function AuditPanel() {
                 <td style={{ padding: '5px 8px', fontFamily: 'monospace' }}>{r.action}</td>
                 <td style={{ padding: '5px 8px' }}>{r.actor || '—'}</td>
                 <td style={{ padding: '5px 8px', color: 'var(--text-muted)' }}>{r.entity_type ? `${r.entity_type}${r.entity_id ? ' #' + r.entity_id : ''}` : '—'}</td>
-                <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 11 }}>{r.ip_address || ''}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 12 }}>{r.ip_address || ''}</td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td colSpan={5} style={{ padding: 12, color: 'var(--text-muted)' }}>No audit entries yet.</td></tr>}

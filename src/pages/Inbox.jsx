@@ -1,4 +1,4 @@
-import { notify, confirmDialog } from '../notify'
+import { notify, confirmDialog, LoadErrorBanner } from '../notify'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
@@ -16,7 +16,7 @@ const CHANNELS = [
 ]
 const chMeta = (k) => CHANNELS.find(c => c.key === k) || CHANNELS[0]
 const INTENT_COLORS = { 'Needs Response': '#2563eb', 'Question': '#0ea5e9', 'Scheduling Request': '#8b5cf6', 'Property Interest': '#10b981', 'High Intent': '#ef4444', 'Information Request': '#f59e0b', 'No Response Needed': '#64748b' }
-const intentBadgeStyle = (intent) => ({ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
+const intentBadgeStyle = (intent) => ({ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
 const FOLDERS = [{ key: 'inbox', label: 'Inbox' }, { key: 'sent', label: 'Sent' }, { key: 'closed', label: 'Closed' }]
 const DISPOSITIONS = ['Connected', 'Left voicemail', 'No answer', 'Busy', 'Wrong number', 'Appointment set', 'Interested', 'Not interested', 'Call back later', 'Do not call']
 
@@ -57,7 +57,7 @@ function LinkPreview({ url }) {
     <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 6, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', textDecoration: 'none', maxWidth: 300, background: 'var(--bg-primary)' }}>
       {d.image && <img src={d.image} alt="" onError={e => { e.target.style.display = 'none' }} style={{ width: '100%', maxHeight: 150, objectFit: 'cover', display: 'block' }} />}
       <div style={{ padding: '8px 10px' }}>
-        <div style={{ fontSize: 10.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.site}</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.site}</div>
         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.25, marginTop: 2 }}>{d.title}</div>
         {d.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.description}</div>}
       </div>
@@ -84,7 +84,7 @@ function CallDispo({ m, onSaved }) {
         {DISPOSITIONS.map(d => <option key={d} value={d}>{d}</option>)}
       </select>
       <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} onBlur={() => dirty && save({ notes })} rows={2} placeholder="Call notes…" style={{ fontSize: 12, padding: '5px 7px', resize: 'vertical', width: '100%', maxWidth: 320 }} />
-      {saving && <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>saving…</span>}
+      {saving && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>saving…</span>}
     </div>
   )
 }
@@ -114,6 +114,7 @@ export default function Inbox() {
   useEffect(() => { try { localStorage.setItem('inbox_assignFilter', assignFilter) } catch {} }, [assignFilter])
   const [q, setQ] = useState('')
   const [convos, setConvos] = useState(null)
+  const [loadError, setLoadError] = useState(false)
   const [totalUnread, setTotalUnread] = useState(0)
   const [counts, setCounts] = useState({ by_channel: {} })
   const [sel, setSel] = useState(null)
@@ -168,7 +169,7 @@ export default function Inbox() {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
     if (assignFilter === 'mine' && myAgent) p.set('assigned', myAgent)
     else if (assignFilter === 'unassigned') p.set('assigned', 'unassigned')
-    authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { if (seq !== loadSeqRef.current) return; setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0) }).catch(() => { if (seq === loadSeqRef.current) setConvos([]) })
+    authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { if (seq !== loadSeqRef.current) return; setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0); setLoadError(false) }).catch(() => { if (seq === loadSeqRef.current) { setConvos(c => c === null ? [] : c); setLoadError(true) } })
     authFetch('/api/inbox/counts').then(r => r.json()).then(setCounts).catch(() => {})
   }, [folder, unreadOnly, channels, q, assignFilter, myAgent])
   useEffect(() => { load() }, [load])
@@ -375,10 +376,11 @@ export default function Inbox() {
         <button className="btn btn-primary" onClick={() => setCompose(true)}>✎ New Message</button>
       </div>
 
-      <div className={'inbox-panes' + (hasSelection ? ' has-selection' : '')} style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100vh - 168px)', minHeight: 460 }}>
+      {loadError && <LoadErrorBanner what="the inbox" onRetry={load} />}
+      <div className={'inbox-panes' + (hasSelection ? ' has-selection' : '')} style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100dvh - 168px)', minHeight: 460 }}>
         {/* left: folders + filters */}
         <aside className="inbox-folders" style={{ width: 210, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 14, flexShrink: 0 }}>
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
+          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
           {FOLDERS.map(f => (
             <button key={f.key} onClick={() => { setFolder(f.key); setSel(null) }} style={folderBtn(folder === f.key)}>
               <span>{f.label}</span>
@@ -386,7 +388,7 @@ export default function Inbox() {
             </button>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Channels</div>
+          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Channels</div>
           {CHANNELS.map(c => (
             <label key={c.key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 13, fontWeight: 400 }}>
               <input type="checkbox" checked={channels.includes(c.key)} onChange={() => toggleChannel(c.key)} />
@@ -395,11 +397,11 @@ export default function Inbox() {
             </label>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
-          <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Assigned</div>
+          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Assigned</div>
           {[['all', 'All'], ['mine', 'Mine'], ['unassigned', 'Unassigned']].map(([k, l]) => (
             <button key={k} onClick={() => setAssignFilter(k)} style={folderBtn(assignFilter === k)}>{l}</button>
           ))}
-          <div style={{ marginTop: 10, fontSize: 11, color: 'var(--text-muted)' }}>I am</div>
+          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>I am</div>
           <select value={myAgent} onChange={e => chooseAgent(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '6px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
             <option value="">(choose)</option>
             {agents.map(a => <option key={a} value={a}>{a}</option>)}
@@ -460,11 +462,11 @@ export default function Inbox() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: c.unread_count ? 700 : 600, fontSize: 14 }}>{c.contact_name}</span>
-                        {c.unknown && <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>}
-                        {c.assigned_to && <span title={`Assigned to ${c.assigned_to}`} style={{ fontSize: 10, fontWeight: 700, color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '1px 6px', borderRadius: 4 }}>{c.assigned_to}</span>}
-                        {c.msg_count > 1 && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
+                        {c.unknown && <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>}
+                        {c.assigned_to && <span title={`Assigned to ${c.assigned_to}`} style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '1px 6px', borderRadius: 4 }}>{c.assigned_to}</span>}
+                        {c.msg_count > 1 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
                         {c.ai_intent && c.ai_intent !== 'No Response Needed' && <span style={intentBadgeStyle(c.ai_intent)}>{c.ai_intent}</span>}
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
                         <span title={m.label} style={{ color: m.color, fontSize: 12, fontVariantEmoji: 'text' }}>{m.icon}</span>
@@ -514,7 +516,7 @@ export default function Inbox() {
                   else if (c.mls_status && !/sold/i.test(c.mls_status)) { label = c.mls_status; color = /cancel/i.test(c.mls_status) ? '#d97706' : '#dc2626' }
                   else if (c.mls_status) { label = c.mls_status; color = '#059669' }
                   if (!label) return null
-                  return <span title="Listing context from the master files" style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
+                  return <span title="Listing context from the master files" style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
                 })()}
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
                   style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
@@ -545,7 +547,7 @@ export default function Inbox() {
                       <div key={m.id} onClick={toggle} title="Click to expand" style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', background: 'var(--bg-secondary)', display: 'flex', gap: 8, alignItems: 'baseline' }}>
                         <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{out ? 'You' : (m.contact_name || 'Them')}</span>
                         <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{m.subject ? m.subject + ' — ' : ''}{m.preview || ''}</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(m.occurred_at)}</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(m.occurred_at)}</span>
                       </div>
                     )
                   }
@@ -583,7 +585,7 @@ export default function Inbox() {
                   const link0 = isText ? firstUrl(textBody) : null
                   return (
                     <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                         <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : m.contact_name} · {fmtDate(m.occurred_at)}
                         {m.sent_by_type === 'ai' && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 5px', borderRadius: 3, letterSpacing: '.03em' }}>AI</span>}
                         {m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
@@ -601,15 +603,15 @@ export default function Inbox() {
                         {isCall && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                       </div>
                       {link0 && <LinkPreview url={link0} />}
-                      {dstat && <div style={{ fontSize: 10.5, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+                      {dstat && <div style={{ fontSize: 12, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
                       {/* Tracked email engagement chips (SendGrid events) — subtle, opens are a soft signal */}
                       {m.channel === 'email' && out && m.eng && (
                         <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', marginTop: 3, flexWrap: 'wrap' }}>
                           {['bounce', 'dropped', 'spamreport'].includes(m.eng.status)
-                            ? <span style={{ fontSize: 10, fontWeight: 700, color: '#ef4444' }}>⚠ {m.eng.status}</span>
-                            : (m.eng.delivered_at || m.eng.status === 'delivered') && <span style={{ fontSize: 10, fontWeight: 700, color: '#059669' }}>Delivered</span>}
-                          {m.eng.opens > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#2563eb' }}>Opened {m.eng.opens}×</span>}
-                          {m.eng.clicks > 0 && <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed' }}>Clicked {m.eng.clicks}×</span>}
+                            ? <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⚠ {m.eng.status}</span>
+                            : (m.eng.delivered_at || m.eng.status === 'delivered') && <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>Delivered</span>}
+                          {m.eng.opens > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb' }}>Opened {m.eng.opens}×</span>}
+                          {m.eng.clicks > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>Clicked {m.eng.clicks}×</span>}
                         </div>
                       )}
                       {(isCall || isVoicemail) && <CallDispo m={m} onSaved={() => openThread(sel)} />}
@@ -638,16 +640,16 @@ export default function Inbox() {
                   ) : (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 {replyChannel === 'text' ? 'Suggested Text' : 'Suggested Response'}</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 {replyChannel === 'text' ? 'Suggested Text' : 'Suggested Response'}</span>
                         {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
-                        {ai && ai.stale && <span style={{ fontSize: 11, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
+                        {ai && ai.stale && <span style={{ fontSize: 12, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
                         <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={!!aiBusy} onClick={() => generateSuggestion(sel, true)}>{aiBusy === 'suggest' ? '…' : '↻ Regenerate'}</button>
                         <button className="btn btn-sm btn-secondary" onClick={() => setAiOpen(false)} title="Hide the suggestion">▾ Hide</button>
                       </div>
                       {/* Follow-up angle picker: choose WHAT the suggestion anchors on instead of letting
                           the AI guess. Every angle stays natural and zero-pressure by doctrine. */}
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+                        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
                         {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
                           <button key={k || 'auto'} className="btn btn-sm" disabled={!!aiBusy}
                             style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
@@ -794,7 +796,7 @@ function Composer({ onClose, onSent }) {
                 {results.map(c => (
                   <div key={c.id} onClick={() => add(c)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                     <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{channel === 'email' ? (c.email || 'no email') : (c.phone || 'no phone')}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{channel === 'email' ? (c.email || 'no email') : (c.phone || 'no phone')}</div>
                   </div>
                 ))}
               </div>
@@ -862,7 +864,7 @@ function GroupPane({ sel, onClose }) {
           const out = m.direction === 'outgoing'
           return (
             <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : senderLine(m)} · {fmtDate(m.occurred_at)}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : senderLine(m)} · {fmtDate(m.occurred_at)}</div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
                 <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
               </div>
@@ -908,7 +910,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
     <>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ fontWeight: 700 }}>{fmtPhoneDisp(sel.phone)}</div>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>
+        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>
         <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={onClose}>Close</button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -923,7 +925,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
           const link0 = m.channel === 'text' ? firstUrl(textBody) : null
           return (
             <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                 <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : (m.contact_name || 'Them')} · {fmtDate(m.occurred_at)}{m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
               </div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
@@ -937,7 +939,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
                 {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
               </div>
               {link0 && <LinkPreview url={link0} />}
-              {dstat && <div style={{ fontSize: 10.5, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+              {dstat && <div style={{ fontSize: 12, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
             </div>
           )
         })}
@@ -970,7 +972,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
                 {results.map(c => (
                   <div key={c.id} onClick={() => linkTo(c.id)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                     <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone || c.email || ''}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.phone || c.email || ''}</div>
                   </div>
                 ))}
               </div>
@@ -1010,5 +1012,5 @@ function autoSizeFrame(e) {
 
 const folderBtn = (active) => ({ display: 'flex', alignItems: 'center', width: '100%', padding: '8px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13.5, marginBottom: 2, background: active ? 'var(--accent, #2563eb)' : 'transparent', color: active ? '#fff' : 'var(--text-primary)' })
 const toggleBtn = (active) => ({ padding: '6px 12px', border: 'none', cursor: 'pointer', fontSize: 12.5, background: active ? 'var(--accent, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
-const badge = { fontSize: 11, fontWeight: 700, background: '#2563eb', color: '#fff', borderRadius: 10, padding: '1px 7px', marginLeft: 'auto' }
+const badge = { fontSize: 12, fontWeight: 700, background: '#2563eb', color: '#fff', borderRadius: 10, padding: '1px 7px', marginLeft: 'auto' }
 const pad = { padding: 20, color: 'var(--text-muted)' }

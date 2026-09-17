@@ -117,12 +117,12 @@ export default function MindMap({ projectId, projectName, initial, onClose }) {
                 style={{ position: 'absolute', left: n.x, top: n.y, width: n.w || 190, background: n.color || '#fff', border: selectedId === n.id ? '2px solid #2563eb' : '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.25)', cursor: 'move', color: '#111827', userSelect: 'none' }}>
                 <div style={{ padding: '8px 10px' }}>
                   <div style={{ fontWeight: 600, fontSize: 13, wordBreak: 'break-word' }}>{n.title || 'Untitled'}</div>
-                  {n.notes && <div style={{ fontSize: 11, color: '#475569', marginTop: 4, whiteSpace: 'pre-wrap' }}>{n.notes}</div>}
+                  {n.notes && <div style={{ fontSize: 12, color: '#475569', marginTop: 4, whiteSpace: 'pre-wrap' }}>{n.notes}</div>}
                   {(n.due_date || n.assignee || n.link) && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                      {n.due_date && <span style={{ fontSize: 10, background: '#0f172a', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>📅 {n.due_date}</span>}
-                      {n.assignee && <span style={{ fontSize: 10, background: '#1d4ed8', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>👤 {n.assignee}</span>}
-                      {n.link && <a href={n.link} target="_blank" rel="noreferrer" onMouseDown={e => e.stopPropagation()} style={{ fontSize: 10, color: '#2563eb' }}>🔗 link</a>}
+                      {n.due_date && <span style={{ fontSize: 12, background: '#0f172a', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>📅 {n.due_date}</span>}
+                      {n.assignee && <span style={{ fontSize: 12, background: '#1d4ed8', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>👤 {n.assignee}</span>}
+                      {n.link && <a href={n.link} target="_blank" rel="noreferrer" onMouseDown={e => e.stopPropagation()} style={{ fontSize: 12, color: '#2563eb' }}>🔗 link</a>}
                     </div>
                   )}
                 </div>

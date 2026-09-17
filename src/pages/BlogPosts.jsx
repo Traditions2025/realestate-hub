@@ -134,7 +134,7 @@ export default function BlogPosts() {
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan="6" className="empty-state">No blog posts yet</td></tr>
+                <tr><td colSpan="6" className="empty-state">No blog posts pulled yet — they publish to Sierra and sync here automatically</td></tr>
               ) : items.map(item => (
                 <tr key={item.id}>
                   <td className="cell-primary" onClick={() => openEdit(item)} style={{ maxWidth: 420 }}>{item.title}</td>

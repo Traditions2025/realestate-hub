@@ -134,7 +134,8 @@ body {
 /* ---- Layout ---- */
 .app-layout {
   display: flex;
-  min-height: 100vh;
+  min-height: 100vh;      /* fallback */
+  min-height: 100dvh;     /* tracks the visible area as mobile browser chrome shows/hides */
 }
 
 /* ---- Sidebar ---- */
@@ -257,7 +258,7 @@ body {
   color: var(--text-primary);
 }
 .team-sub {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 .theme-toggle {
@@ -291,7 +292,7 @@ body {
      overflow-x:hidden / ellipsis containers actually clip instead. */
   min-width: 0;
   margin-left: var(--sidebar-width);
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   transition: margin-left 0.2s ease;
 }
 
@@ -581,14 +582,14 @@ body {
 .activity-content { display: flex; flex-direction: column; }
 .activity-action { font-size: 13px; font-weight: 500; color: var(--accent); text-transform: capitalize; }
 .activity-details { font-size: 13px; color: var(--text-secondary); }
-.activity-time { font-size: 11px; color: var(--text-muted); }
+.activity-time { font-size: 12px; color: var(--text-muted); }
 
 /* ---- Status Badge ---- */
 .status-badge {
   display: inline-block;
   padding: 2px 10px;
   border-radius: 99px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   text-transform: capitalize;
   border: 1px solid;
@@ -623,7 +624,7 @@ body {
 
 .data-table td {
   padding: 12px 16px;
-  font-size: 13px;
+  font-size: 14px;
   border-bottom: 1px solid var(--border);
   color: var(--text-secondary);
 }
@@ -639,7 +640,7 @@ body {
 }
 .cell-primary:hover { color: var(--accent) !important; }
 
-.cell-sub { font-size: 11px; color: var(--text-muted); }
+.cell-sub { font-size: 12px; color: var(--text-muted); }
 .type-inline { font-size: 12px; margin-left: 6px; }
 
 td.overdue { color: var(--danger) !important; font-weight: 600; }
@@ -697,7 +698,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 6px;
   border-radius: 4px;
   background: var(--bg-elevated);
@@ -710,7 +711,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 
 .pipeline-action .action-date {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .pipeline-action.urgent {
@@ -745,7 +746,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   background: var(--bg-elevated);
   padding: 2px 8px;
   border-radius: 99px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .pipeline-card {
@@ -765,10 +766,10 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   gap: 6px;
   margin-bottom: 6px;
 }
-.type-label { font-size: 11px; color: var(--text-muted); text-transform: capitalize; }
+.type-label { font-size: 12px; color: var(--text-muted); text-transform: capitalize; }
 
 .type-tag {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 600;
   padding: 2px 6px;
   border-radius: 3px;
@@ -793,7 +794,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 
 .pipeline-card-date {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-top: 6px;
 }
@@ -833,7 +834,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   background: var(--bg-elevated);
   padding: 2px 8px;
   border-radius: 99px;
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .kanban-add {
@@ -894,7 +895,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 
 .task-category {
-  font-size: 10px;
+  font-size: 12px;
   padding: 1px 6px;
   background: var(--bg-hover);
   border-radius: 4px;
@@ -979,7 +980,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 .columns-picker-header .btn-link:hover { text-decoration: underline; }
 .columns-picker-hint {
-  font-size: 11px; color: var(--text-muted); margin-bottom: 8px;
+  font-size: 12px; color: var(--text-muted); margin-bottom: 8px;
 }
 /* Two-column grid so the picker is a compact rectangle, not a tall strip. */
 .columns-picker-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 2px 12px; }
@@ -1052,7 +1053,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   flex: 1;
   padding: 6px 8px;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   font-family: inherit;
   border: 1px solid;
@@ -1139,7 +1140,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 
 .detail-action-desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   font-weight: 400 !important;
 }
@@ -1150,7 +1151,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 }
 
 .client-type-badge {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: 600;
@@ -1204,7 +1205,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   position: absolute;
   right: 0;
   top: -18px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
@@ -1221,7 +1222,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 
 .project-tasks { display: flex; gap: 8px; }
 .project-task-count {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   background: var(--bg-elevated);
   border-radius: 4px;
@@ -1279,7 +1280,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
 
 .note-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
 .note-tag {
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px 8px;
   background: rgba(255,255,255,0.08);
   border-radius: 4px;
@@ -1292,7 +1293,7 @@ td.overdue { color: var(--danger) !important; font-weight: 600; }
   align-items: center;
   margin-top: 12px;
 }
-.note-date { font-size: 11px; color: var(--text-muted); }
+.note-date { font-size: 12px; color: var(--text-muted); }
 
 /* ---- Color Picker ---- */
 .color-picker {
@@ -1648,7 +1649,7 @@ input[type="range"] {
   .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
   .stats-grid .stat-card { padding: 12px; }
   .stat-number { font-size: 20px; }
-  .stat-label { font-size: 10px; }
+  .stat-label { font-size: 12px; }
 
   .client-grid { grid-template-columns: 1fr; }
   .project-grid { grid-template-columns: 1fr; }
@@ -1694,17 +1695,17 @@ input[type="range"] {
   /* Cards take full width */
   .data-card { padding: 12px; }
   .data-card-title { font-size: 14px; word-break: break-word; }
-  .data-card-meta { font-size: 11px; }
+  .data-card-meta { font-size: 12px; }
   .data-card-body { font-size: 12px; }
 
   /* Sierra banner */
   .sierra-banner { font-size: 12px; padding: 8px 12px; }
 
   /* Lead score */
-  .lead-score { font-size: 11px; padding: 2px 6px; }
+  .lead-score { font-size: 12px; padding: 2px 6px; }
 
   /* Tab counts */
-  .tab-count { font-size: 11px; padding: 1px 6px; }
+  .tab-count { font-size: 12px; padding: 1px 6px; }
 
   /* Client tabs scroll horizontally */
   .client-tabs {
@@ -1725,14 +1726,14 @@ input[type="range"] {
 
   /* Client action buttons */
   .client-actions { flex-wrap: wrap; }
-  .action-btn { padding: 8px 6px; font-size: 11px; }
+  .action-btn { padding: 8px 6px; font-size: 12px; }
   .detail-actions-grid { grid-template-columns: 1fr; }
 
   /* Calendar */
   .calendar-layout { grid-template-columns: 1fr; }
   .day-detail { position: static; max-height: none; }
   .cal-cell { min-height: 60px; padding: 2px 3px; overflow: hidden; }
-  .cal-day { font-size: 11px; }
+  .cal-day { font-size: 12px; }
   .cal-post {
     font-size: 9px;
     padding: 1px 3px;
@@ -1782,7 +1783,7 @@ input[type="range"] {
   flex-wrap: wrap;
 }
 .type-tabs-label {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.6px;
@@ -1825,7 +1826,7 @@ input[type="range"] {
   color: #c4b5fd;
 }
 .type-tab .tab-count {
-  font-size: 10px;
+  font-size: 12px;
   background: rgba(255, 255, 255, 0.08);
   padding: 1px 6px;
   border-radius: 8px;
@@ -1845,7 +1846,7 @@ input[type="range"] {
 .deadline-status-select {
   margin-top: 6px;
   width: 100%;
-  font-size: 11px;
+  font-size: 12px;
   padding: 4px 6px;
   background: var(--bg-primary);
   color: var(--text-primary);
@@ -1862,7 +1863,7 @@ input[type="range"] {
   display: inline-block;
   padding: 2px 8px;
   border-radius: 10px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   white-space: nowrap;
   border: 1px solid transparent;
@@ -1965,7 +1966,7 @@ input[type="range"] {
   margin: 4px 0;
 }
 .bulk-actions-section-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -1994,7 +1995,7 @@ input[type="range"] {
 
 @media (max-width: 900px) {
   .client-tab { padding: 8px 10px; font-size: 12.5px; }
-  .client-tab .tab-count { font-size: 10px; }
+  .client-tab .tab-count { font-size: 12px; }
 }
 
 .client-tab:hover {
@@ -2040,7 +2041,7 @@ input[type="range"] {
 
 .sync-menu-header {
   padding: 12px 16px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 1px;
@@ -2075,7 +2076,7 @@ input[type="range"] {
 }
 
 .sync-menu-desc {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -2171,7 +2172,7 @@ input[type="range"] {
 }
 .account-menu-head { display: flex; gap: 10px; align-items: center; padding: 8px 10px 6px; }
 .account-menu-name { font-size: 13.5px; font-weight: 700; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.account-menu-sub { font-size: 11.5px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.account-menu-sub { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .account-menu-sep { height: 1px; background: var(--border); margin: 5px 4px; }
 .account-menu-item {
   display: block; width: 100%; text-align: left; border: none; background: none; cursor: pointer;
@@ -2232,7 +2233,7 @@ input[type="range"] {
 .cp-identity { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
 .cp-name { font-size: 22px; font-weight: 800; margin: 0; color: var(--text-primary); }
 .cp-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.cp-badge { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); text-transform: capitalize; white-space: nowrap; }
+.cp-badge { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); text-transform: capitalize; white-space: nowrap; }
 .cp-badge-muted { font-weight: 500; }
 .cp-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .cp-tabs { display: flex; gap: 2px; margin-top: 12px; overflow-x: auto; }
@@ -2251,13 +2252,13 @@ input[type="range"] {
 .cp-sec-body { margin-top: 10px; }
 .cp-two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 @media (max-width: 620px) { .cp-two { grid-template-columns: 1fr; } }
-.cp-sub { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 8px 0 4px; }
+.cp-sub { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 8px 0 4px; }
 .cp-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
 @media (max-width: 620px) { .cp-kv { grid-template-columns: 1fr; } }
 .cp-kv > div { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; padding: 2px 0; border-bottom: 1px dashed var(--border); }
 .cp-kv-k { color: var(--text-muted); }
 .cp-kv-v { font-weight: 600; text-align: right; }
-.cp-tagchip { display: inline-flex; align-items: center; font-size: 11.5px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
+.cp-tagchip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
 .cp-alerts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .cp-alert { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }
 /* Rearrangeable boxes */
@@ -2296,7 +2297,7 @@ input[type="range"] {
   border-bottom: 1px solid var(--border-subtle);
   font-size: 12px;
 }
-.client-list-row .cl-registered { color: var(--text-secondary); white-space: nowrap; font-size: 11px; }
+.client-list-row .cl-registered { color: var(--text-secondary); white-space: nowrap; font-size: 12px; }
 
 .client-list-row.selected { background: var(--accent-subtle); box-shadow: inset 3px 0 0 var(--accent); }
 .cl-check input[type="checkbox"] { cursor: pointer; }
@@ -2342,7 +2343,7 @@ input[type="range"] {
 }
 
 .filter-section h5 {
-  font-size: 11px;
+  font-size: 12px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-muted);
@@ -2373,7 +2374,7 @@ input[type="range"] {
 .filter-num {
   display: flex;
   flex-direction: column;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   gap: 3px;
   white-space: nowrap;
@@ -2508,13 +2509,13 @@ input[type="range"] {
 
 .ms-option-label { flex: 1; }
 .ms-option-count {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .ms-dropdown-more {
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   text-align: center;
   font-style: italic;
@@ -2588,12 +2589,12 @@ input[type="range"] {
 
 .email-history-date {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
 }
 
 .email-error {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--danger);
   margin-top: 2px;
 }
@@ -2602,7 +2603,7 @@ input[type="range"] {
 .lead-tag {
   display: inline-block;
   margin: 2px 3px 2px 0;
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px 7px;
   border-radius: 3px;
   background: rgba(139, 92, 246, 0.12);
@@ -2672,7 +2673,7 @@ input[type="range"] {
 }
 
 .ss-type {
-  font-size: 10px;
+  font-size: 12px;
   padding: 1px 6px;
   background: rgba(59, 130, 246, 0.12);
   color: #60a5fa;
@@ -2685,7 +2686,7 @@ input[type="range"] {
   color: #10b981;
   padding: 1px 6px;
   border-radius: 3px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .saved-listing {
@@ -2705,7 +2706,7 @@ input[type="range"] {
 .sl-meta {
   display: flex;
   gap: 10px;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-top: 2px;
 }
@@ -2733,7 +2734,7 @@ input[type="range"] {
 .la-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 4px;
 }
@@ -2755,7 +2756,7 @@ input[type="range"] {
 }
 
 .la-addr, .la-mls {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 6px;
   background: rgba(59, 130, 246, 0.12);
   color: #60a5fa;
@@ -2788,7 +2789,7 @@ input[type="range"] {
 .sierra-activity-meta {
   display: flex;
   justify-content: space-between;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 4px;
 }
@@ -2816,7 +2817,7 @@ input[type="range"] {
   border: 1px solid var(--border);
 }
 .lead-score .lead-grade {
-  font-size: 10px;
+  font-size: 12px;
   padding: 1px 4px;
   border-radius: 3px;
   background: rgba(0,0,0,0.25);
@@ -2835,7 +2836,7 @@ input[type="range"] {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  font-size: 10px;
+  font-size: 12px;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -2854,7 +2855,7 @@ input[type="range"] {
 .client-list-row .cl-source { color: var(--text-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .client-list-row .cl-actions { display: flex; gap: 4px; }
 .client-list-row .cl-actions .action-btn {
-  padding: 3px 8px; font-size: 10px; min-width: 24px;
+  padding: 3px 8px; font-size: 12px; min-width: 24px;
 }
 
 @media (max-width: 1024px) {
@@ -2978,7 +2979,7 @@ input[type="range"] {
 /* ---- Nav Sections ---- */
 .nav-section { margin-bottom: 8px; }
 .nav-section-label {
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   color: var(--text-muted);
   letter-spacing: 1.5px;
@@ -3060,7 +3061,7 @@ input[type="range"] {
   border-left: 3px solid var(--accent);
   border-radius: 0 4px 4px 0;
   background: var(--bg-elevated);
-  font-size: 11px;
+  font-size: 12px;
   cursor: pointer;
   overflow: hidden;
   white-space: nowrap;
@@ -3071,14 +3072,14 @@ input[type="range"] {
 .cal-post-platform {
   font-weight: 600;
   margin-right: 4px;
-  font-size: 10px;
+  font-size: 12px;
 }
 .cal-post-title { color: var(--text-secondary); }
 .cal-post-thumb { width: 100%; height: 34px; object-fit: cover; border-radius: 3px; margin-bottom: 2px; display: block; }
 .cal-post-pub { display: block; font-size: 9px; color: var(--text-muted); margin-top: 1px; }
 
 .cal-more {
-  font-size: 10px;
+  font-size: 12px;
   color: var(--text-muted);
   padding: 2px 6px;
 }
@@ -3091,7 +3092,7 @@ input[type="range"] {
   padding: 20px;
   position: sticky;
   top: 32px;
-  max-height: calc(100vh - 64px);
+  max-height: calc(100vh - 64px); max-height: calc(100dvh - 64px);
   overflow-y: auto;
 }
 
@@ -3189,7 +3190,7 @@ input[type="range"] {
 }
 
 .preferred-badge {
-  font-size: 11px;
+  font-size: 12px;
   padding: 2px 8px;
   background: rgba(16, 185, 129, 0.15);
   color: #10b981;
@@ -3211,7 +3212,7 @@ input[type="range"] {
 
 /* ---- Login Screen ---- */
 .login-screen {
-  min-height: 100vh;
+  min-height: 100vh; min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3324,7 +3325,7 @@ input[type="range"] {
   display: inline-block;
   align-self: flex-start;
   padding: 3px 10px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.7px;
@@ -3365,7 +3366,7 @@ input[type="range"] {
 }
 
 .listing-mls {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-top: 6px;
   letter-spacing: 0.5px;
@@ -3479,7 +3480,7 @@ input[type="range"] {
   border-top: 1px solid var(--border);
 }
 .listing-card-progress-label {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-bottom: 4px;
   letter-spacing: 0.3px;
@@ -3532,7 +3533,7 @@ input[type="range"] {
   flex-wrap: wrap;
 }
 .match-score-badge {
-  font-size: 10px;
+  font-size: 12px;
   background: rgba(59, 130, 246, 0.18);
   color: #93c5fd;
   padding: 2px 7px;
@@ -3541,7 +3542,7 @@ input[type="range"] {
   letter-spacing: 0.3px;
 }
 .match-soft-badge {
-  font-size: 10px;
+  font-size: 12px;
   background: rgba(245, 158, 11, 0.2);
   color: #fbbf24;
   padding: 2px 7px;
@@ -3562,7 +3563,7 @@ input[type="range"] {
   align-items: center;
 }
 .match-reason {
-  font-size: 11px;
+  font-size: 12px;
   background: rgba(16, 185, 129, 0.15);
   color: #6ee7b7;
   padding: 1px 7px;
@@ -3570,7 +3571,7 @@ input[type="range"] {
   font-weight: 600;
 }
 .match-rank {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   margin-left: 4px;
 }
@@ -3669,7 +3670,7 @@ input[type="range"] {
   text-transform: capitalize;
 }
 .updates-entity-badge {
-  font-size: 10px;
+  font-size: 12px;
   padding: 2px 8px;
   border-radius: 4px;
   font-weight: 700;
@@ -3678,7 +3679,7 @@ input[type="range"] {
 }
 .updates-time {
   margin-left: auto;
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
 }
@@ -3939,7 +3940,7 @@ input[type="range"] {
   background: rgba(200, 155, 74, 0.2);
   color: #f4d8a3;
   border-radius: 10px;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.3px;
 }
@@ -4054,7 +4055,7 @@ input[type="range"] {
   flex: 1;
 }
 .task-stamp {
-  font-size: 11px;
+  font-size: 12px;
   color: var(--text-muted);
   white-space: nowrap;
   font-style: italic;
@@ -4293,7 +4294,7 @@ img[width], img[height] { height: auto; }
 .settings-group-header { display: flex; align-items: baseline; gap: 8px; width: 100%; text-align: left; padding: 12px 14px; border: none; background: none; color: var(--text-primary); cursor: pointer; font-size: 14px; }
 .settings-group-header:hover { background: var(--bg-secondary); }
 .settings-group-chev { color: var(--text-muted); font-size: 12px; width: 14px; flex: 0 0 auto; }
-.settings-group-desc { display: block; font-size: 11.5px; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
+.settings-group-desc { display: block; font-size: 12px; font-weight: 400; color: var(--text-muted); margin-top: 2px; }
 .settings-group-body { padding: 4px 14px 14px; display: grid; gap: 18px; }
 .settings-group-body .detail-section { border: none; padding: 0; margin: 0; box-shadow: none; background: none; }
 .settings-group-body > * + * { border-top: 1px solid var(--border); padding-top: 14px; }
@@ -4357,3 +4358,111 @@ img[width], img[height] { height: auto; }
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
 }
+
+
+/* =====================================================================
+   MOBILE-NATIVE LAYER — Design Upgrade Plan Phase 2 (iPhone AND Android)
+   Capability-gated, never device-sniffed: (hover:none) covers every touch
+   device; the tap-highlight and pull-to-refresh fixes are the two loudest
+   "this is a website" tells on Android Chrome specifically.
+   ===================================================================== */
+
+/* 2.2 Kill the grey/blue tap flash (Android Chrome + iOS Safari) — press
+   feedback now comes from :active states below instead. */
+html { -webkit-tap-highlight-color: transparent; }
+
+/* 2.3 Our app owns its scrolling: no browser pull-to-refresh reloading the
+   SPA mid-note (Android), no whole-page rubber band (iOS). */
+html, body { overscroll-behavior: none; }
+
+/* 5 (skill §5): no double-tap-zoom wait on tappables — click fires instantly. */
+button, a, [role="button"], .btn, .nav-item, .lead-action-btn, .client-tab,
+.client-list-row, .header-icon-btn { touch-action: manipulation; }
+
+/* 2.5 Long-press must not select control labels (body text stays selectable). */
+.btn, button, .nav-item, .lead-action-btn, .client-tab, .header-icon-btn,
+.tag-remove-btn, .detail-action-btn, .type-toggle-btn { user-select: none; -webkit-user-select: none; }
+
+/* 2.1 Sticky hover: on touch, the first tap applies :hover and it STAYS until
+   the next tap elsewhere. Neutralize the stateful hover styles on touch-only
+   devices; press feedback replaces them. */
+@media (hover: none) {
+  .data-table tr:hover td { background: transparent; }
+  .nav-item:not(.active):hover { background: transparent; color: var(--text-secondary); }
+  .pipeline-card:hover, .kanban-card:hover, .client-card:hover, .project-card:hover,
+  .data-card:hover { border-color: var(--border); }
+  .note-card:hover { transform: none; }
+  .listing-card:hover { transform: none; border-color: var(--border); box-shadow: none; }
+  .type-toggle-btn:not(.active):hover, .header-icon-btn:hover { background: transparent; }
+  .client-tab:not(.active):hover { background: transparent; color: var(--text-secondary); }
+  .account-avatar-btn:not(.open):hover { background: transparent; box-shadow: 0 0 0 0 transparent; }
+  .client-list-row:not(.selected):hover { background: transparent; }
+  /* keep the sticky pinned cells opaque — they cover content scrolling beneath them */
+  .client-list-row:not(.selected):hover .cl-check,
+  .client-list-row:not(.selected):hover .cl-pin-name { background: var(--bg-card); }
+  .tag-remove-btn:hover { opacity: .6; color: inherit; }
+}
+
+/* 2.6 Touch targets: 44px minimum hit area on coarse pointers — padding grows,
+   visuals don't. Inputs never under 16px (stops iOS focus-zoom too). */
+@media (pointer: coarse) {
+  .btn, .btn-sm, .lead-action-btn, .header-icon-btn, .nav-item { min-height: 44px; }
+  .data-table td button, .tag-remove-btn { min-height: 40px; min-width: 40px; }
+  .ccm-status select, select { min-height: 44px; }
+  input, textarea, select { font-size: 16px; }
+}
+
+/* =====================================================================
+   MOTION PASS — Design Upgrade Plan Phase 3 (animate / review-animations)
+   transform/opacity only; everything under 300ms; exits never slower than
+   entrances; the reduced-motion block at the end zeroes all of it.
+   ===================================================================== */
+
+/* Press feedback: respond on pointer DOWN like a native control (pairs with
+   the tap-highlight removal — this is the replacement feedback). */
+.btn, .lead-action-btn, .header-icon-btn, .client-tab, .nav-item {
+  transition: transform 100ms ease-out, background .15s ease, color .15s ease, border-color .15s ease, box-shadow .15s ease, filter .15s ease;
+}
+.btn:active, .lead-action-btn:active, .header-icon-btn:active { transform: scale(0.97); }
+.nav-item:active, .client-tab:active { transform: scale(0.985); }
+
+/* Modal + drawer entrance: overlay fades, panel rises 10px, 200ms ease-out.
+   (Unmount is instant — an exit must never feel slower than the entrance.) */
+@keyframes hubOverlayIn { from { opacity: 0 } to { opacity: 1 } }
+@keyframes hubPanelIn { from { opacity: 0; transform: translateY(10px) } to { opacity: 1; transform: translateY(0) } }
+.modal-overlay { animation: hubOverlayIn 160ms ease-out; }
+.modal { animation: hubPanelIn 200ms ease-out; }
+
+/* ---- Elevation ramp (Phase 4.4): cards flat, dropdowns 2, modals/toasts 3.
+   Dark theme: higher opacity + the border does part of the lifting. ---- */
+:root {
+  /* base theme is dark (matches the token system at the top of this file) */
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, .35);
+  --shadow-2: 0 4px 16px rgba(0, 0, 0, .45);
+  --shadow-3: 0 14px 40px rgba(0, 0, 0, .6);
+}
+body[data-theme="light"] {
+  --shadow-1: 0 1px 2px rgba(15, 23, 42, .06);
+  --shadow-2: 0 4px 14px rgba(15, 23, 42, .12);
+  --shadow-3: 0 12px 34px rgba(15, 23, 42, .18);
+}
+.modal { box-shadow: var(--shadow-3); }
+.account-menu, .sync-menu, .bulk-actions-dropdown, .ms-dropdown { box-shadow: var(--shadow-2); }
+
+/* ---- One reduced-motion switch kills ALL new motion (plan hard rule) ---- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Mobile drawer collapsible sections (design plan 4.3): the label becomes the
+   toggle. Inherits .nav-section-label type; only resets button chrome. */
+.nav-section-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%; background: none; border: none; cursor: pointer;
+  text-align: left; font-family: inherit;
+}
+.nav-section-chevron { font-size: 13px; line-height: 1; color: var(--text-muted); }

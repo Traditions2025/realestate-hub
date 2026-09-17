@@ -36,7 +36,7 @@ export default function TemplatePicker({ templates, onPick, label = 'Insert temp
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                   <div style={{ fontWeight: 600, fontSize: 12.5, color: 'var(--text-primary)' }}>{t.name || '(untitled)'}</div>
-                  {t.body && <div style={{ fontSize: 11, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plain(t.body).slice(0, 70)}</div>}
+                  {t.body && <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plain(t.body).slice(0, 70)}</div>}
                 </div>
               ))}
           </div>

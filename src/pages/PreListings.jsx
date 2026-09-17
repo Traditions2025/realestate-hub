@@ -344,7 +344,7 @@ export default function PreListings() {
           compact
         />
         <textarea ref={plEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
-        <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
+        <p className="muted" style={{fontSize: 12, margin: '2px 0 0'}}>
           📁 Load HTML · 📷 Inline Images (so they render) · plain text auto-formats.
         </p>
 
@@ -385,7 +385,7 @@ export default function PreListings() {
               ))}
             </div>
           )}
-          <p className="muted" style={{fontSize: 11, margin: '4px 0 0'}}>SendGrid limit: 30 MB total.</p>
+          <p className="muted" style={{fontSize: 12, margin: '4px 0 0'}}>SendGrid limit: 30 MB total.</p>
         </div>
 
         <div className="form-actions">
@@ -444,7 +444,7 @@ export default function PreListings() {
                           <td style={{padding: 4, width: 80}}>{i === 0 ? <strong style={{color: '#10b981'}}>KEEP</strong> : <span style={{color: '#ef4444'}}>delete</span>}</td>
                           <td style={{padding: 4}}>{pl.property_address}</td>
                           <td style={{padding: 4}}>{pl.status}</td>
-                          <td style={{padding: 4, fontSize: 11, color: 'var(--text-muted)'}}>updated {pl.updated_at}</td>
+                          <td style={{padding: 4, fontSize: 12, color: 'var(--text-muted)'}}>updated {pl.updated_at}</td>
                         </tr>
                       ))}
                     </tbody>

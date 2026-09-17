@@ -166,7 +166,7 @@ function TemplateGallery({ onPick, onClose }) {
               <div style={{ fontSize: 22 }}>{t.icon}</div>
               <div style={{ fontWeight: 600, marginTop: 6 }}>{t.name}</div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>{t.description}</div>
-              <div style={{ fontSize: 11, color: 'var(--accent,#2563eb)', marginTop: 6 }}>{t.audience}</div>
+              <div style={{ fontSize: 12, color: 'var(--accent,#2563eb)', marginTop: 6 }}>{t.audience}</div>
             </div>
           ))}
         </div>
@@ -227,11 +227,11 @@ function ActivityModal({ id, name, onClose }) {
 }
 
 // ---------------- bits ----------------
-const Stat = ({ n, label, color }) => <div><div style={{ fontSize: 20, fontWeight: 700, color: color || 'var(--text-primary)' }}>{n ?? 0}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div></div>
+const Stat = ({ n, label, color }) => <div><div style={{ fontSize: 20, fontWeight: 700, color: color || 'var(--text-primary)' }}>{n ?? 0}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div></div>
 const ago = (iso) => { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso.includes('Z') || iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z').getTime()) / 1000); if (isNaN(s)) return '—'; if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago` }
 const ctl = (w) => ({ width: w, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 })
-const th = { textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }
+const th = { textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }
 const td = { padding: '9px 10px', borderBottom: '1px solid var(--border)' }
-const pill = { fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }
+const pill = { fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }
 const modalWrap = { position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }
 const tplCard = { border: '1px solid var(--border)', borderRadius: 10, padding: 16, cursor: 'pointer', background: 'var(--bg-secondary)' }

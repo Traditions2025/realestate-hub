@@ -148,12 +148,12 @@ export default function CallWidget() {
 
   return (
     <div style={wrap}>
-      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 6 }}>
+      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 6 }}>
         {status === 'incoming' ? 'Incoming call' : status === 'connecting' ? 'Connecting…' : status === 'ringing' ? 'Ringing…' : status === 'active' ? `On call · ${mmss(seconds)}` : 'Call'}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
       {sub && <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>{sub}</div>}
-      {err && <div style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>{err}</div>}
+      {err && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         {status === 'incoming' ? (

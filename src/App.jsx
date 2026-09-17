@@ -58,9 +58,9 @@ function GlobalSearch() {
                   <span style={{ color: 'var(--text-muted)' }}>{TYPE_ICON[r.type] || '•'}</span>
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
-                    {r.subtitle && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>}
+                    {r.subtitle && <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>}
                   </div>
-                  <span style={{ fontSize: 10, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.04em' }}>{r.type}</span>
+                  <span style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.04em' }}>{r.type}</span>
                 </a>
                 )
               })}
@@ -116,15 +116,15 @@ function NotificationBell() {
     <div ref={ref} style={{ position: 'relative' }}>
       <button className="header-icon-btn" onClick={openList} title="Notifications" aria-label="Notifications" style={{ position: 'relative' }}>
         <span style={{ fontVariantEmoji: 'text' }}>🔔</span>
-        {unread > 0 && <span style={{ position: 'absolute', top: -2, right: -4, background: '#ef4444', color: '#fff', fontSize: 10, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
+        {unread > 0 && <span style={{ position: 'absolute', top: -2, right: -4, background: '#ef4444', color: '#fff', fontSize: 12, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
         <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 340, maxWidth: 'calc(100vw - 24px)', maxHeight: 460, overflowY: 'auto', background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 60 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
             <strong style={{ fontSize: 13 }}>Notifications</strong>
             <div style={{ display: 'flex', gap: 8 }}>
-              {!pushOn && <button className="btn-link" style={{ fontSize: 11.5 }} onClick={enablePush}>Enable push</button>}
-              <button className="btn-link" style={{ fontSize: 11.5 }} onClick={markAll}>Mark all read</button>
+              {!pushOn && <button className="btn-link" style={{ fontSize: 12 }} onClick={enablePush}>Enable push</button>}
+              <button className="btn-link" style={{ fontSize: 12 }} onClick={markAll}>Mark all read</button>
             </div>
           </div>
           {items.length === 0 ? <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 13 }}>Nothing yet.</div>
@@ -132,7 +132,7 @@ function NotificationBell() {
               <div key={n.id} onClick={() => go(n)} style={{ padding: '9px 12px', borderBottom: '1px solid var(--rule-2, var(--border))', cursor: 'pointer', background: n.read ? 'transparent' : 'var(--bg-secondary)' }}>
                 <div style={{ fontSize: 13, fontWeight: n.read ? 500 : 700 }}>{n.title}</div>
                 {n.body && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
-                <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(n.created_at)}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(n.created_at)}</div>
               </div>
             ))}
         </div>
@@ -236,22 +236,24 @@ const Reporting = lazyWithReload(() => import('./pages/Reporting'))
 const Profile = lazyWithReload(() => import('./pages/Profile'))
 
 const navSections = [
-  { label: 'MAIN', items: [
+  // Most-used screens pinned on top (design plan 4.3) \u2014 the daily triage loop
+  // is one thumb-reach away instead of scattered across three sections.
+  { label: 'PINNED', items: [
     { path: '/', label: 'Dashboard', icon: '\u229E' },
-    { path: '/calendar', label: 'Calendar', icon: '\u2630' },
-  ]},
-  { label: 'PIPELINE', items: [
+    { path: '/clients', label: 'Clients', icon: '\u25C9' },
+    { path: '/inbox', label: 'Inbox', icon: '\u2709' },
     // Transactions is the single tab for all listing states (pre-listing \u2192
     // active \u2192 under contract \u2192 closed). Pre-Listings page and Listings tab
     // were retired 2026-07-09 \u2014 everything lives on the Transactions board.
     { path: '/transactions', label: 'Transactions', icon: '\u21C4' },
-    { path: '/clients', label: 'Clients', icon: '\u25C9' },
-    { path: '/inbox', label: 'Inbox', icon: '\u2709' },
+    { path: '/tasks', label: 'Tasks', icon: '\u2610' },
+  ]},
+  { label: 'MAIN', items: [
+    { path: '/calendar', label: 'Calendar', icon: '\u2630' },
     { path: '/ai-opportunities', label: 'AI Opportunities', icon: '\u2726' },
     { path: '/ai-sandbox', label: 'AI Sandbox', icon: '\u2699' },
   ]},
   { label: 'WORK', items: [
-    { path: '/tasks', label: 'Tasks', icon: '\u2610' },
     { path: '/projects', label: 'Projects', icon: '\u25A6' },
     { path: '/notes', label: 'Notes', icon: '\u2261' },
     { path: '/automations', label: 'Automations', icon: '\u26A1' },
@@ -317,6 +319,10 @@ export default function App() {
   // of the desktop content header — rendered in exactly one place.
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches)
   useEffect(() => { const mq = window.matchMedia('(max-width: 768px)'); const h = e => setIsMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h) }, [])
+  // Mobile drawer: SYSTEM and DIRECTORY start collapsed so the 24-item nav fits
+  // one screen; tapping a section label toggles it. Desktop always shows all.
+  const [collapsedNav, setCollapsedNav] = useState(() => new Set(['SYSTEM', 'DIRECTORY']))
+  const toggleNavSection = (label) => setCollapsedNav(s => { const n = new Set(s); if (n.has(label)) n.delete(label); else n.add(label); return n })
   // Desktop: collapse (fully hide) the sidebar to give the page full width. Persisted.
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('mst_sidebar_collapsed') === '1')
   useEffect(() => { localStorage.setItem('mst_sidebar_collapsed', collapsed ? '1' : '0') }, [collapsed])
@@ -442,8 +448,15 @@ export default function App() {
         <nav className="sidebar-nav">
           {navSections.map(section => (
             <div key={section.label} className="nav-section">
-              <div className="nav-section-label">{section.label}</div>
-              {section.items.map(item => (
+              {isMobile ? (
+                <button className="nav-section-label nav-section-toggle" onClick={() => toggleNavSection(section.label)} aria-expanded={!collapsedNav.has(section.label)}>
+                  {section.label}
+                  <span className="nav-section-chevron">{collapsedNav.has(section.label) ? '›' : '⌄'}</span>
+                </button>
+              ) : (
+                <div className="nav-section-label">{section.label}</div>
+              )}
+              {(isMobile && collapsedNav.has(section.label)) ? null : section.items.map(item => (
                 <NavLink
                   key={item.path}
                   to={item.path}

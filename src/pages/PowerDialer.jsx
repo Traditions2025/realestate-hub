@@ -141,8 +141,8 @@ export default function PowerDialer() {
       <div className="detail-section" style={{ maxWidth: 640, padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 24, fontWeight: 800 }}>{current.name}</div>
-          {current.status && <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '2px 8px', borderRadius: 4 }}>{current.status}</span>}
-          {current.agent_assigned && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· {current.agent_assigned}</span>}
+          {current.status && <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '2px 8px', borderRadius: 4 }}>{current.status}</span>}
+          {current.agent_assigned && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {current.agent_assigned}</span>}
         </div>
         <div style={{ fontSize: 18, color: 'var(--text-secondary)', marginTop: 4 }}>{fmtPhone(current.phone)}</div>
         <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 12.5, color: 'var(--text-muted)' }}>

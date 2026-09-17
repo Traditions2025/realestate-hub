@@ -245,7 +245,7 @@ export default function SocialMedia() {
             </thead>
             <tbody>
               {items.length === 0 ? (
-                <tr><td colSpan="9" className="empty-state">No posts scheduled</td></tr>
+                <tr><td colSpan="9" className="empty-state">Nothing scheduled — plan a post with + New Post and it publishes automatically</td></tr>
               ) : items.map(item => (
                 <tr key={item.id}>
                   <td>{item.image_file ? <img src={imgSrc(item.image_file)} alt="" style={{ width: 42, height: 42, objectFit: 'cover', borderRadius: 6 }} /> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
@@ -268,7 +268,7 @@ export default function SocialMedia() {
         </div>
         <div className="mobile-only-cards">
           {items.length === 0 ? (
-            <div className="empty-state-full">No posts scheduled</div>
+            <div className="empty-state-full">Nothing scheduled — plan a post with + New Post and it publishes automatically</div>
           ) : items.map(item => (
             <div key={item.id} className="data-card" onClick={() => openEdit(item)}>
               <div className="data-card-header">
@@ -310,7 +310,7 @@ export default function SocialMedia() {
             <div>
               <input type="file" accept="image/*,video/mp4" onChange={e => uploadImage(e.target.files[0])} />
               {uploading && <div style={{ fontSize: 12, color: 'var(--accent)' }}>Uploading…</div>}
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>JPG/PNG/MP4, up to 25MB. Stored on the Hub and served to the platforms.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>JPG/PNG/MP4, up to 25MB. Stored on the Hub and served to the platforms.</div>
             </div>
           </div>
 
@@ -368,7 +368,7 @@ export default function SocialMedia() {
               {['queued', 'posting'].includes(editingItem.publish_status)
                 ? <button type="button" className="btn btn-secondary" onClick={unqueuePost}>Cancel publish</button>
                 : <button type="button" className="btn btn-primary" onClick={queuePost}>Queue for publishing now</button>}
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>
                 Queued posts are picked up by n8n at (or after) the scheduled time and posted to the checked pages.
               </div>
             </div>

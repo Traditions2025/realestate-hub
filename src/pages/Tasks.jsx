@@ -1,4 +1,4 @@
-import { notify, confirmDialog } from '../notify'
+import { notify, confirmDialog, LoadErrorBanner } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -100,6 +100,7 @@ const CLS_RANK = { overdue: 0, today: 1, urgent: 2, watch: 3, normal: 4 }
 
 export default function Tasks() {
   const [items, setItems] = useState([])
+  const [loadError, setLoadError] = useState(false)
   // Team agents for the assignee dropdowns (Matt, John, Hunter) — kept in sync with the
   // team directory instead of a stale hardcoded Matt/Leo list.
   const [agents, setAgents] = useState(['Matt', 'John', 'Hunter'])
@@ -208,7 +209,7 @@ export default function Tasks() {
     const params = {}
     if (filter.status) params.status = filter.status
     if (filter.priority) params.priority = filter.priority
-    api.getTasks(params).then(setItems)
+    api.getTasks(params).then(d => { setItems(d); setLoadError(false) }).catch(() => setLoadError(true))
   }
 
   useEffect(() => { load() }, [])
@@ -314,8 +315,24 @@ export default function Tasks() {
 
   const today = new Date().toISOString().split('T')[0]
 
+  // Shared by the desktop table and the mobile card list.
+  const filteredTasks = (() => {
+    const q = search.trim().toLowerCase()
+    return items.filter(it => {
+      if (assigneeFilter) {
+        if (assigneeFilter === '__unassigned__') { if (it.assigned_to) return false }
+        else if ((it.assigned_to || '').toLowerCase() !== assigneeFilter.toLowerCase()) return false
+      }
+      if (!q) return true
+      const hay = [it.title, it.description, it.assigned_to, it.related_type, it.related_name, it.notes_log]
+        .filter(Boolean).join(' ').toLowerCase()
+      return hay.includes(q)
+    })
+  })()
+
   return (
     <div className="page">
+      {loadError && <LoadErrorBanner what="tasks" onRetry={load} />}
       <div className="page-header">
         <div>
           <h1>Tasks</h1>
@@ -428,7 +445,7 @@ export default function Tasks() {
                         )}
                       </div>
                       {item.status === 'done' && item.completed_at && (
-                        <div style={{marginTop: 6, fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4}} title={new Date(item.completed_at).toLocaleString()}>
+                        <div style={{marginTop: 6, fontSize: 12, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4}} title={new Date(item.completed_at).toLocaleString()}>
                           ✓ Completed {new Date(item.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
                         </div>
                       )}
@@ -437,7 +454,7 @@ export default function Tasks() {
                           <button
                             type="button"
                             className="btn-sm btn-secondary"
-                            style={{fontSize: 11, padding: '2px 8px'}}
+                            style={{fontSize: 12, padding: '2px 8px'}}
                             onClick={(e) => { e.stopPropagation(); openNudge(item) }}
                             title="Send a quick email reminder to Matt or Leo about this task"
                           >👋 Nudge</button>
@@ -483,10 +500,10 @@ export default function Tasks() {
                     <div className="kanban-card-top">
                       {tag ? (
                         <span style={{
-                          fontSize: 10, fontWeight: 700, color: c, letterSpacing: 0.4,
+                          fontSize: 12, fontWeight: 700, color: c, letterSpacing: 0.4,
                         }}>{tag}</span>
                       ) : (
-                        <span style={{fontSize: 10, color: 'var(--text-muted)'}}>UPCOMING</span>
+                        <span style={{fontSize: 12, color: 'var(--text-muted)'}}>UPCOMING</span>
                       )}
                     </div>
                     <div className="kanban-card-title">{it.label}</div>
@@ -495,10 +512,10 @@ export default function Tasks() {
                     </div>
                     <div className="kanban-card-footer">
                       <span style={{color: c, fontWeight: 600}}>{dateStr}</span>
-                      <span style={{color: 'var(--text-muted)', fontSize: 11}}>{daysOut}</span>
+                      <span style={{color: 'var(--text-muted)', fontSize: 12}}>{daysOut}</span>
                     </div>
                     {it.status && (
-                      <div style={{fontSize: 10, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>
                     )}
                   </div>
                 )
@@ -507,7 +524,8 @@ export default function Tasks() {
           </div>
         </div>
       ) : (
-        <div className="table-container">
+        <>
+        <div className="table-container desktop-only-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -523,27 +541,12 @@ export default function Tasks() {
               </tr>
             </thead>
             <tbody>
-              {(() => {
-                const q = search.trim().toLowerCase()
-                const matchesAssignee = (it) => {
-                  if (!assigneeFilter) return true
-                  if (assigneeFilter === '__unassigned__') return !it.assigned_to
-                  return (it.assigned_to || '').toLowerCase() === assigneeFilter.toLowerCase()
-                }
-                const filtered = items.filter(it => {
-                  if (!matchesAssignee(it)) return false
-                  if (!q) return true
-                  const hay = [it.title, it.description, it.assigned_to, it.related_type, it.related_name, it.notes_log]
-                    .filter(Boolean).join(' ').toLowerCase()
-                  return hay.includes(q)
-                })
-                if (filtered.length === 0) {
-                  return <tr><td colSpan="9" className="empty-state">No tasks found</td></tr>
-                }
-                return filtered.map(item => (
+              {filteredTasks.length === 0
+                ? <tr><td colSpan="9" className="empty-state">No tasks match — clear the search or add one with New Task</td></tr>
+                : filteredTasks.map(item => (
                 <tr key={item.id} className={item.status === 'done' ? 'row-done' : ''}>
                   <td><input type="checkbox" checked={item.status === 'done'} onChange={() => toggleDone(item)} /></td>
-                  <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}{item.related_name && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 400 }}>👤 {item.related_name}</div>}</td>
+                  <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}{item.related_name && <div style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>👤 {item.related_name}</div>}</td>
                   <td><StatusBadge status={item.priority} /></td>
                   <td><StatusBadge status={item.status} /></td>
                   <td>{item.assigned_to || '—'}</td>
@@ -562,11 +565,36 @@ export default function Tasks() {
                     <button className="btn-sm btn-danger" onClick={() => remove(item.id)}>Del</button>
                   </td>
                 </tr>
-                ))
-              })()}
+                ))}
             </tbody>
           </table>
         </div>
+        {/* Phone layout (design plan 4.2): name + badges + due date + action row
+            instead of a side-scrolling 9-column table. */}
+        <div className="mobile-only-cards">
+          {filteredTasks.length === 0 && <div className="empty-state">No tasks match — clear the search or add one with New Task</div>}
+          {filteredTasks.map(item => (
+            <div key={item.id} className={`data-card ${item.status === 'done' ? 'row-done' : ''}`} onClick={() => openEdit(item)}>
+              <div className="data-card-header">
+                <div className="data-card-title" style={item.status === 'done' ? { textDecoration: 'line-through', opacity: .6 } : undefined}>{item.title}</div>
+                <StatusBadge status={item.priority} />
+              </div>
+              <div className="data-card-meta">
+                <StatusBadge status={item.status} />
+                {item.related_name && <span>👤 {item.related_name}</span>}
+                {item.assigned_to && <span>{item.assigned_to}</span>}
+                {item.due_date && <span className={item.due_date < today && item.status !== 'done' ? 'overdue' : ''}>Due {item.due_date}</span>}
+              </div>
+              <div className="data-card-body" style={{ display: 'flex', gap: 8, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                {item.status !== 'done' && <button className="btn-sm" onClick={() => toggleDone(item)}>✓ Done</button>}
+                {item.status !== 'done' && <button className="btn-sm" onClick={() => openNudge(item)}>👋 Nudge</button>}
+                <button className="btn-sm" onClick={() => openEdit(item)}>Edit</button>
+                <button className="btn-sm btn-danger" onClick={() => remove(item.id)}>Del</button>
+              </div>
+            </div>
+          ))}
+        </div>
+        </>
       )}
 
       <Modal open={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Edit Task' : 'New Task'}>
@@ -591,7 +619,7 @@ export default function Tasks() {
               {agents.map(a => <option key={a} value={a}>{a}</option>)}
               {form.assigned_to && !agents.includes(form.assigned_to) && <option value={form.assigned_to}>{form.assigned_to}</option>}
             </select></label>
-            <label style={{ alignSelf: 'flex-end', fontSize: 11, color: 'var(--text-muted)', fontWeight: 400 }}>
+            <label style={{ alignSelf: 'flex-end', fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>
               With a time + assignee, we email a calendar invite and ping Slack 30 &amp; 5 min before it's due.
             </label>
           </div>
@@ -606,13 +634,13 @@ export default function Tasks() {
                   <div style={{maxHeight: 240, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
                     {notes.map((nt, i) => (
                       <div key={i} style={{padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 4, fontSize: 13, position: 'relative'}}>
-                        <div style={{fontSize: 11, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 8}}>
+                        <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 8}}>
                           <span>
                             {nt.by ? <strong>{nt.by}</strong> : <em>—</em>}
                             {' · '}
                             {nt.at ? new Date(nt.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
                           </span>
-                          <button type="button" className="btn-sm btn-danger" style={{padding: '0 6px', fontSize: 10}} onClick={() => removeNote(i)} title="Delete this note">✕</button>
+                          <button type="button" className="btn-sm btn-danger" style={{padding: '0 6px', fontSize: 12}} onClick={() => removeNote(i)} title="Delete this note">✕</button>
                         </div>
                         <div style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word'}}>{nt.text}</div>
                       </div>
@@ -634,7 +662,7 @@ export default function Tasks() {
                   />
                   <button type="button" className="btn btn-sm btn-primary" disabled={!noteText.trim()} onClick={addNote}>Add</button>
                 </div>
-                <div style={{fontSize: 10, color: 'var(--text-muted)', marginTop: 4}}>Tip: Cmd/Ctrl + Enter to add quickly</div>
+                <div style={{fontSize: 12, color: 'var(--text-muted)', marginTop: 4}}>Tip: Cmd/Ctrl + Enter to add quickly</div>
               </div>
             )
           })()}

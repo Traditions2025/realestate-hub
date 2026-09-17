@@ -161,7 +161,7 @@ export default function SmartAudiences() {
             {lists.slice(0, 20).map(l => (
               <div key={l.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 13, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontWeight: 600 }}>{l.name}</span>
-                {l.is_dynamic ? <span style={{ fontSize: 10, color: '#0369a1', textTransform: 'uppercase' }}>dynamic</span> : null}
+                {l.is_dynamic ? <span style={{ fontSize: 12, color: '#0369a1', textTransform: 'uppercase' }}>dynamic</span> : null}
                 <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>{(l.count ?? 0).toLocaleString()} contacts</span>
               </div>
             ))}

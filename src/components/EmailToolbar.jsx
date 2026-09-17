@@ -143,7 +143,7 @@ export default function EmailToolbar({ textareaRef, body, setBody, onPreview, sh
           👁 Preview
         </button>
       )}
-      <span style={{fontSize: 11, color: 'var(--text-muted)', marginLeft: 'auto'}}>
+      <span style={{fontSize: 12, color: 'var(--text-muted)', marginLeft: 'auto'}}>
         Body is HTML — click 👁 Preview to see how it'll render in the inbox.
       </span>
     </div>

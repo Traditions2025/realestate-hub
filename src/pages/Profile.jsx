@@ -115,7 +115,7 @@ export default function Profile() {
               </button>
               {me.avatar && <button className="btn btn-sm" onClick={removePhoto} disabled={photoBusy} style={{ color: '#ef4444' }}>Remove Photo</button>}
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>JPG, PNG, or WEBP. It's cropped to a square automatically.</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>JPG, PNG, or WEBP. It's cropped to a square automatically.</div>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onFile} style={{ display: 'none' }} aria-label="Choose a profile photo" />
           </div>
         </div>

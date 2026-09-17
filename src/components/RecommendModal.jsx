@@ -277,7 +277,7 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
             onChange={e => setRecommendationFor(e.target.value)}
             style={{width: '100%'}}
           />
-          <p className="muted" style={{fontSize: 11, margin: '4px 0 0'}}>Used in the subject + intro line. Leave blank for a generic recommendation.</p>
+          <p className="muted" style={{fontSize: 12, margin: '4px 0 0'}}>Used in the subject + intro line. Leave blank for a generic recommendation.</p>
         </div>
 
         {/* Subject + body — auto-built but editable */}

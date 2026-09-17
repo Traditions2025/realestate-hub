@@ -78,7 +78,7 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
   const sidebarItem = (it, onClick, key) => (
     <div key={key} onClick={onClick} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 8, cursor: 'pointer', background: 'var(--bg-secondary)' }}>
       <div style={{ fontWeight: 600, fontSize: 13 }}>{it.icon} {it.label}</div>
-      {it.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
+      {it.desc && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
     </div>
   )
 
@@ -110,13 +110,13 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
             <>
               <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>Pick what starts the automation.</p>
               {TRIGGERS.map(t => sidebarItem(t, () => { setTrigger({ type: t.type, label: t.label, icon: t.icon }); setSelKey('trigger') }, t.type))}
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8 }}>Only <strong>Daily Schedule</strong> fires automatically today; event triggers run on the daily pass for now.</p>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Only <strong>Daily Schedule</strong> fires automatically today; event triggers run on the daily pass for now.</p>
             </>
           ) : (
             <>
-              <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '4px 0 6px', letterSpacing: 1 }}>Controls</div>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '4px 0 6px', letterSpacing: 1 }}>Controls</div>
               {CONTROLS.map(c => sidebarItem(c, () => addStep(c), c.kind))}
-              <div style={{ fontSize: 11, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '12px 0 6px', letterSpacing: 1 }}>Actions</div>
+              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '12px 0 6px', letterSpacing: 1 }}>Actions</div>
               {ACTIONS.map(a => sidebarItem(a, () => addStep(a), a.actionType))}
             </>
           )}
@@ -188,7 +188,7 @@ function FlowCard({ title, badge, accent, selected, onClick }) {
     <div onClick={onClick} style={{ minWidth: 230, background: '#fff', color: '#0f172a', borderRadius: 10, border: selected ? `2px solid ${accent}` : '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', cursor: 'pointer', overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: accent, borderLeft: `4px solid ${accent}` }}>
         {title}
-        {badge && <span style={{ marginLeft: 'auto', fontSize: 10, background: '#fef3c7', color: '#b45309', padding: '2px 7px', borderRadius: 5, letterSpacing: 1 }}>{badge}</span>}
+        {badge && <span style={{ marginLeft: 'auto', fontSize: 12, background: '#fef3c7', color: '#b45309', padding: '2px 7px', borderRadius: 5, letterSpacing: 1 }}>{badge}</span>}
       </div>
     </div>
   )
@@ -258,7 +258,7 @@ function StepConfig({ step, onChange, templates }) {
       <div style={{ display: 'flex', gap: 8 }}>
         <label style={{ ...lbl, flex: 1 }}>Wait<input type="number" min="1" style={inp} value={c.amount || ''} onChange={e => onChange({ amount: e.target.value })} /></label>
         <label style={{ ...lbl, flex: 1 }}>Unit<select style={inp} value={c.unit || 'day'} onChange={e => onChange({ unit: e.target.value })}><option value="hour">hours</option><option value="day">days</option><option value="week">weeks</option></select></label>
-        <p style={{ fontSize: 11, color: 'var(--text-muted)', flexBasis: '100%' }}>Delays are shown in the flow; timed execution activates with the sequence engine.</p>
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', flexBasis: '100%' }}>Delays are shown in the flow; timed execution activates with the sequence engine.</p>
       </div>
     )
   }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { api, authFetch } from '../api'
+import { LoadErrorBanner } from '../notify'
 
 // ============================================================================
 // DASHBOARD — the daily operating command center. Answers, within seconds:
@@ -72,6 +73,7 @@ const ATTN_META = {
 export default function Dashboard() {
   const [data, setData] = useState(() => { try { const raw = localStorage.getItem(DASHBOARD_CACHE_KEY); return raw ? JSON.parse(raw) : null } catch { return null } })
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [me, setMe] = useState(null)
   const [schedOpen, setSchedOpen] = useState(false)  // Today's Schedule lives minimized at the bottom
@@ -84,9 +86,9 @@ export default function Dashboard() {
   const load = () => {
     setRefreshing(true)
     api.dashboard().then(d => {
-      setData(d); setLoading(false); setRefreshing(false)
+      setData(d); setLoading(false); setRefreshing(false); setLoadError(false)
       try { localStorage.setItem(DASHBOARD_CACHE_KEY, JSON.stringify(d)) } catch {}
-    }).catch(() => { setLoading(false); setRefreshing(false) })
+    }).catch(() => { setLoading(false); setRefreshing(false); setLoadError(true) })
   }
   useEffect(() => { load() }, [])
   // Communication/attention data refreshes every 60s; heavier blocks ride along (single endpoint).
@@ -161,6 +163,7 @@ export default function Dashboard() {
   return (
     <div className="page">
       {/* ── Header ─────────────────────────────────────────────── */}
+      {loadError && !data && <LoadErrorBanner what="the dashboard" onRetry={load} />}
       <div className="page-header" style={{ marginBottom: 10 }}>
         <div>
           <h1 style={{ marginBottom: 2 }}>{greeting}{firstName ? `, ${firstName}` : ''} {refreshing && <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 400 }}>· refreshing…</span>}</h1>
@@ -193,9 +196,9 @@ export default function Dashboard() {
                     <div key={i} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 8, padding: '8px 10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <strong style={{ fontSize: 13.5 }}>{a.client_id ? <Link to={`/clients/${a.client_id}`} style={{ color: 'inherit' }}>{a.name}</Link> : a.name}</strong>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: meta.color, letterSpacing: '.04em' }}>{meta.badge}</span>
-                        {a.intent != null && <span style={{ fontSize: 10.5, fontWeight: 700, background: 'rgba(37,99,235,.12)', color: '#2563eb', borderRadius: 10, padding: '1px 7px' }}>Intent {a.intent}</span>}
-                        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(a.at)}</span>
+                        <span style={{ fontSize: 12, fontWeight: 800, color: meta.color, letterSpacing: '.04em' }}>{meta.badge}</span>
+                        {a.intent != null && <span style={{ fontSize: 12, fontWeight: 700, background: 'rgba(37,99,235,.12)', color: '#2563eb', borderRadius: 10, padding: '1px 7px' }}>Intent {a.intent}</span>}
+                        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(a.at)}</span>
                       </div>
                       <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 2 }}>{a.reason}{a.agent ? ` · ${a.agent}` : ''}</div>
                       {a.detail && <div style={{ fontSize: 12.5, marginTop: 3, fontStyle: 'italic' }}>“{a.detail}”</div>}
@@ -225,12 +228,12 @@ export default function Dashboard() {
             <button className="btn btn-sm btn-primary" disabled={mfBusy} onClick={syncMasterFiles}>
               {mfBusy ? 'Checking master files…' : '🔄 Check Master Files Now'}
             </button>
-            <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
               Auto-checks hourly · Last: {timeAgo(masterUpdates.expired_last_sync || masterUpdates.fsbo_last_sync) || '—'}
             </span>
           </div>
           {mfResult && <div style={{ fontSize: 12, marginBottom: 8, color: mfResult.startsWith('✓') ? '#059669' : '#dc2626' }}>{mfResult}</div>}
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em', marginBottom: 6 }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em', marginBottom: 6 }}>
             {masterUpdates.showing === 'recent' ? 'NO CHANGES YET TODAY — MOST RECENT:' : `TODAY: ${masterUpdates.today_count} CHANGE${masterUpdates.today_count === 1 ? '' : 'S'}`}
           </div>
           {(masterUpdates.items || []).length === 0
@@ -244,16 +247,16 @@ export default function Dashboard() {
                     <span style={{ color: meta[1], fontWeight: 800 }}>{meta[0]}</span>
                     <span style={{ fontSize: 12.5, flex: 1 }}>
                       <Link to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ color: 'inherit', textDecoration: 'none' }}><strong>{u.client_name}</strong></Link>
-                      <span style={{ fontSize: 11, fontWeight: 800, marginLeft: 6, color: meta[1] }}>{label}</span>
-                      <span style={{ fontSize: 10.5, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : (u.sub || 'Cancelled/Expired').toUpperCase()}</span>
+                      <span style={{ fontSize: 12, fontWeight: 800, marginLeft: 6, color: meta[1] }}>{label}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : (u.sub || 'Cancelled/Expired').toUpperCase()}</span>
                       <div style={{ color: 'var(--text-secondary)', fontSize: 12, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
                         <span>{u.address || u.detail}</span>
                         {u.dom != null && u.dom !== '' && <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>DOM {u.dom}</span>}
-                        {u.url && <a href={u.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 11.5, whiteSpace: 'nowrap' }}>View listing →</a>}
+                        {u.url && <a href={u.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 12, whiteSpace: 'nowrap' }}>View listing →</a>}
                       </div>
-                      {u.address && /price/i.test(label) && <div style={{ color: 'var(--text-muted)', fontSize: 11.5 }}>{u.detail.split(' — ')[0]}</div>}
+                      {u.address && /price/i.test(label) && <div style={{ color: 'var(--text-muted)', fontSize: 12 }}>{u.detail.split(' — ')[0]}</div>}
                     </span>
-                    <span style={{ fontSize: 11, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(u.created_at)}</span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(u.created_at)}</span>
                   </div>
                 )
               })}
@@ -281,8 +284,8 @@ export default function Dashboard() {
         </Section>
         <Section title="Transactions" link="/transactions" accent="#2563eb">
           <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
-            <div><div style={{ fontSize: 22, fontWeight: 800 }}>{tx.open ?? 0}</div><div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Open / Pending</div></div>
-            <div><div style={{ fontSize: 22, fontWeight: 800, color: tx.deadlines_today ? '#d97706' : 'var(--text-primary)' }}>{tx.deadlines_today ?? 0}</div><div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Deadlines Today</div></div>
+            <div><div style={{ fontSize: 22, fontWeight: 800 }}>{tx.open ?? 0}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Open / Pending</div></div>
+            <div><div style={{ fontSize: 22, fontWeight: 800, color: tx.deadlines_today ? '#d97706' : 'var(--text-primary)' }}>{tx.deadlines_today ?? 0}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Deadlines Today</div></div>
           </div>
           {(tx.closings_7d || []).length === 0 ? <Empty>No closings in the next 7 days.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -337,13 +340,13 @@ export default function Dashboard() {
       {/* ── Row 5: Prospecting + Communication Health ─────────────── */}
       <div style={row}>
         <Section title="Prospecting" link="/clients?list=FSBO" linkLabel="Open lists →">
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>FSBO</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>FSBO</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             <Chip to="/clients?list=FSBO" label="Available" value={prospecting.fsbo_available} />
             <Chip to="/clients?list=FSBO" label="Aging 30+" value={prospecting.fsbo_aging_30} tone="amber" />
             <Chip to="/clients?smart=fsbo_dom14_no_text_2w" label="Follow-Up Due" value={prospecting.fsbo_followup_due} tone="red" />
           </div>
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>CANCELLED / EXPIRED</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>CANCELLED / EXPIRED</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <Chip to="/clients?list=Cancelled" label="On List" value={prospecting.cx_total} />
             <Chip to="/clients?smart=cx_no_response" label="No Response Yet" value={prospecting.cx_no_response} tone="amber" />
@@ -398,7 +401,7 @@ export default function Dashboard() {
         <div style={{ ...row, gridTemplateColumns: 'minmax(330px, 640px)' }}>
           <Section title="Business Performance" link="/reporting" linkLabel="Reporting →">
             <table style={{ width: '100%', fontSize: 13, borderCollapse: 'collapse' }}>
-              <thead><tr style={{ color: 'var(--text-muted)', fontSize: 11.5, textAlign: 'right' }}><th style={{ textAlign: 'left', fontWeight: 600 }}></th><th style={{ fontWeight: 700 }}>MTD</th><th style={{ fontWeight: 700 }}>YTD</th></tr></thead>
+              <thead><tr style={{ color: 'var(--text-muted)', fontSize: 12, textAlign: 'right' }}><th style={{ textAlign: 'left', fontWeight: 600 }}></th><th style={{ fontWeight: 700 }}>MTD</th><th style={{ fontWeight: 700 }}>YTD</th></tr></thead>
               <tbody style={{ fontVariantNumeric: 'tabular-nums' }}>
                 <tr><td style={{ padding: '4px 0' }}>New Leads</td><td style={{ textAlign: 'right' }}>{(business.mtd?.new_leads ?? 0).toLocaleString()}</td><td style={{ textAlign: 'right' }}>{(business.ytd?.new_leads ?? 0).toLocaleString()}</td></tr>
                 <tr><td style={{ padding: '4px 0' }}>Closed</td><td style={{ textAlign: 'right' }}>{business.mtd?.closed ?? 0}</td><td style={{ textAlign: 'right' }}>{business.ytd?.closed ?? 0}</td></tr>

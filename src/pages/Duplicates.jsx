@@ -51,7 +51,7 @@ export default function Duplicates() {
                   {g.members.map(m => (
                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, flexWrap: 'wrap' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600 }}>{`${m.first_name || ''} ${m.last_name || ''}`.trim() || m.phone} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>#{m.id}</span></div>
+                        <div style={{ fontWeight: 600 }}>{`${m.first_name || ''} ${m.last_name || ''}`.trim() || m.phone} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>#{m.id}</span></div>
                         <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{[m.address, m.city, m.email].filter(Boolean).join(' · ') || '—'} · {m.status} · {m.comms} comms{m.sierra_lead_id ? ' · Sierra ' + m.sierra_lead_id : ''}</div>
                       </div>
                       <button className="btn btn-sm btn-primary" disabled={busy === g.key} onClick={() => merge(g, m.id)}>{busy === g.key ? '…' : 'Keep this, merge others →'}</button>

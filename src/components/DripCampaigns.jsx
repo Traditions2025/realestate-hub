@@ -177,13 +177,13 @@ function TemplateStepPreview({ tpl, onEdit }) {
   return (
     <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: 'var(--bg-primary)', borderBottom: '1px solid var(--border)' }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em' }}>Subject</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em' }}>Subject</span>
         <span style={{ fontSize: 13, fontWeight: 600, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tpl.subject || '(no subject)'}</span>
         <button type="button" className="btn btn-sm btn-secondary" onClick={onEdit}>✏️ Edit email</button>
       </div>
       <div style={{ maxHeight: 240, overflowY: 'auto', padding: '12px 14px', background: '#ffffff', color: '#111827', fontSize: 13, lineHeight: 1.55, fontFamily: 'Arial, Helvetica, sans-serif' }}
         dangerouslySetInnerHTML={{ __html: tpl.body || '<em>(empty)</em>' }} />
-      <div style={{ padding: '6px 10px', fontSize: 11, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)' }}>
+      <div style={{ padding: '6px 10px', fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-secondary)', borderTop: '1px solid var(--border)' }}>
         Editing here also updates the “{tpl.name}” template in the Templates tab. Merge fields fill in when the email sends.
       </div>
     </div>
@@ -247,4 +247,4 @@ function DripActivity({ id, name, onClose }) {
   )
 }
 
-const Stat = ({ n, label, color }) => <div><div style={{ fontSize: 18, fontWeight: 700, color: color || 'var(--text-primary)' }}>{n ?? 0}</div><div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{label}</div></div>
+const Stat = ({ n, label, color }) => <div><div style={{ fontSize: 18, fontWeight: 700, color: color || 'var(--text-primary)' }}>{n ?? 0}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{label}</div></div>

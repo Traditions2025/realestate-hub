@@ -25,7 +25,7 @@ function AnnotatedShot({ name, accent = '#2563eb', annos = [], caption }) {
           <i style={{ width: 10, height: 10, borderRadius: '50%', background: '#e5837a' }} />
           <i style={{ width: 10, height: 10, borderRadius: '50%', background: '#e6c17a' }} />
           <i style={{ width: 10, height: 10, borderRadius: '50%', background: '#8fc98f' }} />
-          {caption && <span style={{ marginLeft: 8, fontSize: 11.5, color: 'var(--text-muted)' }}>{caption}</span>}
+          {caption && <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--text-muted)' }}>{caption}</span>}
         </div>
         <div style={{ position: 'relative', lineHeight: 0, background: '#fff' }}>
           {src
@@ -233,7 +233,7 @@ export default function WhatsNew() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{it.title}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: it.accent, background: `color-mix(in srgb, ${it.accent} 14%, transparent)`, padding: '2px 8px', borderRadius: 999 }}>{it.date}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: it.accent, background: `color-mix(in srgb, ${it.accent} 14%, transparent)`, padding: '2px 8px', borderRadius: 999 }}>{it.date}</span>
                     </div>
                     <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 5, lineHeight: 1.5 }}>{it.desc}</div>
                     {it.points && it.points.length > 0 && (

@@ -20,7 +20,7 @@ function StatusChip({ status }) {
   else if (/past|client|closed/.test(s)) { color = '#2563eb'; bg = 'rgba(37,99,235,.12)' }
   else if (/junk|donotcontact|blocked|trash|archive/.test(s)) { color = '#dc2626'; bg = 'rgba(220,38,38,.12)' }
   const label = String(status).replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
-  return <span style={{ fontSize: 11, fontWeight: 600, color, background: bg, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>{label}</span>
+  return <span style={{ fontSize: 12, fontWeight: 600, color, background: bg, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>{label}</span>
 }
 
 export default function CampaignMatch() {
@@ -147,7 +147,7 @@ export default function CampaignMatch() {
             <table className="data-table">
               <thead><tr><th style={{ width: 34 }}></th><th>Contact</th><th style={{ width: 110 }}>Status</th><th style={{ width: 90 }}>Match</th><th style={{ width: 90 }}>Intent</th><th>Why the Hub recommends them</th></tr></thead>
               <tbody>
-                {shown.length === 0 ? <tr><td colSpan="6" className="empty-state">No contacts in this group.</td></tr> : shown.map(row => {
+                {shown.length === 0 ? <tr><td colSpan="6" className="empty-state">Nobody in this group right now — leads land here as their drip status changes.</td></tr> : shown.map(row => {
                   const g = GROUP_META[row.group] || GROUP_META.low
                   return (
                     <tr key={row.id}>

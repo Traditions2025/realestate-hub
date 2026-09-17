@@ -1,4 +1,4 @@
-import { notify, confirmDialog } from '../notify'
+import { notify, confirmDialog, LoadErrorBanner } from '../notify'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -317,12 +317,12 @@ function ZipColumnHeader({ sortBy, setSortBy, options, include, exclude, onChang
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
           <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, width: 250, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 10, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}
             onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SORT</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SORT</div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {sortBtn('zip_az', '0–9 ▲')}
               {sortBtn('zip_za', '9–0 ▼')}
             </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SEARCH ZIP CODES</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SEARCH ZIP CODES</div>
             <IncludeExcludeSelect options={options} include={include} exclude={exclude} onChange={onChangeFilter} placeholder="Search zips to add..." />
             {nFilter > 0 && <button type="button" className="btn btn-sm" style={{ marginTop: 8, width: '100%' }} onClick={() => onChangeFilter({ include: [], exclude: [] })}>Clear zip filter</button>}
           </div>
@@ -355,12 +355,12 @@ function TextSentColumnHeader({ sortBy, setSortBy, mode, onMode }) {
           <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={(e) => { e.stopPropagation(); setOpen(false) }} />
           <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 41, marginTop: 4, width: 210, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 18px rgba(0,0,0,0.18)', padding: 10, textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}
             onClick={(e) => e.stopPropagation()}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SORT</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 6 }}>SORT</div>
             <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
               {sortBtn('last_text_out_recent', 'Newest ▼')}
               {sortBtn('last_text_out_oldest', 'Oldest ▲')}
             </div>
-            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 2 }}>FILTER</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 2 }}>FILTER</div>
             {modeBtn('never', 'No text yet (not texted)')}
             {modeBtn('yes', 'Has been texted')}
           </div>
@@ -469,7 +469,7 @@ export function SocialProfiles({ detail, onSaved }) {
         <a className="btn btn-sm btn-secondary" href={googleSearch} target="_blank" rel="noreferrer">🔎 Google this lead</a>
       </div>
       {msg && <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 0' }}>{msg}</p>}
-      {detail.enriched_at && <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 0' }}>Last checked {new Date(detail.enriched_at).toLocaleDateString()}</p>}
+      {detail.enriched_at && <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 0' }}>Last checked {new Date(detail.enriched_at).toLocaleDateString()}</p>}
     </div>
   )
 }
@@ -478,6 +478,7 @@ export default function Clients() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
   const [firstLoad, setFirstLoad] = useState(true)   // skeleton only on the very first paint — refreshes update in place
+  const [loadError, setLoadError] = useState(false)
   const [tab, setTab] = useState('all') // default to All; 'active', 'prime', 'all'
   const [filter, setFilter] = useState({ type: '' })
   const [search, setSearch] = useState('')
@@ -900,7 +901,8 @@ export default function Clients() {
       setTotalCount(total)
       setHasMore(rows.length < total)
       setFirstLoad(false)
-    }).catch(() => setFirstLoad(false))
+      setLoadError(false)
+    }).catch(() => { setFirstLoad(false); setLoadError(true) })
   }
 
   const loadMore = () => {
@@ -1831,6 +1833,7 @@ export default function Clients() {
 
   return (
     <div className="page page-wide">
+      {loadError && <LoadErrorBanner what="the client list" onRetry={load} />}
       <div className="page-header">
         <div>
           <h1>Clients</h1>
@@ -1916,7 +1919,7 @@ export default function Clients() {
       {/* Smart Lists — server-computed segments. Positioned above the status tabs. This row
           scrolls horizontally on its own (nowrap + overflow-x) since the list keeps growing. */}
       <div className="client-tabs" style={{ marginBottom: 6, flexWrap: 'nowrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: 4 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4, textTransform: 'uppercase', flexShrink: 0 }}>Smart Lists</span>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)', alignSelf: 'center', marginRight: 4, textTransform: 'uppercase', flexShrink: 0 }}>Smart Lists</span>
         {SMART_LISTS.map(sl => (
           <button
             key={sl.key}
@@ -2029,7 +2032,7 @@ export default function Clients() {
                 exclude={advFilters.statuses_exclude}
                 onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, statuses_include: include, statuses_exclude: exclude }))}
               />
-              <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>Toggle each value to Include or Exclude.</p>
+              <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>Toggle each value to Include or Exclude.</p>
             </div>
             <div className="filter-section">
               <h5>Tags</h5>
@@ -2156,7 +2159,7 @@ export default function Clients() {
               </select>
             </div>
             <div className="filter-section">
-              <h5>Email Opened <span style={{ fontWeight: 400, fontSize: 10.5, color: 'var(--text-muted)' }}>(tracked)</span></h5>
+              <h5>Email Opened <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>(tracked)</span></h5>
               <select value={advFilters.email_opened} onChange={e => setAdvFilters(p => ({ ...p, email_opened: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
                 <option value="">Any</option>
                 <option value="ever">Ever opened</option>
@@ -2274,7 +2277,7 @@ export default function Clients() {
                   onChange={e => setAdvFilters(p => ({ ...p, properties_viewed_min: e.target.value }))} />
               </label>
             </div>
-            <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '0 0 8px'}}>“Properties viewed” = leads who actually viewed that many listings (so the Homes email always has homes to show).</p>
+            <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px'}}>“Properties viewed” = leads who actually viewed that many listings (so the Homes email always has homes to show).</p>
             <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 4}}>Last listing visit (days ago):</div>
             <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8}}>
               {[{ l: '≤ 30', min: '', max: '30' }, { l: '30–60', min: '30', max: '60' }, { l: '60–90', min: '60', max: '90' }, { l: '90+', min: '90', max: '' }].map(r => {
@@ -2321,7 +2324,7 @@ export default function Clients() {
                 </select>
               </label>
             )}
-            <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0'}}>“In a drip” = currently enrolled (active) in a drip sequence. Pick a campaign to scope it, or leave as Any campaign.</p>
+            <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 0'}}>“In a drip” = currently enrolled (active) in a drip sequence. Pick a campaign to scope it, or leave as Any campaign.</p>
           </div>
 
           <div className="filter-section">
@@ -2442,7 +2445,7 @@ export default function Clients() {
           </div>
 
           <div className="filter-quick-presets">
-            <span style={{fontSize: 11, color: 'var(--text-muted)', marginRight: 8}}>Quick presets:</span>
+            <span style={{fontSize: 12, color: 'var(--text-muted)', marginRight: 8}}>Quick presets:</span>
             <button className="btn btn-sm btn-secondary" onClick={() => setAdvFilters(p => ({
               ...p, has_email: '1', exclude_optouts: true,
               email_statuses: ['ValidAddress', 'TwoWayEmailing'],
@@ -2805,7 +2808,7 @@ export default function Clients() {
               const fs = item.fsbo_status
               const color = fs === 'Available' ? '#10b981' : fs === 'Off Market' ? '#ef4444' : 'var(--text-muted)'
               return <div key="fsbo_status" className="cl-type" title="FSBO status (master file)">
-                {fs ? <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: color, padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{fs}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                {fs ? <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: color, padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap' }}>{fs}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}
               </div>
             }
             case 'visits':
@@ -2833,7 +2836,7 @@ export default function Clients() {
                       {new Date(String(item.last_fub_activity_at).replace(' ', 'T')).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                     </div>
                     {(item.last_fub_activity_type || item.last_fub_activity_detail) && (
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', lineHeight: 1.25, marginTop: 2 }}>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.25, marginTop: 2 }}>
                         {item.last_fub_activity_type}{item.last_fub_activity_detail ? ` ${item.last_fub_activity_detail}` : ''}
                       </div>
                     )}
@@ -2869,7 +2872,7 @@ export default function Clients() {
               if (!s) return <div key="mls_status" className="cl-type">—</div>
               const low = s.toLowerCase()
               const color = low.startsWith('cancel') ? '#dc2626' : low.startsWith('expir') ? '#b45309' : low.startsWith('withdraw') ? '#7c3aed' : '#6b7280'
-              return <div key="mls_status" className="cl-type"><span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10, color: '#fff', background: color }}>{s}</span></div>
+              return <div key="mls_status" className="cl-type"><span style={{ fontSize: 12, fontWeight: 600, padding: '1px 7px', borderRadius: 10, color: '#fff', background: color }}>{s}</span></div>
             }
             case 'mls_number':
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
@@ -3124,7 +3127,7 @@ export default function Clients() {
             <div className="detail-section followup-card" style={{ border: '1px solid rgba(124,58,237,0.35)', background: 'rgba(124,58,237,0.06)', borderRadius: 10, padding: '14px 16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <h4 style={{ color: '#a78bfa', margin: 0, flex: 1 }}>🧭 Suggested Follow-Up</h4>
-                {followup && followup.analyzed_at && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last analyzed {fmtWhen(followup.analyzed_at)}</span>}
+                {followup && followup.analyzed_at && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Last analyzed {fmtWhen(followup.analyzed_at)}</span>}
                 <button className="btn btn-sm" onClick={() => analyzeFollowup()} disabled={followupLoading} title="Re-analyze this client's history and generate a fresh recommendation">
                   {followupLoading ? '…' : '↻ Refresh'}
                 </button>
@@ -3145,24 +3148,24 @@ export default function Clients() {
               ) : (
                 <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 12 }}>
                   {followup.stale && (
-                    <div style={{ fontSize: 11.5, color: 'var(--warning)' }}>● New activity since this was analyzed — <button onClick={() => analyzeFollowup()} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontSize: 11.5 }}>refresh</button></div>
+                    <div style={{ fontSize: 12, color: 'var(--warning)' }}>● New activity since this was analyzed — <button onClick={() => analyzeFollowup()} style={{ background: 'none', border: 'none', color: 'var(--accent)', cursor: 'pointer', padding: 0, fontSize: 12 }}>refresh</button></div>
                   )}
                   {followup.recommendation && (
                     <div>
-                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700 }}>Recommended next step</div>
+                      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700 }}>Recommended next step</div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginTop: 3 }}>{followup.recommendation.label}</div>
                       {followup.recommendation.rationale && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{followup.recommendation.rationale}</div>}
                     </div>
                   )}
                   {Array.isArray(followup.why) && followup.why.length > 0 && (
                     <div>
-                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 4 }}>Why this is recommended</div>
+                      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 4 }}>Why this is recommended</div>
                       <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{followup.why.map((w, i) => <li key={i}>{w}</li>)}</ul>
                     </div>
                   )}
                   {Array.isArray(followup.known) && followup.known.length > 0 && (
                     <details>
-                      <summary style={{ fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer' }}>Known client context</summary>
+                      <summary style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer' }}>Known client context</summary>
                       <ul style={{ margin: '6px 0 0', paddingLeft: 18, fontSize: 12.5, color: 'var(--text-secondary)', lineHeight: 1.6 }}>{followup.known.map((k, i) => <li key={i}>{k}</li>)}</ul>
                     </details>
                   )}
@@ -3170,7 +3173,7 @@ export default function Clients() {
 
                   {fuEmail ? (
                     <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-                      <div style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 6 }}>Suggested email</div>
+                      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: 6 }}>Suggested email</div>
                       <input value={fuEmail.subject} onChange={e => setFuEmail(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ width: '100%', marginBottom: 6, padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
                       <textarea value={fuEmail.body} onChange={e => setFuEmail(v => ({ ...v, body: e.target.value }))} rows={7} style={{ width: '100%', padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
                       {/* Agent-typed context: an insight the AI folds into the email (e.g. "this property is now pending") */}
@@ -3228,7 +3231,7 @@ export default function Clients() {
                 <InlineStatus detail={detail} onSaved={() => openDetail(detail.id)} />
                 <p><strong>Source:</strong> {detail.source || '—'}</p>
                 <p><strong>Agent:</strong> {detail.agent_assigned || '—'}</p>
-                {detail.register_date && <p><strong>Registered:</strong> {new Date(detail.register_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>(from FUB)</span></p>}
+                {detail.register_date && <p><strong>Registered:</strong> {new Date(detail.register_date).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })} <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(from FUB)</span></p>}
                 {detail.marketing_email_opt_out ? <p style={{color: '#b45309'}}><strong>Email Opt-Out:</strong> Tagged (still emailable — note many of these are only property-alert unsubscribes)</p> : null}
                 {!detail.marketing_email_opt_out && detail.ealert_opt_out ? <p style={{color: '#92400e'}}><strong>Property Alerts:</strong> Unsubscribed (email is still fine)</p> : null}
                 {detail.hub_text_opt_out ? <p style={{ color: '#ef4444' }}><strong>Texting stopped:</strong> replied STOP to our number — no texts (calling is still allowed)</p> : null}
@@ -3247,8 +3250,8 @@ export default function Clients() {
                 {detail.lender_name && <p><strong>Lender:</strong> {detail.lender_name} {detail.lender_status && <span className="email-status-tag">{detail.lender_status}</span>}</p>}
                 {detail.listing_agent_status && detail.listing_agent_status !== 'None' && <p><strong>Listing Status:</strong> {detail.listing_agent_status}</p>}
                 {detail.short_summary && <p style={{fontSize: 12, color: 'var(--text-muted)', marginTop: 8}}>{detail.short_summary}</p>}
-                {detail.sierra_creation_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Created: {detail.sierra_creation_date.split('T')[0]}</p>}
-                {detail.sierra_update_date && <p style={{fontSize: 11, color: 'var(--text-muted)'}}>Last Update: {detail.sierra_update_date.split('T')[0]}</p>}
+                {detail.sierra_creation_date && <p style={{fontSize: 12, color: 'var(--text-muted)'}}>Created: {detail.sierra_creation_date.split('T')[0]}</p>}
+                {detail.sierra_update_date && <p style={{fontSize: 12, color: 'var(--text-muted)'}}>Last Update: {detail.sierra_update_date.split('T')[0]}</p>}
               </div>
             </div>
 
@@ -3260,22 +3263,22 @@ export default function Clients() {
                 <h4 style={{color: 'var(--accent)'}}>💧 Active Plans ({(sequences.drips ? sequences.drips.length : 0) + (sequences.automations ? sequences.automations.length : 0)})</h4>
                 {(sequences.drips || []).map(d => (
                   <div key={'d' + d.enrollment_id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)'}}>
-                    <span style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#2563eb', background: 'rgba(37,99,235,0.12)', padding: '2px 7px', borderRadius: 4}}>Drip</span>
+                    <span style={{fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#2563eb', background: 'rgba(37,99,235,0.12)', padding: '2px 7px', borderRadius: 4}}>Drip</span>
                     <div style={{flex: 1, minWidth: 0}}>
                       <div style={{fontWeight: 600, fontSize: 13}}>{d.drip_name}</div>
-                      <div style={{fontSize: 11.5, color: 'var(--text-muted)'}}>Email {(d.current_step || 0) + 1} of {d.total_steps} · next {fmtWhen(d.next_run_at)}</div>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)'}}>Email {(d.current_step || 0) + 1} of {d.total_steps} · next {fmtWhen(d.next_run_at)}</div>
                     </div>
-                    <button className="btn btn-sm" onClick={() => removePlan('drip', d.enrollment_id)} style={{fontSize: 11, padding: '4px 8px'}}>Remove</button>
+                    <button className="btn btn-sm" onClick={() => removePlan('drip', d.enrollment_id)} style={{fontSize: 12, padding: '4px 8px'}}>Remove</button>
                   </div>
                 ))}
                 {(sequences.automations || []).map(a => (
                   <div key={'a' + a.enrollment_id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid var(--border)'}}>
-                    <span style={{fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#7c3aed', background: 'rgba(124,58,237,0.12)', padding: '2px 7px', borderRadius: 4}}>Automation</span>
+                    <span style={{fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: '#7c3aed', background: 'rgba(124,58,237,0.12)', padding: '2px 7px', borderRadius: 4}}>Automation</span>
                     <div style={{flex: 1, minWidth: 0}}>
                       <div style={{fontWeight: 600, fontSize: 13}}>{a.automation_name}</div>
-                      <div style={{fontSize: 11.5, color: 'var(--text-muted)'}}>{a.status === 'waiting' ? 'Waiting' : 'Active'}{a.next_run_at ? ` · next ${fmtWhen(a.next_run_at)}` : ''}</div>
+                      <div style={{fontSize: 12, color: 'var(--text-muted)'}}>{a.status === 'waiting' ? 'Waiting' : 'Active'}{a.next_run_at ? ` · next ${fmtWhen(a.next_run_at)}` : ''}</div>
                     </div>
-                    <button className="btn btn-sm" onClick={() => removePlan('automation', a.enrollment_id)} style={{fontSize: 11, padding: '4px 8px'}}>Remove</button>
+                    <button className="btn btn-sm" onClick={() => removePlan('automation', a.enrollment_id)} style={{fontSize: 12, padding: '4px 8px'}}>Remove</button>
                   </div>
                 ))}
               </div>
@@ -3292,14 +3295,14 @@ export default function Clients() {
                   {detail.realist_bedrooms != null && <p><strong>Bedrooms:</strong> {detail.realist_bedrooms}</p>}
                   {detail.realist_bathrooms_full != null && <p><strong>Full Baths:</strong> {detail.realist_bathrooms_full}</p>}
                   {detail.realist_sell_score != null && (
-                    <p><strong>Sell Score:</strong> {detail.realist_sell_score} <span className="muted" style={{fontSize: 11}}>(0-1000)</span></p>
+                    <p><strong>Sell Score:</strong> {detail.realist_sell_score} <span className="muted" style={{fontSize: 12}}>(0-1000)</span></p>
                   )}
                   {detail.realist_owner_occupied != null && (
                     <p><strong>Owner-Occupied:</strong> {detail.realist_owner_occupied ? 'Yes' : 'No (rental/investor)'}</p>
                   )}
                   {detail.realist_last_sale_price && <p><strong>Last Sale:</strong> {formatCurrency(detail.realist_last_sale_price)}{detail.realist_last_sale_date ? ` (${detail.realist_last_sale_date})` : ''}</p>}
                 </div>
-                {detail.realist_matched_at && <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '8px 0 0'}}>Matched: {detail.realist_matched_at.split(' ')[0]}</p>}
+                {detail.realist_matched_at && <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '8px 0 0'}}>Matched: {detail.realist_matched_at.split(' ')[0]}</p>}
               </div>
             )}
 
@@ -3310,7 +3313,7 @@ export default function Clients() {
               if (!Array.isArray(tagList)) tagList = []
               return (
                 <div className="detail-section">
-                  <h4>Tags ({tagList.length}){detail.sierra_lead_id ? <span style={{fontSize: 11, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>↔ Sierra</span> : null}</h4>
+                  <h4>Tags ({tagList.length}){detail.sierra_lead_id ? <span style={{fontSize: 12, color: 'var(--text-muted)', fontWeight: 400, marginLeft: 8}}>↔ Sierra</span> : null}</h4>
                   <div className="lead-tags-list" style={!tagsExpanded ? { maxHeight: 30, overflow: 'hidden' } : undefined}>
                     {tagList.map((t, i) => (
                       <span key={i} className="lead-tag" style={{display: 'inline-flex', alignItems: 'center', gap: 4}}>
@@ -3354,19 +3357,19 @@ export default function Clients() {
                 <h4>Site Activity ({hubActivity.summary.total_events} events)</h4>
                 <div style={{display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, marginBottom: 12, fontSize: 12}}>
                   <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
-                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Page views</div>
+                    <div style={{color: 'var(--text-muted)', fontSize: 12}}>Page views</div>
                     <div style={{fontSize: 18, fontWeight: 700}}>{hubActivity.summary.pageviews || 0}</div>
                   </div>
                   <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
-                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Listings viewed</div>
+                    <div style={{color: 'var(--text-muted)', fontSize: 12}}>Listings viewed</div>
                     <div style={{fontSize: 18, fontWeight: 700, color: '#3b82f6'}}>{hubActivity.summary.listing_views || 0}</div>
                   </div>
                   <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
-                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Saves</div>
+                    <div style={{color: 'var(--text-muted)', fontSize: 12}}>Saves</div>
                     <div style={{fontSize: 18, fontWeight: 700, color: '#f59e0b'}}>{hubActivity.summary.saves || 0}</div>
                   </div>
                   <div style={{padding: 8, background: 'var(--bg-elevated)', borderRadius: 4}}>
-                    <div style={{color: 'var(--text-muted)', fontSize: 11}}>Time on site</div>
+                    <div style={{color: 'var(--text-muted)', fontSize: 12}}>Time on site</div>
                     <div style={{fontSize: 18, fontWeight: 700}}>{Math.round((hubActivity.summary.total_seconds || 0) / 60)}m</div>
                   </div>
                 </div>
@@ -3377,10 +3380,10 @@ export default function Clients() {
                       <div key={e.id} style={{padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12}}>
                         <div style={{display: 'flex', justifyContent: 'space-between'}}>
                           <span style={{fontWeight: 600}}>{eventLabel}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span>
-                          <span style={{color: 'var(--text-muted)', fontSize: 11}}>{new Date(e.created_at).toLocaleString()}</span>
+                          <span style={{color: 'var(--text-muted)', fontSize: 12}}>{new Date(e.created_at).toLocaleString()}</span>
                         </div>
-                        {e.page_title && <div style={{color: 'var(--text-secondary)', fontSize: 11, marginTop: 2}}>{e.page_title}</div>}
-                        {e.duration_sec && <div style={{color: 'var(--text-muted)', fontSize: 10}}>{e.duration_sec}s on page</div>}
+                        {e.page_title && <div style={{color: 'var(--text-secondary)', fontSize: 12, marginTop: 2}}>{e.page_title}</div>}
+                        {e.duration_sec && <div style={{color: 'var(--text-muted)', fontSize: 12}}>{e.duration_sec}s on page</div>}
                       </div>
                     )
                   })}
@@ -3483,10 +3486,10 @@ export default function Clients() {
                       <div key={a.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
                           <span style={{ fontWeight: 600 }}>{a.type}</span>
-                          <span style={{ color: 'var(--text-muted)', fontSize: 11, whiteSpace: 'nowrap' }}>{when}</span>
+                          <span style={{ color: 'var(--text-muted)', fontSize: 12, whiteSpace: 'nowrap' }}>{when}</span>
                         </div>
-                        {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
-                        {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.page_title}</div>}
+                        {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
+                        {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{a.page_title}</div>}
                       </div>
                     )
                   })}
@@ -3569,7 +3572,7 @@ export default function Clients() {
                     const text = commToText(m.body || m.preview || m.subject || '')
                     return (
                       <div key={m.id} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text-muted)', marginBottom: text || isCallish ? 3 : 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginBottom: text || isCallish ? 3 : 0 }}>
                           <span style={{ color: meta.color, fontWeight: 700 }}>{meta.icon} {meta.label}</span>
                           <span title={out ? 'Outgoing' : 'Incoming'}>{out ? '↗ sent' : '↙ received'}</span>
                           {m.duration_sec ? <span>· {fmtDur(m.duration_sec)}</span> : null}
@@ -3691,7 +3694,7 @@ export default function Clients() {
               <textarea ref={bulkEmailBodyRef} value={bulkEmailForm.body} onChange={e => setBulkEmailForm(p => ({ ...p, body: e.target.value }))} rows={18} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
             </>
           )}
-          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0 8px'}}>
+          <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 8px'}}>
             Auto-fills per recipient: {'{{first_name}} {{last_name}} {{city}}'} · {'{{properties}}'} = their viewed listings · {'{{signature}}'} = your saved signature. Use <strong>👁 Preview a recipient</strong> to verify before sending.
           </p>
           <div className="form-actions">
@@ -3707,7 +3710,7 @@ export default function Clients() {
               <div style={{height: 6, background: 'var(--border)', borderRadius: 3, overflow: 'hidden'}}>
                 <div style={{height: '100%', width: `${Math.round(100 * (bulkProgress.done || 0) / Math.max(1, bulkProgress.total || 1))}%`, background: 'var(--accent, #2563eb)', transition: 'width .3s'}} />
               </div>
-              <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '6px 0 0'}}>
+              <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 0'}}>
                 {bulkProgress.sent || 0} sent · {bulkProgress.skipped || 0} skipped · {bulkProgress.failed || 0} failed — pulling each recipient's live listings, keep this open.
               </p>
             </div>
@@ -3777,7 +3780,7 @@ export default function Clients() {
             {detail?.fub_person_id && <option value="__homes__">🏡 Homes They Viewed</option>}
             {emailTemplates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
           </select></label>
-          {draftingPropEmail && <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '2px 0'}}>Building “Homes They Viewed”…</p>}
+          {draftingPropEmail && <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '2px 0'}}>Building “Homes They Viewed”…</p>}
           <label>Subject
             <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
               <input ref={subjectRef} value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} required style={{ flex: 1 }} />
@@ -3823,7 +3826,7 @@ export default function Clients() {
               <textarea ref={singleEmailBodyRef} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} rows={18} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
             </>
           )}
-          <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
+          <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '4px 0'}}>
             Type freely like Gmail. Use the <strong>+ Field</strong> menu (on the subject and body) to drop in personalization like {'{{first_name}}'}, {'{{address}}'}, {'{{city}}'} anywhere — they fill in per recipient on send. Paste a mattsmithteam.com property link → it becomes a listing card on send/preview.
           </p>
 
@@ -4087,13 +4090,13 @@ export function InlineStatus({ detail, onSaved }) {
   return (
     <p style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <strong>Status:</strong>
-      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: STATUS_COLOR[cur] || '#64748b', padding: '2px 8px', borderRadius: 4 }}>{STATUS_LABEL[cur] || detail.status || '—'}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: STATUS_COLOR[cur] || '#64748b', padding: '2px 8px', borderRadius: 4 }}>{STATUS_LABEL[cur] || detail.status || '—'}</span>
       <select value={STATUS_OPTIONS.includes(cur) ? cur : ''} disabled={saving} onChange={e => change(e.target.value)} style={{ padding: '3px 6px', fontSize: 12 }} title="Change status (updates Hub and Sierra)">
         {!STATUS_OPTIONS.includes(cur) && <option value="">{detail.status || 'Set status'}</option>}
         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABEL[s]}</option>)}
       </select>
-      {saving && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>saving…</span>}
-      {msg && !saving && <span style={{ fontSize: 11, color: msg.includes('failed') ? '#b45309' : '#10b981' }}>{msg}</span>}
+      {saving && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>saving…</span>}
+      {msg && !saving && <span style={{ fontSize: 12, color: msg.includes('failed') ? '#b45309' : '#10b981' }}>{msg}</span>}
     </p>
   )
 }
@@ -4139,7 +4142,7 @@ export function QuickAddTask({ clientId, clientName, clientAddress, onAdded }) {
         </select>
         <button className="btn btn-primary btn-sm" onClick={add} disabled={saving || !text.trim()}>{saving ? 'Adding…' : 'Add Task'}</button>
       </div>
-      {clientAddress && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>📍 {clientAddress} — goes into the task description</div>}
+      {clientAddress && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>📍 {clientAddress} — goes into the task description</div>}
       {done && <div style={{ fontSize: 12, color: '#10b981', marginTop: 6 }}>{done}</div>}
     </div>
   )
@@ -4329,10 +4332,10 @@ function BulkTagsModal({ ids, allTags, onClose, onDone }) {
       <div className="form">
         <label style={{ fontSize: 13, fontWeight: 600 }}>Add tags (comma-separated)</label>
         <input value={add} onChange={e => setAdd(e.target.value)} placeholder="e.g. Relocation, Investor" style={{ width: '100%', padding: '8px 10px', margin: '4px 0 6px' }} />
-        {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>{allTags.slice(0, 20).map(t => <button key={t} type="button" onClick={() => chip(setAdd)(t)} style={{ fontSize: 11, padding: '2px 7px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}>+ {t}</button>)}</div>}
+        {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>{allTags.slice(0, 20).map(t => <button key={t} type="button" onClick={() => chip(setAdd)(t)} style={{ fontSize: 12, padding: '2px 7px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}>+ {t}</button>)}</div>}
         <label style={{ fontSize: 13, fontWeight: 600 }}>Remove tags (comma-separated)</label>
         <input value={remove} onChange={e => setRemove(e.target.value)} placeholder="tags to remove" style={{ width: '100%', padding: '8px 10px', margin: '4px 0 6px' }} />
-        {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>{allTags.slice(0, 20).map(t => <button key={t} type="button" onClick={() => chip(setRemove)(t)} style={{ fontSize: 11, padding: '2px 7px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}>− {t}</button>)}</div>}
+        {allTags.length > 0 && <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>{allTags.slice(0, 20).map(t => <button key={t} type="button" onClick={() => chip(setRemove)(t)} style={{ fontSize: 12, padding: '2px 7px', border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', cursor: 'pointer', color: 'var(--text-secondary)' }}>− {t}</button>)}</div>}
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" disabled={busy || (!parse(add).length && !parse(remove).length)} onClick={run}>{busy ? 'Saving…' : 'Apply'}</button>
@@ -4369,7 +4372,7 @@ export function ContactTimeline({ clientId }) {
                       <span style={{ position: 'absolute', left: -22, top: 0 }}>{e.icon}</span>
                       <div style={{ fontSize: 13, fontWeight: 600 }}>{e.title}</div>
                       {e.detail && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 1, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{e.detail}</div>}
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(e.at)}</div>
+                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(e.at)}</div>
                     </div>
                   ))}
                 </div>
@@ -4510,7 +4513,7 @@ function TextComposerModal({ client, onClose, onSent }) {
         <textarea value={body} autoFocus onChange={e => setBody(e.target.value)} rows={5} maxLength={1000}
           placeholder="Type your message…" onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') send() }}
           style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical' }} />
-        <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send</div>
+        <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send</div>
         <div className="form-actions">
           <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
           <button type="button" className="btn btn-primary" onClick={send} disabled={sending || !body.trim()}>{sending ? 'Sending…' : 'Send Text'}</button>
@@ -4560,7 +4563,7 @@ function ManualDialer({ onClose }) {
           <button className="btn btn-secondary" onClick={back} disabled={!digits} title="Delete">⌫</button>
           <button className="btn btn-primary" style={{ flex: 1, background: '#10b981', fontSize: 16, padding: '11px 0' }} onClick={call} disabled={digits.length < 10}>📞 Call</button>
         </div>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>Calls from your Hub number (319) 343-1562. Keep the Hub open to talk.</div>
+        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, textAlign: 'center' }}>Calls from your Hub number (319) 343-1562. Keep the Hub open to talk.</div>
       </div>
     </Modal>
   )
@@ -4597,10 +4600,10 @@ export function AiIsaCard({ clientId }) {
     <div className="detail-section" style={{ border: '1px solid rgba(37,99,235,0.35)', background: 'rgba(37,99,235,0.05)', borderRadius: 10, padding: '14px 16px' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <h4 style={{ margin: 0, color: '#2563eb' }}>🤖 HUB AI</h4>
-        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: '#2563eb', padding: '2px 7px', borderRadius: 4 }}>{st.replace(/_/g, ' ')}</span>
+        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: '#2563eb', padding: '2px 7px', borderRadius: 4 }}>{st.replace(/_/g, ' ')}</span>
         {d.intent && <span style={{ fontSize: 12, fontWeight: 700, color: LEVEL[d.intent.level] || '#64748b' }}>intent {d.intent.score} · {d.intent.level}</span>}
-        {d.conversation_type && <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,0.12)', padding: '2px 7px', borderRadius: 4 }}>{d.conversation_type.replace(/_/g, ' ')}</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 11, color: managed ? '#10b981' : 'var(--text-muted)' }}>{managed ? 'AI managing this lead' : 'AI not enabled here'}</span>
+        {d.conversation_type && <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,0.12)', padding: '2px 7px', borderRadius: 4 }}>{d.conversation_type.replace(/_/g, ' ')}</span>}
+        <span style={{ marginLeft: 'auto', fontSize: 12, color: managed ? '#10b981' : 'var(--text-muted)' }}>{managed ? 'AI managing this lead' : 'AI not enabled here'}</span>
       </div>
       {!d.global?.master && <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>AI is off globally. Turn on HUB AI Follow-Up in Settings for it to run.</div>}
       {d.global?.master && !d.global?.autopilot && !managed && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Manual mode: AI won’t act on this lead until you turn it on here. (Autopilot is off.)</div>}
@@ -4609,27 +4612,27 @@ export function AiIsaCard({ clientId }) {
       {d.intent?.reasons?.length > 0 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Signals: {d.intent.reasons.join(' · ')}</div>}
       {Array.isArray(d.memory_fields) && d.memory_fields.length > 0 && (
         <details style={{ marginTop: 8 }}>
-          <summary style={{ fontSize: 11.5, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>What HUB AI has learned ({d.memory_fields.length})</summary>
+          <summary style={{ fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', userSelect: 'none' }}>What HUB AI has learned ({d.memory_fields.length})</summary>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, marginTop: 6 }}>
             {d.memory_fields.map(f => (
               <div key={f.field} style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 12 }}>
                 <span style={{ minWidth: 130, color: 'var(--text-muted)', textTransform: 'capitalize' }}>{f.field.replace(/_/g, ' ')}</span>
                 <span style={{ fontWeight: 600, flex: 1 }}>{f.value}</span>
-                <span style={{ fontSize: 10, color: f.source === 'human' ? '#10b981' : 'var(--text-muted)', textTransform: 'uppercase' }}>{f.source}{f.confidence != null ? ` · ${Math.round(f.confidence * 100)}%` : ''}</span>
+                <span style={{ fontSize: 12, color: f.source === 'human' ? '#10b981' : 'var(--text-muted)', textTransform: 'uppercase' }}>{f.source}{f.confidence != null ? ` · ${Math.round(f.confidence * 100)}%` : ''}</span>
               </div>
             ))}
           </div>
         </details>
       )}
       {d.open_handoff && <div style={{ fontSize: 12.5, color: '#b45309', marginTop: 6, fontWeight: 600 }}>⚑ Open handoff: {d.open_handoff.reason}</div>}
-      {d.ai_next_action_at && <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Next AI action: {fmt(d.ai_next_action_at)}</div>}
+      {d.ai_next_action_at && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 6 }}>Next AI action: {fmt(d.ai_next_action_at)}</div>}
       {preview && (
         <div style={{ marginTop: 10, padding: '9px 11px', borderRadius: 8, background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
           {preview.loading ? <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Drafting preview…</span>
             : preview.ok ? <>
-              <div style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 4 }}>Preview · {preview.kind} {!preview.eligible && <span style={{ color: '#ef4444' }}>· would be blocked: {preview.block_reason}</span>}</div>
+              <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 4 }}>Preview · {preview.kind} {!preview.eligible && <span style={{ color: '#ef4444' }}>· would be blocked: {preview.block_reason}</span>}</div>
               <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{preview.message}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Not sent — this is only a preview.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Not sent — this is only a preview.</div>
             </> : <span style={{ fontSize: 12.5, color: '#ef4444' }}>{preview.reason || 'Could not preview'}</span>}
         </div>
       )}
@@ -4831,17 +4834,17 @@ export function InlineTextComposer({ client, onClose, onSent }) {
     <div style={{ marginTop: 10, border: '1px solid var(--border)', borderRadius: 10, padding: 12, background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>💬 Text</span>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 8 }}>from your Hub number (319) 343-1562</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>from your Hub number (319) 343-1562</span>
         {recips.length === 1 && !recips[0].agent && (
           <select value={toPhone || clientNums[0]} disabled={groupAll} onChange={e => { if (e.target.value === '__add__') { addNumberInline() } else setToPhone(e.target.value) }} title={groupAll ? 'Sending to ALL numbers as one group text' : "Which of this lead's numbers to text (nicknames set on the profile show here)"}
-            style={{ marginLeft: 8, fontSize: 11, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', opacity: groupAll ? 0.5 : 1 }}>
+            style={{ marginLeft: 8, fontSize: 12, padding: '2px 4px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', opacity: groupAll ? 0.5 : 1 }}>
             {clientNums.map((p, i) => <option key={p} value={p}>to {p} ({labels[phoneD10(p)] || (i === 0 ? 'main' : 'additional')})</option>)}
             <option value="__add__">＋ Add another number…</option>
           </select>
         )}
         {clientNums.length > 1 && recips.some(r => !r.agent && r.id === client.id) && (
           <label title="One group MMS to every saved number — all phones get it in one shared thread and see each other's replies (teammates you loop in join the same thread)"
-            style={{ marginLeft: 8, fontSize: 11.5, display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: groupAll ? 'var(--accent)' : 'var(--text-muted)', fontWeight: groupAll ? 700 : 500 }}>
+            style={{ marginLeft: 8, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 4, cursor: 'pointer', color: groupAll ? 'var(--accent)' : 'var(--text-muted)', fontWeight: groupAll ? 700 : 500 }}>
             <input type="checkbox" checked={groupAll} onChange={e => setGroupAll(e.target.checked)} style={{ cursor: 'pointer' }} />
             👥 all {clientNums.length} numbers
           </label>
@@ -4851,7 +4854,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
         {recips.map(r => (
           <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: r.agent ? 'rgba(37,99,235,.1)' : 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 12 }}>
-            {r.agent && <span title="Team agent" style={{ fontSize: 10 }}>👤</span>}
+            {r.agent && <span title="Team agent" style={{ fontSize: 12 }}>👤</span>}
             {r.name || `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.phone}
             {recips.length > 1 && <button onClick={() => removeRecip(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>}
           </span>
@@ -4867,7 +4870,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       </div>
       {agents.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Loop in a teammate:</span>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loop in a teammate:</span>
           {agents.filter(a => a.phone && !recips.find(r => r.id === 'agent:' + a.id)).map(a => (
             <button key={a.id} onClick={() => addAgent(a)} className="btn btn-sm btn-secondary" title={`${a.phone}${a.title ? ' · ' + a.title : ''}`}>+ {a.name}</button>
           ))}
@@ -4880,7 +4883,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
             {results.map(c => (
               <div key={c.id} onClick={() => addRecip(c)} style={{ padding: '7px 11px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
                 <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{c.phone || 'no phone'}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.phone || 'no phone'}</div>
               </div>
             ))}
           </div>
@@ -4908,7 +4911,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
           {media.map((mm, i) => (
             <div key={i} style={{ position: 'relative' }}>
               <img src={mm.url} alt="" style={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
-              <button onClick={() => setMedia(list => list.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 11, lineHeight: '18px', padding: 0 }}>✕</button>
+              <button onClick={() => setMedia(list => list.filter((_, j) => j !== i))} style={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: '18px', padding: 0 }}>✕</button>
             </div>
           ))}
         </div>
@@ -4928,7 +4931,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
               {previewSchedId === s.id && (
                 <div style={{ marginTop: 6, padding: '7px 9px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, whiteSpace: 'pre-wrap', wordBreak: 'break-word', lineHeight: 1.45, color: 'var(--text-primary)' }}>
                   {s.body || '[photo]'}
-                  {s.media_url && <div style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: 11 }}>+ attachment</div>}
+                  {s.media_url && <div style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: 12 }}>+ attachment</div>}
                 </div>
               )}
             </div>
@@ -4944,13 +4947,13 @@ export function InlineTextComposer({ client, onClose, onSent }) {
         ) : (
           <div style={{ marginBottom: 8, border: '1px solid rgba(16,185,129,.35)', borderRadius: 8, padding: 10, background: 'rgba(16,185,129,.06)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#10b981' }}>✨ AI text suggestion</span>
-              {ai?.ok && ai.kind && <span style={{ fontSize: 10, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' }}>{ai.kind}</span>}
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>✨ AI text suggestion</span>
+              {ai?.ok && ai.kind && <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', border: '1px solid var(--border)', borderRadius: 10, padding: '1px 7px' }}>{ai.kind}</span>}
               <button onClick={() => { setAiOpen(false); setAi(null) }} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 14 }} title="Hide">✕</button>
             </div>
             {/* Follow-up angle picker — choose what the draft anchors on (all zero-pressure by doctrine) */}
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
               {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
                 <button key={k || 'auto'} className="btn btn-sm" disabled={aiBusy}
                   style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
@@ -4971,11 +4974,11 @@ export function InlineTextComposer({ client, onClose, onSent }) {
             {ai?.ok && (
               <>
                 <div style={{ fontSize: 13, lineHeight: 1.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '8px 10px' }}>{ai.message}</div>
-                {!ai.eligible && ai.block_reason && <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 5 }}>⚠ AI auto-send is blocked for this lead ({ai.block_reason}) — you can still send this manually.</div>}
+                {!ai.eligible && ai.block_reason && <div style={{ fontSize: 12, color: '#b45309', marginTop: 5 }}>⚠ AI auto-send is blocked for this lead ({ai.block_reason}) — you can still send this manually.</div>}
                 <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                   <button className="btn btn-primary btn-sm" onClick={useAiText}>Use this ↓</button>
                   <button className="btn btn-sm" onClick={() => { navigator.clipboard?.writeText(ai.message) }}>Copy</button>
-                  <span style={{ marginLeft: 'auto', fontSize: 10.5, color: 'var(--text-muted)', alignSelf: 'center' }}>{(ai.message || '').length} chars</span>
+                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center' }}>{(ai.message || '').length} chars</span>
                 </div>
               </>
             )}
@@ -4992,7 +4995,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
         </div>
       )}
       <div style={{ display: 'flex', alignItems: 'center', marginTop: 8, gap: 8 }}>
-        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send{recips.length > 1 ? ` · ${recips.length} recipients` : ''}</span>
+        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{body.length}/1000 · ⌘/Ctrl+Enter to send{recips.length > 1 ? ` · ${recips.length} recipients` : ''}</span>
         {!schedOpen && recips.length === 1 && <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setSchedOpen(true)} title="Schedule for later">🕑 Schedule</button>}
         <button className="btn btn-primary btn-sm" style={{ marginLeft: schedOpen || recips.length > 1 ? 'auto' : 0 }} onClick={send} disabled={sending || (!body.trim() && !media.length)}>{sending ? 'Sending…' : 'Send Text'}</button>
       </div>
@@ -5067,13 +5070,13 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
         {parts.map((p, i) => (
           <div key={i} style={{ marginBottom: 8 }}>
             {parts.length > 1 && (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--text-muted)', marginBottom: 2 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12, color: 'var(--text-muted)', marginBottom: 2 }}>
                 <span>Text {i + 1} of {parts.length}</span>
                 <button type="button" onClick={() => removePart(i)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 12 }}>Remove</button>
               </div>
             )}
             <textarea value={p} autoFocus={i === 0} onFocus={() => setActiveIdx(i)} onChange={e => setPart(i, e.target.value)} rows={4} maxLength={1000} placeholder={i === 0 ? 'Type your message…' : `Follow-up text ${i + 1}…`} style={{ width: '100%', padding: 10, fontSize: 14, lineHeight: 1.5, resize: 'vertical', border: activeIdx === i && parts.length > 1 ? '1px solid var(--accent, #b8863b)' : undefined }} />
-            <div style={{ textAlign: 'right', fontSize: 11, color: 'var(--text-muted)' }}>{p.length}/1000</div>
+            <div style={{ textAlign: 'right', fontSize: 12, color: 'var(--text-muted)' }}>{p.length}/1000</div>
           </div>
         ))}
         <button type="button" onClick={addPart} style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 6, padding: '5px 10px', fontSize: 12, color: 'var(--text-muted)', cursor: 'pointer', marginBottom: 8 }}>+ Add another text (sent after, same recipients)</button>
@@ -5091,9 +5094,9 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
               : preview.error ? <div style={{ fontSize: 13, color: '#ef4444' }}>{preview.error}</div>
                 : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{preview.parts.map((t, i) => (
                   <div key={i} style={{ background: 'var(--bg-primary,#fff)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 11px', fontSize: 14, lineHeight: 1.45, whiteSpace: 'pre-wrap' }}>
-                    {preview.parts.length > 1 && <div style={{ fontSize: 10.5, color: 'var(--text-muted)', marginBottom: 3 }}>Text {i + 1}</div>}{t || '(empty)'}
+                    {preview.parts.length > 1 && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Text {i + 1}</div>}{t || '(empty)'}
                   </div>))}</div>}
-            {!preview.loading && !preview.error && /\{\{[^}]+\}\}/.test((preview.parts || []).join('')) && <div style={{ fontSize: 11.5, color: '#b45309', marginTop: 6 }}>⚠ A merge field didn't fill — check the field name matches a supported one.</div>}
+            {!preview.loading && !preview.error && /\{\{[^}]+\}\}/.test((preview.parts || []).join('')) && <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>⚠ A merge field didn't fill — check the field name matches a supported one.</div>}
           </div>
         )}
         <div className="form-actions">

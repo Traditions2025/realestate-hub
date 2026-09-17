@@ -28,7 +28,7 @@ export default function IncludeExcludeSelect({ options, include = [], exclude = 
   }
   const remove = (v) => onChange({ include: include.filter(x => x !== v), exclude: exclude.filter(x => x !== v) })
 
-  const seg = (active, color) => ({ padding: '2px 9px', fontSize: 11, fontWeight: 600, border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : 'var(--text-muted)' })
+  const seg = (active, color) => ({ padding: '2px 9px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : 'var(--text-muted)' })
 
   return (
     <div ref={ref}>

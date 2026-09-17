@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-17T21:28:44.744Z",
+  "generated_at": "2026-09-17T21:52:35.403Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9f88aa3",
+      "date": "2026-09-17T16:29:30-05:00",
+      "subject": "Design Upgrade Phase 1: toasts replace all 293 alerts, promise confirms replace all 63 confirms, first-load skeletons",
+      "title": "Design Upgrade Phase 1: toasts replace all 293 alerts, promise confirms replace all 63 confirms, first-load skeletons",
+      "body": "Per HUB-DESIGN-UPGRADE-PLAN.md Phase 1 (guided by ask-sonner + emil-design-eng\n+ impeccable):\n\n1.1 Sonner Toaster mounted once at the root — theme-aware (follows the Hub's\n    light/dark), bottom-right desktop / top-center mobile, styled with our\n    tokens, above every modal. Every alert() (293 across 25 files) now routes\n    through notify(), which classifies legacy messages into success / error /\n    neutral toasts so saves stop blocking the UI and errors carry their reason.\n\n1.2 confirmDialog() replaces every native confirm() (63 sites): promise-based\n    dialog on our tokens — title states the action, body the consequence,\n    destructive button red and right-aligned, Cancel focused by default,\n    Escape cancels, Enter never confirms. Legacy multi-line messages split\n    into title + body automatically. 9 handlers async-ified (build-verified).\n    Native confirm() in the installed PWA broke the app illusion completely.\n\n1.3 First-load skeletons on the two highest-traffic lists (Clients, Inbox)\n    using the existing shimmer tokens — first paint only; refreshes and the\n    10-min sync updates keep rendering in place, never blanking data.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9f2bc40",
       "date": "2026-09-17T15:48:29-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Dashboard: remove the \"Pull Sierra Leads\" button",
       "title": "Dashboard: remove the \"Pull Sierra Leads\" button",
       "body": "Redundant — Sierra auto-syncs incrementally every 10 min, and a manual sync is\nstill available in Updates → Systems (\"Run Sync Now\"). Removed the button, its\nsyncSierra handler, and the syncing state. The \"Last Sierra sync\" status line stays.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "220ffa2",
-      "date": "2026-08-11T12:19:28-05:00",
-      "subject": "Tasks: remove the one-time \"Import Matt's Task List\" seed button",
-      "title": "Tasks: remove the one-time \"Import Matt's Task List\" seed button",
-      "body": "That button seeded a hardcoded ~59-task backlog into the Tasks table when the Hub\nfirst launched — a one-time migration, long since done. It connects to nothing\nexternal; tasks are created natively in the Hub now. Removed the button plus the\ndead /api/tasks/seed-matts-list endpoint and the hardcoded MATTS_TASK_LIST array.\nExisting tasks are untouched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

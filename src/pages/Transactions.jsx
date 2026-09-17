@@ -1,4 +1,4 @@
-import { notify, confirmDialog } from '../notify'
+import { notify, confirmDialog, LoadErrorBanner } from '../notify'
 import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -249,6 +249,7 @@ function calcFinalWalkthrough(closingDate) {
 
 export default function Transactions() {
   const [items, setItems] = useState([])
+  const [loadError, setLoadError] = useState(false)
   const [preListings, setPreListings] = useState([])
   const [clients, setClients] = useState([])
   const [filter, setFilter] = useState({ type: '', property_status: '' })
@@ -608,7 +609,7 @@ export default function Transactions() {
     if (filter.type) params.type = filter.type
     if (filter.property_status) params.property_status = filter.property_status
     if (search) params.search = search
-    api.getTransactions(params).then(setItems)
+    api.getTransactions(params).then(d => { setItems(d); setLoadError(false) }).catch(() => setLoadError(true))
     // Pre-listings show in pipeline as the first column
     const plParams = new URLSearchParams()
     if (search) plParams.set('search', search)
@@ -824,6 +825,7 @@ export default function Transactions() {
 
   return (
     <div className="page">
+      {loadError && <LoadErrorBanner what="transactions" onRetry={load} />}
       <div className="page-header">
         <div>
           <h1>Transaction Tracker</h1>
@@ -888,7 +890,7 @@ export default function Transactions() {
                   <div className="pipeline-card-address">{pl.property_address}</div>
                   <div className="pipeline-card-meta">
                     <span>{pl.owner_name || '—'}</span>
-                    <span style={{fontSize: 11, color: progress === 100 ? '#10b981' : '#3b82f6'}}>{progress}%</span>
+                    <span style={{fontSize: 12, color: progress === 100 ? '#10b981' : '#3b82f6'}}>{progress}%</span>
                   </div>
                   <div className="progress-bar" style={{marginTop: 6, height: 4}}>
                     <div className="progress-fill" style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#10b981' : '#3b82f6' }}></div>
@@ -1262,7 +1264,7 @@ export default function Transactions() {
                     </div>
                     <button type="button" className="btn btn-sm btn-secondary" disabled={!personSearch.trim()} onClick={() => addPerson({ name: personSearch.trim() })}>Add</button>
                   </div>
-                  <p className="muted" style={{ fontSize: 11, margin: '4px 0 0' }}>Pick a CRM match to link the lead, or type a name and click Add for someone not in the CRM.</p>
+                  <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>Pick a CRM match to link the lead, or type a name and click Add for someone not in the CRM.</p>
                 </>
               )}
             </div>
@@ -1525,7 +1527,7 @@ export default function Transactions() {
                   {MORTGAGE_PAYOFF_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select></label>
               ) : (
-                <div style={{fontSize: 11, color: 'var(--text-muted)', alignSelf: 'center', fontStyle: 'italic'}}>
+                <div style={{fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center', fontStyle: 'italic'}}>
                   Mortgage Payoff<br/>(listing-side only)
                 </div>
               )}
@@ -1590,7 +1592,7 @@ export default function Transactions() {
             return (
               <>
                 <div className="form-section form-full">
-                  <h4>Listing & Disclosures <span style={{fontSize: 11, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8}}>{sideLabel}</span></h4>
+                  <h4>Listing & Disclosures <span style={{fontSize: 12, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8}}>{sideLabel}</span></h4>
                   <label>Dotloop Transaction Status<select value={form.dotloop_status || 'Not Submitted'} onChange={e => f('dotloop_status', e.target.value)}>
                     {DOTLOOP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                   </select></label>
@@ -1755,7 +1757,7 @@ export default function Transactions() {
                   {countMarketingDone(form.marketing_tasks)}/{MARKETING_TOTAL} done
                 </span>
               </div>
-              <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
                 Clears automatically when this moves to Under Contract.
               </p>
               {MARKETING_TASK_GROUPS.map(group => (
@@ -1963,7 +1965,7 @@ export default function Transactions() {
           compact
         />
         <textarea ref={txEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
-        <p className="muted" style={{fontSize: 11, margin: '2px 0 0'}}>
+        <p className="muted" style={{fontSize: 12, margin: '2px 0 0'}}>
           📁 Load HTML · 📷 Inline Images (so they render) · plain text also auto-formats with paragraphs and clickable links.
         </p>
 
@@ -2002,12 +2004,12 @@ export default function Transactions() {
                   >✕</button>
                 </span>
               ))}
-              <span className="muted" style={{fontSize: 11, alignSelf: 'center'}}>
+              <span className="muted" style={{fontSize: 12, alignSelf: 'center'}}>
                 Total: {((emailForm.attachments.reduce((s, a) => s + a.size, 0)) / 1024 / 1024).toFixed(2)} MB
               </span>
             </div>
           )}
-          <p className="muted" style={{fontSize: 11, margin: '4px 0 0'}}>SendGrid limit: 30 MB total. PDFs, images, and most file types supported.</p>
+          <p className="muted" style={{fontSize: 12, margin: '4px 0 0'}}>SendGrid limit: 30 MB total. PDFs, images, and most file types supported.</p>
         </div>
 
         <div className="form-actions">
@@ -2145,14 +2147,14 @@ function CustomChecklist({ transactionId, address }) {
                 <span style={{flex: 1, fontSize: 13, textDecoration: it.status === 'done' ? 'line-through' : 'none', color: it.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)'}}>
                   {it.title}
                 </span>
-                {it.assigned_to && <span style={{fontSize: 11, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
+                {it.assigned_to && <span style={{fontSize: 12, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
                 <input
                   type="date"
                   value={it.due_date || ''}
                   onChange={e => updateDate(it, e.target.value)}
                   title={overdue ? 'Overdue' : 'Due date'}
                   style={{
-                    fontSize: 11,
+                    fontSize: 12,
                     padding: '2px 6px',
                     border: `1px solid ${overdue ? '#ef4444' : 'var(--border)'}`,
                     borderRadius: 3,

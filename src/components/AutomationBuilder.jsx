@@ -276,7 +276,7 @@ function TreeRenderer({ graph, fromId, branch, onSelect, selId, errsByNode, open
   visited = visited || new Set()
   const cid = childId(graph, fromId, branch)
   if (!cid) return <PlusSlot onClick={() => openPicker(fromId, branch)} />
-  if (visited.has(cid)) return <div style={{ fontSize: 11, color: '#94a3b8', padding: 8 }}>↩ loops to earlier step</div>
+  if (visited.has(cid)) return <div style={{ fontSize: 12, color: '#94a3b8', padding: 8 }}>↩ loops to earlier step</div>
   visited.add(cid)
   const node = nodeById(graph, cid)
   if (!node) return null
@@ -290,7 +290,7 @@ function TreeRenderer({ graph, fromId, branch, onSelect, selId, errsByNode, open
         <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start', marginTop: 6 }}>
           {branches.map(bk => (
             <div key={bk} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', background: bk === 'no' || bk === 'timeout' ? '#ef4444' : bk === 'yes' || bk === 'met' || bk === 'continue' ? '#10b981' : '#6366f1', padding: '2px 10px', borderRadius: 10, marginTop: 8 }}>{branchLabel(node, bk)}</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: bk === 'no' || bk === 'timeout' ? '#ef4444' : bk === 'yes' || bk === 'met' || bk === 'continue' ? '#10b981' : '#6366f1', padding: '2px 10px', borderRadius: 10, marginTop: 8 }}>{branchLabel(node, bk)}</span>
               <TreeRenderer graph={graph} fromId={node.id} branch={bk} onSelect={onSelect} selId={selId} errsByNode={errsByNode} openPicker={openPicker} branchLabel={branchLabel} visited={new Set(visited)} />
             </div>
           ))}
@@ -358,7 +358,7 @@ function StepPicker({ onPick, onClose }) {
 const CategoryHead = ({ color, label }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0 7px' }}>
     <span style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
-    <span style={{ fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+    <span style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
   </div>
 )
 function SidebarItem({ it, onClick, accent }) {
@@ -370,7 +370,7 @@ function SidebarItem({ it, onClick, accent }) {
         <span style={{ fontWeight: 600, fontSize: 13, flex: 1 }}>{it.label}</span>
         {it.live === false && <span style={{ fontSize: 9, background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: 4 }}>SOON</span>}
       </div>
-      {it.desc && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
+      {it.desc && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
     </div>
   )
 }
@@ -398,7 +398,7 @@ function startPan(setPan) {
 const timeago = (iso) => { const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)}m ago`; return `${Math.floor(s / 3600)}h ago` }
 
 const overlay = { position: 'fixed', inset: 0, zIndex: 1200, background: 'var(--bg-primary, #0f172a)', display: 'flex', flexDirection: 'column' }
-const chip = { fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 10, letterSpacing: 0.5 }
+const chip = { fontSize: 12, fontWeight: 700, padding: '3px 9px', borderRadius: 10, letterSpacing: 0.5 }
 const STATUS_CHIP = {
   draft: { label: 'DRAFT', bg: '#e2e8f0', fg: '#475569' },
   active: { label: '● ACTIVE', bg: 'rgba(16,185,129,0.15)', fg: '#10b981' },

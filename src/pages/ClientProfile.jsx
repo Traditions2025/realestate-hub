@@ -29,10 +29,10 @@ function PhoneStatusBadge({ client }) {
   try { if (client.sms_line_checked_at) when = new Date(String(client.sms_line_checked_at).replace(' ', 'T')).toLocaleDateString() } catch {}
   return (
     <div style={{ margin: '3px 0 5px' }}>
-      <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 10, color: fg, background: bg }}>
+      <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, color: fg, background: bg }}>
         {tone === 'good' ? '✓ ' : tone === 'bad' ? '⚠ ' : ''}{label}
       </span>
-      {when && <span style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 6 }}>checked {when}</span>}
+      {when && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>checked {when}</span>}
     </div>
   )
 }
@@ -396,7 +396,7 @@ function FsboCampaignCard({ cid, client }) {
           {showLog && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
               {st.log.map(l => (
-                <div key={l.id} style={{ fontSize: 11.5, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
+                <div key={l.id} style={{ fontSize: 12, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
                   <span style={{ color: 'var(--text-muted)' }}>{fmtD(l.created_at)} · </span>
                   <strong>{l.event}</strong>{l.angle ? ` · ${l.angle}` : ''}{l.reason ? ` · ${l.reason}` : ''}{l.dom != null ? ` · DOM ${l.dom}` : ''}
                   {l.body ? <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{String(l.body).slice(0, 160)}</div> : null}
@@ -434,7 +434,7 @@ function CxCampaignCard({ cid, client }) {
         <div style={{ fontSize: 13 }}>
           <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>Not enrolled in the connection campaign.</div>
           <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('enroll')}>Enroll in Campaign</button>
-          {!st.enabled && <div style={{ fontSize: 11.5, color: '#d97706', marginTop: 6 }}>Master switch is OFF (Settings) — enrolled leads won't be texted until it's on.</div>}
+          {!st.enabled && <div style={{ fontSize: 12, color: '#d97706', marginTop: 6 }}>Master switch is OFF (Settings) — enrolled leads won't be texted until it's on.</div>}
         </div>
       ) : (
         <div style={{ fontSize: 13, lineHeight: 1.7 }}>
@@ -453,7 +453,7 @@ function CxCampaignCard({ cid, client }) {
           {showLog && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
               {st.log.map(l => (
-                <div key={l.id} style={{ fontSize: 11.5, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
+                <div key={l.id} style={{ fontSize: 12, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
                   <span style={{ color: 'var(--text-muted)' }}>{fmtD(l.created_at)} · </span>
                   <strong>{l.event}</strong>
                   {l.angle ? ` · ${l.angle}` : ''}{l.age_bucket ? ` · ${l.age_bucket}` : ''}
@@ -502,7 +502,7 @@ function CallActionButton({ client, name }) {
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
               <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{num}</div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
             </button>
           ))}
         </div>
@@ -571,7 +571,7 @@ function AltPhoneLabels({ client, onSaved }) {
     <p style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
       {nums.map(p => (
         <button key={p} onClick={() => rename(p)} title="Click to set who this number belongs to"
-          style={{ fontSize: 11, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 9px', cursor: 'pointer' }}>
+          style={{ fontSize: 12, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 9px', cursor: 'pointer' }}>
           {p} — {map[phoneD10(p)] || 'set nickname ✎'}
         </button>
       ))}
@@ -717,7 +717,7 @@ function Communications({ client, onOpenText, onAddNote }) {
           {!notes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No notes yet.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map((ln, i) => {
               const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
-              return <div key={i} style={{ fontSize: 13, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
+              return <div key={i} style={{ fontSize: 13, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
             })}</div>}
           {notes.length > shownNotes.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({notes.length - shownNotes.length})</button>}
         </>
@@ -738,7 +738,7 @@ function EmailEngagement({ eng }) {
   const [open, setOpen] = useState(false)
   const [events, setEvents] = useState(null)
   if (!eng) return null
-  const chip = (label, color) => <span key={label} style={{ fontSize: 10.5, fontWeight: 700, color, border: `1px solid ${color}33`, background: `${color}14`, borderRadius: 10, padding: '1px 7px' }}>{label}</span>
+  const chip = (label, color) => <span key={label} style={{ fontSize: 12, fontWeight: 700, color, border: `1px solid ${color}33`, background: `${color}14`, borderRadius: 10, padding: '1px 7px' }}>{label}</span>
   const chips = []
   if (['bounce', 'dropped', 'spamreport'].includes(eng.status)) chips.push(chip('⚠ ' + eng.status, '#ef4444'))
   else if (eng.delivered_at || eng.status === 'delivered') chips.push(chip('Delivered', '#059669'))
@@ -753,11 +753,11 @@ function EmailEngagement({ eng }) {
     <div style={{ marginTop: 5 }}>
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
         {chips}
-        {eng.last_opened_at && <span style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>last opened {fmtCommWhen(eng.last_opened_at)}</span>}
-        {(eng.opens || eng.clicks) ? <button onClick={loadEvents} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 10.5, color: '#2563eb', padding: 0 }}>{open ? 'hide' : 'engagement ▾'}</button> : null}
+        {eng.last_opened_at && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>last opened {fmtCommWhen(eng.last_opened_at)}</span>}
+        {(eng.opens || eng.clicks) ? <button onClick={loadEvents} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#2563eb', padding: 0 }}>{open ? 'hide' : 'engagement ▾'}</button> : null}
       </div>
       {open && (
-        <div style={{ marginTop: 5, fontSize: 11.5, color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 8, overflowWrap: 'anywhere' }}>
+        <div style={{ marginTop: 5, fontSize: 12, color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 8, overflowWrap: 'anywhere' }}>
           {events === null ? 'Loading…' : events.length === 0 ? 'No events.' : events.map((e, i) => (
             <div key={i}>{fmtCommWhen(e.occurred_at)} — {e.event_type}{e.url ? `: ${String(e.url).slice(0, 80)}` : ''}</div>
           ))}
@@ -780,7 +780,7 @@ function CommItem({ m }) {
     return (
       <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
         <div style={{ maxWidth: '78%', minWidth: 110 }}>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
             {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')}
             {!out && m.conversation_sid && m.from_addr ? ` · ${(() => { const d = String(m.from_addr).replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : m.from_addr })()}` : ''}
             {' · '}{fmtCommWhen(m.occurred_at)}
@@ -794,7 +794,7 @@ function CommItem({ m }) {
   }
   return (
     <div style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11.5, color: 'var(--text-muted)', marginBottom: 3 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>
         <span style={{ color: meta.color, fontWeight: 700 }}>{meta.icon} {meta.label}</span>
         <span>{out ? '↗ outbound' : '↙ inbound'}</span>
         {aiSent && <span style={{ color: '#7c3aed', fontWeight: 700 }}>· HUB AI</span>}
@@ -929,7 +929,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
         {aiOpen && (
           <div style={{ marginTop: 6, border: '1px solid rgba(124,58,237,.35)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
               {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
                 <button key={k || 'auto'} className="btn btn-sm" disabled={aiBusy}
                   style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
@@ -940,7 +940,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
             {aiBusy && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
             {aiSug?.error && <div style={{ fontSize: 12, color: '#ef4444' }}>{aiSug.error}</div>}
             {aiSug && aiSug.has_incoming === false && !aiBusy && !aiSug.error && (
-              <div style={{ fontSize: 11.5, color: '#7c3aed', fontWeight: 600 }}>First outreach — they haven't written back yet, so this drafts an opener instead of a reply.</div>
+              <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>First outreach — they haven't written back yet, so this drafts an opener instead of a reply.</div>
             )}
             {aiSug?.summary && !aiBusy && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,.4)', paddingLeft: 8 }}>{aiSug.summary}</div>}
             {aiSug?.suggestion && !aiBusy && (aiSug.suggestion.body || aiSug.suggestion.subject) && (
@@ -973,12 +973,12 @@ function EmailComposer({ client, onClose, onSent, initial }) {
       </div>
       <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={inputStyle} />
       <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Write your email…" style={{ width: '100%', padding: 9, fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
-      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
         Fields like <code>{'{{first_name}}'}</code> and <code>{'{{signature}}'}</code> fill in automatically when the email is sent. Use Preview to see the final version for {client.first_name || 'this lead'}.
       </div>
       {preview && (
         <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 6, background: '#fff' }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 9px', borderBottom: '1px solid var(--border)' }}>PREVIEW · Subject: {preview.subject || '(no subject)'}</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 9px', borderBottom: '1px solid var(--border)' }}>PREVIEW · Subject: {preview.subject || '(no subject)'}</div>
           <div style={{ padding: 12, color: '#0f172a', fontSize: 13, maxHeight: 320, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: preview.html || '' }} />
         </div>
       )}
@@ -1130,7 +1130,7 @@ function AiIntelligence({ ai, followup, cid }) {
                 : `${enroll.decision} · ${enroll.reason || enroll.reason_code}`}
             </span>
             {!['ALREADY_ENROLLED', 'NOT_FOUND', 'MERGED'].includes(enroll.reason_code) && (
-              <button className="btn btn-sm" style={{ fontSize: 11 }} onClick={toggleExclude}>
+              <button className="btn btn-sm" style={{ fontSize: 12 }} onClick={toggleExclude}>
                 {enroll.reason_code === 'MANUAL_EXCLUDE' ? 'Allow auto-enroll' : 'Exclude'}
               </button>
             )}
@@ -1139,7 +1139,7 @@ function AiIntelligence({ ai, followup, cid }) {
       </div>
       {rec && (rec.recommended_action || rec.recommendation || rec.reason || rec.summary) && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(124,58,237,.06)', border: '1px solid rgba(124,58,237,.25)', borderRadius: 8 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Next Best Action</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Next Best Action</div>
           <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{rec.recommended_action || rec.recommendation?.label || rec.action || rec.title || 'Follow up'}</div>
           {(rec.reason || rec.recommendation?.rationale || rec.summary) && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{rec.reason || rec.recommendation?.rationale || rec.summary}</div>}
         </div>
@@ -1147,7 +1147,7 @@ function AiIntelligence({ ai, followup, cid }) {
       {rec && rec.email && (rec.email.subject || rec.email.body) && (
         <div style={{ marginTop: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Suggested Email</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Suggested Email</div>
             <button className="btn btn-sm btn-primary" onClick={() => window.dispatchEvent(new CustomEvent('cp-compose-email', { detail: { subject: rec.email.subject || '', body: rec.email.body || '' } }))}>✉ Use in Email</button>
           </div>
           {rec.email.subject && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 4 }}>{rec.email.subject}</div>}
@@ -1171,7 +1171,7 @@ function TasksCard({ cid, name, address }) {
   const open = (tasks || []).filter(t => t.status !== 'done')
   const overdue = open.filter(t => t.due_date && t.due_date < today)
   const upcoming = open.filter(t => !(t.due_date && t.due_date < today))
-  const row = (t, bad) => <div key={t.id} style={{ fontSize: 13, display: 'flex', gap: 6, padding: '3px 0' }}><span>○</span><span style={{ flex: 1 }}>{t.title}</span>{t.due_date && <span style={{ fontSize: 11, color: bad ? '#ef4444' : 'var(--text-muted)' }}>{t.due_date}</span>}</div>
+  const row = (t, bad) => <div key={t.id} style={{ fontSize: 13, display: 'flex', gap: 6, padding: '3px 0' }}><span>○</span><span style={{ flex: 1 }}>{t.title}</span>{t.due_date && <span style={{ fontSize: 12, color: bad ? '#ef4444' : 'var(--text-muted)' }}>{t.due_date}</span>}</div>
   return (
     <Section title={`Tasks${open.length ? ` (${open.length})` : ''}`} id="taskscard" right={<button className="btn btn-sm" onClick={() => setAddOpen(o => !o)}>+ Add</button>}>
       {addOpen && <QuickAddTask clientId={cid} clientName={name} clientAddress={address} onAdded={() => { reload(); setAddOpen(false) }} />}
@@ -1255,7 +1255,7 @@ function ActionPlans({ cid }) {
       setPreview(r)
     } catch (err) { notify('Preview failed: ' + err.message) }
   }
-  const pill = (label, on) => <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10, background: on ? '#fef3c7' : '#dcfce7', color: on ? '#92400e' : '#166534' }}>{label}</span>
+  const pill = (label, on) => <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 10, background: on ? '#fef3c7' : '#dcfce7', color: on ? '#92400e' : '#166534' }}>{label}</span>
   const shell = { border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }
   const dripRow = (e) => {
     const eid = e.enrollment_id, paused = e.status === 'paused', next = fmtPlanDate(e.next_run_at), busy = busyId === eid
@@ -1352,7 +1352,7 @@ function SierraActivity({ client }) {
           : <><div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible' }}>
             {rows.slice(0, exp ? 60 : 5).map((a, i) => (
               <div key={a.id || i} style={{ fontSize: 12.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 11 }}><span>{a.author || 'Sierra System'}</span><span>{a.date ? new Date(a.date).toLocaleDateString() : ''}</span></div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 12 }}><span>{a.author || 'Sierra System'}</span><span>{a.date ? new Date(a.date).toLocaleDateString() : ''}</span></div>
                 <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{a.contents}</div>
               </div>))}
           </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
@@ -1373,9 +1373,9 @@ function FubActivity({ cid }) {
             const when = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
             const addr = a.prop_street ? `${a.prop_street}, ${a.prop_city || ''} ${a.prop_state || ''}`.trim() : ''
             return (<div key={a.id || i} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ fontWeight: 600 }}>{a.type}</span><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{when}</span></div>
-              {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
-              {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{a.page_title}</div>}
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ fontWeight: 600 }}>{a.type}</span><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{when}</span></div>
+              {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
+              {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{a.page_title}</div>}
             </div>)
           })}
         </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
@@ -1402,8 +1402,8 @@ function WebsiteActivity({ cid }) {
             {events.slice(0, exp ? 50 : 5).map(e => {
               const label = { pageview: '👁 page view', listing_view: '🏠 listing view', save: '⭐ saved', pageduration: '⏱ time' }[e.event_type] || e.event_type
               return (<div key={e.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontWeight: 600 }}>{label}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span><span style={{ color: 'var(--text-muted)', fontSize: 11 }}>{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</span></div>
-                {e.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2 }}>{e.page_title}</div>}
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontWeight: 600 }}>{label}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</span></div>
+                {e.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{e.page_title}</div>}
               </div>)
             })}
           </div>
@@ -1526,7 +1526,7 @@ function CoverageCard({ cid, client, onChanged }) {
                 <button className="btn btn-sm btn-primary" disabled={busy || !snoozeDate} onClick={() => act('snooze', { until: snoozeDate, reason: snoozeWhy })}>Snooze</button>
                 <button className="btn btn-sm" onClick={() => setSnoozeOpen(false)}>Cancel</button>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>When the date arrives the lead wakes up, re-evaluates, and surfaces in Needs Attention until covered again.</div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>When the date arrives the lead wakes up, re-evaluates, and surfaces in Needs Attention until covered again.</div>
             </div>
           )}
         </div>

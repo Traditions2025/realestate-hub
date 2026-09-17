@@ -18,6 +18,17 @@ export function notify(msg) {
   return toast(s)
 }
 
+// Inline failure path for PAGE LOADS (design plan 4.6): actions toast, but a
+// list that failed to load needs a banner where the data should be + a retry.
+export function LoadErrorBanner({ onRetry, what = 'this page' }) {
+  return (
+    <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', padding: '12px 16px', margin: '12px 0', background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 10, fontSize: 13.5 }}>
+      <span>Couldn't load {what}. Check your connection — the Hub retries nothing on its own.</span>
+      <button className="btn btn-secondary btn-sm" onClick={onRetry} style={{ flexShrink: 0 }}>Retry</button>
+    </div>
+  )
+}
+
 // ---- imperative confirm ----------------------------------------------------
 let _openConfirm = null
 export function confirmDialog(opts) {

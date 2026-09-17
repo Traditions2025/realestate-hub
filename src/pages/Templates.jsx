@@ -375,7 +375,7 @@ export default function Templates() {
                   <td>{item.subject || <span className="muted">—</span>}</td>
                   <td className="muted" style={{fontSize: 12, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{snippet || '—'}</td>
                   <td>{item.used_count || 0}</td>
-                  <td className="muted" style={{fontSize: 11}}>{(item.updated_at || '').split('T')[0] || (item.updated_at || '').split(' ')[0] || '—'}</td>
+                  <td className="muted" style={{fontSize: 12}}>{(item.updated_at || '').split('T')[0] || (item.updated_at || '').split(' ')[0] || '—'}</td>
                   <td style={{whiteSpace: 'nowrap'}}>
                     <button className="btn-sm" onClick={() => copyBody(item)} title="Copy body to clipboard">Copy</button>
                     <button className="btn-sm" onClick={() => openEdit(item)}>Edit</button>
@@ -472,7 +472,7 @@ export default function Templates() {
                   <textarea ref={tplBodyRef} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={16} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5, resize: 'vertical'}} />
                 </>
               )}
-              <p style={{fontSize: 11, color: 'var(--text-muted)', margin: '4px 0'}}>
+              <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '4px 0'}}>
                 Write it like a normal email. Merge fields: {'{{first_name}} {{last_name}} {{city}} {{address}}'}.
               </p>
             </div>
@@ -480,7 +480,7 @@ export default function Templates() {
             <label>Body
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0', flexWrap: 'wrap' }}>
                 <MergeFieldPicker onPick={tok => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))} />
-                <button type="button" className="btn btn-sm" style={{ fontSize: 11.5 }}
+                <button type="button" className="btn btn-sm" style={{ fontSize: 12 }}
                   title="Detect merge fields from a pasted template (any format) and convert them to our fields"
                   onClick={() => {
                     const { text, mapped, unmapped } = normalizeMergeFields(form.body)
@@ -492,7 +492,7 @@ export default function Templates() {
                   }}>🔀 Match custom fields</button>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {MERGE_FIELDS.slice(0, 5).map(([tok, label]) => (
-                    <button key={tok} type="button" className="btn btn-sm btn-secondary" style={{ fontSize: 11, padding: '2px 7px' }}
+                    <button key={tok} type="button" className="btn btn-sm btn-secondary" style={{ fontSize: 12, padding: '2px 7px' }}
                       onClick={() => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))}>{label}</button>
                   ))}
                 </div>

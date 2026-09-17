@@ -25,7 +25,7 @@ function CustomFields() {
               <tr key={tok}>
                 <td>
                   <code style={{ fontSize: 12.5, cursor: 'pointer' }} title="Click to copy" onClick={() => copy(tok)}>{tok}</code>
-                  {copied === tok && <span style={{ fontSize: 11, color: 'var(--accent, #2563eb)', marginLeft: 6 }}>copied</span>}
+                  {copied === tok && <span style={{ fontSize: 12, color: 'var(--accent, #2563eb)', marginLeft: 6 }}>copied</span>}
                 </td>
                 <td style={{ fontWeight: 600 }}>{label}</td>
                 <td style={{ fontSize: 13 }}>{desc || ''}</td>
@@ -178,7 +178,7 @@ function HubUpdates() {
                       </div>
                     )}
                     {hasBody && !isExpanded && (
-                      <div className="muted" style={{fontSize: 11, marginTop: 2}}>Click to expand details</div>
+                      <div className="muted" style={{fontSize: 12, marginTop: 2}}>Click to expand details</div>
                     )}
                   </div>
                 </div>
@@ -573,7 +573,7 @@ function MigratePreListings() {
                     {r.action === 'would-create'&& <span style={{color: '#3b82f6'}}>would create</span>}
                     {r.action === 'skip'        && <span style={{color: '#f59e0b'}}>skipped</span>}
                   </td>
-                  <td style={{padding: 6, color: 'var(--text-muted)', fontSize: 11}}>
+                  <td style={{padding: 6, color: 'var(--text-muted)', fontSize: 12}}>
                     {r.tasks_created !== undefined ? `${r.tasks_created} open tasks` : (r.would_create_tasks !== undefined ? `${r.would_create_tasks} tasks would be created` : r.reason)}
                   </td>
                 </tr>
@@ -673,7 +673,7 @@ function BulkTagFromSheet() {
                   <td style={{padding: 6}}>{r.sheet_name}</td>
                   <td style={{padding: 6}}>{r.matched ? `#${r.hub_client_id} ${r.hub_name}` : <span style={{color: '#f59e0b'}}>{r.reason}</span>}</td>
                   <td style={{padding: 6}}>{r.action || '—'}</td>
-                  <td style={{padding: 6, fontSize: 11}}>{r.sierra || '—'}</td>
+                  <td style={{padding: 6, fontSize: 12}}>{r.sierra || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -764,7 +764,7 @@ function SystemsStatus() {
             {realistStats.total_properties.toLocaleString()} properties imported ·{' '}
             {realistStats.enriched_clients.toLocaleString()} clients enriched
             {realistStats.last_import && (
-              <span style={{fontSize: 11, marginLeft: 10, opacity: 0.7}}>
+              <span style={{fontSize: 12, marginLeft: 10, opacity: 0.7}}>
                 Last import: {realistStats.last_import.split('.')[0].replace('T', ' ')}
               </span>
             )}
