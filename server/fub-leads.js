@@ -100,8 +100,15 @@ export function parseFubLeadEmail(subject, text) {
 
 export async function handleFubLeadEmail(parsedMail) {
   if (db.getSetting('fub_lead_email_enabled', '0') !== '1') return { skipped: 'disabled' }
-  const lead = parseFubLeadEmail(parsedMail.subject, String(parsedMail.text || String(parsedMail.html || '').replace(/<[^>]+>/g, ' ')))
+  const html = String(parsedMail.html || '')
+  const lead = parseFubLeadEmail(parsedMail.subject, String(parsedMail.text || html.replace(/<[^>]+>/g, ' ')))
   if (!lead) return { skipped: 'not a Facebook lead email' }
+  // The FUB email carries machine-readable meta tags — prefer them over text parsing.
+  const meta = (n) => { const m = html.match(new RegExp(`<meta name="lead_${n}" content="([^"]*)"`, 'i')); return m ? m[1].trim() : '' }
+  if (meta('source') && !/facebook/i.test(meta('source'))) return { skipped: 'meta source is not Facebook' }
+  const mName = meta('name'); if (mName) { const nm = mName.split(/\s+/); lead.first = nm[0] || lead.first; lead.last = nm.slice(1).join(' ') || lead.last }
+  if (meta('phone')) lead.phone = meta('phone')
+  if (meta('email')) lead.email = meta('email')
   const msgId = String(parsedMail.messageId || '').slice(0, 120)
   if (msgId && db.get('SELECT id FROM activity_log WHERE details LIKE ?', ['%[fub_email:' + msgId + ']%'])) return { skipped: 'already processed' }
   const r = ingestFbLead({ ...lead, marker: msgId ? `[fub_email:${msgId}]` : '' })

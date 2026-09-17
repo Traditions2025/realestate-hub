@@ -10,6 +10,28 @@ function logActivity(action, entityType, entityId, details) {
   try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', [action, entityType, entityId, details]) } catch {}
 }
 
+const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
+async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline, existing }) {
+  try {
+    const { sendViaSendGrid } = await import('./routes/email.js')
+    const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    const who = name || phone || email || 'Unknown'
+    const subject = existing
+      ? `Facebook Ad Lead (EXISTING): ${who}${listing ? ' — ' + listing : ''}`
+      : `New Facebook Ad Lead: ${who}${listing ? ' — ' + listing : ''}`
+    const rows = [
+      existing ? ['Heads up', 'This is an EXISTING lead in the Hub who just registered on the ad'] : ['Status', 'Brand new lead — created in the Hub, AI first text on the way'],
+      ['Listing', listing || '—'], ['Phone', phone || '—'], ['Email', email || '—'], ['Timeline', timeline || '—'],
+    ].map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap;">${esc(k)}</td><td style="padding:4px 0;color:#0f172a;"><strong>${esc(v)}</strong></td></tr>`).join('')
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
+      <p style="margin:0 0 6px;font-size:16px;"><strong>${esc(who)}</strong> ${existing ? 're-registered on' : 'came in from'} your Facebook listing ad.</p>
+      <table style="border-collapse:collapse;margin:8px 0 14px;">${rows}</table>
+      <p style="margin:0 0 12px;"><a href="${hub}/clients/${cid}" style="display:inline-block;background:#B9963B;color:#241a04;font-weight:700;padding:10px 18px;border-radius:8px;text-decoration:none;">View Lead</a></p>
+      <p style="margin:0;color:#64748b;font-size:12px;">Matt Smith Team Hub · Facebook ad lead alert</p></div>`
+    await sendViaSendGrid('johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com', 'Matt Smith Team', subject, html, null, [], [], [], 'fb_lead_alert')
+  } catch (e) { try { console.error('[fb-lead-alert-email]', e.message) } catch {} }
+}
+
 export function ingestFbLead({ first = '', last = '', email = null, phone = null, timeline = '', listing = '', marker = '', source = 'Facebook Listing Ad' } = {}) {
   const d10 = String(phone || '').replace(/\D/g, '').slice(-10)
   const phoneFmt = d10.length === 10 ? `(${d10.slice(0, 3)}) ${d10.slice(3, 6)}-${d10.slice(6)}` : null
@@ -62,5 +84,8 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
       link: `/clients/${cid}`, client_id: cid, dedupKey: `fb_lead_${cid}_${now.slice(0, 10)}`,
     })).catch(() => {})
   } catch {}
+  // The Hub's OWN alert email to John + Matt with a View Lead button straight to the
+  // HUB profile (John, 2026-09-17) — fires for every New Lead and Lead Alert.
+  sendFbLeadAlertEmail({ cid, name: `${first} ${last}`.trim(), phone: phoneFmt, email: cleanEmail, listing, timeline, existing: !!existing }).catch(() => {})
   return { client_id: cid, matched_existing: !!existing }
 }
