@@ -52,13 +52,14 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
     let tags = []; try { tags = JSON.parse(existing.tags || '[]') } catch {}
     if (!tags.includes(tag)) tags.push(tag)
     db.run(`UPDATE clients SET tags=?, email=COALESCE(email, ?), phone=COALESCE(NULLIF(phone,''), ?),
+            agent_assigned=COALESCE(NULLIF(agent_assigned,''), 'Matt Smith'),
             notes=COALESCE(notes,'') || ?, updated_at=? WHERE id=?`,
       [JSON.stringify(tags), cleanEmail, phoneFmt, `\n[${now.slice(0, 10)}] ${noteLine}`, now, cid])
     logActivity('updated', 'client', cid, noteLine + ' (matched existing lead)')
   } else {
-    const r = db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status, source, tags, notes, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [first || 'Unknown', last || '', cleanEmail, phoneFmt, 'buyer', 'new', source, JSON.stringify([tag]), noteLine, now, now])
+    const r = db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status, source, agent_assigned, tags, notes, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [first || 'Unknown', last || '', cleanEmail, phoneFmt, 'buyer', 'new', source, 'Matt Smith', JSON.stringify([tag]), noteLine, now, now])
     cid = r.lastInsertRowid
     logActivity('created', 'client', cid, noteLine)
   }
