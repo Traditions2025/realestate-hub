@@ -1453,35 +1453,9 @@ router.post('/fb-webhook', async (req, res) => {
   }
   if (!existing && email) existing = db.get('SELECT id, first_name, last_name, email, tags FROM clients WHERE lower(email)=lower(?) AND merged_into IS NULL', [email])
   if (String(req.query.dry || '') === '1') return res.json({ dry_run: true, would: existing ? `update existing #${existing.id}` : 'create new lead', parsed: { first_name: first, last_name: last, email, phone, timeline, listing } })
-  const now = new Date().toISOString()
-  const tag = 'FB Ad' + (listing ? ': ' + listing.slice(0, 60) : '')
-  const noteLine = `Facebook listing ad lead${listing ? ` (${listing})` : ''}${timeline ? ` — timeline: ${timeline}` : ''}`
-  let cid
-  if (existing) {
-    cid = existing.id
-    let tags = []; try { tags = JSON.parse(existing.tags || '[]') } catch {}
-    if (!tags.includes(tag)) tags.push(tag)
-    db.run(`UPDATE clients SET tags=?, email=COALESCE(email, ?), phone=COALESCE(NULLIF(phone,''), ?),
-            notes=COALESCE(notes,'') || ?, updated_at=? WHERE id=?`,
-      [JSON.stringify(tags), email, phone, `\n[${now.slice(0, 10)}] ${noteLine}`, now, cid])
-    logActivity('updated', 'client', cid, noteLine + ' (matched existing lead)')
-  } else {
-    const r = db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status, source, tags, notes, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-      [first || 'Unknown', last || '', email, phone, 'buyer', 'new', 'Facebook Listing Ad', JSON.stringify([tag]), noteLine, now, now])
-    cid = r.lastInsertRowid
-    logActivity('created', 'client', cid, noteLine)
-  }
-  try { import('./inbox.js').then(m => m.claimUnknownCommsForClient(cid)).catch(() => {}) } catch {}
-  try { import('../ai-enrollment.js').then(m => m.maybeAutoEnrollFresh(cid)).catch(() => {}) } catch {}
-  try {
-    import('../notifications.js').then(m => m.notify({
-      type: 'fb_lead', title: `Facebook ad lead: ${(first + ' ' + last).trim() || phone || email}`,
-      body: `${listing || 'listing ad'}${timeline ? ` · timeline: ${timeline}` : ''}${phone ? ` · ${phone}` : ''}`,
-      link: `/clients/${cid}`, client_id: cid, dedupKey: `fb_lead_${cid}_${now.slice(0, 10)}`,
-    })).catch(() => {})
-  } catch {}
-  res.json({ success: true, client_id: cid, matched_existing: !!existing })
+  const { ingestFbLead } = await import('../lead-intake.js')
+  const r2 = ingestFbLead({ first, last, email, phone, timeline, listing })
+  res.json({ success: true, client_id: r2.client_id, matched_existing: r2.matched_existing })
 })
 router.put('/:id', async (req, res) => {
   const fields = req.body

@@ -810,6 +810,12 @@ export function startScheduler() {
   // 10 min (event hooks handle the instant path); reactivation lane hourly (self-gates
   // to weekdays 9AM-4PM CT + the daily cap).
   setInterval(() => { import('./ai-enrollment.js').then(m => m.freshEnrollSweep()).catch(() => {}) }, 10 * 60 * 1000)
+
+  // FUB → Hub Facebook-ad lead watcher: every 2 min pull ONLY new Facebook lead-ad
+  // events from FUB's event stream (never the people database) so ad leads reach
+  // the Hub with a notification + instant AI first touch. Gated by
+  // fub_lead_watch_enabled (default OFF); cheap no-op otherwise.
+  setInterval(() => { import('./fub-leads.js').then(m => m.pollFubAdLeads()).catch(() => {}) }, 2 * 60 * 1000)
   setInterval(() => { import('./ai-enrollment.js').then(m => m.reactivationTick()).catch(() => {}) }, 60 * 60 * 1000)
 
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)

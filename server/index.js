@@ -942,6 +942,27 @@ async function start() {
     res.json({ success: true })
   })
 
+  // ---- FUB → Hub Facebook-ad lead watcher (server/fub-leads.js) ----
+  // Preview = pure dry run over the last 48h of FUB events: shows exactly which
+  // Facebook-ad leads WOULD be ingested; writes nothing, moves no cursor.
+  app.get('/api/fub/ad-leads/preview', async (_req, res) => {
+    try { const m = await import('./fub-leads.js'); res.json(await m.pollFubAdLeads({ dryRun: true })) }
+    catch (e) { res.status(500).json({ error: e.message }) }
+  })
+  app.post('/api/fub/ad-leads/enable', async (req, res) => {
+    const on = req.body?.enabled !== false
+    db.setSetting('fub_lead_watch_enabled', on ? '1' : '0')
+    if (on && !db.getSetting('fub_events_cursor', '')) db.setSetting('fub_events_cursor', new Date().toISOString())
+    res.json({ enabled: on, cursor: db.getSetting('fub_events_cursor', '') })
+  })
+  app.get('/api/fub/ad-leads/status', (_req, res) => {
+    res.json({
+      enabled: db.getSetting('fub_lead_watch_enabled', '0') === '1',
+      cursor: db.getSetting('fub_events_cursor', '') || null,
+      ingested_total: db.get("SELECT COUNT(*) n FROM activity_log WHERE details LIKE '%[fub_event:%'")?.n || 0,
+    })
+  })
+
   app.get('/api/fub/status', async (_req, res) => {
     try {
       const { fubConfigured, fubIdentity } = await import('./fub-helper.js')
