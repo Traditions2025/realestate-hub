@@ -13,6 +13,12 @@ function logActivity(action, entityType, entityId, details) {
 const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
 async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline, existing }) {
   try {
+    // ONE alert per lead per campaign per 3 days — no matter how many paths
+    // (email sweep, webhook, manual trigger, backfill) touch the same person
+    // (John, 2026-09-17: duplicate alerts after the backfill re-read emails).
+    const dedupe = `[fb_alert:${cid}:${String(listing || '').slice(0, 40)}]`
+    if (db.get("SELECT id FROM activity_log WHERE details LIKE ? AND created_at >= datetime('now','-3 days')", ['%' + dedupe + '%'])) return
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['fb_lead_alert', 'client', cid, `FB ad alert emailed ${dedupe}`])
     const { sendViaSendGrid } = await import('./routes/email.js')
     const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
     const who = name || phone || email || 'Unknown'
