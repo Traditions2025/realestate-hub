@@ -945,8 +945,8 @@ async function start() {
   // ---- FUB → Hub Facebook-ad lead watcher (server/fub-leads.js) ----
   // Preview = pure dry run over the last 48h of FUB events: shows exactly which
   // Facebook-ad leads WOULD be ingested; writes nothing, moves no cursor.
-  app.get('/api/fub/ad-leads/preview', async (_req, res) => {
-    try { const m = await import('./fub-leads.js'); res.json(await m.pollFubAdLeads({ dryRun: true })) }
+  app.get('/api/fub/ad-leads/preview', async (req, res) => {
+    try { const m = await import('./fub-leads.js'); res.json(await m.pollFubAdLeads({ dryRun: true, raw: String(req.query.raw || '') === '1' })) }
     catch (e) { res.status(500).json({ error: e.message }) }
   })
   app.post('/api/fub/ad-leads/enable', async (req, res) => {

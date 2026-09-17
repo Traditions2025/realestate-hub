@@ -49,8 +49,21 @@ function extractLead(e) {
     timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim() }
 }
 
+// FUB's /events LIST returns slim rows — the registration message and person live
+// on the event DETAIL (and the person record). Hydrate each matching event.
+async function hydrate(e) {
+  let full = e
+  if (!e.message || !e.person) {
+    try { full = { ...e, ...(await fubGet(`/events/${e.id}`)) } } catch {}
+  }
+  if (!full.person && (full.personId || e.personId)) {
+    try { full.person = await fubGet(`/people/${full.personId || e.personId}`) } catch {}
+  }
+  return full
+}
+
 // Poll the stream. dryRun: report what WOULD be ingested, write nothing, move no cursor.
-export async function pollFubAdLeads({ dryRun = false, sinceIso = null, limit = 100 } = {}) {
+export async function pollFubAdLeads({ dryRun = false, sinceIso = null, limit = 100, raw = false } = {}) {
   if (!fubConfigured()) return { skipped: 'FUB not configured' }
   if (!dryRun && db.getSetting('fub_lead_watch_enabled', '0') !== '1') return { skipped: 'watcher disabled (fub_lead_watch_enabled)' }
   let cursor = sinceIso || db.getSetting('fub_events_cursor', '')
@@ -69,7 +82,9 @@ export async function pollFubAdLeads({ dryRun = false, sinceIso = null, limit = 
     if (created > maxCreated) maxCreated = created
     if (!looksLikeAdEvent(e)) continue
     out.fb_ad_events++
-    const L = extractLead(e)
+    const full = await hydrate(e)
+    if (raw && out.would_ingest.length < 2) { out.would_ingest.push({ RAW: JSON.stringify(full).slice(0, 1800) }); continue }
+    const L = extractLead(full)
     if (dryRun) { out.would_ingest.push({ created, type: e.type, source: e.source, ...L }); continue }
     const markerLike = `%[fub_event:${e.id}]%`
     if (db.get('SELECT id FROM activity_log WHERE details LIKE ?', [markerLike])) continue   // already ingested
