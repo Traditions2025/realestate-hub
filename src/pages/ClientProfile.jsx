@@ -122,6 +122,7 @@ export default function ClientProfile() {
   const [emailOpen, setEmailOpen] = useState(false)
   const [emailPrefill, setEmailPrefill] = useState(null)
   const [noteOpen, setNoteOpen] = useState(false)
+  const [apptOpen, setApptOpen] = useState(false)
   const [noteText, setNoteText] = useState('')
   const [taskOpen, setTaskOpen] = useState(false)
   const [savingNote, setSavingNote] = useState(false)
@@ -244,12 +245,14 @@ export default function ClientProfile() {
           {client.phone && !client.hub_text_opt_out && <button className="lead-action-btn" onClick={() => { setTextOpen(v => !v); setEmailOpen(false) }}><span className="lead-action-icon">💬</span><span>Text</span></button>}
           {(client.phone || client.alt_phones) && <CallActionButton client={client} name={name} />}
           {client.email && <button className="lead-action-btn" onClick={() => { setEmailOpen(v => !v); setTextOpen(false) }}><span className="lead-action-icon">✉</span><span>Email</span></button>}
+          <button className="lead-action-btn" onClick={() => setApptOpen(true)}><span className="lead-action-icon">📅</span><span>Appointment</span></button>
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 12, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
         </div>
+        {apptOpen && <AppointmentModal client={client} onClose={() => setApptOpen(false)} />}
         {noteOpen && (
           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'flex-start' }}>
             <textarea value={noteText} autoFocus onChange={e => setNoteText(e.target.value)} placeholder="Add an internal note…" rows={2} style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical' }} />
@@ -1033,6 +1036,66 @@ function Research({ client }) {
       <a className="btn btn-sm btn-secondary" href={gq(`"${name}" ${client.city || ''} ${client.email || ''}`.trim())} target="_blank" rel="noopener noreferrer">🔎 Google this lead</a>
       <a className="btn btn-sm btn-secondary" href={gq(`"${name}" site:linkedin.com`)} target="_blank" rel="noopener noreferrer">LinkedIn</a>
       <a className="btn btn-sm btn-secondary" href={gq(`"${name}" site:facebook.com ${client.city || ''}`)} target="_blank" rel="noopener noreferrer">Facebook</a>
+    </div>
+  )
+}
+
+// ── Add Appointment (John, 2026-09-17): type + date/time + title + notes.
+// Walkthrough auto-titles "Walkthrough - {address} - {name}"; notes always carry
+// the Hub profile link; saving emails John + Matt a real calendar invite (ICS).
+const APPT_TYPES = [['showing', 'Showing'], ['walkthrough', 'Walkthrough'], ['buyer_meeting', 'Buyer Meeting']]
+function AppointmentModal({ client, onClose }) {
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+  const address = [client.address, client.city].filter(Boolean).join(', ')
+  const autoTitle = (t) => t === 'walkthrough' && address ? `Walkthrough - ${address} - ${name}`
+    : `${(APPT_TYPES.find(x => x[0] === t) || [,'Appointment'])[1]} - ${name}`
+  const [type, setType] = useState('showing')
+  const [title, setTitle] = useState(autoTitle('showing'))
+  const [edited, setEdited] = useState(false)
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10))
+  const [time, setTime] = useState('10:00')
+  const [duration, setDuration] = useState(60)
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [msg, setMsg] = useState('')
+  const pickType = (t) => { setType(t); if (!edited) setTitle(autoTitle(t)) }
+  const save = async () => {
+    setSaving(true); setMsg('')
+    try {
+      const r = await authFetch('/api/calendar/appointment', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, type, title, date, time, duration_minutes: duration, notes }) })
+      const d = await r.json()
+      if (d.error) { setMsg('⚠ ' + d.error); return }
+      setMsg('✓ Saved — calendar invite sent to John + Matt')
+      setTimeout(onClose, 1400)
+    } catch (e) { setMsg('⚠ ' + e.message) } finally { setSaving(false) }
+  }
+  const inp = { padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, width: '100%', maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>📅 New Appointment — {name}</h3>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          {APPT_TYPES.map(([k, l]) => (
+            <button key={k} className={`btn btn-sm ${type === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => pickType(k)}>{l}</button>
+          ))}
+        </div>
+        <div style={{ display: 'grid', gap: 8 }}>
+          <input style={inp} value={title} onChange={e => { setTitle(e.target.value); setEdited(true) }} placeholder="Title" />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <input style={{ ...inp, flex: 1 }} type="date" value={date} onChange={e => setDate(e.target.value)} />
+            <input style={{ ...inp, width: 110 }} type="time" value={time} onChange={e => setTime(e.target.value)} />
+            <select style={inp} value={duration} onChange={e => setDuration(Number(e.target.value))}>
+              <option value={30}>30 min</option><option value={60}>1 hour</option><option value={90}>1.5 hours</option><option value={120}>2 hours</option>
+            </select>
+          </div>
+          <textarea style={{ ...inp, resize: 'vertical' }} rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (their Hub profile link is included automatically)" />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+          <button className="btn btn-primary" disabled={saving || !title.trim()} onClick={save}>{saving ? 'Saving…' : 'Save + Send Invite'}</button>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          {msg && <span style={{ fontSize: 12.5, color: msg.startsWith('✓') ? '#10b981' : '#ef4444' }}>{msg}</span>}
+        </div>
+      </div>
     </div>
   )
 }

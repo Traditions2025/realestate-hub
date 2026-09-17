@@ -1,7 +1,111 @@
 {
-  "generated_at": "2026-09-16T21:41:19.357Z",
+  "generated_at": "2026-09-17T18:11:40.349Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "cf9ab6b",
+      "date": "2026-09-17T11:35:23-05:00",
+      "subject": "Emails identify as MATT SMITH, never John (they send from Matt's address)",
+      "title": "Emails identify as MATT SMITH, never John (they send from Matt's address)",
+      "body": "John persona is for texts only. FB-ad inquiry email rewritten; test locks it.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "27809cc",
+      "date": "2026-09-17T11:32:26-05:00",
+      "subject": "FB ad leads auto-assign to Matt Smith (new creates; existing filled if unassigned)",
+      "title": "FB ad leads auto-assign to Matt Smith (new creates; existing filled if unassigned)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7b47248",
+      "date": "2026-09-17T11:29:52-05:00",
+      "subject": "Manual FB-ad flow trigger: POST /api/ai/lead/:id/fb-ad-flow",
+      "title": "Manual FB-ad flow trigger: POST /api/ai/lead/:id/fb-ad-flow",
+      "body": "Puts one chosen lead (typically an existing lead the team decides to work)\nthrough the ad campaign flow: FB Ad tag, approved template text in ~1 min,\nno-reply inquiry email +10 min. The automatic pipeline still never does this\nfor existing leads on its own.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "18cc1f8",
+      "date": "2026-09-17T11:11:31-05:00",
+      "subject": "FB ad leads: no-reply follow-up EMAIL 10 min after the opener text",
+      "title": "FB ad leads: no-reply follow-up EMAIL 10 min after the opener text",
+      "body": "If the lead hasn't responded on any channel 10 minutes after their opener text,\nthey get an email about their inquiry: references the property from the ad,\noffers details/photos/showing, reply-or-text CTA with the Hub number, website\nlink. Sent through sendSequenceEmail (bounce hard-blocks, inbox + email_log +\nengagement tracking). The email action is exempt from the SMS pre-gate so it\nstill sends when the text channel just failed. Skips silently the moment the\nlead replies.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "31eb794",
+      "date": "2026-09-17T11:03:25-05:00",
+      "subject": "FB ad leads: John's approved 12-template opener bank replaces AI-composed first text",
+      "title": "FB ad leads: John's approved 12-template opener bank replaces AI-composed first text",
+      "body": "fb-ad-templates.js carries the exact approved copy (2026-09-17): 12 angles,\n{{first_name}} + {{property_address}} wired to the lead and the ad's property,\nintro rotation (Hi / Hello / time-of-day, Central, never evening), and every\ntext ends with www.mattsmithteam.com. New AI_FB_AD_OPENER action renders from\nthe bank (no Claude) through the full runOutbound gate stack; template + intro\nchoice logged per send for angle testing. Ad-lead intake routes fresh\nenrollments to the bank with the property in the payload. 4 new tests, 264/264.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c730373",
+      "date": "2026-09-17T10:46:16-05:00",
+      "subject": "FB ad lead alerts: Hub's own email to John + Matt with a View Lead button",
+      "title": "FB ad lead alerts: Hub's own email to John + Matt with a View Lead button",
+      "body": "Every ingested New Lead / Lead Alert (Facebook) now also sends a formatted\nalert email to johnwithmattsmithteam@gmail.com + mattsmithremax@gmail.com:\nname, listing, phone, email, timeline, EXISTING-vs-new callout, and a gold\nView Lead button straight to the lead's Hub profile. FUB email parsing now\nprefers the machine-readable lead_* meta tags over text parsing.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3897508",
+      "date": "2026-09-17T10:36:33-05:00",
+      "subject": "FB ad leads: FUB lead-notification EMAILS become the primary trigger (John's design)",
+      "title": "FB ad leads: FUB lead-notification EMAILS become the primary trigger (John's design)",
+      "body": "The Gmail poller already watches Matt's inbox; leads@followupboss.com emails now\nroute to handleFubLeadEmail (never stored as client comms). Facebook ones only:\n\"New Lead from Facebook - <name>\" → pull the lead into the Hub (create, tag to\nthe listing, timeline + lender saved, team notified, AI fresh-lane first text in\n~5 min). \"Lead Alert from Facebook - <name>\" (existing person re-registered) →\ntag + note + notification ONLY — no new record, no auto-AI (team decides).\nZillow/other sources and Hot Sheet digests ignored; idempotent by Message-ID;\ngated by fub_lead_email_enabled (ships OFF). Parser tested against the real\nemails in Matt's inbox; the events-API watcher stays as an off-by-default backup.\nShared intake: auto-AI now applies to NEW records only.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "36fdcd3",
+      "date": "2026-09-17T10:28:35-05:00",
+      "subject": "FUB watcher: hydrate slim list events with detail + person before extraction",
+      "title": "FUB watcher: hydrate slim list events with detail + person before extraction",
+      "body": "The /events list returns slim rows (no message/person) — fetch the event detail\nand person record per matching Facebook-ad event. Preview gains ?raw=1 to\ninspect the true payload shape.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f8d2f96",
+      "date": "2026-09-17T10:25:59-05:00",
+      "subject": "FUB ad-lead watcher: parse the real registration note + hot-lead jump-the-line",
+      "title": "FUB ad-lead watcher: parse the real registration note + hot-lead jump-the-line",
+      "body": "Extractor now reads the actual FUB registration message format (user-provided\nphone, \"time frame to buy\" answer with lender yes/no captured, listing from the\nForm/Ad Campaign lines — verified against the live 510 Broadway registration).\n\nHot-lead rule in the shared intake: an ad registration is fresh intent no\nmatter how old the record is — an eligible registrant (all evaluator\nexclusions/deferrals still apply) enrolls immediately on the fresh route for a\n~5-minute Claude-composed first text grounded in the ad/listing/timeline note,\ninstead of waiting in the capped reactivation queue.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0533cb8",
+      "date": "2026-09-16T17:18:34-05:00",
+      "subject": "fb-webhook-setup: register before the /:id catch-all so the route resolves",
+      "title": "fb-webhook-setup: register before the /:id catch-all so the route resolves",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "979e32d",
+      "date": "2026-09-16T17:16:48-05:00",
+      "subject": "Facebook listing-ad lead webhook: Zapier → Hub intake with instant AI first touch",
+      "title": "Facebook listing-ad lead webhook: Zapier → Hub intake with instant AI first touch",
+      "body": "POST /api/clients/fb-webhook?key=... (public, shared-key guarded; ?dry=1 parses\nwithout writing): normalizes the Instant Form fields, dedupes by phone then\nemail, tags the lead to the listing/campaign (FB Ad: <name>), records the\ntimeline answer, notifies the team, claims any unknown call/text history, and\nhands the lead to the AI fresh lane for the ~5-minute first text. Authenticated\nGET /fb-webhook-setup provisions and returns the Zapier URL + key.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "884ea13",
+      "date": "2026-09-16T16:44:23-05:00",
+      "subject": "CX preview test: neutralize its own prior sort-first rows in the persistent test DB",
+      "title": "CX preview test: neutralize its own prior sort-first rows in the persistent test DB",
+      "body": "Each run planted a 2000-01-01 next_send_at row; after ~25 accumulated runs the\nnewest test lead fell outside the 25-row preview window. Test-only flake.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8a3c621",
+      "date": "2026-09-16T16:41:50-05:00",
+      "subject": "Fix the real root causes of the all-day page crashes: stale/poisoned PWA cache + Dashboard hooks bug",
+      "title": "the real root causes of the all-day page crashes: stale/poisoned PWA cache + Dashboard hooks bug",
+      "body": "Four layers, found while triple-checking:\n\n1. Dashboard React #310: two useState hooks (master-sync button) sat BELOW the\n   loading early-returns, so the first data render had more hooks than the\n   loading render — crashed every Dashboard open without cached data. Hooks\n   moved above the returns.\n2. Server SPA fallback served index.html for MISSING /assets chunks (old builds\n   after a deploy) with HTTP 200 — now a 404, never HTML under a .js URL.\n3. Service worker v8: purges the caches those HTML responses poisoned (fixes\n   every affected device automatically on next visit), and only caches asset\n   responses whose content-type matches the URL.\n4. Self-healing tabs: hourly update check, one-shot reload when a new service\n   worker takes over, one-shot reload when a lazy chunk fails to load\n   (vite:preloadError), and the crash screen's \"Try again\" now does a real\n   reload instead of re-rendering the same broken code.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "a2ccfbd",
       "date": "2026-09-16T14:36:13-05:00",
@@ -3896,110 +4000,6 @@
       "subject": "What's New: document the new collapse-sidebar feature (annotated card)",
       "title": "What's New: document the new collapse-sidebar feature (annotated card)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e720564",
-      "date": "2026-08-10T18:21:39-05:00",
-      "subject": "Sidebar: clean collapse/expand toggle (hide the sidebar for full-width pages)",
-      "title": "Sidebar: clean collapse/expand toggle (hide the sidebar for full-width pages)",
-      "body": "The header toggle now uses a clean panel-left icon and actually collapses the\ndesktop sidebar (slides it off-screen; the page goes full width). A small floating\npanel button appears to bring it back. State persists in localStorage; the mobile\nhamburger/slide-in still wins over a persisted collapse.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "56e722a",
-      "date": "2026-08-10T18:12:57-05:00",
-      "subject": "What's New: embed annotated screenshots inline (no click-through) + Blog Posts",
-      "title": "What's New: embed annotated screenshots inline (no click-through) + Blog Posts",
-      "body": "- Auth-gated GET /api/whatsnew/:name streams the walkthrough screenshots (behind\n  requireAuth, so client data never goes public; the React img fetches them as a\n  blob with the auth header).\n- WhatsNew now shows each feature's real screenshot with outline-box annotations\n  (numbered boxes that FRAME each feature without covering it) and a hover-synced\n  numbered legend beneath. Covers AI Follow-Up, Inbox, Drips, Automations,\n  Reporting, Blog Posts, cleaner Clients list, header filters, smart filters,\n  and link previews. \"Show me ->\" still deep-links to each live feature.\n- Added a Blog Posts card (198 posts published to mattsmithteam.com).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f53e141",
-      "date": "2026-08-10T17:59:44-05:00",
-      "subject": "Updates: add an in-app \"What's New\" tab (feature guide since Aug 3)",
-      "title": "Updates: add an in-app \"What's New\" tab (feature guide since Aug 3)",
-      "body": "A plain-English, theme-aware guide to everything shipped since Aug 3 — AI\nSuggested Follow-Up, unified Inbox, Drip Campaigns, Automations, Reporting,\nthe cleaner Clients list + column-header filters, inline Realist score, link\npreviews, PWA install, and the stability rebuild. Each card has a \"Show me ->\"\nbutton that navigates straight to the live feature (no screenshot overlays).\nSet as the default tab on the Updates page.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "improvement"
-    },
-    {
-      "hash": "3e29afc",
-      "date": "2026-08-10T17:29:11-05:00",
-      "subject": "Link preview: compact card + auto-preview on paste/type",
-      "title": "Link preview: compact card + auto-preview on paste/type",
-      "body": "- Card is now a compact horizontal layout (72px square thumbnail on the left,\n  domain/title/short description on the right, max-width 420px) so it takes far\n  less room in the email than the old full-width image card.\n- Auto-preview: pasting a lone link OR typing a link (with a real TLD like .com)\n  followed by space/Enter now auto-inserts the preview card.\n  - EmailToolbar (textarea composers): paste + type detection on the body field.\n  - RichTextEditor (Drip / Templates rich): auto-preview on paste.\n- soleUrl()/trailingUrl() helpers detect/normalize URLs (emails are ignored).\n  The manual \"Link Preview\" button stays as a fallback.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4e58a4a",
-      "date": "2026-08-10T17:18:37-05:00",
-      "subject": "Link preview: add to RichTextEditor toolbar (Drip campaign + Templates rich mode)",
-      "title": "Link preview: add to RichTextEditor toolbar (Drip campaign + Templates rich mode)",
-      "body": "The rich WYSIWYG editor now has a \"Link Preview\" toolbar button that fetches a URL's\nOpen Graph card and inserts it at the cursor via insertHTML — so the Drip Campaign\nstep editor and Templates rich editor get the same rich link cards as the other\ncomposers.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "865667c",
-      "date": "2026-08-10T17:14:04-05:00",
-      "subject": "Link preview: fetch as facebookexternalhit first so Cloudflare-protected sites (incl. mattsmithteam.com) unfurl",
-      "title": "Link preview: fetch as facebookexternalhit first so Cloudflare-protected sites (incl. mattsmithteam.com) unfurl",
-      "body": "The team's own Sierra site is behind Cloudflare, which intermittently bot-challenges\nthe server with a normal browser UA. Now the endpoint tries facebookexternalhit and\nTwitterbot (the social unfurlers Cloudflare allowlists) before the browser UA, taking\nthe first non-challenge result with a title or image. Also broadened the challenge\ndetection (\"access to this page has been denied\", \"verify you are human\", etc.).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "09017df",
-      "date": "2026-08-10T16:54:54-05:00",
-      "subject": "Clients: click-to-filter dropdowns on Phone, Email, Address & Source column headers",
-      "title": "Clients: click-to-filter dropdowns on Phone, Email, Address & Source column headers",
-      "body": "Reusable ColumnFilterHeader powers the header dropdowns:\n- Phone  -> All / With phone / No phone   (has_phone '1'|'0')\n- Email  -> All / With email / No email   (has_email now tri-state '1'|'0')\n- Address-> All / With address / No address\n- Source -> All sources + each known source (single-select via sources_include)\n- Type   -> (already) All / Buyer / Seller / Buyer/Seller\n\nBackend: added has_email='0' and has_phone='0' (no email / no phone) branches.\nPanel \"Other\" section now uses Email/Phone/Address selects (kept in sync with the\nheader controls); presets updated to has_email:'1'. Active choice shows in the header.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "607a8b7",
-      "date": "2026-08-10T16:45:14-05:00",
-      "subject": "Clients: move the Buyer/Seller type filter into the TYPE column header",
-      "title": "Clients: move the Buyer/Seller type filter into the TYPE column header",
-      "body": "Removed the separate top \"Type: All / Buyers / Sellers / Buyer-Seller\" tab row.\nThe TYPE column header is now a click-to-filter dropdown (All / Buyer / Seller /\nBuyer/Seller, no emojis); the active choice shows in the header (e.g. \"Type: Buyer\").\nUses the same filter.type state, so filtering behavior is unchanged.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "843f802",
-      "date": "2026-08-10T16:33:47-05:00",
-      "subject": "Clients list: remove SIERRA badge and type-pill emojis for a cleaner list",
-      "title": "Clients list: remove SIERRA badge and type-pill emojis for a cleaner list",
-      "body": "- Dropped the \"Sierra\" source badge from the list rows (desktop name cell + mobile\n  card). Source is still shown on each lead's profile.\n- Type pills now read plain Buyer / Seller / Buyer/Seller (removed the emoji icons).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a8f6045",
-      "date": "2026-08-10T16:25:01-05:00",
-      "subject": "Link preview: handle bot-challenge pages (Cloudflare) and cleaner fallback",
-      "title": "Link preview: handle bot-challenge pages (Cloudflare) and cleaner fallback",
-      "body": "- Server drops the title/description/image when a fetch returns a bot-challenge\n  interstitial (e.g. Cloudflare \"Just a moment...\" on the team's own site from the\n  server IP), so the card doesn't show a garbage title.\n- Card title falls back to the domain (not the raw URL) when no title was fetched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0bc2d93",
-      "date": "2026-08-10T16:21:53-05:00",
-      "subject": "Email composers: insert rich link previews; remove temp Sierra probe",
-      "title": "Email composers: insert rich link previews; remove temp Sierra probe",
-      "body": "- New GET /api/link-preview unfurls a URL server-side (follows redirects, parses\n  Open Graph / Twitter / <title> + meta description + og:image, absolutizes the\n  image URL, 9s timeout, never throws — returns blanks on failure).\n- inlineImages.buildLinkPreviewHtml(): email-safe, table-based, fully inline-styled\n  preview card (image + domain + bold title + description), the whole card is one\n  clickable link. Degrades gracefully with no image/description.\n- EmailToolbar: new \"Link Preview\" button (paste a URL -> inserts the card at the\n  cursor). Since every composer shares EmailToolbar, this lands in the Clients,\n  Templates, Listings, Pre-Listings, Transactions, and Recommend composers at once.\n- Removed the temporary Sierra saved-search probe endpoint.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "88ceba0",
-      "date": "2026-08-10T16:17:09-05:00",
-      "subject": "TEMP: sierra saved-search probe endpoint (to be removed)",
-      "title": "TEMP: sierra saved-search probe endpoint (to be removed)",
-      "body": "",
-      "category": "other"
-    },
-    {
-      "hash": "f8bb1c9",
-      "date": "2026-08-10T16:14:51-05:00",
-      "subject": "Clients filters: cleaner layout, remove Regions, add Address (has/none) filter",
-      "title": "Clients filters: cleaner layout, remove Regions, add Address (has/none) filter",
-      "body": "- Filter panel: controls in each row now bottom-align on one line (checkboxes,\n  selects, number inputs share a 30px height); full-width sections get clean\n  top-border separators; selects styled to match inputs.\n- Removed the \"Regions (comma-separated)\" saved-search filter (not needed).\n- Added an Address filter (Any / Has address / No address) in the Other section;\n  backend has_address = '1'|'0' -> address present / blank.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

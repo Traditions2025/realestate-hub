@@ -35,6 +35,71 @@ router.post('/', (req, res) => {
   res.status(201).json({ id: result.lastInsertRowid })
 })
 
+// ---- LEAD APPOINTMENTS (John, 2026-09-17) ----
+// Profile "Add appointment": type Showing / Walkthrough / Buyer Meeting + date,
+// time, title, notes. Walkthrough auto-titles "Walkthrough - {address} - {name}".
+// Notes always carry the lead's Hub profile link. Saved on the Hub calendar AND
+// emailed to John + Matt as a real calendar invite (ICS, shows Yes/No in Gmail).
+const APPT_TYPES = { showing: 'Showing', walkthrough: 'Walkthrough', buyer_meeting: 'Buyer Meeting' }
+const icsEsc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+router.post('/appointment', async (req, res) => {
+  try {
+    const b = req.body || {}
+    const cid = Number(b.client_id)
+    const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+    if (!c) return res.status(404).json({ error: 'client not found' })
+    const typeKey = String(b.type || 'showing').toLowerCase()
+    const typeLabel = APPT_TYPES[typeKey] || 'Appointment'
+    if (!b.date || !b.time) return res.status(400).json({ error: 'date and time are required' })
+    const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Lead'
+    const address = [c.address, c.city].filter(Boolean).join(', ')
+    // Auto-title: walkthrough = address + name + type; others default to type + name.
+    const title = String(b.title || '').trim()
+      || (typeKey === 'walkthrough' && address ? `Walkthrough - ${address} - ${name}` : `${typeLabel} - ${name}`)
+    const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+    const profileLink = `${hub}/clients/${cid}`
+    const notes = String(b.notes || '').trim()
+    const description = `Hub profile: ${profileLink}${c.phone ? `\nPhone: ${c.phone}` : ''}${notes ? `\n\n${notes}` : ''}`
+    const durationMin = Number(b.duration_minutes) || 60
+    // Times come in as local Central date + HH:MM. Store as-is for the Hub calendar;
+    // the ICS pins the Central timezone explicitly so invitees see the right hour.
+    const startLocal = `${b.date}T${b.time}:00`
+    const endDate = new Date(new Date(`${b.date}T${b.time}:00`).getTime() + durationMin * 60000)
+    const pad = (x) => String(x).padStart(2, '0')
+    const endLocal = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`
+    const attendees = ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com']
+    const ins = db.run(`INSERT INTO calendar_events (title, event_type, event_date, start_time, end_time, location, description, attendees, related_type, related_id, reminder_minutes, color)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [title, typeKey, b.date, `${b.time}`, endLocal.slice(11, 16), address || null, description, attendees.join(','), 'client', cid, 30, 'gold'])
+    try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['appointment', 'client', cid, `${title} — ${b.date} ${b.time}`]) } catch {}
+    // ICS invite (METHOD:REQUEST) → Gmail renders Add-to-calendar with Yes/No/Maybe.
+    const fmtIcs = (s) => s.replace(/[-:]/g, '')
+    const uid = `hubappt-${ins.lastInsertRowid}@mattsmithteam.com`
+    const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Matt Smith Team Hub//EN', 'METHOD:REQUEST',
+      'BEGIN:VTIMEZONE', 'TZID:America/Chicago', 'BEGIN:STANDARD', 'DTSTART:19701101T020000', 'TZOFFSETFROM:-0500', 'TZOFFSETTO:-0600', 'RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU', 'END:STANDARD',
+      'BEGIN:DAYLIGHT', 'DTSTART:19700308T020000', 'TZOFFSETFROM:-0600', 'TZOFFSETTO:-0500', 'RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU', 'END:DAYLIGHT', 'END:VTIMEZONE',
+      'BEGIN:VEVENT', `UID:${uid}`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').slice(0, 15)}Z`,
+      `DTSTART;TZID=America/Chicago:${fmtIcs(startLocal)}`, `DTEND;TZID=America/Chicago:${fmtIcs(endLocal)}`,
+      `SUMMARY:${icsEsc(title)}`, `DESCRIPTION:${icsEsc(description)}`,
+      address ? `LOCATION:${icsEsc(address)}` : null,
+      'ORGANIZER;CN=Matt Smith Team Hub:mailto:matt@mattsmithteam.com',
+      ...attendees.map(a => `ATTENDEE;CUTYPE=INDIVIDUAL;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${a}`),
+      'STATUS:CONFIRMED', 'SEQUENCE:0', 'BEGIN:VALARM', 'TRIGGER:-PT30M', 'ACTION:DISPLAY', 'DESCRIPTION:Reminder', 'END:VALARM',
+      'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n')
+    const { sendViaSendGrid } = await import('./email.js')
+    const whenPretty = new Date(`${b.date}T${b.time}:00`).toLocaleString('en-US', { weekday: 'long', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+    const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.6;">
+      <p style="font-size:16px;margin:0 0 8px;"><strong>${title}</strong></p>
+      <p style="margin:0 0 4px;"><strong>When:</strong> ${whenPretty} (Central)</p>
+      ${address ? `<p style="margin:0 0 4px;"><strong>Where:</strong> ${address}</p>` : ''}
+      ${notes ? `<p style="margin:8px 0 4px;"><strong>Notes:</strong> ${notes.replace(/</g, '&lt;')}</p>` : ''}
+      <p style="margin:12px 0 0;"><a href="${profileLink}" style="display:inline-block;background:#B9963B;color:#241a04;font-weight:700;padding:9px 16px;border-radius:8px;text-decoration:none;">View Lead</a></p></div>`
+    const attachment = { content: Buffer.from(ics).toString('base64'), filename: 'invite.ics', type: 'text/calendar; method=REQUEST', disposition: 'attachment' }
+    await sendViaSendGrid(attendees.join(','), 'Matt Smith Team', `Appointment: ${title} — ${whenPretty}`, html, null, [], [attachment], [], 'appointment')
+    res.status(201).json({ id: ins.lastInsertRowid, title, date: b.date, time: b.time, invited: attendees })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.put('/:id', (req, res) => {
   const fields = req.body
   fields.updated_at = new Date().toISOString()
