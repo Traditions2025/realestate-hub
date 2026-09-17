@@ -34,6 +34,21 @@ export function introVariant(idx) {
   return h < 12 ? 'Good morning' : h < 16 ? 'Good afternoon' : 'Hello'
 }
 
+// NO-REPLY FOLLOW-UP EMAIL (~10 min after the opener text, only if silent):
+// about their inquiry — references the property they registered on.
+export function renderFbAdEmail(client, property) {
+  const first = String(client?.first_name || '').trim() || 'there'
+  const prop = String(property || '').trim() || 'the home you saw on Facebook'
+  const subject = `Your inquiry on ${prop}`
+  const body = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.6;">
+<p>Hi ${first},</p>
+<p>John here with Matt Smith Team at RE/MAX. You asked about ${prop} on Facebook, so I sent you a quick text a few minutes ago as well.</p>
+<p>Happy to get you anything you need on the home: full details, photos, or a time to see it in person. Just reply to this email or text me at (319) 343-1562 and let me know what would help.</p>
+<p>You can also browse more homes anytime at <a href="https://www.mattsmithteam.com">www.mattsmithteam.com</a>.</p>
+<p>John<br>Matt Smith Team | RE/MAX Concepts</p></div>`
+  return { subject, body }
+}
+
 // Render the next opener for a lead: rotates template and intro independently so
 // the test covers combinations; returns { key, intro, text }.
 export function renderFbAdOpener(client, property, { advance = true } = {}) {

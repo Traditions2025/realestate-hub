@@ -42,3 +42,13 @@ test('graceful fallbacks: missing name and property never render broken text', (
   assert.ok(r.text.includes('there,') || r.text.includes('there '), 'name fallback')
   assert.ok(r.text.includes('the home you saw'), 'property fallback')
 })
+
+test('no-reply follow-up email renders about their inquiry', () => {
+  const r = t.renderFbAdEmail({ first_name: 'Rich' }, '510 Broadway Springville')
+  assert.equal(r.subject, 'Your inquiry on 510 Broadway Springville')
+  assert.ok(r.body.includes('Hi Rich'))
+  assert.ok(r.body.includes('You asked about 510 Broadway Springville on Facebook'))
+  assert.ok(r.body.includes('www.mattsmithteam.com'))
+  assert.ok(r.body.includes('(319) 343-1562'))
+  assert.ok(!/[—–]/.test(r.body), 'no em/en dashes in client-facing copy')
+})

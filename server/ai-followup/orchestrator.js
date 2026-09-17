@@ -403,8 +403,35 @@ export async function handleFbAdOpener(clientId, { property = '' } = {}) {
   const { renderFbAdOpener } = await import('./fb-ad-templates.js')
   const r = renderFbAdOpener(client, property)
   const res = await runOutbound(cid, { actionType: 'FB_AD_OPENER', flagKey: 'ai_proactive_text_enabled', nextState: 'AI_WAITING_FOR_REPLY', templateText: r.text })
-  if (res?.sent) { try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['fb_ad_opener', 'client', cid, `FB ad opener sent — template=${r.key} intro=${r.intro}`]) } catch {} }
+  if (res?.sent) {
+    try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['fb_ad_opener', 'client', cid, `FB ad opener sent — template=${r.key} intro=${r.intro}`]) } catch {}
+    // No reply in 10 minutes → follow-up EMAIL about their inquiry (John, 2026-09-17).
+    try {
+      const { scheduleAiAction } = await import('./scheduler.js')
+      scheduleAiAction(cid, 'AI_FB_AD_EMAIL', new Date(Date.now() + 10 * 60000).toISOString(), { reason: 'FB ad no-reply email follow-up', payload: { property }, dedupKey: `fbademail_${cid}` })
+    } catch {}
+  }
   return res
+}
+
+// The no-reply follow-up email: sends ONLY if the lead has not responded (any
+// channel) since the opener text went out. Email compliance handled by
+// sendSequenceEmail (bounce/invalid hard-blocks).
+export async function handleFbAdEmail(clientId, { property = '' } = {}) {
+  const cid = Number(clientId)
+  const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  if (!client) return { ok: false, reason: 'no client' }
+  const lastOut = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND direction='outgoing' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
+  const repliedSince = lastOut && db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND occurred_at >= ? LIMIT 1", [cid, lastOut.occurred_at])
+  if (repliedSince) return { ok: true, sent: false, reason: 'lead already responded — human owns it' }
+  if (!client.email) return { ok: true, sent: false, reason: 'no email on file' }
+  const { renderFbAdEmail } = await import('./fb-ad-templates.js')
+  const t = renderFbAdEmail(client, property)
+  const { sendSequenceEmail } = await import('../routes/email.js')
+  const r = await sendSequenceEmail(client, { subject: t.subject, body: t.body }, 'fb_ad_email')
+  if (r?.ok === false) return { ok: true, sent: false, reason: r.reason }
+  try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['fb_ad_email', 'client', cid, `FB ad no-reply follow-up email sent (${property || 'no property'})`]) } catch {}
+  return { ok: true, sent: true }
 }
 
 // Cancel any pending scheduled AI actions for a lead (called when they reply or a

@@ -37,8 +37,11 @@ export async function runDueAiActions() {
     try {
       const client = db.get('SELECT * FROM clients WHERE id=?', [a.client_id])
       if (!client) { finish(a.id, 'failed', 'no client'); continue }
-      // re-check eligibility immediately before executing
-      const gate = canSendSms(client, { channel: 'ai', mode: 'proactive' })
+      // re-check eligibility immediately before executing. The FB-ad no-reply
+      // EMAIL is exempt from the SMS gate — it must still send when the text
+      // channel just failed (that's when the email matters most); the handler
+      // + sendSequenceEmail apply email-side compliance.
+      const gate = a.action_type === 'AI_FB_AD_EMAIL' ? { ok: true } : canSendSms(client, { channel: 'ai', mode: 'proactive' })
       if (!gate.ok) { finish(a.id, 'canceled', gate.reason); continue }
       // if the lead replied or a human took over since scheduling, skip
       const st = db.get('SELECT ai_state, ai_last_inbound_at, ai_last_human_contact_at FROM ai_lead_state WHERE client_id=?', [a.client_id])
@@ -47,6 +50,7 @@ export async function runDueAiActions() {
       let res
       if (a.action_type === 'AI_INITIAL_OUTREACH') { res = await orch.handleProactive(a.client_id); if (res?.sent) scheduleNurture(a.client_id, 0) }
       else if (a.action_type === 'AI_FB_AD_OPENER') { res = await orch.handleFbAdOpener(a.client_id, { property: payload.property || '' }); if (res?.sent) scheduleNurture(a.client_id, 0) }
+      else if (a.action_type === 'AI_FB_AD_EMAIL') { res = await orch.handleFbAdEmail(a.client_id, { property: payload.property || '' }) }
       else if (a.action_type === 'AI_FOLLOWUP') { res = await orch.handleFollowup(a.client_id) }   // 10-min no-reply qualifying follow-up
       else if (a.action_type === 'AI_NURTURE_TOUCH') { const step = payload.step || 0; res = await orch.handleNurture(a.client_id, { attempt: step + 1 }); if (res?.sent) scheduleNurture(a.client_id, step + 1) }
       else if (a.action_type === 'AI_REENGAGE') { res = await orch.handleNurture(a.client_id, { reengage: true }) }
