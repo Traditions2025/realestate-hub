@@ -2,6 +2,7 @@
 // Not to be confused with a lead's Client Profile. Self-service only: photo,
 // display name, phone. Email + role stay admin-managed in Settings → Team & Users.
 import React, { useState, useEffect, useRef } from 'react'
+import { confirmDialog } from '../notify'
 import { authFetch } from '../api'
 
 export const ROLE_LABELS = { owner: 'Owner', admin: 'Admin', agent: 'Agent', transaction_coordinator: 'TC', isa: 'ISA', marketing: 'Marketing', read_only: 'Read Only' }
@@ -77,7 +78,7 @@ export default function Profile() {
     } catch (e2) { setErr(e2.message || 'Unable to upload photo. Please try again.') } finally { setPhotoBusy(false) }
   }
   const removePhoto = async () => {
-    if (!confirm('Remove your profile photo?')) return
+    if (!await confirmDialog('Remove your profile photo?')) return
     setPhotoBusy(true); setErr('')
     try {
       await authFetch('/api/users/me/avatar', { method: 'DELETE' })

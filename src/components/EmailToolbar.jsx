@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useRef, useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import {
@@ -109,7 +110,7 @@ export default function EmailToolbar({ textareaRef, body, setBody, onPreview, sh
     if (!url) return
     const id = parseYoutubeId(url)
     if (!id) {
-      alert('Could not parse YouTube ID from that URL. Try the standard youtube.com/watch?v=… link.')
+      notify('Could not parse YouTube ID from that URL. Try the standard youtube.com/watch?v=… link.')
       return
     }
     const snippet = '\n' + buildYoutubeEmbedHtml(url) + '\n'

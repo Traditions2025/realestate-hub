@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
@@ -46,7 +47,7 @@ function RealistScoreBadge({ client, onSaved }) {
     try {
       await authFetch(`/api/clients/${client.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lead_score: digits === '' ? null : digits }) })
       onSaved && onSaved()
-    } catch (e) { alert('Failed to save Realist Score: ' + e.message) }
+    } catch (e) { notify('Failed to save Realist Score: ' + e.message) }
   }
   const has = client.lead_score !== null && client.lead_score !== undefined && client.lead_score !== ''
   return (
@@ -64,7 +65,7 @@ function StatusPill({ client, onSaved }) {
       await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: v }) })
       if (client.sierra_lead_id) authFetch('/api/sierra/update-lead-status', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, status: v }) }).catch(() => {})
       onSaved && onSaved()
-    } catch (e) { alert('Status update failed: ' + e.message) }
+    } catch (e) { notify('Status update failed: ' + e.message) }
   }
   return <select className={`status-quick-select status-${client.status}`} value={client.status || ''} onChange={e => change(e.target.value)} title="Change status">
     {SIERRA_STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
@@ -74,7 +75,7 @@ function StatusPill({ client, onSaved }) {
 function AgentPill({ client, onSaved }) {
   const [agents, setAgents] = React.useState([])
   React.useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
-  const change = async (v) => { try { await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_assigned: v || null }) }); onSaved && onSaved() } catch (e) { alert('Assign failed: ' + e.message) } }
+  const change = async (v) => { try { await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ agent_assigned: v || null }) }); onSaved && onSaved() } catch (e) { notify('Assign failed: ' + e.message) } }
   return <select className="status-quick-select" value={client.agent_assigned || ''} onChange={e => change(e.target.value)} title="Assign agent" style={{ maxWidth: 150 }}>
     <option value="">Unassigned</option>
     {agents.map(a => <option key={a} value={a}>{a}</option>)}
@@ -83,7 +84,7 @@ function AgentPill({ client, onSaved }) {
 }
 // Editable Buyer/Seller type.
 function TypePill({ client, onSaved }) {
-  const change = async (v) => { try { await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: v }) }); onSaved && onSaved() } catch (e) { alert('Type update failed: ' + e.message) } }
+  const change = async (v) => { try { await authFetch('/api/clients/' + client.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: v }) }); onSaved && onSaved() } catch (e) { notify('Type update failed: ' + e.message) } }
   return <select className={`status-quick-select type-${client.type || 'buyer'}`} value={client.type || 'buyer'} onChange={e => change(e.target.value)} title="Change type">
     <option value="buyer">Buyer</option><option value="seller">Seller</option><option value="both">Buyer/Seller</option>
   </select>
@@ -176,7 +177,7 @@ export default function ClientProfile() {
       const combined = client.notes ? `[${stamp}] ${noteText.trim()}\n${client.notes}` : `[${stamp}] ${noteText.trim()}`
       await authFetch('/api/clients/' + cid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: combined }) })
       setClient(c => ({ ...c, notes: combined })); setNoteText(''); setNoteOpen(false)
-    } catch (e) { alert('Failed to save note: ' + e.message) } finally { setSavingNote(false) }
+    } catch (e) { notify('Failed to save note: ' + e.message) } finally { setSavingNote(false) }
   }
   const refreshSierra = async () => {
     if (!client?.sierra_lead_id || refreshing) return
@@ -201,8 +202,8 @@ export default function ClientProfile() {
       agency_type: type === 'purchase' ? "Buyer's Agent" : 'Listing Agent' }
     try {
       const r = await authFetch('/api/transactions', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(txData) })
-      if (r.ok) { alert('Transaction added.'); window.dispatchEvent(new CustomEvent('cp-txns-changed')) } else alert('Could not add transaction.')
-    } catch (e) { alert('Could not add transaction: ' + e.message) }
+      if (r.ok) { notify('Transaction added.'); window.dispatchEvent(new CustomEvent('cp-txns-changed')) } else notify('Could not add transaction.')
+    } catch (e) { notify('Could not add transaction: ' + e.message) }
   }
 
   if (loading) return <div className="page"><div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading client…</div></div>
@@ -353,9 +354,9 @@ function FsboCampaignCard({ cid, client }) {
     try {
       const r = await authFetch(`/api/lists/fsbo/campaign/${cid}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
       const d = await r.json()
-      if (d && d.ok === false && d.reason) alert('Not possible: ' + d.reason)
+      if (d && d.ok === false && d.reason) notify('Not possible: ' + d.reason)
       load()
-    } catch (e) { alert('Failed: ' + e.message) } finally { setBusy(false) }
+    } catch (e) { notify('Failed: ' + e.message) } finally { setBusy(false) }
   }
   const previewNext = async () => {
     try { const r = await authFetch(`/api/lists/fsbo/campaign/${cid}/preview-next`); setNext(await r.json()) } catch { setNext(null) }
@@ -387,7 +388,7 @@ function FsboCampaignCard({ cid, client }) {
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {en.status === 'active' && <button className="btn btn-sm" disabled={busy} onClick={() => act('pause')}>⏸ Pause</button>}
             {['paused', 'stopped'].includes(en.status) && <button className="btn btn-sm" disabled={busy} onClick={() => act('resume')}>▶ Resume</button>}
-            {en.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Remove this lead from the FSBO campaign? Sweeps will never re-enroll them.')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
+            {en.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={ async () => { if (await confirmDialog('Remove this lead from the FSBO campaign? Sweeps will never re-enroll them.')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
             {en.status === 'active' && <button className="btn btn-sm" onClick={previewNext}>👁 Preview next</button>}
             {(st.log || []).length > 0 && <button className="btn btn-sm" onClick={() => setShowLog(v => !v)}>{showLog ? 'Hide log' : `Log (${st.log.length})`}</button>}
           </div>
@@ -420,9 +421,9 @@ function CxCampaignCard({ cid, client }) {
     try {
       const r = await authFetch(`/api/cx/${cid}/${path}`, { method: 'POST' })
       const d = await r.json()
-      if (d && d.ok === false && d.reason) alert('Not possible: ' + d.reason)
+      if (d && d.ok === false && d.reason) notify('Not possible: ' + d.reason)
       loadCx()
-    } catch (e) { alert('Failed: ' + e.message) } finally { setBusy(false) }
+    } catch (e) { notify('Failed: ' + e.message) } finally { setBusy(false) }
   }
   if (!st) return null
   const fmtD = (iso) => { try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) } catch { return '—' } }
@@ -446,7 +447,7 @@ function CxCampaignCard({ cid, client }) {
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {st.status === 'active' && <button className="btn btn-sm" disabled={busy} onClick={() => act('pause')}>⏸ Pause</button>}
             {(st.status === 'paused' || st.status === 'ineligible' || st.status === 'response_received' || st.status === 'removed') && <button className="btn btn-sm" disabled={busy} onClick={() => act('resume')}>▶ {st.status === 'paused' ? 'Resume' : 'Re-enroll'}</button>}
-            {st.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={() => { if (confirm('Remove this lead from the campaign?')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
+            {st.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={ async () => { if (await confirmDialog('Remove this lead from the campaign?')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
             {(st.log || []).length > 0 && <button className="btn btn-sm" onClick={() => setShowLog(v => !v)}>{showLog ? 'Hide log' : `Log (${st.log.length})`}</button>}
           </div>
           {showLog && (
@@ -533,7 +534,7 @@ function AltQuickAdd({ cid, field, placeholder, existing, existingLabels, onSave
       }
       await authFetch(`/api/clients/${cid}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
       onSaved && onSaved(); onClose()
-    } catch (e) { alert('Could not save: ' + e.message) } finally { setSaving(false) }
+    } catch (e) { notify('Could not save: ' + e.message) } finally { setSaving(false) }
   }
   return (
     <p style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
@@ -564,7 +565,7 @@ function AltPhoneLabels({ client, onSaved }) {
     try {
       await authFetch(`/api/clients/${client.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ alt_phone_labels: JSON.stringify(next) }) })
       onSaved && onSaved()
-    } catch (e) { alert('Could not save: ' + e.message) }
+    } catch (e) { notify('Could not save: ' + e.message) }
   }
   return (
     <p style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
@@ -646,7 +647,7 @@ function TagEditor({ client, onSaved }) {
   const apply = async (add, remove) => {
     setBusy(true)
     try { await authFetch('/api/clients/bulk-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [client.id], add, remove }) }); onSaved && onSaved() }
-    catch (e) { alert('Tag update failed: ' + e.message) } finally { setBusy(false) }
+    catch (e) { notify('Tag update failed: ' + e.message) } finally { setBusy(false) }
   }
   const shown = showAll ? tags : tags.slice(0, 8)
   return (
@@ -889,7 +890,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     try {
       const r = await authFetch('/api/email/preview', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, subject, body: body.replace(/\n/g, '<br>') }) })
       setPreview(await r.json())
-    } catch (e) { alert('Preview failed: ' + e.message) } finally { setPreviewing(false) }
+    } catch (e) { notify('Preview failed: ' + e.message) } finally { setPreviewing(false) }
   }
   const send = async () => {
     if (!stripHtml(body).trim()) return
@@ -897,8 +898,8 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     try {
       const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, to_email: toEmail || undefined, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>') }) })
       const d = await r.json().catch(() => ({}))
-      if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else alert('Email not sent: ' + (d.error || 'unknown'))
-    } catch (e) { alert('Email failed: ' + e.message) } finally { setSending(false) }
+      if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else notify('Email not sent: ' + (d.error || 'unknown'))
+    } catch (e) { notify('Email failed: ' + e.message) } finally { setSending(false) }
   }
   const inputStyle = { width: '100%', padding: '7px 9px', marginBottom: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)', fontSize: 13 }
   return (
@@ -1007,11 +1008,11 @@ function PropertyActivity({ client, onSaved }) {
   const lastViewed = client.last_fub_activity_at ? new Date(String(client.last_fub_activity_at).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null
   if (!listings.length && !lastViewed && !client.fsbo_status) return null
   const removeFsbo = async () => {
-    if (!confirm(`Remove the FSBO listing from ${client.first_name || 'this lead'}'s profile?\n\nUse this when the FSBO isn't really theirs (a phone number matched the wrong person). It clears the listing and stops the master-file sync from re-attaching it.`)) return
+    if (!await confirmDialog(`Remove the FSBO listing from ${client.first_name || 'this lead'}'s profile?\n\nUse this when the FSBO isn't really theirs (a phone number matched the wrong person). It clears the listing and stops the master-file sync from re-attaching it.`)) return
     try {
       const r = await authFetch('/api/clients/' + client.id + '/remove-fsbo', { method: 'POST' })
-      if (r.ok) { onSaved && onSaved() } else alert('Could not remove FSBO.')
-    } catch (e) { alert('Remove failed: ' + e.message) }
+      if (r.ok) { onSaved && onSaved() } else notify('Could not remove FSBO.')
+    } catch (e) { notify('Remove failed: ' + e.message) }
   }
   return (
     <Section title={client.type === 'seller' || listings.length ? 'Subject Property / Activity' : 'Property Activity'} id="propact"
@@ -1110,7 +1111,7 @@ function AiIntelligence({ ai, followup, cid }) {
   useEffect(() => { authFetch('/api/ai/enrollment/evaluate/' + cid).then(r => r.json()).then(setEnroll).catch(() => setEnroll(null)) }, [cid])
   const toggleExclude = async () => {
     const excluding = enroll?.reason_code !== 'MANUAL_EXCLUDE'
-    if (excluding && !confirm('Exclude this lead from AI auto-enrollment? (You can still enable AI manually.)')) return
+    if (excluding && !await confirmDialog('Exclude this lead from AI auto-enrollment? (You can still enable AI manually.)')) return
     await authFetch(`/api/ai/enrollment/${excluding ? 'exclude' : 'include'}/${cid}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
     authFetch('/api/ai/enrollment/evaluate/' + cid).then(r => r.json()).then(setEnroll).catch(() => {})
   }
@@ -1244,15 +1245,15 @@ function ActionPlans({ cid }) {
     try {
       await authFetch(`/api/${kind === 'drip' ? 'drips' : 'automations'}/enrollments/${eid}/${action}`,
         { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined })
-    } catch (e) { alert('Action failed: ' + e.message) } finally { setBusyId(null); reload() }
+    } catch (e) { notify('Action failed: ' + e.message) } finally { setBusyId(null); reload() }
   }
-  const remove = (kind, eid) => { if (eid && window.confirm('Remove this action plan? The lead stops receiving it.')) call(kind, eid, 'remove') }
+  const remove = async (kind, eid) => { if (eid && await confirmDialog('Remove this action plan? The lead stops receiving it.')) call(kind, eid, 'remove') }
   const openPreview = async (e) => {
     try {
       const r = await authFetch(`/api/drips/${e.drip_id}/preview/${e.current_step || 0}/${cid}`).then(x => x.json())
-      if (r.error) return alert(r.error)
+      if (r.error) return notify(r.error)
       setPreview(r)
-    } catch (err) { alert('Preview failed: ' + err.message) }
+    } catch (err) { notify('Preview failed: ' + err.message) }
   }
   const pill = (label, on) => <span style={{ fontSize: 11, padding: '1px 7px', borderRadius: 10, background: on ? '#fef3c7' : '#dcfce7', color: on ? '#92400e' : '#166534' }}>{label}</span>
   const shell = { border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }
@@ -1325,8 +1326,8 @@ function EnrollPicker({ kind, cid, onClose, onDone }) {
     if (!sel) return; setBusy(true)
     const r = await authFetch(kind === 'automation' ? `/api/automations/${sel}/enroll` : `/api/drips/${sel}/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: [cid] }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setBusy(false)
-    if (r.error) return alert(r.error)
-    if ((r.enrolled || 0) === 0) alert('Not enrolled — likely already in a drip, no email on file, or Do-Not-Contact.')
+    if (r.error) return notify(r.error)
+    if ((r.enrolled || 0) === 0) notify('Not enrolled — likely already in a drip, no email on file, or Do-Not-Contact.')
     onDone()
   }
   return (
@@ -1479,11 +1480,11 @@ function CoverageCard({ cid, client, onChanged }) {
     try {
       const r = await authFetch(`/api/coverage/${cid}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
       const d = await r.json()
-      if (!r.ok) { alert(d.error || 'Failed'); return }
+      if (!r.ok) { notify(d.error || 'Failed'); return }
       if (d.coverage) setCov(d.coverage); else loadCov()
       setSnoozeOpen(false); setSnoozeDate(''); setSnoozeWhy('')
       onChanged && onChanged()
-    } catch (e) { alert(e.message) } finally { setBusy(false) }
+    } catch (e) { notify(e.message) } finally { setBusy(false) }
   }
   const meta = cov ? (COV_META[cov.coverage_status] || COV_META.excluded) : null
   const fmtD = (v) => v ? new Date(String(v).includes('T') ? v : v.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'America/Chicago' }) : null

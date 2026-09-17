@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useEffect, useRef, useState } from 'react'
 import { authFetch } from '../api'
 
@@ -102,7 +103,7 @@ export default function CallWidget() {
 
     // Global entry point used by Call buttons across the app.
     window.hubCall = async (number, name) => {
-      if (!deviceRef.current) { alert('The Hub phone is not connected yet. If this persists, Voice may still need setup in Settings.'); return }
+      if (!deviceRef.current) { notify('The Hub phone is not connected yet. If this persists, Voice may still need setup in Settings.'); return }
       if (!number) return
       try {
         setPeer({ number, name: name || '' }); setStatus('connecting')
@@ -125,10 +126,10 @@ export default function CallWidget() {
     try {
       const r = await authFetch('/api/inbox/drop-voicemail', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ parent_sid: parentSidRef.current, voicemail_id: vmId }) })
       const d = await r.json()
-      if (!d.success) { alert(d.error || 'Could not drop voicemail'); return }
+      if (!d.success) { notify(d.error || 'Could not drop voicemail'); return }
       setVmMenu(false)
       try { callRef.current?.disconnect() } catch {}   // the callee leg now plays the recording; drop our leg
-    } catch (e) { alert(e.message) } finally { setDropping(false) }
+    } catch (e) { notify(e.message) } finally { setDropping(false) }
   }
   const accept = () => { try { callRef.current?.accept() } catch {} }
   const reject = () => { try { callRef.current?.reject() } catch {}; endLocal() }

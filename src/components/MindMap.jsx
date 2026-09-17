@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import { confirmDialog } from '../notify'
 import { authFetch } from '../api'
 
 const COLORS = ['#ffffff', '#fde68a', '#bbf7d0', '#bfdbfe', '#fecaca', '#e9d5ff', '#fed7aa', '#c7d2fe', '#cbd5e1']
@@ -108,7 +109,7 @@ export default function MindMap({ projectId, projectName, initial, onClose }) {
                 const a = nodeCenter(e.from), b = nodeCenter(e.to); if (!a || !b) return null
                 return <line key={e.id} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#64748b" strokeWidth="2" markerEnd="url(#mm-arrow)"
                   style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
-                  onClick={() => { if (confirm('Delete this connection?')) setEdges(es => es.filter(x => x.id !== e.id)) }} />
+                  onClick={ async () => { if (await confirmDialog('Delete this connection?')) setEdges(es => es.filter(x => x.id !== e.id)) }} />
               })}
             </svg>
             {nodes.map(n => (

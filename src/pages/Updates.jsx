@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useMemo } from 'react'
 import { authFetch } from '../api'
 import WhatsNew from './WhatsNew'
@@ -540,7 +541,7 @@ function MigratePreListings() {
       </p>
       <div style={{display: 'flex', gap: 8}}>
         <button className="btn btn-secondary" onClick={() => run(true)} disabled={running}>{running ? 'Running…' : 'Preview (dry run)'}</button>
-        <button className="btn btn-primary" onClick={() => { if (confirm('Migrate all pre-listings into Transactions? Source rows will be marked Migrated.')) run(false) }} disabled={running}>
+        <button className="btn btn-primary" onClick={ async () => { if (await confirmDialog('Migrate all pre-listings into Transactions? Source rows will be marked Migrated.')) run(false) }} disabled={running}>
           {running ? 'Running…' : 'Run migration'}
         </button>
       </div>
@@ -641,7 +642,7 @@ function BulkTagFromSheet() {
         </div>
         <div style={{display: 'flex', gap: 8, marginTop: 14}}>
           <button className="btn btn-secondary" onClick={() => run(true)} disabled={running}>{running ? 'Running…' : 'Preview (dry run)'}</button>
-          <button className="btn btn-primary" onClick={() => { if (confirm(`Apply tag "${form.tag}" to all matching clients AND push to Sierra?`)) run(false) }} disabled={running}>
+          <button className="btn btn-primary" onClick={ async () => { if (await confirmDialog(`Apply tag "${form.tag}" to all matching clients AND push to Sierra?`)) run(false) }} disabled={running}>
             {running ? 'Running…' : 'Run for real'}
           </button>
         </div>
@@ -743,10 +744,10 @@ function SystemsStatus() {
               try {
                 const r = await authFetch('/api/sierra/sync-incremental-now', { method: 'POST' })
                 const d = await r.json()
-                if (d.success) alert(`✓ Incremental sync complete: ${d.total} leads (${d.added} new, ${d.updated} updated)`)
-                else alert('Sync failed: ' + (d.error || 'unknown error'))
+                if (d.success) notify(`✓ Incremental sync complete: ${d.total} leads (${d.added} new, ${d.updated} updated)`)
+                else notify('Sync failed: ' + (d.error || 'unknown error'))
                 loadHealth()
-              } catch (e) { alert('Failed: ' + e.message) }
+              } catch (e) { notify('Failed: ' + e.message) }
               finally { setRunningIncremental(false) }
             }}
           >
@@ -773,7 +774,7 @@ function SystemsStatus() {
             onClick={async () => {
               const r = await authFetch('/api/realist/rematch', { method: 'POST' })
               const d = await r.json()
-              alert(`✓ Re-matched: ${d.client_matches_updated} clients updated from ${d.properties_scanned} properties`)
+              notify(`✓ Re-matched: ${d.client_matches_updated} clients updated from ${d.properties_scanned} properties`)
               loadRealistStats()
             }}
             title="Re-run matching after Sierra adds new leads"

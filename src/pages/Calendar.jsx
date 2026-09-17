@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -57,7 +58,7 @@ export default function Calendar() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this event?')) return
+    if (!await confirmDialog('Delete this event?')) return
     await authFetch(`/api/calendar/${id}`, { method: 'DELETE' })
     load()
   }
@@ -102,8 +103,8 @@ export default function Calendar() {
           <button className="btn btn-secondary" onClick={async () => {
             const r = await authFetch('/api/calendar/sync-ical', { method: 'POST' })
             const d = await r.json()
-            if (d.error) alert('Sync failed: ' + d.error)
-            else { alert(`Calendar synced. Total events: ${d.total_events}`); load() }
+            if (d.error) notify('Sync failed: ' + d.error)
+            else { notify(`Calendar synced. Total events: ${d.total_events}`); load() }
           }}>Sync Google Calendar</button>
           <button className="btn btn-primary" onClick={() => openNew()}>+ New Event</button>
         </div>

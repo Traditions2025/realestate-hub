@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -382,7 +383,7 @@ function FubEnrichButton() {
   }, [])
   const running = status && status.running
   const start = async () => {
-    if (!confirm('Pull social profiles (LinkedIn / Facebook / job title) from Follow Up Boss for every FUB-linked lead that hasn\'t been checked yet? It runs in the background and saves into the Hub.')) return
+    if (!await confirmDialog('Pull social profiles (LinkedIn / Facebook / job title) from Follow Up Boss for every FUB-linked lead that hasn\'t been checked yet? It runs in the background and saves into the Hub.')) return
     setStarting(true)
     try { await authFetch('/api/clients/enrich-fub-bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) }) } catch {}
     setStarting(false)
@@ -476,6 +477,7 @@ export function SocialProfiles({ detail, onSaved }) {
 export default function Clients() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
+  const [firstLoad, setFirstLoad] = useState(true)   // skeleton only on the very first paint — refreshes update in place
   const [tab, setTab] = useState('all') // default to All; 'active', 'prime', 'all'
   const [filter, setFilter] = useState({ type: '' })
   const [search, setSearch] = useState('')
@@ -749,7 +751,7 @@ export default function Clients() {
   }, [bulkActionsOpen])
   const setBulkType = async (t) => {
     if (selectedIds.size === 0) return
-    if (!confirm(`Set ${selectedIds.size} client${selectedIds.size === 1 ? '' : 's'} as ${t === 'both' ? 'Buyer/Seller' : t.charAt(0).toUpperCase() + t.slice(1)}?`)) return
+    if (!await confirmDialog(`Set ${selectedIds.size} client${selectedIds.size === 1 ? '' : 's'} as ${t === 'both' ? 'Buyer/Seller' : t.charAt(0).toUpperCase() + t.slice(1)}?`)) return
     const r = await authFetch('/api/clients/bulk-type', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -757,12 +759,12 @@ export default function Clients() {
     })
     const d = await r.json()
     if (d.success) {
-      alert(`✓ Updated ${d.updated} client${d.updated === 1 ? '' : 's'} to ${t}`)
+      notify(`✓ Updated ${d.updated} client${d.updated === 1 ? '' : 's'} to ${t}`)
       setBulkActionsOpen(false)
       setSelectedIds(new Set())
       load()
     } else {
-      alert('Failed: ' + (d.error || 'unknown error'))
+      notify('Failed: ' + (d.error || 'unknown error'))
     }
   }
   // Bulk "Send AI now" — routes each selected lead through the AI (opener / reply /
@@ -772,20 +774,20 @@ export default function Clients() {
   const bulkSendAI = async () => {
     if (selectedIds.size === 0) return
     const n = selectedIds.size
-    if (n > 500) { alert('Select 500 or fewer leads for a bulk AI send.'); return }
-    if (!confirm(`Send an AI text to ${n} selected lead${n === 1 ? '' : 's'}?\n\n• Each gets a personalized message (opener, reply, or next qualifying question).\n• Prospecting leads (FSBO / MLS Expired / MLS Cancelled) are skipped automatically.\n• Quiet hours and STOP opt-outs are respected.\n• These leads become AI-managed.`)) return
+    if (n > 500) { notify('Select 500 or fewer leads for a bulk AI send.'); return }
+    if (!await confirmDialog(`Send an AI text to ${n} selected lead${n === 1 ? '' : 's'}?\n\n• Each gets a personalized message (opener, reply, or next qualifying question).\n• Prospecting leads (FSBO / MLS Expired / MLS Cancelled) are skipped automatically.\n• Quiet hours and STOP opt-outs are respected.\n• These leads become AI-managed.`)) return
     setBulkActionsOpen(false); setBulkAiRunning(true)
     try {
       const r = await authFetch('/api/ai/bulk-send-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: [...selectedIds] }) })
       const d = await r.json()
-      if (d.error) { alert('Bulk AI send failed: ' + d.error); return }
+      if (d.error) { notify('Bulk AI send failed: ' + d.error); return }
       const blockedReasons = (d.results || []).filter(x => !x.ok && !x.skipped).map(x => x.reason)
       const quiet = blockedReasons.some(r => /quiet/i.test(r || ''))
       let msg = `AI send complete:\n\n✓ Sent: ${d.sent}\n⤼ Skipped (excluded prospecting): ${d.skipped}\n⛔ Not sent (blocked/nothing to say): ${d.blocked}`
       if (quiet) msg += `\n\nNote: some were held for quiet hours — they'll need to be re-sent after quiet hours end, or enable them individually.`
-      alert(msg)
+      notify(msg)
       load()
-    } catch (e) { alert('Bulk AI send failed: ' + e.message) } finally { setBulkAiRunning(false) }
+    } catch (e) { notify('Bulk AI send failed: ' + e.message) } finally { setBulkAiRunning(false) }
   }
 
   // Bulk "Export to CSV" — downloads the selected leads as a CSV (export is always CSV).
@@ -806,7 +808,7 @@ export default function Clients() {
       a.download = `clients-export-${new Date().toISOString().slice(0, 10)}.csv`
       document.body.appendChild(a); a.click(); a.remove()
       setTimeout(() => URL.revokeObjectURL(url), 2000)
-    } catch (e) { alert('Could not export CSV: ' + e.message) } finally { setBulkExporting(false) }
+    } catch (e) { notify('Could not export CSV: ' + e.message) } finally { setBulkExporting(false) }
   }
   const [statusCounts, setStatusCounts] = useState([]) // [{status, count}]
   const [allCounts, setAllCounts] = useState({ buyers: 0, sellers: 0, total: 0 })
@@ -897,7 +899,8 @@ export default function Clients() {
       setItems(rows)
       setTotalCount(total)
       setHasMore(rows.length < total)
-    })
+      setFirstLoad(false)
+    }).catch(() => setFirstLoad(false))
   }
 
   const loadMore = () => {
@@ -951,7 +954,7 @@ export default function Clients() {
       const d = await r.json()
       if (d.error) {
         setSierraStatus({ error: d.error })
-        if (!silent) alert('Sierra sync error: ' + d.error)
+        if (!silent) notify('Sierra sync error: ' + d.error)
         return
       }
 
@@ -983,7 +986,7 @@ export default function Clients() {
       }, 2000)
     } catch (e) {
       setSierraStatus({ error: e.message })
-      if (!silent) alert('Sync failed: ' + e.message)
+      if (!silent) notify('Sync failed: ' + e.message)
     }
   }
 
@@ -1069,7 +1072,7 @@ export default function Clients() {
       await authFetch(`/api/clients/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: combined }) })
       setDetail(d => ({ ...d, notes: combined }))
       setNoteText(''); setNoteOpen(false)
-    } catch (e) { alert('Failed to save note: ' + e.message) }
+    } catch (e) { notify('Failed to save note: ' + e.message) }
     finally { setSavingNote(false) }
   }
 
@@ -1255,7 +1258,7 @@ export default function Clients() {
       const r = await authFetch(`/api/sierra/refresh-lead/${detail.sierra_lead_id}`, { method: 'POST' })
       const d = await r.json()
       if (!d.success) {
-        alert('Refresh failed: ' + (d.error || 'unknown error'))
+        notify('Refresh failed: ' + (d.error || 'unknown error'))
         return
       }
       // Reload the full detail (which re-pulls notes + listing interest too)
@@ -1263,7 +1266,7 @@ export default function Clients() {
       // Also refresh the row in the list view
       load()
     } catch (e) {
-      alert('Refresh failed: ' + e.message)
+      notify('Refresh failed: ' + e.message)
     } finally {
       setRefreshing(false)
     }
@@ -1291,12 +1294,12 @@ export default function Clients() {
     try {
       const r = await authFetch(`/api/fub/property-email?client_id=${detail.id}`)
       const d = await r.json()
-      if (d.error) { alert('Could not build email: ' + d.error); return }
-      if (!d.count) { alert(d.message || 'No viewed properties found for this client.'); return }
+      if (d.error) { notify('Could not build email: ' + d.error); return }
+      if (!d.count) { notify(d.message || 'No viewed properties found for this client.'); return }
       setEmailForm(p => ({ subject: d.subject, body: d.body, template: '__homes__', attachments: [], cc: p.cc || [], bcc: p.bcc || [] }))
       setComposerView('wysiwyg')
       setEmailModalOpen(true)
-    } catch (e) { alert('Failed: ' + e.message) }
+    } catch (e) { notify('Failed: ' + e.message) }
     finally { setDraftingPropEmail(false) }
   }
 
@@ -1349,7 +1352,7 @@ export default function Clients() {
   }
 
   const saveAsList = async () => {
-    if (!newListName.trim()) return alert('Please enter a list name')
+    if (!newListName.trim()) return notify('Please enter a list name')
     const filter_criteria = { ...advFilters }
     if (tab !== 'all') filter_criteria.statuses_include = [...(filter_criteria.statuses_include || []), tab]
     if (search) filter_criteria.search = search
@@ -1364,7 +1367,7 @@ export default function Clients() {
     })
     const d = await r.json()
     if (d.id) {
-      alert(`List "${newListName}" saved`)
+      notify(`List "${newListName}" saved`)
       setNewListName('')
       setSaveListOpen(false)
       authFetch('/api/lists').then(r => r.json()).then(d => setSavedLists(Array.isArray(d) ? d : [])).catch(() => {})
@@ -1384,9 +1387,9 @@ export default function Clients() {
     })
     if (r.ok) {
       const name = savedLists.find(l => l.id === activeListId)?.name || 'List'
-      alert(`Updated "${name}" — it now uses the current filters (${totalCount.toLocaleString()} matches).`)
+      notify(`Updated "${name}" — it now uses the current filters (${totalCount.toLocaleString()} matches).`)
       authFetch('/api/lists').then(r => r.json()).then(d => setSavedLists(Array.isArray(d) ? d : [])).catch(() => {})
-    } else alert('Could not update the list.')
+    } else notify('Could not update the list.')
   }
 
   const loadSavedList = async (listId) => {
@@ -1459,7 +1462,7 @@ export default function Clients() {
   }
 
   const deleteSavedList = async (listId) => {
-    if (!confirm('Delete this list?')) return
+    if (!await confirmDialog('Delete this list?')) return
     await authFetch(`/api/lists/${listId}`, { method: 'DELETE' })
     setSavedLists(prev => prev.filter(l => l.id !== listId))
     if (activeListId === listId) setActiveListId(null)
@@ -1488,37 +1491,37 @@ export default function Clients() {
     const d = await r.json()
     setSelectedIds(new Set(d.ids))
     const suffix = opts.emailReady ? ' with valid emails (opt-outs excluded)' : ''
-    alert(`Selected ${d.count} matched lead${d.count !== 1 ? 's' : ''}${suffix}`)
+    notify(`Selected ${d.count} matched lead${d.count !== 1 ? 's' : ''}${suffix}`)
   }
   const clearSelection = () => setSelectedIds(new Set())
 
   const refreshSelectedFromSierra = async () => {
     if (selectedIds.size === 0) return
     if (selectedIds.size > 1000) {
-      alert('Max 1,000 leads per batch refresh. For more, use "Sync All Sierra Leads".')
+      notify('Max 1,000 leads per batch refresh. For more, use "Sync All Sierra Leads".')
       return
     }
-    if (!confirm(`Pull fresh data from Sierra for ${selectedIds.size} selected lead${selectedIds.size === 1 ? '' : 's'}?\n\nWill take ~${Math.ceil(selectedIds.size / 60)} minute${Math.ceil(selectedIds.size / 60) === 1 ? '' : 's'}. The hub stays usable during refresh.`)) return
+    if (!await confirmDialog(`Pull fresh data from Sierra for ${selectedIds.size} selected lead${selectedIds.size === 1 ? '' : 's'}?\n\nWill take ~${Math.ceil(selectedIds.size / 60)} minute${Math.ceil(selectedIds.size / 60) === 1 ? '' : 's'}. The hub stays usable during refresh.`)) return
     try {
       const r = await authFetch('/api/sierra/refresh-leads-batch', {
         method: 'POST',
         body: JSON.stringify({ client_ids: [...selectedIds] }),
       })
       const d = await r.json()
-      if (d.error) { alert('Refresh failed: ' + d.error); return }
+      if (d.error) { notify('Refresh failed: ' + d.error); return }
       // Poll status every 2 sec
       const poll = async () => {
         const sr = await authFetch('/api/sierra/refresh-leads-batch/status').then(x => x.json())
         setBatchRefreshState(sr)
         if (sr.running) setTimeout(poll, 2000)
         else {
-          alert(`✓ Refresh complete: ${sr.done}/${sr.total} processed (${sr.added} new, ${sr.updated} updated, ${sr.errors} errors)`)
+          notify(`✓ Refresh complete: ${sr.done}/${sr.total} processed (${sr.added} new, ${sr.updated} updated, ${sr.errors} errors)`)
           load()
         }
       }
       poll()
     } catch (e) {
-      alert('Refresh failed: ' + e.message)
+      notify('Refresh failed: ' + e.message)
     }
   }
 
@@ -1538,13 +1541,13 @@ export default function Clients() {
   // Step 1: clicking "Review & Send" opens the preview carousel (verify recipients first).
   const reviewBulkEmail = (e) => {
     if (e) e.preventDefault()
-    if (selectedIds.size === 0) return alert('No clients selected')
-    if (!bulkEmailForm.body || !bulkEmailForm.body.trim()) return alert('Add a message first')
+    if (selectedIds.size === 0) return notify('No clients selected')
+    if (!bulkEmailForm.body || !bulkEmailForm.body.trim()) return notify('Add a message first')
     setBulkPreviewIdx(0); setBulkEmailPreviewOpen(true); loadBulkPreview(0)
   }
   // Step 2: actual send — fired from inside the preview modal after reviewing.
   const doBulkSend = async () => {
-    if (selectedIds.size === 0) return alert('No clients selected')
+    if (selectedIds.size === 0) return notify('No clients selected')
     setBulkEmailPreviewOpen(false)
     setBulkSending(true)
     setBulkProgress({ running: true, done: 0, total: selectedIds.size, sent: 0, skipped: 0, failed: 0 })
@@ -1559,7 +1562,7 @@ export default function Clients() {
         }),
       })
       const d = await r.json()
-      if (d.error) { alert('Bulk send error: ' + d.error); setBulkSending(false); setBulkProgress(null); return }
+      if (d.error) { notify('Bulk send error: ' + d.error); setBulkSending(false); setBulkProgress(null); return }
       // Poll progress until the background send finishes.
       const poll = async () => {
         const s = await authFetch('/api/email/bulk-status').then(x => x.json()).catch(() => null)
@@ -1567,21 +1570,21 @@ export default function Clients() {
         if (!s || s.running) { setTimeout(poll, 1500); return }
         setBulkSending(false)
         setBulkProgress(null)
-        alert(`✓ Bulk send complete: ${s.sent} sent · ${s.skipped} skipped${s.noListings ? ` (${s.noListings} had no listings)` : ''} · ${s.failed} failed`)
+        notify(`✓ Bulk send complete: ${s.sent} sent · ${s.skipped} skipped${s.noListings ? ` (${s.noListings} had no listings)` : ''} · ${s.failed} failed`)
         setBulkEmailOpen(false)
         setSelectedIds(new Set())
       }
       poll()
     } catch (err) {
-      alert('Send failed: ' + err.message)
+      notify('Send failed: ' + err.message)
       setBulkSending(false); setBulkProgress(null)
     }
   }
 
   const sendEmail = async (e) => {
     e.preventDefault()
-    if (!detail.email) { alert('No email address for this client'); return }
-    if (!emailForm.body || !emailForm.body.trim()) { alert('Add an email body first'); return }
+    if (!detail.email) { notify('No email address for this client'); return }
+    if (!emailForm.body || !emailForm.body.trim()) { notify('Add an email body first'); return }
     const clean = (arr) => (Array.isArray(arr) ? arr : []).map(x => String(x).trim()).filter(x => /@/.test(x))
     setSending(true)
     try {
@@ -1599,15 +1602,15 @@ export default function Clients() {
       })
       const d = await r.json()
       if (d.error) {
-        alert('Send failed: ' + d.error)
+        notify('Send failed: ' + d.error)
       } else {
-        alert('Email sent!')
+        notify('Email sent!')
         setEmailModalOpen(false)
         // Refresh history
         authFetch(`/api/email/history/${detail.id}`).then(r => r.json()).then(d => setEmailHistory(Array.isArray(d) ? d : [])).catch(() => {})
       }
     } catch (err) {
-      alert('Send failed: ' + err.message)
+      notify('Send failed: ' + err.message)
     }
     setSending(false)
   }
@@ -1627,7 +1630,7 @@ export default function Clients() {
       if (editing) await api.updateClient(editing, data)
       else await api.createClient(data)
     } catch (err) {
-      alert('Save failed — your change was NOT saved. Please try again.\n\n' + (err?.message || err))
+      notify('Save failed — your change was NOT saved. Please try again.\n\n' + (err?.message || err))
       return
     }
 
@@ -1642,10 +1645,10 @@ export default function Clients() {
         })
         const result = await r.json()
         if (!result.success && !result.skipped) {
-          alert('Saved in the Hub, but pushing to Sierra failed — it may revert on the next sync.\n\nDetails: ' + (result.error || 'unknown'))
+          notify('Saved in the Hub, but pushing to Sierra failed — it may revert on the next sync.\n\nDetails: ' + (result.error || 'unknown'))
         }
       } catch (err) {
-        alert('Saved in the Hub, but pushing to Sierra failed — it may revert on the next sync.\n\n' + err.message)
+        notify('Saved in the Hub, but pushing to Sierra failed — it may revert on the next sync.\n\n' + err.message)
       }
     }
 
@@ -1658,7 +1661,7 @@ export default function Clients() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this client?')) return
+    if (!await confirmDialog('Delete this client?')) return
     await api.deleteClient(id)
     load()
   }
@@ -1679,7 +1682,7 @@ export default function Clients() {
       })
       const result = await r.json()
       if (!result.success && !result.local_updated) {
-        alert(`Tag ${action} failed: ${result.error || 'unknown'}`)
+        notify(`Tag ${action} failed: ${result.error || 'unknown'}`)
       }
       // Refresh the detail view + the list
       if (detail?.id === client.id) {
@@ -1688,12 +1691,12 @@ export default function Clients() {
       }
       load()
     } catch (err) {
-      alert(`Tag ${action} failed: ${err.message}`)
+      notify(`Tag ${action} failed: ${err.message}`)
     }
   }
   const addTag = (client, tag) => tagAction(client, tag, 'add')
-  const removeTag = (client, tag) => {
-    if (!confirm(`Remove tag "${tag}"${client.sierra_lead_id ? ' from Sierra and the hub' : ''}?`)) return
+  const removeTag = async (client, tag) => {
+    if (!await confirmDialog(`Remove tag "${tag}"${client.sierra_lead_id ? ' from Sierra and the hub' : ''}?`)) return
     tagAction(client, tag, 'remove')
   }
 
@@ -1705,7 +1708,7 @@ export default function Clients() {
     try {
       await api.updateClient(item.id, { status: newStatus })
     } catch (err) {
-      alert('Failed to update status locally: ' + err.message)
+      notify('Failed to update status locally: ' + err.message)
       return
     }
     if (item.sierra_lead_id) {
@@ -1717,10 +1720,10 @@ export default function Clients() {
         })
         const result = await r.json()
         if (!result.success) {
-          alert('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
+          notify('Sierra update failed. Local hub status was saved.\n\nDetails: ' + (result.error || 'unknown'))
         }
       } catch (err) {
-        alert('Sierra update failed. Local hub status was saved.\n\n' + err.message)
+        notify('Sierra update failed. Local hub status was saved.\n\n' + err.message)
       }
     }
     load()
@@ -1736,7 +1739,7 @@ export default function Clients() {
     try {
       await api.updateClient(item.id, { lead_score: nextVal })
     } catch (err) {
-      alert('Failed to save Realist Score: ' + err.message)
+      notify('Failed to save Realist Score: ' + err.message)
       return
     }
     load()
@@ -1761,7 +1764,7 @@ export default function Clients() {
         walkthrough: 'Not Scheduled'
       })
     })
-    alert(`${client.first_name} ${client.last_name} added to Pre-Listings`)
+    notify(`${client.first_name} ${client.last_name} added to Pre-Listings`)
     if (detail) openDetail(client.id)
   }
 
@@ -1789,7 +1792,7 @@ export default function Clients() {
       await api.updateClient(client.id, { status: 'under_contract' })
     }
     const label = propStatus === 'Active' ? 'Active Listing' : (type === 'purchase' ? 'Purchase' : 'Listing')
-    alert(`${label} created for ${client.first_name} ${client.last_name}`)
+    notify(`${label} created for ${client.first_name} ${client.last_name}`)
     load()
     if (detail) openDetail(client.id)
   }
@@ -2603,7 +2606,19 @@ export default function Clients() {
       </div>
 
       {/* Client List View */}
-      {items.length === 0 && (
+      {firstLoad && items.length === 0 && (
+        <div style={{ padding: '8px 0' }}>
+          {Array.from({ length: 9 }).map((_, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderBottom: '1px solid var(--border)' }}>
+              <span className="skeleton" style={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0 }} />
+              <span className="skeleton" style={{ width: `${140 + (i % 3) * 30}px`, height: 13 }} />
+              <span className="skeleton" style={{ width: 70, height: 11, marginLeft: 'auto' }} />
+              <span className="skeleton" style={{ width: 110, height: 11 }} />
+            </div>
+          ))}
+        </div>
+      )}
+      {!firstLoad && items.length === 0 && (
         <div className="empty-state-full">
           {sierraStatus === 'syncing' ? 'Syncing clients from Sierra...' : 'No clients found in this status. Try another tab or sync from Sierra.'}
         </div>
@@ -3030,7 +3045,7 @@ export default function Clients() {
                     <span>Call</span>
                   </button>
                 )}
-                <button className="lead-action-btn lead-action-voicemail" title="Recorded voicemail drops — coming with Twilio" onClick={() => alert('Recorded voicemail drops are planned with Twilio. Coming soon.')}>
+                <button className="lead-action-btn lead-action-voicemail" title="Recorded voicemail drops — coming with Twilio" onClick={() => notify('Recorded voicemail drops are planned with Twilio. Coming soon.')}>
                   <span className="lead-action-icon">🎙</span>
                   <span>Voicemail</span>
                   <span className="lead-action-soon">soon</span>
@@ -3971,10 +3986,10 @@ function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
     const url = kind === 'automation' ? `/api/automations/${selId}/enroll` : `/api/drips/${selId}/enroll`
     const r = await authFetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setBusy(false)
-    if (r.error) return alert(r.error)
+    if (r.error) return notify(r.error)
     const name = (items || []).find(i => i.id === Number(selId))?.name || (kind === 'automation' ? 'automation' : 'drip')
     const skipped = (r.skipped != null) ? r.skipped : (clientIds.length - (r.enrolled || 0))
-    alert(`Enrolled ${r.enrolled} of ${clientIds.length} selected into “${name}”.` +
+    notify(`Enrolled ${r.enrolled} of ${clientIds.length} selected into “${name}”.` +
       (skipped > 0 ? `\n${skipped} skipped — already in a drip campaign, no email on file, a bad/wrong address, or Do-Not-Contact.` : ''))
     onDone()
   }
@@ -4018,7 +4033,7 @@ export function InlineField({ label, value, field, clientId, onSaved, statusTag 
       await authFetch(`/api/clients/${clientId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) })
       try { await authFetch('/api/sierra/update-lead-fields', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId, fields: { [field]: val } }) }) } catch {}
       setEditing(false); onSaved && onSaved()
-    } catch (e) { alert('Could not save ' + label.toLowerCase() + ': ' + e.message) }
+    } catch (e) { notify('Could not save ' + label.toLowerCase() + ': ' + e.message) }
     finally { setSaving(false) }
   }
   return (
@@ -4066,7 +4081,7 @@ export function InlineStatus({ detail, onSaved }) {
       }
       setMsg(pushed ? '✓ Hub + Sierra' : (detail.sierra_lead_id ? '✓ Hub (Sierra push failed)' : '✓ Hub'))
       onSaved && onSaved()
-    } catch (e) { alert('Could not change status: ' + e.message) }
+    } catch (e) { notify('Could not change status: ' + e.message) }
     finally { setSaving(false) }
   }
   return (
@@ -4105,9 +4120,9 @@ export function QuickAddTask({ clientId, clientName, clientAddress, onAdded }) {
       const title = clientName ? `${clientName}: ${text.trim()}` : text.trim()
       const r = await authFetch('/api/tasks', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title, description: clientAddress || null, due_date: date || null, due_time: time || null, assigned_to: assignee || null, related_type: 'client', related_id: clientId, category: 'Lead' }) })
       const d = await r.json()
-      if (d && d.error) { alert('Could not add task: ' + d.error); setSaving(false); return }
+      if (d && d.error) { notify('Could not add task: ' + d.error); setSaving(false); return }
       setText(''); setDate(''); setTime(''); setDone('Added to the Tasks tab ✓'); setTimeout(() => setDone(''), 3000); onAdded && onAdded()
-    } catch (e) { alert('Could not add task: ' + e.message) } finally { setSaving(false) }
+    } catch (e) { notify('Could not add task: ' + e.message) } finally { setSaving(false) }
   }
   const inp = { fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary, #fff)', color: 'var(--text-primary)' }
   return (
@@ -4161,14 +4176,14 @@ function MergeLeadModal({ current, onClose, onDone }) {
     if (!target) return
     const survivorLead = survivor === 'current' ? current : target
     const mergedLead = survivor === 'current' ? target : current
-    if (!confirm(`Merge "${label(mergedLead)}" INTO "${label(survivorLead)}"?\n\nAll calls, texts, emails, notes, tasks and history from both will live on ${label(survivorLead)}.${keepBoth ? "\nBoth leads' emails and phone numbers will be kept." : ''}\n\nThe other record is archived (recoverable).`)) return
+    if (!await confirmDialog(`Merge "${label(mergedLead)}" INTO "${label(survivorLead)}"?\n\nAll calls, texts, emails, notes, tasks and history from both will live on ${label(survivorLead)}.${keepBoth ? "\nBoth leads' emails and phone numbers will be kept." : ''}\n\nThe other record is archived (recoverable).`)) return
     setMerging(true)
     try {
       const r = await authFetch('/api/clients/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primary_id: survivorLead.id, duplicate_ids: [mergedLead.id], keep_both: keepBoth }) })
       const d = await r.json()
-      if (d.error) { alert('Merge failed: ' + d.error); setMerging(false); return }
+      if (d.error) { notify('Merge failed: ' + d.error); setMerging(false); return }
       onDone(survivorLead.id)
-    } catch (e) { alert('Merge failed: ' + e.message); setMerging(false) }
+    } catch (e) { notify('Merge failed: ' + e.message); setMerging(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Merge ${label(current)} with another lead`}>
@@ -4220,14 +4235,14 @@ function BulkMergeModal({ leads, ids, onClose, onDone }) {
     if (!primaryId || !enough) return
     const dupIds = ids.filter(id => id !== primaryId)
     const keep = leads.find(l => l.id === primaryId)
-    if (!confirm(`Merge ${dupIds.length} lead${dupIds.length === 1 ? '' : 's'} INTO "${keep ? label(keep) : primaryId}"?\n\nAll calls, texts, emails, notes and history from all of them combine onto the one you keep.${keepBoth ? ' Every email and phone number is kept.' : ''}\nThe others are archived (recoverable).`)) return
+    if (!await confirmDialog(`Merge ${dupIds.length} lead${dupIds.length === 1 ? '' : 's'} INTO "${keep ? label(keep) : primaryId}"?\n\nAll calls, texts, emails, notes and history from all of them combine onto the one you keep.${keepBoth ? ' Every email and phone number is kept.' : ''}\nThe others are archived (recoverable).`)) return
     setBusy(true)
     try {
       const r = await authFetch('/api/clients/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primary_id: primaryId, duplicate_ids: dupIds, keep_both: keepBoth }) })
       const d = await r.json()
-      if (d.error) { alert('Merge failed: ' + d.error); setBusy(false); return }
+      if (d.error) { notify('Merge failed: ' + d.error); setBusy(false); return }
       onDone(primaryId)
-    } catch (e) { alert('Merge failed: ' + e.message); setBusy(false) }
+    } catch (e) { notify('Merge failed: ' + e.message); setBusy(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Merge ${ids.length} selected lead${ids.length === 1 ? '' : 's'}`}>
@@ -4267,10 +4282,10 @@ function BulkAssignAgentModal({ ids, onClose, onDone }) {
     try {
       const r = await authFetch('/api/clients/bulk-assign-agent', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, agent }) })
       const d = await r.json()
-      if (d.error) { alert(d.error); setBusy(false); return }
-      alert(`Assigned ${d.updated} lead${d.updated === 1 ? '' : 's'} to ${agent || '(unassigned)'}.`)
+      if (d.error) { notify(d.error); setBusy(false); return }
+      notify(`Assigned ${d.updated} lead${d.updated === 1 ? '' : 's'} to ${agent || '(unassigned)'}.`)
       onDone()
-    } catch (e) { alert('Failed: ' + e.message); setBusy(false) }
+    } catch (e) { notify('Failed: ' + e.message); setBusy(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Assign agent — ${ids.length} lead${ids.length === 1 ? '' : 's'}`}>
@@ -4304,10 +4319,10 @@ function BulkTagsModal({ ids, allTags, onClose, onDone }) {
     try {
       const res = await authFetch('/api/clients/bulk-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, add: a, remove: r }) })
       const d = await res.json()
-      if (d.error) { alert(d.error); setBusy(false); return }
-      alert(`Updated tags on ${d.updated} lead${d.updated === 1 ? '' : 's'}.`)
+      if (d.error) { notify(d.error); setBusy(false); return }
+      notify(`Updated tags on ${d.updated} lead${d.updated === 1 ? '' : 's'}.`)
       onDone()
-    } catch (e) { alert('Failed: ' + e.message); setBusy(false) }
+    } catch (e) { notify('Failed: ' + e.message); setBusy(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Tags — ${ids.length} lead${ids.length === 1 ? '' : 's'}`}>
@@ -4378,7 +4393,7 @@ export function InlineName({ detail, onSaved }) {
       await authFetch(`/api/clients/${detail.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ first_name: fn, last_name: ln }) })
       try { await authFetch('/api/sierra/update-lead-fields', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: detail.id, fields: { first_name: fn, last_name: ln } }) }) } catch {}
       setEditing(false); onSaved && onSaved()
-    } catch (e) { alert('Could not save name: ' + e.message) }
+    } catch (e) { notify('Could not save name: ' + e.message) }
     finally { setSaving(false) }
   }
   return (
@@ -4476,8 +4491,8 @@ function TextComposerModal({ client, onClose, onSent }) {
       const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel: 'text', client_ids: [client.id], body: body.trim() }) })
       const d = await r.json()
       if (d.sent >= 1) { onSent && onSent(); onClose() }
-      else alert('Text not sent: ' + (d.results?.[0]?.error || d.error || 'unknown error'))
-    } catch (e) { alert('Text failed: ' + e.message) }
+      else notify('Text not sent: ' + (d.results?.[0]?.error || d.error || 'unknown error'))
+    } catch (e) { notify('Text failed: ' + e.message) }
     finally { setSending(false) }
   }
   const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
@@ -4521,10 +4536,10 @@ function ManualDialer({ onClose }) {
   const press = (k) => setNum(n => (n + k).slice(0, 20))
   const back = () => setNum(n => n.slice(0, -1))
   const call = () => {
-    if (digits.length < 10) { alert('Enter a valid phone number.'); return }
+    if (digits.length < 10) { notify('Enter a valid phone number.'); return }
     const name = match ? `${match.first_name || ''} ${match.last_name || ''}`.trim() : ''
     if (window.hubCall) { window.hubCall(digits.length >= 11 ? '+' + digits : digits, name); onClose() }
-    else alert('The Hub phone isn’t connected yet. Keep the Hub open in a tab to place calls.')
+    else notify('The Hub phone isn’t connected yet. Keep the Hub open in a tab to place calls.')
   }
   const keyStyle = { padding: '14px 0', fontSize: 20, fontWeight: 600, border: '1px solid var(--border)', borderRadius: 10, background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer' }
   return (
@@ -4563,15 +4578,15 @@ export function AiIsaCard({ clientId }) {
   const act = async (path, body) => { setBusy(true); try { await authFetch('/api/ai/lead/' + clientId + '/' + path, { method: 'POST', headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined }) } finally { setBusy(false); load() } }
   const doPreview = async () => { setBusy(true); setPreview({ loading: true }); try { const r = await authFetch('/api/ai/lead/' + clientId + '/preview', { method: 'POST' }); setPreview(await r.json()) } catch (e) { setPreview({ ok: false, reason: e.message }) } finally { setBusy(false) } }
   const sendNow = async (enableFirst) => {
-    if (!confirm(enableFirst ? 'Enable AI for this lead and send a message now?' : 'Have HUB AI send a message to this contact now? It still follows all rules (STOP, opt-outs, quiet hours).')) return
+    if (!await confirmDialog(enableFirst ? 'Enable AI for this lead and send a message now?' : 'Have HUB AI send a message to this contact now? It still follows all rules (STOP, opt-outs, quiet hours).')) return
     setBusy(true)
     try {
       const r = await authFetch('/api/ai/lead/' + clientId + '/send-now', { method: 'POST' })
       const d = await r.json()
-      if (d.sent) alert('AI message sent.')
-      else if (/quiet/i.test(d.reason || '')) alert('Not sent — quiet hours are on. It will send after quiet hours end (8 AM). You can change quiet hours in Settings.')
-      else alert('Not sent: ' + (d.reason || d.error || 'the AI chose not to send right now'))
-    } catch (e) { alert(e.message) } finally { setBusy(false); load() }
+      if (d.sent) notify('AI message sent.')
+      else if (/quiet/i.test(d.reason || '')) notify('Not sent — quiet hours are on. It will send after quiet hours end (8 AM). You can change quiet hours in Settings.')
+      else notify('Not sent: ' + (d.reason || d.error || 'the AI chose not to send right now'))
+    } catch (e) { notify(e.message) } finally { setBusy(false); load() }
   }
   if (!d) return null
   const LEVEL = { URGENT: '#ef4444', HIGH: '#f59e0b', ENGAGED: '#10b981', NURTURE: '#2563eb', LOW: '#64748b' }
@@ -4627,7 +4642,7 @@ export function AiIsaCard({ clientId }) {
               : <button className="btn btn-sm" disabled={busy} onClick={() => act('pause', { duration: 'today' })}>Pause today</button>}
             <button className="btn btn-sm" disabled={busy} onClick={() => act('takeover')}>Take over</button>
             <button className="btn btn-sm" disabled={busy} onClick={() => sendNow(false)}>Send AI now</button>
-            <button className="btn btn-sm" disabled={busy} style={{ color: '#ef4444' }} onClick={() => { if (confirm('Turn AI off for this contact?')) act('stop') }}>Stop AI</button>
+            <button className="btn btn-sm" disabled={busy} style={{ color: '#ef4444' }} onClick={ async () => { if (await confirmDialog('Turn AI off for this contact?')) act('stop') }}>Stop AI</button>
           </>
         ) : (
           <>
@@ -4662,7 +4677,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
   // (with an optional nickname) and selects it for this send.
   const addNumberInline = async () => {
     const num = window.prompt('New phone number for this lead:')
-    if (!num || !phoneD10(num) || phoneD10(num).length < 10) { if (num) alert('That does not look like a full phone number.'); return }
+    if (!num || !phoneD10(num) || phoneD10(num).length < 10) { if (num) notify('That does not look like a full phone number.'); return }
     const nick = window.prompt('Nickname for this number (optional — e.g. "Wife - Sarah", "Work"):') || ''
     try {
       const combined = client.alt_phones ? `${client.alt_phones}, ${num.trim()}` : num.trim()
@@ -4673,7 +4688,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       setLabels(newLabels)
       setExtraNums(v => [...v, num.trim()])
       setToPhone(num.trim())
-    } catch (e) { alert('Could not save the number: ' + e.message) }
+    } catch (e) { notify('Could not save the number: ' + e.message) }
   }
   const [q, setQ] = React.useState('')
   const [results, setResults] = React.useState([])
@@ -4708,26 +4723,26 @@ export function InlineTextComposer({ client, onClose, onSent }) {
   React.useEffect(() => { loadScheduled() }, [loadScheduled])
   const scheduleText = async () => {
     if (!body.trim() && !media.length) return
-    if (!sendAt) { alert('Pick a date and time.'); return }
+    if (!sendAt) { notify('Pick a date and time.'); return }
     const iso = new Date(sendAt).toISOString()
-    if (new Date(iso).getTime() < Date.now() + 60000) { alert('Pick a time in the future.'); return }
+    if (new Date(iso).getTime() < Date.now() + 60000) { notify('Pick a time in the future.'); return }
     setSending(true)
     try {
       const r = await authFetch('/api/inbox/schedule-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, body: body.trim(), media: media.map(m => m.url), send_at: iso, created_by: 'John', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }) })
       const d = await r.json()
       if (d.success) { setBody(''); setMedia([]); setSchedOpen(false); setSendAt(''); loadScheduled() }
-      else alert(d.error || 'Could not schedule')
-    } catch (e) { alert('Schedule failed: ' + e.message) } finally { setSending(false) }
+      else notify(d.error || 'Could not schedule')
+    } catch (e) { notify('Schedule failed: ' + e.message) } finally { setSending(false) }
   }
   const cancelScheduled = async (id) => { await authFetch(`/api/inbox/scheduled/${id}/cancel`, { method: 'POST' }).catch(() => {}); loadScheduled() }
   const [previewSchedId, setPreviewSchedId] = React.useState(null)
   const sendScheduledNow = async (id) => {
-    if (!confirm('Send this scheduled text now?')) return
+    if (!await confirmDialog('Send this scheduled text now?')) return
     try {
       const d = await (await authFetch(`/api/inbox/scheduled/${id}/send-now`, { method: 'POST' })).json()
       if (d.ok || d.sent) { loadScheduled(); onSent && onSent() }
-      else alert('Not sent: ' + (d.error || d.skipped || 'unknown'))
-    } catch (e) { alert('Send now failed: ' + e.message) }
+      else notify('Not sent: ' + (d.error || d.skipped || 'unknown'))
+    } catch (e) { notify('Send now failed: ' + e.message) }
   }
   const fmtWhenLocal = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
   React.useEffect(() => {
@@ -4752,12 +4767,12 @@ export function InlineTextComposer({ client, onClose, onSent }) {
   const removeRecip = (id) => setRecips(recips.filter(r => r.id !== id))
   const uploadPhoto = async (file) => {
     if (!file) return; setUploading(true)
-    try { const fd = new FormData(); fd.append('file', file); const r = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) setMedia(m => [...m, { url: d.url, type: d.type }]); else alert(d.error || 'Upload failed') }
-    catch (e) { alert('Upload failed: ' + e.message) } finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
+    try { const fd = new FormData(); fd.append('file', file); const r = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) setMedia(m => [...m, { url: d.url, type: d.type }]); else notify(d.error || 'Upload failed') }
+    catch (e) { notify('Upload failed: ' + e.message) } finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
   }
   const send = async () => {
     if (!body.trim() && !media.length) return
-    if (!recips.length) { alert('Add at least one recipient.'); return }
+    if (!recips.length) { notify('Add at least one recipient.'); return }
     setSending(true)
     try {
       // Build the group participant list. With "all numbers" ticked, the LEAD
@@ -4780,7 +4795,7 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       }
       // Photos can't ride a group MMS yet — never silently drop the extra numbers.
       if (groupAll && clientNums.length > 1 && media.length) {
-        alert('Group texts cannot include a photo yet. Remove the photo or untick "all numbers".'); setSending(false); return
+        notify('Group texts cannot include a photo yet. Remove the photo or untick "all numbers".'); setSending(false); return
       }
       // 2+ participants + no photo → true group MMS (one shared thread, replies grouped).
       if (groupRecipients.length >= 2 && !media.length) {
@@ -4795,8 +4810,8 @@ export function InlineTextComposer({ client, onClose, onSent }) {
             ...(d.copies || []).map(c => `${c.name} is already in another group thread with our number, so they got a separate 1:1 copy instead`),
             ...(d.skipped || []).filter(s => !copied.has(s.phone)).map(s => `${s.name || s.phone} couldn't be added`),
           ]
-          if (notes.length) alert(`Group text sent to ${d.sent_to}.\n${notes.join('\n')}`); else onClose()
-        } else alert('Group text failed: ' + (d.error || 'unknown error'))
+          if (notes.length) notify(`Group text sent to ${d.sent_to}.\n${notes.join('\n')}`); else onClose()
+        } else notify('Group text failed: ' + (d.error || 'unknown error'))
         return
       }
       const client_ids = recips.filter(r => !r.agent).map(r => r.id)
@@ -4806,10 +4821,10 @@ export function InlineTextComposer({ client, onClose, onSent }) {
       if (d.sent >= 1) {
         setBody(''); setMedia([]); onSent && onSent()
         const failed = (d.results || []).filter(x => !x.ok)
-        if (failed.length) alert(`Sent to ${d.sent}. ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).`)
+        if (failed.length) notify(`Sent to ${d.sent}. ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).`)
         else onClose()
-      } else alert('Text not sent: ' + (d.results?.[0]?.error || d.error || 'unknown error'))
-    } catch (e) { alert('Text failed: ' + e.message) } finally { setSending(false) }
+      } else notify('Text not sent: ' + (d.results?.[0]?.error || d.error || 'unknown error'))
+    } catch (e) { notify('Text failed: ' + e.message) } finally { setSending(false) }
   }
   const fld = { width: '100%', padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
   return (
@@ -5024,17 +5039,17 @@ function BulkTextModal({ clientIds, onClose, onDone }) {
   const doSend = async (force) => {
     const r = await authFetch('/api/inbox/bulk-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: clientIds, bodies: filled, name: name.trim() || null, created_by: 'John', force }) })
     const d = await r.json()
-    if (d.duplicate && !force) { if (confirm(d.error)) return doSend(true); setSending(false); return }
-    if (d.error) { alert(d.error); setSending(false); return }
+    if (d.duplicate && !force) { if (await confirmDialog(d.error)) return doSend(true); setSending(false); return }
+    if (d.error) { notify(d.error); setSending(false); return }
     const ex = d.excluded || {}
-    alert(`Queued ${d.queued} recipient${d.queued === 1 ? '' : 's'}${filled.length > 1 ? ` × ${filled.length} texts` : ''} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.do_not_contact || 0} do-not-contact, ${ex.duplicate_number || 0} duplicate number.`)
+    notify(`Queued ${d.queued} recipient${d.queued === 1 ? '' : 's'}${filled.length > 1 ? ` × ${filled.length} texts` : ''} (sending in the background).\nSkipped — ${ex.no_phone || 0} no phone, ${ex.opted_out_stop || 0} replied STOP, ${ex.do_not_contact || 0} do-not-contact, ${ex.duplicate_number || 0} duplicate number.`)
     onDone()
   }
   const send = async () => {
     if (!filled.length) return
-    if (!confirm(`Send ${filled.length > 1 ? `these ${filled.length} texts (in order)` : 'this text'} to up to ${clientIds.length} selected contact(s)? Contacts who replied STOP, are Do Not Contact, have no phone, or are duplicate numbers are automatically skipped.`)) return
+    if (!await confirmDialog(`Send ${filled.length > 1 ? `these ${filled.length} texts (in order)` : 'this text'} to up to ${clientIds.length} selected contact(s)? Contacts who replied STOP, are Do Not Contact, have no phone, or are duplicate numbers are automatically skipped.`)) return
     setSending(true)
-    try { await doSend(false) } catch (e) { alert('Bulk text failed: ' + e.message); setSending(false) }
+    try { await doSend(false) } catch (e) { notify('Bulk text failed: ' + e.message); setSending(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Text ${clientIds.length.toLocaleString()} selected`}>

@@ -1,3 +1,4 @@
+import { confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { api } from '../api'
 import Modal from '../components/Modal'
@@ -47,7 +48,7 @@ export default function Marketing() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this campaign?')) return
+    if (!await confirmDialog('Delete this campaign?')) return
     await api.deleteCampaign(id)
     load()
   }

@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import RichTextEditor from '../components/RichTextEditor'
@@ -34,10 +35,10 @@ function ServiceBalances() {
   const load = () => { setBusy(true); authFetch('/api/inbox/service-balances').then(r => r.json()).then(d => setData(d || {})).catch(() => setData({ error: 'Could not load' })).finally(() => setBusy(false)) }
   const saveBal = async () => {
     const n = Number(balInput)
-    if (!isFinite(n)) { alert('Enter a number like 19.75'); return }
+    if (!isFinite(n)) { notify('Enter a number like 19.75'); return }
     setSavingBal(true)
     try { await authFetch('/api/inbox/claude-balance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ balance: n }) }); setEdit(false); load() }
-    catch (e) { alert('Save failed: ' + e.message) } finally { setSavingBal(false) }
+    catch (e) { notify('Save failed: ' + e.message) } finally { setSavingBal(false) }
   }
   useEffect(() => { load() }, [])
   const tw = data?.twilio || {}, cl = data?.claude || {}
@@ -135,7 +136,7 @@ export default function Settings() {
       setTwToken(''); await loadTwilio()
       // auto-test after saving
       const d = await authFetch('/api/settings/twilio/verify', { method: 'POST' }).then(r => r.json()); setTwStatus(d)
-    } catch (e) { alert('Save failed: ' + e.message) } finally { setTwBusy(false) }
+    } catch (e) { notify('Save failed: ' + e.message) } finally { setTwBusy(false) }
   }
   const testTwilio = async () => {
     setTwBusy(true); setTwStatus(null)
@@ -157,18 +158,18 @@ export default function Settings() {
   }, [])
 
   const addMailbox = async () => {
-    if (!mbUser.trim() || !mbPw.trim()) { alert('Enter the email address and the 16-character App Password.'); return }
+    if (!mbUser.trim() || !mbPw.trim()) { notify('Enter the email address and the 16-character App Password.'); return }
     setMbBusy(true)
     try {
       const r = await authFetch('/api/settings/mailboxes', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user: mbUser.trim(), app_password: mbPw, host: (mbHost.trim() || 'imap.gmail.com') }) }).then(x => x.json())
       setMbPw(''); setMbUser('')
-      if (r.connected) alert('✓ Connected. New client emails from this inbox will appear within a minute.')
-      else alert('Saved, but connection failed: ' + (r.last_error || r.error || 'unknown') + '\n\nCheck: App Password (not the normal password), 2-Step Verification on, and (for a non-Gmail address) the IMAP host under Advanced.')
+      if (r.connected) notify('✓ Connected. New client emails from this inbox will appear within a minute.')
+      else notify('Saved, but connection failed: ' + (r.last_error || r.error || 'unknown') + '\n\nCheck: App Password (not the normal password), 2-Step Verification on, and (for a non-Gmail address) the IMAP host under Advanced.')
       loadMailboxes()
-    } catch (e) { alert('Failed: ' + e.message) } finally { setMbBusy(false) }
+    } catch (e) { notify('Failed: ' + e.message) } finally { setMbBusy(false) }
   }
   const testMb = async (id) => { setMbBusy(true); try { await authFetch(`/api/settings/mailboxes/${id}/test`, { method: 'POST' }) } finally { setMbBusy(false); loadMailboxes() } }
-  const removeMb = async (id, user) => { if (!confirm(`Disconnect ${user}? Incoming emails from it will stop syncing to the Inbox.`)) return; await authFetch(`/api/settings/mailboxes/${id}`, { method: 'DELETE' }); loadMailboxes() }
+  const removeMb = async (id, user) => { if (!await confirmDialog(`Disconnect ${user}? Incoming emails from it will stop syncing to the Inbox.`)) return; await authFetch(`/api/settings/mailboxes/${id}`, { method: 'DELETE' }); loadMailboxes() }
 
   const save = async () => {
     setSaving(true); setSaved(false)
@@ -179,7 +180,7 @@ export default function Settings() {
         body: JSON.stringify({ signature, account, business, from_name: fromName }),
       })
       setSaved(true); setTimeout(() => setSaved(false), 2500)
-    } catch (e) { alert('Save failed: ' + e.message) }
+    } catch (e) { notify('Save failed: ' + e.message) }
     finally { setSaving(false) }
   }
   const bf = (k, v) => setBusiness(b => ({ ...b, [k]: v }))
@@ -512,7 +513,7 @@ function AppearanceSettings() {
     try {
       const r = await authFetch('/api/settings/appearance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ team_accent: key }) })
       const d = await r.json()
-      if (!r.ok) { alert(d.error || 'Not allowed'); return }
+      if (!r.ok) { notify(d.error || 'Not allowed'); return }
       setTeamAccent(d.team_accent)
       try { localStorage.setItem('hub_accent_team', d.team_accent) } catch {}
       if (!override) apply(d.team_accent)
@@ -578,7 +579,7 @@ function RealistImportSettings() {
           onChange={async (e) => {
             const file = e.target.files?.[0]
             if (!file) return
-            if (!confirm('Import ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)?\n\nThis will add/update Realist property records and auto-match them to clients by address.')) { e.target.value = ''; return }
+            if (!await confirmDialog('Import ' + file.name + ' (' + (file.size / 1024).toFixed(0) + ' KB)?\n\nThis will add/update Realist property records and auto-match them to clients by address.')) { e.target.value = ''; return }
             setBusy(true); setResult(null)
             try {
               const csv = await file.text()
@@ -784,10 +785,10 @@ function CxCampaignSettings() {
     finally { setBusy(false) }
   }
   const bulkEnroll = async () => {
-    if (!confirm('Enroll every eligible member of the Cancelled/Expired list in the connection campaign? Each lead is eligibility-checked (prior responses, sold/relisted, DNC, wrong numbers are skipped).')) return
+    if (!await confirmDialog('Enroll every eligible member of the Cancelled/Expired list in the connection campaign? Each lead is eligibility-checked (prior responses, sold/relisted, DNC, wrong numbers are skipped).')) return
     setBusy(true)
     try { setEnrollResult(await authFetch('/api/cx/enroll-list', { method: 'POST' }).then(r => r.json())); loadStats() }
-    catch (e) { alert('Failed: ' + e.message) } finally { setBusy(false) }
+    catch (e) { notify('Failed: ' + e.message) } finally { setBusy(false) }
   }
   const n = (s) => (stats?.statuses || []).find(x => x.status === s)?.n || 0
   return (
@@ -1095,7 +1096,7 @@ function TeamAgents() {
   const load = () => authFetch('/api/agents').then(r => r.json()).then(a => setList(Array.isArray(a) ? a : [])).catch(() => {})
   React.useEffect(() => { load() }, [])
   const add = async () => { if (!name.trim()) return; await authFetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, phone, title }) }).catch(() => {}); setName(''); setPhone(''); setTitle(''); load() }
-  const del = async (id) => { if (!confirm('Remove this agent from the directory?')) return; await authFetch('/api/agents/' + id, { method: 'DELETE' }).catch(() => {}); load() }
+  const del = async (id) => { if (!await confirmDialog('Remove this agent from the directory?')) return; await authFetch('/api/agents/' + id, { method: 'DELETE' }).catch(() => {}); load() }
   const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   return (
     <section className="detail-section">
@@ -1138,8 +1139,8 @@ function VoiceRouting() {
   const uploadVm = async (file) => {
     if (!file) return
     setVmBusy(true)
-    try { const fd = new FormData(); fd.append('file', file); const r = await authFetch('/api/inbox/voicemail-greeting', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) setVmUrl(d.url); else alert(d.error || 'Upload failed') }
-    catch (e) { alert(e.message) } finally { setVmBusy(false); if (vmRef.current) vmRef.current.value = '' }
+    try { const fd = new FormData(); fd.append('file', file); const r = await authFetch('/api/inbox/voicemail-greeting', { method: 'POST', body: fd }); const d = await r.json(); if (d.url) setVmUrl(d.url); else notify(d.error || 'Upload failed') }
+    catch (e) { notify(e.message) } finally { setVmBusy(false); if (vmRef.current) vmRef.current.value = '' }
   }
   const removeVm = async () => { await authFetch('/api/inbox/voicemail-greeting', { method: 'DELETE' }).catch(() => {}); setVmUrl('') }
   if (v === undefined) return null

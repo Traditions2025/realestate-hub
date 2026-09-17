@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-09-17T18:11:40.349Z",
+  "generated_at": "2026-09-17T21:28:44.744Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9f2bc40",
+      "date": "2026-09-17T15:48:29-05:00",
+      "subject": "FB ad leads get register_date — they were invisible in the \"Newest\" sort",
+      "title": "FB ad leads get register_date — they were invisible in the \"Newest\" sort",
+      "body": "The Newest sort orders by register_date (Sierra's field), which the FB intake\nnever set, so ad leads sank to the bottom with NULLS LAST. New creates now\nstamp register_date with the registration day; existing matches get it filled\nif empty.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5494bc4",
+      "date": "2026-09-17T15:42:18-05:00",
+      "subject": "FB ad alert emails deduped: one per lead per campaign per 3 days",
+      "title": "FB ad alert emails deduped: one per lead per campaign per 3 days",
+      "body": "However many paths touch the same person (email sweep, webhook, backfill,\nmanual trigger), John + Matt get exactly one alert. Texts were already\nstructurally deduped (permanent per-lead opener key); this closes the same\ngap for the notification emails after today's backfill re-sent four.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0eccc84",
+      "date": "2026-09-17T15:38:26-05:00",
+      "subject": "FUB lead emails: sweep All Mail — a Gmail filter was hiding them from the Inbox poll",
+      "title": "FUB lead emails: sweep All Mail — a Gmail filter was hiding them from the Inbox poll",
+      "body": "The \"FUB\" label filter files leads@followupboss.com mail past the Inbox, so the\nInbox-only watcher never saw a single real lead email (Stephanie Lange and\nChristi Masters missed today). The poller now sweeps All Mail for that sender\nover the last 48h every cycle — immune to filters/labels, free to re-scan\nthanks to the Message-ID dedupe, no-op while disabled. Also: the Facebook check\nis now decided by the email SUBJECT — the meta source tag can disagree\n(Christi's said mattsmithteam.com) and no longer vetoes a Facebook subject.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f4100dc",
+      "date": "2026-09-17T13:12:33-05:00",
+      "subject": "Lead profile appointments: type + date/time + notes, calendar invite to John + Matt",
+      "title": "Lead profile appointments: type + date/time + notes, calendar invite to John + Matt",
+      "body": "New 📅 Appointment action on the profile: Showing / Walkthrough / Buyer Meeting,\ndate, time, duration, title, notes. Walkthrough auto-titles\n\"Walkthrough - {address} - {name}\" (others default to \"{Type} - {name}\", both\neditable); the description always carries the lead's Hub profile link + phone.\nSaves to the Hub calendar (calendar_events, linked to the client) and emails\nJohn + Matt a real ICS invite (METHOD:REQUEST, Central timezone pinned, 30-min\nreminder) that renders with Yes/No in Gmail, plus a View Lead button.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cf9ab6b",
       "date": "2026-09-17T11:35:23-05:00",
@@ -3968,38 +4000,6 @@
       "subject": "Tasks: remove the one-time \"Import Matt's Task List\" seed button",
       "title": "Tasks: remove the one-time \"Import Matt's Task List\" seed button",
       "body": "That button seeded a hardcoded ~59-task backlog into the Tasks table when the Hub\nfirst launched — a one-time migration, long since done. It connects to nothing\nexternal; tasks are created natively in the Hub now. Removed the button plus the\ndead /api/tasks/seed-matts-list endpoint and the hardcoded MATTS_TASK_LIST array.\nExisting tasks are untouched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0644bb0",
-      "date": "2026-08-11T11:54:01-05:00",
-      "subject": "Sidebar collapse: icon rail (keep icons) instead of fully hiding",
-      "title": "Sidebar collapse: icon rail (keep icons) instead of fully hiding",
-      "body": "When collapsed on desktop, the sidebar now shrinks to a 64px icon rail — nav icons\nstay visible (labels hidden, hover shows the name via title), with the collapse\ntoggle still in the header. Removed the floating expand button (no longer needed).\nScoped to >768px so the mobile slide-out drawer is unaffected.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e17cc7d",
-      "date": "2026-08-11T10:21:09-05:00",
-      "subject": "Texting: build the full Twilio SMS engine (send + receive + Inbox + automations)",
-      "title": "Texting: build the full Twilio SMS engine (send + receive + Inbox + automations)",
-      "body": "Ready to flip on the moment the Twilio account is funded. Credentials live in\nSettings (app_settings), never in code.\n\n- server/twilio.js: config from settings, twilioConfigured(), sendSms() (direct REST,\n  E.164 normalize, statusCallback), twilioVerify() (read-only creds check), and\n  STOP/START keyword detection.\n- Inbox: /api/inbox/send now actually sends texts via Twilio (per-recipient, honors\n  text_opt_out, logs to Sent). Public /twilio-inbound webhook matches the sender to a\n  client, stores the text in the Inbox thread, emails John, and applies STOP/START\n  opt-outs. Public /twilio-status marks failed deliveries. Both whitelisted in auth.\n- Composer + reply UI: text sending unblocked; replies go out in the thread's channel.\n- Automations: send_text action now sends (merge fields, opt-out, logs to Inbox).\n- Settings: \"Text Messaging (Twilio)\" section — Account SID / Auth Token (write-only) /\n  From number / Messaging Service SID / enable toggle, Save & Test, and the inbound\n  webhook URL to paste into Twilio.\n- Added express.urlencoded so Twilio's form-encoded webhooks parse.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3838403",
-      "date": "2026-08-11T08:56:48-05:00",
-      "subject": "Stability: stop crashing on stray errors (IMAP socket + resilient handler + crash log)",
-      "title": "Stability: stop crashing on stray errors (IMAP socket + resilient handler + crash log)",
-      "body": "Root cause of the recurring \"Exited with status 1\" emails: the Gmail IMAP client\n(polled every 60s) had no 'error' listener, so a dropped socket emitted an\nunhandled 'error' event that crashed the whole process. Node treats an unhandled\nEventEmitter 'error' as fatal.\n\n- gmail-inbox.js: add client.on('error', ...) so a dropped IMAP socket is absorbed.\n- index.js: uncaughtException now LOGS + keeps the Hub running instead of exit(1).\n  A single background/socket error no longer takes the service down or pages the\n  team. State is disk-backed (better-sqlite3 transactions), so surviving is safe.\n- Crashes are recorded to /data/crash-log.jsonl and readable at GET /api/crash-log,\n  so the next incident leaves a stack trace we can actually diagnose.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9f27b4f",
-      "date": "2026-08-10T18:26:06-05:00",
-      "subject": "What's New: document the new collapse-sidebar feature (annotated card)",
-      "title": "What's New: document the new collapse-sidebar feature (annotated card)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

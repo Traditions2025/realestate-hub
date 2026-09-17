@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 
@@ -19,8 +20,8 @@ export default function Duplicates() {
       (norm(m.last_name) && norm(m.last_name) === norm(primary.last_name)) ||
       (norm(m.address) && norm(m.address) === norm(primary.address))
     )).map(m => m.id)
-    if (!dupIds.length) { alert('No other record shares this person’s last name or address — nothing safe to merge here.'); return }
-    if (!confirm(`Merge ${dupIds.length} record${dupIds.length === 1 ? '' : 's'} into "${primary.first_name} ${primary.last_name}"?\n\nOnly records matching this last name/address are merged. All calls, texts, notes, tasks and history move to the primary. The others are archived (not deleted).`)) return
+    if (!dupIds.length) { notify('No other record shares this person’s last name or address — nothing safe to merge here.'); return }
+    if (!await confirmDialog(`Merge ${dupIds.length} record${dupIds.length === 1 ? '' : 's'} into "${primary.first_name} ${primary.last_name}"?\n\nOnly records matching this last name/address are merged. All calls, texts, notes, tasks and history move to the primary. The others are archived (not deleted).`)) return
     setBusy(group.key); setMsg('')
     try {
       const r = await authFetch('/api/clients/merge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ primary_id: primaryId, duplicate_ids: dupIds }) })

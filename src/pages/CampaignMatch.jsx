@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -53,7 +54,7 @@ export default function CampaignMatch() {
       if (!r.ok) throw new Error(j.error || 'Analyze failed')
       setResult(j)
       setTargetDrip(j.campaign.dripId || '')
-    } catch (e) { alert('Analyze failed: ' + e.message) }
+    } catch (e) { notify('Analyze failed: ' + e.message) }
     setAnalyzing(false)
   }
 
@@ -83,8 +84,8 @@ export default function CampaignMatch() {
       if (!r.ok) throw new Error(j.error || 'Enroll failed')
       setEnrolledIds(s => { const n = new Set(s); items.forEach(i => n.add(i.id)); return n })
       setSel(new Set()); setConfirmOpen(false)
-      alert(`Enrolled ${j.enrolled} contact${j.enrolled === 1 ? '' : 's'} into the campaign.${j.skipped ? ` (${j.skipped} skipped — already enrolled)` : ''}`)
-    } catch (e) { alert('Enroll failed: ' + e.message) }
+      notify(`Enrolled ${j.enrolled} contact${j.enrolled === 1 ? '' : 's'} into the campaign.${j.skipped ? ` (${j.skipped} skipped — already enrolled)` : ''}`)
+    } catch (e) { notify('Enroll failed: ' + e.message) }
     setEnrolling(false)
   }
 

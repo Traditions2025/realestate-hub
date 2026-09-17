@@ -1,3 +1,4 @@
+import { confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import AutomationBuilder from '../components/AutomationBuilder'
@@ -34,7 +35,7 @@ export default function Automations() {
   const closeBuilder = (_dirty, intent) => { const id = builderId; setBuilderId(null); load(); if (intent === 'activity' && id) setActivity({ id, name: items.find(i => i.id === id)?.name }) }
 
   const act = async (id, path) => { await authFetch(`/api/automations/${id}/${path}`, { method: 'POST' }); load() }
-  const remove = async (id) => { if (!confirm('Delete this automation? Enrolled contacts are removed.')) return; await authFetch(`/api/automations/${id}`, { method: 'DELETE' }); load() }
+  const remove = async (id) => { if (!await confirmDialog('Delete this automation? Enrolled contacts are removed.')) return; await authFetch(`/api/automations/${id}`, { method: 'DELETE' }); load() }
   const rename = async (a) => { const n = prompt('Rename automation', a.name); if (!n) return; await authFetch(`/api/automations/${a.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: n }) }); load() }
   const duplicate = async (id) => { await authFetch(`/api/automations/${id}/duplicate`, { method: 'POST' }); load() }
 

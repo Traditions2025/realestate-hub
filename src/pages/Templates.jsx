@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -129,10 +130,10 @@ function VoicemailManager() {
     try {
       const fd = new FormData(); fd.append('name', name.trim() || 'Voicemail'); fd.append('file', file)
       const r = await authFetch('/api/voicemails', { method: 'POST', body: fd }); const d = await r.json()
-      if (d.success) { setName(''); load() } else alert(d.error || 'Upload failed')
-    } catch (e) { alert(e.message) } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
+      if (d.success) { setName(''); load() } else notify(d.error || 'Upload failed')
+    } catch (e) { notify(e.message) } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
   }
-  const del = async (id) => { if (!confirm('Delete this voicemail recording?')) return; await authFetch('/api/voicemails/' + id, { method: 'DELETE' }).catch(() => {}); load() }
+  const del = async (id) => { if (!await confirmDialog('Delete this voicemail recording?')) return; await authFetch('/api/voicemails/' + id, { method: 'DELETE' }).catch(() => {}); load() }
   return (
     <section className="detail-section" style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -142,7 +143,7 @@ function VoicemailManager() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Buyer follow-up drop)" style={{ padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, minWidth: 260 }} />
         <input ref={fileRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => upload(e.target.files?.[0])} />
-        <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { if (!name.trim()) { alert('Give the voicemail a name first.'); return } fileRef.current?.click() }}>{busy ? 'Uploading…' : '＋ Upload MP3/WAV'}</button>
+        <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { if (!name.trim()) { notify('Give the voicemail a name first.'); return } fileRef.current?.click() }}>{busy ? 'Uploading…' : '＋ Upload MP3/WAV'}</button>
       </div>
       {list.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No voicemails yet. Record one on your phone or computer and upload it here.</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -185,14 +186,14 @@ export default function Templates() {
     authFetch('/api/templates?' + params).then(r => r.json()).then(setItems).catch(() => setItems([]))
   }
   const importFub = async () => {
-    if (!confirm('Import your text templates from Follow Up Boss? FUB merge fields are converted to Hub fields; duplicates (by name) are skipped.')) return
+    if (!await confirmDialog('Import your text templates from Follow Up Boss? FUB merge fields are converted to Hub fields; duplicates (by name) are skipped.')) return
     setFubBusy(true)
     try {
       const r = await authFetch('/api/templates/import-fub', { method: 'POST' })
       const d = await r.json()
-      if (d.error) alert(d.error)
-      else { alert(`Imported ${d.imported} text template${d.imported === 1 ? '' : 's'} from FUB.\nSkipped ${d.skipped} (duplicates/empty) and ${d.ylopo_skipped || 0} that used a Ylopo link.`); setTypeFilter('text'); load() }
-    } catch (e) { alert('Import failed: ' + e.message) } finally { setFubBusy(false) }
+      if (d.error) notify(d.error)
+      else { notify(`Imported ${d.imported} text template${d.imported === 1 ? '' : 's'} from FUB.\nSkipped ${d.skipped} (duplicates/empty) and ${d.ylopo_skipped || 0} that used a Ylopo link.`); setTypeFilter('text'); load() }
+    } catch (e) { notify('Import failed: ' + e.message) } finally { setFubBusy(false) }
   }
 
   useEffect(() => { load() }, [typeFilter])
@@ -247,7 +248,7 @@ export default function Templates() {
       const r = await authFetch(editing ? `/api/templates/${editing}` : '/api/templates', opts)
       if (!r.ok) {
         const d = await r.json().catch(() => ({}))
-        alert('Save failed: ' + (d.error || r.statusText))
+        notify('Save failed: ' + (d.error || r.statusText))
         return
       }
       setModalOpen(false)
@@ -258,7 +259,7 @@ export default function Templates() {
   }
 
   const remove = async (id, name) => {
-    if (!confirm(`Delete template "${name}"?`)) return
+    if (!await confirmDialog(`Delete template "${name}"?`)) return
     await authFetch(`/api/templates/${id}`, { method: 'DELETE' })
     load()
   }
@@ -279,7 +280,7 @@ export default function Templates() {
         setTimeout(() => el.classList.remove('row-flash'), 800)
       }
     } catch {
-      alert('Copy failed — your browser may block clipboard access')
+      notify('Copy failed — your browser may block clipboard access')
     }
   }
 
@@ -483,11 +484,11 @@ export default function Templates() {
                   title="Detect merge fields from a pasted template (any format) and convert them to our fields"
                   onClick={() => {
                     const { text, mapped, unmapped } = normalizeMergeFields(form.body)
-                    if (!mapped.length && !unmapped.length) { alert('No merge fields found to convert.'); return }
+                    if (!mapped.length && !unmapped.length) { notify('No merge fields found to convert.'); return }
                     if (mapped.length) setForm(p => ({ ...p, body: text }))
                     let msg = mapped.length ? `Converted ${mapped.length} field${mapped.length === 1 ? '' : 's'}:\n` + mapped.map(m => `  ${m.from}  →  ${m.to}`).join('\n') : 'Nothing needed converting.'
                     if (unmapped.length) msg += `\n\nCouldn't match these (left as-is, map them by hand):\n` + unmapped.map(u => '  ' + u).join('\n')
-                    alert(msg)
+                    notify(msg)
                   }}>🔀 Match custom fields</button>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {MERGE_FIELDS.slice(0, 5).map(([tok, label]) => (

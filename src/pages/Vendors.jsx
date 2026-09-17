@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { confirmDialog } from '../notify'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import RecommendModal from '../components/RecommendModal'
@@ -52,7 +53,7 @@ export default function Vendors() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this vendor?')) return
+    if (!await confirmDialog('Delete this vendor?')) return
     await authFetch(`/api/vendors/${id}`, { method: 'DELETE' })
     load()
   }

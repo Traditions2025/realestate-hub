@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
@@ -73,9 +74,9 @@ function CallDispo({ m, onSaved }) {
   const save = async (patch) => {
     setSaving(true)
     try { await authFetch(`/api/inbox/${m.id}/annotate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }); setDirty(false); onSaved && onSaved() }
-    catch (e) { alert('Could not save: ' + e.message) } finally { setSaving(false) }
+    catch (e) { notify('Could not save: ' + e.message) } finally { setSaving(false) }
   }
-  const pickDisp = (v) => { setDisp(v); if (v === 'Do not call' && !confirm('Mark this contact Do Not Contact? This sets their status to Do Not Contact and removes them from every active drip + automation campaign. It does not block a deliberate 1:1 text or call.')) return; save({ disposition: v }) }
+  const pickDisp = async (v) => { setDisp(v); if (v === 'Do not call' && !await confirmDialog('Mark this contact Do Not Contact? This sets their status to Do Not Contact and removes them from every active drip + automation campaign. It does not block a deliberate 1:1 text or call.')) return; save({ disposition: v }) }
   return (
     <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
       <select value={disp} onChange={e => pickDisp(e.target.value)} style={{ fontSize: 12, padding: '3px 6px', maxWidth: 200 }}>
@@ -266,9 +267,9 @@ export default function Inbox() {
     try {
       const r = await authFetch(`/api/inbox/thread/${sel}/ai/adjust`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ instruction, context, current: reply }) })
       const d = await r.json()
-      if (d.error) alert(d.error)
+      if (d.error) notify(d.error)
       else if (d.reply) { setReply({ subject: d.reply.subject || reply.subject, body: d.reply.body || '' }); if (context) setAiCtx('') }
-    } catch (e) { alert(e.message) }
+    } catch (e) { notify(e.message) }
     finally { setAiBusy('') }
   }
   const useSuggested = () => { if (ai?.suggestion) setReply({ subject: ai.suggestion.subject || '', body: ai.suggestion.body || '' }) }
@@ -308,17 +309,17 @@ export default function Inbox() {
   }
   const scheduleReply = async () => {
     if (!sel) return
-    if (!reply.body.trim() && !replyMedia.length) { alert('Write a text first.'); return }
-    if (!sendAt) { alert('Pick a date and time.'); return }
+    if (!reply.body.trim() && !replyMedia.length) { notify('Write a text first.'); return }
+    if (!sendAt) { notify('Pick a date and time.'); return }
     const iso = new Date(sendAt).toISOString()
-    if (new Date(iso).getTime() < Date.now() + 60000) { alert('Pick a time in the future.'); return }
+    if (new Date(iso).getTime() < Date.now() + 60000) { notify('Pick a time in the future.'); return }
     setSending(true)
     try {
       const r = await authFetch('/api/inbox/schedule-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: sel, body: reply.body.trim(), media: replyMedia.map(m => m.url), send_at: iso, created_by: 'John', timezone: Intl.DateTimeFormat().resolvedOptions().timeZone }) })
       const d = await r.json()
-      if (d.success) { setReply({ subject: '', body: '' }); setReplyMedia([]); setSchedOpen(false); setSendAt(''); await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {}); alert('Text scheduled for ' + new Date(iso).toLocaleString()) }
-      else alert(d.error || 'Could not schedule')
-    } catch (e) { alert(e.message) } finally { setSending(false) }
+      if (d.success) { setReply({ subject: '', body: '' }); setReplyMedia([]); setSchedOpen(false); setSendAt(''); await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {}); notify('Text scheduled for ' + new Date(iso).toLocaleString()) }
+      else notify(d.error || 'Could not schedule')
+    } catch (e) { notify(e.message) } finally { setSending(false) }
   }
   const uploadPhoto = async (file) => {
     if (!file) return
@@ -328,14 +329,14 @@ export default function Inbox() {
       const r = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd })
       const d = await r.json()
       if (d.url) setReplyMedia(m => [...m, { url: d.url, type: d.type }])
-      else alert(d.error || 'Upload failed')
-    } catch (e) { alert('Upload failed: ' + e.message) }
+      else notify(d.error || 'Upload failed')
+    } catch (e) { notify('Upload failed: ' + e.message) }
     finally { setUploadingPhoto(false); if (fileRef.current) fileRef.current.value = '' }
   }
   const sendReply = async () => {
     if (!sel) return
     const hasBody = !!reply.body.trim()
-    if (!hasBody && !(replyChannel === 'text' && replyMedia.length)) { alert('Write a reply first.'); return }
+    if (!hasBody && !(replyChannel === 'text' && replyMedia.length)) { notify('Write a reply first.'); return }
     setSending(true)
     try {
       let payload
@@ -348,13 +349,13 @@ export default function Inbox() {
       }
       const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json()
-      if (d.error || !(d.sent > 0)) { alert(d.error || 'Send failed: ' + ((d.results || [])[0]?.error || 'unknown')); return }
+      if (d.error || !(d.sent > 0)) { notify(d.error || 'Send failed: ' + ((d.results || [])[0]?.error || 'unknown')); return }
       // clear the draft, refresh the thread + list
       await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {})
       setReply({ subject: '', body: '' }); setReplyMedia([])
       authFetch(`/api/inbox/thread/${sel}`).then(x => x.json()).then(d => { if (Array.isArray(d)) setThread(d) }).catch(() => {})
       load()
-    } catch (e) { alert(e.message) }
+    } catch (e) { notify(e.message) }
     finally { setSending(false) }
   }
   // persist the editor as a draft so it survives leaving/returning to the thread
@@ -430,7 +431,17 @@ export default function Inbox() {
             </div>
           )}
           <div className="inbox-list-scroll" style={{ flex: 1, minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}>
-            {convos === null ? <div style={pad}>Loading…</div>
+            {convos === null ? (
+              Array.from({ length: 7 }).map((_, i) => (
+                <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
+                  <span className="skeleton" style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0 }} />
+                  <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <span className="skeleton" style={{ width: `${45 + (i % 3) * 15}%`, height: 12 }} />
+                    <span className="skeleton" style={{ width: '70%', height: 10 }} />
+                  </span>
+                </div>
+              ))
+            )
               : convos.length === 0 ? (
                 <div style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div style={{ fontSize: 30 }}>📭</div>
@@ -742,14 +753,14 @@ function Composer({ onClose, onSent }) {
   const remove = (id) => setRecips(recips.filter(r => r.id !== id))
 
   const send = async () => {
-    if (!recips.length) { alert('Add at least one recipient.'); return }
-    if (!subject.trim() || !body.trim()) { alert('Add a subject and a message.'); return }
+    if (!recips.length) { notify('Add at least one recipient.'); return }
+    if (!subject.trim() || !body.trim()) { notify('Add a subject and a message.'); return }
     setSending(true)
     const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel, client_ids: recips.map(x => x.id), subject, body }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setSending(false)
-    if (r.error) { alert(r.error); return }
+    if (r.error) { notify(r.error); return }
     const failed = (r.results || []).filter(x => !x.ok)
-    alert(`Sent to ${r.sent} recipient(s).` + (failed.length ? ` ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).` : ''))
+    notify(`Sent to ${r.sent} recipient(s).` + (failed.length ? ` ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).` : ''))
     onSent()
   }
   const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
@@ -823,8 +834,8 @@ function GroupPane({ sel, onClose }) {
   React.useEffect(() => { load(); const t = setInterval(load, 20000); return () => clearInterval(t) }, [load])
   const send = async () => {
     if (!reply.trim()) return; setSending(true)
-    try { const d = await authFetch('/api/inbox/group-reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_sid: sel.sid, body: reply.trim() }) }).then(r => r.json()); if (d.success) { setReply(''); load() } else alert(d.error || 'Reply failed') }
-    catch (e) { alert('Reply failed: ' + e.message) } finally { setSending(false) }
+    try { const d = await authFetch('/api/inbox/group-reply', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ conversation_sid: sel.sid, body: reply.trim() }) }).then(r => r.json()); if (d.success) { setReply(''); load() } else notify(d.error || 'Reply failed') }
+    catch (e) { notify('Reply failed: ' + e.message) } finally { setSending(false) }
   }
   let participants = []
   try { participants = (JSON.parse(sel.group_meta || '{}').participants || []).map(p => p.name || p.phone) } catch {}
@@ -884,13 +895,13 @@ function UnknownPane({ sel, onClose, onLinked }) {
   }, [q])
   const createLead = async () => {
     setBusy(true)
-    try { const r = await authFetch('/api/inbox/unknown/create-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, phone: sel.phone, first_name: fn, last_name: ln }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else alert(d.error || 'Could not create lead') }
-    catch (e) { alert(e.message) } finally { setBusy(false) }
+    try { const r = await authFetch('/api/inbox/unknown/create-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, phone: sel.phone, first_name: fn, last_name: ln }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else notify(d.error || 'Could not create lead') }
+    catch (e) { notify(e.message) } finally { setBusy(false) }
   }
   const linkTo = async (cid) => {
     setBusy(true)
-    try { const r = await authFetch('/api/inbox/unknown/link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, client_id: cid }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else alert(d.error || 'Could not link') }
-    catch (e) { alert(e.message) } finally { setBusy(false) }
+    try { const r = await authFetch('/api/inbox/unknown/link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, client_id: cid }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else notify(d.error || 'Could not link') }
+    catch (e) { notify(e.message) } finally { setBusy(false) }
   }
   const inp = { padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }
   return (

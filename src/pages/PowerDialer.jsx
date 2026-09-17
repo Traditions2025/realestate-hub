@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { authFetch } from '../api'
 
@@ -43,7 +44,7 @@ export default function PowerDialer() {
       const r = await authFetch('/api/dialer/queue?' + p)
       const d = await r.json()
       setQueue(Array.isArray(d) ? d : []); setIdx(0); setEnded(false); setDisp(''); setNotes('')
-    } catch (e) { alert('Could not load the queue: ' + e.message) } finally { setLoading(false) }
+    } catch (e) { notify('Could not load the queue: ' + e.message) } finally { setLoading(false) }
   }, [preset, status, limit, myAgent])
 
   // Call lifecycle from the global softphone.
@@ -58,14 +59,14 @@ export default function PowerDialer() {
   // Deep-linked from a Clients selection (/dialer?client_ids=...) → build immediately.
   useEffect(() => { if (new URLSearchParams(window.location.search).get('client_ids')) loadQueue() }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
-  const callNow = (c) => { if (c && window.hubCall) { setEnded(false); window.hubCall(c.phone, c.name) } else if (!window.hubCall) alert('The Hub phone isn’t connected yet.') }
+  const callNow = (c) => { if (c && window.hubCall) { setEnded(false); window.hubCall(c.phone, c.name) } else if (!window.hubCall) notify('The Hub phone isn’t connected yet.') }
 
   const saveAndNext = async () => {
     if (!current) return
     setSaving(true)
     try {
       await authFetch('/api/dialer/outcome', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: current.id, disposition: disp, notes, agent: myAgent || 'dialer' }) })
-    } catch (e) { alert('Could not save: ' + e.message); setSaving(false); return }
+    } catch (e) { notify('Could not save: ' + e.message); setSaving(false); return }
     setSaving(false)
     const next = idx + 1
     setIdx(next); setDisp(''); setNotes(''); setEnded(false)

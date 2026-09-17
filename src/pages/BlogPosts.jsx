@@ -1,3 +1,4 @@
+import { confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -51,7 +52,7 @@ export default function BlogPosts() {
     setModalOpen(false); load(); loadCategories()
   }
   const remove = async (id) => {
-    if (!confirm('Delete this blog post entry?')) return
+    if (!await confirmDialog('Delete this blog post entry?')) return
     await authFetch(`/api/blog-posts/${id}`, { method: 'DELETE' }); load()
   }
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))

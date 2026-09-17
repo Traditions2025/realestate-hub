@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -169,7 +170,7 @@ export default function Tasks() {
       await refreshDeadlines()
       setDeadlineEditing(null)
     } catch (err) {
-      alert('Failed to save: ' + err.message)
+      notify('Failed to save: ' + err.message)
     } finally {
       setDeadlineSaving(false)
     }
@@ -198,7 +199,7 @@ export default function Tasks() {
     try {
       await api.updateTask(id, { status: newStatus })
     } catch (err) {
-      alert('Failed to update status: ' + err.message)
+      notify('Failed to update status: ' + err.message)
       load()
     }
   }
@@ -244,12 +245,12 @@ export default function Tasks() {
         }),
       })
       const d = await r.json()
-      if (d.error) { alert('Nudge failed: ' + d.error); return }
-      alert(`✓ Nudged ${nudgeRecipient} (${d.sent_to})`)
+      if (d.error) { notify('Nudge failed: ' + d.error); return }
+      notify(`✓ Nudged ${nudgeRecipient} (${d.sent_to})`)
       setNudgeOpen(false)
       load()
     } catch (e) {
-      alert('Nudge failed: ' + e.message)
+      notify('Nudge failed: ' + e.message)
     } finally {
       setNudgeSending(false)
     }
@@ -265,7 +266,7 @@ export default function Tasks() {
       body: JSON.stringify({ text: noteText.trim(), by: noteBy || '' }),
     })
     const d = await r.json()
-    if (d.error) { alert(d.error); return }
+    if (d.error) { notify(d.error); return }
     // Update form's notes_log so the thread re-renders
     setForm(prev => ({ ...prev, notes_log: JSON.stringify(d.notes_log) }))
     setNoteText('')
@@ -274,10 +275,10 @@ export default function Tasks() {
 
   const removeNote = async (idx) => {
     if (!editing) return
-    if (!confirm('Delete this note?')) return
+    if (!await confirmDialog('Delete this note?')) return
     const r = await authFetch(`/api/tasks/${editing}/notes/${idx}`, { method: 'DELETE' })
     const d = await r.json()
-    if (d.error) { alert(d.error); return }
+    if (d.error) { notify(d.error); return }
     setForm(prev => ({ ...prev, notes_log: JSON.stringify(d.notes_log) }))
   }
 
@@ -291,7 +292,7 @@ export default function Tasks() {
       setModalOpen(false)
       load()
     } catch (err) {
-      alert('Save failed: ' + err.message)
+      notify('Save failed: ' + err.message)
     } finally {
       setSaving(false)
     }
@@ -304,7 +305,7 @@ export default function Tasks() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this task?')) return
+    if (!await confirmDialog('Delete this task?')) return
     await api.deleteTask(id)
     load()
   }
@@ -644,7 +645,7 @@ export default function Tasks() {
                 type="button"
                 className="btn btn-danger"
                 onClick={async () => {
-                  if (!confirm('Delete this task?')) return
+                  if (!await confirmDialog('Delete this task?')) return
                   await api.deleteTask(editing)
                   setModalOpen(false)
                   load()

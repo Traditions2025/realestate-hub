@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
@@ -28,7 +29,7 @@ export default function AiOpportunities() {
 
   const act = async (id, path) => { await authFetch(`/api/ai/opportunities/${id}/${path}`, { method: 'POST' }).catch(() => {}); load() }
   const takeover = async (clientId, id) => { await authFetch(`/api/ai/lead/${clientId}/takeover`, { method: 'POST' }).catch(() => {}); await act(id, 'ack') }
-  const call = (o) => { if (window.hubCall) window.hubCall(o.phone, o.name); else alert('The Hub phone isn’t connected yet.') }
+  const call = (o) => { if (window.hubCall) window.hubCall(o.phone, o.name); else notify('The Hub phone isn’t connected yet.') }
 
   return (
     <div className="page">

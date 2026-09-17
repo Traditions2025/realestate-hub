@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -53,7 +54,7 @@ export default function Partners() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this partner?')) return
+    if (!await confirmDialog('Delete this partner?')) return
     await authFetch(`/api/partners/${id}`, { method: 'DELETE' })
     load()
   }
@@ -222,7 +223,7 @@ export default function Partners() {
             <div style={{display: 'flex', gap: 6, marginTop: 8}} onClick={e => e.stopPropagation()}>
               <button className="btn-sm btn-secondary" onClick={async () => {
                 await copyContact(item)
-                alert('✓ Contact copied to clipboard')
+                notify('✓ Contact copied to clipboard')
               }}>📋 Copy</button>
               <button className="btn-sm btn-primary" onClick={() => openRecommendOne(item)}>✉ Send</button>
             </div>

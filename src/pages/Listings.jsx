@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -316,8 +317,8 @@ export default function Listings() {
   }
 
   const autoFillFromWeb = async () => {
-    if (!aiStatus.configured) { alert('AI is not configured. Set ANTHROPIC_API_KEY env var on Render.'); return }
-    if (!form.property_address || !form.city) { alert('Pick or enter an address first (street + city).'); return }
+    if (!aiStatus.configured) { notify('AI is not configured. Set ANTHROPIC_API_KEY env var on Render.'); return }
+    if (!form.property_address || !form.city) { notify('Pick or enter an address first (street + city).'); return }
     setAutoFilling(true)
     setAutoFillResult(null)
     try {
@@ -433,12 +434,12 @@ export default function Listings() {
       setOpenModal(false)
       load()
     } catch (err) {
-      alert('Save failed: ' + err.message)
+      notify('Save failed: ' + err.message)
     }
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this listing? This will not affect the original transaction or pre-listing.')) return
+    if (!await confirmDialog('Delete this listing? This will not affect the original transaction or pre-listing.')) return
     await authFetch(`/api/listings/${id}`, { method: 'DELETE' })
     setOpenModal(false)
     load()
@@ -477,7 +478,7 @@ export default function Listings() {
   }
 
   const extractFromPdf = async (file) => {
-    if (!aiStatus.configured) { alert('AI is not configured yet. Add ANTHROPIC_API_KEY on Render and redeploy.'); return }
+    if (!aiStatus.configured) { notify('AI is not configured yet. Add ANTHROPIC_API_KEY on Render and redeploy.'); return }
     setExtracting('pdf')
     try {
       const lid = await ensureListing()
@@ -487,20 +488,20 @@ export default function Listings() {
         body: JSON.stringify({ pdf_base64, filename: file.name }),
       })
       const d = await r.json()
-      if (d.error) { alert('Extraction failed: ' + d.error); return }
+      if (d.error) { notify('Extraction failed: ' + d.error); return }
       // Reload form with extracted data
       await openEdit(lid)
-      alert(`✓ PDF extracted. Review the property details and click Save.`)
+      notify(`✓ PDF extracted. Review the property details and click Save.`)
     } catch (e) {
-      alert('Extraction failed: ' + e.message)
+      notify('Extraction failed: ' + e.message)
     } finally {
       setExtracting(null)
     }
   }
 
   const extractFromUrl = async () => {
-    if (!urlInput) { alert('Paste a listing URL first.'); return }
-    if (!aiStatus.configured) { alert('AI is not configured yet. Add ANTHROPIC_API_KEY on Render and redeploy.'); return }
+    if (!urlInput) { notify('Paste a listing URL first.'); return }
+    if (!aiStatus.configured) { notify('AI is not configured yet. Add ANTHROPIC_API_KEY on Render and redeploy.'); return }
     setExtracting('url')
     try {
       const lid = await ensureListing()
@@ -509,19 +510,19 @@ export default function Listings() {
         body: JSON.stringify({ url: urlInput }),
       })
       const d = await r.json()
-      if (d.error) { alert('Extraction failed: ' + d.error); return }
+      if (d.error) { notify('Extraction failed: ' + d.error); return }
       await openEdit(lid)
-      alert(`✓ URL extracted. Review the property details and click Save.`)
+      notify(`✓ URL extracted. Review the property details and click Save.`)
     } catch (e) {
-      alert('Extraction failed: ' + e.message)
+      notify('Extraction failed: ' + e.message)
     } finally {
       setExtracting(null)
     }
   }
 
   const generateAsset = async (assetKey) => {
-    if (!editingId) { alert('Save the listing first.'); return }
-    if (!aiStatus.configured) { alert('AI is not configured. Set ANTHROPIC_API_KEY env var.'); return }
+    if (!editingId) { notify('Save the listing first.'); return }
+    if (!aiStatus.configured) { notify('AI is not configured. Set ANTHROPIC_API_KEY env var.'); return }
     setGenerating(assetKey)
     try {
       // Save current form first so AI has latest data
@@ -531,11 +532,11 @@ export default function Listings() {
         body: JSON.stringify({}),
       })
       const d = await r.json()
-      if (d.error) { alert('Generation failed: ' + d.error); return }
+      if (d.error) { notify('Generation failed: ' + d.error); return }
       const asset = ASSETS.find(a => a.key === assetKey)
       if (asset) f2(asset.column, d.content)
     } catch (e) {
-      alert('Generation failed: ' + e.message)
+      notify('Generation failed: ' + e.message)
     } finally {
       setGenerating(null)
     }
@@ -562,7 +563,7 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
   }
 
   const openMatchedLeads = async () => {
-    if (!editingId) { alert('Save the listing first.'); return }
+    if (!editingId) { notify('Save the listing first.'); return }
     setMatchModalOpen(true)
     setMatchLoading(true)
     try {
@@ -574,7 +575,7 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
       setMatchSubject(tpl.subject)
       setMatchBody(tpl.body)
     } catch (e) {
-      alert('Failed to load matches: ' + e.message)
+      notify('Failed to load matches: ' + e.message)
     } finally {
       setMatchLoading(false)
     }
@@ -602,10 +603,10 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
   }
 
   const sendToMatched = async () => {
-    if (matchSelected.size === 0) { alert('Select at least one recipient.'); return }
-    if (!matchSubject || !matchBody) { alert('Subject and body are required.'); return }
+    if (matchSelected.size === 0) { notify('Select at least one recipient.'); return }
+    if (!matchSubject || !matchBody) { notify('Subject and body are required.'); return }
     if (matchSelected.size > 200) {
-      if (!confirm(`You're about to send to ${matchSelected.size} recipients. Continue?`)) return
+      if (!await confirmDialog(`You're about to send to ${matchSelected.size} recipients. Continue?`)) return
     }
     setMatchSending(true)
     try {
@@ -619,12 +620,12 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
         }),
       })
       const d = await r.json()
-      if (d.error) { alert('Send failed: ' + d.error); return }
-      alert(`✓ Sent to ${d.sent || matchSelected.size} recipients` + (d.failed ? ` (${d.failed} failed)` : ''))
+      if (d.error) { notify('Send failed: ' + d.error); return }
+      notify(`✓ Sent to ${d.sent || matchSelected.size} recipients` + (d.failed ? ` (${d.failed} failed)` : ''))
       setMatchModalOpen(false)
       setMatchPreviewOpen(false)
     } catch (e) {
-      alert('Send failed: ' + e.message)
+      notify('Send failed: ' + e.message)
     } finally {
       setMatchSending(false)
     }

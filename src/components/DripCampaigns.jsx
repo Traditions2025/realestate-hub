@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 import Modal from './Modal'
@@ -18,7 +19,7 @@ export default function DripCampaigns() {
 
   const openNew = () => setEditing({ new: true, name: '', description: '', steps: [newStep()] })
   const openEdit = async (id) => { const d = await authFetch(`/api/drips/${id}`).then(r => r.json()); setEditing({ ...d, steps: d.steps && d.steps.length ? d.steps : [newStep()] }) }
-  const remove = async (id, name) => { if (!confirm(`Delete drip "${name}"? Contacts currently in it stop receiving emails.`)) return; await authFetch(`/api/drips/${id}`, { method: 'DELETE' }); load() }
+  const remove = async (id, name) => { if (!await confirmDialog(`Delete drip "${name}"? Contacts currently in it stop receiving emails.`)) return; await authFetch(`/api/drips/${id}`, { method: 'DELETE' }); load() }
 
   return (
     <div>
@@ -83,14 +84,14 @@ function DripEditor({ drip, templates, setTemplates, onClose, onSaved }) {
   const valid = name.trim() && steps.length && steps.every(s => (s.template_id || (s.subject && s.body)))
 
   const save = async () => {
-    if (!valid) { alert('Give the drip a name, and every email needs a subject + body (or a template).'); return }
+    if (!valid) { notify('Give the drip a name, and every email needs a subject + body (or a template).'); return }
     setSaving(true)
     const payload = { name, description, steps: steps.map(s => ({ ...s, delay_days: Number(s.delay_days) || 0 })) }
     try {
       if (drip.new) await authFetch('/api/drips', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       else await authFetch(`/api/drips/${drip.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       onSaved()
-    } catch (e) { alert('Save failed: ' + e.message) } finally { setSaving(false) }
+    } catch (e) { notify('Save failed: ' + e.message) } finally { setSaving(false) }
   }
 
   return (
@@ -200,7 +201,7 @@ function TemplateEditModal({ template, onClose, onSaved }) {
     try {
       await authFetch(`/api/templates/${template.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject, body, is_html: 1 }) })
       onSaved({ ...template, subject, body })
-    } catch (e) { alert('Save failed: ' + e.message) } finally { setSaving(false) }
+    } catch (e) { notify('Save failed: ' + e.message) } finally { setSaving(false) }
   }
   return (
     <Modal open onClose={onClose} title={`Edit email — ${template.name}`} wide>

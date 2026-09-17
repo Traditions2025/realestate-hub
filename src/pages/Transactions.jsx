@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -289,7 +290,7 @@ export default function Transactions() {
   }, [])
 
   const openEmailComposer = async (recipientType) => {
-    if (!editing) { alert('Save the transaction first.'); return }
+    if (!editing) { notify('Save the transaction first.'); return }
     let toEmail = ''
     let toName = ''
     if (recipientType === 'client') {
@@ -302,11 +303,11 @@ export default function Transactions() {
         toEmail = closer?.email || ''
         toName = closer?.name || ''
         if (!toEmail) {
-          alert('Cherryl\'s email is not set. Add her on the Partners tab with role "Closer" or "Closing Coordinator", or set name "Cherryl" / company "At Your Service Escrow".')
+          notify('Cherryl\'s email is not set. Add her on the Partners tab with role "Closer" or "Closing Coordinator", or set name "Cherryl" / company "At Your Service Escrow".')
           return
         }
       } catch {
-        alert('Could not load closer info from Partners. Please check the Partners tab.')
+        notify('Could not load closer info from Partners. Please check the Partners tab.')
         return
       }
     } else if (recipientType === 'lender') {
@@ -329,7 +330,7 @@ export default function Transactions() {
     try {
       const r = await authFetch(`/api/email/transaction-preview/${templateId}/${editing}`)
       const d = await r.json()
-      if (d.error) { alert(d.error); return }
+      if (d.error) { notify(d.error); return }
       setEmailForm(prev => ({
         ...prev,
         template_id: templateId,
@@ -341,13 +342,13 @@ export default function Transactions() {
         extra_cc: d.suggested_cc || [],
       }))
     } catch (e) {
-      alert('Failed to load template: ' + e.message)
+      notify('Failed to load template: ' + e.message)
     }
   }
 
   const sendTransactionEmail = async () => {
     if (!emailForm.to_email || !emailForm.subject || !emailForm.body) {
-      alert('Recipient, subject, and body are required.'); return
+      notify('Recipient, subject, and body are required.'); return
     }
     setEmailSending(true)
     try {
@@ -365,11 +366,11 @@ export default function Transactions() {
         }),
       })
       const d = await r.json()
-      if (d.error) { alert('Send failed: ' + d.error); return }
-      alert(`✓ Email sent to ${emailForm.to_email}\nCC: ${(d.cc || []).join(', ')}`)
+      if (d.error) { notify('Send failed: ' + d.error); return }
+      notify(`✓ Email sent to ${emailForm.to_email}\nCC: ${(d.cc || []).join(', ')}`)
       setEmailOpen(false)
     } catch (e) {
-      alert('Send failed: ' + e.message)
+      notify('Send failed: ' + e.message)
     } finally {
       setEmailSending(false)
     }
@@ -398,7 +399,7 @@ export default function Transactions() {
     return () => clearTimeout(t)
   }, [personSearch])
   const addPerson = async ({ client_id, name }) => {
-    if (!editing) { alert('Save the transaction first, then add people.'); return }
+    if (!editing) { notify('Save the transaction first, then add people.'); return }
     await authFetch(`/api/transactions/${editing}/people`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ client_id: client_id || null, name: name || null, role: personRole })
@@ -432,7 +433,7 @@ export default function Transactions() {
   }
 
   const extractPurchaseAgreement = async (file) => {
-    if (!aiConfigured) { alert('AI extraction needs ANTHROPIC_API_KEY on Render.'); return }
+    if (!aiConfigured) { notify('AI extraction needs ANTHROPIC_API_KEY on Render.'); return }
     setExtractingPdf(true)
     setExtractResult(null)
     try {
@@ -483,7 +484,7 @@ export default function Transactions() {
       (i.property_address || '').toLowerCase().trim() === (pl.property_address || '').toLowerCase().trim()
     )
     if (existing) {
-      const ok = confirm(`A listing transaction for "${pl.property_address}" already exists.\n\nUpdate its status to ${newStatus} and mark this pre-listing as Listed?`)
+      const ok = await confirmDialog(`A listing transaction for "${pl.property_address}" already exists.\n\nUpdate its status to ${newStatus} and mark this pre-listing as Listed?`)
       if (!ok) return
       try {
         await api.updateTransaction(existing.id, { property_status: newStatus })
@@ -493,12 +494,12 @@ export default function Transactions() {
         })
         load()
       } catch (err) {
-        alert('Failed: ' + err.message)
+        notify('Failed: ' + err.message)
       }
       return
     }
 
-    const ok = confirm(`Promote "${pl.property_address}" from Pre-Listing to ${newStatus}?\n\nThis will create a new ${txType} transaction. The pre-listing record will be marked as Listed.`)
+    const ok = await confirmDialog(`Promote "${pl.property_address}" from Pre-Listing to ${newStatus}?\n\nThis will create a new ${txType} transaction. The pre-listing record will be marked as Listed.`)
     if (!ok) return
     try {
       await api.createTransaction({
@@ -515,7 +516,7 @@ export default function Transactions() {
       })
       load()
     } catch (err) {
-      alert('Failed to promote pre-listing: ' + err.message)
+      notify('Failed to promote pre-listing: ' + err.message)
     }
   }
 
@@ -532,7 +533,7 @@ export default function Transactions() {
     const msg = hasLink
       ? `Undo move and put "${tx.property_address}" back in Pre-Listing?\n\nThe transaction record will be deleted and the original pre-listing entry restored. Any checklist progress on the transaction will be lost.`
       : `Move "${tx.property_address}" back to Pre-Listing?\n\nA pre-listing entry will be created and the transaction record removed. No Withdrawn marker.`
-    if (!confirm(msg)) return
+    if (!await confirmDialog(msg)) return
     try {
       if (hasLink) {
         // Restore the linked pre-listing
@@ -559,7 +560,7 @@ export default function Transactions() {
       await authFetch(`/api/transactions/${tx.id}`, { method: 'DELETE' })
       load()
     } catch (err) {
-      alert('Failed to demote transaction: ' + err.message)
+      notify('Failed to demote transaction: ' + err.message)
     }
   }
 
@@ -597,7 +598,7 @@ export default function Transactions() {
     try {
       await api.updateTransaction(id, { property_status: newStatus })
     } catch (err) {
-      alert('Failed to update status: ' + err.message)
+      notify('Failed to update status: ' + err.message)
       load()
     }
   }
@@ -733,7 +734,7 @@ export default function Transactions() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this transaction?')) return
+    if (!await confirmDialog('Delete this transaction?')) return
     await api.deleteTransaction(id)
     load()
   }
@@ -1443,8 +1444,8 @@ export default function Transactions() {
                             body: JSON.stringify({ recipients: email.trim(), audience: aud, message: note }),
                           })
                           const d = await r.json()
-                          alert(d.success ? `✓ Walkthrough invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
-                        } catch (err) { alert('Failed: ' + err.message) }
+                          notify(d.success ? `✓ Walkthrough invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                        } catch (err) { notify('Failed: ' + err.message) }
                       }}>
                       📧 Send Walkthrough Invite to {aud[0].toUpperCase()+aud.slice(1)}
                     </button>
@@ -1641,8 +1642,8 @@ export default function Transactions() {
                                 body: JSON.stringify({ recipients: email.trim(), audience: 'buyer', message: note }),
                               })
                               const d = await r.json()
-                              alert(d.success ? `✓ Buyer invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
-                            } catch (err) { alert('Failed: ' + err.message) }
+                              notify(d.success ? `✓ Buyer invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                            } catch (err) { notify('Failed: ' + err.message) }
                           }}
                           title={!form.closing_time || !form.closing_location ? 'Set Closing Time AND Location first' : 'Send calendar invite to the buyer'}
                         >
@@ -1662,8 +1663,8 @@ export default function Transactions() {
                                 body: JSON.stringify({ recipients: email.trim(), audience: 'seller', message: note }),
                               })
                               const d = await r.json()
-                              alert(d.success ? `✓ Seller invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
-                            } catch (err) { alert('Failed: ' + err.message) }
+                              notify(d.success ? `✓ Seller invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                            } catch (err) { notify('Failed: ' + err.message) }
                           }}
                           title={!form.closing_time || !form.closing_location ? 'Set Closing Time AND Location first' : 'Send calendar invite to the seller'}
                         >
@@ -1683,8 +1684,8 @@ export default function Transactions() {
                                 body: JSON.stringify({ recipients: email.trim(), audience: 'other', message: note }),
                               })
                               const d = await r.json()
-                              alert(d.success ? `✓ Invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
-                            } catch (err) { alert('Failed: ' + err.message) }
+                              notify(d.success ? `✓ Invite sent to ${email.trim()}` : ('Failed: ' + (d.error || 'unknown')))
+                            } catch (err) { notify('Failed: ' + err.message) }
                           }}
                         >
                           📧 Send to Other
@@ -1781,7 +1782,7 @@ export default function Transactions() {
                 style={{marginRight: 'auto'}}
                 onClick={async () => {
                   const confirmMsg = `Delete this transaction?\n\n  ${form.property_address || 'Untitled'}\n\nThis removes it from the Transactions tab. Any linked Listings entry will need to be deleted separately if applicable.\n\nThis cannot be undone.`
-                  if (!confirm(confirmMsg)) return
+                  if (!await confirmDialog(confirmMsg)) return
                   try {
                     const r = await authFetch(`/api/transactions/${editing}`, { method: 'DELETE' })
                     if (r.ok) {
@@ -1789,10 +1790,10 @@ export default function Transactions() {
                       load()
                     } else {
                       const d = await r.json().catch(() => ({}))
-                      alert('Delete failed: ' + (d.error || r.statusText))
+                      notify('Delete failed: ' + (d.error || r.statusText))
                     }
                   } catch (err) {
-                    alert('Delete failed: ' + err.message)
+                    notify('Delete failed: ' + err.message)
                   }
                 }}
                 title="Permanently delete this transaction (cannot be undone)"
@@ -1885,12 +1886,12 @@ export default function Transactions() {
                 title="Permanently delete this pre-listing (the lead's profile is not touched)"
                 onClick={async () => {
                   const addr = plEditing.property_address || 'this pre-listing'
-                  if (!window.confirm(`Delete ${addr}? This removes the pre-listing card and its checklist permanently. The client profile is not affected.`)) return
+                  if (!await confirmDialog(`Delete ${addr}? This removes the pre-listing card and its checklist permanently. The client profile is not affected.`)) return
                   try {
                     await authFetch(`/api/pre-listings/${plEditing.id}`, { method: 'DELETE' })
                     setPreListings(prev => prev.filter(p => p.id !== plEditing.id))
                     setPlModalOpen(false)
-                  } catch (e) { alert('Delete failed: ' + e.message) }
+                  } catch (e) { notify('Delete failed: ' + e.message) }
                 }}>
                 🗑 Delete
               </button>
@@ -2088,7 +2089,7 @@ function CustomChecklist({ transactionId, address }) {
       setNewDueDate('')
       await load()
     } catch (err) {
-      alert('Failed to add: ' + err.message)
+      notify('Failed to add: ' + err.message)
     } finally {
       setLoading(false)
     }
@@ -2103,7 +2104,7 @@ function CustomChecklist({ transactionId, address }) {
       })
       await load()
     } catch (err) {
-      alert('Failed to update date: ' + err.message)
+      notify('Failed to update date: ' + err.message)
     }
   }
 
@@ -2117,17 +2118,17 @@ function CustomChecklist({ transactionId, address }) {
       })
       await load()
     } catch (err) {
-      alert('Failed to update: ' + err.message)
+      notify('Failed to update: ' + err.message)
     }
   }
 
   const remove = async (item) => {
-    if (!confirm(`Delete "${item.title}"? (Also removes from Tasks tab.)`)) return
+    if (!await confirmDialog(`Delete "${item.title}"? (Also removes from Tasks tab.)`)) return
     try {
       await authFetch(`/api/tasks/${item.id}`, { method: 'DELETE' })
       await load()
     } catch (err) {
-      alert('Failed to delete: ' + err.message)
+      notify('Failed to delete: ' + err.message)
     }
   }
 

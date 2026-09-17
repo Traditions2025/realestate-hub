@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch, apiUrl } from '../api'
 import Modal from '../components/Modal'
@@ -77,8 +78,8 @@ export default function SocialMedia() {
       const r = await fetch(apiUrl('/api/social-media/upload'), { method: 'POST', headers: { 'x-auth-token': token }, body: fd })
       const j = await r.json()
       if (j.file) f2('image_file', j.file)
-      else alert(j.error || 'Upload failed')
-    } catch { alert('Upload failed') }
+      else notify(j.error || 'Upload failed')
+    } catch { notify('Upload failed') }
     setUploading(false)
   }
 
@@ -97,7 +98,7 @@ export default function SocialMedia() {
     if (thenQueue && id) {
       const qr = await authFetch(`/api/social-media/${id}/queue`, { method: 'POST' })
       const qj = await qr.json().catch(() => ({}))
-      if (!qr.ok) { load(); return alert(qj.error || 'Saved, but could not queue for publishing') }
+      if (!qr.ok) { load(); return notify(qj.error || 'Saved, but could not queue for publishing') }
     }
     setModalOpen(false)
     load()
@@ -112,7 +113,7 @@ export default function SocialMedia() {
   const queuePost = async () => {
     const r = await authFetch(`/api/social-media/${editing}/queue`, { method: 'POST' })
     const j = await r.json().catch(() => ({}))
-    if (!r.ok) return alert(j.error || 'Could not queue')
+    if (!r.ok) return notify(j.error || 'Could not queue')
     await refreshEditing(); load()
   }
   const unqueuePost = async () => {
@@ -121,7 +122,7 @@ export default function SocialMedia() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this post?')) return
+    if (!await confirmDialog('Delete this post?')) return
     await authFetch(`/api/social-media/${id}`, { method: 'DELETE' })
     load()
   }
@@ -138,7 +139,7 @@ export default function SocialMedia() {
     authFetch('/api/social-media/config').then(r => r.json()).then(d => { if (d && !d.error) setConfig(d) }).catch(() => {})
   }
   const regenKey = async () => {
-    if (!confirm('Regenerate the publishing key? You will need to update it in n8n.')) return
+    if (!await confirmDialog('Regenerate the publishing key? You will need to update it in n8n.')) return
     await authFetch('/api/social-media/config', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ regenerate: true })
     })

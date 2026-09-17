@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { authFetch } from '../api'
 
@@ -45,7 +46,7 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
   useEffect(() => { if (trigger && tab === 'triggers') setTab('steps') }, [trigger])
 
   const addStep = (item) => {
-    if (!trigger) { alert('Pick a trigger first'); return }
+    if (!trigger) { notify('Pick a trigger first'); return }
     const step = item.kind
       ? { id: uid(), kind: item.kind, config: {} }
       : { id: uid(), kind: 'action', actionType: item.actionType, config: {} }
@@ -62,15 +63,15 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
 
   const complete = trigger && steps.length > 0 && steps.every(isConfigured)
   const save = async (enable) => {
-    if (!name.trim()) { alert('Give your automation a name'); return }
-    if (!trigger) { alert('Pick a trigger'); return }
+    if (!name.trim()) { notify('Give your automation a name'); return }
+    if (!trigger) { notify('Pick a trigger'); return }
     setSaving(true)
     const payload = { name, enabled: enable ? 1 : 0, run_time: runTime, flow: { trigger, steps } }
     try {
       if (initial?.id) await authFetch(`/api/automations/${initial.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       else await authFetch('/api/automations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       onSaved && onSaved()
-    } catch (e) { alert('Save failed: ' + e.message) }
+    } catch (e) { notify('Save failed: ' + e.message) }
     finally { setSaving(false) }
   }
 

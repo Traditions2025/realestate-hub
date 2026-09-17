@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -26,7 +27,7 @@ export default function Projects() {
       let initial = { nodes: [], edges: [] }
       try { if (p.canvas_data) initial = JSON.parse(p.canvas_data) } catch {}
       setMindMap({ projectId: item.id, projectName: item.name, initial })
-    } catch (err) { alert('Failed to open mind map: ' + err.message) }
+    } catch (err) { notify('Failed to open mind map: ' + err.message) }
   }
 
   const load = () => {
@@ -52,7 +53,7 @@ export default function Projects() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this project?')) return
+    if (!await confirmDialog('Delete this project?')) return
     await api.deleteProject(id)
     load()
   }

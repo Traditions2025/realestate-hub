@@ -1,3 +1,4 @@
+import { confirmDialog } from '../notify'
 import React, { useState, useEffect } from 'react'
 import { api } from '../api'
 import Modal from '../components/Modal'
@@ -52,7 +53,7 @@ export default function Notes() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this note?')) return
+    if (!await confirmDialog('Delete this note?')) return
     await api.deleteNote(id)
     load()
   }

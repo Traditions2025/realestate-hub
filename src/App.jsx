@@ -4,6 +4,8 @@ import LoginScreen from './components/LoginScreen'
 import ResetPassword from './components/ResetPassword'
 import CallWidget from './components/CallWidget'
 import { authFetch } from './api'
+import { Toaster } from 'sonner'
+import { ConfirmHost } from './notify'
 
 // P2-5: global cross-entity search (clients, transactions, tasks, notes).
 const TYPE_ICON = { client: '◉', transaction: '⇄', task: '☑', note: '≡' }
@@ -408,6 +410,13 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      {/* Feedback layer (Design Plan 1.1/1.2): one Toaster at the root, theme-aware,
+          bottom-right on desktop / top-center on phones; ConfirmHost renders the
+          promise-based confirm dialog. Both sit above every modal (z 1300+). */}
+      <Toaster theme={theme} position={typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches ? 'top-center' : 'bottom-right'}
+        closeButton duration={3500}
+        toastOptions={{ style: { background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', boxShadow: '0 8px 30px rgba(0,0,0,.25)' } }} />
+      <ConfirmHost />
       <CallWidget />
       {/* Mobile top bar */}
       <div className="mobile-topbar">

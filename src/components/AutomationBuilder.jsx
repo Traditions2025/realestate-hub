@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { authFetch } from '../api'
 import ConfigDrawer from './automation/ConfigDrawer'
@@ -117,7 +118,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
 
   const testAction = async (node) => {
     const r = await authFetch('/api/automations/test-action', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ node }) }).then(x => x.json()).catch(e => ({ error: e.message }))
-    alert(r.success ? `✓ Test ran: ${r.output}` : `Test failed: ${r.error}`)
+    notify(r.success ? `✓ Test ran: ${r.output}` : `Test failed: ${r.error}`)
   }
 
   // ---- validation ----
@@ -129,13 +130,13 @@ export default function AutomationBuilder({ automationId, onClose }) {
     await doSave()
     const r = await authFetch(`/api/automations/${automationId}/activate`, { method: 'POST' }).then(x => x.json())
     if (r.success) { setStatus('active'); setShowValidation(false) }
-    else { setShowValidation(true); alert(r.error || 'Fix validation errors first') }
+    else { setShowValidation(true); notify(r.error || 'Fix validation errors first') }
   }
   const pause = async () => { await authFetch(`/api/automations/${automationId}/pause`, { method: 'POST' }); setStatus('paused') }
-  const resume = async () => { const r = await authFetch(`/api/automations/${automationId}/resume`, { method: 'POST' }).then(x => x.json()); if (r.success) setStatus('active'); else alert(r.error) }
-  const publish = async () => { await doSave(); const r = await authFetch(`/api/automations/${automationId}/publish`, { method: 'POST' }).then(x => x.json()); alert(r.success ? `Published v${r.version}. The live automation now runs this version.` : r.error) }
+  const resume = async () => { const r = await authFetch(`/api/automations/${automationId}/resume`, { method: 'POST' }).then(x => x.json()); if (r.success) setStatus('active'); else notify(r.error) }
+  const publish = async () => { await doSave(); const r = await authFetch(`/api/automations/${automationId}/publish`, { method: 'POST' }).then(x => x.json()); notify(r.success ? `Published v${r.version}. The live automation now runs this version.` : r.error) }
   const duplicate = async () => { const r = await authFetch(`/api/automations/${automationId}/duplicate`, { method: 'POST' }).then(x => x.json()); if (r.id) { onClose?.(true) } }
-  const del = async () => { if (!confirm('Delete this automation? Enrolled contacts will be removed.')) return; await authFetch(`/api/automations/${automationId}`, { method: 'DELETE' }); onClose?.(true) }
+  const del = async () => { if (!await confirmDialog('Delete this automation? Enrolled contacts will be removed.')) return; await authFetch(`/api/automations/${automationId}`, { method: 'DELETE' }); onClose?.(true) }
 
   const selNode = selId ? nodeById(graph, selId) : null
   const sel = selNode ? { ...selNode, _autoId: Number(automationId) } : null

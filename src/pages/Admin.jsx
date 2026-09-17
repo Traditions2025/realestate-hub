@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useCallback } from 'react'
 import { authFetch } from '../api'
 import PasswordField from '../components/PasswordField'
@@ -65,26 +66,26 @@ function UsersAdmin() {
       else { setForm({ name: '', email: '', phone: '', role: 'agent', password: '' }); load() }
     } catch (e) { setErr(e.message) } finally { setBusy(false) }
   }
-  const patch = async (id, body) => { await authFetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(d => { if (d.error) alert(d.error) }); load() }
+  const patch = async (id, body) => { await authFetch(`/api/users/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json()).then(d => { if (d.error) notify(d.error) }); load() }
   const [pwModal, setPwModal] = useState(null)   // the user we're setting a password for
   const [newPw, setNewPw] = useState('')
   const [pwBusy, setPwBusy] = useState(false)
   const savePw = async () => {
-    if (newPw.length < 8) { alert('Password must be at least 8 characters.'); return }
+    if (newPw.length < 8) { notify('Password must be at least 8 characters.'); return }
     setPwBusy(true)
     try {
       const d = await authFetch(`/api/users/${pwModal.id}/password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: newPw }) }).then(r => r.json())
-      if (d.error) { alert(d.error); return }
-      setPwModal(null); setNewPw(''); alert('Password updated. Existing sessions for this user were signed out.'); load()
+      if (d.error) { notify(d.error); return }
+      setPwModal(null); setNewPw(''); notify('Password updated. Existing sessions for this user were signed out.'); load()
     } finally { setPwBusy(false) }
   }
-  const revoke = async (u) => { if (!confirm(`Sign ${u.email} out of all devices?`)) return; await authFetch(`/api/users/${u.id}/revoke-sessions`, { method: 'POST' }); alert('All sessions revoked.') }
+  const revoke = async (u) => { if (!await confirmDialog(`Sign ${u.email} out of all devices?`)) return; await authFetch(`/api/users/${u.id}/revoke-sessions`, { method: 'POST' }); notify('All sessions revoked.') }
   const [editing, setEditing] = useState(null)   // { id, name, email }
   const saveEdit = async () => {
     const body = { name: (editing.name || '').trim(), email: (editing.email || '').trim() }
-    if (!body.name || !body.email) { alert('Name and email are required.'); return }
+    if (!body.name || !body.email) { notify('Name and email are required.'); return }
     const d = await authFetch(`/api/users/${editing.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json())
-    if (d.error) { alert(d.error); return }
+    if (d.error) { notify(d.error); return }
     setEditing(null); load()
   }
 
@@ -221,7 +222,7 @@ function TeamPanel() {
   const load = useCallback(() => authFetch('/api/agents').then(r => r.json()).then(d => setAgents(Array.isArray(d) ? d : [])).catch(() => {}), [])
   useEffect(() => { load() }, [load])
   const add = async (e) => { e.preventDefault(); if (!form.name.trim()) return; await authFetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) }); setForm({ name: '', phone: '', title: '' }); load() }
-  const remove = async (id) => { if (!confirm('Remove this teammate from the directory?')) return; await authFetch(`/api/agents/${id}`, { method: 'DELETE' }); load() }
+  const remove = async (id) => { if (!await confirmDialog('Remove this teammate from the directory?')) return; await authFetch(`/api/agents/${id}`, { method: 'DELETE' }); load() }
   return (
     <div className="detail-section">
       <h4>Team directory</h4>
@@ -264,8 +265,8 @@ function EmailPanel() {
       else { setMsg(d.connected ? '✓ Connected' : ('⚠ Could not connect: ' + (d.last_error || 'check the app password'))); setForm({ user: '', app_password: '' }); load() }
     } catch (e) { setMsg('⚠ ' + e.message) } finally { setBusy(false) }
   }
-  const test = async (id) => { const d = await authFetch(`/api/settings/mailboxes/${id}/test`, { method: 'POST' }).then(r => r.json()); alert(d.connected ? 'Connected ✓' : 'Not connected: ' + (d.last_error || 'unknown')); load() }
-  const remove = async (id) => { if (!confirm('Disconnect this inbox?')) return; await authFetch(`/api/settings/mailboxes/${id}`, { method: 'DELETE' }); load() }
+  const test = async (id) => { const d = await authFetch(`/api/settings/mailboxes/${id}/test`, { method: 'POST' }).then(r => r.json()); notify(d.connected ? 'Connected ✓' : 'Not connected: ' + (d.last_error || 'unknown')); load() }
+  const remove = async (id) => { if (!await confirmDialog('Disconnect this inbox?')) return; await authFetch(`/api/settings/mailboxes/${id}`, { method: 'DELETE' }); load() }
   return (
     <div className="detail-section">
       <h4>Connected email inboxes</h4>
@@ -311,7 +312,7 @@ function RoutingPanel() {
   }, [])
   useEffect(() => { load(); authFetch('/api/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [load])
   const toggle = async () => { await authFetch('/api/routing/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !enabled }) }); load() }
-  const del = async (id) => { if (!confirm('Delete this rule?')) return; await authFetch('/api/routing/rules/' + id, { method: 'DELETE' }); load() }
+  const del = async (id) => { if (!await confirmDialog('Delete this rule?')) return; await authFetch('/api/routing/rules/' + id, { method: 'DELETE' }); load() }
   const toggleRule = async (r) => { await authFetch('/api/routing/rules/' + r.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ enabled: !r.enabled }) }); load() }
   const run = async (apply) => { const d = await authFetch('/api/routing/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ apply }) }).then(r => r.json()); setRunResult(d); load() }
 
@@ -404,13 +405,13 @@ function RuleEditor({ rule, agents, onClose, onSaved }) {
   }))
   const setC = (k, v) => setF(s => ({ ...s, conditions: { ...s.conditions, [k]: v } }))
   const save = async () => {
-    if (!f.name.trim()) { alert('Give the rule a name.'); return }
+    if (!f.name.trim()) { notify('Give the rule a name.'); return }
     const targets = f.targets.filter(t => t.agent).map(t => ({ agent: t.agent, weight: Number(t.weight) || 1 }))
-    if (!targets.length) { alert('Add at least one agent.'); return }
+    if (!targets.length) { notify('Add at least one agent.'); return }
     const body = { name: f.name.trim(), priority: Number(f.priority) || 100, method: f.method, conditions: f.conditions, targets }
     const url = rule.id ? '/api/routing/rules/' + rule.id : '/api/routing/rules'
     const d = await authFetch(url, { method: rule.id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(r => r.json())
-    if (d.error) alert(d.error); else onSaved()
+    if (d.error) notify(d.error); else onSaved()
   }
   const inp = { ...fld }
   return (
@@ -471,22 +472,22 @@ function HealthPanel() {
       const blob = await r.blob(); const url = URL.createObjectURL(blob)
       const a = document.createElement('a'); a.href = url; a.download = `${t}-export-${new Date().toISOString().slice(0, 10)}.csv`
       document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 2000)
-    } catch (e) { alert('Could not export: ' + e.message) }
+    } catch (e) { notify('Could not export: ' + e.message) }
   }
   useEffect(() => { load() }, [load])
   const resolve = async (id) => { await authFetch(`/api/admin/failures/${id}/resolve`, { method: 'POST' }); load() }
-  const resolveAll = async () => { if (!confirm('Mark all open failures resolved?')) return; await authFetch('/api/admin/failures/resolve-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); load() }
+  const resolveAll = async () => { if (!await confirmDialog('Mark all open failures resolved?')) return; await authFetch('/api/admin/failures/resolve-all', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); load() }
   const [gBusy, setGBusy] = useState(false)
   const [gcid, setGcid] = useState('')
   const [gcsec, setGcsec] = useState('')
   const saveGConfig = async () => {
     const d = await authFetch('/api/gdrive/config', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: gcid.trim(), client_secret: gcsec.trim() }) }).then(r => r.json())
-    if (d.error) alert(d.error); else { setGcid(''); setGcsec(''); load() }
+    if (d.error) notify(d.error); else { setGcid(''); setGcsec(''); load() }
   }
   const gdriveBackupNow = async () => {
     setGBusy(true)
-    try { const d = await authFetch('/api/gdrive/backup-now', { method: 'POST' }).then(r => r.json()); if (d.error) alert('Backup failed: ' + d.error); else if (d.skipped) alert('Skipped: ' + d.skipped); else alert(`Backed up ${d.uploaded} (${d.sizeKb} KB) to Google Drive → Matt Smith Team Hub / Render.`); load() }
-    catch (e) { alert('Backup failed: ' + e.message) } finally { setGBusy(false) }
+    try { const d = await authFetch('/api/gdrive/backup-now', { method: 'POST' }).then(r => r.json()); if (d.error) notify('Backup failed: ' + d.error); else if (d.skipped) notify('Skipped: ' + d.skipped); else notify(`Backed up ${d.uploaded} (${d.sizeKb} KB) to Google Drive → Matt Smith Team Hub / Render.`); load() }
+    catch (e) { notify('Backup failed: ' + e.message) } finally { setGBusy(false) }
   }
   if (err) return <div className="detail-section"><h4>System Health</h4><div style={{ color: '#ef4444', fontSize: 13 }}>{err}</div></div>
   const b = health?.backup

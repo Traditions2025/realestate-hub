@@ -1,3 +1,4 @@
+import { notify, confirmDialog } from '../notify'
 import React, { useState, useEffect, useRef } from 'react'
 import { api, authFetch } from '../api'
 import Modal from '../components/Modal'
@@ -63,7 +64,7 @@ export default function PreListings() {
     const label = action === 'flipToListed' ? 'flip matching to Listed'
       : action === 'mergeDuplicates' ? 'DELETE duplicate rows (newest kept)'
       : 'flip + delete duplicates'
-    if (!confirm(`Run cleanup: ${label}?\n\nThis cannot be undone.`)) return
+    if (!await confirmDialog(`Run cleanup: ${label}?\n\nThis cannot be undone.`)) return
     setDiagLoading(true)
     try {
       const r = await authFetch('/api/pre-listings/cleanup', {
@@ -71,12 +72,12 @@ export default function PreListings() {
         body: JSON.stringify({ action })
       })
       const result = await r.json()
-      alert(`Done. Flipped ${result.flippedCount || 0} to Listed, deleted ${result.deletedCount || 0} duplicate row(s).`)
+      notify(`Done. Flipped ${result.flippedCount || 0} to Listed, deleted ${result.deletedCount || 0} duplicate row(s).`)
       const r2 = await authFetch('/api/pre-listings/diagnostics')
       setDiagData(await r2.json())
       load()
     } catch (err) {
-      alert('Cleanup failed: ' + err.message)
+      notify('Cleanup failed: ' + err.message)
     } finally {
       setDiagLoading(false)
     }
@@ -123,7 +124,7 @@ export default function PreListings() {
   }
 
   const remove = async (id) => {
-    if (!confirm('Delete this pre-listing?')) return
+    if (!await confirmDialog('Delete this pre-listing?')) return
     await authFetch(`/api/pre-listings/${id}`, { method: 'DELETE' })
     load()
   }
@@ -133,7 +134,7 @@ export default function PreListings() {
   const f2 = (k, v) => setForm(prev => ({ ...prev, [k]: v }))
 
   const openEmail = async () => {
-    if (!editing) { alert('Save the pre-listing first.'); return }
+    if (!editing) { notify('Save the pre-listing first.'); return }
     let cl = null
     if (form.client_id) {
       try { cl = await authFetch(`/api/clients/${form.client_id}`).then(r => r.json()) } catch {}
@@ -154,13 +155,13 @@ export default function PreListings() {
     try {
       const r = await authFetch(`/api/email/prelisting-preview/${tplId}/${editing}`)
       const d = await r.json()
-      if (d.error) { alert(d.error); return }
+      if (d.error) { notify(d.error); return }
       setEmailForm(prev => ({ ...prev, template_id: tplId, subject: d.subject, body: d.body, to_email: prev.to_email || d.suggested_to || '' }))
-    } catch (e) { alert(e.message) }
+    } catch (e) { notify(e.message) }
   }
 
   const sendEmail = async () => {
-    if (!emailForm.to_email || !emailForm.subject || !emailForm.body) { alert('Recipient, subject, and body required.'); return }
+    if (!emailForm.to_email || !emailForm.subject || !emailForm.body) { notify('Recipient, subject, and body required.'); return }
     setEmailSending(true)
     try {
       const r = await authFetch('/api/email/send-prelisting', {
@@ -176,10 +177,10 @@ export default function PreListings() {
         }),
       })
       const d = await r.json()
-      if (d.error) { alert('Send failed: ' + d.error); return }
-      alert(`✓ Sent to ${emailForm.to_email}\nCC: ${(d.cc || []).join(', ')}`)
+      if (d.error) { notify('Send failed: ' + d.error); return }
+      notify(`✓ Sent to ${emailForm.to_email}\nCC: ${(d.cc || []).join(', ')}`)
       setEmailOpen(false)
-    } catch (e) { alert(e.message) } finally { setEmailSending(false) }
+    } catch (e) { notify(e.message) } finally { setEmailSending(false) }
   }
   const check = (k) => setForm(prev => ({ ...prev, [k]: prev[k] ? 0 : 1 }))
 

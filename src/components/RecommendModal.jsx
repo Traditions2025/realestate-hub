@@ -1,3 +1,4 @@
+import { notify } from '../notify'
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import Modal from './Modal'
 import { authFetch } from '../api'
@@ -160,9 +161,9 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
   const removeRecipient = (id) => setRecipients(prev => prev.filter(r => r.id !== id))
 
   const send = async () => {
-    if (recipients.length === 0) { alert('Add at least one client recipient.'); return }
-    if (items.length === 0) { alert('Add at least one ' + kind + ' to recommend.'); return }
-    if (!subject || !body) { alert('Subject and body are required.'); return }
+    if (recipients.length === 0) { notify('Add at least one client recipient.'); return }
+    if (items.length === 0) { notify('Add at least one ' + kind + ' to recommend.'); return }
+    if (!subject || !body) { notify('Subject and body are required.'); return }
     setSending(true)
     try {
       const r = await authFetch('/api/email/bulk', {
@@ -175,11 +176,11 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
         }),
       })
       const d = await r.json()
-      if (d.error) { alert('Send failed: ' + d.error); return }
-      alert(`✓ Sent recommendation to ${d.sent || recipients.length} recipient${recipients.length === 1 ? '' : 's'}` + (d.failed ? ` (${d.failed} failed)` : ''))
+      if (d.error) { notify('Send failed: ' + d.error); return }
+      notify(`✓ Sent recommendation to ${d.sent || recipients.length} recipient${recipients.length === 1 ? '' : 's'}` + (d.failed ? ` (${d.failed} failed)` : ''))
       onClose?.()
     } catch (e) {
-      alert('Send failed: ' + e.message)
+      notify('Send failed: ' + e.message)
     } finally {
       setSending(false)
     }
