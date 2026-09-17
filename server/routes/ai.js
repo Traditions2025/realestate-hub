@@ -155,6 +155,26 @@ router.post('/lead/:id/preview', async (req, res) => {
 
 // ---- per-lead controls ----
 router.post('/lead/:id/enable', (req, res) => { setEnabled(Number(req.params.id), true); setManaged(Number(req.params.id), true); transitionAiState(Number(req.params.id), 'AI_ELIGIBLE', 'enabled by agent'); res.json({ success: true }) })
+// Manually put ONE lead through the Facebook-ad campaign flow (approved template
+// text now, no-reply inquiry email 10 min later). For existing leads the team
+// explicitly chooses to work — the automatic pipeline never does this on its own.
+router.post('/lead/:id/fb-ad-flow', async (req, res) => {
+  const cid = Number(req.params.id)
+  const property = String(req.body?.property || '').trim()
+  const c = db.get('SELECT id, first_name, last_name, tags, notes FROM clients WHERE id=?', [cid])
+  if (!c) return res.status(404).json({ error: 'client not found' })
+  // tracking tag + note, same as the automatic intake
+  try {
+    let tags = []; try { tags = JSON.parse(c.tags || '[]') } catch {}
+    const tag = 'FB Ad' + (property ? ': ' + property.slice(0, 60) : '')
+    if (!tags.includes(tag)) { tags.push(tag); db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [JSON.stringify(tags), nowIso(), cid]) }
+  } catch {}
+  setEnabled(cid, true); setManaged(cid, true)
+  transitionAiState(cid, 'AI_ELIGIBLE', 'FB ad flow triggered by agent')
+  const { scheduleAiAction } = await import('../ai-followup/scheduler.js')
+  scheduleAiAction(cid, 'AI_FB_AD_OPENER', new Date(Date.now() + 60000).toISOString(), { reason: 'FB ad flow (manual trigger)', payload: { property }, dedupKey: `fbadflow_${cid}_${Date.now()}` })
+  res.json({ success: true, client_id: cid, first_text_in: '~1-2 min', email_follow_up: '+10 min if no reply' })
+})
 router.post('/lead/:id/stop', (req, res) => { setEnabled(Number(req.params.id), false); setManaged(Number(req.params.id), false); transitionAiState(Number(req.params.id), 'AI_DISABLED', 'stopped by agent'); res.json({ success: true }) })
 router.post('/lead/:id/resume', (req, res) => { resumeAi(Number(req.params.id), 'resumed by agent'); res.json({ success: true }) })
 router.post('/lead/:id/takeover', (req, res) => { humanTakeover(Number(req.params.id), 'agent takeover'); res.json({ success: true }) })
