@@ -64,16 +64,19 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
   }
   try { import('./routes/inbox.js').then(m => m.claimUnknownCommsForClient(cid)).catch(() => {}) } catch {}
   // NEW leads only (John, 2026-09-17): a brand-new ad registrant gets the ~5-minute
-  // AI first text via the fresh route (Claude-composed from the profile note, which
-  // carries the ad + listing + timeline). An EXISTING lead who re-registers gets the
-  // tag + note + notification ONLY — no automatic enrollment; the team decides.
+  // first text from JOHN'S APPROVED TEMPLATE BANK (fb-ad-templates.js — never
+  // Claude-composed), referencing the property from the ad. An EXISTING lead who
+  // re-registers gets the tag + note + notification ONLY; the team decides.
   if (!existing) {
     try {
       import('./ai-enrollment.js').then(m => {
         if ((db.getSetting('ai_auto_enroll_mode', 'off') || 'off') === 'off') return
         const ev = m.evaluateAiEnrollmentEligibility(cid)
         m.logEnrollmentDecision(ev, { actor: 'fb_ad_intake' })
-        if (ev.decision === 'eligible') m.enrollLead({ ...ev, lane: 'fresh' }, { actor: 'fb_ad_intake', firstAtIso: m.nextAllowedIso(new Date(Date.now() + 5 * 60000)) })
+        if (ev.decision === 'eligible') m.enrollLead({ ...ev, lane: 'fresh' }, {
+          actor: 'fb_ad_intake', firstAtIso: m.nextAllowedIso(new Date(Date.now() + 5 * 60000)),
+          routeAction: 'AI_FB_AD_OPENER', routePayload: { property: String(listing || '').trim() },
+        })
       }).catch(() => {})
     } catch {}
   }

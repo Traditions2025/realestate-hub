@@ -232,13 +232,14 @@ export function logEnrollmentDecision(ev, { enrolled = false, actor = 'system' }
 // Turns the AI on for the lead and schedules the classification-appropriate first action.
 // Buyers/untyped reactivations get the staged cold-buyer drip; sellers get the contextual
 // re-engage; fresh leads get the new-lead first touch. All sends re-gate at execute time.
-export function enrollLead(ev, { actor = 'system', firstAtIso = null, dryRun = false } = {}) {
+export function enrollLead(ev, { actor = 'system', firstAtIso = null, dryRun = false, routeAction = null, routePayload = {} } = {}) {
   const cid = ev.client_id
   const c = db.get('SELECT id, type FROM clients WHERE id=?', [cid])
   if (!c || ev.decision !== 'eligible') return { enrolled: false, reason: 'not eligible' }
   const isSeller = String(c.type || '').toLowerCase().includes('seller') && !String(c.type || '').toLowerCase().includes('buyer')
   let route
-  if (ev.lane === 'fresh') route = { action: 'AI_INITIAL_OUTREACH', at: firstAtIso || nextAllowedIso(new Date(Date.now() + (Number(getConfig().ai_new_lead_delay_minutes) || 5) * 60000)) }
+  if (routeAction) route = { action: routeAction, at: firstAtIso || nextAllowedIso() }   // caller-directed first action (e.g. the FB-ad opener bank)
+  else if (ev.lane === 'fresh') route = { action: 'AI_INITIAL_OUTREACH', at: firstAtIso || nextAllowedIso(new Date(Date.now() + (Number(getConfig().ai_new_lead_delay_minutes) || 5) * 60000)) }
   else if (isSeller) route = { action: 'AI_REENGAGE', at: firstAtIso || nextAllowedIso() }
   else route = { action: 'AI_COLD_BUYER_SEQUENCE', at: firstAtIso || nextAllowedIso() }
   if (dryRun) return { enrolled: false, dry_run: true, route }
@@ -246,7 +247,8 @@ export function enrollLead(ev, { actor = 'system', firstAtIso = null, dryRun = f
   setEnabled(cid, true)
   setManaged(cid, true)
   transitionAiState(cid, 'AI_ELIGIBLE', `auto-enrolled (${ev.classification}, ${ev.lane} lane)`)
-  if (route.action === 'AI_INITIAL_OUTREACH') scheduleAiAction(cid, 'AI_INITIAL_OUTREACH', route.at, { reason: 'auto-enroll: fresh lead first touch', dedupKey: `firsttouch_${cid}` })
+  if (routeAction) scheduleAiAction(cid, routeAction, route.at, { reason: `auto-enroll: ${routeAction.toLowerCase()}`, payload: routePayload, dedupKey: `firsttouch_${cid}` })
+  else if (route.action === 'AI_INITIAL_OUTREACH') scheduleAiAction(cid, 'AI_INITIAL_OUTREACH', route.at, { reason: 'auto-enroll: fresh lead first touch', dedupKey: `firsttouch_${cid}` })
   else if (route.action === 'AI_REENGAGE') scheduleAiAction(cid, 'AI_REENGAGE', route.at, { reason: 'auto-enroll: reactivation (seller)', dedupKey: `reengage_auto_${cid}` })
   else enrollColdBuyerSequence(cid, { firstAtIso: route.at })
   logEnrollmentDecision(ev, { enrolled: true, actor })

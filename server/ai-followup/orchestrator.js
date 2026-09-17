@@ -393,6 +393,20 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
   return runOutbound(cid, { actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, requireWebsite: true, nextState, instruction: COLD_STAGE_BLOCK(stage, approved) })
 }
 
+// FACEBOOK AD LEAD OPENER — approved template bank ONLY (John, 2026-09-17), no
+// Claude in the path. Same full gate stack as every AI send (flags, per-lead
+// enable, compliance, line-type screen, quiet hours, daily cap).
+export async function handleFbAdOpener(clientId, { property = '' } = {}) {
+  const cid = Number(clientId)
+  const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  if (!client) return { ok: false, reason: 'no client' }
+  const { renderFbAdOpener } = await import('./fb-ad-templates.js')
+  const r = renderFbAdOpener(client, property)
+  const res = await runOutbound(cid, { actionType: 'FB_AD_OPENER', flagKey: 'ai_proactive_text_enabled', nextState: 'AI_WAITING_FOR_REPLY', templateText: r.text })
+  if (res?.sent) { try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['fb_ad_opener', 'client', cid, `FB ad opener sent — template=${r.key} intro=${r.intro}`]) } catch {} }
+  return res
+}
+
 // Cancel any pending scheduled AI actions for a lead (called when they reply or a
 // human takes over) so we never talk over a live conversation.
 export function cancelPendingScheduled(clientId, reason = 'lead replied') {
