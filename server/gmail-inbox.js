@@ -202,6 +202,27 @@ async function pollOne(m) {
       }
       m.connected = true; m.last_error = ''; m.last_poll = nowIso()
     } finally { lock.release() }
+    // ---- FUB LEAD-EMAIL SWEEP: a Gmail filter files leads@followupboss.com mail
+    // under the "FUB" label and SKIPS THE INBOX, so the INBOX poll never sees the
+    // lead notifications (missed Stephanie Lange + Christi Masters, 2026-09-17).
+    // Sweep All Mail for that sender over the last 48h every cycle — the handler's
+    // Message-ID dedupe makes re-scans free, and disabled mode makes it a no-op.
+    try {
+      if (db.getSetting('fub_lead_email_enabled', '0') === '1') {
+        let allPath = null
+        try { const list = await client.list(); const all = list.find(b => b.specialUse === '\\All') || list.find(b => /all mail/i.test(b.path)); if (all) allPath = all.path } catch {}
+        if (allPath) {
+          const lock3 = await client.getMailboxLock(allPath)
+          try {
+            const uids = await client.search({ from: 'leads@followupboss.com', since: new Date(Date.now() - 48 * 3600e3) }, { uid: true }) || []
+            for await (const msg of client.fetch(uids.slice(-30), { uid: true, source: true }, { uid: true })) {
+              let parsed; try { parsed = await simpleParser(msg.source) } catch { continue }
+              try { const { handleFubLeadEmail } = await import('./fub-leads.js'); const r = await handleFubLeadEmail(parsed); if (r?.processed) m.imported = (m.imported || 0) + 1 } catch (e) { console.error('[fub-lead-sweep]', e.message) }
+            }
+          } finally { lock3.release() }
+        }
+      }
+    } catch (e) { console.error('[gmail-inbox] fub-lead sweep:', e.message || e) }
     // ---- SENT-FOLDER SYNC: emails Matt sends DIRECTLY from Gmail (composing or
     // replying in the mail client, not through the Hub) auto-log onto the matching
     // client's profile as outgoing human email. Own cursor per mailbox; first

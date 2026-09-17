@@ -104,8 +104,10 @@ export async function handleFubLeadEmail(parsedMail) {
   const lead = parseFubLeadEmail(parsedMail.subject, String(parsedMail.text || html.replace(/<[^>]+>/g, ' ')))
   if (!lead) return { skipped: 'not a Facebook lead email' }
   // The FUB email carries machine-readable meta tags — prefer them over text parsing.
+  // NOTE: the meta source can disagree with a Facebook subject (Christi Masters'
+  // alert said "from Facebook" in the subject but meta source "mattsmithteam.com").
+  // The SUBJECT is authoritative for the Facebook check — meta never vetoes it.
   const meta = (n) => { const m = html.match(new RegExp(`<meta name="lead_${n}" content="([^"]*)"`, 'i')); return m ? m[1].trim() : '' }
-  if (meta('source') && !/facebook/i.test(meta('source'))) return { skipped: 'meta source is not Facebook' }
   const mName = meta('name'); if (mName) { const nm = mName.split(/\s+/); lead.first = nm[0] || lead.first; lead.last = nm.slice(1).join(' ') || lead.last }
   if (meta('phone')) lead.phone = meta('phone')
   if (meta('email')) lead.email = meta('email')
