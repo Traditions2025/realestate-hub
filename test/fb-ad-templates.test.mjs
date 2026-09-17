@@ -48,6 +48,8 @@ test('no-reply follow-up email renders about their inquiry', () => {
   assert.equal(r.subject, 'Your inquiry on 510 Broadway Springville')
   assert.ok(r.body.includes('Hi Rich'))
   assert.ok(r.body.includes('You asked about 510 Broadway Springville on Facebook'))
+  assert.ok(r.body.includes('Matt Smith here with RE/MAX'), 'emails identify as Matt Smith')
+  assert.ok(!/John here|it's John/.test(r.body), 'emails NEVER introduce as John')
   assert.ok(r.body.includes('www.mattsmithteam.com'))
   assert.ok(r.body.includes('(319) 343-1562'))
   assert.ok(!/[—–]/.test(r.body), 'no em/en dashes in client-facing copy')
