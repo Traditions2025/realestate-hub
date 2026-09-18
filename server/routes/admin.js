@@ -86,6 +86,14 @@ router.get('/export/:table', requirePermission('settings.edit'), (req, res) => {
 })
 router.get('/export', requirePermission('settings.view'), (_req, res) => res.json({ tables: Object.keys(EXPORTABLE), note: 'Secrets, auth, and push tables are never exported.' }))
 
+// Calendbook webhook URLs (shared key) — paste these into Calendbook's Webhook integration.
+router.get('/calendbook-urls', requirePermission('settings.view'), async (_req, res) => {
+  const { calendbookKey } = await import('../calendbook.js')
+  const base = (process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com') + '/api/public/calendbook'
+  const k = calendbookKey()
+  res.json(Object.fromEntries(['booking', 'reschedule', 'cancellation', 'reminder'].map(x => [x, `${base}/${x}?key=${k}`])))
+})
+
 // New-lead default agent rule (also runs on every scheduler tick). ?dry=1 previews.
 router.post('/assign-default-agent', requirePermission('settings.edit'), async (req, res) => {
   try {
