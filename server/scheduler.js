@@ -169,6 +169,12 @@ async function syncSierraIncremental() {
       await enforceWatchForMlsTagged()
     } catch (e) { console.error('[scheduler] MLS watch rule error (non-fatal):', e.message) }
 
+    // Every tick: newly added leads with no agent get assigned to Matt Smith.
+    try {
+      const { enforceDefaultAgentAssignment } = await import('./agent-assignment.js')
+      enforceDefaultAgentAssignment()
+    } catch (e) { console.error('[scheduler] agent assignment rule error (non-fatal):', e.message) }
+
     return { success: true, total, added, updated, since: sinceFormatted }
   } catch (err) {
     console.error('[scheduler] Sierra sync error:', err.message)

@@ -181,9 +181,9 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
           const { first, last } = splitName(row.name)
           const email = (row.email && !/notvalidemail/i.test(row.email)) ? row.email : null
           const info = db.run(
-            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_status, mls_extract_attempted_at, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            [first, last, row.phone || null, email, 'seller', 'new', 'Expired/Cancelled Mls', row.address || null, row.city || null, row.state || null, row.zip || null,
+            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, agent_assigned, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_status, mls_extract_attempted_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            [first, last, row.phone || null, email, 'seller', 'new', 'Expired/Cancelled Mls', 'Matt Smith', row.address || null, row.city || null, row.state || null, row.zip || null,
              tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, row.mls_status || null, now, now, now])
           // index the new lead so a duplicate row in this same run won't create it twice
           index.set(key, [...candidates, { id: info.lastInsertRowid, first_name: first, last_name: last, address: row.address, city: row.city, status: 'new' }])

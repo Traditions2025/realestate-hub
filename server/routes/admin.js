@@ -86,6 +86,14 @@ router.get('/export/:table', requirePermission('settings.edit'), (req, res) => {
 })
 router.get('/export', requirePermission('settings.view'), (_req, res) => res.json({ tables: Object.keys(EXPORTABLE), note: 'Secrets, auth, and push tables are never exported.' }))
 
+// New-lead default agent rule (also runs on every scheduler tick). ?dry=1 previews.
+router.post('/assign-default-agent', requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { enforceDefaultAgentAssignment } = await import('../agent-assignment.js')
+    res.json(enforceDefaultAgentAssignment({ dryRun: req.query.dry === '1' || req.query.dry === 'true' }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/failures', requirePermission('settings.view'), (req, res) => {
   res.json(listFailures({ state: req.query.state || 'open', limit: Number(req.query.limit) || 100 }))
 })
