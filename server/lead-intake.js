@@ -11,7 +11,7 @@ function logActivity(action, entityType, entityId, details) {
 }
 
 const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
-async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline, existing }) {
+async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline, existing, seller = false }) {
   try {
     // ONE alert per lead per campaign per 3 days — no matter how many paths
     // (email sweep, webhook, manual trigger, backfill) touch the same person
@@ -26,7 +26,7 @@ async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline
       ? `Facebook Ad Lead (EXISTING): ${who}${listing ? ' — ' + listing : ''}`
       : `New Facebook Ad Lead: ${who}${listing ? ' — ' + listing : ''}`
     const rows = [
-      existing ? ['Heads up', 'This is an EXISTING lead in the Hub who just registered on the ad'] : ['Status', 'Brand new lead — created in the Hub, AI first text on the way'],
+      existing ? ['Heads up', 'This is an EXISTING lead in the Hub who just registered on the ad'] : ['Status', seller ? 'Seller campaign lead — no automated texts; reach out personally' : 'Brand new lead — created in the Hub, AI first text on the way'],
       ['Listing', listing || '—'], ['Phone', phone || '—'], ['Email', email || '—'], ['Timeline', timeline || '—'],
     ].map(([k, v]) => `<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap;">${esc(k)}</td><td style="padding:4px 0;color:#0f172a;"><strong>${esc(v)}</strong></td></tr>`).join('')
     const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
@@ -39,6 +39,11 @@ async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline
 }
 
 export function ingestFbLead({ first = '', last = '', email = null, phone = null, timeline = '', listing = '', marker = '', source = 'Facebook Listing Ad' } = {}) {
+  // SELLER campaigns (Fix It or Skip It etc., John 2026-09-18): these leads are
+  // homeowners, not buyers — the buyer listing opener and the 30-day listing
+  // campaign would send them the WRONG message. Seller ad leads get tagged,
+  // typed 'seller', and the team is notified; no automated buyer texts.
+  const isSellerCampaign = /fix.?it.?or.?skip|walkthrough|seller|home.?value|cma|list(?:ing)? your/i.test(String(listing))
   const d10 = String(phone || '').replace(/\D/g, '').slice(-10)
   const phoneFmt = d10.length === 10 ? `(${d10.slice(0, 3)}) ${d10.slice(3, 6)}-${d10.slice(6)}` : null
   const cleanEmail = String(email || '').trim() || null
@@ -50,7 +55,7 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
   }
   if (!existing && cleanEmail) existing = db.get('SELECT id, first_name, last_name, email, tags FROM clients WHERE lower(email)=lower(?) AND merged_into IS NULL', [cleanEmail])
   const now = nowIso()
-  const tag = 'FB Ad' + (listing ? ': ' + String(listing).slice(0, 60) : '')
+  const tag = (isSellerCampaign ? 'FB Seller Ad' : 'FB Ad') + (listing ? ': ' + String(listing).slice(0, 60) : '')
   const noteLine = `Facebook listing ad lead${listing ? ` (${listing})` : ''}${timeline ? ` — timeline: ${timeline}` : ''}${marker ? ' ' + marker : ''}`
   let cid
   if (existing) {
@@ -66,7 +71,7 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
   } else {
     const r = db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status, source, agent_assigned, register_date, tags, notes, created_at, updated_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [first || 'Unknown', last || '', cleanEmail, phoneFmt, 'buyer', 'new', source, 'Matt Smith', now.slice(0, 10), JSON.stringify([tag]), noteLine, now, now])
+      [first || 'Unknown', last || '', cleanEmail, phoneFmt, isSellerCampaign ? 'seller' : 'buyer', 'new', source, 'Matt Smith', now.slice(0, 10), JSON.stringify([tag]), noteLine, now, now])
     cid = r.lastInsertRowid
     logActivity('created', 'client', cid, noteLine)
   }
@@ -75,7 +80,7 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
   // first text from JOHN'S APPROVED TEMPLATE BANK (fb-ad-templates.js — never
   // Claude-composed), referencing the property from the ad. An EXISTING lead who
   // re-registers gets the tag + note + notification ONLY; the team decides.
-  if (!existing) {
+  if (!existing && !isSellerCampaign) {
     try {
       import('./ai-enrollment.js').then(m => {
         if ((db.getSetting('ai_auto_enroll_mode', 'off') || 'off') === 'off') return
@@ -100,6 +105,6 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
   } catch {}
   // The Hub's OWN alert email to John + Matt with a View Lead button straight to the
   // HUB profile (John, 2026-09-17) — fires for every New Lead and Lead Alert.
-  sendFbLeadAlertEmail({ cid, name: `${first} ${last}`.trim(), phone: phoneFmt, email: cleanEmail, listing, timeline, existing: !!existing }).catch(() => {})
+  sendFbLeadAlertEmail({ cid, name: `${first} ${last}`.trim(), phone: phoneFmt, email: cleanEmail, listing, timeline, existing: !!existing, seller: isSellerCampaign }).catch(() => {})
   return { client_id: cid, matched_existing: !!existing }
 }

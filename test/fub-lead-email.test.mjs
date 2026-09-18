@@ -61,3 +61,17 @@ test('handler is gated OFF by default and dedupes by Message-ID', async () => {
     assert.equal(r3.client_id, r1.client_id)
   } finally { db.setSetting('fub_lead_email_enabled', '0') }
 })
+
+test('seller-campaign FB leads: seller type, seller tag, NO buyer automation', async () => {
+  const { ingestFbLead } = await import('../server/lead-intake.js')
+  const uniq = Date.now() + '' + Math.floor(Math.random() * 1e5)
+  const r = ingestFbLead({ first: 'Selltest', last: 'Guard' + uniq, phone: '(319) 555-' + String(uniq).slice(-4), listing: 'Fix It or Skip It Walkthrough' })
+  const c = db.get('SELECT * FROM clients WHERE id=?', [r.client_id])
+  assert.equal(c.type, 'seller')
+  assert.ok(c.tags.includes('FB Seller Ad'))
+  await new Promise(res => setTimeout(res, 300))   // async imports in intake settle
+  assert.equal(db.get('SELECT COUNT(*) c FROM fb_listing_campaigns WHERE client_id=?', [r.client_id]).c, 0)
+  assert.equal(db.get("SELECT COUNT(*) c FROM ai_scheduled_actions WHERE client_id=? AND action_type='AI_FB_AD_OPENER'", [r.client_id]).c, 0)
+  db.run('DELETE FROM clients WHERE id=?', [r.client_id])
+  db.run("DELETE FROM activity_log WHERE entity_type='client' AND entity_id=?", [r.client_id])
+})
