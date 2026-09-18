@@ -286,6 +286,7 @@ export default function ClientProfile() {
             cxcamp: () => (client.mls_status || client.off_market_date) ? <CxCampaignCard cid={cid} client={client} /> : null,
             fsbocamp: () => (client.fsbo_status || client.fsbo_listings) ? <FsboCampaignCard cid={cid} client={client} /> : null,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
+            appts: () => <AppointmentsCard cid={cid} client={client} />,
             plans: () => <ActionPlans cid={cid} />,
             tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} address={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} /></div>,
             txns: () => <TransactionsCard cid={cid} onAdd={addTransaction} navigate={navigate} />,
@@ -1045,6 +1046,114 @@ function Research({ client }) {
 // Walkthrough auto-titles "Walkthrough - {address} - {name}"; notes always carry
 // the Hub profile link; saving emails John + Matt a real calendar invite (ICS).
 const APPT_TYPES = [['showing', 'Showing'], ['walkthrough', 'Walkthrough'], ['buyer_meeting', 'Buyer Meeting']]
+
+// ── Appointments card (scheduling system, John 2026-09-18) ────────────────
+// Upcoming + past appointments from the scheduling engine, and a typed
+// Schedule Appointment flow with REAL availability (same engine as the
+// public booking pages). The old free-form calendar button stays for
+// ad-hoc events.
+function AppointmentsCard({ cid, client }) {
+  const [rows, setRows] = useState(null)
+  const [open, setOpen] = useState(false)
+  const load = () => authFetch('/api/scheduling/client/' + cid + '/appointments').then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([]))
+  useEffect(() => { load() }, [cid])
+  const today = new Date().toISOString().slice(0, 10)
+  const upcoming = (rows || []).filter(r => r.event_date >= today && ['scheduled', 'confirmed'].includes(r.appt_status || 'scheduled'))
+  const past = (rows || []).filter(r => !upcoming.includes(r))
+  const act = async (id, path, body) => {
+    const r = await authFetch(`/api/scheduling/appointments/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+    const d = await r.json(); if (d.error) notify('⚠ ' + d.error); else load()
+  }
+  const STATUS_COLOR = { scheduled: '#3b82f6', confirmed: '#10b981', completed: '#059669', cancelled: '#ef4444', no_show: '#b45309' }
+  const Row = ({ r }) => (
+    <div style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
+        <strong>{r.type_name || r.title}</strong>
+        <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[r.appt_status] || 'var(--text-muted)' }}>{(r.appt_status || 'event').replace('_', '-')}</span>
+      </div>
+      <div style={{ color: 'var(--text-secondary)' }}>{r.when}{r.location ? ` · ${r.location}` : ''}{r.team_member ? ` · ${r.team_member}` : ''}</div>
+      {['scheduled', 'confirmed'].includes(r.appt_status) && (
+        <div style={{ display: 'flex', gap: 6, marginTop: 5 }}>
+          <button className="btn-sm" onClick={() => act(r.id, 'status', { status: 'completed' })}>✓ Completed</button>
+          <button className="btn-sm" onClick={() => act(r.id, 'status', { status: 'no_show' })}>No-show</button>
+          <button className="btn-sm btn-danger" onClick={async () => { if (await confirmDialog('Cancel this appointment?\nThe lead keeps their record; reminders stop.')) act(r.id, 'cancel', {}) }}>Cancel</button>
+        </div>
+      )}
+    </div>
+  )
+  return (
+    <section className="cp-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <h3 style={{ margin: 0, fontSize: 14.5 }}>📅 Appointments</h3>
+        <button className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>Schedule Appointment</button>
+      </div>
+      {rows === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div> : (
+        <>
+          {!rows.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No appointments yet — book one with Schedule Appointment.</div>}
+          {upcoming.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '6px 0 2px' }}>Upcoming</div>}
+          {upcoming.map(r => <Row key={r.id} r={r} />)}
+          {past.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '10px 0 2px' }}>Previous</div>}
+          {past.slice(0, 6).map(r => <Row key={r.id} r={r} />)}
+        </>
+      )}
+      {open && <ScheduleTypedModal client={client} onClose={() => { setOpen(false); load() }} />}
+    </section>
+  )
+}
+
+function ScheduleTypedModal({ client, onClose }) {
+  const [types, setTypes] = useState([])
+  const [typeId, setTypeId] = useState(null)
+  const [days, setDays] = useState([])
+  const [date, setDate] = useState('')
+  const [slots, setSlots] = useState([])
+  const [time, setTime] = useState('')
+  const [notes, setNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+  useEffect(() => { authFetch('/api/scheduling/types').then(r => r.json()).then(d => { const act = (d || []).filter(t => t.active); setTypes(act); if (act[0]) setTypeId(act[0].id) }).catch(() => {}) }, [])
+  useEffect(() => { if (!typeId) return; setDays([]); setDate(''); setSlots([]); setTime(''); authFetch(`/api/scheduling/types/${typeId}/days`).then(r => r.json()).then(d => setDays(d.days || [])).catch(() => {}) }, [typeId])
+  useEffect(() => { if (!date) return; setSlots([]); setTime(''); authFetch(`/api/scheduling/types/${typeId}/slots?date=${date}`).then(r => r.json()).then(d => setSlots(d.slots || [])).catch(() => {}) }, [date])
+  const t12 = (t) => { const [h, m] = t.split(':').map(Number); return `${h % 12 || 12}:${String(m).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}` }
+  const save = async () => {
+    setSaving(true)
+    try {
+      const r = await authFetch('/api/scheduling/appointments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type_id: typeId, client_id: client.id, date, time, notes }) })
+      const d = await r.json()
+      if (d.error) { notify('⚠ ' + d.error); return }
+      notify('✓ Appointment booked — confirmations + team invite sent')
+      onClose()
+    } finally { setSaving(false) }
+  }
+  const inp = { padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, width: '100%', maxWidth: 480, maxHeight: '86vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 12px', fontSize: 16 }}>📅 Schedule — {`${client.first_name || ''} ${client.last_name || ''}`.trim()}</h3>
+        <div style={{ display: 'grid', gap: 10 }}>
+          <select style={inp} value={typeId || ''} onChange={e => setTypeId(Number(e.target.value))}>
+            {types.map(t => <option key={t.id} value={t.id}>{t.name} ({t.duration_min} min)</option>)}
+          </select>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {days.slice(0, 10).map(d => <button key={d} className={`btn btn-sm ${date === d ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDate(d)}>{new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>)}
+            {!days.length && <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Finding open days…</span>}
+          </div>
+          {date && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {slots.map(sl => <button key={sl.time} className={`btn btn-sm ${time === sl.time ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTime(sl.time)}>{t12(sl.time)}</button>)}
+              {!slots.length && <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading times…</span>}
+            </div>
+          )}
+          <textarea style={{ ...inp, resize: 'vertical' }} rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" />
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+          <button className="btn btn-primary" disabled={saving || !date || !time} onClick={save}>{saving ? 'Booking…' : 'Book It'}</button>
+          <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function AppointmentModal({ client, onClose }) {
   const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
   const address = [client.address, client.city].filter(Boolean).join(', ')
@@ -1434,7 +1543,7 @@ function ListingInterest({ client }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {

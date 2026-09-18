@@ -1,4 +1,5 @@
 import { notify, confirmDialog } from '../notify'
+import SchedulingSettings from '../components/SchedulingSettings'
 import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import RichTextEditor from '../components/RichTextEditor'
@@ -389,6 +390,9 @@ export default function Settings() {
             </SettingsGroup>
           </div>
           <div className="settings-col">
+            <SettingsGroup id="scheduling" title="Calendar / Scheduling" desc="Team availability, blocked dates, and public booking pages (appointment types).">
+              <SchedulingSettings />
+            </SettingsGroup>
             <SettingsGroup id="team" title="Team & Users" desc="Agents available for assignment and call routing.">
           <TeamAgents />
             </SettingsGroup>

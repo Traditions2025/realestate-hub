@@ -7,6 +7,7 @@ import { initDb, getDbStatus } from './database.js'
 import db from './database.js'
 
 import authRouter, { requireAuth } from './routes/auth.js'
+import bookingRouter from './routes/booking.js'
 import usersRouter, { ensureOwnerSeed } from './routes/users.js'
 import adminRouter from './routes/admin.js'
 import gdriveRouter from './routes/gdrive.js'
@@ -223,6 +224,10 @@ async function start() {
   app.use('/uploads', express.static(join(process.env.DB_DIR || join(__dirname, '..'), 'uploads')))
 
   // Auth
+  // Public booking pages + endpoints (rate-limited, token-secured) — must sit
+  // before requireAuth, like the webhooks.
+  app.use(bookingRouter)
+
   app.use('/api/auth', authRouter)
   app.use(requireAuth)
   // Protected routers (req.user is populated by requireAuth above).
@@ -334,6 +339,7 @@ async function start() {
   app.use('/api/calendar', calendarRouter)
   app.use('/api/sierra', sierraRouter)
   app.use('/api/email', emailRouter)
+  app.use('/api/scheduling', (await import('./routes/scheduling-admin.js')).default)
   app.use('/api/lists', listsRouter)
   app.use('/api/templates', templatesRouter)
   app.use('/api/automations', automationsRouter)

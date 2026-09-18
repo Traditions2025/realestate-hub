@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-18T15:40:05.436Z",
+  "generated_at": "2026-09-18T20:39:15.858Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "aa625fb",
+      "date": "2026-09-18T10:40:58-05:00",
+      "subject": "Clients list: synced horizontal scrollbar above the header (sticky)",
+      "title": "Clients list: synced horizontal scrollbar above the header (sticky)",
+      "body": "The wide list's only horizontal scrollbar sat below 100 rows. A slim\nproxy strip now rides above the header, two-way synced with the list's\nscroll position, sticky at the top of the viewport while scrolling, and\nhidden whenever the columns fit without overflow.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d6fb0d1",
       "date": "2026-09-18T10:25:43-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-11T17:14:41-05:00",
       "subject": "PWA: app shell network-first (was stale-while-revalidate) so deploys load on next visit, not after 2 refreshes; cache bump v7",
       "title": "PWA: app shell network-first (was stale-while-revalidate) so deploys load on next visit, not after 2 refreshes; cache bump v7",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "767e66b",
-      "date": "2026-08-11T16:47:52-05:00",
-      "subject": "Inbox: stop horizontal scroll — fit HTML emails to the reading pane width (inject max-width CSS into iframe), overflowX hidden on pane + message list",
-      "title": "Inbox: stop horizontal scroll — fit HTML emails to the reading pane width (inject max-width CSS into iframe), overflowX hidden on pane + message list",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

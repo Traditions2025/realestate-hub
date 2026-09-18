@@ -40,7 +40,9 @@ export default function Calendar() {
     setModalOpen(true)
   }
 
+  const [apptDetail, setApptDetail] = useState(null)
   const openEdit = (item) => {
+    if (item.appt_status) { setApptDetail(item.id); return }   // scheduling-system appointments get the detail panel
     setEditing(item.id)
     const f = { ...emptyEvent }
     Object.keys(f).forEach(k => { if (item[k] !== undefined && item[k] !== null) f[k] = item[k] })
@@ -218,6 +220,51 @@ export default function Calendar() {
           </div>
         </form>
       </Modal>
+      {apptDetail && <ApptDetailModal id={apptDetail} onClose={() => { setApptDetail(null); load() }} />}
+    </div>
+  )
+}
+
+// ── Appointment detail (scheduling system, John 2026-09-18) ──────────────
+function ApptDetailModal({ id, onClose }) {
+  const [a, setA] = useState(null)
+  const navigate = (path) => { window.location.href = path }
+  const load = () => authFetch('/api/scheduling/appointments/' + id).then(r => r.json()).then(setA).catch(() => {})
+  useEffect(() => { load() }, [id])
+  const act = async (path, body) => {
+    const r = await authFetch(`/api/scheduling/appointments/${id}/${path}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) })
+    const d = await r.json(); if (d.error) notify('⚠ ' + d.error); else load()
+  }
+  if (!a) return null
+  const name = `${a.first_name || ''} ${a.last_name || ''}`.trim()
+  const L = ({ k, v }) => v ? <div style={{ display: 'flex', gap: 8, fontSize: 13.5, padding: '3px 0' }}><span style={{ color: 'var(--text-muted)', minWidth: 92 }}>{k}</span><span>{v}</span></div> : null
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
+      <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, width: '100%', maxWidth: 460 }} onClick={e => e.stopPropagation()}>
+        <h3 style={{ margin: '0 0 4px', fontSize: 16 }}>{a.type_name || a.title}</h3>
+        <div style={{ fontSize: 12.5, fontWeight: 700, color: { scheduled: '#3b82f6', confirmed: '#10b981', completed: '#059669', cancelled: '#ef4444', no_show: '#b45309' }[a.appt_status] || 'var(--text-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '.04em' }}>{(a.appt_status || '').replace('_', '-')}</div>
+        <L k="Client" v={name} />
+        <L k="When" v={a.when} />
+        <L k="Property" v={a.location} />
+        <L k="Phone" v={a.phone} />
+        <L k="Email" v={a.email} />
+        <L k="Team member" v={a.team_member} />
+        <L k="Source" v={a.source ? `${a.source}${a.campaign ? ' / ' + a.campaign : ''}` : null} />
+        <L k="Created" v={(a.created_at || '').slice(0, 10)} />
+        {a.cancel_reason && <L k="Cancel reason" v={a.cancel_reason} />}
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 14 }}>
+          {a.related_id && <button className="btn btn-sm btn-primary" onClick={() => navigate('/clients/' + a.related_id)}>View Client</button>}
+          {['scheduled', 'confirmed'].includes(a.appt_status) && (
+            <>
+              {a.appt_status === 'scheduled' && <button className="btn btn-sm btn-secondary" onClick={() => act('status', { status: 'confirmed' })}>Confirm</button>}
+              <button className="btn btn-sm btn-secondary" onClick={() => act('status', { status: 'completed' })}>✓ Completed</button>
+              <button className="btn btn-sm btn-secondary" onClick={() => act('status', { status: 'no_show' })}>No-show</button>
+              <button className="btn btn-sm btn-danger" onClick={async () => { if (await confirmDialog('Cancel this appointment?\\nReminders stop; the lead keeps their record.')) act('cancel', {}) }}>Cancel Appt</button>
+            </>
+          )}
+          <button className="btn btn-sm btn-secondary" onClick={onClose} style={{ marginLeft: 'auto' }}>Close</button>
+        </div>
+      </div>
     </div>
   )
 }
