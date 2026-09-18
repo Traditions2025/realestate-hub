@@ -281,7 +281,7 @@ function showErr(m){var e=document.getElementById('err');if(e){e.textContent=m;e
 // one-line pitch, then the current month with available dates tappable and
 // everything else greyed out. Month arrows walk to the next months inside the
 // booking horizon. Pick a date -> pick a time -> contact details.
-function introHtml(){return '<div class="step-label">Matt Smith Team</div><h1>'+esc(CFG.title)+'</h1><p class="lead">'+esc(CFG.description)+'</p>'}
+function introHtml(){return '<div class="step-label">Complimentary Pre-Listing Walkthrough</div><h1>'+esc(CFG.title)+'</h1><p class="lead">'+esc(CFG.description)+'</p>'}
 function monthOf(d){return d.slice(0,7)}
 function stepDays(){el(introHtml()+'<div class="spin">Finding open times&hellip;</div>');
 api('/api/public/booking/'+CFG.slug+'/days').then(function(j){S.days=j.days||[];
