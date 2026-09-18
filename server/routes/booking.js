@@ -206,58 +206,62 @@ function bookingHtml(type, { manageToken = null } = {}) {
 <html lang="en"><head>
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="robots" content="noindex">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&display=swap" rel="stylesheet">
 <title>${type ? String(type.public_title || 'Book an appointment').replace(/</g, '&lt;') : 'Manage your appointment'} — Matt Smith Team</title>
 <style>
-:root{--navy:#0f172a;--gold:#B9963B;--gold-dark:#241a04;--bg:#f6f4ef;--card:#ffffff;--muted:#64748b;--border:#e2e8f0;--radius:14px}
+/* Matt Smith Team editorial system — mirrors mattsmithteam.com:
+   Cormorant Garamond display, ink #1a1a1a, gold #d4af37/#b08930, paper #f5f3ef. */
+:root{--ink:#1a1a1a;--ink-soft:#3a3a3a;--gold:#d4af37;--gold-deep:#b08930;--paper:#f5f3ef;--card:#ffffff;--muted:#77716a;--line:#e6e1d8}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--navy);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;overscroll-behavior:none}
-.wrap{max-width:560px;margin:0 auto;padding:20px 16px 48px}
-.brand{display:flex;align-items:center;gap:10px;padding:6px 0 18px}
-.brand .mark{width:34px;height:34px;border-radius:9px;background:var(--navy);color:var(--gold);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
-.brand .name{font-weight:800;letter-spacing:.01em}.brand .sub{font-size:12px;color:var(--muted)}
-.card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px 18px;box-shadow:0 4px 14px rgba(15,23,42,.06)}
-h1{font-size:22px;line-height:1.25;margin:0 0 8px;text-wrap:balance}
-p.lead{margin:0 0 4px;color:var(--muted);font-size:14.5px;line-height:1.55}
-.step-label{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gold);margin:2px 0 10px}
+html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:Arial,Roboto,sans-serif;overscroll-behavior:none}
+.serif{font-family:'Cormorant Garamond',Georgia,serif}
+.wrap{max-width:600px;margin:0 auto;padding:0 16px 56px}
+.brand{text-align:center;padding:26px 0 20px}
+.brand .wordmark{font-family:'Cormorant Garamond',Georgia,serif;font-size:24px;font-weight:600;letter-spacing:.14em;text-transform:uppercase}
+.brand .rule{width:44px;height:2px;background:var(--gold);margin:9px auto 7px}
+.brand .sub{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:4px;padding:30px 22px 26px;box-shadow:0 10px 34px rgba(26,26,26,.07)}
+h1{font-family:'Cormorant Garamond',Georgia,serif;font-weight:600;font-size:30px;line-height:1.18;margin:0 0 10px;text-wrap:balance}
+p.lead{margin:0;color:var(--ink-soft);font-size:15px;line-height:1.65}
+.step-label{font-size:11px;font-weight:700;letter-spacing:.2em;text-transform:uppercase;color:var(--gold-deep);margin:0 0 10px}
 button{font-family:inherit}
-.btn{display:block;width:100%;padding:15px;border-radius:12px;border:none;background:var(--gold);color:var(--gold-dark);font-weight:800;font-size:16px;cursor:pointer;touch-action:manipulation}
-.btn:active{transform:scale(.98)}
-.btn[disabled]{opacity:.5}
-.btn-ghost{background:none;border:1px solid var(--border);color:var(--navy);font-weight:600}
+.btn{display:block;width:100%;padding:16px;border:none;background:var(--ink);color:var(--gold);font-weight:700;font-size:13.5px;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;touch-action:manipulation;border-radius:3px}
+.btn:active{opacity:.85}
+.btn[disabled]{opacity:.45}
+.btn-ghost{background:none;border:1px solid var(--ink);color:var(--ink)}
 .grid{display:grid;gap:9px;margin:14px 0}
-.days{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
-.times{grid-template-columns:repeat(auto-fill,minmax(104px,1fr))}
-.slot{padding:13px 6px;border:1.5px solid var(--border);border-radius:11px;background:#fff;font-size:15px;font-weight:600;cursor:pointer;text-align:center;min-height:48px}
-.slot small{display:block;font-weight:500;color:var(--muted);font-size:11.5px;margin-top:1px}
-.slot.sel,.slot:active{border-color:var(--gold);background:#faf6ec}
-label{display:block;font-size:13px;font-weight:600;margin:12px 0 5px}
-input,select,textarea{width:100%;padding:12px;border:1.5px solid var(--border);border-radius:10px;font-size:16px;font-family:inherit;background:#fff}
-input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.summary{background:#faf6ec;border:1px solid #eadfc3;border-radius:12px;padding:14px;margin:12px 0;font-size:14.5px;line-height:1.6}
-.summary strong{font-size:16px}
-.err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:11px 13px;font-size:13.5px;margin:10px 0;display:none}
-.back{background:none;border:none;color:var(--muted);font-size:13.5px;cursor:pointer;padding:8px 0;margin-top:6px}
-.cal-head{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px;font-size:16px}
-.cal-nav{width:40px;height:40px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-size:20px;cursor:pointer;color:var(--navy)}
-.cal-nav[disabled]{opacity:.3}
+.times{grid-template-columns:repeat(auto-fill,minmax(106px,1fr))}
+.slot{padding:13px 6px;border:1px solid var(--line);border-radius:3px;background:#fff;font-size:15px;font-weight:600;cursor:pointer;text-align:center;min-height:48px;color:var(--ink)}
+.slot.sel,.slot:active{border-color:var(--gold-deep);background:#faf5e7}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin:22px 0 10px}
+.cal-head strong{font-family:'Cormorant Garamond',Georgia,serif;font-size:22px;font-weight:600;letter-spacing:.02em}
+.cal-nav{width:40px;height:40px;border:1px solid var(--line);border-radius:3px;background:#fff;font-size:20px;cursor:pointer;color:var(--ink)}
+.cal-nav[disabled]{opacity:.25}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
-.cal-wd{text-align:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:4px 0}
-.cal-day{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:10px;font-size:15px;font-weight:600;min-height:42px}
-.cal-day.off{color:var(--muted);opacity:.4}
-.cal-day.open{border:1.5px solid var(--gold);background:#faf6ec;color:var(--navy);cursor:pointer}
-.cal-day.open:active{background:var(--gold);color:var(--gold-dark)}
-@media (prefers-color-scheme:dark){.cal-nav{background:var(--card);color:var(--navy)}.cal-day.open{background:#1d2438}}
-.done-icon{width:56px;height:56px;border-radius:50%;background:#dcfce7;color:#15803d;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px}
-.actions{display:grid;gap:9px;margin-top:16px}
-.muted{color:var(--muted);font-size:13px}
-.spin{text-align:center;color:var(--muted);padding:24px 0;font-size:14px}
-@media (prefers-color-scheme:dark){:root{--bg:#0b1220;--card:#101a2e;--navy:#e6ecf7;--muted:#8fa1bd;--border:#233150}.slot{background:var(--card);color:var(--navy)}.slot.sel,.slot:active{background:#1d2438}input,select,textarea{background:#0d1526;color:var(--navy)}.summary{background:#161e33;border-color:#2b3a5c}.done-icon{background:#14321f;color:#4ade80}}
+.cal-wd{text-align:center;font-size:10.5px;font-weight:700;letter-spacing:.12em;color:var(--muted);padding:5px 0}
+.cal-day{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:3px;font-size:15px;font-weight:600;min-height:42px}
+.cal-day.off{color:var(--muted);opacity:.35}
+.cal-day.open{border:1px solid var(--gold-deep);background:#fbf7ea;color:var(--ink);cursor:pointer}
+.cal-day.open:active{background:var(--gold);color:var(--ink)}
+label{display:block;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-soft);margin:14px 0 6px}
+input,select,textarea{width:100%;padding:13px 12px;border:1px solid var(--line);border-radius:3px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold-deep)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.summary{background:#fbf7ea;border:1px solid #eadfbe;border-radius:3px;padding:16px;margin:14px 0;font-size:14.5px;line-height:1.65}
+.summary strong{font-family:'Cormorant Garamond',Georgia,serif;font-size:19px;font-weight:600}
+.err{background:#fdf1f0;border:1px solid #eec7c3;color:#a03a30;border-radius:3px;padding:11px 13px;font-size:13.5px;margin:10px 0;display:none}
+.back{background:none;border:none;color:var(--muted);font-size:13px;letter-spacing:.06em;cursor:pointer;padding:10px 0;margin-top:8px}
+.done-icon{width:58px;height:58px;border-radius:50%;border:1.5px solid var(--gold-deep);color:var(--gold-deep);display:flex;align-items:center;justify-content:center;font-size:26px;margin:0 auto 14px;background:#fbf7ea}
+.actions{display:grid;gap:10px;margin-top:18px}
+.muted{color:var(--muted);font-size:12.5px}
+.spin{text-align:center;color:var(--muted);padding:26px 0;font-size:14px}
+.foot{text-align:center;margin-top:20px;font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
 </style></head>
 <body><div class="wrap">
-<div class="brand"><div class="mark">MS</div><div><div class="name">Matt Smith Team</div><div class="sub">RE/MAX Concepts &middot; Cedar Rapids, IA</div></div></div>
+<div class="brand"><div class="wordmark">Matt Smith Team</div><div class="rule"></div><div class="sub">RE/MAX Concepts &middot; Cedar Rapids, Iowa</div></div>
 <div class="card" id="app"><div class="spin">Loading&hellip;</div></div>
-<p class="muted" style="text-align:center;margin-top:14px">mattsmithteam.com</p>
+<p class="foot">mattsmithteam.com</p>
 </div>
 <script>
 var CFG=${cfg};
