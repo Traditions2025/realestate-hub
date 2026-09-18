@@ -474,6 +474,34 @@ export function SocialProfiles({ detail, onSaved }) {
   )
 }
 
+
+// Top horizontal scrollbar for the wide client list (John, 2026-09-18): the list's
+// own scrollbar sits under 100 rows, so a slim synced strip rides above the header
+// (sticky, so it stays reachable while scrolled down). Hidden when nothing overflows.
+function TopHScroll({ listRef }) {
+  const barRef = useRef(null)
+  const innerRef = useRef(null)
+  useEffect(() => {
+    const list = listRef.current, bar = barRef.current
+    if (!list || !bar) return
+    let syncing = false
+    const fit = () => {
+      if (innerRef.current) innerRef.current.style.width = list.scrollWidth + 'px'
+      bar.style.display = list.scrollWidth > list.clientWidth + 1 ? 'block' : 'none'
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(list)
+    if (list.firstElementChild) ro.observe(list.firstElementChild)   // grid width changes with column picks
+    const onBar = () => { if (syncing) return; syncing = true; list.scrollLeft = bar.scrollLeft; syncing = false }
+    const onList = () => { if (syncing) return; syncing = true; bar.scrollLeft = list.scrollLeft; syncing = false }
+    bar.addEventListener('scroll', onBar)
+    list.addEventListener('scroll', onList)
+    return () => { ro.disconnect(); bar.removeEventListener('scroll', onBar); list.removeEventListener('scroll', onList) }
+  })
+  return <div ref={barRef} className="hscroll-top" aria-hidden="true"><div ref={innerRef} style={{ height: 1 }} /></div>
+}
+
 export default function Clients() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
@@ -513,6 +541,7 @@ export default function Clients() {
   const { widths: colWidths, setWidthLive: setColWidthLive, commitWidth: commitColWidth, reset: resetColWidths } = useColumnWidths(`clients::${viewKey}`)
   const colWidthPx = (c) => colWidths[c.key] || defaultWidthFor(c)
   const colMin = (c) => Number(c.minWidth) || 60
+  const listScrollRef = useRef(null)   // the .client-list scroll container, for the top scrollbar proxy
   const resizingRef = useRef(false)   // set true while a resize drag is active, so it never starts a column-reorder drag
   // Auto-fit a column to its rendered header + cell content (double-click the divider, or menu).
   const autoFitColumn = React.useCallback((key) => {
@@ -2916,7 +2945,9 @@ export default function Clients() {
         }
 
         return (
-          <div className="client-list">
+          <>
+          <TopHScroll listRef={listScrollRef} />
+          <div className="client-list" ref={listScrollRef}>
             <div className="client-list-header" style={{ gridTemplateColumns: gridTemplate }}>
               <div className="cl-check">
                 <input type="checkbox"
@@ -2997,6 +3028,7 @@ export default function Clients() {
               </React.Fragment>
             ))}
           </div>
+          </>
         )
       })()}
 
