@@ -52,6 +52,12 @@ router.get('/', (req, res) => {
   res.json(enriched)
 })
 
+// Must sit ABOVE /:id or it matches as a list id ("List not found").
+router.get('/master-updates', (req, res) => {
+  const limit = Math.min(Number(req.query.limit) || 12, 50)
+  res.json(db.all('SELECT * FROM master_file_updates ORDER BY id DESC LIMIT ?', [limit]))
+})
+
 // Get a single list with its current matching clients
 router.get('/:id', (req, res) => {
   const list = db.get('SELECT * FROM client_lists WHERE id = ?', [Number(req.params.id)])
@@ -141,11 +147,6 @@ router.post('/master-updates/backfill-today', async (_req, res) => {
   res.json({ ok: true, backfilled: n, enriched, scanned: rows.length })
 })
 // Recent master-file changes (feeds the dashboard "Cancelled/Expired/FSBO Updates" box).
-router.get('/master-updates', (req, res) => {
-  const limit = Math.min(Number(req.query.limit) || 12, 50)
-  res.json(db.all('SELECT * FROM master_file_updates ORDER BY id DESC LIMIT ?', [limit]))
-})
-
 router.post('/fsbo/sync', async (_req, res) => {
   try {
     const report = await syncFsboMaster()
