@@ -87,6 +87,9 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
         })
       }).catch(() => {})
     } catch {}
+    // 30-day property-interest follow-up (John, 2026-09-18): Days 2→30 after the
+    // opener. Self-gates on its master switch; a reply on any channel stops it.
+    try { import('./fb-listing-campaign.js').then(m => m.enrollFbListingCampaign(cid, listing, { actor: 'fb_ad_intake' })).catch(() => {}) } catch {}
   }
   try {
     import('./notifications.js').then(m => m.notify({

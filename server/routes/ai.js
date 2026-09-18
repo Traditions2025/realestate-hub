@@ -173,7 +173,36 @@ router.post('/lead/:id/fb-ad-flow', async (req, res) => {
   transitionAiState(cid, 'AI_ELIGIBLE', 'FB ad flow triggered by agent')
   const { scheduleAiAction } = await import('../ai-followup/scheduler.js')
   scheduleAiAction(cid, 'AI_FB_AD_OPENER', new Date(Date.now() + 60000).toISOString(), { reason: 'FB ad flow (manual trigger)', payload: { property }, dedupKey: `fbadflow_${cid}_${Date.now()}` })
+  // The manual flow is the team's deliberate opt-in for an existing lead, so the
+  // 30-day property-interest campaign starts here too (Days 2→30).
+  try { const m = await import('../fb-listing-campaign.js'); m.enrollFbListingCampaign(cid, property, { actor: 'fb_ad_flow_manual' }) } catch {}
   res.json({ success: true, client_id: cid, first_text_in: '~1-2 min', email_follow_up: '+10 min if no reply' })
+})
+
+// ---- FB listing-lead 30-day campaign (John, 2026-09-18) --------------------
+router.get('/fb-campaign/stats', async (_req, res) => {
+  const m = await import('../fb-listing-campaign.js'); res.json(m.fbListingCampaignStats())
+})
+router.get('/fb-campaign/:clientId', async (req, res) => {
+  const m = await import('../fb-listing-campaign.js')
+  const s = m.fbListingCampaignState(req.params.clientId)
+  if (!s) return res.status(404).json({ error: 'not enrolled' })
+  res.json(s)
+})
+router.post('/fb-campaign/:clientId/enroll', async (req, res) => {
+  const m = await import('../fb-listing-campaign.js')
+  res.json(m.enrollFbListingCampaign(Number(req.params.clientId), String(req.body?.listing || '').trim(), { day0Iso: req.body?.day0 || null, actor: 'api' }))
+})
+router.post('/fb-campaign/:clientId/pause', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.pauseFbListingCampaign(req.params.clientId)) })
+router.post('/fb-campaign/:clientId/resume', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.resumeFbListingCampaign(req.params.clientId)) })
+router.post('/fb-campaign/:clientId/remove', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.removeFromFbListingCampaign(req.params.clientId, 'agent', String(req.body?.reason || ''))) })
+router.post('/fb-campaign/toggle', async (req, res) => {
+  const on = req.body?.enabled === true || req.body?.enabled === '1'
+  db.setSetting('fb_listing_campaign_enabled', on ? '1' : '0')
+  res.json({ enabled: on })
+})
+router.post('/fb-campaign/run', async (_req, res) => {
+  const m = await import('../fb-listing-campaign.js'); res.json(await m.runFbListingCampaign())
 })
 router.post('/lead/:id/stop', (req, res) => { setEnabled(Number(req.params.id), false); setManaged(Number(req.params.id), false); transitionAiState(Number(req.params.id), 'AI_DISABLED', 'stopped by agent'); res.json({ success: true }) })
 router.post('/lead/:id/resume', (req, res) => { resumeAi(Number(req.params.id), 'resumed by agent'); res.json({ success: true }) })

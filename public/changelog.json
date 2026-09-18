@@ -1,7 +1,31 @@
 {
-  "generated_at": "2026-09-18T14:38:56.469Z",
+  "generated_at": "2026-09-18T15:24:28.531Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "61f90fa",
+      "date": "2026-09-18T09:52:11-05:00",
+      "subject": "Recurring rule: new leads with no agent get assigned to Matt Smith",
+      "title": "Recurring rule: new leads with no agent get assigned to Matt Smith",
+      "body": "Sierra-sourced leads already arrive assigned; master-file creates, manual\nadds, imports and inbox-created contacts were landing with no agent.\nenforceDefaultAgentAssignment() fills ONLY an empty agent_assigned on\nleads created on/after 2026-09-17 — deliberate assignments to anyone\nelse stay, and the historical backlog is never mass-reassigned. Runs on\nevery 10-minute scheduler tick; admin endpoint with ?dry=1 previews.\nExpired-master creates now also set Matt Smith directly at insert.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f90bf0d",
+      "date": "2026-09-18T09:43:54-05:00",
+      "subject": "Fix shadowed GET /api/lists/master-updates (matched /:id as a list id)",
+      "title": "shadowed GET /api/lists/master-updates (matched /:id as a list id)",
+      "body": "Registered below router.get('/:id'), so the route always answered\n\"List not found\". Moved above it. The dashboard feed reads its own\nendpoint and was unaffected.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "2cb2eb3",
+      "date": "2026-09-18T09:39:26-05:00",
+      "subject": "Recurring rule: MLS Expired/Cancelled tag + status New -> Watch",
+      "title": "Recurring rule: MLS Expired/Cancelled tag + status New -> Watch",
+      "body": "Leads carrying an \"MLS: Expired\" or \"MLS: Cancelled\" tag belong in Watch,\nnot New — New is inbound triage; these are proactive C/E prospects. Only\n'new' is touched; junk/qualify/closed and every other status is a human's\ndeliberate call and stays put (John's rule, e.g. Kelly Driscoll).\n\nenforceWatchForMlsTagged() in expired-master.js runs after every master\nsync and on every 10-minute scheduler tick, so tags added by hand in the\nUI flip within ~10 minutes. Each move is logged to the lead's master-file\ntimeline. The C/E list filter and CX auto-enroll both already include\n'watch', so neither changes behavior.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "63e66e4",
       "date": "2026-09-17T16:53:42-05:00",
@@ -3976,30 +4000,6 @@
       "subject": "Social publishing: fix upload race — wait for file write to flush before responding",
       "title": "Social publishing: fix upload race — wait for file write to flush before responding",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "741cb17",
-      "date": "2026-08-11T13:51:57-05:00",
-      "subject": "Social publishing: auto-delete uploaded image after a post publishes successfully (saves disk); keep on failure for retry",
-      "title": "Social publishing: auto-delete uploaded image after a post publishes successfully (saves disk); keep on failure for retry",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8a7b852",
-      "date": "2026-08-11T13:49:40-05:00",
-      "subject": "Social media auto-publishing via n8n: image upload + public serving, queue/result API, target pages, calendar UI",
-      "title": "Social media auto-publishing via n8n: image upload + public serving, queue/result API, target pages, calendar UI",
-      "body": "- social_posts: add image_file, targets, publish_status, published_at, publish_results\n- POST /api/social-media/upload (busboy, 25MB) stores images on the persistent disk\n- GET /api/social-media/img/:name serves images publicly (whitelisted) so Meta/LinkedIn can fetch them\n- GET /queue (n8n polls, shared-secret) returns due queued posts, claims them as 'posting'\n- POST /result (n8n callback) records per-target results, marks posted/failed\n- POST /:id/queue + /:id/unqueue user actions\n- GET/POST /config exposes the n8n key + endpoint URLs + editable public base URL\n- SocialMedia.jsx: image upload+preview, publish-to checkboxes, Save & Queue, publish status, n8n setup modal\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "92130ed",
-      "date": "2026-08-11T12:46:44-05:00",
-      "subject": "Inbox: minimize the AI reply by default, bigger email view, Gmail-style thread collapse",
-      "title": "Inbox: minimize the AI reply by default, bigger email view, Gmail-style thread collapse",
-      "body": "- The AI/reply composer is now minimized by default — a slim bar showing the AI\n  intent badge + one-line summary and a \"Reply\" button; click to expand the full\n  composer, Minimize to collapse. Frees a lot of vertical space.\n- Email frame default height raised (120 -> 220), and with the composer minimized\n  the reading pane is much taller, so emails read bigger.\n- Gmail-style conversation collapse: in a multi-message thread, only the latest\n  (and any unread incoming) message is expanded; older read messages collapse to a\n  one-line summary (sender · subject — snippet · date). Click a header to toggle.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

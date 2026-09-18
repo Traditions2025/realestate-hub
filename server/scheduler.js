@@ -844,6 +844,10 @@ export function startScheduler() {
   // FSBO smart follow-up sequence - every 15 min (self-gates to weekdays 9AM-4PM CT).
   setInterval(() => { import('./fsbo-followup.js').then(m => m.runFsboFollowups()).catch(() => {}) }, 15 * 60 * 1000)
 
+  // FB listing-lead 30-day follow-up - every 15 min (self-gates: master switch,
+  // window, response-stops-first, property-status check before every send).
+  setInterval(() => { import('./fb-listing-campaign.js').then(m => m.runFbListingCampaign()).catch(() => {}) }, 15 * 60 * 1000)
+
   // Cancelled/Expired Connection Campaign - every 15 min (self-gates: master switch,
   // weekdays 9AM-4PM CT window, per-send eligibility re-verification).
   setInterval(() => { import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)
