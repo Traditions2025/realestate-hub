@@ -174,6 +174,17 @@ router.get('/api/public/appointment/:token/ics', rateLimit(30), (req, res) => {
   res.send(ics)
 })
 
+// ---- Calendbook webhooks (shared-key, one URL per event kind) ----
+router.post('/api/public/calendbook/:kind', rateLimit(60), async (req, res) => {
+  try {
+    const { calendbookKey, handleCalendbookWebhook } = await import('../calendbook.js')
+    if (String(req.query.key || '') !== calendbookKey()) return res.status(403).json({ error: 'bad key' })
+    const kind = String(req.params.kind || '').toLowerCase()
+    if (!['booking', 'reschedule', 'cancellation', 'reminder'].includes(kind)) return res.status(400).json({ error: 'unknown kind' })
+    res.json(await handleCalendbookWebhook(kind, req.body || {}))
+  } catch (e) { console.error('[calendbook]', e.message); res.status(500).json({ error: 'intake error' }) }
+})
+
 // ---- HTML pages ----
 router.get('/book/:slug', rateLimit(60), (req, res, next) => {
   const t = activeType(req.params.slug)
