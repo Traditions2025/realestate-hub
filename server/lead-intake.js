@@ -38,7 +38,7 @@ async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline
   } catch (e) { try { console.error('[fb-lead-alert-email]', e.message) } catch {} }
 }
 
-export function ingestFbLead({ first = '', last = '', email = null, phone = null, timeline = '', listing = '', marker = '', source = 'Facebook Listing Ad' } = {}) {
+export function ingestFbLead({ first = '', last = '', email = null, phone = null, timeline = '', listing = '', marker = '', source = 'Facebook Listing Ad', raw = '' } = {}) {
   // SELLER campaigns (Fix It or Skip It etc., John 2026-09-18): these leads are
   // homeowners, not buyers — the buyer listing opener and the 30-day listing
   // campaign would send them the WRONG message. Seller ad leads get tagged,
@@ -96,7 +96,14 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
     // opener. Self-gates on its master switch; a reply on any channel stops it.
     try { import('./fb-listing-campaign.js').then(m => m.enrollFbListingCampaign(cid, listing, { actor: 'fb_ad_intake' })).catch(() => {}) } catch {}
   }
-  try {
+  // Fix It or Skip It seller family (John, 2026-09-19): mine the form answers,
+  // store structured seller fields + exact-campaign attribution, task + notify,
+  // and start the CONTEXTUAL opener sequence (never a generic thanks-text).
+  if (isSellerCampaign) {
+    try { import('./seller-campaign.js').then(m => m.handleSellerLead({ client_id: cid, campaign_raw: listing, raw_text: raw || `${noteLine}
+${timeline}`, isExisting: !!existing })).catch(e => console.error('[seller-campaign]', e.message)) } catch {}
+  }
+  if (!isSellerCampaign) try {
     import('./notifications.js').then(m => m.notify({
       type: 'fb_lead', title: `Facebook ad lead: ${(first + ' ' + last).trim() || phoneFmt || cleanEmail || 'unknown'}${existing ? ' (existing lead!)' : ''}`,
       body: `${listing || 'listing ad'}${timeline ? ` · timeline: ${timeline}` : ''}${phoneFmt ? ` · ${phoneFmt}` : ''}`,

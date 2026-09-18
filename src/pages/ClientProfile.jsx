@@ -286,6 +286,7 @@ export default function ClientProfile() {
             cxcamp: () => (client.mls_status || client.off_market_date) ? <CxCampaignCard cid={cid} client={client} /> : null,
             fsbocamp: () => (client.fsbo_status || client.fsbo_listings) ? <FsboCampaignCard cid={cid} client={client} /> : null,
             ai: () => <AiIntelligence ai={ai} followup={followup} cid={cid} />,
+            sellerintent: () => (String(client.tags || '').includes('FB Seller Ad') || client.seller_timeframe) ? <SellerIntentCard cid={cid} /> : null,
             appts: () => <AppointmentsCard cid={cid} client={client} />,
             plans: () => <ActionPlans cid={cid} />,
             tasks: () => <div id="cp-tasks"><TasksCard cid={cid} name={name} address={[client.address, client.city, client.state, client.zip].filter(Boolean).join(', ')} /></div>,
@@ -1047,6 +1048,36 @@ function Research({ client }) {
 // the Hub profile link; saving emails John + Matt a real calendar invite (ICS).
 const APPT_TYPES = [['showing', 'Showing'], ['walkthrough', 'Walkthrough'], ['buyer_meeting', 'Buyer Meeting']]
 
+
+// ── Seller Intent card (Fix It or Skip It, John 2026-09-19) ───────────────
+// The Meta seller-ad answers, priority, exact campaign attribution and the
+// contextual-sequence state — no digging through notes or raw webhook JSON.
+function SellerIntentCard({ cid }) {
+  const [d, setD] = useState(null)
+  useEffect(() => { authFetch('/api/ai/seller-campaign/' + cid).then(r => r.ok ? r.json() : null).then(setD).catch(() => {}) }, [cid])
+  if (!d) return null
+  const PRI_COLOR = { 'PRIORITY 1': '#dc2626', 'PRIORITY 2': '#ea580c', 'PRIORITY 3': '#ca8a04', NURTURE: '#6b7280', EARLY: '#6b7280' }
+  const sub = d.submissions?.[0]
+  const L = ({ k, v }) => v ? <div style={{ display: 'flex', gap: 8, fontSize: 13, padding: '2px 0' }}><span style={{ color: 'var(--text-muted)', minWidth: 118 }}>{k}</span><span>{v}</span></div> : null
+  return (
+    <section className="cp-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <h3 style={{ margin: 0, fontSize: 14.5 }}>🏷 Seller Intent</h3>
+        {d.priority && d.priority !== 'UNRANKED' && <span style={{ fontSize: 12, fontWeight: 800, color: PRI_COLOR[d.priority] || 'var(--text-muted)' }}>{d.priority}</span>}
+      </div>
+      <L k="Timeframe" v={d.seller_timeframe} />
+      <L k="Considering" v={d.seller_improvement} />
+      <L k="Walkthrough pref" v={d.seller_availability} />
+      <L k="Property" v={sub?.property} />
+      <L k="Campaign family" v={d.family} />
+      <L k="Actual campaign" v={sub?.campaign_raw} />
+      <L k="Submitted" v={sub ? String(sub.created_at).slice(0, 10) : null} />
+      {d.sequence && <L k="Sequence" v={`${d.sequence.status}${d.sequence.status === 'active' ? ` — next text step ${d.sequence.next_step + 1}` : ''}`} />}
+      {d.seller_availability && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>Scheduling tip: "You mentioned {d.seller_availability.toLowerCase()} usually work best — is there a day next week that's easiest?" (preference, not a confirmed time)</div>}
+    </section>
+  )
+}
+
 // ── Appointments card (scheduling system, John 2026-09-18) ────────────────
 // Upcoming + past appointments from the scheduling engine, and a typed
 // Schedule Appointment flow with REAL availability (same engine as the
@@ -1543,7 +1574,7 @@ function ListingInterest({ client }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {

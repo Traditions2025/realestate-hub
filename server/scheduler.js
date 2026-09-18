@@ -851,6 +851,10 @@ export function startScheduler() {
   // Appointment reminders (24h/2h before, SMS+email, dedup + claim-first) - every 5 min.
   setInterval(() => { import('./scheduling.js').then(m => m.runAppointmentReminders()).catch(() => {}) }, 5 * 60 * 1000)
 
+  // Meta seller campaign (Fix It or Skip It) contextual sequence - every 5 min
+  // (Day 0 goes promptly; response stops first; policy gates per send).
+  setInterval(() => { import('./seller-campaign.js').then(m => m.runSellerFollowups()).catch(() => {}) }, 5 * 60 * 1000)
+
   // Cancelled/Expired Connection Campaign - every 15 min (self-gates: master switch,
   // weekdays 9AM-4PM CT window, per-send eligibility re-verification).
   setInterval(() => { import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)

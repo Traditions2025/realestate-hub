@@ -179,6 +179,17 @@ router.post('/lead/:id/fb-ad-flow', async (req, res) => {
   res.json({ success: true, client_id: cid, first_text_in: '~1-2 min', email_follow_up: '+10 min if no reply' })
 })
 
+// ---- Meta seller campaign: Fix It or Skip It (John, 2026-09-19) ------------
+router.get('/seller-campaign/stats', async (_req, res) => {
+  const m = await import('../seller-campaign.js'); res.json(m.sellerCampaignStats())
+})
+router.get('/seller-campaign/:clientId', async (req, res) => {
+  const m = await import('../seller-campaign.js')
+  const r = m.sellerIntent(req.params.clientId)
+  if (!r) return res.status(404).json({ error: 'no seller submissions' })
+  res.json(r)
+})
+
 // ---- FB listing-lead 30-day campaign (John, 2026-09-18) --------------------
 router.get('/fb-campaign/stats', async (_req, res) => {
   const m = await import('../fb-listing-campaign.js'); res.json(m.fbListingCampaignStats())

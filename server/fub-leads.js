@@ -46,7 +46,7 @@ function extractLead(e) {
     || (msg.match(/(0-3|1-3|3-6|6-12)\s*_?months|just curious[^.\n]*/i) || [''])[0]).replace(/_/g, ' ')
   const lender = line(/working with a lender\??:?\s*(yes|no)/i)
   return { first, last, email, phone, listing: String(listing).slice(0, 80),
-    timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim() }
+    timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(), raw: msg.slice(0, 4000) }
 }
 
 // FUB's /events LIST returns slim rows — the registration message and person live
@@ -95,6 +95,7 @@ export function parseFubLeadEmail(subject, text) {
     first: nm[0] || '', last: nm.slice(1).join(' ') || '',
     phone, email, listing: String(listing).slice(0, 80),
     timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(),
+    raw: String(body).slice(0, 4000),
   }
 }
 

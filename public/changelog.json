@@ -1,7 +1,71 @@
 {
-  "generated_at": "2026-09-18T20:39:15.858Z",
+  "generated_at": "2026-09-18T22:15:17.406Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "b932d15",
+      "date": "2026-09-18T16:29:08-05:00",
+      "subject": "FB intake: seller-campaign guard (scheduling parked)",
+      "title": "FB intake: seller-campaign guard (scheduling parked)",
+      "body": "Seller ad leads (Fix It or Skip It / walkthrough / seller / home value /\nCMA in the form or campaign name) are homeowners, not buyers: they now\ncome in typed 'seller', tagged 'FB Seller Ad: ...', with NO buyer opener\ntext and NO 30-day listing campaign — alert email + notification only,\nfor personal follow-up. Buyer listing-ad leads are unchanged.\n\nThe public booking surface is parked per John: Fix It or Skip It type\ndeactivated (public page 404s), Sierra embed removed. All scheduling\ncode, tests and staff tooling stay in place for when it's wanted.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3433326",
+      "date": "2026-09-18T16:22:51-05:00",
+      "subject": "Admin endpoint returning the Calendbook webhook URLs",
+      "title": "Admin endpoint returning the Calendbook webhook URLs",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b1e7feb",
+      "date": "2026-09-18T16:20:25-05:00",
+      "subject": "Calendbook webhook intake: bookings land in the CRM",
+      "title": "Calendbook webhook intake: bookings land in the CRM",
+      "body": "Four shared-key endpoints (/api/public/calendbook/{booking,reschedule,\ncancellation,reminder}?key=...) for John's Calendbook subscription. Every\ndelivery is logged raw first, then mined defensively (email/phone/name/\nstart/type/external id) since Calendbook's payload shape isn't documented.\nBooking -> lead dedupe (phone/email, never name) + calendar_events\nappointment + timeline entry + appointment.booked automation event + team\nnotification. Reschedule/cancellation match by the stored Calendbook id.\nThe Hub sends NO confirmations or reminders for these — Calendbook owns\nthose, so nobody gets double-texted.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cabac4e",
+      "date": "2026-09-18T16:16:14-05:00",
+      "subject": "Booking page: eyebrow no longer duplicates the wordmark",
+      "title": "Booking page: eyebrow no longer duplicates the wordmark",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fa978b5",
+      "date": "2026-09-18T16:13:17-05:00",
+      "subject": "Booking page restyled to the mattsmithteam.com editorial system",
+      "title": "Booking page restyled to the mattsmithteam.com editorial system",
+      "body": "Cormorant Garamond display, ink + gold + warm paper palette, letterspaced\nwordmark header — the page now reads as part of the site, not a tool.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "47214f7",
+      "date": "2026-09-18T16:07:58-05:00",
+      "subject": "Booking page: fix apostrophe escaping that broke the inline script",
+      "title": "Booking page: fix apostrophe escaping that broke the inline script",
+      "body": "The template literal ate one escaping level: \\' in source emitted a raw\nquote inside a single-quoted JS string, so the whole page script failed\nto parse and the calendar never rendered. HTML entity instead.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "926c382",
+      "date": "2026-09-18T16:04:33-05:00",
+      "subject": "Booking page: full current-month calendar first, then time, then contact",
+      "title": "Booking page: full current-month calendar first, then time, then contact",
+      "body": "The intro interstitial is gone — the page opens on the headline + a full\nmonth grid (available dates tappable, the rest greyed, arrows walk months\ninside the booking horizon). Date -> time -> name/phone/email, per John.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "78781e0",
+      "date": "2026-09-18T15:39:36-05:00",
+      "subject": "Native appointment scheduling: types, availability engine, public booking",
+      "title": "Native appointment scheduling: types, availability engine, public booking",
+      "body": "Reusable scheduling system built ON the existing calendar — appointments\nare calendar_events rows (extended via idempotent ALTERs), so the Calendar\npage, ICS team invites, and client links keep working unchanged.\n\n- appointment_types (duration, buffers, notice, horizon, per-type weekly\n  windows, custom questions, slug) — first type seeded: Fix It or Skip It\n  Walkthrough, 15 min, /book/fix-it-or-skip-it, Mon-Fri 10-4\n- Server-side availability engine: member hours x type windows minus\n  existing events (incl. Matt's Google-Calendar-synced busy events),\n  buffers, blocked dates, min notice, horizon; DST-safe CT<->UTC math;\n  booking re-checks the slot in one synchronous block (atomic)\n- Public mobile-first booking page (server-rendered, no SPA/auth), 5-step\n  flow, Meta/UTM attribution params, lead dedupe id>phone>email (never\n  name), crypto-token manage page with reschedule/cancel + Add to Calendar\n- Confirmations on existing rails: lead SMS (John's copy) + email with\n  what-to-expect and manage link, ICS invite to John+Matt, notification,\n  activity-feed entry\n- Reminders 24h + 2h (SMS+email), claim-first dedup, cancel/reschedule\n  aware, 5-min scheduler tick\n- automation_events: appointment.booked/rescheduled/cancelled/completed/\n  no_show with dedupe keys\n- Hub UI: Calendar appointment detail modal (view client / confirm /\n  complete / no-show / cancel), profile Appointments card + typed\n  Schedule Appointment with real slots, Settings > Calendar/Scheduling\n  (availability editor, blocked dates, appointment-type manager)\n- Rate limiting on all public endpoints; booking_page_events funnel\n  tracking + /api/scheduling/stats\n- 14 new tests (299 total passing)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "aa625fb",
       "date": "2026-09-18T10:40:58-05:00",
@@ -3935,70 +3999,6 @@
       "date": "2026-08-12T17:36:23-05:00",
       "subject": "Leads: pull social profiles from Follow Up Boss (socialData + picture) as the primary free enrichment source, Gravatar as fallback",
       "title": "Leads: pull social profiles from Follow Up Boss (socialData + picture) as the primary free enrichment source, Gravatar as fallback",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c2f599d",
-      "date": "2026-08-12T17:25:12-05:00",
-      "subject": "Leads: free social enrichment (no paid API, no scraping)",
-      "title": "Leads: free social enrichment (no paid API, no scraping)",
-      "body": "- clients: linkedin_url, facebook_url, avatar_url, enriched_at, enrichment_source\n- POST /api/clients/:id/enrich-free: free Gravatar lookup (email->public profile) fills avatar + linked LinkedIn/Facebook when present; stamps that we checked\n- Client detail 'Social Profiles' section: prefilled Google site: search links for LinkedIn/Facebook (agent finds + verifies), paste-to-save URL fields with clickable links, free Auto-check button, avatar display\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "77233ec",
-      "date": "2026-08-12T17:10:44-05:00",
-      "subject": "Email opt-outs: tag, don't block — opted-out contacts are emailable again (with guardrails)",
-      "title": "Email opt-outs: tag, don't block — opted-out contacts are emailable again (with guardrails)",
-      "body": "Team policy: in Sierra a property-alert unsubscribe also flips the marketing-email opt-out, so many 'opted out' leads never actually unsubscribed from us. So opt-out is now a TAG, not a hard block.\n\n- New shared guard in email.js: emailHardBlock() (no email / blocked domain / ReportedAsSpam / WrongAddress = still hard-blocked) + emailOptOutTag() (email vs alert)\n- All 6 send gates (sequence/drip, single send, bulk, inbox compose, AI follow-up draft+send, automation step) now allow opted-out and only hard-block the undeliverable/spam-complaint cases\n- Clients UI: row shows 'Email opt-out' (red) vs 'Alerts off' (amber) tags; detail Email button + follow-up draft no longer hidden for opted-out; detail clarifies alert-only unsubs are still emailable\n- SendGrid's own suppression list remains the backstop for genuine unsubscribes\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8e54f92",
-      "date": "2026-08-12T10:40:05-05:00",
-      "subject": "Transactions: split earnest money AMOUNT from STATUS (they shared one field, so setting status erased the amount)",
-      "title": "Transactions: split earnest money AMOUNT from STATUS (they shared one field, so setting status erased the amount)",
-      "body": "- New earnest_money_amount column; migration recovers any dollar value stuck in earnest_money_deposit and resets that back to a valid status\n- PA extractor now writes the dollar amount to earnest_money_amount (never the status field); status stays a human/workflow decision\n- Buyer email reads the amount from earnest_money_amount (fallback to legacy value)\n- Form: separate Earnest Amount input + Status dropdown; dropdown guards against non-status values\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "13faaa8",
-      "date": "2026-08-12T10:19:57-05:00",
-      "subject": "Transactions: also auto-compute final walkthrough (weekday before closing) on PA extraction — matches the form rule that extraction bypassed",
-      "title": "Transactions: also auto-compute final walkthrough (weekday before closing) on PA extraction — matches the form rule that extraction bypassed",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "869d790",
-      "date": "2026-08-12T10:17:25-05:00",
-      "subject": "Transactions: auto-compute earnest money due date (contract + 3 business days) on PA extraction; email falls back to the same so it's never blank",
-      "title": "Transactions: auto-compute earnest money due date (contract + 3 business days) on PA extraction; email falls back to the same so it's never blank",
-      "body": "Earnest due date had no compute rule — only fixed email text + a reminder window — so the stored field stayed empty and the buyer email rendered a blank due date. Now computed on extraction (like the 7-day insurance contingency) and back-stopped in the email template.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e837040",
-      "date": "2026-08-12T10:06:18-05:00",
-      "subject": "Transactions: auto-pilot CRAAR PA parsing + cash/appraisal rule + home warranty payer + multiple people",
-      "title": "Transactions: auto-pilot CRAAR PA parsing + cash/appraisal rule + home warranty payer + multiple people",
-      "body": "- PA extractor now reads insurance contingency (CRAAR line 53), home warranty payer (line 132: seller/buyer/none), and lender + lender company (line 25); CRAAR line-aware with a full-document semantic fallback for other PA forms\n- has_home_warranty derived from home_warranty_paid_by; buyer email states who actually pays (seller vs buyer) instead of always 'seller'\n- Financing = Cash -> clears mortgage/financing contingency and appraisal (no loan); otherwise appraisal mirrors the mortgage contingency date (already locked in form); form disables those dates on Cash\n- New home_warranty_paid_by column (backfilled from existing flag); warranty UI is now a 3-way select\n- transaction_people table + /:id/people GET/POST/DELETE endpoints; modal roster to add multiple leads/clients (co-buyers/co-sellers) by CRM match or free-text name\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d73cc4d",
-      "date": "2026-08-11T17:34:53-05:00",
-      "subject": "Fix page-wide horizontal scroll: add min-width:0 to .main-content (flexbox min-content trap)",
-      "title": "page-wide horizontal scroll: add min-width:0 to .main-content (flexbox min-content trap)",
-      "body": "Root cause of the Inbox horizontal scroll: .main-content is a flex child with default min-width:auto, so wide content (long collapsed message rows) forced it past the viewport. Proven via live CDP injection: without fix page overflowed 1167px; with min-width:0 overflow is 0. Fixes every page, not just Inbox.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "649bc8e",
-      "date": "2026-08-11T17:14:41-05:00",
-      "subject": "PWA: app shell network-first (was stale-while-revalidate) so deploys load on next visit, not after 2 refreshes; cache bump v7",
-      "title": "PWA: app shell network-first (was stale-while-revalidate) so deploys load on next visit, not after 2 refreshes; cache bump v7",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
