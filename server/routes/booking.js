@@ -281,7 +281,7 @@ function introHtml(){return '<div class="step-label">Matt Smith Team</div><h1>'+
 function monthOf(d){return d.slice(0,7)}
 function stepDays(){el(introHtml()+'<div class="spin">Finding open times&hellip;</div>');
 api('/api/public/booking/'+CFG.slug+'/days').then(function(j){S.days=j.days||[];
-if(!S.days.length)return el(introHtml()+'<p class="lead" style="margin-top:14px"><strong>No times open right now.</strong> Please check back soon, or call/text us at (319) 343-1562 and we\'ll find a time.</p>');
+if(!S.days.length)return el(introHtml()+'<p class="lead" style="margin-top:14px"><strong>No times open right now.</strong> Please check back soon, or call/text us at (319) 343-1562 and we&rsquo;ll find a time.</p>');
 S.months=[];S.days.forEach(function(d){var mo=monthOf(d);if(S.months.indexOf(mo)<0)S.months.push(mo)});
 var cur=monthOf(new Date().toISOString());if(S.months.indexOf(cur)<0)S.months.unshift(cur);
 S.months.sort();if(S.mi==null||S.mi>=S.months.length)S.mi=0;
