@@ -162,6 +162,13 @@ async function syncSierraIncremental() {
       }
     } catch (e) { console.error('[scheduler] Expired master sync error (non-fatal):', e.message) }
 
+    // Every tick (not hourly): MLS Expired/Cancelled tag + status New → Watch. Cheap single
+    // query; catches tags added by hand in the UI between master syncs.
+    try {
+      const { enforceWatchForMlsTagged } = await import('./expired-master.js')
+      await enforceWatchForMlsTagged()
+    } catch (e) { console.error('[scheduler] MLS watch rule error (non-fatal):', e.message) }
+
     return { success: true, total, added, updated, since: sinceFormatted }
   } catch (err) {
     console.error('[scheduler] Sierra sync error:', err.message)

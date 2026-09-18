@@ -256,8 +256,33 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
   if (!dryRun) {
     try { db.setSetting?.('expired_master_seen_keys', JSON.stringify([...seenKeys])) } catch {}
     db.setSetting?.('expired_master_last_sync', now)
+    try { report.moved_to_watch = (await enforceWatchForMlsTagged()).moved } catch (e) { console.error('[expired-master] watch sweep error:', e.message) }
   }
   return report
+}
+
+// John's rule (2026-09-18): any lead carrying an MLS: Expired / MLS: Cancelled tag belongs in
+// Watch, not New — New is for inbound leads awaiting triage; these are proactive C/E prospects.
+// Only status 'new' is touched: junk, qualify, closed and everything else is someone's
+// deliberate call and stays put. Runs after every master sync AND on every scheduler tick, so
+// a tag added by hand in the UI flips within ~10 minutes. The C/E list filter and the CX
+// auto-enroll both include 'watch', so neither is affected by the move.
+export async function enforceWatchForMlsTagged() {
+  const rows = db.all(`SELECT id, first_name, last_name, mls_status FROM clients
+    WHERE merged_into IS NULL AND lower(status) = 'new'
+      AND (tags LIKE '%"MLS: Expired"%' OR tags LIKE '%"MLS: Cancelled"%')`)
+  if (!rows.length) return { moved: 0, ids: [] }
+  const now = nowIso()
+  const { logMasterUpdate } = await import('./master-file-log.js')
+  for (const r of rows) {
+    db.run("UPDATE clients SET status = 'watch', updated_at = ? WHERE id = ? AND lower(status) = 'new'", [now, r.id])
+    try {
+      logMasterUpdate(r.id, 'expired', 'watched', 'Moved New → Watch (MLS Expired/Cancelled tag rule)',
+        { label: 'Watch', sub: ['Cancelled', 'Expired', 'Withdrawn'].includes(r.mls_status) ? r.mls_status : null })
+    } catch {}
+  }
+  console.log(`[expired-master] watch rule: moved ${rows.length} New lead(s) with MLS tags to Watch`)
+  return { moved: rows.length, ids: rows.map(r => r.id) }
 }
 
 // The Cancelled/Expired list (id 1) is a DYNAMIC filter on status (new/qualify/watch) + the

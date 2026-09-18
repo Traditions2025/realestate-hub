@@ -1,5 +1,10 @@
 # Hub Design Upgrade Plan
 
+> **STATUS 2026-09-17:** Phases 1–4 SHIPPED (commits 9f88aa3 Phase 1, 63e66e4 Phases 2–4).
+> Phase 2 device acceptance still owed: install the PWA on Matt's iPhone + one Android and
+> run the mobile-native checklist on real hardware. Phase 5 items are proposals awaiting
+> Matt's sign-off — do not build without it.
+
 Audience: Claude Code implementation sessions (and John/Matt for sign-off).
 Created 2026-09-17 from an audit of `src/` against the newly installed design skills
 (`emil-design-eng`, `impeccable`, `mobile-native`, `ask-sonner`, `apple-design`,

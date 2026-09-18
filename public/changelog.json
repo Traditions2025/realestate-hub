@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-17T21:52:35.403Z",
+  "generated_at": "2026-09-18T14:38:56.469Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "63e66e4",
+      "date": "2026-09-17T16:53:42-05:00",
+      "subject": "Design plan Phases 2-4: mobile-native layer, motion pass, consistency audit",
+      "title": "Design plan Phases 2-4: mobile-native layer, motion pass, consistency audit",
+      "body": "Phase 2 (mobile-native, iPhone + Android):\n- Tap-highlight flash removed; :active press feedback replaces it\n- overscroll-behavior: none — no more browser pull-to-refresh reloading the SPA\n- Sticky :hover neutralized on touch devices (active/open/selected states kept)\n- 100vh -> 100dvh with fallback (app layout, modals, Inbox panes)\n- touch-action: manipulation + user-select: none on all controls\n- 44px minimum touch targets and 16px inputs on coarse pointers\n\nPhase 3 (motion): button/row press scale, modal overlay fade + panel rise\n(200ms ease-out, instant exit), one prefers-reduced-motion block zeroes all.\n\nPhase 4 (consistency):\n- 4.1 Typography floor: 406 declarations at 10-11.5px raised to 12px,\n  data-table cells 13 -> 14px\n- 4.2 Tasks gets mobile card layout (Clients + Transactions already had one)\n- 4.3 Nav: Dashboard/Clients/Inbox/Transactions/Tasks pinned on top;\n  mobile drawer collapses SYSTEM + DIRECTORY by default (tap to expand)\n- 4.4 Elevation ramp: --shadow-1/2/3 tokens (dark-tuned), modals 3, dropdowns 2\n- 4.5 Passive empty states rewritten to state the next action\n- 4.6 LoadErrorBanner with Retry on Dashboard/Clients/Inbox/Transactions/Tasks\n  page loads (failures were silently swallowed)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9f88aa3",
       "date": "2026-09-17T16:29:30-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: minimize the AI reply by default, bigger email view, Gmail-style thread collapse",
       "title": "Inbox: minimize the AI reply by default, bigger email view, Gmail-style thread collapse",
       "body": "- The AI/reply composer is now minimized by default — a slim bar showing the AI\n  intent badge + one-line summary and a \"Reply\" button; click to expand the full\n  composer, Minimize to collapse. Frees a lot of vertical space.\n- Email frame default height raised (120 -> 220), and with the composer minimized\n  the reading pane is much taller, so emails read bigger.\n- Gmail-style conversation collapse: in a multi-message thread, only the latest\n  (and any unread incoming) message is expanded; older read messages collapse to a\n  one-line summary (sender · subject — snippet · date). Click a header to toggle.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "242f7f7",
-      "date": "2026-08-11T12:28:36-05:00",
-      "subject": "Dashboard: remove the \"Pull Sierra Leads\" button",
-      "title": "Dashboard: remove the \"Pull Sierra Leads\" button",
-      "body": "Redundant — Sierra auto-syncs incrementally every 10 min, and a manual sync is\nstill available in Updates → Systems (\"Run Sync Now\"). Removed the button, its\nsyncSierra handler, and the syncing state. The \"Last Sierra sync\" status line stays.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
