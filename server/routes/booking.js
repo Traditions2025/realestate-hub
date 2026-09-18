@@ -238,6 +238,16 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--gold)}
 .summary strong{font-size:16px}
 .err{background:#fef2f2;border:1px solid #fecaca;color:#b91c1c;border-radius:10px;padding:11px 13px;font-size:13.5px;margin:10px 0;display:none}
 .back{background:none;border:none;color:var(--muted);font-size:13.5px;cursor:pointer;padding:8px 0;margin-top:6px}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin:16px 0 8px;font-size:16px}
+.cal-nav{width:40px;height:40px;border:1.5px solid var(--border);border-radius:10px;background:#fff;font-size:20px;cursor:pointer;color:var(--navy)}
+.cal-nav[disabled]{opacity:.3}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
+.cal-wd{text-align:center;font-size:11.5px;font-weight:700;color:var(--muted);padding:4px 0}
+.cal-day{display:flex;align-items:center;justify-content:center;aspect-ratio:1;border-radius:10px;font-size:15px;font-weight:600;min-height:42px}
+.cal-day.off{color:var(--muted);opacity:.4}
+.cal-day.open{border:1.5px solid var(--gold);background:#faf6ec;color:var(--navy);cursor:pointer}
+.cal-day.open:active{background:var(--gold);color:var(--gold-dark)}
+@media (prefers-color-scheme:dark){.cal-nav{background:var(--card);color:var(--navy)}.cal-day.open{background:#1d2438}}
 .done-icon{width:56px;height:56px;border-radius:50%;background:#dcfce7;color:#15803d;display:flex;align-items:center;justify-content:center;font-size:28px;margin:0 auto 12px}
 .actions{display:grid;gap:9px;margin-top:16px}
 .muted{color:var(--muted);font-size:13px}
@@ -263,15 +273,37 @@ function t12(t){var p=t.split(':');var h=+p[0];var ap=h>=12?'PM':'AM';h=h%12||12
 function whenPretty(d,t){return new Date(d+'T12:00:00').toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'})+' at '+t12(t)}
 function showErr(m){var e=document.getElementById('err');if(e){e.textContent=m;e.style.display='block'}}
 
-function stepIntro(){el('<div class="step-label">Matt Smith Team</div><h1>'+esc(CFG.title)+'</h1><p class="lead">'+esc(CFG.description)+'</p><div style="margin-top:18px"><button class="btn" id="go">Pick a Time</button></div>');document.getElementById('go').onclick=function(){track('booking_started');stepDays()}}
-
-function stepDays(){el('<div class="step-label">Step 1 of 3</div><h1>Choose a day</h1><div class="spin">Finding open days&hellip;</div>');
+// The page opens straight on a FULL MONTH CALENDAR (John, 2026-09-18): headline +
+// one-line pitch, then the current month with available dates tappable and
+// everything else greyed out. Month arrows walk to the next months inside the
+// booking horizon. Pick a date -> pick a time -> contact details.
+function introHtml(){return '<div class="step-label">Matt Smith Team</div><h1>'+esc(CFG.title)+'</h1><p class="lead">'+esc(CFG.description)+'</p>'}
+function monthOf(d){return d.slice(0,7)}
+function stepDays(){el(introHtml()+'<div class="spin">Finding open times&hellip;</div>');
 api('/api/public/booking/'+CFG.slug+'/days').then(function(j){S.days=j.days||[];
-if(!S.days.length)return el('<h1>No times open right now</h1><p class="lead">Please check back soon, or call/text us at (319) 343-1562 and we\\'ll find a time.</p>');
-var h='<div class="step-label">Step 1 of 3</div><h1>Choose a day</h1><div class="grid days">';
-S.days.forEach(function(d,i){var L=dayLabel(d);h+='<button class="slot" data-i="'+i+'">'+L.top+'<br><strong>'+L.m+' '+L.n+'</strong></button>'});
-h+='</div>';el(h);
-Array.prototype.forEach.call(document.querySelectorAll('.slot'),function(b){b.onclick=function(){S.date=S.days[+b.dataset.i];track('date_selected',{date:S.date});stepTimes()}})})}
+if(!S.days.length)return el(introHtml()+'<p class="lead" style="margin-top:14px"><strong>No times open right now.</strong> Please check back soon, or call/text us at (319) 343-1562 and we\'ll find a time.</p>');
+S.months=[];S.days.forEach(function(d){var mo=monthOf(d);if(S.months.indexOf(mo)<0)S.months.push(mo)});
+var cur=monthOf(new Date().toISOString());if(S.months.indexOf(cur)<0)S.months.unshift(cur);
+S.months.sort();if(S.mi==null||S.mi>=S.months.length)S.mi=0;
+renderMonth()})}
+function renderMonth(){var mo=S.months[S.mi];var y=+mo.slice(0,4),mn=+mo.slice(5,7);
+var first=new Date(y,mn-1,1),dim=new Date(y,mn,0).getDate(),lead=first.getDay();
+var name=first.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+var open={};S.days.forEach(function(d){if(monthOf(d)===mo)open[+d.slice(8,10)]=d});
+var h=introHtml();
+h+='<div class="cal-head"><button class="cal-nav" id="pm" '+(S.mi<=0?'disabled':'')+'>&lsaquo;</button><strong>'+name+'</strong><button class="cal-nav" id="nm" '+(S.mi>=S.months.length-1?'disabled':'')+'>&rsaquo;</button></div>';
+h+='<div class="cal-grid">';
+['S','M','T','W','T','F','S'].forEach(function(w){h+='<div class="cal-wd">'+w+'</div>'});
+for(var i=0;i<lead;i++)h+='<div></div>';
+for(var day=1;day<=dim;day++){
+if(open[day])h+='<button class="cal-day open" data-d="'+open[day]+'">'+day+'</button>';
+else h+='<div class="cal-day off">'+day+'</div>'}
+h+='</div><p class="muted" style="text-align:center;margin-top:10px">Tap an available date &middot; All times Central</p>';
+el(h);
+var pm=document.getElementById('pm'),nm=document.getElementById('nm');
+if(pm)pm.onclick=function(){if(S.mi>0){S.mi--;renderMonth()}};
+if(nm)nm.onclick=function(){if(S.mi<S.months.length-1){S.mi++;renderMonth()}};
+Array.prototype.forEach.call(document.querySelectorAll('.cal-day.open'),function(b){b.onclick=function(){if(!S.started){S.started=1;track('booking_started')}S.date=b.dataset.d;track('date_selected',{date:S.date});stepTimes()}})}
 
 function stepTimes(){el('<div class="step-label">Step 2 of 3</div><h1>'+whenPretty(S.date,'12:00').split(' at ')[0]+'</h1><div class="spin">Loading times&hellip;</div>');
 api('/api/public/booking/'+CFG.slug+'/slots?date='+S.date).then(function(j){S.slots=j.slots||[];
@@ -332,7 +364,7 @@ api('/api/public/appointment/'+CFG.token+'/reschedule',{method:'POST',body:JSON.
 .then(function(j){el('<div class="done-icon">\\u2713</div><h1 style="text-align:center">Rescheduled!</h1><div class="summary"><strong>'+esc(j.type)+'</strong><br>'+esc(j.when)+(j.property?'<br>'+esc(j.property):'')+'</div><p class="lead">We\\u2019ve updated everything \\u2014 you\\u2019ll get a fresh confirmation.</p><div class="actions"><a class="btn" style="text-align:center;text-decoration:none" href="/api/public/appointment/'+CFG.token+'/ics">Add to Calendar</a></div>')})
 .catch(function(e){showErr(e.message);setTimeout(stepTimes,1500)})}
 
-if(CFG.mode==='book'){track('page_view');stepIntro()}else{manage()}
+if(CFG.mode==='book'){track('page_view');stepDays()}else{manage()}
 </script></body></html>`
 }
 
