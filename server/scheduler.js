@@ -175,6 +175,13 @@ async function syncSierraIncremental() {
       enforceDefaultAgentAssignment()
     } catch (e) { console.error('[scheduler] agent assignment rule error (non-fatal):', e.message) }
 
+    // Every tick: FB-ad leads release from general AI once their Day-0
+    // opener/email are done — dedicated FB campaigns own all follow-up.
+    try {
+      const { releaseFbAdLeadsFromGeneralAi } = await import('./ai-enrollment.js')
+      releaseFbAdLeadsFromGeneralAi()
+    } catch (e) { console.error('[scheduler] FB release rule error (non-fatal):', e.message) }
+
     return { success: true, total, added, updated, since: sinceFormatted }
   } catch (err) {
     console.error('[scheduler] Sierra sync error:', err.message)

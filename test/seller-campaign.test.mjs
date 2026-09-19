@@ -155,3 +155,24 @@ test('general buyer AI can never enroll a seller-campaign lead', async () => {
   const ev2 = eng.evaluateAiEnrollmentEligibility(cid2)
   assert.equal(ev2.reason_code, 'SELLER_CAMPAIGN')
 })
+
+test('ALL FB-ad leads are excluded from general AI (dedicated campaigns own them)', async () => {
+  const eng = await import('../server/ai-enrollment.js')
+  const cid = mkClient()
+  db.run(`UPDATE clients SET first_name='Rich', last_name=?, source='Facebook Listing Ad', tags=? WHERE id=?`,
+    ['Fbguard' + Date.now(), JSON.stringify(['FB Ad: 510 Broadway Springville']), cid])
+  const ev = eng.evaluateAiEnrollmentEligibility(cid)
+  assert.equal(ev.reason_code, 'FB_CAMPAIGN')
+  // the FB intake itself may still use the rails for the Day-0 opener
+  const ev2 = eng.evaluateAiEnrollmentEligibility(cid, { fbIntake: true })
+  assert.notEqual(ev2.reason_code, 'FB_CAMPAIGN')
+  // release sweep: managed FB lead with no pending opener/email gets let go
+  db.run(`INSERT INTO ai_lead_state (client_id, ai_enabled, ai_managed, ai_state) VALUES (?,?,?,?)
+          ON CONFLICT (client_id) DO UPDATE SET ai_enabled=1, ai_managed=1, ai_state='AI_WAITING_FOR_REPLY'`, [cid, 1, 1, 'AI_WAITING_FOR_REPLY'])
+  const rel = eng.releaseFbAdLeadsFromGeneralAi()
+  assert.ok(rel.ids.includes(cid))
+  const st = db.get('SELECT ai_managed, ai_enabled, ai_state FROM ai_lead_state WHERE client_id=?', [cid])
+  assert.equal(st.ai_managed, 0)
+  assert.equal(st.ai_state, 'AI_DISABLED')
+  db.run('DELETE FROM ai_lead_state WHERE client_id=?', [cid])
+})

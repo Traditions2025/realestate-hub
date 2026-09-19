@@ -84,7 +84,7 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
     try {
       import('./ai-enrollment.js').then(m => {
         if ((db.getSetting('ai_auto_enroll_mode', 'off') || 'off') === 'off') return
-        const ev = m.evaluateAiEnrollmentEligibility(cid)
+        const ev = m.evaluateAiEnrollmentEligibility(cid, { fbIntake: true })
         m.logEnrollmentDecision(ev, { actor: 'fb_ad_intake' })
         if (ev.decision === 'eligible') m.enrollLead({ ...ev, lane: 'fresh' }, {
           actor: 'fb_ad_intake', firstAtIso: m.nextAllowedIso(new Date(Date.now() + 5 * 60000)),

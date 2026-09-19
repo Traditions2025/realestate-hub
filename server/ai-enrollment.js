@@ -99,7 +99,7 @@ export function looksRealName(first, last) {
 const EXCLUDED = (code, reason, extra = {}) => ({ decision: 'excluded', reason_code: code, reason, ...extra })
 const DEFERRED = (code, reason, retry_after = null, extra = {}) => ({ decision: 'deferred', reason_code: code, reason, retry_after, ...extra })
 
-export function evaluateAiEnrollmentEligibility(clientId) {
+export function evaluateAiEnrollmentEligibility(clientId, opts = {}) {
   const cid = Number(clientId)
   const base = { client_id: cid, classification: null, lane: null, priority_score: null, warnings: [], evaluated_at: nowIso() }
   const fin = (r) => ({ ...base, ...r })
@@ -134,6 +134,15 @@ export function evaluateAiEnrollmentEligibility(clientId) {
   // seller intake; this closes that race for good).
   try { if (db.get('SELECT client_id FROM fb_seller_followups WHERE client_id=?', [cid])) return fin(EXCLUDED('SELLER_CAMPAIGN', 'Fix It or Skip It seller campaign owns this lead')) } catch {}
   if (String(c.tags || '').includes('FB Seller Ad')) return fin(EXCLUDED('SELLER_CAMPAIGN', 'Meta seller-ad lead — the seller campaign and a human own it'))
+  // ALL Facebook-ad leads are excluded from general AI follow-up (John,
+  // 2026-09-19): they run their own dedicated campaigns (Day-0 opener bank +
+  // 30-day listing campaign for buyers, Fix It or Skip It for sellers). The
+  // ONE exception is the FB intake itself, which uses this engine's rails to
+  // deliver the approved Day-0 opener + 10-minute email (opts.fbIntake).
+  if (!opts.fbIntake) {
+    if (/"FB Ad/.test(String(c.tags || ''))) return fin(EXCLUDED('FB_CAMPAIGN', 'Facebook ad lead — the dedicated FB campaigns own all follow-up'))
+    try { if (db.get('SELECT client_id FROM fb_listing_campaigns WHERE client_id=?', [cid])) return fin(EXCLUDED('FB_CAMPAIGN', 'enrolled in the FB 30-day listing campaign')) } catch {}
+  }
 
   // 5) Seller-prospecting identities, independent of status/source spelling.
   if (c.fsbo_status || (c.fsbo_listings && c.fsbo_listings !== '[]')) return fin(EXCLUDED('FSBO', 'FSBO-tracked lead'))
@@ -383,4 +392,27 @@ export function enrollmentSummary() {
     cursor: Number(db.getSetting('ai_reactivation_cursor', '0')) || 0,
     recent_enrollments: recent,
   }
+}
+
+// ---------------------------------------------------------------------------
+// FB-lead release sweep (John, 2026-09-19): FB-ad leads only borrow the AI
+// rails for the Day-0 opener + 10-minute email. Once neither of those is
+// pending, the general AI lets go — no generic nurture may ever stack on top
+// of the dedicated FB campaigns. Runs every scheduler tick; idempotent.
+export function releaseFbAdLeadsFromGeneralAi() {
+  const rows = db.all(`SELECT s.client_id FROM ai_lead_state s JOIN clients c ON c.id = s.client_id
+    WHERE s.ai_managed = 1
+      AND (c.tags LIKE '%"FB Ad%' OR c.tags LIKE '%FB Seller Ad%')
+      AND NOT EXISTS (SELECT 1 FROM ai_scheduled_actions a WHERE a.client_id = s.client_id
+        AND a.state IN ('pending','processing') AND a.action_type IN ('AI_FB_AD_OPENER','AI_FB_AD_EMAIL'))`)
+  for (const r of rows) {
+    try {
+      db.run("UPDATE ai_scheduled_actions SET state='canceled', canceled_at=?, error=? WHERE client_id=? AND state='pending'",
+        [nowIso(), 'FB campaign owns follow-up', r.client_id])
+      db.run("UPDATE ai_lead_state SET ai_managed=0, ai_enabled=0, ai_state='AI_DISABLED', ai_state_changed_at=?, updated_at=? WHERE client_id=?",
+        [nowIso(), nowIso(), r.client_id])
+    } catch (e) { console.error('[ai-enrollment] fb release:', e.message) }
+  }
+  if (rows.length) console.log(`[ai-enrollment] released ${rows.length} FB-ad lead(s) from general AI (dedicated campaigns own them)`)
+  return { released: rows.length, ids: rows.map(r => r.client_id) }
 }
