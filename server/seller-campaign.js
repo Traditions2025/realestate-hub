@@ -183,6 +183,14 @@ export function handleSellerLead({ client_id, campaign_raw = '', raw_text = '', 
     }
   } catch {}
   try { import('./ai-followup/orchestrator.js').then(m => m.cancelPendingScheduled(cid, 'seller intent — Fix It or Skip It')).catch(() => {}) } catch {}
+  // If the general AI already claimed this lead (the fresh sweep runs every few
+  // minutes), release it: seller-campaign leads are never buyer-AI territory.
+  try {
+    import('./ai-followup/state.js').then(st => {
+      st.setManaged(cid, false); st.setEnabled(cid, false)
+      st.transitionAiState(cid, 'AI_DISABLED', 'Fix It or Skip It seller campaign owns this lead')
+    }).catch(() => {})
+  } catch {}
 
   // Task: same-business-day review, higher priority when the timeframe is near.
   const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Lead'

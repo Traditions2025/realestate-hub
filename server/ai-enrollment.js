@@ -128,6 +128,12 @@ export function evaluateAiEnrollmentEligibility(clientId) {
 
   // 4) CX Connect fence — the Cancelled/Expired campaign owns these leads outright.
   try { if (db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [cid])) return fin(EXCLUDED('CX_CAMPAIGN', 'enrolled in the Cancelled/Expired connection campaign — AI never texts these leads')) } catch {}
+  // Fix It or Skip It seller-campaign leads belong to the contextual seller
+  // sequence + a human — the general buyer AI must never overlap it (John,
+  // 2026-09-19: the fresh sweep enrolled lead #46042 one minute after the
+  // seller intake; this closes that race for good).
+  try { if (db.get('SELECT client_id FROM fb_seller_followups WHERE client_id=?', [cid])) return fin(EXCLUDED('SELLER_CAMPAIGN', 'Fix It or Skip It seller campaign owns this lead')) } catch {}
+  if (String(c.tags || '').includes('FB Seller Ad')) return fin(EXCLUDED('SELLER_CAMPAIGN', 'Meta seller-ad lead — the seller campaign and a human own it'))
 
   // 5) Seller-prospecting identities, independent of status/source spelling.
   if (c.fsbo_status || (c.fsbo_listings && c.fsbo_listings !== '[]')) return fin(EXCLUDED('FSBO', 'FSBO-tracked lead'))

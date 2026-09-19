@@ -140,3 +140,18 @@ test('cleanup', () => {
     db.run("DELETE FROM activity_log WHERE entity_type='client' AND entity_id=?", [id])
   }
 })
+
+test('general buyer AI can never enroll a seller-campaign lead', async () => {
+  const eng = await import('../server/ai-enrollment.js')
+  const cid = mkClient()
+  db.run('UPDATE clients SET first_name=?, last_name=?, source=? WHERE id=?', ['Luis', 'Guardtest' + Date.now(), 'Facebook Listing Ad', cid])
+  db.run('INSERT INTO fb_seller_followups (client_id, status, day0_at, next_step, updated_at) VALUES (?,?,?,?,?)', [cid, 'active', new Date().toISOString(), 0, new Date().toISOString()])
+  const ev = eng.evaluateAiEnrollmentEligibility(cid)
+  assert.equal(ev.decision, 'excluded')
+  assert.equal(ev.reason_code, 'SELLER_CAMPAIGN')
+  // tag alone (hot-status existing contact with no sequence row) also excludes
+  const cid2 = mkClient()
+  db.run(`UPDATE clients SET first_name='Ana', last_name=?, source='Facebook Listing Ad', tags=? WHERE id=?`, ['Guardtag' + Date.now(), JSON.stringify(['FB Seller Ad: SELLER | Fix It or Skip It']), cid2])
+  const ev2 = eng.evaluateAiEnrollmentEligibility(cid2)
+  assert.equal(ev2.reason_code, 'SELLER_CAMPAIGN')
+})
