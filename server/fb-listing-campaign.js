@@ -23,12 +23,32 @@
 //     notifies the team — a person reaching out beats a canned message.
 //   - A reply on ANY channel stops the campaign first; humans own it. No
 //     automated replies, ever.
-//   - Weekday 9AM-4PM Central window, trickled sends, central policy gates
+//   - 9AM-4PM Central window SEVEN days a week (weekend exemption for FB-ad
+//     leads, John 2026-09-19), trickled sends, central policy gates
 //     (STOP/DNT/undeliverable/collision) re-checked per send.
 //
 // Master switch: fb_listing_campaign_enabled ('1' = on).
 import db from './database.js'
-import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
+import { ctParts } from './scheduling.js'
+
+// WEEKEND EXEMPTION for Facebook-ad leads (John, 2026-09-19): these are hot
+// inbound leads, so follow-ups send SEVEN days a week — same 9AM-4PM Central
+// time rules, but Saturday/Sunday no longer roll to Monday. (FSBO/expired cold
+// prospecting keeps its weekday-only window; this applies to FB campaigns only.)
+export function inFbWindow(d = new Date()) {
+  const c = ctParts(d)
+  return c.hour >= 9 && c.hour < 16
+}
+export function nextFbSlot(from = new Date()) {
+  let d = new Date(from)
+  for (let i = 0; i < 5; i++) {
+    const c = ctParts(d)
+    if (c.hour < 9) { d = new Date(d.getTime() + ((9 - c.hour) * 60 - c.minute + Math.floor(Math.random() * 90)) * 60000); continue }
+    if (c.hour >= 16) { d = new Date(d.getTime() + ((24 - c.hour + 9) * 60 - c.minute + Math.floor(Math.random() * 90)) * 60000); continue }
+    return d
+  }
+  return d
+}
 
 const nowIso = () => new Date().toISOString()
 const HUB = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
@@ -157,7 +177,7 @@ const fmtPrice = (p) => '$' + Number(p).toLocaleString('en-US')
 // ---- schedule -------------------------------------------------------------
 function stepDueAt(day0Iso, stepIdx) {
   const target = new Date(new Date(day0Iso).getTime() + STEPS[stepIdx].day * DAY)
-  return nextValidSlot(target < new Date() ? new Date() : target)
+  return nextFbSlot(target < new Date() ? new Date() : target)
 }
 
 // ---- enrollment -----------------------------------------------------------
@@ -225,7 +245,7 @@ function advance(row, fromStep, { push = null } = {}) {
     return null
   }
   let at = stepDueAt(row.day0_at, next)
-  if (push && push > at) at = nextValidSlot(push)
+  if (push && push > at) at = nextFbSlot(push)
   db.run('UPDATE fb_listing_campaigns SET next_step=?, next_send_at=?, updated_at=? WHERE client_id=?', [next, at.toISOString(), nowIso(), row.client_id])
   return at
 }
@@ -249,7 +269,7 @@ export async function runFbListingCampaign() {
   sweeping = true
   try {
     initFbListingCampaign()
-    const out = { sent: 0, pivoted: 0, held: 0, stopped: 0, deferred: 0, window: inProactiveWindow() }
+    const out = { sent: 0, pivoted: 0, held: 0, stopped: 0, deferred: 0, window: inFbWindow() }
 
     // 1) RESPONSE STOPS FIRST — any inbound since day0 hands the lead to a human.
     for (const r of db.all("SELECT client_id, day0_at FROM fb_listing_campaigns WHERE status='active'")) {
@@ -261,10 +281,10 @@ export async function runFbListingCampaign() {
       }
     }
 
-    if (!inProactiveWindow()) return out
+    if (!inFbWindow()) return out
     const due = db.all("SELECT * FROM fb_listing_campaigns WHERE status='active' AND next_send_at IS NOT NULL AND next_send_at <= ? ORDER BY next_send_at ASC LIMIT 30", [nowIso()])
     for (let i = 0; i < due.length; i++) {
-      if (!fbListingCampaignEnabled() || !inProactiveWindow()) break
+      if (!fbListingCampaignEnabled() || !inFbWindow()) break
       const res = await sendNextStep(due[i])
       out[res] = (out[res] || 0) + 1
       if (i < due.length - 1 && res === 'sent') await new Promise(r => setTimeout(r, 60000 + Math.floor(Math.random() * 90000)))
@@ -324,7 +344,7 @@ async function sendNextStep(row) {
     const r = await sendCampaignSms(c, body)
     if (!r.ok) return defer(row, r.reason)
     db.run('UPDATE fb_listing_campaigns SET last_known_price=?, price_notified_at=?, last_sent_at=?, next_send_at=?, updated_at=? WHERE client_id=?',
-      [tx.purchase_price, tx.purchase_price, nowIso(), nextValidSlot(new Date(Date.now() + 3 * DAY)).toISOString(), nowIso(), cid])
+      [tx.purchase_price, tx.purchase_price, nowIso(), nextFbSlot(new Date(Date.now() + 3 * DAY)).toISOString(), nowIso(), cid])
     logC(cid, 'sent', { step_key: 'price_update', listing_status: state, body, comm_id: r.comm_id })
     return 'pivoted'
   }
@@ -353,7 +373,7 @@ async function sendNextStep(row) {
 }
 
 function defer(row, reason) {
-  const push = nextValidSlot(new Date(Date.now() + DAY)).toISOString()
+  const push = nextFbSlot(new Date(Date.now() + DAY)).toISOString()
   db.run('UPDATE fb_listing_campaigns SET next_send_at=?, updated_at=? WHERE client_id=?', [push, nowIso(), row.client_id])
   logC(row.client_id, 'deferred', { step_key: STEPS[row.next_step]?.key, reason: String(reason || '').slice(0, 200), next_send_at: push })
   return 'deferred'

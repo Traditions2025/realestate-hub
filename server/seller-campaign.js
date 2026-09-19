@@ -18,9 +18,11 @@
 //   - Statuses are never changed by this module. Fields/tags do segmentation.
 //   - First-touch source is never overwritten; the submission is recorded as
 //     the latest conversion with full attribution.
-//   - Weekday-window + quiet-hour + STOP/DNT policy gates on every send.
+//   - 9-4 CT window 7 days a week (FB-ad weekend exemption) + quiet-hour +
+//     STOP/DNT policy gates on every send.
 import db from './database.js'
-import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
+// Weekend exemption (John, 2026-09-19): FB-ad follow-ups send 7 days a week, 9-4 CT.
+import { inFbWindow, nextFbSlot } from './fb-listing-campaign.js'
 
 const nowIso = () => new Date().toISOString()
 const HUB = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
@@ -276,13 +278,13 @@ export async function runSellerFollowups() {
     for (let i = 0; i < due.length; i++) {
       const row = due[i]
       // Day 0 goes out promptly (policy quiet hours still gate it); later steps weekday-window only.
-      if (row.next_step > 0 && !inProactiveWindow()) { out.deferred++; continue }
+      if (row.next_step > 0 && !inFbWindow()) { out.deferred++; continue }
       const c = db.get('SELECT * FROM clients WHERE id = ? AND merged_into IS NULL', [row.client_id])
       if (!c || !c.phone) { db.run("UPDATE fb_seller_followups SET status='stopped', stop_reason='no phone', next_send_at=NULL, updated_at=? WHERE client_id=?", [nowIso(), row.client_id]); out.stopped++; continue }
       const body = row.next_step === 0 ? sellerOpener(c.first_name, c.seller_improvement) : FOLLOWUPS[row.next_step](c.first_name)
       const r = await sendSellerSms(c, body)
       if (!r.ok) {
-        const push = nextValidSlot(new Date(Date.now() + 3 * 3600000)).toISOString()
+        const push = nextFbSlot(new Date(Date.now() + 3 * 3600000)).toISOString()
         db.run('UPDATE fb_seller_followups SET next_send_at = ?, updated_at = ? WHERE client_id = ?', [push, nowIso(), row.client_id])
         out.deferred++; continue
       }
@@ -305,7 +307,7 @@ export async function runSellerFollowups() {
           ['meta_seller_lead', 'client', row.client_id, `Fix It or Skip It sequence complete (no reply) — moved to ${tf} nurture; check-in task due ${due2}`])
         out.nurtured++
       } else {
-        const at = nextValidSlot(new Date(new Date(row.day0_at).getTime() + STEP_DAYS[nextStep] * DAY)).toISOString()
+        const at = nextFbSlot(new Date(new Date(row.day0_at).getTime() + STEP_DAYS[nextStep] * DAY)).toISOString()
         db.run('UPDATE fb_seller_followups SET next_step = ?, next_send_at = ?, last_sent_at = ?, updated_at = ? WHERE client_id = ?', [nextStep, at, nowIso(), row.client_id])
       }
       out.sent++
