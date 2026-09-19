@@ -55,17 +55,38 @@ test('priority ranking follows the spec', () => {
   assert.equal(m.priorityForTimeframe('Just exploring'), 'EARLY')
 })
 
-test('first text is contextual per improvement answer — never generic', () => {
-  assert.ok(m.sellerOpener('Pat', 'Kitchen').includes('considering some kitchen updates'))
-  assert.ok(m.sellerOpener('Pat', 'Flooring').includes('flooring is one of the things'))
-  assert.ok(m.sellerOpener('Pat', 'Several things').includes('several things'))
+test("first text is contextual per improvement answer — John's 09-19 copy, never generic", () => {
+  assert.equal(m.sellerOpener('Sarah', 'Kitchen'),
+    "Hi Sarah, it's John with Matt Smith Team at RE/MAX. I saw your Fix It or Skip It request and that you're considering some kitchen updates. Are you already planning to do the work, or are you mainly trying to figure out whether it's worth doing before you sell?")
+  assert.ok(m.sellerOpener('Pat', 'Bathrooms').includes('bathroom updates'))
+  assert.ok(m.sellerOpener('Pat', 'Flooring').includes('Are you leaning toward replacing it'))
+  assert.ok(m.sellerOpener('Pat', 'Paint').includes('repainting most of the home'))
+  assert.ok(m.sellerOpener('Pat', 'Exterior / landscaping').includes('exterior or landscaping work'))
+  assert.ok(m.sellerOpener('Pat', 'Several things').includes('started making a list'))
   assert.ok(m.sellerOpener('Pat', 'Not sure yet').includes('second opinion'))
-  assert.ok(m.sellerOpener('Pat', null).includes('second opinion'))   // missing answer: no false claims
-  for (const imp of ['Kitchen', 'Bathrooms', 'Paint', 'Exterior / landscaping', null]) {
+  // MISSING answer gets its own copy (claims nothing, asks the fix-or-leave question)
+  assert.ok(m.sellerOpener('Pat', null).includes('unsure whether you should fix or leave alone'))
+  for (const imp of ['Kitchen', 'Bathrooms', 'Paint', 'Exterior / landscaping', 'Several things', 'Not sure yet', null]) {
     const t = m.sellerOpener('Pat', imp)
     assert.ok(t.startsWith("Hi Pat, it's John with Matt Smith Team at RE/MAX."))
-    assert.ok(!/thanks for your interest/i.test(t))
+    assert.ok(!/thanks for your interest/i.test(t) && !/—|–/.test(t))
   }
+})
+
+test('send windows: first touch 7 days a week, follow-ups weekdays; 9AM-7PM CT', () => {
+  const satNoon = new Date('2027-06-19T17:00:00Z')   // Sat 12:00 CT
+  assert.ok(m.inSellerWindow(satNoon, { firstTouch: true }))
+  assert.ok(!m.inSellerWindow(satNoon))              // follow-ups: weekend blocked
+  const monEvening = new Date('2027-06-21T23:30:00Z')  // Mon 6:30 PM CT: inside 9-7
+  assert.ok(m.inSellerWindow(monEvening))
+  const monNight = new Date('2027-06-22T00:30:00Z')    // Mon 7:30 PM CT: after hours
+  assert.ok(!m.inSellerWindow(monNight, { firstTouch: true }))
+  // Sat follow-up slot rolls PAST the weekend to Monday
+  const rolled = m.nextSellerSlot(satNoon)
+  const wd = rolled.toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short' })
+  assert.equal(wd, 'Mon')
+  // Sat FIRST TOUCH stays Saturday
+  assert.equal(m.nextSellerSlot(satNoon, { firstTouch: true }).toISOString(), satNoon.toISOString())
 })
 
 test('new lead: fields stored, attribution exact, task + events, sequence enrolled', () => {

@@ -21,8 +21,27 @@
 //   - 9-4 CT window 7 days a week (FB-ad weekend exemption) + quiet-hour +
 //     STOP/DNT policy gates on every send.
 import db from './database.js'
-// Weekend exemption (John, 2026-09-19): FB-ad follow-ups send 7 days a week, 9-4 CT.
-import { inFbWindow, nextFbSlot } from './fb-listing-campaign.js'
+import { ctParts } from './scheduling.js'
+
+// SEND WINDOWS (John, 2026-09-19): the weekend exemption applies ONLY to the
+// FIRST reach-out. Day 0 may send any day of the week; Day 1/3/7 follow-ups are
+// weekdays only. Both use the 9:00 AM - 7:00 PM Central window; policy quiet
+// hours and STOP/DNT gates still apply on top.
+export function inSellerWindow(d = new Date(), { firstTouch = false } = {}) {
+  const c = ctParts(d)
+  if (!firstTouch && (c.weekday === 0 || c.weekday === 6)) return false
+  return c.hour >= 9 && c.hour < 19
+}
+export function nextSellerSlot(from = new Date(), { firstTouch = false } = {}) {
+  let d = new Date(from)
+  for (let i = 0; i < 8; i++) {
+    if (inSellerWindow(d, { firstTouch })) return d
+    const c = ctParts(d)
+    if (c.hour < 9) d = new Date(d.getTime() + ((9 - c.hour) * 60 - c.minute + Math.floor(Math.random() * 45)) * 60000)
+    else d = new Date(d.getTime() + ((24 - c.hour + 9) * 60 - c.minute + Math.floor(Math.random() * 45)) * 60000)
+  }
+  return d
+}
 
 const nowIso = () => new Date().toISOString()
 const HUB = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
@@ -199,33 +218,46 @@ export function handleSellerLead({ client_id, campaign_raw = '', raw_text = '', 
 // CONTEXTUAL FIRST TEXT — John's copy, keyed to what they told us. Never a
 // generic "thanks for your interest".
 // ---------------------------------------------------------------------------
+// Staff-editable copy: overrides live in the seller_campaign_copy setting
+// (JSON: { openers: {Kitchen: "..."}, day1: "...", day3: "...", day7: "..." });
+// code holds John's approved defaults so a developer is never needed for edits.
+function copyOverrides() { try { return JSON.parse(db.getSetting?.('seller_campaign_copy') || '{}') } catch { return {} } }
+
 export function sellerOpener(first, improvement) {
   const n = first || 'there'
-  const base = `Hi ${n}, it's John with Matt Smith Team at RE/MAX. I saw you requested our Fix It or Skip It walkthrough`
+  const ov = copyOverrides().openers || {}
+  const key = improvement || '_missing'
+  if (ov[key]) return ov[key].replaceAll('{{first_name}}', n)
+  const base = `Hi ${n}, it's John with Matt Smith Team at RE/MAX. I saw your Fix It or Skip It request`
   switch (improvement) {
     case 'Kitchen':
-      return `${base} and mentioned you're considering some kitchen updates. Before putting money into it, are you mainly trying to figure out what would actually be worth doing before you sell?`
-    case 'Flooring':
-      return `${base} and mentioned flooring is one of the things you're considering. Are you already planning to replace it, or are you still trying to decide whether it's worth doing before you sell?`
+      return `${base} and that you're considering some kitchen updates. Are you already planning to do the work, or are you mainly trying to figure out whether it's worth doing before you sell?`
     case 'Bathrooms':
-      return `${base} and mentioned the bathrooms are on your list. Are you already planning the updates, or still deciding whether they're worth doing before you sell?`
+      return `${base} and that you're considering some bathroom updates. Are you already planning the work, or are you still trying to decide what would actually be worth doing before you sell?`
+    case 'Flooring':
+      return `${base} and that flooring is one of the things you're considering. Are you leaning toward replacing it, or are you still trying to decide whether it's worth doing before you sell?`
     case 'Paint':
-      return `${base} and mentioned paint is one of the things you're considering. Are you thinking whole-house, or still deciding which rooms would actually be worth it before you sell?`
+      return `${base} and that paint is one of the things you're considering. Are you thinking about repainting most of the home, or just trying to figure out which areas actually need it before you sell?`
     case 'Exterior / landscaping':
-      return `${base} and mentioned the exterior and landscaping. Are you already planning the work, or still deciding how much of it is worth doing before you sell?`
+      return `${base} and that you're considering some exterior or landscaping work. Are you already planning specific projects, or are you mainly trying to figure out what's actually worth doing before you sell?`
     case 'Several things':
-      return `${base} and mentioned there are several things you're considering updating. Have you already started making a list, or are you still trying to figure out what actually makes sense to do?`
+      return `${base} and that there are several things you're considering updating. Have you already started making a list, or are you still trying to figure out what's actually worth doing?`
     case 'Not sure yet':
-    default:
       return `${base}. Are there any parts of the home you're already wondering about, or are you mainly looking for a second opinion before deciding what to touch?`
+    default:
+      return `${base}. Before you spend money on updates, what's the main thing you're unsure whether you should fix or leave alone?`
   }
 }
 
-const FOLLOWUPS = [
-  null,   // step 0 = opener
-  (n) => `Just following up on the Fix It or Skip It request you sent over. Before you spend money on updates, we can take a quick look and help you figure out what may actually be worth doing. Is there anything in particular you're unsure about?`,
-  (n) => `One quick question before I close the loop for now: are you thinking the move would be sometime in the next few months, later this year, or are you mostly planning ahead?`,
-  (n) => `Still happy to take a quick look whenever it becomes useful. Even if you're months away, it can help to know what not to spend money on.`,
+const FOLLOWUP_DEFAULTS = {
+  day1: `Just following up on the Fix It or Skip It request you sent over. Before you put money into the house, we can take a quick look and help you sort out what may be worth doing and what you may be better off leaving alone. Is there one project you're most unsure about?`,
+  day3: `One quick question before I close the loop for now: are you thinking a move would happen in the next few months, later this year, or are you mostly planning ahead?`,
+  day7: `Still happy to help whenever it becomes useful. Even if you're months away, it can help to know what not to spend money on before you sell.`,
+}
+const FOLLOWUPS = [null,
+  () => copyOverrides().day1 || FOLLOWUP_DEFAULTS.day1,
+  () => copyOverrides().day3 || FOLLOWUP_DEFAULTS.day3,
+  () => copyOverrides().day7 || FOLLOWUP_DEFAULTS.day7,
 ]
 const STEP_DAYS = [0, 1, 3, 7]
 
@@ -262,29 +294,63 @@ export async function runSellerFollowups() {
   try {
     initSellerCampaign()
     const out = { sent: 0, stopped: 0, deferred: 0, nurtured: 0 }
-    // RESPONSE STOPS FIRST — humans own the conversation from the first reply.
+    // HARD STOP CONDITIONS, checked every tick before any send:
+    // reply (humans own it) > opt-out > status became hot > walkthrough scheduled.
     for (const r of db.all("SELECT client_id, day0_at, next_step FROM fb_seller_followups WHERE status = 'active'")) {
+      const c = db.get('SELECT first_name, last_name, status, hub_text_opt_out FROM clients WHERE id = ?', [r.client_id])
+      const name = `${c?.first_name || ''} ${c?.last_name || ''}`.trim()
       if (db.get("SELECT id FROM communications WHERE client_id = ? AND direction = 'incoming' AND occurred_at >= ? LIMIT 1", [r.client_id, r.day0_at])) {
-        db.run("UPDATE fb_seller_followups SET status = 'responded', next_send_at = NULL, updated_at = ? WHERE client_id = ?", [nowIso(), r.client_id])
+        db.run("UPDATE fb_seller_followups SET status = 'responded', next_send_at = NULL, stop_reason = 'lead replied', updated_at = ? WHERE client_id = ?", [nowIso(), r.client_id])
         emit('meta_seller_lead.replied', r.client_id, { at: nowIso() })
+        try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['meta_seller_lead', 'client', r.client_id, 'Fix It or Skip It Automation Stopped -- Reason: Lead Replied']) } catch {}
         try {
-          const c = db.get('SELECT first_name, last_name FROM clients WHERE id=?', [r.client_id])
-          import('./notifications.js').then(m => m.notify({ type: 'seller_lead', title: `Seller lead replied: ${`${c?.first_name || ''} ${c?.last_name || ''}`.trim()}`, body: 'Automation stopped — the conversation is yours.', link: `/clients/${r.client_id}`, client_id: r.client_id, dedupKey: `msl_reply_${r.client_id}` })).catch(() => {})
+          db.run("UPDATE tasks SET status='done', completed_at=?, updated_at=? WHERE related_id=? AND related_type='client' AND title LIKE 'Review Fix It or Skip It%' AND status != 'done'", [nowIso(), nowIso(), r.client_id])
+          if (!db.get("SELECT id FROM tasks WHERE related_id=? AND title LIKE 'Respond to Fix It or Skip It%' AND status != 'done'", [r.client_id])) {
+            db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+              [`Respond to Fix It or Skip It seller lead — ${name}`, 'They replied to the automated opener. The conversation is yours — automation is stopped.', 'high', 'todo', nowIso().slice(0, 10), 'Matt', 'Seller Lead', 'client', r.client_id, nowIso(), nowIso()])
+          }
         } catch {}
+        try { import('./notifications.js').then(m => m.notify({ type: 'seller_lead', title: `Seller lead replied: ${name}`, body: 'Automation stopped — the conversation is yours.', link: `/clients/${r.client_id}`, client_id: r.client_id, dedupKey: `msl_reply_${r.client_id}` })).catch(() => {}) } catch {}
         out.stopped++
+        continue
+      }
+      if (c?.hub_text_opt_out) {
+        db.run("UPDATE fb_seller_followups SET status = 'stopped', stop_reason = 'opted out', next_send_at = NULL, updated_at = ? WHERE client_id = ?", [nowIso(), r.client_id])
+        out.stopped++; continue
+      }
+      if (['active', 'prime', 'pending', 'closed'].includes(String(c?.status || '').toLowerCase())) {
+        db.run("UPDATE fb_seller_followups SET status = 'stopped', stop_reason = ?, next_send_at = NULL, updated_at = ? WHERE client_id = ?", ['status became ' + c.status, nowIso(), r.client_id])
+        try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['meta_seller_lead', 'client', r.client_id, `Fix It or Skip It Automation Stopped -- Reason: status is now ${c.status} (being worked personally)`]) } catch {}
+        out.stopped++; continue
+      }
+      const appt = db.get("SELECT id FROM calendar_events WHERE related_type='client' AND related_id=? AND appt_status IN ('scheduled','confirmed') AND created_at >= ? LIMIT 1", [r.client_id, r.day0_at])
+      if (appt) {
+        db.run("UPDATE fb_seller_followups SET status = 'stopped', stop_reason = 'appointment scheduled', next_send_at = NULL, updated_at = ? WHERE client_id = ?", [nowIso(), r.client_id])
+        emit('fix_it_skip_it.appointment_scheduled', r.client_id, { at: nowIso() })
+        try { db.run("UPDATE tasks SET status='done', completed_at=?, updated_at=? WHERE related_id=? AND related_type='client' AND title LIKE 'Review Fix It or Skip It%' AND status != 'done'", [nowIso(), nowIso(), r.client_id]) } catch {}
+        try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['meta_seller_lead', 'client', r.client_id, 'Fix It or Skip It Automation Stopped -- Reason: Walkthrough scheduled']) } catch {}
+        out.stopped++; continue
       }
     }
     const due = db.all("SELECT * FROM fb_seller_followups WHERE status = 'active' AND next_send_at IS NOT NULL AND next_send_at <= ? ORDER BY next_send_at ASC LIMIT 20", [nowIso()])
     for (let i = 0; i < due.length; i++) {
       const row = due[i]
       // Day 0 goes out promptly (policy quiet hours still gate it); later steps weekday-window only.
-      if (row.next_step > 0 && !inFbWindow()) { out.deferred++; continue }
+      // Day 0: any day 9AM-7PM CT (weekend exemption is FIRST-TOUCH only).
+      // Day 1/3/7: weekdays 9AM-7PM CT.
+      if (!inSellerWindow(new Date(), { firstTouch: row.next_step === 0 })) {
+        if (row.next_step === 0) {
+          const at = nextSellerSlot(new Date(), { firstTouch: true }).toISOString()
+          if (at !== row.next_send_at) db.run('UPDATE fb_seller_followups SET next_send_at = ?, updated_at = ? WHERE client_id = ?', [at, nowIso(), row.client_id])
+        }
+        out.deferred++; continue
+      }
       const c = db.get('SELECT * FROM clients WHERE id = ? AND merged_into IS NULL', [row.client_id])
       if (!c || !c.phone) { db.run("UPDATE fb_seller_followups SET status='stopped', stop_reason='no phone', next_send_at=NULL, updated_at=? WHERE client_id=?", [nowIso(), row.client_id]); out.stopped++; continue }
-      const body = row.next_step === 0 ? sellerOpener(c.first_name, c.seller_improvement) : FOLLOWUPS[row.next_step](c.first_name)
+      const body = row.next_step === 0 ? sellerOpener(c.first_name, c.seller_improvement) : FOLLOWUPS[row.next_step]()
       const r = await sendSellerSms(c, body)
       if (!r.ok) {
-        const push = nextFbSlot(new Date(Date.now() + 3 * 3600000)).toISOString()
+        const push = nextSellerSlot(new Date(Date.now() + 3 * 3600000), { firstTouch: row.next_step === 0 }).toISOString()
         db.run('UPDATE fb_seller_followups SET next_send_at = ?, updated_at = ? WHERE client_id = ?', [push, nowIso(), row.client_id])
         out.deferred++; continue
       }
@@ -307,7 +373,7 @@ export async function runSellerFollowups() {
           ['meta_seller_lead', 'client', row.client_id, `Fix It or Skip It sequence complete (no reply) — moved to ${tf} nurture; check-in task due ${due2}`])
         out.nurtured++
       } else {
-        const at = nextFbSlot(new Date(new Date(row.day0_at).getTime() + STEP_DAYS[nextStep] * DAY)).toISOString()
+        const at = nextSellerSlot(new Date(new Date(row.day0_at).getTime() + STEP_DAYS[nextStep] * DAY)).toISOString()
         db.run('UPDATE fb_seller_followups SET next_step = ?, next_send_at = ?, last_sent_at = ?, updated_at = ? WHERE client_id = ?', [nextStep, at, nowIso(), row.client_id])
       }
       out.sent++

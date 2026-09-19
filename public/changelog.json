@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-09-18T22:15:17.406Z",
+  "generated_at": "2026-09-19T12:00:44.473Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8359220",
+      "date": "2026-09-19T06:33:55-05:00",
+      "subject": "Weekend exemption for Facebook-ad follow-ups (both FB campaigns)",
+      "title": "Weekend exemption for Facebook-ad follow-ups (both FB campaigns)",
+      "body": "FB-ad leads are hot inbound, so the 30-day listing campaign and the Fix\nIt or Skip It seller sequence now send SEVEN days a week — same 9AM-4PM\nCentral time rules, but Saturday/Sunday no longer roll to Monday.\ninFbWindow/nextFbSlot in fb-listing-campaign.js, shared by the seller\nmodule. FSBO and expired/cancelled cold prospecting keep their\nweekday-only window; quiet-hour/STOP/collision policy gates unchanged.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fd9e6a8",
+      "date": "2026-09-18T17:16:57-05:00",
+      "subject": "Fix It or Skip It seller campaign: family routing, contextual sequence, funnel",
+      "title": "It or Skip It seller campaign: family routing, contextual sequence, funnel",
+      "body": "Both Meta campaigns (\"SELLER | Fix It or Skip It\" and \"Kitchen creative |\nFix It or Skip It Walkthrough\") route to one seller-offer family while the\nEXACT campaign string is preserved per submission (meta_seller_leads) for\ncreative-level reporting — never overwritten by the family name.\n\n- Form answers mined from the FUB email body and normalized into structured\n  client fields: seller_timeframe / seller_improvement / seller_availability\n  (canonical option sets), plus a readable activity block\n- Priority ranking by timeframe (P1 within-3mo ... EARLY just-exploring)\n- CONTEXTUAL Day-0 text per John's copy, keyed to their improvement answer\n  (Kitchen/Flooring/Bathrooms/Paint/Exterior/Several/Not-sure) — never a\n  generic thanks-text; missing answers claim nothing\n- Day 1/3/7 no-reply follow-ups (verbatim), response-stops-first, policy\n  gates per send, then timeframe-dated nurture task — never auto-NIM\n- Hot statuses (Active/Prime/Pending/Closed) get task + notification only;\n  status never touched; active buyer listing campaign pauses on seller\n  intent (conflict rule); pending AI actions cancelled\n- Same-business-day review task w/ answers + scheduling tip from their\n  availability preference (a preference, not a confirmed appointment)\n- Events: meta_seller_lead.received/contacted/replied via automation_events\n- Seller Intent card on the client profile; /api/ai/seller-campaign/stats\n  compares creatives on contacted/replied/timeframes/walkthroughs/closings\n- Intake idempotent on FUB email retries (1 submission/lead/campaign/day)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
     {
       "hash": "b932d15",
       "date": "2026-09-18T16:29:08-05:00",
@@ -3983,22 +3999,6 @@
       "date": "2026-08-12T18:18:36-05:00",
       "subject": "Email composer: '+ Field' menu to insert personalization anywhere in subject + body (WYSIWYG and HTML modes), caret-preserving",
       "title": "Email composer: '+ Field' menu to insert personalization anywhere in subject + body (WYSIWYG and HTML modes), caret-preserving",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5f49b63",
-      "date": "2026-08-12T17:41:01-05:00",
-      "subject": "Leads: capture FUB job title + employer; add background bulk 'Pull socials from FUB' (rate-limited, resumable) + progress button",
-      "title": "Leads: capture FUB job title + employer; add background bulk 'Pull socials from FUB' (rate-limited, resumable) + progress button",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "870936f",
-      "date": "2026-08-12T17:36:23-05:00",
-      "subject": "Leads: pull social profiles from Follow Up Boss (socialData + picture) as the primary free enrichment source, Gravatar as fallback",
-      "title": "Leads: pull social profiles from Follow Up Boss (socialData + picture) as the primary free enrichment source, Gravatar as fallback",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

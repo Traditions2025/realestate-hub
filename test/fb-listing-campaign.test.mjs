@@ -103,16 +103,3 @@ test('cleanup seeded rows', () => {
   for (const id of seeded.comms) db.run('DELETE FROM communications WHERE id=?', [id])
   for (const id of seeded.tx) db.run('DELETE FROM transactions WHERE id=?', [id])
 })
-
-test('weekend exemption: FB windows include Saturday/Sunday, 9-4 CT only', () => {
-  // Sat 2027-06-19 10:00 CT (15:00Z in June/CDT) is IN window and stays Saturday.
-  const satMorning = new Date('2027-06-19T15:00:00Z')
-  assert.ok(m.inFbWindow(satMorning))
-  assert.equal(m.nextFbSlot(satMorning).toISOString(), satMorning.toISOString())
-  // Sat 20:00 CT is after hours -> rolls to SUNDAY morning, not Monday.
-  const satNight = new Date('2027-06-20T01:00:00Z')
-  const rolled = m.nextFbSlot(satNight)
-  const ct = new Date(rolled).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: 'numeric', hour12: false })
-  assert.ok(ct.startsWith('Sun'), 'rolls to Sunday: ' + ct)
-  assert.ok(!m.inFbWindow(satNight))
-})

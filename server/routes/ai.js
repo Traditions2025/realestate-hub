@@ -183,6 +183,35 @@ router.post('/lead/:id/fb-ad-flow', async (req, res) => {
 router.get('/seller-campaign/stats', async (_req, res) => {
   const m = await import('../seller-campaign.js'); res.json(m.sellerCampaignStats())
 })
+router.get('/seller-campaign/enrolled', async (_req, res) => {
+  const db2 = (await import('../database.js')).default
+  res.json(db2.all(`SELECT f.*, c.first_name, c.last_name, c.seller_timeframe, c.seller_improvement FROM fb_seller_followups f JOIN clients c ON c.id = f.client_id ORDER BY f.updated_at DESC LIMIT 100`))
+})
+router.post('/seller-campaign/simulate', async (req, res) => {
+  // TEST MODE: previews the exact dynamic first SMS + routing for given answers.
+  // Pure preview — writes nothing, sends nothing.
+  const m = await import('../seller-campaign.js')
+  const b = req.body || {}
+  res.json({
+    first_sms: m.sellerOpener(b.first_name || 'Test', b.improvement || null),
+    priority: m.priorityForTimeframe(b.timeframe || null),
+    would_automate: !['active', 'prime', 'pending', 'closed'].includes(String(b.status || 'new').toLowerCase()),
+    sequence: 'Day 0 (any day 9AM-7PM CT) -> Day 1 -> Day 3 -> Day 7 (weekdays 9AM-7PM) -> timeframe nurture task',
+    availability_tip: b.availability ? `You mentioned ${String(b.availability).toLowerCase()} usually work best. Is there a particular day next week that's easiest?` : null,
+  })
+})
+router.post('/seller-campaign/:clientId/remove', async (req, res) => {
+  const db2 = (await import('../database.js')).default
+  db2.run("UPDATE fb_seller_followups SET status='stopped', stop_reason=?, next_send_at=NULL, updated_at=? WHERE client_id=?",
+    ['removed by ' + (req.user?.email || 'staff'), new Date().toISOString(), Number(req.params.clientId)])
+  res.json({ ok: true })
+})
+router.post('/seller-campaign/:clientId/enroll', async (req, res) => {
+  const m = await import('../seller-campaign.js')
+  m.initSellerCampaign()
+  m.enrollSellerFollowup(Number(req.params.clientId))
+  res.json({ ok: true })
+})
 router.get('/seller-campaign/:clientId', async (req, res) => {
   const m = await import('../seller-campaign.js')
   const r = m.sellerIntent(req.params.clientId)
