@@ -284,3 +284,22 @@ test('Fix It or Skip It intake auto-enrolls the 12-month email drip (prompt firs
   db.run('DELETE FROM drip_campaigns WHERE id=?', [dr.lastInsertRowid])
   db.run('DELETE FROM drip_enrollments WHERE id=?', [enr.id])
 })
+
+// ---- Facebook Ads tracking (Marketing tab, 2026-09-21) ----
+test('fb-ads: lead + video counts extracted from Meta actions arrays', async () => {
+  const fb = await import('../server/fb-ads.js')
+  const actions = [
+    { action_type: 'lead', value: '3' },
+    { action_type: 'onsite_conversion.lead_grouped', value: '2' },
+    { action_type: 'video_view', value: '150' },
+    { action_type: 'link_click', value: '40' },
+  ]
+  assert.equal(fb.leadCount(actions), 5)
+  assert.equal(fb.videoViewCount(actions), 150)
+  assert.equal(fb.leadCount([]), 0)
+  fb.initFbAds()
+  const ov = fb.fbAdsOverview()
+  assert.ok('token_present' in ov && Array.isArray(ov.campaigns))
+  // no token locally -> sync self-gates, never throws
+  assert.deepEqual(await fb.syncFbAds(), { skipped: 'no token' })
+})

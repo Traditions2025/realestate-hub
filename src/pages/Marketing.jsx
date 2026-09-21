@@ -4,6 +4,7 @@ import { api } from '../api'
 import Modal from '../components/Modal'
 import StatusBadge from '../components/StatusBadge'
 import DripCampaigns from '../components/DripCampaigns'
+import FbAdsCampaigns from '../components/FbAdsCampaigns'
 
 const emptyCampaign = {
   name: '', type: 'social_media', status: 'planned', platform: '',
@@ -76,9 +77,10 @@ export default function Marketing() {
       <div className="type-tabs" style={{ marginBottom: 14 }}>
         <button className={`type-tab ${mode === 'blasts' ? 'active' : ''}`} onClick={() => setMode('blasts')}>&#9672; Marketing Campaigns</button>
         <button className={`type-tab ${mode === 'drips' ? 'active' : ''}`} onClick={() => setMode('drips')}>&#128167; Drip Campaigns</button>
+        <button className={`type-tab ${mode === 'fbads' ? 'active' : ''}`} onClick={() => setMode('fbads')}>&#128200; Facebook Ads</button>
       </div>
 
-      {mode === 'drips' ? <DripCampaigns /> : <>
+      {mode === 'fbads' ? <FbAdsCampaigns /> : mode === 'drips' ? <DripCampaigns /> : <>
 
       {/* Marketing Stats */}
       <div className="stats-grid stats-small">

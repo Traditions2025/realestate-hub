@@ -109,6 +109,9 @@ export const api = {
 
   // Marketing
   getMarketing: (params) => request('/marketing?' + new URLSearchParams(params || {})),
+  getFbAds: () => request('/fb-ads'),
+  syncFbAds: () => request('/fb-ads/sync', { method: 'POST' }),
+  saveFbAdsToken: (token) => request('/fb-ads/token', { method: 'POST', body: { token } }),
   getCampaign: (id) => request(`/marketing/${id}`),
   createCampaign: (data) => request('/marketing', { method: 'POST', body: data }),
   updateCampaign: (id, data) => request(`/marketing/${id}`, { method: 'PUT', body: data }),

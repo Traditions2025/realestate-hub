@@ -866,6 +866,11 @@ export function startScheduler() {
   // summaries onto the call rows - every 2 min.
   setInterval(() => { import('./call-intelligence.js').then(m => m.pollCallIntelligence()).catch(() => {}) }, 2 * 60 * 1000)
 
+  // Facebook Ads tracking (Marketing tab): refresh campaign metrics from the
+  // Graph API every 6 hours (self-gates on the token; one boot-time pull too).
+  setInterval(() => { import('./fb-ads.js').then(m => m.syncFbAds()).catch(() => {}) }, 6 * 60 * 60 * 1000)
+  setTimeout(() => { import('./fb-ads.js').then(m => m.syncFbAds()).catch(() => {}) }, 90 * 1000)
+
   // Cancelled/Expired Connection Campaign - every 15 min (self-gates: master switch,
   // weekdays 9AM-4PM CT window, per-send eligibility re-verification).
   setInterval(() => { import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)

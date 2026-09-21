@@ -48,6 +48,7 @@ import voicemailsRouter from './routes/voicemails.js'
 import aiRouter from './routes/ai.js'
 import coverageRouter from './routes/coverage.js'
 import cxRouter from './routes/cx.js'
+import fbAdsRouter from './routes/fb-ads.js'
 import agentsRouter from './routes/agents.js'
 import trackingRouter, { startTrackingFlushTimer } from './routes/tracking.js'
 import followupRouter from './routes/followup.js'
@@ -352,6 +353,7 @@ async function start() {
   app.use('/api/ai', aiRouter)
   app.use('/api/coverage', coverageRouter)
   app.use('/api/cx', cxRouter)
+  app.use('/api/fb-ads', fbAdsRouter)
   app.use('/api/agents', agentsRouter)
   app.use('/api/followup', followupRouter)
   app.use('/api/track', trackingRouter)
