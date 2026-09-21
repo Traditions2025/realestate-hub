@@ -100,6 +100,45 @@ router.get('/disk', requirePermission('settings.view'), async (_req, res) => {
     res.json({ dir, total_mb: +files.reduce((s2, f) => s2 + f.mb, 0).toFixed(1), files: files.slice(0, 40) })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Deep disk analysis: recursive directory sizes + what's inside the DB itself
+// (per-table bytes via SQLite's dbstat when available, row counts regardless).
+router.get('/disk/analysis', requirePermission('settings.view'), async (_req, res) => {
+  try {
+    const fs = await import('fs'); const path = await import('path')
+    const dir = process.env.DB_DIR || '.'
+    const walk = (d, depth = 0) => {
+      let total = 0; const items = []
+      let names = []
+      try { names = fs.readdirSync(d) } catch { return { total: 0, items: [] } }
+      for (const f of names) {
+        const fp = path.join(d, f)
+        try {
+          const st = fs.statSync(fp)
+          if (st.isDirectory()) {
+            const sub = walk(fp, depth + 1)
+            total += sub.total
+            items.push({ name: f + '/', mb: +(sub.total / 1048576).toFixed(1), children: depth < 1 ? sub.items.slice(0, 20) : undefined })
+          } else { total += st.size; items.push({ name: f, mb: +(st.size / 1048576).toFixed(1), mtime: st.mtime.toISOString().slice(0, 16) }) }
+        } catch {}
+      }
+      items.sort((a2, b2) => b2.mb - a2.mb)
+      return { total, items }
+    }
+    const tree = walk(dir)
+    // DB internals
+    let tables = []
+    try {
+      tables = db.all(`SELECT name, SUM(pgsize) bytes FROM dbstat GROUP BY name ORDER BY bytes DESC LIMIT 30`)
+        .map(r => ({ name: r.name, mb: +(r.bytes / 1048576).toFixed(1) }))
+    } catch {
+      tables = db.all(`SELECT name FROM sqlite_master WHERE type = 'table'`).map(t => {
+        try { return { name: t.name, rows: db.get(`SELECT COUNT(*) c FROM "${t.name}"`).c } } catch { return { name: t.name, rows: null } }
+      }).sort((a2, b2) => (b2.rows || 0) - (a2.rows || 0)).slice(0, 30)
+    }
+    res.json({ dir, total_mb: +(tree.total / 1048576).toFixed(1), files: tree.items.slice(0, 25), db_tables: tables })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.post('/disk/cleanup', requirePermission('settings.edit'), async (req, res) => {
   try {
     const { rotateBackups } = await import('../backup.js')
