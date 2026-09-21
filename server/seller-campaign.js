@@ -219,6 +219,22 @@ export function handleSellerLead({ client_id, campaign_raw = '', raw_text = '', 
     const replied = db.get("SELECT id FROM communications WHERE client_id = ? AND direction = 'incoming' AND occurred_at >= datetime('now','-1 hour') LIMIT 1", [cid])
     if (!replied) enrollSellerFollowup(cid)
   }
+
+  // 12-month "Fix It or Skip It" seller EMAIL drip (John, 2026-09-21): EVERY family
+  // lead enrolls, hot statuses included — the emails are low-pressure and the drip
+  // pauses itself the moment they reply (pause_on_reply). Stop statuses / Not in
+  // Market / hard email blocks are refused inside enrollInDrip. The campaign is
+  // looked up by name so environments without it skip cleanly.
+  try {
+    const emailDrip = db.get("SELECT id FROM drip_campaigns WHERE name LIKE 'Fix It or Skip It%' ORDER BY id LIMIT 1")
+    if (emailDrip) {
+      import('./routes/drips.js').then(m => {
+        const eid = m.enrollInDrip(emailDrip.id, cid, { source: 'fix_it_or_skip_it' })
+        // Email 1 goes out promptly (~5 min), matching the SMS opener's cadence.
+        if (eid) db.run("UPDATE drip_enrollments SET next_run_at = ? WHERE id = ? AND current_step = 0 AND status='active'", [new Date(Date.now() + 5 * 60000).toISOString(), eid])
+      }).catch(() => {})
+    }
+  } catch {}
   return { ok: true, timeframe: a.timeframe, improvement: a.improvement, availability: a.availability, priority, automated: !hot }
 }
 

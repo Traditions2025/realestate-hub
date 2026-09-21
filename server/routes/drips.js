@@ -109,6 +109,30 @@ async function advanceDrip(enr) {
   // (belt-and-suspenders in case the status hook didn't fire), no send.
   if (isStopStatus(client.status)) return db.run("UPDATE drip_enrollments SET status='removed', completed_at=? WHERE id=?", [nowIso(), enr.id])
 
+  // PAUSE-ON-REPLY campaigns (Fix It or Skip It, 2026-09-21): the entire goal of the
+  // emails is to get a reply — and once they reply, a HUMAN owns the conversation.
+  // Any inbound text or email since enrollment pauses the drip before this send, with
+  // a follow-up task + notification so the reply never sits unanswered.
+  if (drip.pause_on_reply) {
+    const reply = db.get("SELECT id, channel, occurred_at, preview FROM communications WHERE client_id=? AND direction='incoming' AND channel IN ('text','email') AND occurred_at > ? ORDER BY occurred_at ASC LIMIT 1", [enr.client_id, enr.entered_at])
+    if (reply) {
+      db.run("UPDATE drip_enrollments SET status='paused', next_run_at=NULL WHERE id=?", [enr.id])
+      const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || 'Lead'
+      const taskTitle = `Replied during ${drip.name} — ${name}`
+      try {
+        if (!db.get("SELECT id FROM tasks WHERE title = ? AND status != 'done'", [taskTitle])) {
+          db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+            [taskTitle, `They replied (${reply.channel}, ${reply.occurred_at.slice(0, 10)}): "${String(reply.preview || '').slice(0, 140)}"\nDrip paused — a person owns this conversation now.`,
+             'high', 'todo', nowIso().slice(0, 10), 'Matt', 'Seller Lead', 'client', enr.client_id, nowIso(), nowIso()])
+        }
+      } catch {}
+      try { const { notify } = await import('../notifications.js'); notify({ type: 'drip_reply', title: `Drip paused (replied): ${name}`, body: `${drip.name} — take over the conversation`, link: `/clients/${enr.client_id}`, client_id: enr.client_id, dedupKey: `dripreply_${enr.id}` }) } catch {}
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        ['drip_paused', 'client', enr.client_id, `${drip.name} paused — lead replied via ${reply.channel} on ${reply.occurred_at.slice(0, 10)}`])
+      return
+    }
+  }
+
   // no sends on US federal holidays — defer to the next non-holiday day
   if (isUsHoliday(new Date())) return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [bumpPastHolidays(nowIso()), enr.id])
 
@@ -171,16 +195,17 @@ router.get('/:id', (req, res) => {
 })
 router.post('/', (req, res) => {
   const b = req.body || {}
-  const r = db.run('INSERT INTO drip_campaigns (name, description, steps) VALUES (?,?,?)',
-    [b.name || 'Untitled drip', b.description || null, JSON.stringify(b.steps || [])])
+  const r = db.run('INSERT INTO drip_campaigns (name, description, steps, pause_on_reply) VALUES (?,?,?,?)',
+    [b.name || 'Untitled drip', b.description || null, JSON.stringify(b.steps || []), b.pause_on_reply ? 1 : 0])
   res.status(201).json({ id: r.lastInsertRowid })
 })
 router.put('/:id', (req, res) => {
   const b = req.body || {}
   const cur = db.get('SELECT * FROM drip_campaigns WHERE id=?', [Number(req.params.id)])
   if (!cur) return res.status(404).json({ error: 'Drip not found' })
-  db.run("UPDATE drip_campaigns SET name=?, description=?, steps=?, updated_at=datetime('now') WHERE id=?",
-    [b.name ?? cur.name, b.description ?? cur.description, JSON.stringify(b.steps ?? parse(cur.steps, [])), Number(req.params.id)])
+  db.run("UPDATE drip_campaigns SET name=?, description=?, steps=?, pause_on_reply=?, updated_at=datetime('now') WHERE id=?",
+    [b.name ?? cur.name, b.description ?? cur.description, JSON.stringify(b.steps ?? parse(cur.steps, [])),
+     b.pause_on_reply === undefined ? (cur.pause_on_reply || 0) : (b.pause_on_reply ? 1 : 0), Number(req.params.id)])
   res.json({ success: true })
 })
 router.delete('/:id', (req, res) => {

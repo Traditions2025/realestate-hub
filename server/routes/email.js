@@ -324,6 +324,15 @@ function timeGreeting() {
   return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'
 }
 
+// Rotating intro (John, 2026-09-21): Hi -> Hello -> time-of-day, the same rotation
+// the FB text opener bank uses, resolved at send time. The counter advances only
+// when a template actually contains {{intro}} (replace() calls this per match).
+function nextIntroGreeting() {
+  let i = 0
+  try { i = Number(db.getSetting('email_intro_rot', '0')) || 0; db.setSetting('email_intro_rot', String((i + 1) % 3)) } catch {}
+  return i === 1 ? 'Hello' : i === 2 ? timeGreeting() : 'Hi'
+}
+
 export function fillTemplate(text, client) {
   if (!text) return ''
   // Lender: client records rarely carry it, so fall back to the lender on this
@@ -342,6 +351,7 @@ export function fillTemplate(text, client) {
     // Time-of-day greeting resolved at send time, Central clock (drip windows can
     // run into the afternoon, so this can never be hardcoded in a template).
     .replace(/\{\{time_greeting\}\}/g, timeGreeting())
+    .replace(/\{\{intro\}\}/g, () => nextIntroGreeting())
     .replace(/\{\{first_name\}\}/g, client.first_name || 'there')
     .replace(/\{\{last_name\}\}/g, client.last_name || '')
     .replace(/\{\{full_name\}\}/g, `${client.first_name || ''} ${client.last_name || ''}`.trim())
@@ -767,6 +777,7 @@ const EMAIL_MERGE_FIELDS = [
   { label: 'Last name', token: '{{last_name}}' },
   { label: 'Full name', token: '{{full_name}}' },
   { label: 'Greeting (Morning/Afternoon)', token: '{{greeting}}' },
+  { label: 'Intro (Hi/Hello/time of day, rotating)', token: '{{intro}}' },
   { label: 'City of interest', token: '{{city_of_interest}}' },
   { label: 'Price range clause', token: '{{price_range}}' },
   { label: 'Home value link', token: '{{home_value_link}}' },

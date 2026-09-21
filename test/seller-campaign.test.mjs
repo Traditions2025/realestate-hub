@@ -227,3 +227,53 @@ test('sweep self-heal: an already-sent identical body advances the step without 
   }
   db.run('DELETE FROM fb_seller_followups WHERE client_id=?', [cid])
 })
+
+// ---- Fix It or Skip It 12-month EMAIL drip (John, 2026-09-21) ----
+test('{{intro}} merge token rotates Hi / Hello / time-of-day', async () => {
+  const em = await import('../server/routes/email.js')
+  db.setSetting('email_intro_rot', '0')
+  const cid = mkClient()
+  db.run("UPDATE clients SET email='intro@example.com' WHERE id=?", [cid])
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  const out = []
+  for (let i = 0; i < 3; i++) out.push(em.previewSequenceEmail(c, { subject: 's', body: '{{intro}} {{first_name}},' }).body)
+  assert.ok(out[0].startsWith('Hi '), 'first is Hi: ' + out[0])
+  assert.ok(out[1].startsWith('Hello '), 'second is Hello: ' + out[1])
+  assert.ok(out[2].startsWith('Good '), 'third is time-of-day: ' + out[2])
+})
+
+test('pause_on_reply drip: an inbound message pauses before the send and creates a task', async () => {
+  const drips = await import('../server/routes/drips.js')
+  const dr = db.run("INSERT INTO drip_campaigns (name, steps, pause_on_reply) VALUES ('PauseTest Drip', ?, 1)",
+    [JSON.stringify([{ subject: 'T', body: 'B {{first_name}}', delay_days: 0, send_time: '00:00', send_time_end: '23:59' }])])
+  const cid = mkClient()
+  db.run("UPDATE clients SET email='pausetest@example.com', first_name='Pau' WHERE id=?", [cid])
+  const eid = drips.enrollInDrip(dr.lastInsertRowid, cid, { source: 'test' })
+  assert.ok(eid, 'enrolled')
+  // they reply AFTER enrolling…
+  db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, preview, body, thread_key, status, occurred_at)
+          VALUES ('text','incoming',?,?,?,?,?, 'read', ?)`, [cid, 'Pau', 'not selling', 'not selling', `c${cid}_text`, new Date(Date.now() + 1500).toISOString()])
+  db.run("UPDATE drip_enrollments SET next_run_at=? WHERE id=?", [new Date(Date.now() - 1000).toISOString(), eid])
+  await drips.dripTick()
+  const enr = db.get('SELECT * FROM drip_enrollments WHERE id=?', [eid])
+  assert.equal(enr.status, 'paused', 'drip paused on reply')
+  assert.equal(db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND direction='outgoing' AND channel='email'", [cid]).n, 0, 'no email sent')
+  assert.ok(db.get("SELECT id FROM tasks WHERE related_type='client' AND related_id=? AND title LIKE 'Replied during%'", [cid]), 'human follow-up task created')
+  db.run('DELETE FROM drip_campaigns WHERE id=?', [dr.lastInsertRowid])
+  db.run('DELETE FROM drip_enrollments WHERE id=?', [eid])
+})
+
+test('Fix It or Skip It intake auto-enrolls the 12-month email drip (prompt first email)', async () => {
+  const dr = db.run("INSERT INTO drip_campaigns (name, steps, pause_on_reply) VALUES ('Fix It or Skip It (TEST) Seller Email', ?, 1)",
+    [JSON.stringify([{ subject: 'E1', body: 'B', delay_days: 0, send_time: '08:00', send_time_end: '20:00' }, { subject: 'E2', body: 'B2', delay_days: 2, send_time: '09:00', send_time_end: '11:30' }])])
+  const cid = mkClient()
+  db.run("UPDATE clients SET email='fixitdrip@example.com' WHERE id=?", [cid])
+  m.handleSellerLead({ client_id: cid, campaign_raw: 'SELLER | Fix It or Skip It', raw_text: RAW })
+  await new Promise(r => setTimeout(r, 300))   // enrollment goes through a dynamic import
+  const enr = db.get("SELECT * FROM drip_enrollments WHERE client_id=? AND drip_id=?", [cid, dr.lastInsertRowid])
+  assert.ok(enr, 'enrolled into the email drip')
+  assert.equal(enr.source, 'fix_it_or_skip_it')
+  assert.ok(new Date(enr.next_run_at).getTime() - Date.now() < 6 * 60000, 'first email scheduled promptly (~5 min)')
+  db.run('DELETE FROM drip_campaigns WHERE id=?', [dr.lastInsertRowid])
+  db.run('DELETE FROM drip_enrollments WHERE id=?', [enr.id])
+})

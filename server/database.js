@@ -652,6 +652,9 @@ export async function initDb() {
       updated_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // Opt-in per campaign (Fix It or Skip It, 2026-09-21): ANY inbound message from an
+  // enrolled lead pauses the drip so a human owns the conversation.
+  try { db.run('ALTER TABLE drip_campaigns ADD COLUMN pause_on_reply INTEGER DEFAULT 0') } catch {}
   // one row per contact moving through a drip
   db.run(`
     CREATE TABLE IF NOT EXISTS drip_enrollments (
