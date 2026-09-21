@@ -1,7 +1,47 @@
 {
-  "generated_at": "2026-09-19T12:00:44.473Z",
+  "generated_at": "2026-09-21T15:18:02.674Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "36da4ef",
+      "date": "2026-09-21T10:08:12-05:00",
+      "subject": "Twilio history: include from/to numbers",
+      "title": "Twilio history: include from/to numbers",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4fbca0c",
+      "date": "2026-09-21T09:24:59-05:00",
+      "subject": "Admin: Twilio per-number message history (finds pre-Hub sends)",
+      "title": "Admin: Twilio per-number message history (finds pre-Hub sends)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "09f6a9a",
+      "date": "2026-09-19T07:21:50-05:00",
+      "subject": "ALL Facebook-ad leads excluded from general AI follow-up",
+      "title": "ALL Facebook-ad leads excluded from general AI follow-up",
+      "body": "FB leads run dedicated campaigns (Day-0 opener bank + 30-day listing\ncampaign for buyers, Fix It or Skip It sequence for sellers), so the\ngeneral AI keeps its hands off entirely:\n- evaluateAiEnrollmentEligibility: FB_CAMPAIGN exclusion for any lead\n  with an FB Ad tag or 30-day campaign row; the FB intake itself keeps\n  a bypass (opts.fbIntake) since it borrows the AI rails to deliver the\n  approved Day-0 opener + 10-minute email\n- releaseFbAdLeadsFromGeneralAi(): every scheduler tick, managed FB\n  leads with no pending opener/email are released (unmanage, disable,\n  cancel pending) — the sweep found Rich/Stephanie/Steven/Christi in\n  AI_WAITING_FOR_REPLY where generic nurture would have stacked on the\n  30-day campaign\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "26087fd",
+      "date": "2026-09-19T07:13:13-05:00",
+      "subject": "Guard: general buyer AI never touches Fix It or Skip It seller leads",
+      "title": "Guard: general buyer AI never touches Fix It or Skip It seller leads",
+      "body": "Found live: the AI fresh sweep enrolled seller lead #46042 one minute\nafter the seller intake, queueing a buyer-style opener alongside the\ncontextual seller sequence. Two-sided fix:\n- evaluateAiEnrollmentEligibility now excludes any lead with a\n  fb_seller_followups row or an FB Seller Ad tag (SELLER_CAMPAIGN)\n- handleSellerLead releases any general-AI ownership at intake\n  (unmanage + disable + state note) in addition to cancelling pending\n  scheduled actions\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ad17630",
+      "date": "2026-09-19T07:01:12-05:00",
+      "subject": "Seller campaign: 09-19 spec update + weekend rule correction",
+      "title": "Seller campaign: 09-19 spec update + weekend rule correction",
+      "body": "- Weekend exemption CORRECTED to first-touch only: Day 0 sends any day of\n  the week; Day 1/3/7 and the buyer 30-day campaign are weekdays again\n- Send window widened to 9AM-7PM Central per spec (both campaigns' seller\n  sequence; buyer 30-day stays on its 9-4 weekday window)\n- John's 09-19 first-SMS copy verbatim for all 7 improvement answers plus\n  a dedicated missing-answer variant; Day 1/3/7 copy updated verbatim\n- Copy is staff-editable via the seller_campaign_copy setting (JSON\n  overrides merged over code defaults)\n- Hard stop conditions every tick: reply (-> high-priority Respond task,\n  review task completed), opt-out, status became Active/Prime/Pending/\n  Closed, walkthrough scheduled (fires fix_it_skip_it.appointment_scheduled)\n- Test-mode endpoints: POST /api/ai/seller-campaign/simulate (pure\n  preview, sends nothing), GET /enrolled, POST /:id/remove, /:id/enroll\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8359220",
       "date": "2026-09-19T06:33:55-05:00",
@@ -3961,46 +4001,6 @@
       "title": "read-only FUB raw-person inspector endpoint (see all available fields)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "feature"
-    },
-    {
-      "hash": "8003106",
-      "date": "2026-08-13T09:25:42-05:00",
-      "subject": "city_of_interest now = last city they viewed in FUB (freshest signal), fallback to top viewed city",
-      "title": "city_of_interest now = last city they viewed in FUB (freshest signal), fallback to top viewed city",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "93d2796",
-      "date": "2026-08-13T09:16:53-05:00",
-      "subject": "listing_interest: cap to top 3 cleaned cities, natural 'A, B, and C' join (drop street-name noise + dupes)",
-      "title": "listing_interest: cap to top 3 cleaned cities, natural 'A, B, and C' join (drop street-name noise + dupes)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d37ca70",
-      "date": "2026-08-12T18:43:01-05:00",
-      "subject": "Add {{listing_interest}} merge field sourced from FUB listing activity (viewed cities)",
-      "title": "{{listing_interest}} merge field sourced from FUB listing activity (viewed cities)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "34223d5",
-      "date": "2026-08-12T18:35:26-05:00",
-      "subject": "Email merge fields: add {{state}} {{zip}} {{city_of_interest}} (FUB) {{last_viewed_address}} (FUB) {{search_price_range}} {{lender_name}} {{lender_company}} — lender falls back to the client's transaction; added to composer + automations merge + Field menu",
-      "title": "Email merge fields: add {{state}} {{zip}} {{city_of_interest}} (FUB) {{last_viewed_address}} (FUB) {{search_price_range}} {{lender_name}} {{lender_company}} — lender falls back to the client's transaction; added to composer + automations merge + Field menu",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9913972",
-      "date": "2026-08-12T18:18:36-05:00",
-      "subject": "Email composer: '+ Field' menu to insert personalization anywhere in subject + body (WYSIWYG and HTML modes), caret-preserving",
-      "title": "Email composer: '+ Field' menu to insert personalization anywhere in subject + body (WYSIWYG and HTML modes), caret-preserving",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

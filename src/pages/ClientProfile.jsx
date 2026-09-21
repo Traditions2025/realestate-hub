@@ -301,7 +301,7 @@ export default function ClientProfile() {
                   {layout[col].filter(k => renderers[k]).map(key => {
                     const node = renderers[key]()
                     if (!node) return null
-                    const locked = key === 'details'   // Client Details never moves — no grip, not draggable
+                    const locked = key === 'details' || key === 'comms'   // Details + Communications are pinned — no grip, not draggable
                     return (
                       <div key={key} className={`cp-drag-wrap ${dragKey === key ? 'dragging' : ''}`} draggable={!locked && dragArmed === key}
                         onDragStart={e => { if (locked) { e.preventDefault(); return } setDragKey(key) }}
@@ -1578,7 +1578,11 @@ const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'int
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {
-  return { left: ['details', ...l.left.filter(k => k !== 'details')], right: l.right.filter(k => k !== 'details') }
+  // Client Details is always first and Communications always second in the left
+  // column (John, 2026-09-21: comms kept getting dragged out of place by
+  // accident) — both are pinned and excluded from drag entirely.
+  const left = ['details', 'comms', ...l.left.filter(k => k !== 'details' && k !== 'comms')]
+  return { left, right: l.right.filter(k => k !== 'details' && k !== 'comms') }
 }
 export function loadLayout() {
   try {
