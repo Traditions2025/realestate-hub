@@ -86,6 +86,28 @@ router.get('/export/:table', requirePermission('settings.edit'), (req, res) => {
 })
 router.get('/export', requirePermission('settings.view'), (_req, res) => res.json({ tables: Object.keys(EXPORTABLE), note: 'Secrets, auth, and push tables are never exported.' }))
 
+// Twilio message history for one number, straight from Twilio's records —
+// finds texts sent before the Hub logged communications (pre-Hub blasts).
+router.get('/twilio-history', requirePermission('settings.view'), async (req, res) => {
+  try {
+    const db2 = (await import('../database.js')).default
+    const sid = (db2.getSetting('twilio_account_sid', '') || '').trim()
+    const token = (db2.getSetting('twilio_auth_token', '') || '').trim()
+    if (!sid || !token) return res.status(400).json({ error: 'Twilio not configured' })
+    const d10 = String(req.query.to || '').replace(/\D/g, '').slice(-10)
+    if (d10.length !== 10) return res.status(400).json({ error: 'to=phone required' })
+    const auth = 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64')
+    const out = []
+    for (const dir of ['To', 'From']) {
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json?${dir}=%2B1${d10}&PageSize=200`, { headers: { Authorization: auth } })
+      const j = await r.json().catch(() => ({}))
+      for (const m of (j.messages || [])) out.push({ date: m.date_sent || m.date_created, direction: m.direction, status: m.status, body: String(m.body || '').slice(0, 300) })
+    }
+    out.sort((a, b) => new Date(a.date) - new Date(b.date))
+    res.json({ phone: d10, count: out.length, messages: out })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Calendbook webhook URLs (shared key) — paste these into Calendbook's Webhook integration.
 router.get('/calendbook-urls', requirePermission('settings.view'), async (_req, res) => {
   const { calendbookKey } = await import('../calendbook.js')
