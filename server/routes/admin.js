@@ -28,6 +28,14 @@ router.get('/integrations', requirePermission('settings.view'), (_req, res) => {
         anthropic_ai: status(anthropic, anthropic ? 'key present' : 'no API key'),
         google_drive_backup: status(gdrive, gdrive ? 'connected' : 'not connected'),
         web_push: status(true, `${push} device${push === 1 ? '' : 's'} subscribed`),
+        disk: (() => { try {
+          const fs = require('fs')
+          const st = fs.statfsSync(process.env.DB_DIR || '.')
+          const freeGb = (st.bavail * st.bsize) / 1073741824
+          const totGb = (st.blocks * st.bsize) / 1073741824
+          const pct = Math.round(((totGb - freeGb) / totGb) * 100)
+          return status(pct < 80, `${(totGb - freeGb).toFixed(1)} / ${totGb.toFixed(1)} GB used (${pct}%)${pct >= 80 ? ' — CLEAN UP: /api/admin/disk/cleanup' : ''}`)
+        } catch (e) { return status(true, 'unavailable: ' + e.message) } })(),
       },
       sync: {
         last_success: lastSync?.synced_at || null,
