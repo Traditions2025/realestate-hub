@@ -278,18 +278,48 @@ export function enrollSellerFollowup(cid) {
 }
 
 async function sendSellerSms(client, body) {
-  const { canSendSms, canAutomatedSend } = await import('./ai-followup/policy.js')
-  const gate = canSendSms(client, { channel: 'automation' })
-  if (!gate.ok) return { ok: false, reason: gate.reason }
-  const auto = canAutomatedSend(client, { source: 'automation', dedupMinutes: 60 })
-  if (!auto.ok) return { ok: false, reason: auto.reason }
-  const { sendSms } = await import('./twilio.js')
-  const r = await sendSms(client.phone, body, { statusCallback: HUB + '/api/inbox/twilio-status' })
-  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
-  const ins = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    ['text', 'outgoing', client.id, name, '', client.phone, body.slice(0, 160), body, 'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'Seller AI', 'seller_ai', nowIso()])
-  return { ok: true, comm_id: ins.lastInsertRowid }
+  try {
+    const { canSendSms, canAutomatedSend } = await import('./ai-followup/policy.js')
+    const gate = canSendSms(client, { channel: 'automation' })
+    if (!gate.ok) return { ok: false, reason: gate.reason }
+    const auto = canAutomatedSend(client, { source: 'automation', dedupMinutes: 60 })
+    if (!auto.ok) return { ok: false, reason: auto.reason }
+    const { sendSms } = await import('./twilio.js')
+    const r = await sendSms(client.phone, body, { statusCallback: HUB + '/api/inbox/twilio-status' })
+    const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+    const ins = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      ['text', 'outgoing', client.id, name, '', client.phone, body.slice(0, 160), body, 'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'Seller AI', 'seller_ai', nowIso()])
+    return { ok: true, comm_id: ins.lastInsertRowid }
+  } catch (e) { return { ok: false, reason: e.message } }
+}
+
+// Post-send state advance, exported for the regression test. This UPDATE once had 5
+// placeholders and only 4 params (2026-09-21): better-sqlite3 threw AFTER the SMS was
+// out, the scheduler's catch() ate it, and the step never advanced — Luis got the same
+// Day-0 opener 8 times on a 3-hour dedup-defer loop before it was caught.
+export function advanceSellerStep(row, c) {
+  const nextStep = row.next_step + 1
+  if (nextStep >= STEP_DAYS.length) {
+    // Sequence done, no reply → timeframe-based nurture: a dated human task,
+    // never an automatic Not in Market.
+    const tf = c.seller_timeframe || 'Just exploring'
+    const weeks = NURTURE_TASK_WEEKS[tf] || 8
+    const due2 = new Date(Date.now() + weeks * 7 * DAY).toISOString().slice(0, 10)
+    db.run("UPDATE fb_seller_followups SET status = 'nurture', next_step = ?, next_send_at = NULL, last_sent_at = ?, updated_at = ? WHERE client_id = ?", [nextStep, nowIso(), nowIso(), row.client_id])
+    try {
+      db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+        [`Seller nurture check-in — ${`${c.first_name || ''} ${c.last_name || ''}`.trim()}`,
+         `Fix It or Skip It lead, no reply to the 4-text opener sequence. Timeframe: ${tf}. Their walkthrough availability: ${c.seller_availability || 'unknown'}.`,
+         'medium', 'todo', due2, 'Matt', 'Seller Lead', 'client', row.client_id, nowIso(), nowIso()])
+    } catch {}
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['meta_seller_lead', 'client', row.client_id, `Fix It or Skip It sequence complete (no reply) — moved to ${tf} nurture; check-in task due ${due2}`])
+    return 'nurtured'
+  }
+  const at = nextSellerSlot(new Date(new Date(row.day0_at).getTime() + STEP_DAYS[nextStep] * DAY)).toISOString()
+  db.run('UPDATE fb_seller_followups SET next_step = ?, next_send_at = ?, last_sent_at = ?, updated_at = ? WHERE client_id = ?', [nextStep, at, nowIso(), nowIso(), row.client_id])
+  return 'advanced'
 }
 
 const NURTURE_TASK_WEEKS = { 'Within 3 months': 1, '3-6 months': 3, '6-12 months': 6, 'More than a year': 8, 'Just exploring': 8 }
@@ -353,39 +383,44 @@ export async function runSellerFollowups() {
         }
         out.deferred++; continue
       }
-      const c = db.get('SELECT * FROM clients WHERE id = ? AND merged_into IS NULL', [row.client_id])
-      if (!c || !c.phone) { db.run("UPDATE fb_seller_followups SET status='stopped', stop_reason='no phone', next_send_at=NULL, updated_at=? WHERE client_id=?", [nowIso(), row.client_id]); out.stopped++; continue }
-      const body = row.next_step === 0 ? sellerOpener(c.first_name, c.seller_improvement) : FOLLOWUPS[row.next_step]()
-      const r = await sendSellerSms(c, body)
-      if (!r.ok) {
-        const push = nextSellerSlot(new Date(Date.now() + 3 * 3600000), { firstTouch: row.next_step === 0 }).toISOString()
-        db.run('UPDATE fb_seller_followups SET next_send_at = ?, updated_at = ? WHERE client_id = ?', [push, nowIso(), row.client_id])
-        out.deferred++; continue
-      }
-      if (row.next_step === 0) emit('meta_seller_lead.contacted', row.client_id, { at: nowIso() })
-      const nextStep = row.next_step + 1
-      if (nextStep >= STEP_DAYS.length) {
-        // Sequence done, no reply → timeframe-based nurture: a dated human task,
-        // never an automatic Not in Market.
-        const tf = c.seller_timeframe || 'Just exploring'
-        const weeks = NURTURE_TASK_WEEKS[tf] || 8
-        const due2 = new Date(Date.now() + weeks * 7 * DAY).toISOString().slice(0, 10)
-        db.run("UPDATE fb_seller_followups SET status = 'nurture', next_step = ?, next_send_at = NULL, last_sent_at = ?, updated_at = ? WHERE client_id = ?", [nextStep, nowIso(), nowIso(), row.client_id])
+      try {
+        const c = db.get('SELECT * FROM clients WHERE id = ? AND merged_into IS NULL', [row.client_id])
+        if (!c || !c.phone) { db.run("UPDATE fb_seller_followups SET status='stopped', stop_reason='no phone', next_send_at=NULL, updated_at=? WHERE client_id=?", [nowIso(), row.client_id]); out.stopped++; continue }
+        const body = row.next_step === 0 ? sellerOpener(c.first_name, c.seller_improvement) : FOLLOWUPS[row.next_step]()
+        // SELF-HEAL (2026-09-21): if this exact text already went out to this lead, a prior
+        // tick sent it and crashed before advancing. Never re-send the identical message —
+        // advance the step as if the send just happened.
+        const already = db.get("SELECT id FROM communications WHERE client_id = ? AND direction = 'outgoing' AND channel = 'text' AND body = ? LIMIT 1", [row.client_id, body])
+        if (already) {
+          if (row.next_step === 0) emit('meta_seller_lead.contacted', row.client_id, { at: nowIso() })
+          const rr = advanceSellerStep(row, c)
+          db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+            ['meta_seller_lead', 'client', row.client_id, `Seller step ${row.next_step} text was already sent (comm ${already.id}) — advanced without re-sending (${rr})`])
+          out.repaired = (out.repaired || 0) + 1
+          continue
+        }
+        const r = await sendSellerSms(c, body)
+        if (!r.ok) {
+          const push = nextSellerSlot(new Date(Date.now() + 3 * 3600000), { firstTouch: row.next_step === 0 }).toISOString()
+          db.run('UPDATE fb_seller_followups SET next_send_at = ?, updated_at = ? WHERE client_id = ?', [push, nowIso(), row.client_id])
+          out.deferred++; continue
+        }
+        if (row.next_step === 0) emit('meta_seller_lead.contacted', row.client_id, { at: nowIso() })
+        if (advanceSellerStep(row, c) === 'nurtured') out.nurtured++
+        out.sent++
+        if (i < due.length - 1) await new Promise(res => setTimeout(res, 60000 + Math.floor(Math.random() * 90000)))
+      } catch (e) {
+        // One lead's failure must never kill the sweep — and never leave a sent-but-not-
+        // advanced row hot: push it out so the next look is hours away, and record it.
+        console.error('[seller-campaign] row error client', row.client_id, e.message)
         try {
-          db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-            [`Seller nurture check-in — ${`${c.first_name || ''} ${c.last_name || ''}`.trim()}`,
-             `Fix It or Skip It lead, no reply to the 4-text opener sequence. Timeframe: ${tf}. Their walkthrough availability: ${c.seller_availability || 'unknown'}.`,
-             'medium', 'todo', due2, 'Matt', 'Seller Lead', 'client', row.client_id, nowIso(), nowIso()])
+          db.run('UPDATE fb_seller_followups SET next_send_at = ?, updated_at = ? WHERE client_id = ?',
+            [nextSellerSlot(new Date(Date.now() + 3 * 3600000), { firstTouch: row.next_step === 0 }).toISOString(), nowIso(), row.client_id])
+          db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+            ['meta_seller_lead', 'client', row.client_id, `Seller follow-up tick error (step ${row.next_step}): ${String(e.message).slice(0, 200)}`])
         } catch {}
-        db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-          ['meta_seller_lead', 'client', row.client_id, `Fix It or Skip It sequence complete (no reply) — moved to ${tf} nurture; check-in task due ${due2}`])
-        out.nurtured++
-      } else {
-        const at = nextSellerSlot(new Date(new Date(row.day0_at).getTime() + STEP_DAYS[nextStep] * DAY)).toISOString()
-        db.run('UPDATE fb_seller_followups SET next_step = ?, next_send_at = ?, last_sent_at = ?, updated_at = ? WHERE client_id = ?', [nextStep, at, nowIso(), row.client_id])
+        out.errors = (out.errors || 0) + 1
       }
-      out.sent++
-      if (i < due.length - 1) await new Promise(res => setTimeout(res, 60000 + Math.floor(Math.random() * 90000)))
     }
     return out
   } finally { sweeping = false }

@@ -176,3 +176,54 @@ test('ALL FB-ad leads are excluded from general AI (dedicated campaigns own them
   assert.equal(st.ai_state, 'AI_DISABLED')
   db.run('DELETE FROM ai_lead_state WHERE client_id=?', [cid])
 })
+
+// ---- 2026-09-21 regression: the Luis loop. The post-send UPDATE had 5 placeholders
+// and 4 params, threw AFTER the SMS went out, and the Day-0 opener re-sent every 3
+// hours for 3 days. advanceSellerStep must advance cleanly, and the sweep must treat
+// an already-sent identical body as sent (advance, never re-text).
+test('advanceSellerStep advances the step and records last_sent_at (param-count regression)', () => {
+  const cid = mkClient()
+  db.run(`UPDATE clients SET seller_timeframe='Within 3 months', seller_improvement='Several things' WHERE id=?`, [cid])
+  const day0 = new Date(Date.now() - 60000).toISOString()
+  db.run(`INSERT INTO fb_seller_followups (client_id, status, day0_at, next_step, next_send_at, updated_at)
+          VALUES (?,?,?,?,?,?)`, [cid, 'active', day0, 0, day0, day0])
+  const row = db.get('SELECT * FROM fb_seller_followups WHERE client_id=?', [cid])
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  const r = m.advanceSellerStep(row, c)
+  assert.equal(r, 'advanced')
+  const after = db.get('SELECT * FROM fb_seller_followups WHERE client_id=?', [cid])
+  assert.equal(after.next_step, 1, 'step advanced')
+  assert.ok(after.last_sent_at, 'last_sent_at recorded')
+  assert.ok(after.next_send_at, 'day-1 slot scheduled')
+  // final step -> nurture, never loops
+  db.run('UPDATE fb_seller_followups SET next_step=3 WHERE client_id=?', [cid])
+  const row3 = db.get('SELECT * FROM fb_seller_followups WHERE client_id=?', [cid])
+  assert.equal(m.advanceSellerStep(row3, c), 'nurtured')
+  assert.equal(db.get('SELECT status FROM fb_seller_followups WHERE client_id=?', [cid]).status, 'nurture')
+})
+
+test('sweep self-heal: an already-sent identical body advances the step without re-sending', async () => {
+  const cid = mkClient()
+  db.run(`UPDATE clients SET first_name='Luis', seller_timeframe='Within 3 months', seller_improvement='Several things' WHERE id=?`, [cid])
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  const body = m.sellerOpener(c.first_name, c.seller_improvement)
+  // the Day-0 text already exists on the thread (sent by a tick that then crashed)
+  db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, to_addr, preview, body, thread_key, status, occurred_at)
+          VALUES ('text','outgoing',?,?,?,?,?,?, 'read', ?)`, [cid, 'Luis', c.phone, body.slice(0, 160), body, `c${cid}_text`, new Date().toISOString()])
+  const day0 = new Date(Date.now() - 3600000).toISOString()
+  db.run(`INSERT INTO fb_seller_followups (client_id, status, day0_at, next_step, next_send_at, updated_at)
+          VALUES (?,?,?,?,?,?)`, [cid, 'active', day0, 0, day0, day0])
+  const before = db.get('SELECT COUNT(*) n FROM communications WHERE client_id=?', [cid]).n
+  await m.runSellerFollowups()
+  const after = db.get('SELECT * FROM fb_seller_followups WHERE client_id=?', [cid])
+  const comms = db.get('SELECT COUNT(*) n FROM communications WHERE client_id=?', [cid]).n
+  assert.equal(comms, before, 'NO duplicate text sent')
+  if (m.inSellerWindow(new Date(), { firstTouch: true })) {
+    assert.equal(after.next_step, 1, 'step advanced as if sent')
+  } else {
+    // Outside the 9AM-7PM CT window the sweep defers before reaching the self-heal;
+    // the no-duplicate-send assertion above is the invariant that must always hold.
+    assert.equal(after.next_step, 0)
+  }
+  db.run('DELETE FROM fb_seller_followups WHERE client_id=?', [cid])
+})
