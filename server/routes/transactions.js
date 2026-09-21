@@ -378,7 +378,12 @@ router.put('/:id', (req, res) => {
   const sets = keys.map(k => `${k} = ?`).join(', ')
   const values = [...keys.map(k => n(fields[k])), Number(req.params.id)]
 
-  db.run(`UPDATE transactions SET ${sets} WHERE id = ?`, values)
+  try {
+    db.run(`UPDATE transactions SET ${sets} WHERE id = ?`, values)
+  } catch (err) {
+    console.error('[tx-update] core UPDATE failed:', err.message)
+    return res.status(500).json({ error: 'Save failed: ' + String(err.message || err).slice(0, 300) })
+  }
   const txId = Number(req.params.id)
   // Once a listing reaches Under Contract (or beyond), the pre-listing/active
   // marketing push is done — clear its marketing checklist automatically,

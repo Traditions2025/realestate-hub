@@ -1391,6 +1391,14 @@ ${signature}
     res.sendFile(join(__dirname, '..', 'dist', 'index.html'))
   })
 
+  // Last-resort error handler: JSON with the real message instead of the HTML
+  // 500 page, and a console line — API failures must be diagnosable.
+  app.use((err, _req, res, _next) => {
+    console.error('[express-error]', err.message)
+    if (res.headersSent) return
+    res.status(500).json({ error: String(err.message || err).slice(0, 300) })
+  })
+
   app.listen(PORT, () => {
     console.log('')
     console.log('  =============================================')
