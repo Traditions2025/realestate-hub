@@ -862,6 +862,10 @@ export function startScheduler() {
   // (Day 0 goes promptly; response stops first; policy gates per send).
   setInterval(() => { import('./seller-campaign.js').then(m => m.runSellerFollowups()).catch(() => {}) }, 5 * 60 * 1000)
 
+  // Call intelligence: collect finished Twilio transcripts + write Claude
+  // summaries onto the call rows - every 2 min.
+  setInterval(() => { import('./call-intelligence.js').then(m => m.pollCallIntelligence()).catch(() => {}) }, 2 * 60 * 1000)
+
   // Cancelled/Expired Connection Campaign - every 15 min (self-gates: master switch,
   // weekdays 9AM-4PM CT window, per-send eligibility re-verification).
   setInterval(() => { import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)

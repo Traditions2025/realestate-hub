@@ -601,6 +601,19 @@ export default function Inbox() {
                         {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                         {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
                         {isCall && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
+                        {m.call_summary && (
+        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>📋 AI Call Summary</summary>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.call_summary}</pre>
+        </details>
+      )}
+                        {m.call_summary && m.transcript && (
+        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>💬 Transcript</summary>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.transcript}</pre>
+        </details>
+      )}
+
                       </div>
                       {link0 && <LinkPreview url={link0} />}
                       {dstat && <div style={{ fontSize: 12, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}

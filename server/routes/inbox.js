@@ -305,6 +305,15 @@ router.post('/contact-emails/import', async (req, res) => {
 })
 
 // ---- one contact's full thread ----
+// Call intelligence: manually queue (or retry) transcription for one call row,
+// e.g. to backfill an old recorded call. The 2-min poller completes it.
+router.post('/comm/:id/transcribe', async (req, res) => {
+  try {
+    const m = await import('../call-intelligence.js')
+    res.json(await m.queueTranscription(Number(req.params.id), { force: req.query.force === '1' }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/thread/:clientId', (req, res) => {
   const cid = Number(req.params.clientId)
   const rows = db.all('SELECT * FROM communications WHERE client_id = ? ORDER BY occurred_at ASC LIMIT 500', [cid])

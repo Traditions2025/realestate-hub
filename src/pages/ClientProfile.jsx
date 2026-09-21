@@ -807,7 +807,20 @@ function CommItem({ m }) {
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
       {text && <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
       {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
-      {m.transcript && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
+      {m.transcript && !m.call_summary && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
+      {m.call_summary && (
+        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>📋 AI Call Summary</summary>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.call_summary}</pre>
+        </details>
+      )}
+      {m.call_summary && m.transcript && (
+        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+          <summary style={{ cursor: 'pointer', fontWeight: 700 }}>💬 Transcript</summary>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.transcript}</pre>
+        </details>
+      )}
+
       {m.channel === 'email' && out && <EmailEngagement eng={m.eng} />}
       {m.channel === 'email' && (
         <div style={{ marginTop: 6 }}>

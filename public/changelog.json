@@ -1,7 +1,71 @@
 {
-  "generated_at": "2026-09-21T15:18:02.674Z",
+  "generated_at": "2026-09-21T16:17:12.222Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "538eb34",
+      "date": "2026-09-21T10:49:39-05:00",
+      "subject": "Disk gauge: ESM import instead of require",
+      "title": "Disk gauge: ESM import instead of require",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "190d59d",
+      "date": "2026-09-21T10:48:18-05:00",
+      "subject": "Health panel: disk usage gauge (warns at 80%)",
+      "title": "Health panel: disk usage gauge (warns at 80%)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6721441",
+      "date": "2026-09-21T10:46:34-05:00",
+      "subject": "Admin: deep disk analysis (recursive sizes + per-table DB usage)",
+      "title": "Admin: deep disk analysis (recursive sizes + per-table DB usage)",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ee81d11",
+      "date": "2026-09-21T10:45:00-05:00",
+      "subject": "Backup retention for the 10GB disk: pre-boot 3, daily 7",
+      "title": "Backup retention for the 10GB disk: pre-boot 3, daily 7",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "210bb7f",
+      "date": "2026-09-21T10:41:36-05:00",
+      "subject": "Emergency: /data disk full — every Hub write was failing",
+      "title": "Emergency: /data disk full — every Hub write was failing",
+      "body": "The DB grew to ~200MB and the backup retention (10 pre-boot snapshots +\n14 dailies on the same disk) no longer fit, so SQLite hit 'database or\ndisk is full': transaction saves 500'd with nothing saved, and logins\nbounced instantly because the session INSERT failed silently inside its\ntry/catch (Matt's sign-out loop).\n\n- GET /api/admin/disk (usage listing) + POST /api/admin/disk/cleanup\n  (rotate pre-boot/daily/hourly/pre-restore down now)\n- Retention rightsized: pre-boot 10 -> 2, daily 14 -> 4 (Google Drive\n  keeps the long history off-disk)\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d25d231",
+      "date": "2026-09-21T10:39:25-05:00",
+      "subject": "Diagnosability: JSON error responses with real messages",
+      "title": "Diagnosability: JSON error responses with real messages",
+      "body": "Core transaction UPDATE failure returns its SQLite error; a last-resort\nexpress error handler replaces the HTML 500 page with the message.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fd66a30",
+      "date": "2026-09-21T10:33:26-05:00",
+      "subject": "Transaction save: core UPDATE never blocked by sync side-effects",
+      "title": "Transaction save: core UPDATE never blocked by sync side-effects",
+      "body": "One post-update mirror/sync step started throwing in production, turning\nevery transaction edit into a 500 with nothing saved (closing dates\nwouldn't stick). The UPDATE now commits first and each side-effect runs\nbest-effort; failures return as sync_errors with their step name and log\nto the console so the actual culprit is visible instead of masked.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2bbc2f6",
+      "date": "2026-09-21T10:18:24-05:00",
+      "subject": "Profile: Communications pinned below Client Details (not draggable)",
+      "title": "Profile: Communications pinned below Client Details (not draggable)",
+      "body": "Both are excluded from drag; saved layouts re-pin on load so existing\nusers' arrangements heal automatically.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "36da4ef",
       "date": "2026-09-21T10:08:12-05:00",
@@ -3937,70 +4001,6 @@
       "title": "Clients: Registered column + Oldest/Recently-Added sort now follow the FUB register date (fall back to Sierra create date only when no FUB date) so sorting by lead age is accurate",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "63fdc40",
-      "date": "2026-08-13T17:10:47-05:00",
-      "subject": "FUB price: use the person price field (~50% of engaged leads) not events; combine register+price into one person pull; add self-framing {{price_clause}}",
-      "title": "FUB price: use the person price field (~50% of engaged leads) not events; combine register+price into one person pull; add self-framing {{price_clause}}",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "614edbf",
-      "date": "2026-08-13T16:27:13-05:00",
-      "subject": "Recover original lead register date from FUB (customRegTime, predates Sierra sync); single + bulk endpoints; shown on client detail",
-      "title": "Recover original lead register date from FUB (customRegTime, predates Sierra sync); single + bulk endpoints; shown on client detail",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b64faa9",
-      "date": "2026-08-13T16:21:17-05:00",
-      "subject": "FUB price point: page deeper (up to 500 events) so cold leads' older property views are captured",
-      "title": "FUB price point: page deeper (up to 500 events) so cold leads' older property views are captured",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d04fd36",
-      "date": "2026-08-13T16:18:36-05:00",
-      "subject": "FUB price point: fetch avg viewed-home price from FUB events per lead (works for cold leads); stored on client, single + bulk endpoints; {{price_point}} reads stored value first",
-      "title": "FUB price point: fetch avg viewed-home price from FUB events per lead (works for cold leads); stored on client, single + bulk endpoints; {{price_point}} reads stored value first",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "53a8a5c",
-      "date": "2026-08-13T16:14:34-05:00",
-      "subject": "Merge fields: add {{price_point}} = avg price of homes the lead viewed in FUB (rounded); suppress the Sierra default 200k/600k range so it never states a fake budget",
-      "title": "Merge fields: add {{price_point}} = avg price of homes the lead viewed in FUB (rounded); suppress the Sierra default 200k/600k range so it never states a fake budget",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a523bb7",
-      "date": "2026-08-13T15:46:36-05:00",
-      "subject": "Campaign Match: show lead CRM status chip per recommendation; Dashboard: add 'In Drip Campaigns' + 'Website Visits (24h)' metrics",
-      "title": "Campaign Match: show lead CRM status chip per recommendation; Dashboard: add 'In Drip Campaigns' + 'Website Visits (24h)' metrics",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4259fab",
-      "date": "2026-08-13T14:48:49-05:00",
-      "subject": "AI Campaign Match (Phase 1): hybrid hard-rules + campaign-specific scoring + AI interpretation",
-      "title": "AI Campaign Match (Phase 1): hybrid hard-rules + campaign-specific scoring + AI interpretation",
-      "body": "- server/routes/campaign-match.js: 6 campaign profiles (cold re-engagement, seller motivation, home value, first-time buyer, downsizing, past client) with hard exclusions, deterministic candidate scoring, and batched AI scoring (match %, intent, one-sentence why, confidence group)\n- Endpoints: GET /campaigns, POST /:key/analyze, /:key/preflight (pre-enroll warnings), /:key/enroll (records why + match on the drip enrollment)\n- drip_enrollments: enroll_reason + match_score columns\n- New 'AI Campaign Match' page: analyze -> High/Possible/Low counts + Not-Recommended (with reasons) -> filter/select -> Enroll Selected with quality-check warnings\n- Architected as the base for a Next Best Action engine (Lead->Campaign, Opportunities dashboard next)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e98f388",
-      "date": "2026-08-13T12:54:35-05:00",
-      "subject": "Add read-only FUB raw-person inspector endpoint (see all available fields)",
-      "title": "read-only FUB raw-person inspector endpoint (see all available fields)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
     }
   ]
 }

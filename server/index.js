@@ -863,7 +863,17 @@ async function start() {
   })
   // Call recording ready (when recording is enabled) → attach media.
   app.post('/api/voice/recording', twGuard, (req, res) => {
-    try { if (req.body?.CallSid && req.body?.RecordingUrl) db.run('UPDATE communications SET recording_url=?, recording_sid=? WHERE external_id=?', [req.body.RecordingUrl, req.body.RecordingSid, 'twiliocall_' + req.body.CallSid]) } catch {}
+    try {
+      if (req.body?.CallSid && req.body?.RecordingUrl) {
+        db.run('UPDATE communications SET recording_url=?, recording_sid=? WHERE external_id=?', [req.body.RecordingUrl, req.body.RecordingSid, 'twiliocall_' + req.body.CallSid])
+        // Call intelligence (John, 2026-09-21): transcript + AI summary on every
+        // recorded call >= 20s. Fire-and-forget; the 2-min poller finishes it.
+        if (Number(req.body.RecordingDuration || 0) >= 20) {
+          const row = db.get('SELECT id FROM communications WHERE external_id=?', ['twiliocall_' + req.body.CallSid])
+          if (row) import('./call-intelligence.js').then(m => m.queueTranscription(row.id)).catch(e => console.error('[call-intel] queue:', e.message))
+        }
+      }
+    } catch {}
     res.sendStatus(204)
   })
   // Call status callback → reconcile final status + duration.
