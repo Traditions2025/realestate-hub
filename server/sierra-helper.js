@@ -131,7 +131,30 @@ export function processLead(lead, sierraStatusOverride) {
   const lenderStatus = n(lead.lenderStatus)
   const listingAgentStatus = n(lead.listingAgentStatus)
 
-  const existing = db.get('SELECT id, status FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  let existing = db.get('SELECT id, status, tags FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  let adopted = false
+  if (!existing) {
+    // ADOPT-DON'T-DUPLICATE (2026-09-21): FB ad leads are born in the Hub (FUB email
+    // intake) and don't reach Sierra automatically, so John uploads them to Sierra
+    // manually. Before this guard, the next sync pass INSERTed a twin of a lead the
+    // Hub already had (4 dup pairs from the 09-18 upload). Match by exact email, or
+    // by phone last-10 PLUS same first name — never bare phone, because household /
+    // shared lines must never be collapsed (contact-cleanup rule).
+    const p10 = String(phone || '').replace(/\D/g, '').slice(-10)
+    if (email && !/notvalidemail/i.test(email)) {
+      existing = db.get("SELECT id, status, tags FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND lower(email)=lower(?)", [email])
+    }
+    if (!existing && p10.length === 10 && firstName) {
+      const cands = db.all("SELECT id, status, tags, phone, first_name FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND phone LIKE ?", ['%' + p10.slice(-4)])
+      existing = cands.find(c => String(c.phone || '').replace(/\D/g, '').slice(-10) === p10
+        && String(c.first_name || '').trim().toLowerCase() === String(firstName).trim().toLowerCase()) || null
+    }
+    if (existing) {
+      adopted = true
+      db.run("UPDATE clients SET sierra_lead_id=?, updated_at=datetime('now') WHERE id=?", [sierraId, existing.id])
+      try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['updated', 'client', existing.id, `Sierra lead ${sierraId} matched this existing Hub record (adopted, no duplicate created)`]) } catch {}
+    }
+  }
   if (existing) {
     // FIELD OWNERSHIP (policy set 2026-09-11): the Hub is the master for contact
     // and profile data. On an EXISTING lead the sync writes ONLY what Sierra
@@ -143,6 +166,18 @@ export function processLead(lead, sierraStatusOverride) {
     // verified phone numbers on 2026-09-10). The one exception: an EMPTY Hub
     // contact field is backfilled from Sierra (a lead adding their phone/email
     // on the website is new data, not an overwrite). New leads INSERT in full.
+    // Tags are Sierra-owned EXCEPT Hub-native campaign tags (FB Ad / FB Seller Ad /
+    // Meta Lead / Fix It or Skip It), which Sierra never knows about — union those
+    // back in so a sync pass can't strip a lead out of its FB campaign identity.
+    const HUB_NATIVE_TAG = (t) => /^(FB Ad:|FB Seller Ad)/i.test(t) || ['Meta Lead', 'Fix It or Skip It', 'Seller'].includes(t)
+    let hubTags = []
+    try { const a = JSON.parse(existing.tags || '[]'); if (Array.isArray(a)) hubTags = a.map(x => String(x).trim()).filter(Boolean) } catch {}
+    const keepTags = hubTags.filter(HUB_NATIVE_TAG)
+    const mergedTags = [...new Set([...tags, ...keepTags])]
+    const mergedTagsStr = mergedTags.length ? JSON.stringify(mergedTags) : null
+    // First (adoption) pass keeps the Hub's status: the Hub record predates Sierra
+    // here, so a manual upload's default "New" must not clobber e.g. Watch.
+    const statusToWrite = adopted ? existing.status : clientStatus
     db.run(`UPDATE clients SET
       phone   = CASE WHEN phone   IS NULL OR phone   = '' THEN ? ELSE phone   END,
       email   = CASE WHEN (email  IS NULL OR email   = '') AND COALESCE(?, '') NOT LIKE '%notvalidemail%' THEN ? ELSE email END,
@@ -159,11 +194,11 @@ export function processLead(lead, sierraStatusOverride) {
       search_sqft_min=?, search_regions=?, search_property_types=?, has_saved_search=?,
       updated_at=datetime('now') WHERE id=?`,
       [phone, email, email, address, city, state, zip,
-        clientStatus,
+        statusToWrite,
         visits, emailStatus, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
         meOptOut, textOptOut, ealertOptOut, shortSummary,
-        tagsStr, lenderName, lenderStatus, listingAgentStatus,
+        mergedTagsStr, lenderName, lenderStatus, listingAgentStatus,
         searchPriceMin, searchPriceMax, searchBedsMin, searchBathsMin,
         searchSqftMin, searchRegions, searchPropertyTypes, hasSavedSearch,
         existing.id])

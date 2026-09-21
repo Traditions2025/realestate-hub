@@ -104,3 +104,56 @@ test('new Sierra leads still insert with full contact data', () => {
   assert.equal(c.phone, '(319) 555-9999')
   assert.equal(c.address, '99 Sierra Ave')
 })
+
+// ---- Adopt-don't-duplicate (2026-09-21): a lead John manually uploads to Sierra
+// already exists in the Hub (FB intake). The sync must attach the Sierra id to the
+// existing record instead of inserting a twin.
+const uniq = () => String(Date.now()).slice(-7) + String(++seq)
+
+test('manually-uploaded Sierra lead ADOPTS the matching Hub record by email (no duplicate)', () => {
+  const s = sid()
+  const em = `fbadopt${uniq()}@example.com`
+  const r = db.run(`INSERT INTO clients (first_name, last_name, type, status, email, source, tags)
+    VALUES ('Rich','Adoptee','buyer','watch',?,'Facebook Listing Ad','["FB Ad: 510 Broadway Springville"]')`, [em])
+  const hubId = r.lastInsertRowid
+  const out = processLead(sierraLead(s, { firstName: 'Rich', lastName: 'Adoptee', email: em, phone: null, leadStatus: 'New', tags: [] }))
+  assert.equal(out, 'updated')
+  assert.equal(db.get('SELECT COUNT(*) n FROM clients WHERE sierra_lead_id=?', [String(s)]).n, 1, 'exactly one record carries the sierra id')
+  const c = db.get('SELECT * FROM clients WHERE id=?', [hubId])
+  assert.equal(c.sierra_lead_id, String(s), 'sierra id attached to the existing Hub record')
+  assert.equal(c.status, 'watch', 'adoption keeps the Hub status (upload default New must not clobber Watch)')
+  assert.ok(String(c.tags).includes('FB Ad: 510 Broadway Springville'), 'Hub-native FB tag survives the sync tag write')
+})
+
+test('adoption by phone requires the SAME first name — household lines never collapse', () => {
+  const s = sid()
+  const digits = '555' + uniq()          // 10 fake digits
+  const ph = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+  db.run(`INSERT INTO clients (first_name, last_name, type, status, phone) VALUES ('Jane','Household','buyer','new',?)`, [ph])
+  processLead(sierraLead(s, { firstName: 'John', lastName: 'Household', email: null, phone: ph, tags: [] }))
+  const c = db.get('SELECT id, first_name FROM clients WHERE sierra_lead_id=?', [String(s)])
+  assert.ok(c, 'inserted as a NEW record')
+  assert.equal(c.first_name, 'John', 'Jane was not adopted onto')
+})
+
+test('adoption by phone + same first name works when there is no email', () => {
+  const s = sid()
+  const digits = '555' + uniq()
+  const ph = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`
+  const r = db.run(`INSERT INTO clients (first_name, last_name, type, status, phone, tags) VALUES ('Luis','Sameline','buyer','new',?, '["FB Ad: 510 Broadway Springville"]')`, [ph])
+  processLead(sierraLead(s, { firstName: 'Luis', lastName: 'Sameline', email: null, phone: digits, tags: [] }))
+  const c = db.get('SELECT sierra_lead_id, tags FROM clients WHERE id=?', [r.lastInsertRowid])
+  assert.equal(c.sierra_lead_id, String(s))
+  assert.ok(String(c.tags).includes('FB Ad'), 'FB tag kept')
+})
+
+test('later regular sync passes UNION Hub-native FB tags with Sierra tags instead of replacing', () => {
+  const s = sid()
+  mkHubClient(s, { first_name: 'Tagkeep' })
+  db.run("UPDATE clients SET tags='[\"FB Ad: 510 Broadway Springville\",\"Random Hub Tag\"]' WHERE sierra_lead_id=?", [String(s)])
+  processLead(sierraLead(s, { tags: ['From Sierra'] }))
+  const c = db.get('SELECT tags FROM clients WHERE sierra_lead_id=?', [String(s)])
+  assert.ok(String(c.tags).includes('From Sierra'), 'Sierra tag written')
+  assert.ok(String(c.tags).includes('FB Ad: 510 Broadway Springville'), 'FB campaign tag preserved')
+  assert.ok(!String(c.tags).includes('Random Hub Tag'), 'non-campaign Hub tags still follow Sierra (existing policy)')
+})
