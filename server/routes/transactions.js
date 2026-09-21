@@ -389,17 +389,28 @@ router.put('/:id', (req, res) => {
     db.run("UPDATE transactions SET marketing_tasks = '{}' WHERE id = ?", [txId])
   }
   logActivity('updated', 'transaction', txId, 'Updated transaction')
-  // Mirror the change into Listings tab (creates or updates the linked listing)
-  syncListingFromTransaction(txId)
-  markMatchingPreListingsAsListed(txId)
-  // Sync/update closing event in calendar (handles add, update, AND removal on terminal status)
-  syncClosingToCalendar(txId)
-  syncWalkthroughToCalendar(txId)
-  syncTransactionDeadlineTasks(txId)
-  // Auto-fire team invite if closing time/location just got filled in (or changed)
+  // The core save must NEVER be hostage to the mirror/sync steps below: on
+  // 2026-09-21 one of them started throwing in production, which turned EVERY
+  // transaction edit into a 500 with nothing saved (John: closing date wouldn't
+  // save). Each step is best-effort; failures are logged with their step name
+  // so the broken one is identifiable in the logs instead of masked.
+  const sideEffects = {
+    listing_mirror: () => syncListingFromTransaction(txId),
+    prelisting_match: () => markMatchingPreListingsAsListed(txId),
+    closing_calendar: () => syncClosingToCalendar(txId),
+    walkthrough_calendar: () => syncWalkthroughToCalendar(txId),
+    deadline_tasks: () => syncTransactionDeadlineTasks(txId),
+  }
+  const sync_errors = []
+  for (const [name, fn] of Object.entries(sideEffects)) {
+    try { fn() } catch (err) {
+      sync_errors.push({ step: name, error: String(err.message || err).slice(0, 300) })
+      console.error(`[tx-update] ${name} failed for tx ${txId}:`, err.message)
+    }
+  }
   maybeSendTeamClosingInvite(txId).catch(err => console.error('[closing-invite] async error:', err.message))
   maybeSendTeamWalkthroughInvite(txId).catch(err => console.error('[walkthrough-invite] async error:', err.message))
-  res.json({ success: true })
+  res.json({ success: true, ...(sync_errors.length ? { sync_errors } : {}) })
 })
 
 router.delete('/:id', (req, res) => {
