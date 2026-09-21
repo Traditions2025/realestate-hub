@@ -101,7 +101,7 @@ router.get('/twilio-history', requirePermission('settings.view'), async (req, re
     for (const dir of ['To', 'From']) {
       const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json?${dir}=%2B1${d10}&PageSize=200`, { headers: { Authorization: auth } })
       const j = await r.json().catch(() => ({}))
-      for (const m of (j.messages || [])) out.push({ date: m.date_sent || m.date_created, direction: m.direction, status: m.status, body: String(m.body || '').slice(0, 300) })
+      for (const m of (j.messages || [])) out.push({ date: m.date_sent || m.date_created, direction: m.direction, status: m.status, from: m.from, to: m.to, body: String(m.body || '').slice(0, 300) })
     }
     out.sort((a, b) => new Date(a.date) - new Date(b.date))
     res.json({ phone: d10, count: out.length, messages: out })
