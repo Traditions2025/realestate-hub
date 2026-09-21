@@ -1422,6 +1422,30 @@ ${signature}
     // every active drip + automation. Idempotent, so safe to run each boot.
     try { purgeStopStatusEnrollments() } catch (e) { console.error('[boot] stop-status purge failed:', e.message) }
 
+    // One-time backfill (2026-09-21): master-file matches on EXISTING leads never got
+    // the MLS: Cancelled/Expired tag, so the C/E list, the Watch rule and the CX
+    // auto-text all missed them (Robert Bunting). Tag every live lead whose
+    // mls_status qualifies, then let the Watch sweep move the New ones.
+    try {
+      db.runMigration('mls-tag-backfill-2026-09-21', () => {
+        const rows = db.all(`SELECT id, tags, mls_status FROM clients WHERE merged_into IS NULL
+          AND lower(COALESCE(mls_status,'')) IN ('cancelled','canceled','expired','withdrawn')`)
+        let tagged = 0
+        for (const r of rows) {
+          const s = String(r.mls_status).trim().toLowerCase()
+          const tag = s === 'expired' ? 'MLS: Expired' : 'MLS: Cancelled'
+          let tags = []
+          try { const a = JSON.parse(r.tags || '[]'); if (Array.isArray(a)) tags = a } catch {}
+          if (tags.includes(tag)) continue
+          tags.push(tag)
+          db.run("UPDATE clients SET tags=?, updated_at=datetime('now') WHERE id=?", [JSON.stringify(tags), r.id])
+          tagged++
+        }
+        console.log(`[migration] mls-tag-backfill: tagged ${tagged} of ${rows.length} qualifying lead(s)`)
+      })
+      import('./expired-master.js').then(m => m.enforceWatchForMlsTagged()).then(r => { if (r?.moved) console.log(`[boot] watch sweep moved ${r.moved} lead(s)`) }).catch(() => {})
+    } catch (e) { console.error('[boot] mls-tag backfill failed:', e.message) }
+
     // Start auto-sync scheduler
     startScheduler()
   })

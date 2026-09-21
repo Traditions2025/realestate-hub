@@ -226,6 +226,20 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       if (row.mls_number) { sets.push('mls_number=?'); vals.push(row.mls_number) }
       if (row.listing_agent) { sets.push('listing_agent=?'); vals.push(row.listing_agent) }
       if (row.mls_status) { sets.push('mls_status=?'); vals.push(row.mls_status) }
+      // Tag matched EXISTING leads the same way new creates are tagged: the
+      // MLS: Cancelled/Expired tag is what the C/E list, the Watch rule, AND the
+      // CX auto-enroll all key on. Without it, a pre-existing contact (old import)
+      // matched by address stayed invisible to all three — no Watch move and no
+      // auto text (Robert Bunting, 2026-09-21).
+      if (cls === 'off_market' && row.mls_status) {
+        const s = String(row.mls_status).trim().toLowerCase()
+        const mlsTag = (s === 'cancelled' || s === 'canceled' || s === 'withdrawn') ? 'MLS: Cancelled' : s === 'expired' ? 'MLS: Expired' : null
+        if (mlsTag) {
+          let tags = []
+          try { const a = JSON.parse(db.get('SELECT tags FROM clients WHERE id=?', [match.id])?.tags || '[]'); if (Array.isArray(a)) tags = a } catch {}
+          if (!tags.includes(mlsTag)) { tags.push(mlsTag); sets.push('tags=?'); vals.push(JSON.stringify(tags)) }
+        }
+      }
       if (doJunk && !isStopStatus(match.status)) {
         sets.push('status=?'); vals.push('junk')
       }
