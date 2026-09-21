@@ -1,6 +1,7 @@
 // Admin diagnostics (Phase 15/16 / P0-3): failure visibility + backup health.
 // Owner/Admin only. Read-only except resolving failures.
 import { Router } from 'express'
+import * as fsSync from 'fs'
 import db from '../database.js'
 import { requirePermission } from './auth.js'
 import { listFailures, failureCounts, resolveFailure, resolveAll } from '../failures.js'
@@ -29,8 +30,7 @@ router.get('/integrations', requirePermission('settings.view'), (_req, res) => {
         google_drive_backup: status(gdrive, gdrive ? 'connected' : 'not connected'),
         web_push: status(true, `${push} device${push === 1 ? '' : 's'} subscribed`),
         disk: (() => { try {
-          const fs = require('fs')
-          const st = fs.statfsSync(process.env.DB_DIR || '.')
+          const st = fsSync.statfsSync(process.env.DB_DIR || '.')
           const freeGb = (st.bavail * st.bsize) / 1073741824
           const totGb = (st.blocks * st.bsize) / 1073741824
           const pct = Math.round(((totGb - freeGb) / totGb) * 100)
