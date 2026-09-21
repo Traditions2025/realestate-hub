@@ -230,8 +230,13 @@ export function handleSellerLead({ client_id, campaign_raw = '', raw_text = '', 
     if (emailDrip) {
       import('./routes/drips.js').then(m => {
         const eid = m.enrollInDrip(emailDrip.id, cid, { source: 'fix_it_or_skip_it' })
-        // Email 1 goes out promptly (~5 min), matching the SMS opener's cadence.
-        if (eid) db.run("UPDATE drip_enrollments SET next_run_at = ? WHERE id = ? AND current_step = 0 AND status='active'", [new Date(Date.now() + 5 * 60000).toISOString(), eid])
+        // Email 1 goes out promptly (~5 min) ONLY inside the email window — 9AM-5PM CT
+        // (John, 2026-09-21). Outside it, the engine's own scheduling (the step's
+        // send window on the next valid day) stands.
+        if (eid) {
+          const h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()))
+          if (h >= 9 && h < 17) db.run("UPDATE drip_enrollments SET next_run_at = ? WHERE id = ? AND current_step = 0 AND status='active'", [new Date(Date.now() + 5 * 60000).toISOString(), eid])
+        }
       }).catch(() => {})
     }
   } catch {}

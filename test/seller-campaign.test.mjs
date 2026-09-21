@@ -273,7 +273,14 @@ test('Fix It or Skip It intake auto-enrolls the 12-month email drip (prompt firs
   const enr = db.get("SELECT * FROM drip_enrollments WHERE client_id=? AND drip_id=?", [cid, dr.lastInsertRowid])
   assert.ok(enr, 'enrolled into the email drip')
   assert.equal(enr.source, 'fix_it_or_skip_it')
-  assert.ok(new Date(enr.next_run_at).getTime() - Date.now() < 6 * 60000, 'first email scheduled promptly (~5 min)')
+  const hCt = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(new Date()))
+  if (hCt >= 9 && hCt < 17) {
+    assert.ok(new Date(enr.next_run_at).getTime() - Date.now() < 6 * 60000, 'first email scheduled promptly (~5 min) inside 9-5 CT')
+  } else {
+    // outside the 9AM-5PM CT window the prompt override must NOT fire; the engine
+    // schedules the step's own send window instead
+    assert.ok(new Date(enr.next_run_at).getTime() - Date.now() >= 6 * 60000, 'no prompt send outside the window')
+  }
   db.run('DELETE FROM drip_campaigns WHERE id=?', [dr.lastInsertRowid])
   db.run('DELETE FROM drip_enrollments WHERE id=?', [enr.id])
 })
