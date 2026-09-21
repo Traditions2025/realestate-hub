@@ -86,6 +86,14 @@ export const BUYER = [
     latestInbound: 'Will it definitely appraise for that?',
     expect: { expected_action: 'SEND_TEXT', must_not_include: [/it will (definitely )?appraise/i, /guaranteed to appraise/i] },
   }),
+  // Jenny Wilcox regression (John, 2026-09-21): a buying question answered with "not
+  // selling!" must get a soft acknowledgement — never "our messages were about buying,
+  // not selling" and never the same intent question re-asked.
+  S('b-not-selling-pushback', 'buyer', 'Answers buying question with "not selling!" — acknowledge, never correct', {
+    transcript: 'you: Did you end up putting the home search on the back burner, or are you still keeping your options open?',
+    latestInbound: 'I have no intention of selling my home!',
+    expect: { expected_action: 'SEND_TEXT', must_not_include: [/geared toward buying/i, /about buying,? not selling/i, /asking about buying/i, /i meant buying/i, /wasn'?t about selling/i, /sorry for the confusion/i], on_topic: [/gotcha|thanks for (clarifying|letting me know)|understand|no worries|all good|wasn'?t sure|browsing/i] },
+  }),
 ]
 
 // ---------- SELLER ----------
