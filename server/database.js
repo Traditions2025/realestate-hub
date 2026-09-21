@@ -173,7 +173,7 @@ export async function initDb() {
       const snap = backupDbToDisk('pre-boot')
       if (snap.path) {
         console.log(`[db] pre-boot snapshot saved: ${snap.filename} (${(snap.size/1024).toFixed(0)} KB)`)
-        rotateBackups('pre-boot', 10)
+        rotateBackups('pre-boot', 2)   // was 10 — at ~200MB per snapshot that filled the disk (2026-09-21)
       }
     } catch (e) {
       console.error(`[db] pre-boot snapshot failed: ${e.message}`)

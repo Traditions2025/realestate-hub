@@ -86,6 +86,33 @@ router.get('/export/:table', requirePermission('settings.edit'), (req, res) => {
 })
 router.get('/export', requirePermission('settings.view'), (_req, res) => res.json({ tables: Object.keys(EXPORTABLE), note: 'Secrets, auth, and push tables are never exported.' }))
 
+// Disk usage + emergency cleanup (2026-09-21: /data filled up — 200MB DB x
+// 10 pre-boot + 14 daily backups ≈ 5GB — and every write in the Hub started
+// failing: transaction saves 500'd and logins bounced because the session
+// INSERT silently failed).
+router.get('/disk', requirePermission('settings.view'), async (_req, res) => {
+  try {
+    const fs = await import('fs'); const path = await import('path')
+    const dir = process.env.DB_DIR || '.'
+    const files = fs.readdirSync(dir).map(f => {
+      try { const st = fs.statSync(path.join(dir, f)); return { name: f, mb: +(st.size / 1048576).toFixed(1), mtime: st.mtime.toISOString().slice(0, 16) } } catch { return { name: f, mb: 0 } }
+    }).sort((a, b) => b.mb - a.mb)
+    res.json({ dir, total_mb: +files.reduce((s2, f) => s2 + f.mb, 0).toFixed(1), files: files.slice(0, 40) })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+router.post('/disk/cleanup', requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { rotateBackups } = await import('../backup.js')
+    const out = {
+      preboot: rotateBackups('pre-boot', Number(req.query.keep_preboot) || 2),
+      daily: rotateBackups('daily', Number(req.query.keep_daily) || 4),
+      prerestore: rotateBackups('pre-restore', 1),
+      hourly: rotateBackups('hourly', 2),
+    }
+    res.json(out)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Twilio message history for one number, straight from Twilio's records —
 // finds texts sent before the Hub logged communications (pre-Hub blasts).
 router.get('/twilio-history', requirePermission('settings.view'), async (req, res) => {

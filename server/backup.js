@@ -251,7 +251,7 @@ export async function runDailyBackup() {
   const result = { startedAt: new Date().toISOString() }
   try {
     result.disk = backupDbToDisk('daily')
-    result.diskRotate = rotateBackups('daily', 14)  // keep 14 days
+    result.diskRotate = rotateBackups('daily', 4)  // was 14 — 200MB x 14 didn't fit the disk (2026-09-21); Google Drive holds the long history
     if (result.disk?.path) result.diskVerify = verifyBackupFile(result.disk.path)
   } catch (err) {
     result.diskError = err.message
