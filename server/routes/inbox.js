@@ -277,7 +277,7 @@ router.get('/', (req, res) => {
   if (ctxIds.length) {
     try {
       const ph = ctxIds.map(() => '?').join(',')
-      for (const r of db.all(`SELECT id, fsbo_status, fsbo_dom, mls_status, mls_number, off_market_date, address, city, tags FROM clients WHERE id IN (${ph})`, ctxIds)) {
+      for (const r of db.all(`SELECT id, fsbo_status, fsbo_dom, fsbo_price, mls_status, mls_number, mls_list_price, off_market_date, address, city, tags FROM clients WHERE id IN (${ph})`, ctxIds)) {
         const mls = String(r.mls_status || '').toLowerCase()
         const isCx = /"MLS: (Cancelled|Expired)"/.test(r.tags || '') || ['cancelled', 'canceled', 'expired', 'withdrawn'].includes(mls)
         const isFsbo = !!String(r.fsbo_status || '').trim()
@@ -295,6 +295,9 @@ router.get('/', (req, res) => {
           mls_number: isCx ? (r.mls_number || null) : null,
           off_market_date: isCx ? (r.off_market_date || null) : null,
           fsbo_dom: isFsbo && r.fsbo_dom != null && r.fsbo_dom !== '' ? Number(r.fsbo_dom) : null,
+          // Last market price: the FSBO list price for a live FSBO, otherwise the
+          // last MLS list price parsed from the master file. Null = simply omitted.
+          price: Number(primary === 'fsbo' ? r.fsbo_price : r.mls_list_price) || null,
         }
       }
     } catch {}

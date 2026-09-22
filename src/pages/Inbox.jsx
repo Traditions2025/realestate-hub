@@ -514,6 +514,7 @@ export default function Inbox() {
                           <span style={{ flex: '0 0 auto', fontSize: 10.5, fontWeight: 800, letterSpacing: '.03em', padding: '1px 7px', borderRadius: 4, textTransform: 'uppercase', color: '#fff', background: c.prospect.kind === 'fsbo' ? '#059669' : '#d97706' }}>
                             {c.prospect.kind === 'fsbo' ? `FSBO · ${c.prospect.label}${c.prospect.fsbo_dom != null ? ` · DOM ${c.prospect.fsbo_dom}` : ''}` : c.prospect.label}
                           </span>
+                          {c.prospect.price ? <span style={{ flex: '0 0 auto', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>${Number(c.prospect.price).toLocaleString()}</span> : null}
                           {c.prospect.address && <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.prospect.address}</span>}
                           {c.prospect.mls_number && <span style={{ flex: '0 0 auto', fontSize: 11.5, color: 'var(--text-muted)' }}>MLS #{c.prospect.mls_number}</span>}
                         </div>
@@ -565,6 +566,8 @@ export default function Inbox() {
                   const isFsbo = !!(c.fsbo_status || (c.fsbo_listings && c.fsbo_listings !== '[]'))
                   const bits = []
                   if (c.address) bits.push(c.address)
+                  const price = Number(isFsbo ? c.fsbo_price : c.mls_list_price) || null
+                  if (price) bits.push('$' + price.toLocaleString())
                   if (!isFsbo && c.mls_number) bits.push(`MLS #${c.mls_number}`)
                   if (!isFsbo && c.off_market_date) bits.push(`Off Market: ${String(c.off_market_date).slice(0, 10)}`)
                   if (isFsbo && c.fsbo_dom != null && c.fsbo_dom !== '') bits.push(`DOM ${c.fsbo_dom}`)

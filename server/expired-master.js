@@ -90,6 +90,26 @@ function tagsJson(row, cls, mlsStatus) {
   return JSON.stringify([...set])
 }
 
+// LAST MARKET PRICE for a Cancelled/Expired lead (John, 2026-09-22). The master
+// file has no price column; the daily MLS pull writes it into the Notes blob in
+// one of two shapes:
+//   "$199,900; DOM 34; Recent: 09/21/2026 : CANCL : A->C; …"   (leading field)
+//   "…Cancelled 09/21/2026 P->C (MLS 2605830) at $199,900; …"  (export phrasing)
+// Deliberately CONSERVATIVE: notes also carry SALE prices ("Sold $125,000 on …",
+// "a sale on 04/08/2024 for $171,000, which is how the owner bought it") — those
+// are not list prices, so anything not matching the two structured shapes returns
+// null and the UI simply omits the price rather than showing a wrong number.
+export function parseMlsListPrice(notes) {
+  const s = String(notes || '')
+  if (!s) return null
+  const num = (t) => { const n = Number(String(t).replace(/[^0-9]/g, '')); return n >= 10000 && n <= 20000000 ? n : null }
+  let m = s.match(/\$([\d,]{4,})\s*;\s*DOM\b/i)
+  if (m) return num(m[1])
+  m = s.match(/\bat\s+\$([\d,]{4,})/i)
+  if (m) return num(m[1])
+  return null
+}
+
 // Classify column P. Anything unexpected (incl. empty) is 'unknown' — never junk on unknown.
 function classifyMlsStatus(p) {
   const s = String(p || '').trim().toLowerCase()
@@ -181,10 +201,10 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
           const { first, last } = splitName(row.name)
           const email = (row.email && !/notvalidemail/i.test(row.email)) ? row.email : null
           const info = db.run(
-            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, agent_assigned, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_status, mls_extract_attempted_at, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, agent_assigned, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_status, mls_list_price, mls_extract_attempted_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [first, last, row.phone || null, email, 'seller', 'new', 'Expired/Cancelled Mls', 'Matt Smith', row.address || null, row.city || null, row.state || null, row.zip || null,
-             tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, row.mls_status || null, now, now, now])
+             tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, row.mls_status || null, parseMlsListPrice(row.notes), now, now, now])
           // index the new lead so a duplicate row in this same run won't create it twice
           index.set(key, [...candidates, { id: info.lastInsertRowid, first_name: first, last_name: last, address: row.address, city: row.city, status: 'new' }])
           const { logMasterUpdate } = await import('./master-file-log.js')
@@ -226,6 +246,10 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       if (row.mls_number) { sets.push('mls_number=?'); vals.push(row.mls_number) }
       if (row.listing_agent) { sets.push('listing_agent=?'); vals.push(row.listing_agent) }
       if (row.mls_status) { sets.push('mls_status=?'); vals.push(row.mls_status) }
+      // Last market price from the Notes blob — refreshed each run so a price
+      // correction in the MLS flows through (never blanked when absent).
+      const listPrice = parseMlsListPrice(row.notes)
+      if (listPrice) { sets.push('mls_list_price=?'); vals.push(listPrice) }
       // Tag matched EXISTING leads the same way new creates are tagged: the
       // MLS: Cancelled/Expired tag is what the C/E list, the Watch rule, AND the
       // CX auto-enroll all key on. Without it, a pre-existing contact (old import)
