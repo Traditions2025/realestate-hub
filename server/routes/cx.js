@@ -29,14 +29,30 @@ router.post('/enroll-list', async (_req, res) => {
 router.get('/:clientId', (req, res) => {
   try { res.json({ ...campaignState(Number(req.params.clientId)), enabled: cxEnabled() }) } catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Manual enroll (and resume) are deliberate human actions — a person just fixed a
+// number or decided to work this lead, so the first text should go out NOW rather
+// than waiting up to 15 minutes for the next scheduled sweep (John, 2026-09-22).
+// The sweep itself still gates everything: master switch, weekday 9AM-4PM CT
+// window, per-send eligibility, and the 1-2.5 min trickle between leads.
+function kickSweep() {
+  import('../cx-connect.js').then(m => m.runCxSweep()).catch(e => console.error('[cx] manual kick:', e.message))
+}
 router.post('/:clientId/enroll', async (req, res) => {
-  try { res.json(await enrollClient(Number(req.params.clientId), req.user?.email || 'manual')) } catch (e) { res.status(500).json({ error: e.message }) }
+  try {
+    const r = await enrollClient(Number(req.params.clientId), req.user?.email || 'manual')
+    if (r?.ok) kickSweep()
+    res.json(r)
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 router.post('/:clientId/pause', (req, res) => {
   try { res.json({ ok: true, state: pauseCampaign(Number(req.params.clientId)) }) } catch (e) { res.status(500).json({ error: e.message }) }
 })
 router.post('/:clientId/resume', async (req, res) => {
-  try { res.json(await resumeCampaign(Number(req.params.clientId))) } catch (e) { res.status(500).json({ error: e.message }) }
+  try {
+    const r = await resumeCampaign(Number(req.params.clientId))
+    if (r?.ok) kickSweep()
+    res.json(r)
+  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 router.post('/:clientId/remove', (req, res) => {
   try { res.json(removeFromCampaign(Number(req.params.clientId))) } catch (e) { res.status(500).json({ error: e.message }) }

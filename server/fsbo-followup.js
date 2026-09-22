@@ -186,9 +186,18 @@ export async function evaluateFsboCampaignEligibility(clientId) {
   // wrong number / any real reply) → cold prospecting is inappropriate.
   if (!row || !row.enrolled_at) {
     const { classifyInbound } = await import('./cx-connect.js')
-    const inbound = db.all(`SELECT body, preview, transcript, channel FROM communications
+    const inbound = db.all(`SELECT body, preview, transcript, channel, from_addr FROM communications
       WHERE client_id=? AND direction='incoming' AND channel IN ('text','email','call','voicemail') ORDER BY occurred_at DESC LIMIT 200`, [cid])
+    // A reply from a number NO LONGER on file came from a wrong number that has
+    // since been corrected — its verdict belongs to that number, not this seller
+    // (same rule as the CX campaign, John 2026-09-22).
+    const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+    const current = new Set([c.phone, ...String(c.alt_phones || '').split(',')].map(d10).filter(s => s.length === 10))
     for (const m of inbound) {
+      if (['text', 'call', 'voicemail'].includes(m.channel) && current.size) {
+        const from = d10(m.from_addr)
+        if (from.length === 10 && !current.has(from)) continue
+      }
       const text = [m.body, m.preview, m.transcript].filter(Boolean).join(' ')
       if (!String(text).trim()) continue
       const cls = classifyInbound(text)
