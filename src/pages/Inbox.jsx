@@ -309,10 +309,19 @@ export default function Inbox() {
     if (!replyOpen) return
     authFetch('/api/templates?type=' + replyChannel).then(r => r.json()).then(t => setReplyTemplates(Array.isArray(t) ? t : [])).catch(() => setReplyTemplates([]))
   }, [replyOpen, replyChannel])
-  const insertTemplate = (id) => {
+  const insertTemplate = async (id) => {
     const t = replyTemplates.find(x => String(x.id) === String(id)); if (!t) return
-    const text = replyChannel === 'text' ? stripTplHtml(t.body) : t.body
-    setReply(v => ({ subject: v.subject || (replyChannel === 'email' ? (t.subject || '') : ''), body: v.body ? v.body + '\n\n' + text : text }))
+    let text = replyChannel === 'text' ? stripTplHtml(t.body) : t.body
+    let subject = t.subject || ''
+    // Resolve merge fields for THIS lead at insert time (John, 2026-09-22): the
+    // composer shows the actual text that will send — never raw {{tokens}}. The
+    // send path still fills anything typed later, so this is preview + truth.
+    try {
+      const r = await authFetch('/api/templates/render', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ body: text, subject, client_id: sel }) })
+      const d = await r.json()
+      if (d && d.filled) { text = d.body || text; subject = d.subject || subject }
+    } catch {}
+    setReply(v => ({ subject: v.subject || (replyChannel === 'email' ? subject : ''), body: v.body ? v.body + '\n\n' + text : text }))
   }
   const scheduleReply = async () => {
     if (!sel) return
