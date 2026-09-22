@@ -502,6 +502,98 @@ function TopHScroll({ listRef }) {
   return <div ref={barRef} className="hscroll-top" aria-hidden="true"><div ref={innerRef} style={{ height: 1 }} /></div>
 }
 
+// ── Clients filter panel building blocks (John, 2026-09-22) ─────────────────
+// A reorganization ONLY: every filter, every state key and every query the
+// server sees is unchanged, so existing Saved Lists keep returning the same
+// rows. These just group the controls, collapse the advanced ones, and hide
+// secondary inputs until they are actually needed.
+
+// Collapsible group. Remembers open/closed per user; shows how many of its
+// filters are currently set so a collapsed group never hides active criteria.
+function FilterGroup({ title, count = 0, defaultOpen = false, children }) {
+  const key = 'cl_fg_' + String(title).replace(/\W+/g, '_').toLowerCase()
+  const [open, setOpen] = useState(() => {
+    try { const v = localStorage.getItem(key); return v == null ? defaultOpen : v === '1' } catch { return defaultOpen }
+  })
+  const toggle = () => setOpen(o => { const n = !o; try { localStorage.setItem(key, n ? '1' : '0') } catch {} return n })
+  return (
+    <section className={'f-group' + (open ? ' open' : '')}>
+      <button type="button" className="f-group-head" onClick={toggle} aria-expanded={open}>
+        <span className="f-group-caret">{open ? '▾' : '▸'}</span>
+        <span className="f-group-title">{title}</span>
+        {count > 0 && <span className="f-group-count">{count}</span>}
+      </button>
+      {open && <div className="f-group-body">{children}</div>}
+    </section>
+  )
+}
+
+// One labelled control cell in the group grid.
+function Field({ label, hint, children, wide = false }) {
+  return (
+    <div className={'f-field' + (wide ? ' f-field-wide' : '')}>
+      <div className="f-label">{label}</div>
+      {children}
+      {hint && <p className="f-hint">{hint}</p>}
+    </div>
+  )
+}
+
+// One dropdown standing in for the old "[Any] [__] days ago" trio. Presets map
+// onto the SAME {op, days} pair the server already understands; the raw controls
+// only appear under "Custom". `extraOptions` covers modes that live in their own
+// field (e.g. texted_out never/yes) so nothing is lost.
+function RecencySelect({ op, days, presets, onChange, unit = 'days ago', anyLabel = 'Any time', extraOptions = [], extraValue = '', onExtra = null }) {
+  const matchedExtra = extraOptions.find(o => o.value && o.value === extraValue)
+  const matched = presets.find(p => p.op === op && String(p.days) === String(days))
+  const isCustom = !matched && !matchedExtra && (!!op || (days !== '' && days != null))
+  const sel = matchedExtra ? 'x:' + matchedExtra.value : matched ? `p:${matched.op}:${matched.days}` : isCustom ? 'custom' : ''
+  const pick = (v) => {
+    if (onExtra) onExtra('')
+    if (v === '') return onChange({ op: '', days: '' })
+    if (v === 'custom') return onChange({ op: op || 'less', days: '' })
+    if (v.startsWith('x:')) { onChange({ op: '', days: '' }); return onExtra && onExtra(v.slice(2)) }
+    const parts = v.split(':')
+    onChange({ op: parts[1], days: parts[2] })
+  }
+  return (
+    <>
+      <select className="f-control" value={sel} onChange={e => pick(e.target.value)}>
+        <option value="">{anyLabel}</option>
+        {presets.map(p => <option key={p.label} value={`p:${p.op}:${p.days}`}>{p.label}</option>)}
+        {extraOptions.map(o => <option key={o.value} value={'x:' + o.value}>{o.label}</option>)}
+        <option value="custom">Custom…</option>
+      </select>
+      {sel === 'custom' && (
+        <div className="f-inline">
+          <select className="f-control f-control-sm" value={op || 'less'} onChange={e => onChange({ op: e.target.value, days })}>
+            <option value="less">Within</option>
+            <option value="more">More than</option>
+          </select>
+          <input className="f-control f-control-xs" type="number" min="0" placeholder="days" value={days}
+            onChange={e => onChange({ op: op || 'less', days: e.target.value })} />
+          <span className="f-unit">{unit}</span>
+        </div>
+      )}
+    </>
+  )
+}
+
+// A secondary numeric input that stays out of the way until it is wanted (or
+// already carries a value from a saved list).
+function CountDisclosure({ label, value, onChange }) {
+  const [open, setOpen] = useState(!!value)
+  useEffect(() => { if (value) setOpen(true) }, [value])
+  if (!open) return <button type="button" className="f-link" onClick={() => setOpen(true)}>+ {label}</button>
+  return (
+    <div className="f-inline">
+      <span className="f-unit">{label}</span>
+      <input className="f-control f-control-xs" type="number" min="0" value={value} onChange={e => onChange(e.target.value)} />
+      {!value && <button type="button" className="f-link" onClick={() => setOpen(false)}>hide</button>}
+    </div>
+  )
+}
+
 export default function Clients() {
   const navigate = useNavigate()
   const [items, setItems] = useState([])
@@ -1860,6 +1952,138 @@ export default function Clients() {
     return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   }
 
+
+  // ── Filter panel presentation state (John, 2026-09-22) ────────────────────
+  // Narrow screens open the panel as a drawer instead of stacking the whole
+  // desktop form into the page.
+  const [isNarrow, setIsNarrow] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 900px)').matches)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 900px)')
+    const h = e => setIsNarrow(e.matches)
+    mq.addEventListener('change', h)
+    return () => mq.removeEventListener('change', h)
+  }, [])
+  // Listing-visit custom range: revealed on demand, and automatically when a
+  // saved list restores a range that isn't one of the preset buttons.
+  const [fubCustom, setFubCustom] = useState(false)
+  useEffect(() => {
+    const mn = advFilters.fub_days_min, mx = advFilters.fub_days_max
+    if (mn === '' && mx === '') return
+    const preset = [['', '30'], ['30', '60'], ['60', '90'], ['90', '']].some(([a, b]) => mn === a && mx === b)
+    if (!preset) setFubCustom(true)
+  }, [advFilters.fub_days_min, advFilters.fub_days_max])
+
+  // Per-group active counts, so a collapsed group still advertises what's set.
+  const groupCounts = useMemo(() => {
+    const a = advFilters
+    const L = (x) => (Array.isArray(x) ? x.length : 0)
+    const S = (x) => (x !== '' && x != null && x !== false ? 1 : 0)
+    const R = (op, days) => (op && days !== '' && days != null ? 1 : 0)
+    return {
+      quick: L(a.statuses_include) + L(a.statuses_exclude) + L(a.tags_include) + L(a.tags_exclude) + L(a.sources_include) + L(a.sources_exclude) + L(a.agents_include) + L(a.agents_exclude),
+      location: L(a.cities_include) + L(a.cities_exclude) + L(a.viewed_cities_include) + L(a.viewed_cities_exclude) + L(a.zips_include) + L(a.zips_exclude),
+      prospecting: S(a.cx_mode) + S(a.fsbo_mode) + R(a.off_market_op, a.off_market_days) + R(a.fsbo_dom_op, a.fsbo_dom_days),
+      communication: R(a.last_text_op, a.last_text_days) + S(a.texted_out) + R(a.last_email_op, a.last_email_days) + L(a.email_statuses),
+      engagement: S(a.email_opened) + S(a.email_clicked) + S(a.email_opens_min) + S(a.email_clicks_min),
+      activity: S(a.activity_days) + S(a.inactive_days) + S(a.created_days) + S(a.visits_min) + S(a.visits_max),
+      listing: S(a.has_listing_views) + S(a.properties_viewed_min) + S(a.fub_days_min) + S(a.fub_days_max),
+      automation: S(a.ai_applied) + S(a.in_drip),
+      contact: S(a.has_email) + S(a.has_phone) + S(a.has_address) + S(a.exclude_optouts) + S(a.score_min) + S(a.score_max),
+      lookingFor: S(a.has_saved_search) + S(a.search_max_price_min) + S(a.search_max_price_max) + S(a.search_beds_min) + S(a.search_baths_min) + S(a.search_sqft_min) + L(a.search_property_types) + L(a.search_regions),
+      realist: S(a.has_realist) + S(a.realist_value_min) + S(a.realist_value_max) + S(a.realist_year_built_min) + S(a.realist_year_built_max) + S(a.realist_sell_score_min) + S(a.realist_owner_occupied),
+    }
+  }, [advFilters])
+
+  // The current query as removable chips. Each chip clears exactly one
+  // criterion; nothing here touches sorting, page size, columns or saved lists.
+  const filterChips = useMemo(() => {
+    const a = advFilters
+    const out = []
+    const patch = (p) => setAdvFilters(prev => ({ ...prev, ...p }))
+    const multi = (key, fmtLabel, fmtVal) => (a[key] || []).forEach(v => out.push({
+      id: key + ':' + v,
+      label: fmtLabel(fmtVal ? fmtVal(v) : v),
+      clear: () => setAdvFilters(prev => ({ ...prev, [key]: (prev[key] || []).filter(x => x !== v) })),
+    }))
+    const scalar = (key, label, reset = '') => {
+      const v = a[key]
+      if (v === '' || v == null || v === false) return
+      out.push({ id: key, label: typeof label === 'function' ? label(v) : label, clear: () => patch({ [key]: reset }) })
+    }
+    const recency = (opKey, daysKey, name, unit = 'd') => {
+      if (!a[opKey] || a[daysKey] === '' || a[daysKey] == null) return
+      out.push({
+        id: opKey,
+        label: `${name}: ${a[opKey] === 'less' ? 'within' : 'over'} ${a[daysKey]}${unit}`,
+        clear: () => patch({ [opKey]: '', [daysKey]: '' }),
+      })
+    }
+    multi('statuses_include', v => `Status: ${v}`, formatStatus)
+    multi('statuses_exclude', v => `Not: ${v}`, formatStatus)
+    multi('tags_include', v => `Tag: ${v}`)
+    multi('tags_exclude', v => `Not tag: ${v}`)
+    multi('sources_include', v => `Source: ${v}`)
+    multi('sources_exclude', v => `Not source: ${v}`)
+    multi('agents_include', v => `Agent: ${v === '__unassigned__' ? 'Unassigned' : v}`)
+    multi('agents_exclude', v => `Not agent: ${v === '__unassigned__' ? 'Unassigned' : v}`)
+    multi('cities_include', v => `City: ${v}`)
+    multi('cities_exclude', v => `Not city: ${v}`)
+    multi('viewed_cities_include', v => `Looking in: ${v}`)
+    multi('viewed_cities_exclude', v => `Not looking in: ${v}`)
+    multi('zips_include', v => `ZIP: ${v}`)
+    multi('zips_exclude', v => `Not ZIP: ${v}`)
+    multi('email_statuses', v => `Email status: ${v}`)
+    multi('search_property_types', v => `Type: ${v}`)
+    scalar('cx_mode', v => (v === 'only' ? 'Only Cancelled/Expired' : 'Exclude Cancelled/Expired'))
+    scalar('fsbo_mode', v => (v === 'only' ? 'Only FSBOs' : 'Exclude FSBOs'))
+    recency('off_market_op', 'off_market_days', 'Off market')
+    recency('fsbo_dom_op', 'fsbo_dom_days', 'FSBO DOM')
+    recency('last_text_op', 'last_text_days', 'Last text')
+    recency('last_email_op', 'last_email_days', 'Last email')
+    scalar('texted_out', v => (v === 'never' ? 'Never texted' : 'Has been texted'))
+    scalar('email_opened', v => `Opened: ${v === 'ever' ? 'ever' : v === 'never' ? 'never' : 'last ' + v + 'd'}`)
+    scalar('email_clicked', v => `Clicked: ${v === 'ever' ? 'ever' : v === 'never' ? 'never' : 'last ' + v + 'd'}`)
+    scalar('email_opens_min', v => `Opens ≥ ${v}`)
+    scalar('email_clicks_min', v => `Clicks ≥ ${v}`)
+    scalar('activity_days', v => `Active within ${v}d`)
+    scalar('inactive_days', v => `Inactive ${v}d+`)
+    scalar('created_days', v => `Created within ${v}d`)
+    scalar('visits_min', v => `Visits ≥ ${v}`)
+    scalar('visits_max', v => `Visits ≤ ${v}`)
+    scalar('has_listing_views', 'Has website activity', false)
+    scalar('properties_viewed_min', v => `Viewed ≥ ${v} listings`)
+    if (a.fub_days_min !== '' || a.fub_days_max !== '') out.push({
+      id: 'fub_days',
+      label: `Listing visit: ${a.fub_days_min || '0'}–${a.fub_days_max || '∞'}d ago`,
+      clear: () => patch({ fub_days_min: '', fub_days_max: '' }),
+    })
+    scalar('ai_applied', v => (v === 'yes' ? 'AI applied' : 'Never touched by AI'))
+    if (a.in_drip) out.push({
+      id: 'in_drip',
+      label: (a.in_drip === '1' ? 'In a drip' : 'Not in a drip') + (a.drip_id ? `: ${(dripCampaigns.find(d => String(d.id) === String(a.drip_id)) || {}).name || a.drip_id}` : ''),
+      clear: () => patch({ in_drip: '', drip_id: '' }),
+    })
+    scalar('has_email', v => (v === '1' || v === true ? 'With email' : 'No email'))
+    scalar('has_phone', v => (v === '1' || v === true ? 'With phone' : 'No phone'))
+    scalar('has_address', v => (v === '1' ? 'Has address' : 'No address'))
+    scalar('exclude_optouts', 'Exclude opt-outs', false)
+    scalar('score_min', v => `Score ≥ ${v}`)
+    scalar('score_max', v => `Score ≤ ${v}`)
+    scalar('has_saved_search', 'Has saved search', false)
+    scalar('search_max_price_min', v => `Budget ≥ ${v}`)
+    scalar('search_max_price_max', v => `Budget ≤ ${v}`)
+    scalar('search_beds_min', v => `Beds ≥ ${v}`)
+    scalar('search_baths_min', v => `Baths ≥ ${v}`)
+    scalar('search_sqft_min', v => `Sq ft ≥ ${v}`)
+    scalar('has_realist', 'Has Realist match', false)
+    scalar('realist_value_min', v => `Value ≥ ${v}`)
+    scalar('realist_value_max', v => `Value ≤ ${v}`)
+    scalar('realist_year_built_min', v => `Built ≥ ${v}`)
+    scalar('realist_year_built_max', v => `Built ≤ ${v}`)
+    scalar('realist_sell_score_min', v => `Sell score ≥ ${v}`)
+    scalar('realist_owner_occupied', v => (v === '1' ? 'Owner-occupied' : 'Not owner-occupied'))
+    return out
+  }, [advFilters, dripCampaigns])
   return (
     <div className="page page-wide">
       {loadError && <LoadErrorBanner what="the client list" onRetry={load} />}
@@ -2047,430 +2271,454 @@ export default function Clients() {
         </select>
       </div>
 
-      {/* Advanced Filter Panel - searchable multi-selects */}
+      {/* Active filter chips: the current query at a glance. Each × removes only
+          that criterion; Clear All clears filtering only (sorting, page size,
+          visible columns and saved-list setup are untouched). */}
+      {filterChips.length > 0 && (
+        <div className="f-chips">
+          {filterChips.map(c => (
+            <button key={c.id} type="button" className="f-chip" onClick={c.clear} title="Remove this filter">
+              <span>{c.label}</span><span className="f-chip-x">×</span>
+            </button>
+          ))}
+          <button type="button" className="f-chip-clear" onClick={clearAllFilters}>Clear All</button>
+        </div>
+      )}
+
+      {/* Advanced Filter Panel — grouped; common filters open, advanced collapsed.
+          Every filter and state key is unchanged (Saved Lists keep working). */}
       {filterPanelOpen && (
-        <div className="filter-panel">
-          <div className="filter-grid">
-            <div className="filter-section">
-              <h5>Status</h5>
-              <IncludeExcludeSelect
-                placeholder="Search statuses..."
-                options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
-                format={formatStatus}
-                include={advFilters.statuses_include}
-                exclude={advFilters.statuses_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, statuses_include: include, statuses_exclude: exclude }))}
-              />
-              <p className="muted" style={{ fontSize: 12, margin: '4px 0 0' }}>Toggle each value to Include or Exclude.</p>
+        <div className={'filter-panel' + (isNarrow ? ' filter-drawer' : '')}>
+          {isNarrow && (
+            <div className="f-drawer-head">
+              <strong>Filters{advFilterCount > 0 ? ` (${advFilterCount})` : ''}</strong>
+              <button className="btn btn-sm btn-secondary" onClick={() => setFilterPanelOpen(false)}>Done</button>
             </div>
-            <div className="filter-section">
-              <h5>Tags</h5>
-              <IncludeExcludeSelect
-                placeholder={`Search ${filterOptions.tags.length} tags...`}
-                options={filterOptions.tags}
-                include={advFilters.tags_include}
-                exclude={advFilters.tags_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, tags_include: include, tags_exclude: exclude }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Zip Codes</h5>
-              <IncludeExcludeSelect
-                placeholder={`Search ${filterOptions.zips.length} zips...`}
-                options={filterOptions.zips}
-                include={advFilters.zips_include}
-                exclude={advFilters.zips_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, zips_include: include, zips_exclude: exclude }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Cities (lead's home city)</h5>
-              <IncludeExcludeSelect
-                placeholder={`Search ${filterOptions.cities.length} cities...`}
-                options={filterOptions.cities}
-                include={advFilters.cities_include}
-                exclude={advFilters.cities_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, cities_include: include, cities_exclude: exclude }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Looking In (cities they're viewing)</h5>
-              <IncludeExcludeSelect
-                placeholder={`Search ${(filterOptions.viewed_cities || []).length} cities they've viewed...`}
-                options={filterOptions.viewed_cities || []}
-                include={advFilters.viewed_cities_include}
-                exclude={advFilters.viewed_cities_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, viewed_cities_include: include, viewed_cities_exclude: exclude }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Sources</h5>
-              <IncludeExcludeSelect
-                placeholder={`Search ${filterOptions.sources.length} sources...`}
-                options={filterOptions.sources}
-                include={advFilters.sources_include}
-                exclude={advFilters.sources_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, sources_include: include, sources_exclude: exclude }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Assigned Agent</h5>
-              <IncludeExcludeSelect
-                placeholder={`Search ${(filterOptions.agents || []).length} agents...`}
-                options={[{ value: '__unassigned__', label: 'Unassigned' }, ...(filterOptions.agents || [])]}
-                include={advFilters.agents_include}
-                exclude={advFilters.agents_exclude}
-                onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, agents_include: include, agents_exclude: exclude }))}
-              />
-            </div>
-            <div className="filter-section">
-              <h5>Last Email Sent</h5>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select value={advFilters.last_email_op} onChange={e => setAdvFilters(p => ({ ...p, last_email_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
-                  <option value="">Any</option>
-                  <option value="more">More than</option>
-                  <option value="less">Less than</option>
-                </select>
-                <input type="number" min="1" value={advFilters.last_email_days} onChange={e => setAdvFilters(p => ({ ...p, last_email_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.last_email_op} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
-              </div>
-            </div>
-            <div className="filter-section">
-              <h5>Last Text Sent</h5>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select value={advFilters.last_text_op} onChange={e => setAdvFilters(p => ({ ...p, last_text_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
-                  <option value="">Any</option>
-                  <option value="more">More than</option>
-                  <option value="less">Less than</option>
-                </select>
-                <input type="number" min="1" value={advFilters.last_text_days} onChange={e => setAdvFilters(p => ({ ...p, last_text_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.last_text_op} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
-              </div>
-            </div>
-            <div className="filter-section">
-              <h5>Off Market Date</h5>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select value={advFilters.off_market_op} onChange={e => setAdvFilters(p => ({ ...p, off_market_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
-                  <option value="">Any</option>
-                  <option value="more">More than</option>
-                  <option value="less">Less than</option>
-                </select>
-                <input type="number" min="1" value={advFilters.off_market_days} onChange={e => setAdvFilters(p => ({ ...p, off_market_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.off_market_op} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days ago</span>
-              </div>
-            </div>
-            <div className="filter-section">
-              <h5>FSBO Days on Market</h5>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                <select value={advFilters.fsbo_dom_op} onChange={e => setAdvFilters(p => ({ ...p, fsbo_dom_op: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13 }}>
-                  <option value="">Any</option>
-                  <option value="more">More than</option>
-                  <option value="less">Less than</option>
-                </select>
-                <input type="number" min="0" value={advFilters.fsbo_dom_days} onChange={e => setAdvFilters(p => ({ ...p, fsbo_dom_days: e.target.value }))} placeholder="days" style={{ width: 70, padding: '6px 8px', fontSize: 13 }} disabled={!advFilters.fsbo_dom_op} />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>days on market</span>
-              </div>
-            </div>
-            <div className="filter-section">
-              <h5>FSBO leads</h5>
-              <select value={advFilters.fsbo_mode} onChange={e => setAdvFilters(p => ({ ...p, fsbo_mode: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
-                <option value="">Include (show all)</option>
-                <option value="only">Only FSBOs</option>
-                <option value="exclude">Exclude FSBOs</option>
-              </select>
-            </div>
-            <div className="filter-section">
-              <h5>Cancelled / Expired leads</h5>
-              <select value={advFilters.cx_mode} onChange={e => setAdvFilters(p => ({ ...p, cx_mode: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
-                <option value="">Include (show all)</option>
-                <option value="only">Only Cancelled/Expired</option>
-                <option value="exclude">Exclude Cancelled/Expired</option>
-              </select>
-            </div>
-            <div className="filter-section">
-              <h5>Email Opened <span style={{ fontWeight: 400, fontSize: 12, color: 'var(--text-muted)' }}>(tracked)</span></h5>
-              <select value={advFilters.email_opened} onChange={e => setAdvFilters(p => ({ ...p, email_opened: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
-                <option value="">Any</option>
-                <option value="ever">Ever opened</option>
-                <option value="never">Never opened</option>
-                <option value="1">Today</option>
-                <option value="3">Last 3 days</option>
-                <option value="7">Last 7 days</option>
-                <option value="30">Last 30 days</option>
-              </select>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Opens ≥</span>
-                <input type="number" min="0" value={advFilters.email_opens_min} onChange={e => setAdvFilters(p => ({ ...p, email_opens_min: e.target.value }))} style={{ width: 70, padding: '6px 8px', fontSize: 13 }} />
-              </div>
-            </div>
-            <div className="filter-section">
-              <h5>Email Clicked</h5>
-              <select value={advFilters.email_clicked} onChange={e => setAdvFilters(p => ({ ...p, email_clicked: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
-                <option value="">Any</option>
-                <option value="ever">Ever clicked</option>
-                <option value="never">Never clicked</option>
-                <option value="1">Today</option>
-                <option value="7">Last 7 days</option>
-                <option value="30">Last 30 days</option>
-              </select>
-              <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginTop: 6 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Clicks ≥</span>
-                <input type="number" min="0" value={advFilters.email_clicks_min} onChange={e => setAdvFilters(p => ({ ...p, email_clicks_min: e.target.value }))} style={{ width: 70, padding: '6px 8px', fontSize: 13 }} />
-              </div>
-            </div>
-            <div className="filter-section">
-              <h5>AI Applied</h5>
-              <select value={advFilters.ai_applied} onChange={e => setAdvFilters(p => ({ ...p, ai_applied: e.target.value }))} style={{ padding: '6px 8px', fontSize: 13, width: '100%' }}>
-                <option value="">Any</option>
-                <option value="yes">Yes — AI applied</option>
-                <option value="no">No — never touched by AI</option>
-              </select>
-            </div>
-            <div className="filter-section">
-              <h5>Email Status</h5>
-              <MultiSelect
-                placeholder="Email statuses..."
-                options={[
-                  { value: 'ValidAddress', label: 'Valid Address' },
-                  { value: 'TwoWayEmailing', label: 'Two-Way Emailing' },
-                  { value: 'Unknown', label: 'Unknown' },
-                  { value: 'OptedOut', label: 'Opted Out' },
-                  { value: 'WrongAddress', label: 'Wrong Address' },
-                  { value: 'ReportedAsSpam', label: 'Reported As Spam' },
-                ]}
-                selected={advFilters.email_statuses}
-                onChange={v => setAdvFilters(p => ({ ...p, email_statuses: v }))}
-              />
-            </div>
-          </div>
+          )}
+          <div className="f-groups">
 
-          <div className="filter-section">
-            <h5>Activity & Engagement</h5>
-            <div className="filter-other-row">
-              <label className="filter-num">
-                Active in past (days)
-                <select value={advFilters.activity_days} onChange={e => setAdvFilters(p => ({ ...p, activity_days: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="1">1 day</option>
-                  <option value="3">3 days</option>
-                  <option value="7">7 days</option>
-                  <option value="14">14 days</option>
-                  <option value="30">30 days</option>
-                  <option value="90">90 days</option>
-                </select>
-              </label>
-              <label className="filter-num">
-                Inactive for (days+)
-                <select value={advFilters.inactive_days} onChange={e => setAdvFilters(p => ({ ...p, inactive_days: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="30">30+ days</option>
-                  <option value="60">60+ days</option>
-                  <option value="90">90+ days</option>
-                  <option value="180">6+ months</option>
-                  <option value="365">1+ year</option>
-                </select>
-              </label>
-              <label className="filter-num">
-                New leads (days)
-                <select value={advFilters.created_days} onChange={e => setAdvFilters(p => ({ ...p, created_days: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="1">Last 24 hours</option>
-                  <option value="3">Last 3 days</option>
-                  <option value="7">Last 7 days</option>
-                  <option value="14">Last 14 days</option>
-                  <option value="30">Last 30 days</option>
-                </select>
-              </label>
-              <label className="filter-num">
-                Min visits
-                <input type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Max visits
-                <input type="number" value={advFilters.visits_max} onChange={e => setAdvFilters(p => ({ ...p, visits_max: e.target.value }))} />
-              </label>
-            </div>
-          </div>
+            <FilterGroup title="Quick Filters" defaultOpen count={groupCounts.quick}>
+              <div className="f-grid">
+                <Field label="Status" hint="Toggle each value to Include or Exclude.">
+                  <IncludeExcludeSelect
+                    placeholder="Search statuses…"
+                    options={ALL_STATUSES.map(s => ({ value: s, label: formatStatus(s) }))}
+                    format={formatStatus}
+                    include={advFilters.statuses_include}
+                    exclude={advFilters.statuses_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, statuses_include: include, statuses_exclude: exclude }))}
+                  />
+                </Field>
+                <Field label="Tags">
+                  <IncludeExcludeSelect
+                    placeholder="Search tags…"
+                    options={filterOptions.tags}
+                    include={advFilters.tags_include}
+                    exclude={advFilters.tags_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, tags_include: include, tags_exclude: exclude }))}
+                  />
+                </Field>
+                <Field label="Source">
+                  <IncludeExcludeSelect
+                    placeholder="Search sources…"
+                    options={filterOptions.sources}
+                    include={advFilters.sources_include}
+                    exclude={advFilters.sources_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, sources_include: include, sources_exclude: exclude }))}
+                  />
+                </Field>
+                <Field label="Assigned Agent">
+                  <IncludeExcludeSelect
+                    placeholder="Search agents…"
+                    options={[{ value: '__unassigned__', label: 'Unassigned' }, ...(filterOptions.agents || [])]}
+                    include={advFilters.agents_include}
+                    exclude={advFilters.agents_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, agents_include: include, agents_exclude: exclude }))}
+                  />
+                </Field>
+              </div>
+            </FilterGroup>
 
-          <div className="filter-section">
-            <h5>Listing Views (Follow Up Boss)</h5>
-            <label style={{display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, marginBottom: 8}}>
-              <input type="checkbox" checked={advFilters.has_listing_views}
-                onChange={e => setAdvFilters(p => ({ ...p, has_listing_views: e.target.checked }))} />
-              Only clients with website activity
-            </label>
-            <div className="filter-other-row" style={{marginBottom: 8}}>
-              <label className="filter-num">
-                Properties viewed (min #)
-                <input type="number" min="1" placeholder="e.g. 1" value={advFilters.properties_viewed_min}
-                  onChange={e => setAdvFilters(p => ({ ...p, properties_viewed_min: e.target.value }))} />
-              </label>
-            </div>
-            <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px'}}>“Properties viewed” = leads who actually viewed that many listings (so the Homes email always has homes to show).</p>
-            <div style={{fontSize: 12, color: 'var(--text-muted)', marginBottom: 4}}>Last listing visit (days ago):</div>
-            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8}}>
-              {[{ l: '≤ 30', min: '', max: '30' }, { l: '30–60', min: '30', max: '60' }, { l: '60–90', min: '60', max: '90' }, { l: '90+', min: '90', max: '' }].map(r => {
-                const active = advFilters.fub_days_min === r.min && advFilters.fub_days_max === r.max && (r.min || r.max)
-                return (
-                  <button key={r.l} type="button" className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
-                    onClick={() => setAdvFilters(p => active
-                      ? ({ ...p, fub_days_min: '', fub_days_max: '' })
-                      : ({ ...p, fub_days_min: r.min, fub_days_max: r.max, has_listing_views: true }))}>
-                    {r.l}
-                  </button>
-                )
-              })}
-            </div>
-            <div className="filter-other-row">
-              <label className="filter-num">
-                Min days ago
-                <input type="number" min="0" placeholder="e.g. 30" value={advFilters.fub_days_min} onChange={e => setAdvFilters(p => ({ ...p, fub_days_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Max days ago
-                <input type="number" min="0" placeholder="e.g. 60" value={advFilters.fub_days_max} onChange={e => setAdvFilters(p => ({ ...p, fub_days_max: e.target.value }))} />
-              </label>
-            </div>
-          </div>
+            <FilterGroup title="Location & Property" defaultOpen count={groupCounts.location}>
+              <div className="f-grid">
+                <Field label="Home City" hint="The lead's own city.">
+                  <IncludeExcludeSelect
+                    placeholder="Search cities…"
+                    options={filterOptions.cities}
+                    include={advFilters.cities_include}
+                    exclude={advFilters.cities_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, cities_include: include, cities_exclude: exclude }))}
+                  />
+                </Field>
+                <Field label="Looking In" hint="Cities they're actually viewing.">
+                  <IncludeExcludeSelect
+                    placeholder="Search cities…"
+                    options={filterOptions.viewed_cities || []}
+                    include={advFilters.viewed_cities_include}
+                    exclude={advFilters.viewed_cities_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, viewed_cities_include: include, viewed_cities_exclude: exclude }))}
+                  />
+                </Field>
+                <Field label="ZIP Code">
+                  <IncludeExcludeSelect
+                    placeholder="Search zips…"
+                    options={filterOptions.zips}
+                    include={advFilters.zips_include}
+                    exclude={advFilters.zips_exclude}
+                    onChange={({ include, exclude }) => setAdvFilters(p => ({ ...p, zips_include: include, zips_exclude: exclude }))}
+                  />
+                </Field>
+              </div>
+            </FilterGroup>
 
-          <div className="filter-section">
-            <h5>Drip Campaigns</h5>
-            <div style={{display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 8}}>
-              {[{ v: '', l: 'Any' }, { v: '1', l: 'In a drip' }, { v: '0', l: 'Not in a drip' }].map(o => (
-                <button key={o.l} type="button"
-                  className={`btn btn-sm ${advFilters.in_drip === o.v ? 'btn-primary' : 'btn-secondary'}`}
-                  onClick={() => setAdvFilters(p => ({ ...p, in_drip: o.v, drip_id: o.v ? p.drip_id : '' }))}>
-                  {o.l}
-                </button>
-              ))}
-            </div>
-            {advFilters.in_drip && (
-              <label className="filter-num" style={{display: 'block'}}>
-                {advFilters.in_drip === '0' ? 'Not enrolled in campaign' : 'Enrolled in campaign'}
-                <select value={advFilters.drip_id} onChange={e => setAdvFilters(p => ({ ...p, drip_id: e.target.value }))}>
-                  <option value="">Any drip campaign</option>
-                  {dripCampaigns.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-                </select>
-              </label>
-            )}
-            <p style={{fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 0'}}>“In a drip” = currently enrolled (active) in a drip sequence. Pick a campaign to scope it, or leave as Any campaign.</p>
-          </div>
+            <FilterGroup title="Prospecting" defaultOpen count={groupCounts.prospecting}>
+              <div className="f-grid">
+                <Field label="Cancelled / Expired">
+                  <select className="f-control" value={advFilters.cx_mode} onChange={e => setAdvFilters(p => ({ ...p, cx_mode: e.target.value }))}>
+                    <option value="">Include (show all)</option>
+                    <option value="only">Only Cancelled/Expired</option>
+                    <option value="exclude">Exclude Cancelled/Expired</option>
+                  </select>
+                </Field>
+                <Field label="Off Market Date">
+                  <RecencySelect
+                    op={advFilters.off_market_op} days={advFilters.off_market_days}
+                    presets={[
+                      { label: 'Past 7 days', op: 'less', days: '7' },
+                      { label: 'Past 30 days', op: 'less', days: '30' },
+                      { label: 'Past 90 days', op: 'less', days: '90' },
+                      { label: '30+ days ago', op: 'more', days: '30' },
+                      { label: '90+ days ago', op: 'more', days: '90' },
+                      { label: '6+ months ago', op: 'more', days: '180' },
+                    ]}
+                    onChange={({ op, days }) => setAdvFilters(p => ({ ...p, off_market_op: op, off_market_days: days }))}
+                  />
+                </Field>
+                <Field label="FSBO">
+                  <select className="f-control" value={advFilters.fsbo_mode} onChange={e => setAdvFilters(p => ({ ...p, fsbo_mode: e.target.value }))}>
+                    <option value="">Include (show all)</option>
+                    <option value="only">Only FSBOs</option>
+                    <option value="exclude">Exclude FSBOs</option>
+                  </select>
+                </Field>
+                <Field label="FSBO Days on Market">
+                  <RecencySelect
+                    op={advFilters.fsbo_dom_op} days={advFilters.fsbo_dom_days} unit="days on market" anyLabel="Any"
+                    presets={[
+                      { label: 'Under 14 days', op: 'less', days: '14' },
+                      { label: '14+ days', op: 'more', days: '14' },
+                      { label: '30+ days', op: 'more', days: '30' },
+                      { label: '60+ days', op: 'more', days: '60' },
+                      { label: '90+ days', op: 'more', days: '90' },
+                    ]}
+                    onChange={({ op, days }) => setAdvFilters(p => ({ ...p, fsbo_dom_op: op, fsbo_dom_days: days }))}
+                  />
+                </Field>
+              </div>
+            </FilterGroup>
 
-          <div className="filter-section">
-            <h5>Other</h5>
-            <div className="filter-other-row">
-              <label className="filter-num">
-                Email
-                <select value={advFilters.has_email === true ? '1' : (advFilters.has_email || '')} onChange={e => setAdvFilters(p => ({ ...p, has_email: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="1">With email</option>
-                  <option value="0">No email</option>
-                </select>
-              </label>
-              <label className="filter-num">
-                Phone
-                <select value={advFilters.has_phone === true ? '1' : (advFilters.has_phone || '')} onChange={e => setAdvFilters(p => ({ ...p, has_phone: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="1">With phone</option>
-                  <option value="0">No phone</option>
-                </select>
-              </label>
-              <label className="filter-num">
-                Address
-                <select value={advFilters.has_address} onChange={e => setAdvFilters(p => ({ ...p, has_address: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="1">Has address</option>
-                  <option value="0">No address</option>
-                </select>
-              </label>
-              <label className="filter-check">
-                <input type="checkbox" checked={advFilters.exclude_optouts} onChange={e => setAdvFilters(p => ({ ...p, exclude_optouts: e.target.checked }))} />
-                Exclude marketing opt-outs
-              </label>
-              <label className="filter-num">
-                Score min
-                <input type="number" value={advFilters.score_min} onChange={e => setAdvFilters(p => ({ ...p, score_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Score max
-                <input type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} />
-              </label>
-            </div>
-          </div>
+            <FilterGroup title="Communication" count={groupCounts.communication}>
+              <div className="f-grid">
+                <Field label="Last Text Sent">
+                  <RecencySelect
+                    op={advFilters.last_text_op} days={advFilters.last_text_days}
+                    presets={[
+                      { label: 'Today', op: 'less', days: '1' },
+                      { label: 'Past 7 days', op: 'less', days: '7' },
+                      { label: 'Past 30 days', op: 'less', days: '30' },
+                      { label: '30+ days ago', op: 'more', days: '30' },
+                      { label: '90+ days ago', op: 'more', days: '90' },
+                    ]}
+                    extraOptions={[{ value: 'never', label: 'Never texted' }, { value: 'yes', label: 'Has been texted' }]}
+                    extraValue={advFilters.texted_out}
+                    onExtra={v => setAdvFilters(p => ({ ...p, texted_out: v }))}
+                    onChange={({ op, days }) => setAdvFilters(p => ({ ...p, last_text_op: op, last_text_days: days }))}
+                  />
+                </Field>
+                <Field label="Last Email Sent">
+                  <RecencySelect
+                    op={advFilters.last_email_op} days={advFilters.last_email_days}
+                    presets={[
+                      { label: 'Today', op: 'less', days: '1' },
+                      { label: 'Past 7 days', op: 'less', days: '7' },
+                      { label: 'Past 30 days', op: 'less', days: '30' },
+                      { label: '30+ days ago', op: 'more', days: '30' },
+                      { label: '90+ days ago', op: 'more', days: '90' },
+                    ]}
+                    onChange={({ op, days }) => setAdvFilters(p => ({ ...p, last_email_op: op, last_email_days: days }))}
+                  />
+                </Field>
+                <Field label="Email Status">
+                  <MultiSelect
+                    placeholder="Any status"
+                    options={[
+                      { value: 'ValidAddress', label: 'Valid Address' },
+                      { value: 'TwoWayEmailing', label: 'Two-Way Emailing' },
+                      { value: 'Unknown', label: 'Unknown' },
+                      { value: 'OptedOut', label: 'Opted Out' },
+                      { value: 'WrongAddress', label: 'Wrong Address' },
+                      { value: 'ReportedAsSpam', label: 'Reported As Spam' },
+                    ]}
+                    selected={advFilters.email_statuses}
+                    onChange={v => setAdvFilters(p => ({ ...p, email_statuses: v }))}
+                  />
+                </Field>
+              </div>
+            </FilterGroup>
 
-          <div className="filter-section">
-            <h5>🎯 Looking For (saved search criteria)</h5>
-            <div className="filter-other-row">
-              <label className="filter-check">
-                <input type="checkbox" checked={advFilters.has_saved_search} onChange={e => setAdvFilters(p => ({ ...p, has_saved_search: e.target.checked }))} />
-                Has saved search
-              </label>
-              <label className="filter-num">
-                Max budget ≥
-                <input type="number" placeholder="e.g. 250000" value={advFilters.search_max_price_min} onChange={e => setAdvFilters(p => ({ ...p, search_max_price_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Max budget ≤
-                <input type="number" placeholder="e.g. 600000" value={advFilters.search_max_price_max} onChange={e => setAdvFilters(p => ({ ...p, search_max_price_max: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Beds min
-                <input type="number" min="0" max="10" value={advFilters.search_beds_min} onChange={e => setAdvFilters(p => ({ ...p, search_beds_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Baths min
-                <input type="number" min="0" max="10" value={advFilters.search_baths_min} onChange={e => setAdvFilters(p => ({ ...p, search_baths_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Sq Ft min
-                <input type="number" placeholder="e.g. 1500" value={advFilters.search_sqft_min} onChange={e => setAdvFilters(p => ({ ...p, search_sqft_min: e.target.value }))} />
-              </label>
-            </div>
-            <div className="filter-other-row" style={{marginTop: 6}}>
-              <label className="filter-num" style={{flex: 1, minWidth: 260}}>
-                Property types (comma-separated, e.g. SingleFamily, Condo)
-                <input
-                  type="text"
-                  placeholder="SingleFamily, Condo, Townhouse"
-                  value={advFilters.search_property_types.join(', ')}
-                  onChange={e => setAdvFilters(p => ({ ...p, search_property_types: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))}
-                />
-              </label>
-            </div>
-          </div>
+            <FilterGroup title="Email Engagement" count={groupCounts.engagement}>
+              <div className="f-grid">
+                <Field label="Email Opened" hint="Tracked opens; privacy proxies can inflate them.">
+                  <select className="f-control" value={advFilters.email_opened} onChange={e => setAdvFilters(p => ({ ...p, email_opened: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="ever">Ever opened</option>
+                    <option value="never">Never opened</option>
+                    <option value="1">Today</option>
+                    <option value="3">Last 3 days</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                  </select>
+                  <CountDisclosure label="Opens ≥" value={advFilters.email_opens_min}
+                    onChange={v => setAdvFilters(p => ({ ...p, email_opens_min: v }))} />
+                </Field>
+                <Field label="Email Clicked">
+                  <select className="f-control" value={advFilters.email_clicked} onChange={e => setAdvFilters(p => ({ ...p, email_clicked: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="ever">Ever clicked</option>
+                    <option value="never">Never clicked</option>
+                    <option value="1">Today</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                  </select>
+                  <CountDisclosure label="Clicks ≥" value={advFilters.email_clicks_min}
+                    onChange={v => setAdvFilters(p => ({ ...p, email_clicks_min: v }))} />
+                </Field>
+              </div>
+            </FilterGroup>
 
-          <div className="filter-section">
-            <h5>🏘 Realist Property Data (home values, sale history)</h5>
-            <div className="filter-other-row">
-              <label className="filter-check">
-                <input type="checkbox" checked={advFilters.has_realist} onChange={e => setAdvFilters(p => ({ ...p, has_realist: e.target.checked }))} />
-                Has Realist match
-              </label>
-              <label className="filter-num">
-                Home value ≥
-                <input type="number" placeholder="e.g. 250000" value={advFilters.realist_value_min} onChange={e => setAdvFilters(p => ({ ...p, realist_value_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Home value ≤
-                <input type="number" placeholder="e.g. 600000" value={advFilters.realist_value_max} onChange={e => setAdvFilters(p => ({ ...p, realist_value_max: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Year built ≥
-                <input type="number" min="1800" max="2030" value={advFilters.realist_year_built_min} onChange={e => setAdvFilters(p => ({ ...p, realist_year_built_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Sell score ≥
-                <input type="number" min="0" max="1000" placeholder="e.g. 700" value={advFilters.realist_sell_score_min} onChange={e => setAdvFilters(p => ({ ...p, realist_sell_score_min: e.target.value }))} />
-              </label>
-              <label className="filter-num">
-                Owner-occupied
-                <select value={advFilters.realist_owner_occupied} onChange={e => setAdvFilters(p => ({ ...p, realist_owner_occupied: e.target.value }))}>
-                  <option value="">Any</option>
-                  <option value="1">Yes (lives there)</option>
-                  <option value="0">No (rental/investor)</option>
-                </select>
-              </label>
-            </div>
+            <FilterGroup title="Activity & Engagement" count={groupCounts.activity}>
+              <div className="f-grid">
+                <Field label="Active Within">
+                  <select className="f-control" value={advFilters.activity_days} onChange={e => setAdvFilters(p => ({ ...p, activity_days: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="1">1 day</option>
+                    <option value="3">3 days</option>
+                    <option value="7">7 days</option>
+                    <option value="14">14 days</option>
+                    <option value="30">30 days</option>
+                    <option value="90">90 days</option>
+                  </select>
+                </Field>
+                <Field label="Inactive For">
+                  <select className="f-control" value={advFilters.inactive_days} onChange={e => setAdvFilters(p => ({ ...p, inactive_days: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="30">30+ days</option>
+                    <option value="60">60+ days</option>
+                    <option value="90">90+ days</option>
+                    <option value="180">6+ months</option>
+                    <option value="365">1+ year</option>
+                  </select>
+                </Field>
+                <Field label="Lead Created Within">
+                  <select className="f-control" value={advFilters.created_days} onChange={e => setAdvFilters(p => ({ ...p, created_days: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="1">Last 24 hours</option>
+                    <option value="3">Last 3 days</option>
+                    <option value="7">Last 7 days</option>
+                    <option value="14">Last 14 days</option>
+                    <option value="30">Last 30 days</option>
+                  </select>
+                </Field>
+                <Field label="Visits">
+                  <div className="f-inline">
+                    <span className="f-unit">Min</span>
+                    <input className="f-control f-control-xs" type="number" value={advFilters.visits_min} onChange={e => setAdvFilters(p => ({ ...p, visits_min: e.target.value }))} />
+                    <span className="f-unit">Max</span>
+                    <input className="f-control f-control-xs" type="number" value={advFilters.visits_max} onChange={e => setAdvFilters(p => ({ ...p, visits_max: e.target.value }))} />
+                  </div>
+                </Field>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup title="Listing Activity" count={groupCounts.listing}>
+              <div className="f-grid">
+                <Field label="Website Activity">
+                  <label className="f-check">
+                    <input type="checkbox" checked={advFilters.has_listing_views}
+                      onChange={e => setAdvFilters(p => ({ ...p, has_listing_views: e.target.checked }))} />
+                    Only clients with website activity
+                  </label>
+                </Field>
+                <Field label="Properties Viewed" hint="Leads who actually viewed that many listings, so a Homes email always has homes to show.">
+                  <div className="f-inline">
+                    <span className="f-unit">Minimum</span>
+                    <input className="f-control f-control-xs" type="number" min="1" value={advFilters.properties_viewed_min}
+                      onChange={e => setAdvFilters(p => ({ ...p, properties_viewed_min: e.target.value }))} />
+                  </div>
+                </Field>
+                <Field label="Last Listing Visit" wide>
+                  <div className="f-chiprow">
+                    {[{ l: '≤ 30d', min: '', max: '30' }, { l: '30–60d', min: '30', max: '60' }, { l: '60–90d', min: '60', max: '90' }, { l: '90d+', min: '90', max: '' }].map(r => {
+                      const active = advFilters.fub_days_min === r.min && advFilters.fub_days_max === r.max && (r.min || r.max)
+                      return (
+                        <button key={r.l} type="button" className={`btn btn-sm ${active ? 'btn-primary' : 'btn-secondary'}`}
+                          onClick={() => setAdvFilters(p => active
+                            ? ({ ...p, fub_days_min: '', fub_days_max: '' })
+                            : ({ ...p, fub_days_min: r.min, fub_days_max: r.max, has_listing_views: true }))}>
+                          {r.l}
+                        </button>
+                      )
+                    })}
+                    <button type="button" className={`btn btn-sm ${fubCustom ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setFubCustom(v => !v)}>Custom</button>
+                  </div>
+                  {fubCustom && (
+                    <div className="f-inline" style={{ marginTop: 6 }}>
+                      <span className="f-unit">Min days ago</span>
+                      <input className="f-control f-control-xs" type="number" min="0" value={advFilters.fub_days_min} onChange={e => setAdvFilters(p => ({ ...p, fub_days_min: e.target.value }))} />
+                      <span className="f-unit">Max</span>
+                      <input className="f-control f-control-xs" type="number" min="0" value={advFilters.fub_days_max} onChange={e => setAdvFilters(p => ({ ...p, fub_days_max: e.target.value }))} />
+                    </div>
+                  )}
+                </Field>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup title="Automation & Campaigns" count={groupCounts.automation}>
+              <div className="f-grid">
+                <Field label="AI Applied">
+                  <select className="f-control" value={advFilters.ai_applied} onChange={e => setAdvFilters(p => ({ ...p, ai_applied: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="yes">Yes — AI applied</option>
+                    <option value="no">No — never touched by AI</option>
+                  </select>
+                </Field>
+                <Field label="Drip Campaigns" hint="“In a drip” = currently enrolled (active). Pick a campaign to scope it." wide>
+                  <div className="f-chiprow">
+                    {[{ v: '', l: 'Any' }, { v: '1', l: 'In a drip' }, { v: '0', l: 'Not in a drip' }].map(o => (
+                      <button key={o.l} type="button"
+                        className={`btn btn-sm ${advFilters.in_drip === o.v ? 'btn-primary' : 'btn-secondary'}`}
+                        onClick={() => setAdvFilters(p => ({ ...p, in_drip: o.v, drip_id: o.v ? p.drip_id : '' }))}>
+                        {o.l}
+                      </button>
+                    ))}
+                  </div>
+                  {advFilters.in_drip && (
+                    <select className="f-control" style={{ marginTop: 6 }} value={advFilters.drip_id} onChange={e => setAdvFilters(p => ({ ...p, drip_id: e.target.value }))}>
+                      <option value="">Any drip campaign</option>
+                      {dripCampaigns.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                    </select>
+                  )}
+                </Field>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup title="Contact & Data Quality" count={groupCounts.contact}>
+              <div className="f-grid">
+                <Field label="Email">
+                  <select className="f-control" value={advFilters.has_email === true ? '1' : (advFilters.has_email || '')} onChange={e => setAdvFilters(p => ({ ...p, has_email: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="1">With email</option>
+                    <option value="0">No email</option>
+                  </select>
+                </Field>
+                <Field label="Phone">
+                  <select className="f-control" value={advFilters.has_phone === true ? '1' : (advFilters.has_phone || '')} onChange={e => setAdvFilters(p => ({ ...p, has_phone: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="1">With phone</option>
+                    <option value="0">No phone</option>
+                  </select>
+                </Field>
+                <Field label="Address">
+                  <select className="f-control" value={advFilters.has_address} onChange={e => setAdvFilters(p => ({ ...p, has_address: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="1">Has address</option>
+                    <option value="0">No address</option>
+                  </select>
+                </Field>
+                <Field label="Marketing Opt-Outs">
+                  <label className="f-check">
+                    <input type="checkbox" checked={advFilters.exclude_optouts} onChange={e => setAdvFilters(p => ({ ...p, exclude_optouts: e.target.checked }))} />
+                    Exclude marketing opt-outs
+                  </label>
+                </Field>
+                <Field label="Lead Score">
+                  <div className="f-inline">
+                    <span className="f-unit">Min</span>
+                    <input className="f-control f-control-xs" type="number" value={advFilters.score_min} onChange={e => setAdvFilters(p => ({ ...p, score_min: e.target.value }))} />
+                    <span className="f-unit">Max</span>
+                    <input className="f-control f-control-xs" type="number" value={advFilters.score_max} onChange={e => setAdvFilters(p => ({ ...p, score_max: e.target.value }))} />
+                  </div>
+                </Field>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup title="Looking For (saved search)" count={groupCounts.lookingFor}>
+              <div className="f-grid">
+                <Field label="Saved Search">
+                  <label className="f-check">
+                    <input type="checkbox" checked={advFilters.has_saved_search} onChange={e => setAdvFilters(p => ({ ...p, has_saved_search: e.target.checked }))} />
+                    Has a saved search
+                  </label>
+                </Field>
+                <Field label="Max Budget">
+                  <div className="f-inline">
+                    <span className="f-unit">≥</span>
+                    <input className="f-control f-control-sm" type="number" placeholder="250000" value={advFilters.search_max_price_min} onChange={e => setAdvFilters(p => ({ ...p, search_max_price_min: e.target.value }))} />
+                    <span className="f-unit">≤</span>
+                    <input className="f-control f-control-sm" type="number" placeholder="600000" value={advFilters.search_max_price_max} onChange={e => setAdvFilters(p => ({ ...p, search_max_price_max: e.target.value }))} />
+                  </div>
+                </Field>
+                <Field label="Beds / Baths minimum">
+                  <div className="f-inline">
+                    <span className="f-unit">Beds</span>
+                    <input className="f-control f-control-xs" type="number" min="0" max="10" value={advFilters.search_beds_min} onChange={e => setAdvFilters(p => ({ ...p, search_beds_min: e.target.value }))} />
+                    <span className="f-unit">Baths</span>
+                    <input className="f-control f-control-xs" type="number" min="0" max="10" value={advFilters.search_baths_min} onChange={e => setAdvFilters(p => ({ ...p, search_baths_min: e.target.value }))} />
+                  </div>
+                </Field>
+                <Field label="Square Feet minimum">
+                  <input className="f-control f-control-sm" type="number" placeholder="1500" value={advFilters.search_sqft_min} onChange={e => setAdvFilters(p => ({ ...p, search_sqft_min: e.target.value }))} />
+                </Field>
+                <Field label="Property Types" hint="Comma separated, e.g. SingleFamily, Condo." wide>
+                  <input className="f-control" type="text" placeholder="SingleFamily, Condo, Townhouse"
+                    value={advFilters.search_property_types.join(', ')}
+                    onChange={e => setAdvFilters(p => ({ ...p, search_property_types: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+                </Field>
+              </div>
+            </FilterGroup>
+
+            <FilterGroup title="Realist Property Data" count={groupCounts.realist}>
+              <div className="f-grid">
+                <Field label="Realist Match">
+                  <label className="f-check">
+                    <input type="checkbox" checked={advFilters.has_realist} onChange={e => setAdvFilters(p => ({ ...p, has_realist: e.target.checked }))} />
+                    Has a Realist match
+                  </label>
+                </Field>
+                <Field label="Home Value">
+                  <div className="f-inline">
+                    <span className="f-unit">≥</span>
+                    <input className="f-control f-control-sm" type="number" placeholder="250000" value={advFilters.realist_value_min} onChange={e => setAdvFilters(p => ({ ...p, realist_value_min: e.target.value }))} />
+                    <span className="f-unit">≤</span>
+                    <input className="f-control f-control-sm" type="number" placeholder="600000" value={advFilters.realist_value_max} onChange={e => setAdvFilters(p => ({ ...p, realist_value_max: e.target.value }))} />
+                  </div>
+                </Field>
+                <Field label="Year Built ≥">
+                  <input className="f-control f-control-sm" type="number" min="1800" max="2030" value={advFilters.realist_year_built_min} onChange={e => setAdvFilters(p => ({ ...p, realist_year_built_min: e.target.value }))} />
+                </Field>
+                <Field label="Sell Score ≥">
+                  <input className="f-control f-control-sm" type="number" min="0" max="1000" placeholder="700" value={advFilters.realist_sell_score_min} onChange={e => setAdvFilters(p => ({ ...p, realist_sell_score_min: e.target.value }))} />
+                </Field>
+                <Field label="Owner-Occupied">
+                  <select className="f-control" value={advFilters.realist_owner_occupied} onChange={e => setAdvFilters(p => ({ ...p, realist_owner_occupied: e.target.value }))}>
+                    <option value="">Any</option>
+                    <option value="1">Yes (lives there)</option>
+                    <option value="0">No (rental/investor)</option>
+                  </select>
+                </Field>
+              </div>
+            </FilterGroup>
           </div>
 
           <div className="filter-quick-presets">
