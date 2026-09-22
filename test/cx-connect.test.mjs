@@ -309,3 +309,25 @@ test('auto-enroll tick pulls new list members in, respects the hourly stamp and 
   assert.equal(again, null, 'second tick within the hour is a no-op')
   db.run("DELETE FROM client_lists WHERE name='Cancelled/Expired AutoTest'")
 })
+
+// 2026-09-22 (Cole Hilgenberg): a "wrong number" reply belongs to the NUMBER, not the
+// lead. Once the phone is corrected, the old number's replies must neither block
+// re-enrollment nor count as the lead having responded.
+test('wrong-number reply from a REPLACED number stops blocking once the phone is corrected', async () => {
+  const c = mkClient({ phone: '(319) 899-1111' })
+  const at = new Date(Date.now() - 5 * 86400000).toISOString()
+  // the old (since-replaced) number texted "wrong number"
+  db.run(`INSERT INTO communications (channel, direction, client_id, from_addr, body, preview, thread_key, status, occurred_at)
+          VALUES ('text','incoming',?,?,?,?,?, 'read', ?)`, [c.id, '+13195210000', 'Sorry you have the wrong number', 'Sorry you have the wrong number', `c${c.id}_text`, at])
+  const ver = await cx.evaluateEligibility(db.get('SELECT * FROM clients WHERE id=?', [c.id]), { atEnroll: true })
+  assert.equal(ver.ok, true, 'replaced number\'s verdict is void: ' + JSON.stringify(ver))
+  const r = await cx.enrollClient(c.id)
+  assert.equal(r.ok, true, 'manual re-enroll goes through: ' + JSON.stringify(r))
+  // …but the SAME reply from the CURRENT number still blocks
+  const c2 = mkClient({ phone: '(319) 899-2222' })
+  db.run(`INSERT INTO communications (channel, direction, client_id, from_addr, body, preview, thread_key, status, occurred_at)
+          VALUES ('text','incoming',?,?,?,?,?, 'read', ?)`, [c2.id, '+13198992222', 'Sorry you have the wrong number', 'Sorry you have the wrong number', `c${c2.id}_text`, at])
+  const ver2 = await cx.evaluateEligibility(db.get('SELECT * FROM clients WHERE id=?', [c2.id]), { atEnroll: true })
+  assert.equal(ver2.ok, false)
+  assert.equal(ver2.code, 'WRONG_NUMBER')
+})

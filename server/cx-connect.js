@@ -169,12 +169,25 @@ export function classifyInbound(text) {
 }
 // Scan every meaningful inbound message on record. Returns null when history is
 // clean, else { code, detail } describing why this campaign must not run.
-function historyBlock(clientId) {
-  const inbound = db.all(`SELECT channel, body, preview, transcript, occurred_at FROM communications
+function historyBlock(client) {
+  const clientId = client.id
+  const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+  // The numbers CURRENTLY on file. A reply that came from any OTHER number was a
+  // wrong number that has since been corrected (the replaced number lives on in
+  // phone_sierra_shadow) — its "wrong number" verdict belongs to that NUMBER, not
+  // this lead, and it doesn't count as the lead having replied either. Without
+  // this, fixing a lead's phone could never un-block re-enrollment (Cole
+  // Hilgenberg, John 2026-09-22).
+  const current = new Set([client.phone, ...String(client.alt_phones || '').split(',')].map(d10).filter(s => s.length === 10))
+  const inbound = db.all(`SELECT channel, body, preview, transcript, occurred_at, from_addr FROM communications
     WHERE client_id=? AND direction='incoming' AND channel IN ('text','email','call','voicemail')
     ORDER BY occurred_at DESC LIMIT 200`, [clientId])
   let meaningful = false
   for (const m of inbound) {
+    if (['text', 'call', 'voicemail'].includes(m.channel) && current.size) {
+      const from = d10(m.from_addr)
+      if (from.length === 10 && !current.has(from)) continue   // reply from a number no longer on file
+    }
     const text = [m.body, m.preview, m.transcript].filter(Boolean).join(' ')
     if (m.channel !== 'call' || (text && text.length > 3)) meaningful = meaningful || !!String(text).trim() || m.channel === 'call'
     const cls = classifyInbound(text)
@@ -217,7 +230,7 @@ export async function evaluateEligibility(client, { atEnroll = false } = {}) {
   if (client.sms_undeliverable) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: 'number undeliverable (likely landline)' }
 
   // The actual conversation history rules over everything above.
-  const hist = historyBlock(client.id)
+  const hist = historyBlock(client)
   if (hist) return { ok: false, terminal: true, code: hist.code, detail: hist.detail }
 
   // Another automation actively owns this lead.
