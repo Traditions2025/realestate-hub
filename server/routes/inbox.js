@@ -197,7 +197,18 @@ router.get('/', (req, res) => {
   if (channels.length) { where.push(`channel IN (${channels.map(() => '?').join(',')})`); params.push(...channels) }
   const sql = `SELECT * FROM communications WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC LIMIT 1000`
   let rows = db.all(sql, params)
-  if (q) rows = rows.filter(r => `${r.contact_name} ${r.subject} ${r.preview}`.toLowerCase().includes(q))
+  if (q) {
+    // Search matches property context too (John, 2026-09-22): one cheap batched
+    // lookup of clients whose address or MLS # matches, then the row filter keeps
+    // a message when its text OR its client's property matches.
+    let propIds = new Set()
+    try {
+      propIds = new Set(db.all(
+        'SELECT id FROM clients WHERE merged_into IS NULL AND (address LIKE ? OR mls_number LIKE ?) LIMIT 500',
+        [`%${q}%`, `%${q}%`]).map(r => r.id))
+    } catch {}
+    rows = rows.filter(r => `${r.contact_name} ${r.subject} ${r.preview}`.toLowerCase().includes(q) || (r.client_id && propIds.has(r.client_id)))
+  }
 
   // group into conversation threads. A Twilio-Conversations group (group MMS) is keyed
   // by its conversation_sid so the group + every reply render as ONE thread.
@@ -258,12 +269,51 @@ router.get('/', (req, res) => {
   const assigned = (req.query.assigned || '').trim()
   if (assigned === 'unassigned') list = list.filter(c => !c.assigned_to)
   else if (assigned) list = list.filter(c => c.assigned_to === assigned)
+  // ---- PROSPECTING CONTEXT (John, 2026-09-22): Cancelled/Expired + FSBO ----
+  // Resolved in ONE batched query over the threads' clients — never per-thread.
+  // Authoritative fields only (mls tags/status, fsbo_status); never message text.
+  const ctxIds = [...new Set(list.map(c => c.client_id).filter(Boolean))]
+  const pctx = {}
+  if (ctxIds.length) {
+    try {
+      const ph = ctxIds.map(() => '?').join(',')
+      for (const r of db.all(`SELECT id, fsbo_status, fsbo_dom, mls_status, mls_number, off_market_date, address, city, tags FROM clients WHERE id IN (${ph})`, ctxIds)) {
+        const mls = String(r.mls_status || '').toLowerCase()
+        const isCx = /"MLS: (Cancelled|Expired)"/.test(r.tags || '') || ['cancelled', 'canceled', 'expired', 'withdrawn'].includes(mls)
+        const isFsbo = !!String(r.fsbo_status || '').trim()
+        if (!isCx && !isFsbo) continue
+        const kinds = [...(isCx ? ['cx'] : []), ...(isFsbo ? ['fsbo'] : [])]
+        // A lead who is BOTH shows their CURRENT FSBO listing first (most relevant now)
+        // but still appears under either filter.
+        const primary = isFsbo ? 'fsbo' : 'cx'
+        pctx[r.id] = {
+          kinds, kind: primary,
+          label: primary === 'fsbo' ? String(r.fsbo_status).toUpperCase()
+            : ['cancelled', 'canceled', 'expired', 'withdrawn'].includes(mls) ? String(r.mls_status).toUpperCase()
+            : /"MLS: Expired"/.test(r.tags || '') ? 'EXPIRED' : 'CANCELLED',
+          address: r.address || null, city: r.city || null,
+          mls_number: isCx ? (r.mls_number || null) : null,
+          off_market_date: isCx ? (r.off_market_date || null) : null,
+          fsbo_dom: isFsbo && r.fsbo_dom != null && r.fsbo_dom !== '' ? Number(r.fsbo_dom) : null,
+        }
+      }
+    } catch {}
+  }
+  list = list.map(c => ({ ...c, prospect: c.client_id ? (pctx[c.client_id] || null) : null }))
+  // Counts reflect the current folder/unread/channel/search scope BEFORE the
+  // prospecting filter narrows it (cheap — computed from rows already in hand).
+  const prospectCounts = {
+    cx: list.filter(c => c.prospect?.kinds?.includes('cx')).length,
+    fsbo: list.filter(c => c.prospect?.kinds?.includes('fsbo')).length,
+  }
+  const prospect = (req.query.prospect || '').trim()
+  if (prospect === 'cx' || prospect === 'fsbo') list = list.filter(c => c.prospect?.kinds?.includes(prospect))
   // Explicitly newest-first by each thread's latest message. Insertion order already
   // tracks the SQL sort, but never rely on that implicitly — any oddly-formatted
   // occurred_at or future change to the grouping must not scramble the inbox.
   list.sort((a, b) => new Date(b.last?.occurred_at || 0) - new Date(a.last?.occurred_at || 0))
   const totalUnread = db.get("SELECT COUNT(*) c FROM communications WHERE direction='incoming' AND status='unread'").c
-  res.json({ conversations: list, total_unread: totalUnread })
+  res.json({ conversations: list, total_unread: totalUnread, prospect_counts: prospectCounts })
 })
 
 // ---- REAL-TIME stream (Server-Sent Events). Pushes a 'changed' event whenever a

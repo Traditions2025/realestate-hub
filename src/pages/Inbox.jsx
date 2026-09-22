@@ -112,6 +112,11 @@ export default function Inbox() {
   useEffect(() => { try { localStorage.setItem('inbox_unreadOnly', unreadOnly ? '1' : '0') } catch {} }, [unreadOnly])
   useEffect(() => { try { localStorage.setItem('inbox_channels', JSON.stringify(channels)) } catch {} }, [channels])
   useEffect(() => { try { localStorage.setItem('inbox_assignFilter', assignFilter) } catch {} }, [assignFilter])
+  // Prospecting-context filter (John, 2026-09-22): '' all | 'cx' Cancelled/Expired | 'fsbo'.
+  // A second dimension ON TOP of folder/unread/channels — never a separate inbox.
+  const [prospect, setProspect] = useState(() => localStorage.getItem('inbox_prospect') || '')
+  const [prospectCounts, setProspectCounts] = useState({ cx: 0, fsbo: 0 })
+  useEffect(() => { try { localStorage.setItem('inbox_prospect', prospect) } catch {} }, [prospect])
   const [q, setQ] = useState('')
   const [convos, setConvos] = useState(null)
   const [loadError, setLoadError] = useState(false)
@@ -169,9 +174,10 @@ export default function Inbox() {
     const p = new URLSearchParams({ folder, unread: unreadOnly ? '1' : '0', channels: channels.join(','), q })
     if (assignFilter === 'mine' && myAgent) p.set('assigned', myAgent)
     else if (assignFilter === 'unassigned') p.set('assigned', 'unassigned')
-    authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { if (seq !== loadSeqRef.current) return; setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0); setLoadError(false) }).catch(() => { if (seq === loadSeqRef.current) { setConvos(c => c === null ? [] : c); setLoadError(true) } })
+    if (prospect) p.set('prospect', prospect)
+    authFetch('/api/inbox?' + p).then(r => r.json()).then(d => { if (seq !== loadSeqRef.current) return; setConvos(d.conversations || []); setTotalUnread(d.total_unread || 0); setProspectCounts(d.prospect_counts || { cx: 0, fsbo: 0 }); setLoadError(false) }).catch(() => { if (seq === loadSeqRef.current) { setConvos(c => c === null ? [] : c); setLoadError(true) } })
     authFetch('/api/inbox/counts').then(r => r.json()).then(setCounts).catch(() => {})
-  }, [folder, unreadOnly, channels, q, assignFilter, myAgent])
+  }, [folder, unreadOnly, channels, q, assignFilter, myAgent, prospect])
   useEffect(() => { load() }, [load])
   useEffect(() => { authFetch('/api/inbox/agents').then(r => r.json()).then(a => setAgents(Array.isArray(a) ? a : [])).catch(() => {}) }, [])
   const chooseAgent = (a) => { setMyAgent(a); localStorage.setItem('mst_agent', a) }
@@ -415,7 +421,20 @@ export default function Inbox() {
               <button onClick={() => setUnreadOnly(false)} style={toggleBtn(!unreadOnly)}>All</button>
               <button onClick={() => setUnreadOnly(true)} style={toggleBtn(unreadOnly)}>Unread</button>
             </div>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search…" style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, address, MLS #…" style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
+          </div>
+          {/* Prospecting filter: a second dimension on top of All/Unread — Cancelled/Expired
+              and FSBO conversations stay in the ONE unified inbox, this just isolates them. */}
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
+            {(() => {
+              const chip = (active, color) => ({ flex: '0 0 auto', padding: '3px 10px', borderRadius: 14, border: '1px solid ' + (active ? (color || 'var(--primary, #2563eb)') : 'var(--border)'), fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? (color || 'var(--primary, #2563eb)') : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
+              return (<>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', flex: '0 0 auto' }}>Prospecting</span>
+                <button onClick={() => setProspect('')} style={chip(!prospect)}>All</button>
+                <button onClick={() => setProspect('cx')} style={chip(prospect === 'cx', '#d97706')}>Cancelled/Expired{prospectCounts.cx ? ` ${prospectCounts.cx}` : ''}</button>
+                <button onClick={() => setProspect('fsbo')} style={chip(prospect === 'fsbo', '#059669')}>FSBO{prospectCounts.fsbo ? ` ${prospectCounts.fsbo}` : ''}</button>
+              </>)
+            })()}
           </div>
           {/* Mobile: channel selector (the desktop folder sidebar is hidden on mobile). Tap one to
               view Texts / Calls / Emails / Voicemails separately, or All. */}
@@ -447,7 +466,11 @@ export default function Inbox() {
               : convos.length === 0 ? (
                 <div style={{ padding: 28, textAlign: 'center', color: 'var(--text-muted)' }}>
                   <div style={{ fontSize: 30 }}>📭</div>
-                  <div style={{ fontWeight: 600, marginTop: 8, color: 'var(--text-primary)' }}>{unreadOnly ? 'No unread messages' : 'No messages yet'}</div>
+                  <div style={{ fontWeight: 600, marginTop: 8, color: 'var(--text-primary)' }}>
+                    {prospect === 'cx' ? (unreadOnly ? 'No unread Cancelled/Expired conversations' : 'No Cancelled/Expired conversations')
+                      : prospect === 'fsbo' ? (unreadOnly ? 'No unread FSBO conversations' : 'No FSBO conversations')
+                      : unreadOnly ? 'No unread messages' : 'No messages yet'}
+                  </div>
                   <div style={{ fontSize: 13, marginTop: 6 }}>Incoming client texts, calls, and emails will show up here once texting is connected. Only messages from a matched client appear.</div>
                 </div>
               ) : convos.map(c => {
@@ -474,6 +497,18 @@ export default function Inbox() {
                         {c.last?.has_attachment ? <span style={{ marginLeft: 'auto' }}>📎</span> : null}
                       </div>
                       {c.last?.subject && <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{c.last?.preview}</div>}
+                      {/* Prospecting context: which property this conversation is about, without
+                          opening the profile. Cancelled/Expired: status + address + MLS # (omitted
+                          when unknown). FSBO: status + DOM + address. */}
+                      {c.prospect && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, minWidth: 0 }}>
+                          <span style={{ flex: '0 0 auto', fontSize: 10.5, fontWeight: 800, letterSpacing: '.03em', padding: '1px 7px', borderRadius: 4, textTransform: 'uppercase', color: '#fff', background: c.prospect.kind === 'fsbo' ? '#059669' : '#d97706' }}>
+                            {c.prospect.kind === 'fsbo' ? `FSBO · ${c.prospect.label}${c.prospect.fsbo_dom != null ? ` · DOM ${c.prospect.fsbo_dom}` : ''}` : c.prospect.label}
+                          </span>
+                          {c.prospect.address && <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.prospect.address}</span>}
+                          {c.prospect.mls_number && <span style={{ flex: '0 0 auto', fontSize: 11.5, color: 'var(--text-muted)' }}>MLS #{c.prospect.mls_number}</span>}
+                        </div>
+                      )}
                     </div>
                   </div>
                 )
@@ -516,7 +551,23 @@ export default function Inbox() {
                   else if (c.mls_status && !/sold/i.test(c.mls_status)) { label = c.mls_status; color = /cancel/i.test(c.mls_status) ? '#d97706' : '#dc2626' }
                   else if (c.mls_status) { label = c.mls_status; color = '#059669' }
                   if (!label) return null
-                  return <span title="Listing context from the master files" style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
+                  // Compact property context next to the pill: address, MLS # (only when known),
+                  // and Off Market date / DOM. Clicking it opens the profile — no separate listing UI.
+                  const isFsbo = !!(c.fsbo_status || (c.fsbo_listings && c.fsbo_listings !== '[]'))
+                  const bits = []
+                  if (c.address) bits.push(c.address)
+                  if (!isFsbo && c.mls_number) bits.push(`MLS #${c.mls_number}`)
+                  if (!isFsbo && c.off_market_date) bits.push(`Off Market: ${String(c.off_market_date).slice(0, 10)}`)
+                  if (isFsbo && c.fsbo_dom != null && c.fsbo_dom !== '') bits.push(`DOM ${c.fsbo_dom}`)
+                  return (<>
+                    <span title="Listing context from the master files" style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
+                    {bits.length > 0 && (
+                      <span onClick={() => navigate('/clients/' + sel)} title="Open the lead profile"
+                        style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', flex: '0 1 auto' }}>
+                        {bits.join(' · ')}
+                      </span>
+                    )}
+                  </>)
                 })()}
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
                   style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
