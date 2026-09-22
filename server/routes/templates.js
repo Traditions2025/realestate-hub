@@ -44,8 +44,13 @@ router.post('/render', (req, res) => {
   const { body = '', subject = '', client_id } = req.body || {}
   const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
   if (!client) return res.json({ body, subject, filled: false })
+  // {{intro}} advances a global rotation counter when filled — a PREVIEW must not
+  // consume the drip campaigns' rotation, so snapshot and restore it around the fill.
+  const introRot = db.getSetting?.('email_intro_rot', '0')
   const strip = (s) => fillTemplate(s || '', client).replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
-  res.json({ body: strip(body), subject: strip(subject), filled: true })
+  const out = { body: strip(body), subject: strip(subject), filled: true }
+  try { db.setSetting?.('email_intro_rot', introRot) } catch {}
+  res.json(out)
 })
 
 // FUB text templates live under one of a few possible endpoint names depending on
