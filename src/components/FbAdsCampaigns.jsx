@@ -68,10 +68,10 @@ export default function FbAdsCampaigns() {
       </div>
 
       <div className="stats-grid stats-small">
-        <div className="stat-card stat-blue"><div className="stat-number">{fmtN(t.active)}</div><div className="stat-label">Active Campaigns</div></div>
-        <div className="stat-card stat-green"><div className="stat-number">{fmt$(t.spend)}</div><div className="stat-label">Total Spend</div></div>
-        <div className="stat-card stat-purple"><div className="stat-number">{fmtN(t.leads)}</div><div className="stat-label">Leads</div></div>
-        <div className="stat-card stat-orange"><div className="stat-number">{fmtN(t.impressions)}</div><div className="stat-label">Impressions</div></div>
+        <div className="stat-card stat-green"><div className="stat-number">{fmt$(t.active_spend)}</div><div className="stat-label">Ad Spend (Running Campaigns)</div></div>
+        <div className="stat-card stat-purple"><div className="stat-number">{fmtN(data.last30?.leads)}</div><div className="stat-label">Leads (Last 30 Days)</div></div>
+        <div className="stat-card stat-blue"><div className="stat-number">{fmtN(data.last30?.impressions)}</div><div className="stat-label">Impressions (Last 30 Days)</div></div>
+        <div className="stat-card stat-orange"><div className="stat-number">{fmtN(data.last30?.reach)}</div><div className="stat-label">Reach (Last 30 Days)</div></div>
       </div>
 
       <div className="table-container">

@@ -288,13 +288,17 @@ test('Fix It or Skip It intake auto-enrolls the 12-month email drip (prompt firs
 // ---- Facebook Ads tracking (Marketing tab, 2026-09-21) ----
 test('fb-ads: lead + video counts extracted from Meta actions arrays', async () => {
   const fb = await import('../server/fb-ads.js')
+  // Meta reports ONE lead under several overlapping action types — the count
+  // must dedupe, never sum (1 real lead showed as 2 before, John 2026-09-22).
   const actions = [
     { action_type: 'lead', value: '3' },
-    { action_type: 'onsite_conversion.lead_grouped', value: '2' },
+    { action_type: 'onsite_conversion.lead_grouped', value: '3' },
+    { action_type: 'leadgen_grouped', value: '3' },
     { action_type: 'video_view', value: '150' },
     { action_type: 'link_click', value: '40' },
   ]
-  assert.equal(fb.leadCount(actions), 5)
+  assert.equal(fb.leadCount(actions), 3, 'canonical lead total, not a sum of subsets')
+  assert.equal(fb.leadCount([{ action_type: 'leadgen_grouped', value: '2' }]), 2, 'subset fallback when lead is absent')
   assert.equal(fb.videoViewCount(actions), 150)
   assert.equal(fb.leadCount([]), 0)
   fb.initFbAds()

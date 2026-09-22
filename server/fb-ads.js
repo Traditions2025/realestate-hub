@@ -46,15 +46,18 @@ export function initFbAds() {
 const token = () => (db.getSetting?.('fb_ads_access_token', '') || '').trim()
 export const fbAdsAccountId = () => (db.getSetting?.('fb_ads_account_id', '') || '').trim() || 'act_616264022369725'
 
-// Pull one named count out of the insights "actions" array. Meta splits lead
-// counts across several action types depending on form/destination.
-export function actionCount(actions, names) {
-  let n = 0
-  for (const a of (actions || [])) if (names.includes(a.action_type)) n += Number(a.value) || 0
-  return n
+// Pull counts out of the insights "actions" array. Meta reports ONE lead under
+// SEVERAL action types at once ('lead' is the canonical total; 'leadgen_grouped'
+// and 'onsite_conversion.lead_grouped' are overlapping subsets of it). Summing
+// them DOUBLED every lead count (Kitchen creative showed 2 where Ads Manager
+// showed 1, caught by John 2026-09-22). Use the canonical total; fall back to
+// the largest subset only when 'lead' is absent.
+const actionValue = (actions, name) => Number((actions || []).find(a => a.action_type === name)?.value) || 0
+export function leadCount(actions) {
+  return actionValue(actions, 'lead')
+    || Math.max(actionValue(actions, 'leadgen_grouped'), actionValue(actions, 'onsite_conversion.lead_grouped'), actionValue(actions, 'offsite_conversion.fb_pixel_lead'))
 }
-export const leadCount = (actions) => actionCount(actions, ['lead', 'leadgen_grouped', 'onsite_conversion.lead_grouped', 'offsite_conversion.fb_pixel_lead'])
-export const videoViewCount = (actions) => actionCount(actions, ['video_view'])
+export const videoViewCount = (actions) => actionValue(actions, 'video_view')
 
 async function graph(path, params = {}) {
   const t = token()
@@ -119,6 +122,15 @@ export async function syncFbAds() {
          nowIso()])
       synced++
     }
+    // Account-level last-30-days rollup for the dashboard cards (reach only
+    // dedupes properly at account level, so it comes from here, not a sum).
+    try {
+      const a30 = (await graph(`${act}/insights`, { fields: 'impressions,reach,clicks,spend,actions', date_preset: 'last_30d' })).data?.[0] || {}
+      db.setSetting?.('fb_ads_account_30d', JSON.stringify({
+        impressions: Number(a30.impressions) || 0, reach: Number(a30.reach) || 0,
+        clicks: Number(a30.clicks) || 0, spend: Number(a30.spend) || 0, leads: leadCount(a30.actions),
+      }))
+    } catch {}
     db.setSetting?.('fb_ads_last_sync', nowIso())
     db.setSetting?.('fb_ads_token_error', '')
     return { ok: true, campaigns: synced }
@@ -147,12 +159,18 @@ export function fbAdsOverview() {
   const rows = db.all('SELECT * FROM fb_ad_campaigns ORDER BY (effective_status=\'ACTIVE\') DESC, start_time DESC')
     .map(r => { let l7 = {}; try { l7 = JSON.parse(r.last7_json || '{}') } catch {}; const { last7_json, ...rest } = r; return { ...rest, last7: l7 } })
   const tot = rows.reduce((a, r) => ({ spend: a.spend + (r.spend || 0), leads: a.leads + (r.leads || 0), impressions: a.impressions + (r.impressions || 0), clicks: a.clicks + (r.clicks || 0) }), { spend: 0, leads: 0, impressions: 0, clicks: 0 })
+  // Dashboard cards (John, 2026-09-22): spend of RUNNING campaigns only, plus the
+  // account's last-30-days leads / impressions / reach.
+  const activeSpend = rows.filter(r => r.effective_status === 'ACTIVE').reduce((s, r) => s + (r.spend || 0), 0)
+  let last30 = {}
+  try { last30 = JSON.parse(db.getSetting?.('fb_ads_account_30d', '{}') || '{}') } catch {}
   return {
     account_id: fbAdsAccountId(),
     token_present: !!token(),
     token_error: db.getSetting?.('fb_ads_token_error', '') || '',
     last_sync: db.getSetting?.('fb_ads_last_sync', null),
-    totals: { ...tot, active: rows.filter(r => r.effective_status === 'ACTIVE').length, campaigns: rows.length },
+    totals: { ...tot, active: rows.filter(r => r.effective_status === 'ACTIVE').length, campaigns: rows.length, active_spend: +activeSpend.toFixed(2) },
+    last30,
     campaigns: rows,
   }
 }
