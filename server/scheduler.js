@@ -837,6 +837,14 @@ export function startScheduler() {
   // fub_lead_watch_enabled (default OFF); cheap no-op otherwise.
   setInterval(() => { import('./fub-leads.js').then(m => m.pollFubAdLeads()).catch(() => {}) }, 2 * 60 * 1000)
   setInterval(() => { import('./ai-enrollment.js').then(m => m.reactivationTick()).catch(() => {}) }, 60 * 60 * 1000)
+  // ...and once shortly after boot. The interval above is anchored to start-up, so
+  // a day of deploys (each restart resets it) can starve the reactivation lane
+  // completely: 2026-09-23 shipped six deploys under an hour apart and the lane
+  // enrolled 0 all morning while the cap sat at 50 (John asked why). Re-running at
+  // boot is safe and self-limiting — the tick already gates on weekdays 9AM-4PM CT,
+  // the per-day cap, and a per-tick batch of cap/7, so extra restarts can never
+  // push the day's total past the cap.
+  setTimeout(() => { import('./ai-enrollment.js').then(m => m.reactivationTick()).catch(() => {}) }, 4 * 60 * 1000)
 
   // TC daily digest - check every minute, fires at 9 AM + 1 PM CT (idempotent)
   setInterval(checkDigestTick, 60 * 1000)
