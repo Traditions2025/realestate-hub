@@ -133,7 +133,7 @@ const LIST_COLUMNS = [
 ]
 // The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
 // date, MLS status, and MLS #.
-const EXPIRED_COLUMN_KEYS = ['score', 'name', 'status', 'type', 'phone', 'email', 'address', 'source', 'off_market_date', 'mls_status', 'mls_number']
+const EXPIRED_COLUMN_KEYS = ['score', 'name', 'status', 'type', 'phone', 'email', 'address', 'source', 'registered', 'off_market_date', 'mls_status', 'mls_number']
 // The Name column is pinned: always visible and always FIRST (right after the checkbox) on
 // every tab / stage / smart list / saved list, and it sticks to the left edge while the list
 // scrolls sideways — so you can always see whose row you're looking at.
@@ -239,6 +239,31 @@ function loadExpiredColumnPrefs() {
     return { order: [...EXPIRED_COLUMN_KEYS], visible: Object.fromEntries(EXPIRED_COLUMN_KEYS.map(k => [k, true])) }
   }
 }
+
+// One-time (John, 2026-09-23: "by default add register date on columns on all
+// status, list"). Column choices are saved PER VIEW, so a view customized before
+// today would never pick up a new defaultVisible. This flips that ONE column on
+// across every saved view and leaves every other choice untouched.
+function ensureRegisteredColumnEverywhere() {
+  const FLAG = 'mst_cols_registered_on_v1'
+  try {
+    if (localStorage.getItem(FLAG)) return
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i)
+      if (!k) continue
+      if (!(k.startsWith('mst_clients_columns_v2::') || k === COLUMN_PREFS_KEY || k === COLUMN_PREFS_KEY_EXPIRED)) continue
+      try {
+        const prefs = JSON.parse(localStorage.getItem(k) || 'null')
+        if (!prefs || typeof prefs !== 'object') continue
+        prefs.visible = { ...(prefs.visible || {}), registered: true }
+        if (Array.isArray(prefs.order) && !prefs.order.includes('registered')) prefs.order.push('registered')
+        localStorage.setItem(k, JSON.stringify(prefs))
+      } catch { /* a malformed view pref must never break the page */ }
+    }
+    localStorage.setItem(FLAG, '1')
+  } catch { /* private mode / blocked storage: defaults already show the column */ }
+}
+ensureRegisteredColumnEverywhere()
 
 // Sierra-aligned status list: { hubValue (lowercase_underscore), label, sierraValue }
 // hubValue must match what the sync writes via mapStatus() and what the backend's
@@ -3128,9 +3153,11 @@ export default function Clients() {
                   {ld ? (() => { const d = new Date(String(ld).replace(' ', 'T')); return isNaN(d) ? ld : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) })() : '—'}
                 </div>
               }
-              // Prefer the real FUB registration date; fall back to the Sierra
-              // import date only when a lead has no FUB register date.
-              const reg = (item.register_date && item.register_date.trim()) ? item.register_date : item.sierra_creation_date
+              // Prefer the real FUB registration date, then the Sierra import date,
+              // then when the lead landed in the Hub — the same COALESCE the
+              // recent_added sort uses, so the column never shows a blank where
+              // the sort clearly has a date to order by (John, 2026-09-23).
+              const reg = (item.register_date && item.register_date.trim()) ? item.register_date : (item.sierra_creation_date || item.created_at)
               const fromFub = !!(item.register_date && item.register_date.trim())
               return <div key="registered" className="cl-registered" title={fromFub ? `${reg} (from FUB)` : (reg || '')}>
                 {reg

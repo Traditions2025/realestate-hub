@@ -194,10 +194,13 @@ export async function syncFsboMaster() {
   const createNew = (primary, status, listingsJson, price) => {
     const { first, last } = splitName(primary.name)
     const info = db.run(
-      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_price, fsbo_notes, fsbo_link, fsbo_listings, created_at, updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, address, city, state, zip, tags, fsbo_status, fsbo_status_at, fsbo_list_date, fsbo_dom, fsbo_price, fsbo_notes, fsbo_link, fsbo_listings, register_date, created_at, updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [first, last, primary.phone, primary.email || null, 'seller', 'watch', primary.source || 'FSBO Master',
-       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null, primary.notes || null, primary.link || null, listingsJson, now, now])
+       primary.address || null, primary.city || null, primary.state || 'IA', primary.zip || null, tagsJson(primary.tags), status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null, primary.notes || null, primary.link || null, listingsJson,
+       // A FSBO never registers on our website, so "Registered" is the day the
+       // lead entered the Hub — a real, sortable, visible date (John, 2026-09-23).
+       String(now).slice(0, 10), now, now])
     report.created++
     logMasterUpdate(info.lastInsertRowid, 'fsbo', 'new_lead', `New FSBO (${status})${primary.address ? ' — ' + primary.address : ''}${primary.city ? ', ' + primary.city : ''}`,
       { label: 'New', address: `${primary.address || ''}${primary.city ? ', ' + primary.city : ''}`.trim() || null, dom: computeDom(primary.list_date, primary.dom), url: primary.link || null })

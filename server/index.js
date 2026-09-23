@@ -1470,6 +1470,23 @@ ${signature}
       })
     } catch (e) { console.error('[boot] cx register-date backfill failed:', e.message) }
 
+    // Same for FSBO leads, which are created from the FSBO master file and never
+    // register on the website either (John, 2026-09-23). Separate migration name
+    // because the C/E one above may already have run on this server.
+    try {
+      db.runMigration('fsbo-register-date-backfill-2026-09-23', () => {
+        const where = `merged_into IS NULL
+            AND COALESCE(NULLIF(register_date, ''), '') = ''
+            AND fub_person_id IS NULL
+            AND created_at IS NOT NULL AND created_at != ''
+            AND (COALESCE(NULLIF(fsbo_status, ''), '') != ''
+                 OR COALESCE(NULLIF(fsbo_listings, ''), '[]') != '[]')`
+        const n = db.get(`SELECT COUNT(*) c FROM clients WHERE ${where}`).c
+        db.run(`UPDATE clients SET register_date = substr(created_at, 1, 10), updated_at = datetime('now') WHERE ${where}`)
+        console.log(`[migration] fsbo-register-date-backfill: filled ${n} FSBO registration date(s)`)
+      })
+    } catch (e) { console.error('[boot] fsbo register-date backfill failed:', e.message) }
+
     // Start auto-sync scheduler
     startScheduler()
   })
