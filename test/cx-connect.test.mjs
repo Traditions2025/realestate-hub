@@ -382,3 +382,17 @@ test('manual enroll still obeys STOP, junk status and a missing number', async (
   assert.equal(r.ok, false, 'no number at all still blocks')
   assert.match(r.reason, /no phone/i)
 })
+
+test('a missing primary number says WHERE the number actually is', async () => {
+  const { missingPhoneDetail } = cx
+  assert.equal(missingPhoneDetail({ phone: '(319) 555-1234' }), null)
+  assert.equal(missingPhoneDetail({ phone: '   ' }), 'no phone on file', 'whitespace-only primary is empty')
+  assert.match(missingPhoneDetail({ phone: '', alt_phones: '(319) 555-9876' }) || '',
+    /Additional phones/, 'points at the additional number instead of a bare "no phone on file"')
+  // and a lead in that shape is refused with that explanation, not a blank one
+  const c = mkClient({ phone: null })
+  db.run("UPDATE clients SET alt_phones='(319) 555-9876' WHERE id=?", [c.id])
+  const r = await cx.enrollClient(c.id, 'john@test', { manual: true })
+  assert.equal(r.ok, false)
+  assert.match(r.reason, /Additional phones/)
+})

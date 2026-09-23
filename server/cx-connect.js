@@ -210,7 +210,8 @@ function historyBlock(client) {
 export async function evaluateEligibility(client, { atEnroll = false, manual = false } = {}) {
   if (!client) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'client not found' }
   if (client.merged_into) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'merged into another record' }
-  if (!client.phone) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: 'no phone on file' }
+  const noPhone = missingPhoneDetail(client)
+  if (noPhone) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: noPhone }
   // Every approved template is built around the street address ("the home at X").
   // Without one the text is meaningless to a cold recipient — never send it.
   if (!String(client.address || '').trim()) return { ok: false, terminal: true, code: 'NO_ADDRESS', detail: 'no property address on file' }
@@ -278,6 +279,21 @@ function logCx(clientId, event, fields = {}) {
         fields.eligibility_result ?? null, fields.suppression_reason ?? null, fields.comm_id ?? null,
         fields.body ? String(fields.body).slice(0, 500) : null, nowIso()])
   } catch (e) { console.error('[cx-connect] log failed:', e.message) }
+}
+
+// The campaign always texts the PRIMARY number — that is the field the whole
+// send path and the wrong-number bookkeeping key on. This only explains a
+// missing one: a whitespace-only primary is empty, and a corrected number
+// parked in "additional phones" is a real and confusing case (John, 2026-09-23:
+// "no phone on file" while a good number was visibly on the record), so the
+// refusal says where the number actually is instead of leaving you guessing.
+export function missingPhoneDetail(client) {
+  if (String(client?.phone || '').trim()) return null
+  const alt = String(client?.alt_phones || '').split(',').map(p => String(p || '').trim())
+    .find(p => p.replace(/\D/g, '').length >= 10)
+  return alt
+    ? `no primary phone — ${alt} is saved under Additional phones; move it into the Phone field to text it`
+    : 'no phone on file'
 }
 
 // A human re-enrolling is asserting the number on file is good now, so the stored
