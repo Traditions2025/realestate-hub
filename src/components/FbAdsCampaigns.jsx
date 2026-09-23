@@ -9,6 +9,8 @@ import { api } from '../api'
 const fmtN = (n) => (n == null ? '—' : Number(n).toLocaleString())
 const fmt$ = (n) => (n == null || n === '' ? '—' : '$' + Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 }))
 const fmtD = (s) => (s ? new Date(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—')
+// Current calendar month, e.g. "September" — the window "monthly ad spend" means.
+const monthLabel = new Date().toLocaleDateString('en-US', { month: 'long' })
 const STATUS_COLOR = { ACTIVE: 'var(--success, #16a34a)', PAUSED: '#b45309', ARCHIVED: 'var(--text-secondary)', CAMPAIGN_PAUSED: '#b45309', WITH_ISSUES: '#dc2626' }
 
 export default function FbAdsCampaigns() {
@@ -68,6 +70,10 @@ export default function FbAdsCampaigns() {
       </div>
 
       <div className="stats-grid stats-small">
+        <div className="stat-card stat-green">
+          <div className="stat-number">{fmt$(data.month?.spend)}</div>
+          <div className="stat-label">Ad Spend ({monthLabel})</div>
+        </div>
         <div className="stat-card stat-green"><div className="stat-number">{fmt$(t.active_spend)}</div><div className="stat-label">Ad Spend (Running Campaigns)</div></div>
         <div className="stat-card stat-purple"><div className="stat-number">{fmtN(data.last30?.leads)}</div><div className="stat-label">Leads (Last 30 Days)</div></div>
         <div className="stat-card stat-blue"><div className="stat-number">{fmtN(data.last30?.impressions)}</div><div className="stat-label">Impressions (Last 30 Days)</div></div>

@@ -131,6 +131,17 @@ export async function syncFbAds() {
         clicks: Number(a30.clicks) || 0, spend: Number(a30.spend) || 0, leads: leadCount(a30.actions),
       }))
     } catch {}
+    // Current CALENDAR month to date (John, 2026-09-23): "monthly ad spend" is
+    // the month everyone budgets against, which is not the same window as the
+    // rolling last-30-days numbers beside it.
+    try {
+      const am = (await graph(`${act}/insights`, { fields: 'impressions,reach,clicks,spend,actions', date_preset: 'this_month' })).data?.[0] || {}
+      db.setSetting?.('fb_ads_account_month', JSON.stringify({
+        impressions: Number(am.impressions) || 0, reach: Number(am.reach) || 0,
+        clicks: Number(am.clicks) || 0, spend: Number(am.spend) || 0, leads: leadCount(am.actions),
+        since: am.date_start || null, until: am.date_stop || null,
+      }))
+    } catch {}
     db.setSetting?.('fb_ads_last_sync', nowIso())
     db.setSetting?.('fb_ads_token_error', '')
     return { ok: true, campaigns: synced }
@@ -162,8 +173,9 @@ export function fbAdsOverview() {
   // Dashboard cards (John, 2026-09-22): spend of RUNNING campaigns only, plus the
   // account's last-30-days leads / impressions / reach.
   const activeSpend = rows.filter(r => r.effective_status === 'ACTIVE').reduce((s, r) => s + (r.spend || 0), 0)
-  let last30 = {}
+  let last30 = {}, month = {}
   try { last30 = JSON.parse(db.getSetting?.('fb_ads_account_30d', '{}') || '{}') } catch {}
+  try { month = JSON.parse(db.getSetting?.('fb_ads_account_month', '{}') || '{}') } catch {}
   return {
     account_id: fbAdsAccountId(),
     token_present: !!token(),
@@ -171,6 +183,7 @@ export function fbAdsOverview() {
     last_sync: db.getSetting?.('fb_ads_last_sync', null),
     totals: { ...tot, active: rows.filter(r => r.effective_status === 'ACTIVE').length, campaigns: rows.length, active_spend: +activeSpend.toFixed(2) },
     last30,
+    month,
     campaigns: rows,
   }
 }
