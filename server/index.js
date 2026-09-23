@@ -1448,6 +1448,28 @@ ${signature}
       import('./expired-master.js').then(m => m.enforceWatchForMlsTagged()).then(r => { if (r?.moved) console.log(`[boot] watch sweep moved ${r.moved} lead(s)`) }).catch(() => {})
     } catch (e) { console.error('[boot] mls-tag backfill failed:', e.message) }
 
+    // One-time backfill (2026-09-23): Cancelled/Expired leads are created from the
+    // MLS master file and never register on our website, so "Registered" was blank
+    // and unsortable for ~all of them. For these leads the registration date IS the
+    // day they entered the Hub, so fill it from created_at. Only fills EMPTY values,
+    // and skips anyone with a FUB person id so the FUB enricher can still write
+    // their real website-registration date later.
+    try {
+      db.runMigration('cx-register-date-backfill-2026-09-23', () => {
+        // NOTE: db.run() with no bound params goes through exec() and always
+        // reports changes:0, so count the rows first rather than logging a lie.
+        const where = `merged_into IS NULL
+            AND COALESCE(NULLIF(register_date, ''), '') = ''
+            AND fub_person_id IS NULL
+            AND created_at IS NOT NULL AND created_at != ''
+            AND (tags LIKE '%"MLS: Expired"%' OR tags LIKE '%"MLS: Cancelled"%'
+                 OR lower(COALESCE(mls_status,'')) IN ('cancelled','canceled','expired','withdrawn'))`
+        const n = db.get(`SELECT COUNT(*) c FROM clients WHERE ${where}`).c
+        db.run(`UPDATE clients SET register_date = substr(created_at, 1, 10), updated_at = datetime('now') WHERE ${where}`)
+        console.log(`[migration] cx-register-date-backfill: filled ${n} Cancelled/Expired registration date(s)`)
+      })
+    } catch (e) { console.error('[boot] cx register-date backfill failed:', e.message) }
+
     // Start auto-sync scheduler
     startScheduler()
   })
