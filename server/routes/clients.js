@@ -830,7 +830,14 @@ export const SMART_LIST_SQL = {
 // Map sort key to SQL ORDER BY
 const SORT_OPTIONS = {
   recent_activity: 'sierra_update_date DESC NULLS LAST',
-  recent_added: "COALESCE(NULLIF(register_date,''), sierra_creation_date) DESC NULLS LAST",
+  // "Recently Added" must mean WHEN THE LEAD LANDED IN THE HUB. register_date is
+  // the Sierra/FUB website-registration date, which prospecting leads never have:
+  // Cancelled/Expired and FSBO leads are created straight from the master files,
+  // so 1,705 of 1,712 C/E leads had no register/Sierra date and the whole list
+  // sorted to the bottom as blanks — the newest ones looked missing and the top
+  // of the list froze at the last lead that happened to register on the website
+  // (John, 2026-09-23). created_at is the final fallback so every lead sorts.
+  recent_added: "COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at) DESC NULLS LAST",
   most_visits: 'visits DESC',
   least_visits: 'visits ASC',
   fsbo_available_first: "CASE fsbo_status WHEN 'Available' THEN 0 WHEN 'Off Market' THEN 1 ELSE 2 END ASC, updated_at DESC",
@@ -846,7 +853,7 @@ const SORT_OPTIONS = {
   zip_az: "NULLIF(zip,'') ASC NULLS LAST",
   zip_za: "NULLIF(zip,'') DESC NULLS LAST",
   recent_update: 'updated_at DESC',
-  oldest_first: "COALESCE(NULLIF(register_date,''), sierra_creation_date) ASC NULLS LAST",
+  oldest_first: "COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at) ASC NULLS LAST",
   // Follow Up Boss last web visit (most/least active)
   recent_fub_visit: 'last_fub_activity_at DESC NULLS LAST',
   oldest_fub_visit: 'last_fub_activity_at ASC NULLS LAST',
