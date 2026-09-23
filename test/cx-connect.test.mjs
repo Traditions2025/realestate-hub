@@ -331,3 +331,54 @@ test('wrong-number reply from a REPLACED number stops blocking once the phone is
   assert.equal(ver2.ok, false)
   assert.equal(ver2.code, 'WRONG_NUMBER')
 })
+
+// ── Manual enrollment overrides a stale BAD-NUMBER verdict (John, 2026-09-23) ──
+// "The only time we would really do manual enrollment is when we already got an
+// updated number" — so a human enroll must not be refused by the old number's
+// verdict. Everything that is the LEAD speaking still blocks.
+test('manual enroll clears a stale sms_undeliverable flag; bulk enroll still respects it', async () => {
+  const c = mkClient({})
+  db.run("UPDATE clients SET sms_undeliverable=1, sms_undeliverable_reason='Twilio 30006', sms_line_type='landline', sms_line_checked_at=? WHERE id=?", [nowIso(), c.id])
+  // automatic / bulk path: still blocked
+  const auto = await cx.evaluateEligibility(db.get('SELECT * FROM clients WHERE id=?', [c.id]), { atEnroll: true })
+  assert.equal(auto.ok, false)
+  assert.equal(auto.code, 'WRONG_NUMBER')
+  assert.equal((await cx.enrollClient(c.id, 'bulk')).ok, false, 'bulk enroll refused')
+  // manual path: allowed, and the stale verdict is wiped for real
+  const r = await cx.enrollClient(c.id, 'john@test', { manual: true })
+  assert.equal(r.ok, true, 'manual enroll allowed: ' + JSON.stringify(r))
+  const after = db.get('SELECT sms_undeliverable, sms_undeliverable_reason, sms_line_type, sms_line_checked_at FROM clients WHERE id=?', [c.id])
+  assert.equal(after.sms_undeliverable, 0, 'flag cleared')
+  assert.equal(after.sms_undeliverable_reason, null)
+  assert.equal(after.sms_line_checked_at, null, 'cached line check cleared so the number is re-screened fresh')
+  assert.equal(db.get('SELECT status FROM cx_campaign WHERE client_id=?', [c.id]).status, 'active')
+})
+
+test('manual enroll forgives a WRONG_NUMBER reply, but never a lead-speaking verdict', async () => {
+  const at = new Date(Date.now() - 3 * 86400000).toISOString()
+  const reply = (cid, body, from) => db.run(`INSERT INTO communications (channel, direction, client_id, from_addr, body, preview, thread_key, status, occurred_at)
+    VALUES ('text','incoming',?,?,?,?,?, 'read', ?)`, [cid, from, body, body, `c${cid}_text`, at])
+  // wrong number from the number still on file -> manual override wins
+  const a = mkClient({ phone: '(319) 555-7001' })
+  reply(a.id, 'Sorry you have the wrong number', '+13195557001')
+  assert.equal((await cx.evaluateEligibility(db.get('SELECT * FROM clients WHERE id=?', [a.id]), { atEnroll: true })).code, 'WRONG_NUMBER')
+  assert.equal((await cx.enrollClient(a.id, 'john@test', { manual: true })).ok, true, 'manual enroll forgives wrong-number')
+  // "we sold it" is the LEAD speaking -> still blocks, manual or not
+  const b = mkClient({ phone: '(319) 555-7002' })
+  reply(b.id, 'We already sold the house', '+13195557002')
+  const rb = await cx.enrollClient(b.id, 'john@test', { manual: true })
+  assert.equal(rb.ok, false, 'sold still blocks: ' + JSON.stringify(rb))
+  assert.match(rb.reason, /SOLD|NOT_INTERESTED|PRIOR/)
+})
+
+test('manual enroll still obeys STOP, junk status and a missing number', async () => {
+  const stop = mkClient({})
+  db.run('UPDATE clients SET hub_text_opt_out=1 WHERE id=?', [stop.id])
+  assert.equal((await cx.enrollClient(stop.id, 'john@test', { manual: true })).ok, false, 'STOP still blocks')
+  const junk = mkClient({ status: 'junk' })
+  assert.equal((await cx.enrollClient(junk.id, 'john@test', { manual: true })).ok, false, 'junk still blocks')
+  const nophone = mkClient({ phone: null })
+  const r = await cx.enrollClient(nophone.id, 'john@test', { manual: true })
+  assert.equal(r.ok, false, 'no number at all still blocks')
+  assert.match(r.reason, /no phone/i)
+})

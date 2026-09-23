@@ -39,7 +39,7 @@ function kickSweep() {
 }
 router.post('/:clientId/enroll', async (req, res) => {
   try {
-    const r = await enrollClient(Number(req.params.clientId), req.user?.email || 'manual')
+    const r = await enrollClient(Number(req.params.clientId), req.user?.email || 'manual', { manual: true })
     if (r?.ok) kickSweep()
     res.json(r)
   } catch (e) { res.status(500).json({ error: e.message }) }

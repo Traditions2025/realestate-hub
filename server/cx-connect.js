@@ -207,7 +207,7 @@ function historyBlock(client) {
 //   { ok:true }                                — send allowed
 //   { ok:false, terminal:true,  code, detail } — stop the campaign (log + status)
 //   { ok:false, terminal:false, code, detail } — defer (push next_send_at, keep active)
-export async function evaluateEligibility(client, { atEnroll = false } = {}) {
+export async function evaluateEligibility(client, { atEnroll = false, manual = false } = {}) {
   if (!client) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'client not found' }
   if (client.merged_into) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'merged into another record' }
   if (!client.phone) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: 'no phone on file' }
@@ -227,11 +227,20 @@ export async function evaluateEligibility(client, { atEnroll = false } = {}) {
     return { ok: false, terminal: true, code: status === 'not_in_market' ? 'FUTURE_TIMEFRAME_ESTABLISHED' : 'OTHER_WORKFLOW', detail: `lead status ${client.status}` }
   }
   if (client.hub_text_opt_out) return { ok: false, terminal: true, code: 'DNC', detail: 'replied STOP to our number' }
-  if (client.sms_undeliverable) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: 'number undeliverable (likely landline)' }
+  // A stored "bad number" verdict belongs to the NUMBER that earned it. A MANUAL
+  // enroll is a human saying "I have a good number now" (John, 2026-09-23: the
+  // only reason to enroll by hand is an updated number), so it overrides the flag
+  // rather than being blocked by it — clearNumberVerdict() clears it for real so
+  // the send-time policy gate doesn't refuse the same lead minutes later.
+  if (client.sms_undeliverable && !manual) return { ok: false, terminal: true, code: 'WRONG_NUMBER', detail: 'number undeliverable (likely landline)' }
 
-  // The actual conversation history rules over everything above.
+  // The actual conversation history rules over everything above — except that a
+  // MANUAL enroll forgives a WRONG_NUMBER verdict (same reasoning as above: the
+  // human has a corrected number). Every other history verdict (sold, rented,
+  // listed with an agent, not interested, already replied) still blocks, manual
+  // or not: those are the lead speaking, not the number.
   const hist = historyBlock(client)
-  if (hist) return { ok: false, terminal: true, code: hist.code, detail: hist.detail }
+  if (hist && !(manual && hist.code === 'WRONG_NUMBER')) return { ok: false, terminal: true, code: hist.code, detail: hist.detail }
 
   // Another automation actively owns this lead.
   try {
@@ -243,10 +252,10 @@ export async function evaluateEligibility(client, { atEnroll = false } = {}) {
 
   // Send-time-only checks: recent MANUAL human touch defers the drip (the
   // automation must respect human activity, never talk over it).
-  const manual = db.get(`SELECT occurred_at FROM communications WHERE client_id=? AND direction='outgoing'
+  const manualTouch = db.get(`SELECT occurred_at FROM communications WHERE client_id=? AND direction='outgoing'
     AND (sent_by_type IS NULL OR sent_by_type NOT IN ('ai','fsbo_ai','automation','system','cx_connect','drip'))
     AND occurred_at >= ? ORDER BY occurred_at DESC LIMIT 1`, [client.id, new Date(Date.now() - 3 * DAY).toISOString()])
-  if (manual) return { ok: false, terminal: false, code: 'RECENT_MANUAL_CONTACT', detail: `manual outreach ${manual.occurred_at}` }
+  if (manualTouch) return { ok: false, terminal: false, code: 'RECENT_MANUAL_CONTACT', detail: `manual outreach ${manualTouch.occurred_at}` }
 
   // Central collision/compliance gate (STOP, opt-out, quiet hours, dedup, live AI
   // or human conversation, holiday). dedupMinutes 20h = never two texts same day.
@@ -271,16 +280,37 @@ function logCx(clientId, event, fields = {}) {
   } catch (e) { console.error('[cx-connect] log failed:', e.message) }
 }
 
+// A human re-enrolling is asserting the number on file is good now, so the stored
+// bad-number verdict (and the cached line-type check behind it) is wiped — it was
+// earned by a number we are no longer texting. Returns the refreshed client row.
+// Nothing else is touched: STOP/opt-out, status and every non-number block stand.
+export function clearNumberVerdict(client) {
+  if (!client) return client
+  if (!client.sms_undeliverable && !client.sms_line_checked_at) return client
+  try {
+    db.run(`UPDATE clients SET sms_undeliverable = 0, sms_undeliverable_reason = NULL, sms_undeliverable_at = NULL,
+            sms_line_type = NULL, sms_line_checked_at = NULL, updated_at = ? WHERE id = ?`, [nowIso(), client.id])
+    if (client.sms_undeliverable) {
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        ['updated', 'client', client.id, 'Bad-number block cleared - manual Cancelled/Expired enrollment (the old verdict belonged to the previous number)'])
+    }
+  } catch {}
+  return db.get('SELECT * FROM clients WHERE id=?', [client.id]) || client
+}
+
 // ---------- enrollment ----------
-export async function enrollClient(clientId, enrolledBy = 'manual') {
-  const c = db.get('SELECT * FROM clients WHERE id=?', [clientId])
+export async function enrollClient(clientId, enrolledBy = 'manual', { manual = false } = {}) {
+  let c = db.get('SELECT * FROM clients WHERE id=?', [clientId])
   const existing = db.get('SELECT * FROM cx_campaign WHERE client_id=?', [clientId])
   if (existing && existing.status === 'active') return { ok: false, reason: 'already enrolled' }
   if (existing && existing.status === 'response_received') return { ok: false, reason: 'response received — human must decide before re-enrollment' }
   // A human's pause/remove sticks: bulk enroll never silently re-activates those.
   // The profile card's Resume/Re-enroll button (resumeCampaign) is the explicit path back in.
   if (existing && ['paused', 'removed'].includes(existing.status)) return { ok: false, reason: `${existing.status} by a human — use Resume/Re-enroll on the lead profile` }
-  const ver = await evaluateEligibility(c, { atEnroll: true })
+  // Manual enroll = the human has a corrected number, so drop the old number's
+  // verdict BEFORE evaluating (and before any send re-checks it).
+  if (manual && c) c = clearNumberVerdict(c)
+  const ver = await evaluateEligibility(c, { atEnroll: true, manual })
   if (!ver.ok) {
     logCx(clientId, 'enroll_refused', { eligibility_result: ver.code, suppression_reason: ver.detail })
     return { ok: false, reason: `${ver.code}: ${ver.detail}` }
@@ -496,8 +526,9 @@ export async function resumeCampaign(clientId) {
   if (!en) return { ok: false, reason: 'not enrolled' }
   // Re-enrollment after a response (or a stop) is a deliberate HUMAN action, and
   // eligibility is re-verified from scratch.
-  const c = db.get('SELECT * FROM clients WHERE id=?', [clientId])
-  const ver = await evaluateEligibility(c, { atEnroll: true })
+  let c = db.get('SELECT * FROM clients WHERE id=?', [clientId])
+  if (c) c = clearNumberVerdict(c)
+  const ver = await evaluateEligibility(c, { atEnroll: true, manual: true })
   if (!ver.ok) return { ok: false, reason: `${ver.code}: ${ver.detail}` }
   db.run("UPDATE cx_campaign SET status='active', next_send_at=?, stop_reason=NULL, stopped_at=NULL, updated_at=? WHERE client_id=?",
     [toWeekday(new Date()).toISOString(), nowIso(), clientId])
