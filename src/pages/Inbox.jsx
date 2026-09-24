@@ -7,6 +7,7 @@ import Modal from '../components/Modal'
 import RichTextEditor from '../components/RichTextEditor'
 import TemplatePicker from '../components/TemplatePicker'
 import { stripQuotedDisplay } from './Clients'
+import { statusColor, formatStatus } from '../lib/leadStatus'
 
 const CHANNELS = [
   { key: 'email', label: 'Emails', icon: '✉', color: '#2563eb' },
@@ -548,6 +549,20 @@ export default function Inbox() {
               <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                 <div style={{ fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: '0 1 auto' }}>{selConvo?.contact_name || 'Conversation'}</div>
                 <a href={'/clients/' + sel} className="btn btn-sm btn-secondary" style={{ textDecoration: 'none' }} title="Open the full-screen profile (right-click or Ctrl/Cmd-click to open in a new tab)" onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); navigate('/clients/' + sel) }}>◉ View profile</a>
+                {/* The lead's actual Sierra status (John, 2026-09-24). Same colours as the
+                    Clients tabs, so Watch / Junk / Prime read identically in both places.
+                    Sits before the listing pill: who they are, then what they're listing. */}
+                {(() => {
+                  const c = selLead
+                  if (!c || Number(c.id) !== Number(sel) || !c.status) return null
+                  const color = statusColor(c.status)
+                  return (
+                    <span title={`Lead status: ${formatStatus(c.status)}`}
+                      style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, border: `1px solid ${color}40`, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+                      {formatStatus(c.status)}
+                    </span>
+                  )
+                })()}
                 {(() => {
                   // Seller-context pill: what kind of listing lead is texting us —
                   // Cancelled / Expired / Withdrawn (MLS status), or FSBO + its

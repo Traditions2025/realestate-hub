@@ -1,7 +1,223 @@
 {
-  "generated_at": "2026-09-21T16:17:12.222Z",
+  "generated_at": "2026-09-24T17:55:41.493Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "b0779d0",
+      "date": "2026-09-24T10:50:30-05:00",
+      "subject": "Before the Sign: drop \"Sell as-is, or fix it first?\" (step 4 of 30)",
+      "title": "Before the Sign: drop \"Sell as-is, or fix it first?\" (step 4 of 30)",
+      "body": "It was driving unsubscribes, so John asked for it out of the seller nurture\nsequence.\n\nRemoving it is not just a splice. Drip steps are a positional array, and BOTH\nthe enrollment pointer (current_step) and the send-dedupe key\n(drip{id}_step{idx}) are that index. Splicing one out mid-sequence slides every\nlater step down onto a key that already reads \"sent\", so the runner would find\na prior success, skip the send and advance -- silently burning through the rest\nof the campaign for the 452 active leads past that point.\n\nSo the migration drops the step, discards its own execution rows, then slides\neach later index and its key down by one, ascending so the UNIQUE key never\ncollides, and decrements current_step for everyone past it. Leads before it\nsimply never receive it; leads already past it keep every remaining email.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "af31904",
+      "date": "2026-09-24T10:02:43-05:00",
+      "subject": "Register date: catch up the FSBO-by-tag leads the first backfill missed",
+      "title": "Register date: catch up the FSBO-by-tag leads the first backfill missed",
+      "body": "The 09-23 backfills keyed on fsbo_status / mls_status, but the Clients\nlist decides \"is this FSBO or Cancelled/Expired\" with a wider predicate\nthat also matches a tag or source containing fsbo / expired / cancelled.\n277 FSBO-by-tag leads were still showing a blank Registered column\n(Cancelled/Expired was already at 169 of 169). This migration uses the\nSAME predicates the list filters use, so the column is populated for\nexactly the leads those filters return. Empty values only, never\noverwritten, and leads with a FUB person id are still skipped.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e9c8d00",
+      "date": "2026-09-23T12:32:18-05:00",
+      "subject": "Document the FSBO + Cancelled/Expired follow-up plan as built",
+      "title": "Document the FSBO + Cancelled/Expired follow-up plan as built",
+      "body": "John asked for the complete current plan for both prospecting lanes.\nWritten from the code (fsbo-followup.js, cx-connect.js and the two master\nsyncs) rather than memory: entry, trigger, cadence, angle rotation, age\nbuckets, stop conditions, the shared send window and compliance gates,\nand the state of the email drips.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "docs"
+    },
+    {
+      "hash": "97c92ca",
+      "date": "2026-09-23T11:25:16-05:00",
+      "subject": "AI enrollment: also run the reactivation tick shortly after boot",
+      "title": "AI enrollment: also run the reactivation tick shortly after boot",
+      "body": "The reactivation lane is on a 1-hour setInterval anchored to server\nstart, with no run at boot. Every deploy resets it, so a day with\ndeploys less than an hour apart starves the lane entirely: 2026-09-23\nshipped six deploys and the lane enrolled 0 leads all morning while the\ncap sat at 50 (the fresh lane kept working because FB intake fires it by\nevent). Now it also runs 4 minutes after boot.\n\nSelf-limiting by design: the tick already gates on weekday 9AM-4PM CT,\nthe per-day cap, and a per-tick batch of cap/7, so extra restarts can\nnever push a day past the cap.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4c827f4",
+      "date": "2026-09-23T10:29:02-05:00",
+      "subject": "FSBO gets a real Registered date; show the column on every list",
+      "title": "FSBO gets a real Registered date; show the column on every list",
+      "body": "John, 2026-09-23. Same treatment as Cancelled/Expired: FSBO leads are\ncreated from the FSBO master file and never register on the website, so\ntheir Registered column was blank. New FSBO leads get register_date on\ncreation and a boot migration backfills existing ones from created_at\n(91 in the local copy) — empty values only, never overwritten, and leads\nwith a FUB person id are skipped so their real date can still arrive.\n\nRegistered column now shows everywhere:\n- the Cancelled/Expired list had its OWN restricted column set that left\n  'registered' out entirely, which is why it could never be shown there\n- column choices are saved per view, so a one-time localStorage pass\n  turns that single column on for views customized before today and\n  leaves every other choice alone\n- the cell falls back to created_at, matching the recent_added sort, so\n  it never shows a blank where the sort plainly has a date\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "33f538f",
+      "date": "2026-09-23T09:55:45-05:00",
+      "subject": "Cancelled/Expired: give them a real, visible Registered date",
+      "title": "Cancelled/Expired: give them a real, visible Registered date",
+      "body": "John, 2026-09-23: \"treat register date on cancelled/expired as actual\nregister date that we are able to sort and should show the dates\". These\nleads are created from the MLS master file and never register on our\nwebsite, so the Registered column was blank for ~all of them. For a\nprospecting lead the registration date IS the day it entered the Hub.\n\nNew C/E leads get register_date set on creation, and a one-time boot\nmigration fills it from created_at for existing ones (1,930 rows in the\nlocal copy). Only EMPTY values are filled, never overwritten, and leads\nwith a FUB person id are skipped so the FUB enricher can still write\ntheir true website-registration date later.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "41d4f62",
+      "date": "2026-09-23T09:48:48-05:00",
+      "subject": "Clients: \"Recently Added\" sort falls back to created_at",
+      "title": "Clients: \"Recently Added\" sort falls back to created_at",
+      "body": "Sorting the Cancelled/Expired list by register date stopped at Sept 1 and\nthe newest leads looked missing (John, 2026-09-23). register_date is the\nSierra/FUB website-registration date, which prospecting leads never have:\nC/E and FSBO leads are created straight from the master files. In the\nlocal copy only 7 of 1,712 C/E leads had a register or Sierra date, so\n1,705 sorted to the bottom as blanks and the top of the list froze at the\nlast lead that happened to register on the website.\n\nrecent_added / oldest_first now COALESCE down to created_at, so every\nlead sorts by when it actually landed in the Hub (7 -> 1,712 sortable).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1d659d7",
+      "date": "2026-09-23T09:46:28-05:00",
+      "subject": "CX campaign: say WHERE a missing number actually is",
+      "title": "CX campaign: say WHERE a missing number actually is",
+      "body": "A lead with a good number visibly on the record was still refused with a\nbare \"no phone on file\" (Komlan Afandonougbo Jr, John 2026-09-23) — the\ncampaign reads the PRIMARY phone, and a corrected number added through\n\"+ add another phone\" lands in alt_phones instead. The refusal now names\nthe additional number and says to move it into the Phone field, and a\nwhitespace-only primary counts as empty.\n\nDeliberately NOT changed: the campaign still texts the primary number\nonly. Falling back to an additional number would quietly text whoever is\nin that field (often a spouse or relative), which is a data-convention\ncall, not a bug fix.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "436da80",
+      "date": "2026-09-23T09:40:00-05:00",
+      "subject": "CX campaign: manual enroll overrides a stale bad-number verdict",
+      "title": "CX campaign: manual enroll overrides a stale bad-number verdict",
+      "body": "John, 2026-09-23: manual enrollment was still refused with \"no number /\nbad number\" after the number had been corrected. The block came from the\nstored sms_undeliverable flag (and a prior WRONG_NUMBER reply), which the\nPUT /clients/:id phone-edit only clears when the number changes through\nthat one path — a Sierra backfill or master-file write leaves it set.\n\nA manual enroll IS the human asserting the number is good now (it is the\nonly reason to enroll by hand), so it now clears the stored verdict\n(sms_undeliverable + reason + cached line-type check, logged to the\nlead's activity) and forgives a WRONG_NUMBER history verdict. Resume /\nRe-enroll does the same. Bulk and auto enrollment are unchanged and still\nrespect the flag.\n\nGuardrails kept: STOP/opt-out, junk/DNC/closed/not-in-market status, no\nnumber at all, no property address, merged records, and every verdict\nthat is the LEAD speaking (sold, rented, listed with an agent, not\ninterested, already replied) still block a manual enroll.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6103d77",
+      "date": "2026-09-23T09:33:30-05:00",
+      "subject": "FB Ads: month-to-date ad spend card",
+      "title": "FB Ads: month-to-date ad spend card",
+      "body": "John, 2026-09-23: \"monthly ad spend of current month\" is the window the\nbudget is set against, which is not the rolling last-30-days already on\nthe dashboard. The sync now also pulls an account-level this_month\nrollup into fb_ads_account_month, and the tab leads with an \"Ad Spend\n(September)\" card beside the running-campaign spend.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c8b566d",
+      "date": "2026-09-22T12:54:37-05:00",
+      "subject": "Clients filters: grouped, collapsible panel with active-filter chips",
+      "title": "Clients filters: grouped, collapsible panel with active-filter chips",
+      "body": "John, 2026-09-22. A UI/UX reorganization only — every filter, every\nadvFilters key and every query the server sees is unchanged, so existing\nSaved Lists return the same rows (verified: all 59 state keys still read\nand written).\n\n- Nine+ groups replace the flat scatter: Quick Filters, Location &\n  Property and Prospecting open by default; Communication, Email\n  Engagement, Activity & Engagement, Listing Activity, Automation &\n  Campaigns, Contact & Data Quality, Looking For and Realist collapse.\n  A collapsed group shows how many of its filters are set.\n- Recency filters collapse from \"[Any] [__] days ago\" to one preset\n  dropdown (Today / Past 7 / Past 30 / 30+ / 90+ / Custom…), with the raw\n  op+days controls revealed only under Custom. Presets map onto the SAME\n  {op, days} pair; Last Text also exposes Never texted / Has been texted\n  (the existing texted_out field). Open/click minimum counts and the\n  listing-visit custom range hide until wanted, and auto-reveal when a\n  saved list restores a value.\n- Active filter chips under the toolbar; each × clears exactly one\n  criterion, Clear All clears filtering only (sort, page size, columns\n  and saved-list setup untouched).\n- Even 3-4 column responsive grid, standardized 32px control heights,\n  consistent labels/spacing. Placeholders lose the noisy counts\n  (\"Search 1651 tags…\" -> \"Search tags…\").\n- Narrow screens open the panel as a drawer instead of stacking the whole\n  desktop form; chips stay visible after it closes.\n\nSmoke-tested in a real browser: 11 groups, 40 fields, presets/custom\nreveal, chips add+remove, group badges, list refetch, zero JS errors.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a74588b",
+      "date": "2026-09-22T11:44:47-05:00",
+      "subject": "Inbox: last market price for Cancelled/Expired and FSBO threads",
+      "title": "Inbox: last market price for Cancelled/Expired and FSBO threads",
+      "body": "John, 2026-09-22. FSBO already carried fsbo_price; Cancelled/Expired had\nno price anywhere — the master sheet has no price column, so the daily\nMLS pull's Notes blob is the only source. New parseMlsListPrice() reads\nthe two structured shapes the pull writes (\"$199,900; DOM 34…\" and\n\"…(MLS 2605830) at $199,900\") into a new clients.mls_list_price, filled\non both the create and matched-update sync paths.\n\nDeliberately conservative: notes also carry SALE prices (\"Sold $125,000\non 06/30/2026\", \"a sale on 04/08/2024 for $171,000, which is how the\nowner bought it\"). Those match neither shape, so they return null and\nthe UI omits the price rather than showing a wrong number — 68 of 209\nsheet rows parse, and every dollar amount skipped is a sale price.\n\nInbox conversation rows and the thread header now show the price beside\nthe address (FSBO list price for live FSBOs, last MLS list price\notherwise), resolved in the same batched context query.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "964aa21",
+      "date": "2026-09-22T11:15:52-05:00",
+      "subject": "FSBO: same replaced-number rule; manual C/E enroll fires immediately",
+      "title": "FSBO: same replaced-number rule; manual C/E enroll fires immediately",
+      "body": "John, 2026-09-22. Two follow-ons to the Cole Hilgenberg fix:\n- evaluateFsboCampaignEligibility's pre-enrollment history scan had the\n  same blind spot as the CX one: a reply from a since-replaced number\n  blocked a corrected FSBO lead forever. It now ignores text/call\n  replies whose from_addr is not one of the lead's current numbers.\n- Manual enroll/resume on the C/E campaign now kicks the sweep right\n  away instead of waiting up to 15 min for the next scheduled tick. The\n  sweep still gates everything: master switch, weekday 9AM-4PM CT\n  window, per-send eligibility, and the 1-2.5 min trickle.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3b3a9a4",
+      "date": "2026-09-22T10:57:27-05:00",
+      "subject": "CX campaign: a wrong-number verdict belongs to the NUMBER, not the lead",
+      "title": "CX campaign: a wrong-number verdict belongs to the NUMBER, not the lead",
+      "body": "John, 2026-09-22 (Cole Hilgenberg): after correcting a lead's phone,\nmanual re-enrollment still refused with \"WRONG_NUMBER: Sorry you have\nthe wrong number\" — the eligibility history scan counted replies from\nthe OLD, since-replaced number. historyBlock now ignores inbound\ntext/call replies whose from_addr is not one of the lead's CURRENT\nnumbers (primary or alt), so a corrected phone clears both the\nwrong-number block and the prior-response block. The same reply from a\nnumber still on file blocks exactly as before.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "48831c5",
+      "date": "2026-09-22T10:37:47-05:00",
+      "subject": "Template render preview must not consume the {{intro}} rotation",
+      "title": "Template render preview must not consume the {{intro}} rotation",
+      "body": "Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7f06417",
+      "date": "2026-09-22T10:36:39-05:00",
+      "subject": "Inbox: template insert renders merge fields for the selected lead",
+      "title": "Inbox: template insert renders merge fields for the selected lead",
+      "body": "John, 2026-09-22: inserting a template into the reply composer showed\nraw {{greeting}}/{{address}} tokens (they only resolved server-side at\nsend). Insert now calls /api/templates/render for the open lead, so the\ncomposer shows exactly what will send; the send path still fills any\ntokens typed manually.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9d22ac6",
+      "date": "2026-09-22T09:39:21-05:00",
+      "subject": "Inbox prospecting filters + profile density pass",
+      "title": "Inbox prospecting filters + profile density pass",
+      "body": "John, 2026-09-22. INBOX: a second filter dimension — Prospecting: All /\nCancelled-Expired / FSBO — layered onto the existing All/Unread/channel\nfilters in the ONE unified inbox. Context resolved server-side in a\nsingle batched query (authoritative fields only: MLS tags/status,\nfsbo_status — never message text): conversation rows show a status badge\n+ address + MLS # (omitted when unknown) or FSBO status + DOM; the\nthread header pill gains a clickable address / MLS / Off-Market / DOM\nline; search matches address and MLS # too; counts ride the same data.\nFilter state persists across navigation (localStorage), chips scroll\nhorizontally on mobile.\n\nPROFILE: desktop-only density layer on the shared spacing knobs (card\npadding, column/kv/two-col gaps, sticky header, action buttons) — more\ninformation per screen with no readability loss; mobile spacing\nuntouched; cards keep sizing to content.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "217058c",
+      "date": "2026-09-22T09:17:54-05:00",
+      "subject": "FB Ads: dedupe lead counts + running-spend / last-30-days dashboard cards",
+      "title": "FB Ads: dedupe lead counts + running-spend / last-30-days dashboard cards",
+      "body": "Meta reports one lead under several overlapping action types; summing\nthem doubled every campaign's lead count (Kitchen creative showed 2\nwhere Ads Manager showed 1; Springville 34 vs the real 17 — John,\n2026-09-22). leadCount now uses the canonical 'lead' total with a\nlargest-subset fallback. Dashboard cards per John: ad spend of RUNNING\ncampaigns only, then account-level last-30-days leads, impressions and\nreach (reach from the account rollup, where Meta dedupes it properly).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "acd4717",
+      "date": "2026-09-21T18:31:06-05:00",
+      "subject": "Marketing > Facebook Ads: live campaign tracking from the Meta Graph API",
+      "title": "Marketing > Facebook Ads: live campaign tracking from the Meta Graph API",
+      "body": "John, 2026-09-21. New Facebook Ads tab under Campaigns (Marketing):\nper-campaign status, objective, start date, daily budget, spend,\nimpressions, reach, clicks, CTR, leads (all Meta lead action types),\ncost per lead, video views, and a last-7-days snapshot, plus account\ntotals. server/fb-ads.js syncs every 6h (+90s after boot) using a user\ntoken stored in the fb_ads_access_token setting; token expiry surfaces\nas a renewal banner with a paste-and-validate box (a bad token can\nnever replace a working one), never as silently stale numbers.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e085f5b",
+      "date": "2026-09-21T16:45:45-05:00",
+      "subject": "Master file: tag matched EXISTING leads so Watch + CX auto-text see them",
+      "title": "Master file: tag matched EXISTING leads so Watch + CX auto-text see them",
+      "body": "The daily Cancelled/Expired sync only added the MLS: Cancelled/Expired\ntag when it CREATED a lead. A pre-existing contact matched by address\n(e.g. an old Batchleads import) got mls_status but no tag — and the tag\nis what the C/E saved list, the New->Watch rule, and the CX auto-enroll\nall key on, so those leads got no Watch move and no auto text (Robert\nBunting, cancelled 2026-09-21).\n\nSync now tags matched existing leads exactly like creates; a one-time\nboot migration (mls-tag-backfill-2026-09-21) tags every live lead whose\nmls_status already qualifies and runs the Watch sweep after.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "93fcd9d",
+      "date": "2026-09-21T16:35:30-05:00",
+      "subject": "Fix It or Skip It email drip: weekday sends 9AM-5PM CT only",
+      "title": "It or Skip It email drip: weekday sends 9AM-5PM CT only",
+      "body": "John, 2026-09-21: the prompt Email-1 override now fires only inside\n9AM-5PM CT; outside it the engine's own step window scheduling stands.\nDrip #19's Email-1 send window tightened to 09:00-17:00 on the live Hub\n(later steps were already 9:00-11:30).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "c612ef7",
+      "date": "2026-09-21T16:04:36-05:00",
+      "subject": "Fix It or Skip It 12-month email drip: engine support",
+      "title": "It or Skip It 12-month email drip: engine support",
+      "body": "John, 2026-09-21. Three engine pieces for the 21-email seller drip:\n- {{intro}} merge token — rotating Hi / Hello / time-of-day greeting\n  (same rotation as the FB text opener bank), resolved at send time.\n- drip_campaigns.pause_on_reply — an opt-in flag: any inbound text or\n  email since enrollment pauses the drip BEFORE the next send, creates a\n  high-priority follow-up task and notifies, so a human owns the\n  conversation the moment a lead replies.\n- Fix It or Skip It intake auto-enrolls every family lead into the email\n  drip (looked up by name; hot statuses included since the drip is\n  low-pressure and self-pausing; stop statuses/NIM/hard email blocks\n  refused by enrollInDrip), with Email 1 scheduled ~5 min after the form.\n\nCampaign content (21 templates, John's copy verbatim) is created as data\non the live Hub, not in source.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "d81e85a",
+      "date": "2026-09-21T15:21:50-05:00",
+      "subject": "Seller campaign: fix param-count crash that re-sent the Day-0 opener 8x",
+      "title": "Seller campaign: fix param-count crash that re-sent the Day-0 opener 8x",
+      "body": "The post-send state UPDATE had 5 placeholders and 4 params. better-sqlite3\nthrew AFTER the SMS was already out, the scheduler's catch() swallowed it,\nand the step never advanced: 5 min later the row was still due, the 60-min\ndedup deferred it +3h, and Luis received the identical opener 8 times over\n3 days (3x/day inside the 9-4 automation window).\n\nFixes: correct params via extracted advanceSellerStep (exported, tested);\nsendSellerSms wrapped in try/catch like the FSBO sender; each sweep row is\nfailure-isolated (error -> +3h push + activity_log, never a hot loop); and\na self-heal guard — an identical already-sent body advances the step\ninstead of ever re-texting. Luis's row set to stopped (human decision on\nany further contact).\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "36cab4e",
+      "date": "2026-09-21T15:03:39-05:00",
+      "subject": "AI training: buyer/seller intent overlap + resistance lowers pressure",
+      "title": "AI training: buyer/seller intent overlap + resistance lowers pressure",
+      "body": "John, 2026-09-21, after the Jenny Wilcox exchange: the AI answered \"I\nhave no intention of selling my home!\" with \"our messages were geared\ntoward buying, not selling\" and re-asked the intent question. New\nINTENT_OVERLAP block (in every conversational prompt, cold-seller and\nstandard): intent is not binary, never correct the lead about what our\nmessages were about, acknowledge and only clarify when genuinely useful\nwith ONE soft question, resistance statements reduce pressure instead of\ntriggering more qualification, and a plain acknowledgement is a valid\nending. Eval scenario b-not-selling-pushback locks the regression.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0af67db",
+      "date": "2026-09-21T13:48:11-05:00",
+      "subject": "AI copy rule: never say \"ad\" to a lead, say \"on Facebook\" instead",
+      "title": "AI copy rule: never say \"ad\" to a lead, say \"on Facebook\" instead",
+      "body": "John, 2026-09-21: Facebook follow-ups should never remind a lead they\nclicked an advertisement. All fixed template copy already says \"on\nFacebook\"; this adds the rule to both AI text layers (conversation STYLE\nrules + Suggested Follow-Up drafting system prompt) so generated copy\ncan't echo the \"Facebook Listing Ad\" source label into a message.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7c04db9",
+      "date": "2026-09-21T11:57:01-05:00",
+      "subject": "Sierra sync: adopt existing Hub record instead of inserting a duplicate",
+      "title": "Sierra sync: adopt existing Hub record instead of inserting a duplicate",
+      "body": "FB ad leads are born in the Hub and don't reach Sierra automatically, so\nmanual Sierra uploads made the next sync pass INSERT a twin of a lead the\nHub already had (4 dup pairs from the 09-18 upload, since merged). Now an\nunknown Sierra id first looks for a live Hub record with the same email,\nor same phone last-10 plus same first name (never bare phone: household\nlines are never collapsed), attaches the Sierra id to it, and keeps the\nHub's status on that first pass. Sync tag writes now union Hub-native FB\ncampaign tags (FB Ad / FB Seller Ad / Meta Lead / Fix It or Skip It) back\nin so a pass can't strip a lead's campaign identity.\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "76d0b10",
+      "date": "2026-09-21T11:18:17-05:00",
+      "subject": "Call intelligence: transcript + AI summary on every recorded call",
+      "title": "Call intelligence: transcript + AI summary on every recorded call",
+      "body": "FUB-style call notes, native to the Hub. When a recorded call (>= 20s)\nends, the recording webhook queues it with Twilio Conversational\nIntelligence (same account, dual-channel = real Agent/Caller speaker\nlabels); a 2-minute poller collects finished transcripts and Claude\nwrites SUMMARY / KEY DETAILS / SUGGESTED TASKS onto the call row.\nProfile + Inbox render collapsible AI Call Summary and Transcript\nsections on the call entry; team gets a notification when ready.\n\n- server/call-intelligence.js (service bootstrap, queue, poller, summary)\n- POST /api/inbox/comm/:id/transcribe for backfilling old recordings\n- Master switch call_intel_enabled; failures mark 'failed', no retry loops\n- Suggested tasks are displayed, never auto-created\n\nCo-Authored-By: Claude Fable 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "538eb34",
       "date": "2026-09-21T10:49:39-05:00",
@@ -3785,222 +4001,6 @@
       "title": "a2pStatus phone_numbers field + report service inbound routing config",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "876df8e",
-      "date": "2026-08-19T17:54:47-05:00",
-      "subject": "Add Twilio A2P 10DLC status check endpoint (brand + campaign + service membership)",
-      "title": "Twilio A2P 10DLC status check endpoint (brand + campaign + service membership)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "4ff220d",
-      "date": "2026-08-19T17:42:27-05:00",
-      "subject": "Client edits: push fields to Sierra so they stick + inline profile editing",
-      "title": "Client edits: push fields to Sierra so they stick + inline profile editing",
-      "body": "- New POST /api/sierra/update-lead-fields: pushes name/phone/email/address/status\n  to Sierra via PUT /leads/{id} (documented partial update). Fixes edits on\n  Sierra-linked leads silently reverting on the next sync.\n- Edit Client modal save() now: surfaces an error if the local save fails (was\n  silent), pushes edited fields to Sierra for Sierra leads, and refreshes the open\n  profile (was showing stale data after an edit).\n- Inline editing on the lead profile: ✎ buttons next to Name, Phone, Email, and\n  Address edit that field in place (Hub + Sierra push) without opening Edit Client.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "91f5cad",
-      "date": "2026-08-19T17:28:15-05:00",
-      "subject": "twilio wire-number: accept custom sms_url/status_url (to restore a number to GHL)",
-      "title": "twilio wire-number: accept custom sms_url/status_url (to restore a number to GHL)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "629246d",
-      "date": "2026-08-19T17:11:15-05:00",
-      "subject": "Twilio go-live: add test-send + wire-number (repoint inbound webhook) endpoints",
-      "title": "Twilio go-live: add test-send + wire-number (repoint inbound webhook) endpoints",
-      "body": "Account is funded/active again. Added POST /api/settings/twilio/test-send (one-off\noutbound test) and POST /api/settings/twilio/wire-number (points a number's inbound\nSmsUrl + StatusCallback at the Hub, defaulting to the configured From number) so we\ncan move inbound off GoHighLevel to the Hub. wireNumberToHub returns before/after.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c2ae2d2",
-      "date": "2026-08-19T16:15:59-05:00",
-      "subject": "Sierra tag push: use documented PUT /leads/{id} {tags:[tag]} / {removeTags:[tag]}",
-      "title": "Sierra tag push: use documented PUT /leads/{id} {tags:[tag]} / {removeTags:[tag]}",
-      "body": "Per Sierra's Update Existing Lead docs, `tags` (string array) ASSIGNS additively\nand `removeTags` removes — so sending only the single changed tag never touches\nexisting tags. Confirmed working: a test push added FSBO_Off Market while keeping\nthe lead's other tags. Object form 400s; strings are required. Earlier \"clobber\"\nwas a transient empty read right after the write (Sierra eventual consistency).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f9fb2df",
-      "date": "2026-08-19T16:00:48-05:00",
-      "subject": "Revert Sierra tag-push via PUT /leads/{id} — it clobbers tags",
-      "title": "Revert Sierra tag-push via PUT /leads/{id} — it clobbers tags",
-      "body": "Confirmed on this account: dedicated tag routes 404; PUT /leads/{id} with a\nstring tags array CLEARS the lead's tags, and with objects returns 400\n\"Missing request parameters\". There is no safe API tag-write, so tag pushes\nremain local-only (as before). Removed the PUT /leads/{id} {tags} attempts.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1784a60",
-      "date": "2026-08-19T15:56:36-05:00",
-      "subject": "Sierra tag push: send tags as objects {name} via PUT /leads/{id} (test format)",
-      "title": "Sierra tag push: send tags as objects {name} via PUT /leads/{id} (test format)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "68de052",
-      "date": "2026-08-19T15:51:33-05:00",
-      "subject": "Sierra tag push: try PUT /leads/{id} with full tags array (the working shape)",
-      "title": "Sierra tag push: try PUT /leads/{id} with full tags array (the working shape)",
-      "body": "Status writes succeed via PUT /leads/{id}; tags almost certainly use the same\nlead-update endpoint. Added it as the first attempt for both add and remove\n(sending the full local tags array, which mirrors Sierra + our additions).\nOlder tag-specific shapes remain as fallbacks.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "22c3dce",
-      "date": "2026-08-19T11:52:52-05:00",
-      "subject": "inbox: add auth-gated test-notify endpoint to resend the latest inbound alert",
-      "title": "inbox: add auth-gated test-notify endpoint to resend the latest inbound alert",
-      "body": "POST /api/inbox/test-notify/:clientId re-runs the real notifyNewInbound path\nfor a client's most recent inbound email, so the alert format/recipients can be\nverified without waiting for a fresh reply. Exports notifyNewInbound for it.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "439e5ad",
-      "date": "2026-08-19T11:45:18-05:00",
-      "subject": "Inbox email alerts: detailed subject + always notify John AND Matt",
-      "title": "Inbox email alerts: detailed subject + always notify John AND Matt",
-      "body": "The heads-up when a client emails/replies now has a self-explanatory subject:\n\"<Client> replied to your email \\\"<original subject>\\\"\" (Re:/Fwd: prefixes\nstripped), or \"<Client> emailed you: \\\"<subject>\\\"\" for a fresh email. The\nalert body leads with the subject in quotes. Recipients now always include\nJohn + Matt (johnwithmattsmithteam@gmail.com, mattsmithremax@gmail.com — the\nsame pair the TC digest uses), plus any inbox_notify_email extras, de-duped.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2b04c88",
-      "date": "2026-08-18T13:56:18-05:00",
-      "subject": "Drips: one active drip per lead (never stack a second campaign)",
-      "title": "Drips: one active drip per lead (never stack a second campaign)",
-      "body": "enrollInDrip now skips any contact already active in ANY drip — previously the\nguard was per-drip, so a lead could end up in two campaigns at once. Applies to\nevery enroll path (Clients bulk-apply, automations' Start Drip action, AI\nCampaign Match). AI Campaign Match no longer recommends contacts already in a\ndrip (names the other campaign in the not-recommended reason), and the bulk\nconfirmation reflects the one-drip-per-lead skip reason.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "eea4c0e",
-      "date": "2026-08-18T13:31:03-05:00",
-      "subject": "Drips: exclude un-emailable contacts at enrollment (not just at send)",
-      "title": "Drips: exclude un-emailable contacts at enrollment (not just at send)",
-      "body": "enrollInDrip now skips contacts that emailHardBlock would reject anyway —\nno email on file, throwaway @notvalidemail.com domain, prior spam complaint,\nor a known wrong address — so bulk-applying a drip from the Clients tab no\nlonger adds bad-email leads to the roster as enrolled-but-silent. Junk/DNC\nstatus is still skipped; opt-outs are NOT (team policy emails them, tagged).\n\nThe enroll route now returns skipped/total, and the Clients bulk-apply\nconfirmation reports the real skip count and reason. This also makes the\nexisting \"without an email are skipped\" UI copy actually true.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e8d887c",
-      "date": "2026-08-18T10:53:39-05:00",
-      "subject": "monthly_intro: swap the August line to a weather-neutral one",
-      "title": "monthly_intro: swap the August line to a weather-neutral one",
-      "body": "\"The calendar says August, but somehow it feels like summer just started\"\nassumed peak-summer weather; replaced with \"August has a way of reminding us\nsummer doesn't stick around forever\" so it reads right regardless of a rainy\nstretch. Updated the merge-field example to match.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f58aae0",
-      "date": "2026-08-18T10:34:36-05:00",
-      "subject": "Past-client emails: add {{monthly_intro}} rotating calendar-month opener",
-      "title": "Past-client emails: add {{monthly_intro}} rotating calendar-month opener",
-      "body": "New merge field {{monthly_intro}} renders a warm, Cedar Rapids/Eastern\nIowa-flavored opening line chosen by the CURRENT calendar month (Chicago),\nmirroring how {{seasonal_maintenance}} self-adjusts. Because the past-client\ndrips send relative to enrollment (not by calendar), this keeps every monthly\ntouch opening in-season and never repeats the line month to month.\n\nWired into fillTemplate + the shared MERGE_FIELDS list. Inserted after the\ngreeting in 21 past-client templates (both the standard Lifelong Friends and\nVintage decks), skipping the bare E12 anniversary email in both decks and the\nstandard E3 seasonal-maintenance email (which already opens seasonal).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "84eae15",
-      "date": "2026-08-18T09:47:36-05:00",
-      "subject": "Drip editor: preview + edit-in-place for template-backed steps",
-      "title": "Drip editor: preview + edit-in-place for template-backed steps",
-      "body": "Steps that use a shared template now render a read-only preview of the\nactual email (subject + body on a white card, legible in dark mode)\ninstead of just a template-name dropdown, so the emails in a drip can be\nreviewed at a glance. An \"Edit email\" button opens the template in place;\nsaving PUTs /api/templates/:id, so the edit also updates that template in\nthe Templates tab (and anywhere else it is used). The step Subject input\nis hidden when a template is selected (the template's subject wins).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fb33065",
-      "date": "2026-08-14T17:15:38-05:00",
-      "subject": "Add \"Lifelong Friends: Vintage\" past-client drip (#12) for 3+ year closings",
-      "title": "\"Lifelong Friends: Vintage\" past-client drip (#12) for 3+ year closings",
-      "body": "- New {{years_in_home}} merge field: whole years since the client's most\n  recent closing (from transactions.closing_date), falls back to \"several\".\n  Wired into fillTemplate + the shared MERGE_FIELDS list (composer + Custom\n  Fields tab).\n- AI Campaign Match: register drip 12 (Closed status + 3+ year tenure);\n  add mutual-exclusion so drip 4 (standard Lifelong Friends) skips 3+ year\n  closings and drip 12 skips closings under 3 years — nobody on both.\n- 12 monthly Vintage templates + drip were created on the live server\n  (templates 181-192, drip id 12) via build_vintage.mjs.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "9b4af42",
-      "date": "2026-08-14T15:20:42-05:00",
-      "subject": "AI Campaign Match: drive campaigns from actual drips (every drip selectable + enrollable) with per-drip status eligibility; Past Client Nurture restricted to Closed status only",
-      "title": "AI Campaign Match: drive campaigns from actual drips (every drip selectable + enrollable) with per-drip status eligibility; Past Client Nurture restricted to Closed status only",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bb04161",
-      "date": "2026-08-14T13:54:44-05:00",
-      "subject": "Stop-contact: DNC now removes drips like Junk; block new enrollment + send for stop-status leads; boot backfill purges existing Junk/DNC enrollments",
-      "title": "Stop-contact: DNC now removes drips like Junk; block new enrollment + send for stop-status leads; boot backfill purges existing Junk/DNC enrollments",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d6a2412",
-      "date": "2026-08-14T13:40:49-05:00",
-      "subject": "Wire the new past-client merge fields into fillTemplate replacement chain (helpers were defined but not applied)",
-      "title": "Wire the new past-client merge fields into fillTemplate replacement chain (helpers were defined but not applied)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1bb6120",
-      "date": "2026-08-14T13:38:10-05:00",
-      "subject": "Add past-client value-tool hyperlinks + self-adjusting seasonal maintenance merge fields ({{home_value_link}}, {{cma_request_link}}, {{seasonal_maintenance}}); expose in composer field menu",
-      "title": "past-client value-tool hyperlinks + self-adjusting seasonal maintenance merge fields ({{home_value_link}}, {{cma_request_link}}, {{seasonal_maintenance}}); expose in composer field menu",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "58bced0",
-      "date": "2026-08-14T11:56:05-05:00",
-      "subject": "Inbox notifications: skip the 'New inbox email' gmail heads-up for our own ops senders (John/team) and Render platform mail; message still stored in the inbox",
-      "title": "Inbox notifications: skip the 'New inbox email' gmail heads-up for our own ops senders (John/team) and Render platform mail; message still stored in the inbox",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b282dc4",
-      "date": "2026-08-14T10:07:28-05:00",
-      "subject": "Templates tab: show a read-only 'Transaction Emails' section (live from the transaction system) so all email templates are visible in one place, separated",
-      "title": "Templates tab: show a read-only 'Transaction Emails' section (live from the transaction system) so all email templates are visible in one place, separated",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f58af80",
-      "date": "2026-08-14T09:57:16-05:00",
-      "subject": "Transaction emails: add Thank-You + Google review request (adapts buyer/seller/both) and a gentle review follow-up; new {{client_first_names}} + is_buyer/seller/both vars",
-      "title": "Transaction emails: add Thank-You + Google review request (adapts buyer/seller/both) and a gentle review follow-up; new {{client_first_names}} + is_buyer/seller/both vars",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3c0234c",
-      "date": "2026-08-14T09:41:10-05:00",
-      "subject": "Merge fields: rename {{price_clause}}->{{price_range}} (alias kept); add descriptions + a Custom Fields reference tab under Updates (auto-generated from MERGE_FIELDS). Remove 'Pull socials from FUB' button; auto-enrich new FUB leads (socials+register+price) via scheduler every 20 min",
-      "title": "Merge fields: rename {{price_clause}}->{{price_range}} (alias kept); add descriptions + a Custom Fields reference tab under Updates (auto-generated from MERGE_FIELDS). Remove 'Pull socials from FUB' button; auto-enrich new FUB leads (socials+register+price) via scheduler every 20 min",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "03b8b4d",
-      "date": "2026-08-14T09:29:32-05:00",
-      "subject": "Price clause backup: drop the fub_activity viewed-listing average fallback (produced outliers like $2.75M); show nothing when there is no reliable FUB price",
-      "title": "Price clause backup: drop the fub_activity viewed-listing average fallback (produced outliers like $2.75M); show nothing when there is no reliable FUB price",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "153e8aa",
-      "date": "2026-08-14T09:15:53-05:00",
-      "subject": "Clients: Registered column shows full 4-digit year (Aug 14, 2015)",
-      "title": "Clients: Registered column shows full 4-digit year (Aug 14, 2015)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1abd5a8",
-      "date": "2026-08-14T09:09:15-05:00",
-      "subject": "Clients: Registered column + Oldest/Recently-Added sort now follow the FUB register date (fall back to Sierra create date only when no FUB date) so sorting by lead age is accurate",
-      "title": "Clients: Registered column + Oldest/Recently-Added sort now follow the FUB register date (fall back to Sierra create date only when no FUB date) so sorting by lead age is accurate",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

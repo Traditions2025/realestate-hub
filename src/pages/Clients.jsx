@@ -10,6 +10,7 @@ import EmailToolbar from '../components/EmailToolbar'
 import RichTextEditor, { MERGE_FIELDS } from '../components/RichTextEditor'
 import TemplatePicker from '../components/TemplatePicker'
 import { useColumnWidths, ResizeHandle, defaultWidthFor } from '../lib/columnResize'
+import { LEAD_STATUS_COLORS, PRIMARY_STATUSES, OTHER_STATUSES, ALL_STATUSES, formatStatus } from '../lib/leadStatus'
 import { useNavigate } from 'react-router-dom'
 import { saveClientsNav, loadClientsNav, consumeClientsReturn } from '../lib/clientsNav'
 
@@ -1953,17 +1954,9 @@ export default function Clients() {
     authFetch('/api/clients/breakdown').then(r => r.json()).then(setAllCounts).catch(() => {})
   }, [])
 
-  // Color and order for status tabs - always show all Sierra statuses
-  const statusColors = {
-    prime: '#f59e0b', active: '#3b82f6', new: '#a78bfa', qualify: '#a78bfa',
-    watch: '#06b6d4', pending: '#8b5cf6', closed: '#10b981', archived: '#6b7280',
-    junk: '#6b7280', donotcontact: '#ef4444', blocked: '#ef4444',
-    potential: '#a78bfa', under_contract: '#8b5cf6', on_hold: '#6b7280',
-  }
-  // Primary tabs (always visible) and "Other" tabs (in dropdown)
-  const PRIMARY_STATUSES = ['prime', 'active', 'new', 'qualify', 'pending', 'watch', 'closed']
-  const OTHER_STATUSES = ['archived', 'donotcontact', 'junk', 'blocked']
-  const ALL_STATUSES = [...PRIMARY_STATUSES, ...OTHER_STATUSES]
+  // Colors, order and labels live in src/lib/leadStatus.js so the Clients tabs and
+  // the Inbox thread header always show a lead the same way.
+  const statusColors = LEAD_STATUS_COLORS
 
   // Build the tabs list: combine all known statuses + any extras from DB, with counts
   const countsMap = Object.fromEntries(statusCounts.map(s => [s.status, s.count]))
@@ -1972,10 +1965,6 @@ export default function Clients() {
   const otherTotal = otherTabs.reduce((sum, t) => sum + t.count, 0)
   const isOtherTab = OTHER_STATUSES.includes(tab)
 
-  const formatStatus = (s) => {
-    if (s === 'donotcontact') return 'DNC'
-    return s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  }
 
 
   // ── Filter panel presentation state (John, 2026-09-22) ────────────────────
