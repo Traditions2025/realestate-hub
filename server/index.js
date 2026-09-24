@@ -1487,6 +1487,27 @@ ${signature}
       })
     } catch (e) { console.error('[boot] fsbo register-date backfill failed:', e.message) }
 
+    // Catch-up (2026-09-24): the two backfills above keyed on fsbo_status /
+    // mls_status, but the Clients list decides "is this FSBO / Cancelled-Expired"
+    // with a WIDER predicate that also matches a tag or source containing fsbo /
+    // expired / cancelled. 277 FSBO-by-tag leads were therefore still showing a
+    // blank Registered column. Use the SAME definition the list filters use so
+    // the column is populated for exactly the leads those filters return.
+    try {
+      db.runMigration('prospecting-register-date-backfill-2026-09-24', () => {
+        const FSBO = "((fsbo_status IS NOT NULL AND fsbo_status != '') OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%fsbo%')"
+        const CX = "((mls_status IS NOT NULL AND mls_status != '') OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%expired%' OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%cancelled%' OR lower(coalesce(tags,'') || ' ' || coalesce(source,'')) LIKE '%canceled%')"
+        const where = `merged_into IS NULL
+            AND COALESCE(NULLIF(register_date, ''), '') = ''
+            AND fub_person_id IS NULL
+            AND created_at IS NOT NULL AND created_at != ''
+            AND (${FSBO} OR ${CX})`
+        const n = db.get(`SELECT COUNT(*) c FROM clients WHERE ${where}`).c
+        db.run(`UPDATE clients SET register_date = substr(created_at, 1, 10), updated_at = datetime('now') WHERE ${where}`)
+        console.log(`[migration] prospecting-register-date-backfill: filled ${n} more prospecting registration date(s)`)
+      })
+    } catch (e) { console.error('[boot] prospecting register-date backfill failed:', e.message) }
+
     // Start auto-sync scheduler
     startScheduler()
   })
