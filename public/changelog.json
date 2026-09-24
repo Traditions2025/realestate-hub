@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-24T17:55:41.493Z",
+  "generated_at": "2026-09-24T20:41:02.451Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "5ff26c5",
+      "date": "2026-09-24T13:00:24-05:00",
+      "subject": "Inbox: show the lead's actual status in the thread header",
+      "title": "Inbox: show the lead's actual status in the thread header",
+      "body": "John asked for it in the empty space beside View profile: reading a\nconversation should not need a trip to the profile to find out whether this is\na Prime lead or a Junk one.\n\nThe status colours and labels lived inside Clients.jsx, so reusing them meant\neither duplicating the map or importing a page. Lifted both into\nsrc/lib/leadStatus.js and pointed Clients at it, so Watch / Junk / Prime read\nidentically in the tabs and in the Inbox and cannot drift apart later.\n\nThe pill sits before the listing pill: who they are, then what they're\nlisting. Local check confirms placement and dark-mode contrast.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b0779d0",
       "date": "2026-09-24T10:50:30-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Lead profile: real SMS composer (Text button sends via Hub/Twilio); Call button hooks window.hubCall (voice widget next)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "5af7382",
-      "date": "2026-08-19T18:03:17-05:00",
-      "subject": "Fix a2pStatus phone_numbers field + report service inbound routing config",
-      "title": "a2pStatus phone_numbers field + report service inbound routing config",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

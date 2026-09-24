@@ -844,6 +844,13 @@ const SORT_OPTIONS = {
   fsbo_offmarket_first: "CASE fsbo_status WHEN 'Off Market' THEN 0 WHEN 'Available' THEN 1 ELSE 2 END ASC, updated_at DESC",
   fsbo_dom_high: 'CAST(fsbo_dom AS INTEGER) DESC NULLS LAST',
   fsbo_dom_low: 'CAST(fsbo_dom AS INTEGER) ASC NULLS LAST',
+  // Listing price (John, 2026-09-24). One Price column serves both prospecting
+  // lists, so the sort has to read whichever field the lead actually carries:
+  // FSBO leads price from the master file, Cancelled/Expired from the MLS record.
+  // Both are text columns, so CAST before comparing or '$99,000' outranks '$525,000'.
+  // A 0 is not a price — NULLIF keeps priceless leads out of the top of the ascending sort.
+  price_high: `CAST(NULLIF(COALESCE(NULLIF(fsbo_price,''), NULLIF(mls_list_price,'')), '0') AS REAL) DESC NULLS LAST`,
+  price_low: `CAST(NULLIF(COALESCE(NULLIF(fsbo_price,''), NULLIF(mls_list_price,'')), '0') AS REAL) ASC NULLS LAST`,
   highest_score: 'CAST(lead_score AS INTEGER) DESC NULLS LAST',
   lowest_score: 'CAST(lead_score AS INTEGER) ASC NULLS LAST',
   off_market_recent: "date(off_market_date) DESC NULLS LAST",

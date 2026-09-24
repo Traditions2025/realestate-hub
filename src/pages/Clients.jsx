@@ -114,7 +114,9 @@ const LIST_COLUMNS = [
   { key: 'mls_status', label: 'MLS Status', defaultVisible: false, size: 'compact', align: 'center' },
   { key: 'mls_number', label: 'MLS #', defaultVisible: false, size: 'normal' },
   { key: 'fsbo_status', label: 'FSBO Status', defaultVisible: false, size: 'compact', align: 'center' },
-  { key: 'fsbo_price', label: 'Price', defaultVisible: false, size: 'normal', align: 'right' },
+  // One Price column for both prospecting lists: FSBO leads carry fsbo_price,
+  // Cancelled/Expired carry mls_list_price. Sortable on either (John, 2026-09-24).
+  { key: 'fsbo_price', label: 'Price', defaultVisible: false, size: 'normal', align: 'right', sort: { asc: 'price_low', desc: 'price_high' } },
   // Opt-in comm-recency columns (add per list via the Columns picker). Sort by latest.
   { key: 'last_text', label: 'Last Text (Any)', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_any_oldest', desc: 'last_text_any_recent' } },
   { key: 'last_text_in', label: 'Last Text Received', defaultVisible: false, size: 'normal', sort: { asc: 'last_text_oldest', desc: 'last_text_recent' } },
@@ -134,7 +136,7 @@ const LIST_COLUMNS = [
 ]
 // The Cancelled/Expired list shows its own column set: no visits / last-visit, plus off-market
 // date, MLS status, and MLS #.
-const EXPIRED_COLUMN_KEYS = ['score', 'name', 'status', 'type', 'phone', 'email', 'address', 'source', 'registered', 'off_market_date', 'mls_status', 'mls_number']
+const EXPIRED_COLUMN_KEYS = ['score', 'name', 'status', 'type', 'phone', 'email', 'address', 'source', 'registered', 'off_market_date', 'mls_status', 'mls_number', 'fsbo_price']
 // The Name column is pinned: always visible and always FIRST (right after the checkbox) on
 // every tab / stage / smart list / saved list, and it sticks to the left edge while the list
 // scrolls sideways — so you can always see whose row you're looking at.
@@ -3169,8 +3171,12 @@ export default function Clients() {
             }
             case 'mls_number':
               return <div key="mls_number" className="cl-source">{item.mls_number || '—'}</div>
-            case 'fsbo_price':
-              return <div key="fsbo_price" className="cl-source" style={{ fontWeight: 600 }}>{item.fsbo_price ? '$' + Number(item.fsbo_price).toLocaleString() : '—'}</div>
+            case 'fsbo_price': {
+              // FSBO price first, then the MLS list price, so the one Price column
+              // reads correctly on the FSBO list AND the Cancelled/Expired list.
+              const p = Number(item.fsbo_price) || Number(item.mls_list_price) || 0
+              return <div key="fsbo_price" className="cl-source" style={{ fontWeight: 600 }}>{p ? '$' + p.toLocaleString() : '—'}</div>
+            }
             case 'zip':
               return <div key="zip" className="cl-type">{item.zip || '—'}</div>
             case 'last_text':
