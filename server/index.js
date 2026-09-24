@@ -1508,6 +1508,47 @@ ${signature}
       })
     } catch (e) { console.error('[boot] prospecting register-date backfill failed:', e.message) }
 
+    // ---- Pull "Sell as-is, or fix it first?" out of Before the Sign (John, 2026-09-24).
+    // It was driving unsubscribes. Steps are a positional array and BOTH the
+    // enrollment pointer (current_step) and the send-dedupe key (drip{id}_step{idx})
+    // are that index, so dropping an element mid-sequence would make every lead past
+    // it match an already-sent key and silently burn through the rest of the campaign.
+    // So: drop the step, discard its own execution rows, then slide every later
+    // index (and its key) down by one, ascending so the UNIQUE key never collides.
+    try {
+      db.runMigration('drip5-remove-sn04-2026-09-24', () => {
+        const DRIP = 5, STEP_ID = 'sn04'
+        const row = db.get('SELECT steps FROM drip_campaigns WHERE id=?', [DRIP])
+        if (!row) return console.log('[migration] drip5-remove-sn04: drip 5 not found, nothing to do')
+        let steps = []
+        try { steps = JSON.parse(row.steps || '[]') } catch { steps = [] }
+        const idx = steps.findIndex(s => s && s.id === STEP_ID)
+        if (idx < 0) return console.log('[migration] drip5-remove-sn04: step already gone, nothing to do')
+
+        steps.splice(idx, 1)
+        db.run("UPDATE drip_campaigns SET steps=?, updated_at=datetime('now') WHERE id=?", [JSON.stringify(steps), DRIP])
+
+        const dropped = db.get('SELECT COUNT(*) c FROM drip_executions WHERE drip_id=? AND step_index=?', [DRIP, idx]).c
+        db.run('DELETE FROM drip_executions WHERE drip_id=? AND step_index=?', [DRIP, idx])
+
+        const maxIdx = db.get('SELECT MAX(step_index) m FROM drip_executions WHERE drip_id=?', [DRIP]).m ?? -1
+        let moved = 0
+        for (let i = idx + 1; i <= maxIdx; i++) {
+          moved += db.get('SELECT COUNT(*) c FROM drip_executions WHERE drip_id=? AND step_index=?', [DRIP, i]).c
+          db.run(`UPDATE drip_executions
+                     SET step_index = ?,
+                         idempotency_key = 'drip' || enrollment_id || '_step' || ?
+                   WHERE drip_id = ? AND step_index = ?`, [i - 1, i - 1, DRIP, i])
+        }
+
+        const shifted = db.get('SELECT COUNT(*) c FROM drip_enrollments WHERE drip_id=? AND current_step > ?', [DRIP, idx]).c
+        db.run('UPDATE drip_enrollments SET current_step = current_step - 1 WHERE drip_id=? AND current_step > ?', [DRIP, idx])
+
+        console.log(`[migration] drip5-remove-sn04: removed step ${idx} (${STEP_ID}), ${steps.length} steps remain; ` +
+          `dropped ${dropped} execution row(s), re-keyed ${moved}, realigned ${shifted} enrollment(s)`)
+      })
+    } catch (e) { console.error('[boot] drip5 sn04 removal failed:', e.message) }
+
     // Start auto-sync scheduler
     startScheduler()
   })
