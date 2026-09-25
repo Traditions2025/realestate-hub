@@ -2298,9 +2298,9 @@ input[type="range"] {
   .cp-details .cp-tags { margin-top: 4px; }
 }
 
-/* Profile picture rides alongside the first contact rows, so it adds no height of
-   its own. Sized to cover the two rows it sits beside. */
-.cp-avatar { float: left; width: 46px; height: 46px; border-radius: 50%; object-fit: cover; margin: 0 10px 2px 0; }
+/* Profile picture rides at the right of the Social block, alongside the links, so it
+   adds no height of its own. Sized to cover the rows it sits beside. */
+.cp-avatar { float: right; width: 46px; height: 46px; border-radius: 50%; object-fit: cover; margin: 0 0 2px 10px; }
 @media (max-width: 900px) { .cp-avatar { width: 40px; height: 40px; } }
 .cp-tagchip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
 .cp-alerts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }

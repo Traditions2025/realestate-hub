@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-25T23:30:19.571Z",
+  "generated_at": "2026-09-25T23:43:01.129Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "bca21e8",
+      "date": "2026-09-25T18:33:35-05:00",
+      "subject": "Profile: social moves into the CRM column, card 403px -> 386px",
+      "title": "Profile: social moves into the CRM column, card 403px -> 386px",
+      "body": "John's markup: LinkedIn / Facebook / Work belong in the empty space under\nRealist. The two columns were badly unbalanced -- Contact ran ~289px while CRM\nended at ~175px -- so those three rows were adding height to the column that\nsets the card's height while the other column sat blank beside them. Moved, the\ncolumns land at 252 and 262: the card is now about as short as this much\ninformation allows.\n\nKept a SOCIAL sub-heading rather than letting the rows run on under CRM, so a\nLinkedIn URL does not read as a CRM field. It costs ~10px and is worth it.\n\nDesktop 386 (525 before any of this work, 403 after the density pass), sparse\n310, laptop 1180px 409 -- the laptop gains most, since the narrower column made\nthe Contact overflow worse. Mobile is 27px taller because the columns stack\nthere and the heading is pure addition; on a stacked phone layout that divider\nearns its height. No overlap, nothing past the frame, no sideways scroll, and\nthe floated avatar still clears Tags on a sparse lead.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c29071d",
       "date": "2026-09-25T18:19:14-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Comms center: webhook security + delivery status + voicemail/missed-call/MMS",
       "title": "Comms center: webhook security + delivery status + voicemail/missed-call/MMS",
       "body": "- Twilio webhook signature validation (server/twilio-webhook.js): HMAC-SHA1 over\n  URL + sorted params vs X-Twilio-Signature; mode setting twilio_signature_mode\n  (monitor default → log-only, flip to 'enforce'). Applied to ALL Twilio webhooks\n  (inbound SMS, status, and every /api/voice/* callback).\n- communications: additive migrations for delivery_status, duration_sec,\n  recording_url/sid, transcript, disposition, notes, media_url, error_message, agent.\n- SMS: capture MMS media on inbound; outbound seeds delivery_status='queued';\n  status webhook reconciles queued→sent→delivered/undelivered/failed with friendly\n  carrier-error text (no raw codes shown to agents).\n- Voice: upsert call rows by SID; inbound Dial has an action → answered logs\n  completed+duration, no-answer records a VOICEMAIL (transcribed) and logs a MISSED\n  call; recording callback attaches media when call recording is enabled (opt-in\n  setting, not mandatory).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6dae125",
-      "date": "2026-08-19T18:45:05-05:00",
-      "subject": "CallWidget: pre-authorize mic on connect (fixes answered-but-no-bridge) + visible phone status/error chip",
-      "title": "CallWidget: pre-authorize mic on connect (fixes answered-but-no-bridge) + visible phone status/error chip",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

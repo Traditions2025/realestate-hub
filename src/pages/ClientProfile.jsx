@@ -595,16 +595,6 @@ function ClientDetails({ client, onSaved }) {
       <div className="cp-two">
         <div>
           <div className="cp-sub">Contact</div>
-          {/* The picture FLOATS beside the first rows instead of sitting on its own line
-              (John, 2026-09-25): stacked, one 56px image cost a 64px band of card height;
-              floated it costs none, because the name and phone rows flow next to it. Only
-              the top two short rows ever sit alongside, so nothing long wraps around it.
-              These are third-party URLs (Follow Up Boss, Gravatar) that rot, so a broken
-              one hides itself rather than leaving a torn-image icon. */}
-          {client.avatar_url && (
-            <img className="cp-avatar" src={client.avatar_url} alt="" referrerPolicy="no-referrer"
-              onError={e => { e.currentTarget.style.display = 'none' }} />
-          )}
           <InlineName detail={client} onSaved={onSaved} />
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved}
             statusTag={<button title="Add another phone number for this lead" style={plusBtnStyle} onClick={() => setAltAdd(v => v === 'phones' ? null : 'phones')}>＋</button>} />
@@ -622,14 +612,16 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="Zip" field="zip" value={client.zip} clientId={cid} onSaved={onSaved} />
           {showMlsFields && <InlineField label="Off Market Date" field="off_market_date" type="date" value={client.off_market_date} clientId={cid} onSaved={onSaved} />}
           {showMlsFields && <InlineField label="MLS #" field="mls_number" value={client.mls_number} clientId={cid} onSaved={onSaved} />}
+          {/* Source + Registered sit with Contact (John, 2026-09-25): where the lead came
+              from and when reads with the person, not with the CRM controls. */}
+          {client.source && <p><strong>Source:</strong> {client.source}</p>}
+          {(client.register_date || client.created_at) && <p><strong>Registered:</strong> {new Date(String(client.register_date || client.created_at).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
         </div>
         <div>
           <div className="cp-sub">CRM</div>
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Type:</strong> <TypePill client={client} onSaved={onSaved} /></p>
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Status:</strong> <StatusPill client={client} onSaved={onSaved} /></p>
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Agent:</strong> <AgentPill client={client} onSaved={onSaved} /></p>
-          {client.source && <p><strong>Source:</strong> {client.source}</p>}
-          {(client.register_date || client.created_at) && <p><strong>Registered:</strong> {new Date(String(client.register_date || client.created_at).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
           {(client.realist_market_value || client.realist_sell_score || client.realist_year_built) && (
             <p><strong>Realist:</strong> {[
               client.realist_market_value ? `$${Number(client.realist_market_value).toLocaleString()} est. value` : null,
@@ -643,6 +635,14 @@ function ClientDetails({ client, onSaved }) {
               of adding height to the one that sets the card's height. Sierra holds neither
               URL, so neither pushes. Work only appears once something filled it. */}
           <div className="cp-sub">Social</div>
+          {/* Their picture sits at the right of the Social block, alongside the links
+              (John, 2026-09-25). Floated, so the three rows flow past it and it adds no
+              height of its own. These are third-party URLs (Follow Up Boss, Gravatar) that
+              rot, so a broken one hides itself rather than leaving a torn-image icon. */}
+          {client.avatar_url && (
+            <img className="cp-avatar" src={client.avatar_url} alt="" referrerPolicy="no-referrer"
+              onError={e => { e.currentTarget.style.display = 'none' }} />
+          )}
           <InlineField label="LinkedIn" field="linkedin_url" value={client.linkedin_url} clientId={cid} onSaved={onSaved}
             link linkColor="#0077b5" syncSierra={false} addLabel="+ Add LinkedIn" placeholder="https://linkedin.com/in/…" />
           <InlineField label="Facebook" field="facebook_url" value={client.facebook_url} clientId={cid} onSaved={onSaved}
