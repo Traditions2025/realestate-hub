@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-25T23:16:27.394Z",
+  "generated_at": "2026-09-25T23:30:19.571Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c29071d",
+      "date": "2026-09-25T18:19:14-05:00",
+      "subject": "Profile: compact the Client Details card, 525px -> 403px",
+      "title": "Profile: compact the Client Details card, 525px -> 403px",
+      "body": "Measured before changing anything, because the brief asked whether a parent was\nforcing the height: it was not. The card already sized to content -- 11px of\nslack, a content-height parent, .cp-grid already align-items:start and the\ncolumns already flex with no stretch. The 525px was real content spacing.\n\nWhere it actually went, and what each fix buys:\n  - 13 contact rows each paying 3px margin top AND bottom plus a ~20px line box\n    -> 1px margins and line-height 1.3 (~50px)\n  - the avatar owning its own 64px band for a 56px image -> it now floats, so\n    the name and phone rows flow beside it and it costs no height at all (~64px)\n  - CONTACT / CRM sub-headings carrying an 8px leading margin at the top of\n    their own columns -> 0 (~10px)\n  - a blank band above Tags -> Tags follow the columns directly\n\nWidth, the Contact | CRM arrangement, font sizes, the Type/Status/Agent pills\nand every +/pencil hit target are untouched; the density comes from spacing\nonly. Rules are scoped to .cp-details so other profile cards keep their own\nrhythm, and sit inside the existing desktop block so mobile keeps the\ncomfortable stacked spacing (measured: mobile unchanged in feel, 40px avatar).\n\nVerified rendered, not just styled. Desktop full 403 (was 525), sparse 300,\nlaptop 1180px 472, mobile 821. No overlap, nothing past the card frame, no\nsideways scroll, and the floated avatar clears Tags even on a sparse lead\n(avatar bottom 103 vs tags top 244) -- the one way a float could have bitten.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "105d925",
       "date": "2026-09-25T18:01:38-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-19T18:45:05-05:00",
       "subject": "CallWidget: pre-authorize mic on connect (fixes answered-but-no-bridge) + visible phone status/error chip",
       "title": "CallWidget: pre-authorize mic on connect (fixes answered-but-no-bridge) + visible phone status/error chip",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5826f86",
-      "date": "2026-08-19T18:24:17-05:00",
-      "subject": "Voice: defer SDK script (non-blocking) + widget waits for SDK to load",
-      "title": "Voice: defer SDK script (non-blocking) + widget waits for SDK to load",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

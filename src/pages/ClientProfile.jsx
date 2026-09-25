@@ -622,16 +622,6 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="Zip" field="zip" value={client.zip} clientId={cid} onSaved={onSaved} />
           {showMlsFields && <InlineField label="Off Market Date" field="off_market_date" type="date" value={client.off_market_date} clientId={cid} onSaved={onSaved} />}
           {showMlsFields && <InlineField label="MLS #" field="mls_number" value={client.mls_number} clientId={cid} onSaved={onSaved} />}
-          {/* Social lives here now (John, 2026-09-25) — it is contact detail, not its own
-              research workspace. Edited like any other field; Sierra holds neither, so
-              neither pushes. Job title / employer only appear once something filled them. */}
-          <InlineField label="LinkedIn" field="linkedin_url" value={client.linkedin_url} clientId={cid} onSaved={onSaved}
-            link linkColor="#0077b5" syncSierra={false} addLabel="+ Add LinkedIn" placeholder="https://linkedin.com/in/…" />
-          <InlineField label="Facebook" field="facebook_url" value={client.facebook_url} clientId={cid} onSaved={onSaved}
-            link linkColor="#1877f2" syncSierra={false} addLabel="+ Add Facebook" placeholder="https://facebook.com/…" />
-          {(client.job_title || client.employer) && (
-            <p><strong>Work:</strong> {[client.job_title, client.employer].filter(Boolean).join(' · ')}</p>
-          )}
         </div>
         <div>
           <div className="cp-sub">CRM</div>
@@ -647,6 +637,18 @@ function ClientDetails({ client, onSaved }) {
               client.realist_year_built ? `Built ${client.realist_year_built}` : null,
               client.realist_owner_occupied != null ? (client.realist_owner_occupied ? 'Owner-occupied' : 'Non-owner-occupied') : null,
             ].filter(Boolean).join(' · ')}</p>
+          )}
+          {/* Social sits in the CRM column (John, 2026-09-25): Contact runs long and CRM
+              runs short, so these three rows fill the column that was ending early instead
+              of adding height to the one that sets the card's height. Sierra holds neither
+              URL, so neither pushes. Work only appears once something filled it. */}
+          <div className="cp-sub">Social</div>
+          <InlineField label="LinkedIn" field="linkedin_url" value={client.linkedin_url} clientId={cid} onSaved={onSaved}
+            link linkColor="#0077b5" syncSierra={false} addLabel="+ Add LinkedIn" placeholder="https://linkedin.com/in/…" />
+          <InlineField label="Facebook" field="facebook_url" value={client.facebook_url} clientId={cid} onSaved={onSaved}
+            link linkColor="#1877f2" syncSierra={false} addLabel="+ Add Facebook" placeholder="https://facebook.com/…" />
+          {(client.job_title || client.employer) && (
+            <p><strong>Work:</strong> {[client.job_title, client.employer].filter(Boolean).join(' · ')}</p>
           )}
         </div>
       </div>
