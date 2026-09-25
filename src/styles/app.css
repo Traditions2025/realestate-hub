@@ -2279,7 +2279,29 @@ input[type="range"] {
   .cp-actions { margin-top: 6px; padding-bottom: 8px; }
   .cp-alerts { margin-bottom: 8px; }
   .client-profile .lead-action-btn { padding: 6px 11px; }
+
+  /* ── Client Details density (John, 2026-09-25) ──────────────────────────────
+     Measured before touching anything: the card sat at 525px with only 11px of
+     slack and a content-height parent, so nothing was stretching it — the height
+     was 13 contact rows each paying a 3px margin on both sides plus a ~20px
+     line box, a 64px band for the avatar, and padded sub-headings. So the fix is
+     the rhythm, not overrides: 2px between rows and a 1.3 line box. Font sizes,
+     pills and the +/pencil hit targets are untouched, and the rules stop at the
+     card so other profile boxes keep their own spacing. Desktop only — mobile
+     keeps the comfortable stacked spacing from the base rules. */
+  .cp-details .cp-sec-body p { margin: 1px 0; line-height: 1.3; }
+  .cp-details .cp-sub { margin: 6px 0 2px; }
+  /* CONTACT / CRM head the columns — no leading gap needed above the first one. */
+  .cp-details .cp-two > div > .cp-sub:first-child { margin-top: 0; }
+  .cp-details .cp-two { row-gap: 6px; }
+  /* Tags follow the columns directly rather than after a blank band. */
+  .cp-details .cp-tags { margin-top: 4px; }
 }
+
+/* Profile picture rides alongside the first contact rows, so it adds no height of
+   its own. Sized to cover the two rows it sits beside. */
+.cp-avatar { float: left; width: 46px; height: 46px; border-radius: 50%; object-fit: cover; margin: 0 10px 2px 0; }
+@media (max-width: 900px) { .cp-avatar { width: 40px; height: 40px; } }
 .cp-tagchip { display: inline-flex; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); }
 .cp-alerts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .cp-alert { font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 8px; }

@@ -95,12 +95,12 @@ import { loadClientsNav, markClientsReturn } from '../lib/clientsNav'
 // reviewable by scrolling — no primary tabs. Reuses HUB's existing components + APIs (no
 // duplicated SMS/email/AI/task/transaction/Sierra systems).
 
-function Section({ title, children, right, defaultOpen = true, id }) {
+function Section({ title, children, right, defaultOpen = true, id, className = '' }) {
   const key = id ? 'cp_sec_' + id : null
   const [open, setOpen] = useState(() => { try { return key && localStorage.getItem(key) != null ? localStorage.getItem(key) === '1' : defaultOpen } catch { return defaultOpen } })
   const toggle = () => setOpen(o => { const n = !o; try { if (key) localStorage.setItem(key, n ? '1' : '0') } catch {} return n })
   return (
-    <section className="cp-card">
+    <section className={'cp-card' + (className ? ' ' + className : '')}>
       <div className="cp-sec-head" onClick={toggle}>
         <h4 style={{ margin: 0 }}>{open ? '▾' : '▸'} {title}</h4>
         {right && <div onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto' }}>{right}</div>}
@@ -571,7 +571,7 @@ function AltPhoneLabels({ client, onSaved }) {
     } catch (e) { notify('Could not save: ' + e.message) }
   }
   return (
-    <p style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 6px' }}>
+    <p style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 3px' }}>
       {nums.map(p => (
         <button key={p} onClick={() => rename(p)} title="Click to set who this number belongs to"
           style={{ fontSize: 12, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 9px', cursor: 'pointer' }}>
@@ -591,17 +591,19 @@ function ClientDetails({ client, onSaved }) {
   const showMlsFields = !!(client.fsbo_status || client.mls_status || client.off_market_date || client.mls_number
     || /fsbo|expired|cancell?ed/i.test(`${client.tags || ''} ${client.source || ''}`))
   return (
-    <Section title="Client Details" id="details">
+    <Section title="Client Details" id="details" className="cp-details">
       <div className="cp-two">
         <div>
           <div className="cp-sub">Contact</div>
-          {/* Their profile picture, carried over when "Social & Research" was folded into
-              this card. These are third-party URLs (Gravatar and the like) that can rot,
-              so a broken one hides itself rather than leaving a torn-image icon. */}
+          {/* The picture FLOATS beside the first rows instead of sitting on its own line
+              (John, 2026-09-25): stacked, one 56px image cost a 64px band of card height;
+              floated it costs none, because the name and phone rows flow next to it. Only
+              the top two short rows ever sit alongside, so nothing long wraps around it.
+              These are third-party URLs (Follow Up Boss, Gravatar) that rot, so a broken
+              one hides itself rather than leaving a torn-image icon. */}
           {client.avatar_url && (
-            <img src={client.avatar_url} alt="" referrerPolicy="no-referrer"
-              onError={e => { e.currentTarget.style.display = 'none' }}
-              style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 8, display: 'block' }} />
+            <img className="cp-avatar" src={client.avatar_url} alt="" referrerPolicy="no-referrer"
+              onError={e => { e.currentTarget.style.display = 'none' }} />
           )}
           <InlineName detail={client} onSaved={onSaved} />
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved}
@@ -648,7 +650,7 @@ function ClientDetails({ client, onSaved }) {
           )}
         </div>
       </div>
-      <div style={{ marginTop: 8 }}><div className="cp-sub">Tags</div><TagEditor client={client} onSaved={onSaved} /></div>
+      <div className="cp-tags" style={{ marginTop: 8 }}><div className="cp-sub">Tags</div><TagEditor client={client} onSaved={onSaved} /></div>
     </Section>
   )
 }

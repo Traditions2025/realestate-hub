@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-25T23:00:26.679Z",
+  "generated_at": "2026-09-25T23:16:27.394Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "105d925",
+      "date": "2026-09-25T18:01:38-05:00",
+      "subject": "Profile: social details move into Client Details, \"Social & Research\" retired",
+      "title": "Profile: social details move into Client Details, \"Social & Research\" retired",
+      "body": "John: social is contact detail, not its own research workspace. LinkedIn and\nFacebook are now rows in Client Details, edited like phone or email, shown as\nclickable links (the readable tail, not the raw URL, which is far too long for a\ndetails row). Their profile picture and job title / employer come along too --\nthe picture matters, 1,128 of 5,000 leads carry one.\n\nThe paste-a-URL block, Save/Find, Auto-check and \"Google this lead\" are gone\nfrom the profile, and 'research' leaves DEFAULT_LAYOUT so a saved layout holding\nit is filtered out cleanly rather than rendering an empty box.\n\nTwo details on the way through. InlineField gains `link` (render a URL as a\nlink) and `syncSierra` (skip the Sierra push for fields Sierra does not hold --\nsocial URLs are not in HUB_TO_SIERRA_FIELD, so saving one only ever earned a\nround trip that answered \"no pushable fields\"). And avatars are third-party URLs\nthat rot, so a broken one hides itself instead of leaving a torn-image icon --\nverified both ways against a real Follow Up Boss picture and a dead one.\n\nThe Clients quick-view drawer keeps its own Social Profiles block; this is the\nfull profile only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "6be28d7",
       "date": "2026-09-25T11:02:04-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-19T18:24:17-05:00",
       "subject": "Voice: defer SDK script (non-blocking) + widget waits for SDK to load",
       "title": "Voice: defer SDK script (non-blocking) + widget waits for SDK to load",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4c8386c",
-      "date": "2026-08-19T18:20:01-05:00",
-      "subject": "CallWidget: init device once on mount (was recreating on ready change, clearing window.hubCall)",
-      "title": "CallWidget: init device once on mount (was recreating on ready change, clearing window.hubCall)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
