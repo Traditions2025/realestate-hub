@@ -2,6 +2,7 @@
 // transactions, tasks, and notes. Read-only.
 import { Router } from 'express'
 import db from '../database.js'
+import { phoneSearchClauses } from '../phone-search.js'
 
 const router = Router()
 
@@ -12,12 +13,15 @@ router.get('/', (req, res) => {
   const perType = Math.min(Number(req.query.limit) || 8, 25)
   const results = []
   try {
+    // Phone hits regardless of how the number was typed, alternate numbers included.
+    const phone = phoneSearchClauses(q)
     for (const c of db.all(
       `SELECT id, first_name, last_name, phone, email, city, status, type FROM clients
        WHERE merged_into IS NULL AND (
-         (first_name || ' ' || last_name) LIKE ? OR email LIKE ? OR phone LIKE ? OR address LIKE ? OR city LIKE ?)
+         (first_name || ' ' || last_name) LIKE ? OR email LIKE ? OR phone LIKE ? OR address LIKE ? OR city LIKE ?
+         ${phone.clauses.map(c => 'OR ' + c).join(' ')})
        ORDER BY CAST(lead_score AS INTEGER) DESC NULLS LAST LIMIT ?`,
-      [like, like, like, like, like, perType]))
+      [like, like, like, like, like, ...phone.params, perType]))
       results.push({ type: 'client', id: c.id, title: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, subtitle: [c.city, c.type, c.status].filter(Boolean).join(' · '), href: `/clients?open=${c.id}` })
 
     for (const t of db.all(

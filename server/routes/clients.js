@@ -4,6 +4,7 @@ import db from '../database.js'
 import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '../lead-sequences.js'
 import { gradeFromRealistScore } from '../sierra-helper.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
+import { phoneSearchClauses } from '../phone-search.js'
 
 const router = Router()
 
@@ -584,13 +585,20 @@ export function buildClientFilter(q) {
 
   // Search
   if (q.search) {
-    where += ` AND (first_name LIKE ? OR last_name LIKE ?
-      OR (first_name || ' ' || last_name) LIKE ?
-      OR email LIKE ? OR phone LIKE ?
-      OR address LIKE ? OR city LIKE ? OR zip LIKE ?
-      OR source LIKE ? OR agent_assigned LIKE ?)`
     const term = `%${q.search}%`
-    params.push(term, term, term, term, term, term, term, term, term, term)
+    const clauses = [
+      'first_name LIKE ?', 'last_name LIKE ?', "(first_name || ' ' || last_name) LIKE ?",
+      'email LIKE ?', 'phone LIKE ?',
+      'address LIKE ?', 'city LIKE ?', 'zip LIKE ?',
+      'source LIKE ?', 'agent_assigned LIKE ?',
+    ]
+    const searchParams = Array(clauses.length).fill(term)
+    // Any phone format finds the lead, and alternate numbers count too (see phone-search.js).
+    const phone = phoneSearchClauses(q.search)
+    clauses.push(...phone.clauses)
+    searchParams.push(...phone.params)
+    where += ' AND (' + clauses.join(' OR ') + ')'
+    params.push(...searchParams)
   }
 
   // Last outgoing email / text recency. op 'less' = sent within N days; 'more' = NOT sent in
