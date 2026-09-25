@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import TemplatePicker from '../components/TemplatePicker'
 import {
-  InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard, SocialProfiles,
+  InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard,
   InlineTextComposer, COMM_META, commToText, stripQuotedDisplay, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
   phoneD10, phoneLabelMap,
 } from './Clients'
@@ -281,7 +281,8 @@ export default function ClientProfile() {
             fub: () => <FubActivity cid={cid} />,
             sierra: () => <SierraActivity client={client} />,
             activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
-            research: () => <Section title="Social & Research" id="research" defaultOpen={false}><SocialProfiles detail={client} onSaved={load} /></Section>,
+            // "Social & Research" retired (John, 2026-09-25): LinkedIn and Facebook are now
+            // editable rows inside Client Details, where the rest of the contact detail lives.
             coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
             cxcamp: () => (client.mls_status || client.off_market_date) ? <CxCampaignCard cid={cid} client={client} /> : null,
             fsbocamp: () => (client.fsbo_status || client.fsbo_listings) ? <FsboCampaignCard cid={cid} client={client} /> : null,
@@ -594,6 +595,14 @@ function ClientDetails({ client, onSaved }) {
       <div className="cp-two">
         <div>
           <div className="cp-sub">Contact</div>
+          {/* Their profile picture, carried over when "Social & Research" was folded into
+              this card. These are third-party URLs (Gravatar and the like) that can rot,
+              so a broken one hides itself rather than leaving a torn-image icon. */}
+          {client.avatar_url && (
+            <img src={client.avatar_url} alt="" referrerPolicy="no-referrer"
+              onError={e => { e.currentTarget.style.display = 'none' }}
+              style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover', marginBottom: 8, display: 'block' }} />
+          )}
           <InlineName detail={client} onSaved={onSaved} />
           <InlineField label="Phone" field="phone" value={client.phone} clientId={cid} onSaved={onSaved}
             statusTag={<button title="Add another phone number for this lead" style={plusBtnStyle} onClick={() => setAltAdd(v => v === 'phones' ? null : 'phones')}>＋</button>} />
@@ -611,6 +620,16 @@ function ClientDetails({ client, onSaved }) {
           <InlineField label="Zip" field="zip" value={client.zip} clientId={cid} onSaved={onSaved} />
           {showMlsFields && <InlineField label="Off Market Date" field="off_market_date" type="date" value={client.off_market_date} clientId={cid} onSaved={onSaved} />}
           {showMlsFields && <InlineField label="MLS #" field="mls_number" value={client.mls_number} clientId={cid} onSaved={onSaved} />}
+          {/* Social lives here now (John, 2026-09-25) — it is contact detail, not its own
+              research workspace. Edited like any other field; Sierra holds neither, so
+              neither pushes. Job title / employer only appear once something filled them. */}
+          <InlineField label="LinkedIn" field="linkedin_url" value={client.linkedin_url} clientId={cid} onSaved={onSaved}
+            link linkColor="#0077b5" syncSierra={false} addLabel="+ Add LinkedIn" placeholder="https://linkedin.com/in/…" />
+          <InlineField label="Facebook" field="facebook_url" value={client.facebook_url} clientId={cid} onSaved={onSaved}
+            link linkColor="#1877f2" syncSierra={false} addLabel="+ Add Facebook" placeholder="https://facebook.com/…" />
+          {(client.job_title || client.employer) && (
+            <p><strong>Work:</strong> {[client.job_title, client.employer].filter(Boolean).join(' · ')}</p>
+          )}
         </div>
         <div>
           <div className="cp-sub">CRM</div>
@@ -1587,7 +1606,7 @@ function ListingInterest({ client }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity', 'research'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {

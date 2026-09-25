@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-09-24T20:41:02.451Z",
+  "generated_at": "2026-09-25T23:00:26.679Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "6be28d7",
+      "date": "2026-09-25T11:02:04-05:00",
+      "subject": "Search: find a lead by phone in any format, alternate numbers included",
+      "title": "Search: find a lead by phone in any format, alternate numbers included",
+      "body": "Numbers are stored formatted -- \"(319) 551-6347\" for 4,470 of 4,471 leads -- and\nboth search clauses compared that text literally. So the forms people actually\nuse returned nothing and the lead looked like it did not exist: a pasted\n\"3195516347\", a \"319-551-6347\", a \"+13195516347\" off a caller ID. Only the exact\nstored string or a fragment of it worked. Alternate numbers were never searched\nat all, on either bar.\n\nNow both sides are reduced to digits before comparing. SQLite has no regex, so\nthe stored value is stripped with nested REPLACE() of the punctuation phone\nnumbers carry. 11+ typed digits keep the last 10, so a country code still\nmatches a locally-stored number.\n\nTwo deliberate limits. Commas are NOT stripped: alt_phones is a comma-separated\nlist, and keeping the separator stops one number's tail running into the next\none's head. And under 7 digits is not treated as a phone -- a street number, a\nZIP or a year would otherwise add noise to a name or address search.\n\nShared by the Clients list and the global search bar so the two cannot drift.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5ccae70",
+      "date": "2026-09-24T15:45:34-05:00",
+      "subject": "Clients: sort by Price on the FSBO and Cancelled/Expired lists",
+      "title": "Clients: sort by Price on the FSBO and Cancelled/Expired lists",
+      "body": "John asked for the Price column to sort on both prospecting lists.\n\nTwo things were in the way. The column only read fsbo_price, and the\nCancelled/Expired list never offered it at all -- its column set is a fixed\nwhitelist that did not include the key -- so prices were invisible there even\nthough 46 of those leads carry an MLS list price.\n\nSo the one Price column now falls back fsbo_price -> mls_list_price, the key\njoins the Cancelled/Expired whitelist (new keys default to visible), and the\nsort coalesces the same two fields. Both are TEXT columns, so the ORDER BY\ncasts to REAL first -- comparing them as text puts $99,000 above $525,000 --\nand treats 0 as \"no price\" so priceless leads do not crowd the top of the\nascending sort.\n\nVerified against the real FSBO data: high-to-low and low-to-high both order\nnumerically.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5ff26c5",
       "date": "2026-09-24T13:00:24-05:00",
@@ -3983,22 +3999,6 @@
       "date": "2026-08-19T18:20:01-05:00",
       "subject": "CallWidget: init device once on mount (was recreating on ready change, clearing window.hubCall)",
       "title": "CallWidget: init device once on mount (was recreating on ready change, clearing window.hubCall)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cabf61b",
-      "date": "2026-08-19T18:16:33-05:00",
-      "subject": "Voice: browser softphone (make + receive calls with accept/reject)",
-      "title": "Voice: browser softphone (make + receive calls with accept/reject)",
-      "body": "Backend: server/voice.js mints Twilio Voice access tokens (JWT) + ensureVoiceInfra()\ncreates an API Key + TwiML App and wires the Hub number's voice webhook. New\nendpoints: GET /api/voice/token, POST /api/voice/setup, and public TwiML webhooks\n/api/voice/{outbound,inbound,status} (outbound dials the number from the Hub caller\nID; inbound rings the browser <Client>hub</Client>; calls logged to communications\nas channel='call'). Whitelisted the webhooks in auth.js.\n\nFrontend: Twilio Voice SDK loaded from jsDelivr (no bundle risk); CallWidget mounts\nglobally, registers the Device, exposes window.hubCall(number,name), and shows an\nincoming-call panel with Accept/Reject plus an in-call panel (mute, hang up, timer).\nLead-profile Call button now calls through the Hub. Fails quietly if not set up.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8d8a8c8",
-      "date": "2026-08-19T18:09:48-05:00",
-      "subject": "Lead profile: real SMS composer (Text button sends via Hub/Twilio); Call button hooks window.hubCall (voice widget next)",
-      "title": "Lead profile: real SMS composer (Text button sends via Hub/Twilio); Call button hooks window.hubCall (voice widget next)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

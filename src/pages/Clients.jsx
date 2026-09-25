@@ -4327,7 +4327,10 @@ function BulkApplyModal({ kind, clientIds, onClose, onDone }) {
 // --- Inline field editors for the lead profile (edit a single field in place) ---
 // Saves to the Hub, then pushes to Sierra (no-op for non-Sierra leads) so the edit
 // sticks past the next sync. onSaved refreshes the profile.
-export function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text', addLabel = null, placeholder = '' }) {
+// `link`: show the saved value as a clickable link rather than raw text — for URL fields,
+// where the point of the value is to open it. `syncSierra`: false for fields Sierra does not
+// hold (social URLs), so saving them doesn't fire a push that can only answer "nothing to push".
+export function InlineField({ label, value, field, clientId, onSaved, statusTag = null, type = 'text', addLabel = null, placeholder = '', link = false, linkColor = null, syncSierra = true }) {
   const [editing, setEditing] = React.useState(false)
   const [val, setVal] = React.useState(value || '')
   const [saving, setSaving] = React.useState(false)
@@ -4336,11 +4339,14 @@ export function InlineField({ label, value, field, clientId, onSaved, statusTag 
     setSaving(true)
     try {
       await authFetch(`/api/clients/${clientId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ [field]: val }) })
-      try { await authFetch('/api/sierra/update-lead-fields', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId, fields: { [field]: val } }) }) } catch {}
+      if (syncSierra) { try { await authFetch('/api/sierra/update-lead-fields', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: clientId, fields: { [field]: val } }) }) } catch {} }
       setEditing(false); onSaved && onSaved()
     } catch (e) { notify('Could not save ' + label.toLowerCase() + ': ' + e.message) }
     finally { setSaving(false) }
   }
+  // A full profile URL is far too long for a details row, so show the readable tail
+  // ("linkedin.com/in/jane-doe") and let the link itself carry the rest.
+  const linkText = (u) => String(u).replace(/^https?:\/\//i, '').replace(/^www\./i, '').replace(/\/$/, '')
   return (
     <p style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       <strong>{label}:</strong>
@@ -4356,7 +4362,9 @@ export function InlineField({ label, value, field, clientId, onSaved, statusTag 
         <>
           {(!value && addLabel)
             ? <button className="btn btn-sm" style={{ padding: '2px 10px', fontSize: 12, color: 'var(--accent)', borderColor: 'var(--accent-border)' }} onClick={() => setEditing(true)}>{addLabel}</button>
-            : <span>{value || '—'}</span>}{statusTag}
+            : (link && value)
+              ? <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: linkColor || 'var(--accent)', fontWeight: 600, wordBreak: 'break-all' }}>{linkText(value)}</a>
+              : <span>{value || '—'}</span>}{statusTag}
           <button title={`Edit ${label.toLowerCase()}`} onClick={() => setEditing(true)}
             style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: '0 4px' }}>✎</button>
         </>
