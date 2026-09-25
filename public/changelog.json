@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-25T23:43:01.129Z",
+  "generated_at": "2026-09-25T23:51:28.232Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e80b01d",
+      "date": "2026-09-25T18:46:13-05:00",
+      "subject": "Profile: picture joins the Social block; Source + Registered move to Contact",
+      "title": "Profile: picture joins the Social block; Source + Registered move to Contact",
+      "body": "John's layout: the picture belongs under SOCIAL, at the right alongside the\nhyperlinks, and Source / Registered read with the person rather than with the\nCRM controls.\n\nIt floats right inside the Social block now, so the three rows flow past it and\nit still costs no height of its own -- the same trick as before, mirrored.\n\nMoving two rows out of CRM and into Contact could have cost height, since\nwhichever column is taller sets the card. It did not: the columns land at 240\nand 250, closer than before, and the card came in at 384 (was 386). A\nprospecting lead carries two extra Contact rows for Off Market Date and MLS #,\nwhich tips Contact to ~276 -- still within the CRM column's reach.\n\nDesktop 384, sparse 292, laptop 1180px 407, mobile 872. No overlap, nothing\npast the frame, no sideways scroll, and the floated picture clears Tags on a\nsparse lead (248 vs 299 full, 213 vs 236 sparse) -- the one way a float bites.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bca21e8",
       "date": "2026-09-25T18:33:35-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Comms center UI: delivery status, voicemail playback, call notes + dispositions",
       "title": "Comms center UI: delivery status, voicemail playback, call notes + dispositions",
       "body": "- Inbox thread now shows: text delivery state (Sending/Delivered/⚠Failed+reason,\n  friendly not raw codes), MMS attachment count, missed-call highlight, call/voicemail\n  duration, voicemail audio player + transcript, and call recording playback.\n- Secure media proxy GET /api/inbox/recording/:id streams Twilio recordings/voicemail\n  through the Hub with account auth (never exposes Twilio media URLs/creds); accepts a\n  query token so <audio> works. Whitelisted with its own token check in auth.js.\n- Call/voicemail rows get a notes + disposition editor (POST /api/inbox/:id/annotate);\n  the \"Do not call\" disposition opts the contact out everywhere (text_opt_out + DNC).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6784796",
-      "date": "2026-08-19T18:55:11-05:00",
-      "subject": "Comms center: webhook security + delivery status + voicemail/missed-call/MMS",
-      "title": "Comms center: webhook security + delivery status + voicemail/missed-call/MMS",
-      "body": "- Twilio webhook signature validation (server/twilio-webhook.js): HMAC-SHA1 over\n  URL + sorted params vs X-Twilio-Signature; mode setting twilio_signature_mode\n  (monitor default → log-only, flip to 'enforce'). Applied to ALL Twilio webhooks\n  (inbound SMS, status, and every /api/voice/* callback).\n- communications: additive migrations for delivery_status, duration_sec,\n  recording_url/sid, transcript, disposition, notes, media_url, error_message, agent.\n- SMS: capture MMS media on inbound; outbound seeds delivery_status='queued';\n  status webhook reconciles queued→sent→delivered/undelivered/failed with friendly\n  carrier-error text (no raw codes shown to agents).\n- Voice: upsert call rows by SID; inbound Dial has an action → answered logs\n  completed+duration, no-answer records a VOICEMAIL (transcribed) and logs a MISSED\n  call; recording callback attaches media when call recording is enabled (opt-in\n  setting, not mandatory).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

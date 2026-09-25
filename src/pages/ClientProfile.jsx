@@ -635,21 +635,27 @@ function ClientDetails({ client, onSaved }) {
               of adding height to the one that sets the card's height. Sierra holds neither
               URL, so neither pushes. Work only appears once something filled it. */}
           <div className="cp-sub">Social</div>
-          {/* Their picture sits at the right of the Social block, alongside the links
-              (John, 2026-09-25). Floated, so the three rows flow past it and it adds no
-              height of its own. These are third-party URLs (Follow Up Boss, Gravatar) that
-              rot, so a broken one hides itself rather than leaving a torn-image icon. */}
-          {client.avatar_url && (
-            <img className="cp-avatar" src={client.avatar_url} alt="" referrerPolicy="no-referrer"
-              onError={e => { e.currentTarget.style.display = 'none' }} />
-          )}
-          <InlineField label="LinkedIn" field="linkedin_url" value={client.linkedin_url} clientId={cid} onSaved={onSaved}
-            link linkColor="#0077b5" syncSierra={false} addLabel="+ Add LinkedIn" placeholder="https://linkedin.com/in/…" />
-          <InlineField label="Facebook" field="facebook_url" value={client.facebook_url} clientId={cid} onSaved={onSaved}
-            link linkColor="#1877f2" syncSierra={false} addLabel="+ Add Facebook" placeholder="https://facebook.com/…" />
-          {(client.job_title || client.employer) && (
-            <p><strong>Work:</strong> {[client.job_title, client.employer].filter(Boolean).join(' · ')}</p>
-          )}
+          {/* Picture sits immediately beside the links, not floated to the column edge
+              (John, 2026-09-25): a float pins it to the far right, which on a wide screen
+              strands it a long way from the rows it belongs to. As a flex sibling it stays
+              adjacent at every width, and still adds no height while the rows are taller
+              than it. Third-party URLs (Follow Up Boss, Gravatar) rot, so a broken one
+              hides itself rather than leaving a torn-image icon. */}
+          <div className="cp-social">
+            <div className="cp-social-rows">
+              <InlineField label="LinkedIn" field="linkedin_url" value={client.linkedin_url} clientId={cid} onSaved={onSaved}
+                link linkColor="#0077b5" syncSierra={false} addLabel="+ Add LinkedIn" placeholder="https://linkedin.com/in/…" />
+              <InlineField label="Facebook" field="facebook_url" value={client.facebook_url} clientId={cid} onSaved={onSaved}
+                link linkColor="#1877f2" syncSierra={false} addLabel="+ Add Facebook" placeholder="https://facebook.com/…" />
+              {(client.job_title || client.employer) && (
+                <p><strong>Work:</strong> {[client.job_title, client.employer].filter(Boolean).join(' · ')}</p>
+              )}
+            </div>
+            {client.avatar_url && (
+              <img className="cp-avatar" src={client.avatar_url} alt="" referrerPolicy="no-referrer"
+                onError={e => { e.currentTarget.style.display = 'none' }} />
+            )}
+          </div>
         </div>
       </div>
       <div className="cp-tags" style={{ marginTop: 8 }}><div className="cp-sub">Tags</div><TagEditor client={client} onSaved={onSaved} /></div>
