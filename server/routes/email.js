@@ -783,12 +783,25 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       ...(category ? { categories: [String(category)].slice(0, 1) } : {}),
       // Engagement tracking: SendGrid rewrites links + adds an open pixel; the Event Webhook
       // (POST /api/email/events) turns those into per-email open/click stats.
-      // Deliberately NOT setting subscription_tracking here (John, 2026-09-28): the
-      // SendGrid account already appends its own unsubscribe to outgoing mail. Setting it
-      // per-send OVERRIDES that account-level default, so a substitution_tag whose token
-      // isn't in the body would insert nothing and quietly remove the opt-out link
-      // altogether. Leaving it unset keeps SendGrid's own footer in charge.
-      tracking_settings: { open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false } },
+      tracking_settings: {
+        open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false },
+        // Unsubscribe, on bulk mail only (2026-09-28). The account's own Subscription
+        // Tracking is OFF and there are no ASM groups — checked, not assumed — so nothing
+        // the Hub sent had an opt-out link at all. Marketing Campaigns adds one; the Email
+        // API, which is what the Hub uses, does not.
+        //
+        // Enabled per send and only when a category is present, so drips, sequences and
+        // campaigns carry it while a 1:1 email an agent types to one person does not.
+        // html/text are supplied rather than a substitution_tag: a tag that no template
+        // contains would insert nothing, which is exactly how this was missed before.
+        // SendGrid swaps `<% %>` for the unsubscribe link.
+        ...(category ? { subscription_tracking: {
+          enable: true,
+          html: '<div style="margin-top:22px;padding-top:14px;border-top:1px solid #e6e8ec;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8a8f98;">'
+            + 'Not interested in these? <% Unsubscribe %> and we will stop sending them.</div>',
+          text: 'Not interested in these? Unsubscribe: <% %>',
+        } } : {}),
+      },
       subject,
       content: [
         { type: 'text/plain', value: _plain },
