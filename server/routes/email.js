@@ -818,9 +818,9 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
             + '<tr><td align="center" style="padding:4px 12px 26px;">'
             + '<table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;">'
             + '<tr><td style="padding:0 32px;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:1.6;color:#8a8f98;">'
-            + 'Not interested in these? <% Unsubscribe %> and we will stop sending them.'
+            + '<% Unsubscribe %>'
             + '</td></tr></table></td></tr></table>',
-          text: 'Not interested in these? Unsubscribe: <% %>',
+          text: 'Unsubscribe: <% %>',
         } } : {}),
       },
       subject,

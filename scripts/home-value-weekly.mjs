@@ -29,6 +29,10 @@ const CAMPAIGN = 'Home Value Weekly — 6 Month'
 const CATEGORY = 'Home Value Weekly'
 const LOGO = 'https://realestate-hub-1rzu.onrender.com/logo.jpg'
 const TEAM_EMAIL = 'mattsmithremax@gmail.com'
+// A physical postal address is required on commercial email (CAN-SPAM), and these are
+// commercial. Taken from the team's own site, which publishes it in both its footer and
+// its schema.org PostalAddress, rather than guessed.
+const OFFICE_ADDRESS = 'RE/MAX Concepts · 5235 Buffalo Ridge Dr, Cedar Rapids, IA 52411'
 
 // ---- palette, sampled from the logo ---------------------------------------------
 const NAVY = '#191a2e'   // logo background, so the header band is seamless
@@ -72,6 +76,7 @@ function shell({ headline, paras, cta, ctaUrl = '{{home_value_url}}' }) {
           <a href="mailto:${TEAM_EMAIL}" style="color:${BODY};text-decoration:underline;">${TEAM_EMAIL}</a><br />
           <a href="https://www.mattsmithteam.com" style="color:${BODY};text-decoration:underline;">MattSmithTeam.com</a>
         </p>
+        <p style="margin:0 0 10px;font-size:12px;line-height:1.6;color:${MUTED};">${OFFICE_ADDRESS}</p>
         <p style="margin:0;font-size:12px;line-height:1.6;color:${MUTED};">Estimates shown are automated and are a starting point, not an appraisal.</p>
       </td></tr>
     </table>
