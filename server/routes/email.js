@@ -311,6 +311,18 @@ export function usableCity(raw) {
   return c
 }
 
+// ── Which sends are marketing, and so need an unsubscribe ─────────────────────────
+// Every automated send carries a category, but only some of them are marketing. These
+// are the bulk ones: drip campaigns (drip_<id>), automation emails (auto_<id>), and the
+// bulk composer (campaign_/bulk_). Everything else that carries a category —
+// password_reset, appointment, inbox_notify, inbox_compose, ai_handoff, fb_lead_alert —
+// is transactional, internal, or a message one person wrote to one person, and must not
+// gain an opt-out footer.
+const BULK_CATEGORY = /^(drip|drip_test|auto|campaign|bulk)_/i
+export function isBulkCategory(category) {
+  return !!category && BULK_CATEGORY.test(String(category))
+}
+
 // ── Logo: delivered WITH the email, not fetched when it opens ─────────────────────
 // A hosted <img> is only requested when the reader opens the message, so the logo pops
 // in a second or two late (John, 2026-09-28). An inline (cid:) image rides along in the
@@ -785,17 +797,19 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       // (POST /api/email/events) turns those into per-email open/click stats.
       tracking_settings: {
         open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false },
-        // Unsubscribe, on bulk mail only (2026-09-28). The account's own Subscription
+        // Unsubscribe, on MARKETING mail only (2026-09-28). The account's own Subscription
         // Tracking is OFF and there are no ASM groups — checked, not assumed — so nothing
         // the Hub sent had an opt-out link at all. Marketing Campaigns adds one; the Email
         // API, which is what the Hub uses, does not.
         //
-        // Enabled per send and only when a category is present, so drips, sequences and
-        // campaigns carry it while a 1:1 email an agent types to one person does not.
+        // Gated on isBulkCategory, not on "a category exists": a password reset, a calendar
+        // invite, an internal lead alert and an Inbox 1:1 all carry categories too, and an
+        // unsubscribe footer on any of those is wrong — on a password reset it is absurd.
+        //
         // html/text are supplied rather than a substitution_tag: a tag that no template
         // contains would insert nothing, which is exactly how this was missed before.
         // SendGrid swaps `<% %>` for the unsubscribe link.
-        ...(category ? { subscription_tracking: {
+        ...(isBulkCategory(category) ? { subscription_tracking: {
           enable: true,
           html: '<div style="margin-top:22px;padding-top:14px;border-top:1px solid #e6e8ec;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8a8f98;">'
             + 'Not interested in these? <% Unsubscribe %> and we will stop sending them.</div>',
