@@ -162,7 +162,7 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
 
   // Address+City index of live Hub clients (multiple people can share an address → keep a list).
   const index = new Map()
-  for (const c of db.all("SELECT id, first_name, last_name, address, city, status FROM clients WHERE address IS NOT NULL AND address != '' AND merged_into IS NULL")) {
+  for (const c of db.all("SELECT id, first_name, last_name, address, city, status, phone FROM clients WHERE address IS NOT NULL AND address != '' AND merged_into IS NULL")) {
     const k = addrCityKey(c.address, c.city); if (!k) continue
     if (!index.has(k)) index.set(k, [])
     index.get(k).push(c)
@@ -254,6 +254,11 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       // correction in the MLS flows through (never blanked when absent).
       const listPrice = parseMlsListPrice(row.notes)
       if (listPrice) { sets.push('mls_list_price=?'); vals.push(listPrice) }
+      // Fill a BLANK phone from the sheet, never overwrite one that's already there — phone
+      // stays Hub-owned. Without this, a lead created before the sheet row had a phone (a
+      // timing race between the daily pull and the Forewarn lookup) never got one, because
+      // no later sync ever revisited it (Tamara Johnson, 1395 Applewood Dr, 2026-09-28).
+      if (!match.phone && row.phone) { sets.push('phone=?'); vals.push(row.phone) }
       // Tag matched EXISTING leads the same way new creates are tagged: the
       // MLS: Cancelled/Expired tag is what the C/E list, the Watch rule, AND the
       // CX auto-enroll all key on. Without it, a pre-existing contact (old import)
