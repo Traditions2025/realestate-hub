@@ -1368,14 +1368,17 @@ router.get('/sendgrid-settings', async (_req, res) => {
     get('/asm/groups'),
     get('/asm/suppressions/global?limit=1'),
   ])
+  // SendGrid names these "click" / "open" / "subscription", not "*_tracking" — matching on
+  // the longer name silently returned null for all three and looked like "nothing is set".
   const pick = (r, name) => (r.body?.result || []).find(x => x.name === name) || null
   res.json({
-    subscription_tracking: pick(tracking, 'subscription_tracking'),
-    open_tracking: pick(tracking, 'open_tracking'),
-    click_tracking: pick(tracking, 'click_tracking'),
+    subscription: pick(tracking, 'subscription'),   // the account-level unsubscribe footer
+    open: pick(tracking, 'open'),
+    click: pick(tracking, 'click'),
     footer: pick(mail, 'footer'),
     asm_groups: (Array.isArray(groups.body) ? groups.body : []).map(g => ({ id: g.id, name: g.name, is_default: g.is_default })),
-    global_suppression_sample: Array.isArray(suppressions.body) ? suppressions.body.length : suppressions.status,
+    tracking_names: (tracking.body?.result || []).map(x => `${x.name}:${x.enabled}`),
+    mail_names: (mail.body?.result || []).map(x => `${x.name}:${x.enabled}`),
     raw_status: { tracking: tracking.status, mail: mail.status, groups: groups.status },
   })
 })
