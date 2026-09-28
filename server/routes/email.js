@@ -1347,6 +1347,39 @@ router.post('/events', async (req, res) => {
   res.status(200).json({ ok: true })   // always 200 so SendGrid doesn't endlessly retry
 })
 
+// Read-only: what the SendGrid ACCOUNT is configured to do to our mail. Added while
+// working out why drip emails carry no unsubscribe link (John, 2026-09-28): the Hub's
+// templates contain no unsubscribe and no substitution tag, so if one is being added it
+// is added here, by the account, and the only way to know is to ask. Returns settings
+// and group names only — never the API key.
+router.get('/sendgrid-settings', async (_req, res) => {
+  if (!SENDGRID_API_KEY) return res.status(400).json({ error: 'no SendGrid key configured' })
+  const A = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
+  const get = async (p) => {
+    try {
+      const r = await fetch('https://api.sendgrid.com/v3' + p, { headers: A })
+      const j = await r.json().catch(() => null)
+      return { status: r.status, body: j }
+    } catch (e) { return { error: e.message } }
+  }
+  const [tracking, mail, groups, suppressions] = await Promise.all([
+    get('/tracking_settings'),
+    get('/mail_settings'),
+    get('/asm/groups'),
+    get('/asm/suppressions/global?limit=1'),
+  ])
+  const pick = (r, name) => (r.body?.result || []).find(x => x.name === name) || null
+  res.json({
+    subscription_tracking: pick(tracking, 'subscription_tracking'),
+    open_tracking: pick(tracking, 'open_tracking'),
+    click_tracking: pick(tracking, 'click_tracking'),
+    footer: pick(mail, 'footer'),
+    asm_groups: (Array.isArray(groups.body) ? groups.body : []).map(g => ({ id: g.id, name: g.name, is_default: g.is_default })),
+    global_suppression_sample: Array.isArray(suppressions.body) ? suppressions.body.length : suppressions.status,
+    raw_status: { tracking: tracking.status, mail: mail.status, groups: groups.status },
+  })
+})
+
 // One-time: point the SendGrid account's Event Webhook at this Hub.
 router.post('/setup-events-webhook', async (_req, res) => {
   try {
