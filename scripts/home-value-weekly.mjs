@@ -88,7 +88,10 @@ const WEEKS = [
     paras: ['As a mortgage is paid down and a home\u2019s value changes, the amount of equity a homeowner may have can change too.',
       'Knowing the current estimated value of {{street_address}} gives you a starting point for understanding what you may have built over time.'] },
   { n: 3, angle: 'NEARBY_SALES', cta: 'SEE NEARBY SALES',
-    subject: 'What are homes around {{street_address}} selling for?',
+    // Brief had {{street_address}} here, which degrades to "homes around your home"
+    // for a lead with no address on file. The email is about the AREA anyway, so the
+    // area token reads right both ways: "around Marion" / "around your area".
+    subject: 'What are homes around {{city_or_area}} selling for?',
     headline: 'Nearby sales can change the picture',
     paras: ['What a home is listed for and what a buyer ultimately pays can be very different.',
       'Recent closed sales around {{city_or_area}} can tell you how buyers are valuing homes nearby, and where {{street_address}} may fit into today\u2019s market.'] },
