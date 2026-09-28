@@ -677,16 +677,12 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       ...(category ? { categories: [String(category)].slice(0, 1) } : {}),
       // Engagement tracking: SendGrid rewrites links + adds an open pixel; the Event Webhook
       // (POST /api/email/events) turns those into per-email open/click stats.
-      tracking_settings: {
-        open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false },
-        // A one-click unsubscribe, but ONLY on bulk/automated mail (anything carrying a
-        // category: drips, sequences, campaigns). A 1:1 email an agent types to one person
-        // must never carry an unsubscribe footer. SendGrid swaps the tag below for a real
-        // opt-out URL and records the result; the Event Webhook already turns an
-        // `unsubscribe` event into the marketing opt-out flag, so the loop closes itself.
-        // Sequence mail previously went out with no opt-out at all (2026-09-28).
-        ...(category ? { subscription_tracking: { enable: true, substitution_tag: '{{unsubscribe}}' } } : {}),
-      },
+      // Deliberately NOT setting subscription_tracking here (John, 2026-09-28): the
+      // SendGrid account already appends its own unsubscribe to outgoing mail. Setting it
+      // per-send OVERRIDES that account-level default, so a substitution_tag whose token
+      // isn't in the body would insert nothing and quietly remove the opt-out link
+      // altogether. Leaving it unset keeps SendGrid's own footer in charge.
+      tracking_settings: { open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false } },
       subject,
       content: (() => {
         // Two paths:

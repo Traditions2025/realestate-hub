@@ -11,6 +11,11 @@
 // footer. Palette is sampled from the team logo itself (#191a2e background, gold #c9a227),
 // so the header band is seamless with the logo rather than a navy rectangle on white.
 //
+// CTA: every button goes to the team value site. It asks for the address each time by
+// design (John, 2026-09-28) — Sierra gives no way to prefill it, and that is accepted.
+//
+// UNSUBSCRIBE: not in the body. SendGrid already appends its own on send.
+//
 // DATA INTEGRITY: no email claims a value moved, a neighbour sold, or an equity/mortgage
 // figure. Every line is evergreen ("recent sales CAN influence...") because the Hub holds
 // no per-property valuation feed. See the note at the bottom of the file.
@@ -61,7 +66,7 @@ function shell({ headline, paras, cta, ctaUrl = '{{home_value_url}}' }) {
       <tr><td style="padding:20px 32px 28px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
         <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:${INK};">Matt Smith Team | RE/MAX Concepts</p>
         <p style="margin:0 0 12px;font-size:13px;color:${MUTED};"><a href="https://www.mattsmithteam.com" style="color:${MUTED};text-decoration:underline;">MattSmithTeam.com</a> &nbsp;·&nbsp; Cedar Rapids &amp; Marion, Iowa</p>
-        <p style="margin:0;font-size:12px;line-height:1.6;color:${MUTED};">You are receiving this because you are a homeowner in our database. Estimates shown are automated and are a starting point, not an appraisal.<br /><a href="{{unsubscribe}}" style="color:${MUTED};text-decoration:underline;">Unsubscribe</a> from these updates at any time.</p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:${MUTED};">You are receiving this because you are a homeowner in our database. Estimates shown are automated and are a starting point, not an appraisal.</p>
       </td></tr>
     </table>
   </td></tr>
