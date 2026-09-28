@@ -28,6 +28,7 @@ const BASE = (args[args.indexOf('--base') + 1] && args.includes('--base')) ? arg
 const CAMPAIGN = 'Home Value Weekly — 6 Month'
 const CATEGORY = 'Home Value Weekly'
 const LOGO = 'https://realestate-hub-1rzu.onrender.com/logo.jpg'
+const TEAM_EMAIL = 'mattsmithremax@gmail.com'
 
 // ---- palette, sampled from the logo ---------------------------------------------
 const NAVY = '#191a2e'   // logo background, so the header band is seamless
@@ -49,7 +50,7 @@ function shell({ headline, paras, cta, ctaUrl = '{{home_value_url}}' }) {
   <tr><td align="center" style="padding:24px 12px;">
     <table role="presentation" width="640" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:640px;background:#ffffff;border-radius:10px;overflow:hidden;border:1px solid ${RULE};">
       <tr><td align="center" style="background:${NAVY};padding:22px 24px;">
-        <img src="${LOGO}" alt="Matt Smith Team, RE/MAX Concepts" width="210" style="display:block;width:210px;max-width:60%;height:auto;border:0;" />
+        <img src="${LOGO}" alt="Matt Smith Team, RE/MAX Concepts" width="210" height="105" style="display:block;width:210px;max-width:60%;height:auto;border:0;outline:none;text-decoration:none;" />
       </td></tr>
       <tr><td style="height:3px;background:${GOLD};font-size:0;line-height:0;">&nbsp;</td></tr>
       <tr><td style="padding:32px 32px 8px;">
@@ -64,9 +65,14 @@ function shell({ headline, paras, cta, ctaUrl = '{{home_value_url}}' }) {
       </td></tr>
       <tr><td style="padding:0 32px;"><div style="height:1px;background:${RULE};font-size:0;line-height:0;">&nbsp;</div></td></tr>
       <tr><td style="padding:20px 32px 28px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-        <p style="margin:0 0 4px;font-size:14px;font-weight:700;color:${INK};">Matt Smith Team | RE/MAX Concepts</p>
-        <p style="margin:0 0 12px;font-size:13px;color:${MUTED};"><a href="https://www.mattsmithteam.com" style="color:${MUTED};text-decoration:underline;">MattSmithTeam.com</a> &nbsp;·&nbsp; Cedar Rapids &amp; Marion, Iowa</p>
-        <p style="margin:0;font-size:12px;line-height:1.6;color:${MUTED};">You are receiving this because you are a homeowner in our database. Estimates shown are automated and are a starting point, not an appraisal.</p>
+        <p style="margin:0 0 3px;font-size:14px;font-weight:700;color:${INK};">Matt Smith</p>
+        <p style="margin:0 0 6px;font-size:13px;color:${BODY};">Matt Smith Team | RE/MAX Concepts</p>
+        <p style="margin:0 0 14px;font-size:13px;line-height:1.7;color:${BODY};">
+          <a href="tel:+13194315859" style="color:${BODY};text-decoration:none;">319-431-5859</a><br />
+          <a href="mailto:${TEAM_EMAIL}" style="color:${BODY};text-decoration:underline;">${TEAM_EMAIL}</a><br />
+          <a href="https://www.mattsmithteam.com" style="color:${BODY};text-decoration:underline;">MattSmithTeam.com</a>
+        </p>
+        <p style="margin:0;font-size:12px;line-height:1.6;color:${MUTED};">Estimates shown are automated and are a starting point, not an appraisal.</p>
       </td></tr>
     </table>
   </td></tr>
