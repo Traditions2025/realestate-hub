@@ -13,7 +13,10 @@ import fs from 'fs'
 import { isBulkCategory } from '../server/routes/email.js'
 
 const SRC = fs.readFileSync(new URL('../server/routes/email.js', import.meta.url), 'utf8')
-const RAW = SRC.slice(SRC.indexOf('tracking_settings: {'), SRC.indexOf('tracking_settings: {') + 1800)
+// Slice to the END of the block rather than a guessed character count: the footer markup
+// grew and a fixed window silently stopped covering the `text:` line it was asserting on.
+const _start = SRC.indexOf('tracking_settings: {')
+const RAW = SRC.slice(_start, SRC.indexOf('\n      subject,', _start))
 // Assert against CODE, not the comments explaining it.
 const BLOCK = RAW.split('\n').filter(l => !l.trim().startsWith('//')).join('\n')
 
