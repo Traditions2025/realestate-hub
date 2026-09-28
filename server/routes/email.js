@@ -358,7 +358,13 @@ export function fillTemplate(text, client) {
     .replace(/\{\{email\}\}/g, client.email || '')
     .replace(/\{\{phone\}\}/g, client.phone || '')
     .replace(/\{\{address\}\}/g, client.address || 'your home')
+    // Alias so homeowner copy can say "street_address" and read as what it is.
+    .replace(/\{\{street_address\}\}/g, client.address || 'your home')
     .replace(/\{\{city\}\}/g, client.city || 'Cedar Rapids')
+    // {{city}} falls back to Cedar Rapids, which is a claim about where someone lives.
+    // Homeowner nurture goes to people whose city we may not know, so this variant
+    // degrades to "your area" instead of asserting a town (Home Value Weekly, 2026-09-28).
+    .replace(/\{\{city_or_area\}\}/g, client.city || 'your area')
     .replace(/\{\{state\}\}/g, client.state || '')
     .replace(/\{\{zip\}\}/g, client.zip || '')
     .replace(/\{\{city_of_interest\}\}/g, lastViewedCity(client) || primaryCity(client))
@@ -376,6 +382,9 @@ export function fillTemplate(text, client) {
     // Past-client value tools: hyperlinked text, never the raw URL.
     .replace(/\{\{home_value_link\}\}/g, valueLink('Get your home value here'))
     .replace(/\{\{cma_request_link\}\}/g, valueLink('Request your full home analysis here'))
+    // The bare URL, for designed emails that put the value tool behind their own
+    // button and need the href rather than a pre-worded sentence.
+    .replace(/\{\{home_value_url\}\}/g, VALUE_TOOL_URL)
     // Season-accurate maintenance blurb, picked by the current month.
     .replace(/\{\{seasonal_maintenance\}\}/g, seasonalMaintenance())
     // Whole years since closing — for the Vintage (3+ year) past-client track.
@@ -668,7 +677,16 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       ...(category ? { categories: [String(category)].slice(0, 1) } : {}),
       // Engagement tracking: SendGrid rewrites links + adds an open pixel; the Event Webhook
       // (POST /api/email/events) turns those into per-email open/click stats.
-      tracking_settings: { open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false } },
+      tracking_settings: {
+        open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false },
+        // A one-click unsubscribe, but ONLY on bulk/automated mail (anything carrying a
+        // category: drips, sequences, campaigns). A 1:1 email an agent types to one person
+        // must never carry an unsubscribe footer. SendGrid swaps the tag below for a real
+        // opt-out URL and records the result; the Event Webhook already turns an
+        // `unsubscribe` event into the marketing opt-out flag, so the loop closes itself.
+        // Sequence mail previously went out with no opt-out at all (2026-09-28).
+        ...(category ? { subscription_tracking: { enable: true, substitution_tag: '{{unsubscribe}}' } } : {}),
+      },
       subject,
       content: (() => {
         // Two paths:
