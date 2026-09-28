@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import fsSync from 'fs'
 import db from '../database.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
@@ -308,6 +309,37 @@ export function usableCity(raw) {
   if (!c || /^\d/.test(c)) return ''                      // "500 1st" is a street, not a town
   if (/^(ia|iowa|usa|us|linn|n\/?a|none|unknown)$/i.test(c)) return ''
   return c
+}
+
+// ── Logo: delivered WITH the email, not fetched when it opens ─────────────────────
+// A hosted <img> is only requested when the reader opens the message, so the logo pops
+// in a second or two late (John, 2026-09-28). An inline (cid:) image rides along in the
+// message itself, so it is already there the moment the email renders.
+//
+// Templates still store the hosted URL, which keeps the Hub's own template preview
+// working. The swap happens at send time: if the outgoing HTML references the logo, the
+// URL is rewritten to a cid: and the file attached inline. email-logo.jpg is the same
+// artwork at 2x its display size — 14KB against the 44KB original, which was 800px wide
+// to fill a 210px slot.
+const EMAIL_LOGO_URLS = [
+  'https://realestate-hub-1rzu.onrender.com/logo.jpg',
+  'https://realestate-hub-1rzu.onrender.com/email-logo.jpg',
+]
+const EMAIL_LOGO_CID = 'msteamlogo'
+const EMAIL_LOGO_FILE = new URL('../../public/email-logo.jpg', import.meta.url)
+let _logoB64 = null
+function inlineLogo(html) {
+  if (!html || !EMAIL_LOGO_URLS.some(u => html.includes(u))) return { html, attachment: null }
+  try {
+    if (_logoB64 === null) _logoB64 = fsSync.readFileSync(EMAIL_LOGO_FILE).toString('base64')
+  } catch { return { html, attachment: null } }   // file missing: leave the hosted URL alone
+  let out = html
+  for (const u of EMAIL_LOGO_URLS) out = out.split(u).join(`cid:${EMAIL_LOGO_CID}`)
+  return {
+    html: out,
+    attachment: { content: _logoB64, type: 'image/jpeg', filename: 'matt-smith-team.jpg',
+      disposition: 'inline', content_id: EMAIL_LOGO_CID },
+  }
 }
 
 const VALUE_TOOL_URL = 'https://cedarrapidsmetroareahomevalue.sierrasellersites.com/'
@@ -718,6 +750,26 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
     const uniqueBcc = [...new Set(bccList.filter(e => e && !toLowerSet.has(e.toLowerCase()) && !ccLowerSet.has(e.toLowerCase()) && !isBlockedEmail(e)))]
     if (uniqueBcc.length) personalization.bcc = uniqueBcc.map(email => ({ email }))
   }
+  // Two paths: a body with real HTML tags goes as-is (tags stripped for the plain part);
+  // plain text is wrapped into HTML. Then the logo is swapped for an inline attachment so
+  // it is already present when the email opens rather than fetched on open.
+  const _isHtml = looksLikeHtml(body)
+  let _html = _isHtml ? body : plainToHtml(body)
+  _html = autoEmbedYoutubeLinks(_html)
+  const _plain = _isHtml ? htmlToPlain(body) : body
+  const _logo = inlineLogo(_html)
+  _html = _logo.html
+  const _attachments = [
+    ...((Array.isArray(attachments) ? attachments : []).map(a => ({
+      content: a.content_base64 || a.content,
+      type: a.type || 'application/octet-stream',
+      filename: a.filename || 'attachment',
+      disposition: a.disposition || 'attachment',
+      ...(a.content_id ? { content_id: a.content_id } : {}),
+    }))),
+    ...(_logo.attachment ? [_logo.attachment] : []),
+  ]
+
   const resp = await fetch('https://api.sendgrid.com/v3/mail/send', {
     method: 'POST',
     headers: {
@@ -738,28 +790,11 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
       // altogether. Leaving it unset keeps SendGrid's own footer in charge.
       tracking_settings: { open_tracking: { enable: true }, click_tracking: { enable: true, enable_text: false } },
       subject,
-      content: (() => {
-        // Two paths:
-        //  - Body has actual HTML tags → send as-is for HTML, strip tags for plain version
-        //  - Body is plain text → auto-convert to HTML (wrap paragraphs, auto-link URLs/emails/phones)
-        const isHtml = looksLikeHtml(body)
-        let html = isHtml ? body : plainToHtml(body)
-        // Auto-replace plain YouTube URLs with clickable thumbnail blocks
-        html = autoEmbedYoutubeLinks(html)
-        const plain = isHtml ? htmlToPlain(body) : body
-        return [
-          { type: 'text/plain', value: plain },
-          { type: 'text/html', value: html },
-        ]
-      })(),
-      ...(Array.isArray(attachments) && attachments.length ? {
-        attachments: attachments.map(a => ({
-          content: a.content_base64 || a.content,
-          type: a.type || 'application/octet-stream',
-          filename: a.filename || 'attachment',
-          disposition: 'attachment',
-        })),
-      } : {}),
+      content: [
+        { type: 'text/plain', value: _plain },
+        { type: 'text/html', value: _html },
+      ],
+      ...(_attachments.length ? { attachments: _attachments } : {}),
     }),
   })
 
