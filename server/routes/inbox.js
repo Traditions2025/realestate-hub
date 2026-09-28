@@ -346,6 +346,21 @@ router.get('/contact-emails', async (req, res) => {
   try { const { searchMailboxesForContact } = await import('../gmail-inbox.js'); res.json(await searchMailboxesForContact(email, { max: Number(req.query.max) || 600 })) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Search the team mailboxes by subject. Read-only, nothing imported.
+// For mail the poller never stores because it belongs to no client — a Sierra
+// "Contact Request", a portal notification, anything sent by a system rather than a person.
+router.get('/mailbox-subject-search', async (req, res) => {
+  const subject = String(req.query.subject || '').trim()
+  if (!subject) return res.status(400).json({ error: 'subject is required' })
+  try {
+    const { searchMailboxesBySubject } = await import('../gmail-inbox.js')
+    res.json(await searchMailboxesBySubject(subject, {
+      max: Math.min(Number(req.query.max) || 40, 200),
+      since: req.query.since || null,
+    }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Backfill directly-sent Gmail mail from a mailbox's Sent folder onto lead profiles.
 router.post('/sent-backfill', async (req, res) => {
   try { const { backfillSentFolder } = await import('../gmail-inbox.js'); res.json(await backfillSentFolder({ mailboxUser: req.body?.mailbox, days: Number(req.body?.days) || 30 })) }

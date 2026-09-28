@@ -374,6 +374,55 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
   return { email: target, count: dedup.length, mailboxes: boxInfo, messages: dedup }
 }
 
+// Search the team mailboxes by SUBJECT, read-only.
+//
+// The poller only stores messages it can match to a client, by design, so anything from a
+// system rather than a person — a Sierra "Contact Request", a portal notification — never
+// lands in the Hub and cannot be found there. This asks the mailbox directly.
+// Searches Gmail's All Mail, so archived messages count too. Nothing is written.
+export async function searchMailboxesBySubject(subject, { max = 40, since = null } = {}) {
+  const term = String(subject || '').trim()
+  if (!term) return { subject: term, count: 0, mailboxes: [], messages: [] }
+  const boxes = getMailboxes().filter(m => m.enabled !== false && m.app_password)
+  const out = [], boxInfo = []
+  for (const m of boxes) {
+    const pass = String(m.app_password || '').replace(/\s+/g, '')
+    const client = new ImapFlow({ host: m.host || 'imap.gmail.com', port: m.port || 993, secure: true, auth: { user: m.user, pass }, logger: false, greetingTimeout: 12000, socketTimeout: 60000 })
+    client.on('error', () => {})
+    try {
+      await client.connect()
+      let folder = 'INBOX'
+      try { const list = await client.list(); const all = list.find(b => b.specialUse === '\\All') || list.find(b => /all mail/i.test(b.path)); if (all) folder = all.path } catch {}
+      const lock = await client.getMailboxLock(folder)
+      let found = 0
+      try {
+        const q = { subject: term }
+        if (since) q.since = new Date(since)
+        const uids = await client.search(q, { uid: true }) || []
+        const pick = uids.slice(-max)
+        for await (const msg of client.fetch(pick, { uid: true, source: true, internalDate: true }, { uid: true })) {
+          let p; try { p = await simpleParser(msg.source) } catch { continue }
+          const body = String(p.text || (p.html ? p.html.replace(/<[^>]+>/g, ' ') : '')).replace(/ /g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+          out.push({
+            mailbox: m.user,
+            date: (msg.internalDate || p.date || new Date()).toISOString(),
+            from: p.from?.text || '', to: p.to?.text || '', subject: p.subject || '(no subject)',
+            messageId: p.messageId || `${m.user}_${msg.uid}`,
+            body: body.slice(0, 4000),
+          })
+          found++
+        }
+      } finally { lock.release() }
+      boxInfo.push({ mailbox: m.user, folder, matched: found, totalHits: 0 })
+      await client.logout()
+    } catch (e) { boxInfo.push({ mailbox: m.user, error: e.message }); try { await client.logout() } catch {} }
+  }
+  const seen = new Set(); const dedup = []
+  for (const x of out) { if (seen.has(x.messageId)) continue; seen.add(x.messageId); dedup.push(x) }
+  dedup.sort((a, b) => new Date(b.date) - new Date(a.date))   // newest first
+  return { subject: term, count: dedup.length, mailboxes: boxInfo, messages: dedup }
+}
+
 // Import a contact's FULL Gmail history (both directions, all mailboxes) into their
 // profile feed. Deduped by Message-ID and by same-direction same-subject ±45 min, so
 // Hub-logged sends and already-polled emails never double up. Explicit action only —
