@@ -256,6 +256,26 @@ router.post('/enrollments/:eid/resume', (req, res) => {
 // Delay the next email either by a preset { days } OR to an exact { until: 'YYYY-MM-DD' }.
 // An explicit date is scheduled inside the campaign's normal send window on that calendar day
 // (rolled forward off holidays / a passed window), so a hand-picked date still lands in-hours.
+// ---- send the next step now, instead of waiting for its scheduled slot ----
+// /delay can only push a send later. This is the other direction: somebody enrolled a
+// lead and wants the first email to go today rather than tomorrow morning.
+// It runs the real advanceDrip, so the enrollment moves on exactly as if the scheduler
+// had picked it up — step advances, the next one is scheduled, the send is logged — and
+// every guard still applies (junk/DNC pulls them out, a reply pauses the campaign).
+// Deliberately ignores the step's send-time window: asking for it now IS the intent.
+router.post('/enrollments/:eid/send-now', async (req, res) => {
+  const e = db.get('SELECT * FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
+  if (!e) return res.status(404).json({ error: 'enrollment not found' })
+  if (e.status !== 'active') return res.status(400).json({ error: `enrollment is ${e.status}, not active` })
+  const before = { step: e.current_step, next_run_at: e.next_run_at }
+  try {
+    await advanceDrip(e)
+    const after = db.get('SELECT current_step, next_run_at, status FROM drip_enrollments WHERE id=?', [e.id])
+    const sent = after.current_step > before.step
+    res.json({ success: true, sent, before, after })
+  } catch (err) { res.status(500).json({ error: err.message }) }
+})
+
 router.post('/enrollments/:eid/delay', (req, res) => {
   const e = db.get('SELECT id, drip_id, current_step, next_run_at FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])
   if (!e) return res.status(404).json({ error: 'enrollment not found' })
