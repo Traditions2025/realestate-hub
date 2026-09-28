@@ -259,6 +259,57 @@ function searchPriceRange(client) {
 
 // Past-client value tools — the team's home-value site, same for everyone.
 // Rendered as a hyperlink so the raw URL never shows in the email body.
+// ── Address / city that are safe to put in a sentence ─────────────────────────────
+// A merge field for an address is not like one for a name: it can land in a SUBJECT
+// LINE, where a bad record reads as nonsense rather than as a blank. An audit of the
+// 23,674 mailable records on 2026-09-28 found ~126 addresses and ~106 cities that could
+// not be repaired by any transform — PO boxes, "None", a bare house number, a street
+// sitting in the city column. Those cannot be fixed in the data, so they are handled
+// here instead: anything that does not read like a street line degrades to "your home",
+// and anything that does not read like a town degrades to "your area". The copy is
+// written so both read naturally, so the email still works rather than being skipped.
+//
+// This also repairs on the fly: a record that still has the city, state and zip jammed
+// into the street field is trimmed back to the street before it is used, so a row that
+// arrives dirty tomorrow does not need the cleanup run again.
+const ADDR_PLACEHOLDER = /^(n\/?a|none|unknown|tbd|test|null|no address|address|\.|-+)$/i
+const ADDR_PO_BOX = /\b(p\.?\s*o\.?\s*box|post office box|pobox)\b/i
+const AREA_TOWNS = ['Cedar Rapids', 'Marion', 'Hiawatha', 'Robins', 'Fairfax', 'Ely', 'Solon',
+  'Swisher', 'Shueyville', 'Walford', 'Atkins', 'Center Point', 'Center Pt', 'Central City',
+  'Alburnett', 'Springville', 'Mount Vernon', 'Mt Vernon', 'Lisbon', 'Palo', 'Toddville',
+  'Coggon', 'Prairieburg', 'Troy Mills', 'Walker', 'Vinton', 'Blairstown', 'North Liberty',
+  'Iowa City', 'Coralville', 'Tiffin', 'Anamosa', 'Independence', 'Monticello', 'Urbana',
+  'Norway', 'Van Horne', 'Newhall', 'Watkins', 'Keystone', 'Belle Plaine', 'Amana']
+const TOWN_TAIL = new RegExp('[,\\s]+(?:' + AREA_TOWNS.map(t => t.replace(/ /g, '\\s+')).join('|') +
+  ')\\b[\\s,]*(?:[A-Z]{2}|Iowa)?\\.?\\s*,?\\s*\\d{0,5}(?:-\\d{4})?\\s*$', 'i')
+const STATE_ZIP_TAIL = /[,\s]+(?:[A-Z]{2}|Iowa)\.?\s*,?\s*\d{5}(?:-\d{4})?\s*$/i
+const ZIP_TAIL = /[,\s]+\d{5}(?:-\d{4})?\s*$/
+
+export function usableStreet(raw) {
+  let a = String(raw == null ? '' : raw).replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  if (!a || ADDR_PLACEHOLDER.test(a) || ADDR_PO_BOX.test(a) || /@/.test(a)) return ''
+  // trim a jammed "…, Marion, IA 52302" tail back to the street line
+  let t = a.replace(TOWN_TAIL, '')
+  if (t === a) t = a.replace(STATE_ZIP_TAIL, '')
+  if (t === a) t = a.replace(ZIP_TAIL, '')
+  a = t.replace(/[\s,]+$/, '').trim()
+  // a street line starts with a number and has a name after it
+  if (!/^\d/.test(a) || a.length < 6) return ''
+  if (a.split(/\s+/).filter(Boolean).length < 2) return ''
+  return a
+}
+
+export function usableCity(raw) {
+  let c = String(raw == null ? '' : raw).replace(/[\r\n]+/g, ' ').trim()
+  if (!c) return ''
+  // a saved-search area list landed in the city column: their own town is the first entry
+  if (c.includes('|')) c = c.split('|').map(s => s.trim()).filter(Boolean)[0] || ''
+  c = c.replace(/,\s*(?:IA|Iowa|[A-Z]{2})\.?\s*$/i, '').replace(/[\s,]+$/, '').trim()
+  if (!c || /^\d/.test(c)) return ''                      // "500 1st" is a street, not a town
+  if (/^(ia|iowa|usa|us|linn|n\/?a|none|unknown)$/i.test(c)) return ''
+  return c
+}
+
 const VALUE_TOOL_URL = 'https://cedarrapidsmetroareahomevalue.sierrasellersites.com/'
 const valueLink = (text) => `<a href="${VALUE_TOOL_URL}" style="color:#2563eb;font-weight:600;">${text}</a>`
 // Iowa-accurate seasonal maintenance blurb, chosen by the CURRENT month so the
@@ -357,14 +408,17 @@ export function fillTemplate(text, client) {
     .replace(/\{\{full_name\}\}/g, `${client.first_name || ''} ${client.last_name || ''}`.trim())
     .replace(/\{\{email\}\}/g, client.email || '')
     .replace(/\{\{phone\}\}/g, client.phone || '')
-    .replace(/\{\{address\}\}/g, client.address || 'your home')
+    // Address and city go through usableStreet/usableCity rather than straight out of the
+    // record: a stored value that is not a street line would otherwise land verbatim in a
+    // subject line. See the note above those functions.
+    .replace(/\{\{address\}\}/g, usableStreet(client.address) || 'your home')
     // Alias so homeowner copy can say "street_address" and read as what it is.
-    .replace(/\{\{street_address\}\}/g, client.address || 'your home')
-    .replace(/\{\{city\}\}/g, client.city || 'Cedar Rapids')
+    .replace(/\{\{street_address\}\}/g, usableStreet(client.address) || 'your home')
+    .replace(/\{\{city\}\}/g, usableCity(client.city) || 'Cedar Rapids')
     // {{city}} falls back to Cedar Rapids, which is a claim about where someone lives.
     // Homeowner nurture goes to people whose city we may not know, so this variant
     // degrades to "your area" instead of asserting a town (Home Value Weekly, 2026-09-28).
-    .replace(/\{\{city_or_area\}\}/g, client.city || 'your area')
+    .replace(/\{\{city_or_area\}\}/g, usableCity(client.city) || 'your area')
     .replace(/\{\{state\}\}/g, client.state || '')
     .replace(/\{\{zip\}\}/g, client.zip || '')
     .replace(/\{\{city_of_interest\}\}/g, lastViewedCity(client) || primaryCity(client))
