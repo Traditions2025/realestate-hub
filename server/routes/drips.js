@@ -278,6 +278,32 @@ router.post('/enrollments/:eid/delay', (req, res) => {
 })
 
 // ---- activity ----
+// ---- send one step to an address, for a look before the campaign goes live ----
+// Goes through sendSequenceEmail, the SAME path the campaign itself uses, so what arrives
+// is what a homeowner would get. The composer route (/api/email/send) appends the saved
+// signature to whatever it is handed, which a drip send never does — testing through it
+// would show a signature block that the real email does not have.
+// Merge fields render against a real client (`as_client_id`), so the test exercises the
+// actual address/city handling rather than a made-up record.
+router.post('/:id/test-send', async (req, res) => {
+  const d = db.get('SELECT * FROM drip_campaigns WHERE id=?', [Number(req.params.id)])
+  if (!d) return res.status(404).json({ error: 'Drip not found' })
+  const steps = parse(d.steps, [])
+  const idx = Math.max(0, Number(req.body?.step ?? 0))
+  const step = steps[idx]
+  if (!step) return res.status(400).json({ error: `step ${idx} does not exist (drip has ${steps.length})` })
+  const to = String(req.body?.to || '').trim()
+  if (!to) return res.status(400).json({ error: 'to required' })
+  const client = db.get('SELECT * FROM clients WHERE id=?', [Number(req.body?.as_client_id)])
+  if (!client) return res.status(400).json({ error: 'as_client_id required — merge fields render against that lead' })
+  try {
+    // Send to the address asked for, not the lead's own, so any lead can be used as the
+    // merge source without mailing them.
+    const r = await sendSequenceEmail({ ...client, email: to }, step, `drip_test_${d.id}`)
+    res.json({ ok: !!r.ok, drip: d.name, step: idx, to, as: `${client.first_name || ''} ${client.last_name || ''}`.trim(), reason: r.reason || null })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/:id/activity', (req, res) => {
   const rows = db.all(`SELECT e.*, c.first_name, c.last_name, c.email
     FROM drip_enrollments e LEFT JOIN clients c ON c.id = e.client_id
