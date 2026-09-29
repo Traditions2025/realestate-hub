@@ -360,6 +360,52 @@ export function usableCity(raw) {
   return tidyCase(c)
 }
 
+// ── Is that actually a name? ───────────────────────────────────────────────────────
+// {{first_name}} fell back to "there" only when the column was EMPTY, so a column
+// holding an email address merged verbatim: "Hi Drewglenn04@hotmail.com,". 1,136
+// records in the file hold an email there, 65 hold a placeholder like "None" or
+// "Unknown", and some hold mojibake from a bad import. None of them is a name, so all
+// of them degrade to "there" the same way an empty column already did.
+const NAME_PLACEHOLDER = /^(n\/?a|none|unknown|test|testing|null|nil|no\s*name|noname|owner|home\s*owner|homeowner|resident|current\s*resident|occupant|buyer|seller|lead|client|customer|friend|guest|user|admin|info|sir|madam|first|firstname|lname|fname|xxx+|asdf+|qwerty|\.|-+)$/i
+// Deliberately short: only what would be humiliating to send, not a general filter.
+const NAME_ABUSE = /\b(fuck|shit|cunt|bitch|dick|penis|asshole)\b/i
+function decodeNameEntities(s) {
+  return s.replace(/&amp;/gi, '&').replace(/&#0?39;|&apos;/gi, "'").replace(/&quot;/gi, '"')
+    .replace(/&lt;/gi, '<').replace(/&gt;/gi, '>').replace(/&nbsp;/gi, ' ')
+}
+// Title-case a name that is entirely one case, and fix the capitals inside Mc/Mac/O'
+// names whatever the surrounding case. Anything a person shaped deliberately
+// ("ShaLynn", "DeWitt", "van Dyke") is left exactly as it is.
+export function tidyName(raw) {
+  let s = decodeNameEntities(String(raw == null ? '' : raw))
+    .replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  const letters = s.replace(/[^A-Za-z]/g, '')
+  if (letters.length >= 2 && (letters === letters.toUpperCase() || letters === letters.toLowerCase())) {
+    s = s.toLowerCase().replace(/\b[a-z]/g, m => m.toUpperCase())
+  }
+  // A couple reads "Dave and Liz", never "Dave And Liz". Only the standalone word is
+  // touched, so Andrea, Andy and Alexander are untouched.
+  s = s.replace(/(?<=\S\s)And(?=\s\S)/g, 'and')
+  return s.replace(/\bMc([a-z])/g, (_, c) => 'Mc' + c.toUpperCase())
+    .replace(/\bO'([a-z])/g, (_, c) => "O'" + c.toUpperCase())
+}
+export function usableFirstName(raw) {
+  let n = decodeNameEntities(String(raw == null ? '' : raw))
+    .replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  if (!n) return ''
+  if (/@|https?:|www\./i.test(n)) return ''          // an email address is not a name
+  if (!/[A-Za-z]/.test(n)) return ''                  // digits or punctuation only
+  if (NAME_PLACEHOLDER.test(n)) return ''
+  if (NAME_ABUSE.test(n)) return ''
+  if (/\u00c3[\u00a0-\u00bf]|\u00e2\u0080/.test(n)) return ''   // mojibake from a bad import
+  // A middle initial is dropped ("Katie T" -> "Katie"), but a name that IS initials is
+  // kept whole ("B J Seaton" goes by B J, and "B" alone would be wrong).
+  const parts = n.split(' ')
+  if (parts.length > 1 && parts[0].replace(/[^A-Za-z]/g, '').length > 1 &&
+      /^[A-Za-z]\.?$/.test(parts[parts.length - 1])) n = parts.slice(0, -1).join(' ')
+  return tidyName(n)
+}
+
 // ── Which sends are marketing, and so need an unsubscribe ─────────────────────────
 // Every automated send carries a category, but only some of them are marketing. These
 // are the bulk ones: drip campaigns (drip_<id>), automation emails (auto_<id>), and the
@@ -496,9 +542,9 @@ export function fillTemplate(text, client) {
     // run into the afternoon, so this can never be hardcoded in a template).
     .replace(/\{\{time_greeting\}\}/g, timeGreeting())
     .replace(/\{\{intro\}\}/g, () => nextIntroGreeting())
-    .replace(/\{\{first_name\}\}/g, client.first_name || 'there')
-    .replace(/\{\{last_name\}\}/g, client.last_name || '')
-    .replace(/\{\{full_name\}\}/g, `${client.first_name || ''} ${client.last_name || ''}`.trim())
+    .replace(/\{\{first_name\}\}/g, usableFirstName(client.first_name) || 'there')
+    .replace(/\{\{last_name\}\}/g, tidyName(client.last_name))
+    .replace(/\{\{full_name\}\}/g, `${usableFirstName(client.first_name)} ${tidyName(client.last_name)}`.trim() || 'there')
     .replace(/\{\{email\}\}/g, client.email || '')
     .replace(/\{\{phone\}\}/g, client.phone || '')
     // Address and city go through usableStreet/usableCity rather than straight out of the

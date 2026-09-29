@@ -22,6 +22,7 @@
 //     STOP/DNT policy gates on every send.
 import db from './database.js'
 import { ctParts } from './scheduling.js'
+import { usableFirstName } from './routes/email.js'
 
 // SEND WINDOWS (John, 2026-09-19): the weekend exemption applies ONLY to the
 // FIRST reach-out. Day 0 may send any day of the week; Day 1/3/7 follow-ups are
@@ -253,7 +254,9 @@ export function handleSellerLead({ client_id, campaign_raw = '', raw_text = '', 
 function copyOverrides() { try { return JSON.parse(db.getSetting?.('seller_campaign_copy') || '{}') } catch { return {} } }
 
 export function sellerOpener(first, improvement) {
-  const n = first || 'there'
+  // Same guard the email merge uses: an email address or a placeholder sitting in
+  // first_name is not a name, and a text opening "Hi None," is worse than "Hi there,".
+  const n = usableFirstName(first) || 'there'
   const ov = copyOverrides().openers || {}
   const key = improvement || '_missing'
   if (ov[key]) return ov[key].replaceAll('{{first_name}}', n)

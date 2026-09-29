@@ -20,7 +20,7 @@
 // landing the same day. Two emails from the same team in one day is how a warm contact
 // becomes an unsubscribe.
 import db from './database.js'
-import { usableStreet } from './routes/email.js'
+import { usableStreet, usableFirstName } from './routes/email.js'
 
 const nowIso = () => new Date().toISOString()
 export const HOME_VALUE_TAG = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
@@ -50,6 +50,10 @@ export function homeValueEligibility(c, ctx = {}) {
   const status = String(c.status || '').trim().toLowerCase()
   if (EXCLUDED_STATUS.has(status)) return `status is ${c.status}`
   if (!usableStreet(c.address)) return 'no usable street address'
+  // A greeting is the first thing they read, so a record whose name is an email address,
+  // a placeholder or import junk is left out rather than greeted as "Hi None,". 1,136
+  // records in the file hold an email in first_name.
+  if (!usableFirstName(c.first_name)) return 'no usable first name'
 
   const blob = `${c.tags || ''} ${c.source || ''}`.toLowerCase()
   if (c.fsbo_status || /fsbo/.test(blob)) return 'FSBO lead'
