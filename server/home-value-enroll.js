@@ -61,7 +61,10 @@ export function homeValueEligibility(c, ctx = {}) {
   const es = String(c.email_status || '').trim().toLowerCase()
   if (!ALLOWED_EMAIL_STATUS.has(es)) return `email status ${c.email_status || '(blank)'}`
 
-  if (String(c.tags || '').includes(HOME_VALUE_TAG)) return 'already used the home value tool'
+  // Recent lookups only (John, 2026-09-29). Someone who checked their value last week
+  // should not get an email asking them to check their value; someone who checked a year
+  // ago is a fair person to ask again. 30 days is the line.
+  if (ctx.recentLookup?.has(c.id)) return 'checked their home value in the last 30 days'
   if (ctx.enrolledIds?.has(c.id)) return 'already in this campaign'
   if (ctx.busyToday?.has(c.id)) return 'another campaign email lands today'   // send-time guard is the real one
   return null
@@ -74,7 +77,13 @@ function buildContext(dripId) {
   const busyToday = new Set(
     db.all("SELECT client_id, next_run_at FROM drip_enrollments WHERE status='active' AND next_run_at IS NOT NULL")
       .filter(r => chDay(r.next_run_at) === today).map(r => r.client_id))
-  return { enrolledIds, busyToday }
+  // Anyone who has used the home value tool in the last 30 days. Recorded by the intake,
+  // which reads the Sierra notification emails, so it covers lookups the Hub never saw.
+  const recentLookup = new Set(
+    db.all(`SELECT entity_id FROM activity_log
+             WHERE action = 'home_value_submission' AND entity_type = 'client'
+               AND created_at >= datetime('now', '-30 days')`).map(r => r.entity_id))
+  return { enrolledIds, busyToday, recentLookup }
 }
 
 const enrolledToday = (dripId) => db.get(

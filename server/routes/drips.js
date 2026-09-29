@@ -317,6 +317,7 @@ router.post('/home-value/intake', async (req, res) => {
       sinceDays: Math.min(Number(req.body?.sinceDays) || 3, 60),
       max: Math.min(Number(req.body?.max) || 25, 100),
       dryRun: !!req.body?.dry,
+      recordOnly: !!req.body?.recordOnly,
     }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })

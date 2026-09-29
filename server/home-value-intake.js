@@ -95,7 +95,11 @@ function addTag(client, tag) {
 
 // Handle ONE submission. Idempotent on (email, submitted_at): the poller may see the same
 // notification twice and must not email the person twice for it.
-export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), dryRun = false } = {}) {
+// recordOnly: log the submission and tag the lead, but send nothing and defer nothing.
+// For seeding history from notifications that arrived before this existed — the 30-day
+// "has already checked recently" rule needs those, and nobody should get an email today
+// about a lookup they did three weeks ago.
+export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), dryRun = false, recordOnly = false } = {}) {
   if (!sub || !sub.email) return { skipped: 'no email on the submission' }
   const key = `hv_${sub.email}_${String(submittedAt).slice(0, 16)}`
   const seen = db.get("SELECT id FROM activity_log WHERE action='home_value_submission' AND details LIKE ?", ['%' + key + '%'])
@@ -141,6 +145,8 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
     ['home_value_submission', 'client', client.id, detail])
 
+  if (recordOnly) return { client_id: client.id, created, visit: visitNo, recorded_only: true, detail }
+
   // Step the campaign aside for 90 days — a conversation now, emails later if nothing comes of it.
   let deferred = null
   try {
@@ -163,7 +169,7 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
 }
 
 // Poll Matt's mailboxes for new notifications and process them.
-export async function pollHomeValueSubmissions({ sinceDays = 3, max = 25, dryRun = false } = {}) {
+export async function pollHomeValueSubmissions({ sinceDays = 3, max = 25, dryRun = false, recordOnly = false } = {}) {
   const { searchMailboxesBySubject } = await import('./gmail-inbox.js')
   const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10)
   const found = await searchMailboxesBySubject(NOTIFY_SUBJECT, { max, since })
@@ -171,7 +177,7 @@ export async function pollHomeValueSubmissions({ sinceDays = 3, max = 25, dryRun
   for (const m of (found.messages || [])) {
     const sub = parseHomeValueEmail(m.body)
     if (!sub.email) { results.push({ date: m.date, skipped: 'could not parse an email address' }); continue }
-    const r = await handleHomeValueSubmission(sub, { submittedAt: m.date, dryRun })
+    const r = await handleHomeValueSubmission(sub, { submittedAt: m.date, dryRun, recordOnly })
     results.push({ date: m.date, name: sub.name, ...r })
   }
   return { searched: found.count || 0, processed: results.length, results }
