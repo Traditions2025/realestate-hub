@@ -300,8 +300,18 @@ router.post('/home-value/settings', async (req, res) => {
   }
   if (b.enabled !== undefined) db.setSetting('home_value_enroll_enabled', b.enabled ? '1' : '0')
   if (b.daily_limit !== undefined) db.setSetting('home_value_enroll_daily_limit', String(Math.max(1, Number(b.daily_limit) || 200)))
-  const { homeValueConfig } = await import('../home-value-enroll.js')
-  res.json({ success: true, ...homeValueConfig() })
+  if (b.ramp !== undefined) db.setSetting('home_value_enroll_ramp', b.ramp ? '1' : '0')
+  // The saved exclusion list is echoed back. It was write-only, so the one setting that
+  // protects named people could not be read to confirm it had saved.
+  const { homeValueConfig, effectiveDailyLimit, rampDayIndex, homeValueDrip } = await import('../home-value-enroll.js')
+  const cfg = homeValueConfig()
+  const d = homeValueDrip()
+  res.json({
+    success: true, ...cfg,
+    excluded_ids: String(db.getSetting('home_value_excluded_ids', '') || ''),
+    ramp_day: d ? rampDayIndex(d.id) : 0,
+    todays_limit: d ? effectiveDailyLimit(cfg, d.id) : cfg.daily_limit,
+  })
 })
 // Run a batch now. `force` runs it even while enrollment is switched off, for a
 // controlled first batch under supervision.

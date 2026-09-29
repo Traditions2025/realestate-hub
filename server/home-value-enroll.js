@@ -29,10 +29,35 @@ const CAMPAIGN_NAME = 'Home Value Weekly — 6 Month'
 const EXCLUDED_STATUS = new Set(['active', 'pending', 'junk', 'donotcontact'])
 const ALLOWED_EMAIL_STATUS = new Set(['validaddress', 'twowayemailing', 'unknown'])
 
+// Warm-up ramp (John, 2026-09-29). 200 cold emails a day from one sending domain is a real
+// step up in volume, and mailbox providers judge a sender on how suddenly that volume
+// appears. The ramp spends the first five enrolment days at 50 and the next five at 100
+// before reaching the configured ceiling.
+//
+// It counts DAYS THAT ACTUALLY ENROLLED rather than dates, so a weekend, a holiday or an
+// outage does not spend a step of the ramp. Nobody has to remember to raise the number.
+const RAMP_STEPS = [50, 50, 50, 50, 50, 100, 100, 100, 100, 100]
+
+export function rampDayIndex(dripId) {
+  if (!dripId) return 0
+  return db.get(
+    `SELECT COUNT(DISTINCT date(entered_at)) c FROM drip_enrollments
+      WHERE drip_id = ? AND source = 'home_value_auto' AND date(entered_at) < date('now','localtime')`,
+    [dripId]).c
+}
+
+/** Today's limit: the ramp step if still ramping, never above the configured ceiling. */
+export function effectiveDailyLimit(cfg, dripId) {
+  if (!cfg.ramp) return cfg.daily_limit
+  const i = rampDayIndex(dripId)
+  return i < RAMP_STEPS.length ? Math.min(RAMP_STEPS[i], cfg.daily_limit) : cfg.daily_limit
+}
+
 export function homeValueConfig() {
   return {
     enabled: String(db.getSetting?.('home_value_enroll_enabled', '0')) === '1',
     daily_limit: Math.max(1, Number(db.getSetting?.('home_value_enroll_daily_limit', '200')) || 200),
+    ramp: String(db.getSetting?.('home_value_enroll_ramp', '1')) === '1',
   }
 }
 
@@ -190,8 +215,9 @@ export async function homeValueEnrollTick({ force = false } = {}) {
   if (!drip) return { error: `campaign "${CAMPAIGN_NAME}" not found` }
 
   const done = enrolledToday(drip.id)
-  const room = cfg.daily_limit - done
-  if (room <= 0) return { enrolled: 0, reason: 'daily limit reached', enrolled_today: done, ...cfg }
+  const todaysLimit = effectiveDailyLimit(cfg, drip.id)
+  const room = todaysLimit - done
+  if (room <= 0) return { enrolled: 0, reason: 'daily limit reached', enrolled_today: done, todays_limit: todaysLimit, ramp_day: rampDayIndex(drip.id), ...cfg }
 
   const ctx = buildContext(drip.id)
   const { enrollInDrip } = await import('./routes/drips.js')
@@ -216,9 +242,14 @@ export async function homeValueEnrollTick({ force = false } = {}) {
   }
   if (enrolled) {
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-      ['home_value_enrolled', 'drip', drip.id, `${enrolled} enrolled (${done + enrolled}/${cfg.daily_limit} today)`])
+      ['home_value_enrolled', 'drip', drip.id, `${enrolled} enrolled (${done + enrolled}/${todaysLimit} today)`])
   }
-  return { enrolled, enrolled_today: done + enrolled, daily_limit: cfg.daily_limit, failures: failures.slice(0, 10) }
+  return {
+    enrolled, enrolled_today: done + enrolled,
+    todays_limit: todaysLimit, daily_limit: cfg.daily_limit,
+    ramp: cfg.ramp, ramp_day: rampDayIndex(drip.id),
+    failures: failures.slice(0, 10),
+  }
 }
 
 // Somebody enrolled in the drip has now used the home value tool. That is a conversation
