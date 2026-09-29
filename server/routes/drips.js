@@ -73,11 +73,20 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   // the roster as enrolled-but-silent. Mirrors emailHardBlock at send time. Opt-outs
   // are NOT skipped here — team policy still emails them, tagged.
   if (cli && emailHardBlock(cli)) return null
-  // one drip per lead: never stack a second active drip on a contact. If they are
-  // already active in THIS drip, treat it as already-enrolled (no-op); if they are
-  // active in a DIFFERENT drip, skip so a lead is never in two campaigns at once.
-  const activeAny = db.get("SELECT id, drip_id FROM drip_enrollments WHERE client_id=? AND status='active' LIMIT 1", [clientId])
-  if (activeAny) return Number(activeAny.drip_id) === Number(dripId) ? activeAny.id : null
+  // One drip per lead by default: never stack a second active campaign on a contact.
+  // Already active in THIS drip -> treat as enrolled (no-op).
+  //
+  // allowConcurrent lifts that for a campaign that genuinely sits alongside the others
+  // rather than competing with them (Home Value Weekly, John 2026-09-29). It is not a
+  // free-for-all: two emails must still never land on the same DAY, and that is enforced
+  // at SEND time in advanceDrip, not here. A one-off check at enrollment cannot hold for
+  // six months of weekly sends — the collision it needs to catch happens in week 14.
+  const sameDrip = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND drip_id=? AND status='active' LIMIT 1", [clientId, Number(dripId)])
+  if (sameDrip) return sameDrip.id
+  if (!opts.allowConcurrent) {
+    const activeOther = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND status='active' LIMIT 1", [clientId])
+    if (activeOther) return null
+  }
   const next = nextSendIso(Date.now(), steps[0])
   const r = db.run('INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, next_run_at, source, automation_id) VALUES (?,?,?,?,?,?,?)',
     [dripId, clientId, 'active', 0, next, opts.source || 'manual', opts.automation_id || null])
@@ -131,6 +140,23 @@ async function advanceDrip(enr) {
         ['drip_paused', 'client', enr.client_id, `${drip.name} paused — lead replied via ${reply.channel} on ${reply.occurred_at.slice(0, 10)}`])
       return
     }
+  }
+
+  // ONE campaign email per person per day (John, 2026-09-29). A lead may now sit in more
+  // than one campaign, so two of them can drift onto the same day months after enrolling.
+  // Checked here, at send time, because that is the only place that knows what has already
+  // gone out today. This send waits until tomorrow; the other one keeps its slot.
+  const sentToday = db.get(
+    `SELECT e.drip_id FROM drip_executions x
+       JOIN drip_enrollments e ON e.id = x.enrollment_id
+      WHERE e.client_id = ? AND x.status = 'success'
+        AND date(x.sent_at) = date('now','localtime') AND e.id != ?
+      LIMIT 1`, [enr.client_id, enr.id])
+  if (sentToday) {
+    const tomorrow = nextSendIso(Date.now() + 86400000, { ...step, delay_days: 0 })
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['drip_deferred', 'client', enr.client_id, `${drip.name} held to ${tomorrow.slice(0, 10)} — another campaign already emailed today`])
+    return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [tomorrow, enr.id])
   }
 
   // no sends on US federal holidays — defer to the next non-holiday day
@@ -277,6 +303,21 @@ router.post('/home-value/run', async (req, res) => {
   try {
     const { homeValueEnrollTick } = await import('../home-value-enroll.js')
     res.json(await homeValueEnrollTick({ force: !!req.body?.force }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ---- Home value form submissions, read off the notification email ----
+// dry=1 shows what it would do and writes nothing. Without it, each new submission
+// creates or updates the lead, tags it, sends the Loom follow-up, and steps the Home
+// Value campaign aside for 90 days.
+router.post('/home-value/intake', async (req, res) => {
+  try {
+    const { pollHomeValueSubmissions } = await import('../home-value-intake.js')
+    res.json(await pollHomeValueSubmissions({
+      sinceDays: Math.min(Number(req.body?.sinceDays) || 3, 60),
+      max: Math.min(Number(req.body?.max) || 25, 100),
+      dryRun: !!req.body?.dry,
+    }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 

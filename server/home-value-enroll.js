@@ -63,7 +63,7 @@ export function homeValueEligibility(c, ctx = {}) {
 
   if (String(c.tags || '').includes(HOME_VALUE_TAG)) return 'already used the home value tool'
   if (ctx.enrolledIds?.has(c.id)) return 'already in this campaign'
-  if (ctx.busyToday?.has(c.id)) return 'another campaign email lands today'
+  if (ctx.busyToday?.has(c.id)) return 'another campaign email lands today'   // send-time guard is the real one
   return null
 }
 
@@ -127,10 +127,10 @@ export async function homeValueEnrollTick({ force = false } = {}) {
     if (enrolled >= room) break
     if (homeValueEligibility(c, ctx)) continue
     try {
-      // returns the enrollment id, or null when it refuses — and it refuses anyone
-      // already active in ANY drip, which covers the "not on the same day as another
-      // campaign" rule more thoroughly than a date check could.
-      const id = enrollInDrip(drip.id, c.id, { source: 'home_value_auto' })
+      // allowConcurrent: this campaign sits alongside the others rather than competing
+      // with them (John), so a lead already in Before the Sign still qualifies. The rule
+      // that two emails never land the same day is enforced at SEND time in advanceDrip.
+      const id = enrollInDrip(drip.id, c.id, { source: 'home_value_auto', allowConcurrent: true })
       if (id) {
         enrolled++
         ctx.enrolledIds.add(c.id)
@@ -145,17 +145,24 @@ export async function homeValueEnrollTick({ force = false } = {}) {
   return { enrolled, enrolled_today: done + enrolled, daily_limit: cfg.daily_limit, failures: failures.slice(0, 10) }
 }
 
-// Somebody enrolled in the drip has now used the home value tool. That is the conversation
-// starting, so the drip stops: a person takes it from here, and they can come back to the
-// campaign later rather than being emailed about checking a value they just checked.
-export function pauseOnHomeValueSubmission(clientId) {
+// Somebody enrolled in the drip has now used the home value tool. That is a conversation
+// starting, so the campaign steps aside for 90 days (John, 2026-09-29) rather than stopping
+// dead: a person picks it up now, and if nothing comes of it the emails resume on their own
+// three months later instead of the lead being quietly dropped.
+//
+// It stays ACTIVE with a future next_run_at rather than paused, because a paused enrollment
+// needs somebody to remember to resume it, and nobody ever does.
+export const HOME_VALUE_RESUME_DAYS = 90
+export function deferOnHomeValueSubmission(clientId, days = HOME_VALUE_RESUME_DAYS) {
   const drip = homeValueDrip()
-  if (!drip) return { paused: 0 }
-  const rows = db.all("SELECT id FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [drip.id, Number(clientId)])
+  if (!drip) return { deferred: 0 }
+  const rows = db.all("SELECT id, current_step FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [drip.id, Number(clientId)])
+  const resumeAt = new Date(Date.now() + days * 86400000).toISOString()
   for (const r of rows) {
-    db.run("UPDATE drip_enrollments SET status='paused', next_run_at=NULL WHERE id=?", [r.id])
+    db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [resumeAt, r.id])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-      ['home_value_paused', 'client', Number(clientId), 'used the home value tool — campaign paused for a human conversation'])
+      ['home_value_deferred', 'client', Number(clientId),
+        `used the home value tool — campaign resumes ${resumeAt.slice(0, 10)} (${days} days), conversation first`])
   }
-  return { paused: rows.length }
+  return { deferred: rows.length, resume_at: resumeAt }
 }
