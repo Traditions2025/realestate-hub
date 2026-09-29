@@ -107,3 +107,18 @@ test('a real city tail is still trimmed, because it is marked as one', () => {
   assert.equal(usableStreet('295 circle dr\nWalford, Iowa'), '295 circle dr')
   assert.equal(usableStreet('10000 W Cemetary Rd Fairfax, IA 52228'), '10000 W Cemetary Rd')
 })
+
+// One word further along the same import bug as the stranded quadrant: 861 records had the
+// street's SUFFIX in the city column ("301 N Gill" with city "St"), so usableCity('Dr')
+// returning 'Dr' would have greeted someone as living in "Dr".
+test('a bare street suffix in the city column is not a town', () => {
+  for (const c of ['Dr', 'St', 'Ave', 'Ct', 'Blvd', 'Ln', 'Cir', 'Way', 'Rd.', 'DR', 'Quadrant'])
+    assert.equal(usableCity(c), '', JSON.stringify(c) + ' is a street suffix, not a place')
+})
+
+test('towns whose names contain street-ish words are NOT rejected', () => {
+  // the reason Center, Point, Grove and Springs are left out of the suffix list
+  for (const t of ['Center Point', 'Mount Vernon', 'Cedar Rapids', 'North Liberty', 'Amana',
+    'Palo', 'Springville', 'Walker', 'Newhall', 'Swisher', 'Central City', 'Belle Plaine'])
+    assert.equal(usableCity(t), t, t + ' is a real town and must survive')
+})

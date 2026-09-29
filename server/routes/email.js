@@ -353,6 +353,10 @@ export function usableCity(raw) {
   // ("600 Nilsen Rd" / "Ne"). That is the address split at the wrong point, not a town,
   // and rendering it would greet someone as living in "Ne".
   if (/^(ne|nw|se|sw)$/i.test(c)) return ''
+  // 861 more had the street SUFFIX there instead ("301 N Gill" with city "St"), which
+  // would have read as living in "St". Only street-type words are listed: Center, Point,
+  // Grove and Springs are left out because they are real town names around here.
+  if (/^(st|street|ave|avenue|av|rd|road|dr|drive|ln|lane|ct|court|blvd|boulevard|cir|circle|pl|place|trl|trail|ter|terrace|way|pkwy|parkway|hwy|highway|xing|crossing|sq|square|path|walk|bnd|bend|cv|cove|trce|trace|plz|plaza|aly|alley|knl|knoll|mnr|manor|holw|hollow|byp|bypass|spur|rte|route|loop|crst|crest|rdg|ridge|vw|view|gln|glen|hts|heights|cres|crescent|quadrant)\.?$/i.test(c)) return ''
   return tidyCase(c)
 }
 
