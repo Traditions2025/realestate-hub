@@ -89,3 +89,13 @@ test('whitespace is normalised', () => {
   assert.equal(usableFirstName(' Nicole'), 'Nicole')
   assert.equal(tidyName('Tshitenga  Yapanu'), 'Tshitenga Yapanu')
 })
+
+// Names drift back after every sync unless the ingest fixes them too. "Zinse FADONOUGBO"
+// was still shouting after the bulk repair, which is what sent us looking at the sync.
+test('the Sierra ingest applies the same name pass', async () => {
+  const src = await import('node:fs').then(fs =>
+    fs.readFileSync(new URL('../server/sierra-helper.js', import.meta.url), 'utf8'))
+  assert.match(src, /import \{ tidyName \} from '\.\/routes\/email\.js'/)
+  assert.match(src, /const firstName = tidyName\(lead\.firstName \|\| ''\)/)
+  assert.match(src, /const lastName = tidyName\(lead\.lastName \|\| ''\)/)
+})

@@ -1,6 +1,7 @@
 // Shared helpers for processing Sierra leads (used by sync, scheduler, webhooks)
 import db from './database.js'
 import { stopSequencesForClient, isStopStatus } from './lead-sequences.js'
+import { tidyName } from './routes/email.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
@@ -52,8 +53,13 @@ function normalizeTags(rawTags) {
 
 export function processLead(lead, sierraStatusOverride) {
   const sierraId = String(lead.id)
-  const firstName = lead.firstName || ''
-  const lastName = lead.lastName || ''
+  // Sierra hands back whatever was typed or imported upstream, including ALL CAPS surnames
+  // and "Mcgowan". tidyName is the same presentation pass the email merge applies, so the
+  // stored value matches what a greeting would show and the file does not drift back to
+  // shouting after every sync. It only title-cases a value that is entirely one case, so a
+  // name someone shaped deliberately ("ShaLynn", "DeWitt") is untouched.
+  const firstName = tidyName(lead.firstName || '')
+  const lastName = tidyName(lead.lastName || '')
   if (!firstName && !lastName) return null
 
   const email = n(lead.email)
