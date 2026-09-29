@@ -281,8 +281,19 @@ const AREA_TOWNS = ['Cedar Rapids', 'Marion', 'Hiawatha', 'Robins', 'Fairfax', '
   'Coggon', 'Prairieburg', 'Troy Mills', 'Walker', 'Vinton', 'Blairstown', 'North Liberty',
   'Iowa City', 'Coralville', 'Tiffin', 'Anamosa', 'Independence', 'Monticello', 'Urbana',
   'Norway', 'Van Horne', 'Newhall', 'Watkins', 'Keystone', 'Belle Plaine', 'Amana']
-const TOWN_TAIL = new RegExp('[,\\s]+(?:' + AREA_TOWNS.map(t => t.replace(/ /g, '\\s+')).join('|') +
-  ')\\b[\\s,]*(?:[A-Z]{2}|Iowa)?\\.?\\s*,?\\s*\\d{0,5}(?:-\\d{4})?\\s*$', 'i')
+// A jammed "…, Marion, IA 52302" tail, trimmed back to the street. The tail has to be
+// MARKED as one -- by a zip, by the state, or by a comma sitting right before the town --
+// because plenty of streets are named after towns. Without that, "5328 N. Alburnett Rd."
+// came back as "5328 N": the town matched, and under /i the "Rd" filled the state slot.
+const TOWNS_ALT = AREA_TOWNS.map(t => t.replace(/ /g, '\\s+')).join('|')
+const TOWN_TAIL = new RegExp('(?:' + [
+  // ", Marion" / ", Marion IA" / ", Marion, IA 52302"
+  ',\\s*(?:' + TOWNS_ALT + ')\\b[\\s,]*(?:IA|Iowa)?\\.?\\s*,?\\s*(?:\\d{5}(?:-\\d{4})?)?',
+  // " Marion IA 52302" / " Marion 52302" -- a zip is proof enough on its own
+  '[,\\s]+(?:' + TOWNS_ALT + ')\\b[\\s,]*(?:IA|Iowa)?\\.?\\s*,?\\s*\\d{5}(?:-\\d{4})?',
+  // " Walford, Iowa" -- the state, spelled out or abbreviated, with no zip
+  '[,\\s]+(?:' + TOWNS_ALT + ')\\b[\\s,]*(?:IA|Iowa)\\b\\.?',
+].join('|') + ')\\s*$', 'i')
 const STATE_ZIP_TAIL = /[,\s]+(?:[A-Z]{2}|Iowa)\.?\s*,?\s*\d{5}(?:-\d{4})?\s*$/i
 const ZIP_TAIL = /[,\s]+\d{5}(?:-\d{4})?\s*$/
 
@@ -297,7 +308,14 @@ function tidyCase(raw) {
   // and it reached a subject line reading "Dr Ne".
   const orig = String(raw == null ? '' : raw)
   const letters = orig.replace(/[^A-Za-z]/g, '')
-  const s = orig.replace(/\b(ne|nw|se|sw)\b/gi, m => m.toUpperCase())
+  // Applied whatever the case of the rest of the value, for the same reason as the
+  // quadrant: "Mcgowan" and "Unit#310" are wrong in any casing, not just in capitals.
+  const s = orig
+    .replace(/\b(ne|nw|se|sw)\b/gi, m => m.toUpperCase())
+    .replace(/\bMc([a-z])/g, (_, c) => 'Mc' + c.toUpperCase())
+    .replace(/\bO'([a-z])/g, (_, c) => "O'" + c.toUpperCase())
+    .replace(/\b(Unit|Apt|Ste|Suite|Lot|Bldg)#\s*/gi, (_, w) => w + ' ')
+    .replace(/\b([NSEW])\.(?=\s)/g, '$1')            // "5328 N. Alburnett Rd" -> "N Alburnett"
   // Only touch a value that is ENTIRELY uppercase; anything already mixed case was typed
   // that way by a person and is left exactly as it is.
   if (letters.length < 4 || letters !== letters.toUpperCase()) return s
@@ -316,7 +334,7 @@ export function usableStreet(raw) {
   let t = a.replace(TOWN_TAIL, '')
   if (t === a) t = a.replace(STATE_ZIP_TAIL, '')
   if (t === a) t = a.replace(ZIP_TAIL, '')
-  a = t.replace(/[\s,]+$/, '').trim()
+  a = t.replace(/[\s,.;:]+$/, '').trim()
   // a street line starts with a number and has a name after it
   if (!/^\d/.test(a) || a.length < 6) return ''
   if (a.split(/\s+/).filter(Boolean).length < 2) return ''
@@ -328,7 +346,7 @@ export function usableCity(raw) {
   if (!c) return ''
   // a saved-search area list landed in the city column: their own town is the first entry
   if (c.includes('|')) c = c.split('|').map(s => s.trim()).filter(Boolean)[0] || ''
-  c = c.replace(/,\s*(?:IA|Iowa|[A-Z]{2})\.?\s*$/i, '').replace(/[\s,]+$/, '').trim()
+  c = c.replace(/,\s*(?:IA|Iowa|[A-Z]{2})\.?\s*$/i, '').replace(/^[\s,]+|[\s,.;:]+$/g, '').trim()
   if (!c || /^\d/.test(c)) return ''                      // "500 1st" is a street, not a town
   if (/^(ia|iowa|usa|us|linn|n\/?a|none|unknown)$/i.test(c)) return ''
   // 782 imported rows have the street's quadrant sitting alone in the city column

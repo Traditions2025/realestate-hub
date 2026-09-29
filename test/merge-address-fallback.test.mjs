@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { usableStreet, usableCity } from '../server/routes/email.js'
 
 test('a real street line is returned untouched', () => {
-  for (const a of ['1428 Oakwood Dr', '190 Cottage Grove Ave SE Unit#302',
+  for (const a of ['1428 Oakwood Dr', '190 Cottage Grove Ave SE Unit 302',
     '3495 McGowan Blvd', '10000 W Cemetary Rd'])
     assert.equal(usableStreet(a), a)
   // the one exception: a lower-case quadrant is corrected, never passed through
