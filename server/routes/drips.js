@@ -256,6 +256,30 @@ router.post('/enrollments/:eid/resume', (req, res) => {
 // Delay the next email either by a preset { days } OR to an exact { until: 'YYYY-MM-DD' }.
 // An explicit date is scheduled inside the campaign's normal send window on that calendar day
 // (rolled forward off holidays / a passed window), so a hand-picked date still lands in-hours.
+// ---- Home Value Weekly automatic enrollment (OFF until switched on) ----
+// preview: who would go next and why everyone else would not. Sends nothing.
+router.get('/home-value/preview', async (req, res) => {
+  try {
+    const { homeValuePreview } = await import('../home-value-enroll.js')
+    res.json(homeValuePreview({ limit: Math.min(Number(req.query.limit) || 25, 200) }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+router.post('/home-value/settings', async (req, res) => {
+  const b = req.body || {}
+  if (b.enabled !== undefined) db.setSetting('home_value_enroll_enabled', b.enabled ? '1' : '0')
+  if (b.daily_limit !== undefined) db.setSetting('home_value_enroll_daily_limit', String(Math.max(1, Number(b.daily_limit) || 200)))
+  const { homeValueConfig } = await import('../home-value-enroll.js')
+  res.json({ success: true, ...homeValueConfig() })
+})
+// Run a batch now. `force` runs it even while enrollment is switched off, for a
+// controlled first batch under supervision.
+router.post('/home-value/run', async (req, res) => {
+  try {
+    const { homeValueEnrollTick } = await import('../home-value-enroll.js')
+    res.json(await homeValueEnrollTick({ force: !!req.body?.force }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ---- send the next step now, instead of waiting for its scheduled slot ----
 // /delay can only push a send later. This is the other direction: somebody enrolled a
 // lead and wants the first email to go today rather than tomorrow morning.

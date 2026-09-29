@@ -1,0 +1,161 @@
+// Home Value Weekly — automatic enrollment.
+//
+// Feeds the 6-month homeowner drip at a controlled rate instead of all at once. The Hub
+// has sent ~10,000 emails in its whole life; this campaign is ~583,000 across six months,
+// so the rate is the point, not a detail. Default 200 a day.
+//
+// OFF BY DEFAULT. Nothing enrolls until home_value_enroll_enabled is set to 1.
+//
+// Who qualifies (John, 2026-09-29):
+//   - a real street address on file (not a PO box, not "None" — usableStreet decides)
+//   - status NOT active / pending / junk / donotcontact  (case-insensitive: the data
+//     contains both "junk" and "Junk")
+//   - NOT an FSBO or an Expired/Cancelled lead — those have their own campaigns
+//   - a real email, not opted out, and email_status is ValidAddress, TwoWayEmailing or
+//     Unknown. WrongAddress is 8,455 of the file and is excluded outright.
+//   - not already in this drip, ever
+//   - has not already used the home value tool (they go to a conversation, not a drip)
+//
+// And one pacing rule: never enrol somebody who already has another campaign email
+// landing the same day. Two emails from the same team in one day is how a warm contact
+// becomes an unsubscribe.
+import db from './database.js'
+import { usableStreet } from './routes/email.js'
+
+const nowIso = () => new Date().toISOString()
+export const HOME_VALUE_TAG = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
+const CAMPAIGN_NAME = 'Home Value Weekly — 6 Month'
+
+const EXCLUDED_STATUS = new Set(['active', 'pending', 'junk', 'donotcontact'])
+const ALLOWED_EMAIL_STATUS = new Set(['validaddress', 'twowayemailing', 'unknown'])
+
+export function homeValueConfig() {
+  return {
+    enabled: String(db.getSetting?.('home_value_enroll_enabled', '0')) === '1',
+    daily_limit: Math.max(1, Number(db.getSetting?.('home_value_enroll_daily_limit', '200')) || 200),
+  }
+}
+
+export function homeValueDrip() {
+  return db.get('SELECT id, steps FROM drip_campaigns WHERE name = ?', [CAMPAIGN_NAME])
+}
+
+// Chicago calendar day for a timestamp — the collision check is about the DAY a person
+// receives something, which is their day, not UTC's.
+const chDay = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d))
+
+// One reason string, or null when the lead qualifies. Kept as a single function so the
+// preview and the live tick can never disagree about who is eligible.
+export function homeValueEligibility(c, ctx = {}) {
+  const status = String(c.status || '').trim().toLowerCase()
+  if (EXCLUDED_STATUS.has(status)) return `status is ${c.status}`
+  if (!usableStreet(c.address)) return 'no usable street address'
+
+  const blob = `${c.tags || ''} ${c.source || ''}`.toLowerCase()
+  if (c.fsbo_status || /fsbo/.test(blob)) return 'FSBO lead'
+  if (c.mls_status || /expired|cancell?ed|withdrawn/.test(blob)) return 'Expired/Cancelled lead'
+
+  const email = String(c.email || '').trim()
+  if (!email || /notvalidemail/i.test(email)) return 'no real email'
+  if (c.marketing_email_opt_out) return 'opted out of marketing email'
+  const es = String(c.email_status || '').trim().toLowerCase()
+  if (!ALLOWED_EMAIL_STATUS.has(es)) return `email status ${c.email_status || '(blank)'}`
+
+  if (String(c.tags || '').includes(HOME_VALUE_TAG)) return 'already used the home value tool'
+  if (ctx.enrolledIds?.has(c.id)) return 'already in this campaign'
+  if (ctx.busyToday?.has(c.id)) return 'another campaign email lands today'
+  return null
+}
+
+// Everything the eligibility check needs that is not on the client row.
+function buildContext(dripId) {
+  const enrolledIds = new Set(db.all('SELECT client_id FROM drip_enrollments WHERE drip_id = ?', [dripId]).map(r => r.client_id))
+  const today = chDay(Date.now())
+  const busyToday = new Set(
+    db.all("SELECT client_id, next_run_at FROM drip_enrollments WHERE status='active' AND next_run_at IS NOT NULL")
+      .filter(r => chDay(r.next_run_at) === today).map(r => r.client_id))
+  return { enrolledIds, busyToday }
+}
+
+const enrolledToday = (dripId) => db.get(
+  "SELECT COUNT(*) c FROM drip_enrollments WHERE drip_id=? AND date(entered_at) = date('now')", [dripId]).c
+
+// A look at who would go next, and why the rest would not. Sends nothing.
+export function homeValuePreview({ limit = 25 } = {}) {
+  const drip = homeValueDrip()
+  if (!drip) return { error: `campaign "${CAMPAIGN_NAME}" not found` }
+  const ctx = buildContext(drip.id)
+  const rows = db.all("SELECT * FROM clients WHERE merged_into IS NULL AND address IS NOT NULL AND address != '' ORDER BY id")
+  const eligible = [], reasons = {}
+  for (const c of rows) {
+    const why = homeValueEligibility(c, ctx)
+    if (why) { reasons[why] = (reasons[why] || 0) + 1; continue }
+    eligible.push(c)
+  }
+  const cfg = homeValueConfig()
+  return {
+    campaign: CAMPAIGN_NAME, drip_id: drip.id, ...cfg,
+    enrolled_today: enrolledToday(drip.id),
+    eligible_total: eligible.length,
+    reasons: Object.fromEntries(Object.entries(reasons).sort((a, b) => b[1] - a[1])),
+    next: eligible.slice(0, limit).map(c => ({
+      id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+      address: usableStreet(c.address), city: c.city, status: c.status, email_status: c.email_status,
+    })),
+  }
+}
+
+// Enrol up to the remaining daily quota. Oldest leads first, so the file is worked through
+// in a stable order rather than re-shuffled every run.
+export async function homeValueEnrollTick({ force = false } = {}) {
+  const cfg = homeValueConfig()
+  if (!cfg.enabled && !force) return { skipped: 'enrollment is off', ...cfg }
+  const drip = homeValueDrip()
+  if (!drip) return { error: `campaign "${CAMPAIGN_NAME}" not found` }
+
+  const done = enrolledToday(drip.id)
+  const room = cfg.daily_limit - done
+  if (room <= 0) return { enrolled: 0, reason: 'daily limit reached', enrolled_today: done, ...cfg }
+
+  const ctx = buildContext(drip.id)
+  const { enrollInDrip } = await import('./routes/drips.js')
+  const rows = db.all("SELECT * FROM clients WHERE merged_into IS NULL AND address IS NOT NULL AND address != '' ORDER BY id")
+
+  let enrolled = 0
+  const failures = []
+  for (const c of rows) {
+    if (enrolled >= room) break
+    if (homeValueEligibility(c, ctx)) continue
+    try {
+      // returns the enrollment id, or null when it refuses — and it refuses anyone
+      // already active in ANY drip, which covers the "not on the same day as another
+      // campaign" rule more thoroughly than a date check could.
+      const id = enrollInDrip(drip.id, c.id, { source: 'home_value_auto' })
+      if (id) {
+        enrolled++
+        ctx.enrolledIds.add(c.id)
+        ctx.busyToday.add(c.id)
+      } else failures.push(`${c.id}:refused`)
+    } catch (e) { failures.push(`${c.id}:${e.message}`) }
+  }
+  if (enrolled) {
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['home_value_enrolled', 'drip', drip.id, `${enrolled} enrolled (${done + enrolled}/${cfg.daily_limit} today)`])
+  }
+  return { enrolled, enrolled_today: done + enrolled, daily_limit: cfg.daily_limit, failures: failures.slice(0, 10) }
+}
+
+// Somebody enrolled in the drip has now used the home value tool. That is the conversation
+// starting, so the drip stops: a person takes it from here, and they can come back to the
+// campaign later rather than being emailed about checking a value they just checked.
+export function pauseOnHomeValueSubmission(clientId) {
+  const drip = homeValueDrip()
+  if (!drip) return { paused: 0 }
+  const rows = db.all("SELECT id FROM drip_enrollments WHERE drip_id=? AND client_id=? AND status='active'", [drip.id, Number(clientId)])
+  for (const r of rows) {
+    db.run("UPDATE drip_enrollments SET status='paused', next_run_at=NULL WHERE id=?", [r.id])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['home_value_paused', 'client', Number(clientId), 'used the home value tool — campaign paused for a human conversation'])
+  }
+  return { paused: rows.length }
+}
