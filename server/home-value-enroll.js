@@ -102,10 +102,26 @@ export function homeValuePreview({ limit = 25 } = {}) {
     eligible.push(c)
   }
   const cfg = homeValueConfig()
+  // Breakdown computed over ALL eligible rows, never over the sample: the sample is
+  // capped and counting from it silently understates by however much the cap cut off.
+  const byStatus = {}
+  eligible.forEach(c => { const k = String(c.status || '(blank)'); byStatus[k] = (byStatus[k] || 0) + 1 })
+  // Membership of an active past-client drip, straight from the table rather than the
+  // /activity endpoint, which returns at most 500 rows.
+  const pastDripIds = db.all("SELECT id FROM drip_campaigns WHERE name LIKE 'Lifelong Friends%'").map(r => r.id)
+  const inPastDrip = new Set(pastDripIds.length
+    ? db.all(`SELECT DISTINCT client_id FROM drip_enrollments WHERE status='active' AND drip_id IN (${pastDripIds.map(() => '?').join(',')})`, pastDripIds).map(r => r.client_id)
+    : [])
+  const closedEligible = eligible.filter(c => String(c.status || '').toLowerCase() === 'closed')
   return {
     campaign: CAMPAIGN_NAME, drip_id: drip.id, ...cfg,
     enrolled_today: enrolledToday(drip.id),
     eligible_total: eligible.length,
+    eligible_by_status: Object.fromEntries(Object.entries(byStatus).sort((a, b) => b[1] - a[1])),
+    past_client_drips: pastDripIds,
+    in_active_past_drip: inPastDrip.size,
+    closed_eligible: closedEligible.length,
+    closed_eligible_in_past_drip: closedEligible.filter(c => inPastDrip.has(c.id)).length,
     reasons: Object.fromEntries(Object.entries(reasons).sort((a, b) => b[1] - a[1])),
     next: eligible.slice(0, limit).map(c => ({
       id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
