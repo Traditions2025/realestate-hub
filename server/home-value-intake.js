@@ -147,6 +147,15 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
 
   if (recordOnly) return { client_id: client.id, created, visit: visitNo, recorded_only: true, detail }
 
+  // Tell the team. The Sierra notification only reaches mattsmithremax@gmail.com, so a
+  // submission could land, be matched and be answered without John ever seeing it — which
+  // is exactly what happened with Nicole Morris on 2026-09-29 (John).
+  //
+  // The name someone types on the form is often not the name in the Hub: she submitted as
+  // "Nicole Morris" and matched "Niki Morris" on the email. The alert says both, because
+  // the mismatch is the thing that makes a person think they have a duplicate.
+  await sendSubmissionAlert({ client, sub, created, visitNo }).catch(() => {})
+
   // Step the campaign aside for 90 days — a conversation now, emails later if nothing comes of it.
   let deferred = null
   try {
@@ -170,6 +179,51 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
 }
 
 // Poll Matt's mailboxes for new notifications and process them.
+const esc = (v) => String(v == null ? '' : v).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
+
+// One internal alert per submission. Deduped through activity_log the same way the FB lead
+// alert is, so a re-poll of the same mailbox cannot alert twice for one form.
+async function sendSubmissionAlert({ client, sub, created, visitNo }) {
+  const dedupe = `[hv_alert:${client.id}:${visitNo}]`
+  if (db.get("SELECT id FROM activity_log WHERE details LIKE ? AND created_at >= datetime('now','-7 days')", ['%' + dedupe + '%'])) return
+  db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+    ['home_value_alert', 'client', client.id, `Home value alert emailed ${dedupe}`])
+
+  const { sendViaSendGrid } = await import('./routes/email.js')
+  const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  const hubName = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+  const formName = sub.name || ''
+  const different = formName && hubName && formName.toLowerCase() !== hubName.toLowerCase()
+
+  const subject = created
+    ? `Home value request: ${formName} (new lead)`
+    : `Home value request: ${formName}${different ? ` — matched ${hubName}` : ''}${visitNo > 1 ? ` — visit #${visitNo}` : ''}`
+
+  const rows = [
+    different && ['Heads up', `Submitted as "${formName}", matched the existing record for "${hubName}" on the email address — not a duplicate`],
+    created && ['Status', 'Brand new lead, created in the Hub'],
+    visitNo > 1 && ['Repeat', `This is look-up #${visitNo} for them`],
+    ['Address', sub.address_full || sub.address || '—'],
+    ['Email', sub.email || '—'],
+    ['Phone', sub.phone || '—'],
+    ['Timeframe', sub.timeframe || '—'],
+    (sub.beds || sub.baths) && ['Home', `${sub.beds || '?'} bed / ${sub.baths || '?'} bath`],
+    sub.zillow_estimate && ['Zillow', '$' + Number(sub.zillow_estimate).toLocaleString()],
+    sub.avm_estimate && ['AVM', '$' + Number(sub.avm_estimate).toLocaleString()],
+  ].filter(Boolean).map(([k, v]) =>
+    `<tr><td style="padding:4px 12px 4px 0;color:#64748b;white-space:nowrap;vertical-align:top;">${esc(k)}</td>` +
+    `<td style="padding:4px 0;color:#0f172a;"><strong>${esc(v)}</strong></td></tr>`).join('')
+
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
+    <p style="margin:0 0 6px;font-size:16px;"><strong>${esc(formName)}</strong> requested a home value.</p>
+    <table style="border-collapse:collapse;margin:8px 0 14px;">${rows}</table>
+    <p style="margin:0 0 12px;"><a href="${hub}/clients/${client.id}" style="display:inline-block;background:#B9963B;color:#241a04;font-weight:700;padding:10px 18px;border-radius:8px;text-decoration:none;">View Lead</a></p>
+    <p style="margin:0;color:#64748b;font-size:12px;">Matt Smith Team Hub · home value request alert · the follow-up email has been sent to them automatically</p></div>`
+
+  await sendViaSendGrid('johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com',
+    'Matt Smith Team', subject, html, null, [], [], [], 'home_value_alert')
+}
+
 export async function pollHomeValueSubmissions({ sinceDays = 3, max = 25, dryRun = false, recordOnly = false } = {}) {
   const { searchMailboxesBySubject } = await import('./gmail-inbox.js')
   const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10)

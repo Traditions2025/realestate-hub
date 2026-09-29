@@ -54,3 +54,30 @@ test('the weekday is derived from the Chicago date, not the UTC one', async () =
   assert.equal(d, '2026-10-02')
   assert.equal(new Date(`${d}T12:00:00Z`).getUTCDay(), 5, 'must read as Friday')
 })
+
+// The submission poller had the same defect as the enrolment tick: it existed, it worked,
+// and nothing ever called it. Nicole Morris submitted at 5 PM on 2026-09-29 and got no
+// follow-up and no alert, because the only way to run the poller was a manual POST.
+test('the submission poller is on an interval', () => {
+  assert.match(src, /pollHomeValueSubmissions\(\{ sinceDays: 2, max: 25 \}\)/)
+  assert.match(src, /\}, 10 \* 60 \* 1000\)/)
+})
+
+test('a poller failure cannot take the scheduler down with it', () => {
+  const block = src.slice(src.indexOf('Home Value form submissions'), src.indexOf('Home Value form submissions') + 900)
+  assert.match(block, /\.catch\(/, 'the promise chain must swallow its own errors')
+})
+
+// The alert exists because the Sierra notification only reaches mattsmithremax@gmail.com,
+// so a submission could be received, matched and answered without John ever seeing it.
+test('a submission alerts the team, and says when the name differs', async () => {
+  const intake = await import('node:fs').then(fs =>
+    fs.readFileSync(new URL('../server/home-value-intake.js', import.meta.url), 'utf8'))
+  assert.match(intake, /sendSubmissionAlert/)
+  assert.match(intake, /johnwithmattsmithteam@gmail\.com,mattsmithremax@gmail\.com/)
+  assert.match(intake, /'home_value_alert'/)
+  // "Nicole Morris" matching "Niki Morris" looks like a duplicate unless the alert explains it
+  assert.match(intake, /matched the existing record for/)
+  // one alert per submission, however many times the mailbox is re-read
+  assert.match(intake, /hv_alert:\$\{client\.id\}:\$\{visitNo\}/)
+})

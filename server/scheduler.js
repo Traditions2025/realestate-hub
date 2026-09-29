@@ -887,6 +887,17 @@ export function startScheduler() {
   // Home Value enrollment — weekday mornings, gated by home_value_enroll_enabled.
   setInterval(checkHomeValueEnrollTick, 60 * 1000)
 
+  // Home Value form submissions. The poller existed and nothing ever called it, so a
+  // request sat unanswered until somebody triggered it by hand (Nicole Morris, 2026-09-29:
+  // submitted at 5 PM, no follow-up, no alert). Every 10 minutes is soon enough to feel
+  // prompt without hammering IMAP.
+  setInterval(() => {
+    import('./home-value-intake.js')
+      .then(m => m.pollHomeValueSubmissions({ sinceDays: 2, max: 25 }))
+      .then(r => { if (r?.processed) console.log(`[scheduler] Home Value intake: ${r.processed} submission(s)`) })
+      .catch(e => console.error('[scheduler] Home Value intake error (non-fatal):', e.message))
+  }, 10 * 60 * 1000)
+
   // FSBO daily maintenance - check every minute, fires at 9:30 AM CT (idempotent).
   setInterval(checkFsboDailyTick, 60 * 1000)
 
