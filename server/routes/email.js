@@ -286,6 +286,25 @@ const TOWN_TAIL = new RegExp('[,\\s]+(?:' + AREA_TOWNS.map(t => t.replace(/ /g, 
 const STATE_ZIP_TAIL = /[,\s]+(?:[A-Z]{2}|Iowa)\.?\s*,?\s*\d{5}(?:-\d{4})?\s*$/i
 const ZIP_TAIL = /[,\s]+\d{5}(?:-\d{4})?\s*$/
 
+// An imported ALL-CAPS value would SHOUT from a subject line ("What could 1117 DEER RUN
+// DRIVE NORTHEAST be worth today?"), which reads as spam and is exactly the tone this
+// campaign is trying not to strike. 3,441 addresses and 3,841 cities in the file are like
+// this. Only fully-uppercase values are touched; anything already mixed case is left
+// exactly as the team typed it.
+function tidyCase(raw) {
+  const s = String(raw == null ? '' : raw)
+  const letters = s.replace(/[^A-Za-z]/g, '')
+  // Only touch a value that is ENTIRELY uppercase; anything already mixed case was typed
+  // that way by a person and is left exactly as it is.
+  if (letters.length < 4 || letters !== letters.toUpperCase()) return s
+  return s.toLowerCase()
+    .replace(/\b[a-z]/g, m => m.toUpperCase())                  // first letter of each word
+    .replace(/\bMc([a-z])/g, (_, c) => 'Mc' + c.toUpperCase())  // Mcgowan -> McGowan
+    .replace(/\bO'([a-z])/g, (_, c) => "O'" + c.toUpperCase())  // O'brien -> O'Brien
+    .replace(/\b(Ne|Nw|Se|Sw)\b/g, m => m.toUpperCase())        // quadrants stay capitals
+    .replace(/\b(Ii|Iii|Iv)\b/g, m => m.toUpperCase())
+}
+
 export function usableStreet(raw) {
   let a = String(raw == null ? '' : raw).replace(/[\r\n]+/g, ' ').replace(/\s{2,}/g, ' ').trim()
   if (!a || ADDR_PLACEHOLDER.test(a) || ADDR_PO_BOX.test(a) || /@/.test(a)) return ''
@@ -297,7 +316,7 @@ export function usableStreet(raw) {
   // a street line starts with a number and has a name after it
   if (!/^\d/.test(a) || a.length < 6) return ''
   if (a.split(/\s+/).filter(Boolean).length < 2) return ''
-  return a
+  return tidyCase(a)
 }
 
 export function usableCity(raw) {
@@ -308,7 +327,7 @@ export function usableCity(raw) {
   c = c.replace(/,\s*(?:IA|Iowa|[A-Z]{2})\.?\s*$/i, '').replace(/[\s,]+$/, '').trim()
   if (!c || /^\d/.test(c)) return ''                      // "500 1st" is a street, not a town
   if (/^(ia|iowa|usa|us|linn|n\/?a|none|unknown)$/i.test(c)) return ''
-  return c
+  return tidyCase(c)
 }
 
 // ── Which sends are marketing, and so need an unsubscribe ─────────────────────────
@@ -918,6 +937,9 @@ const EMAIL_MERGE_FIELDS = [
   { label: 'City of interest', token: '{{city_of_interest}}' },
   { label: 'Price range clause', token: '{{price_range}}' },
   { label: 'Home value link', token: '{{home_value_link}}' },
+  { label: 'Street address', token: '{{street_address}}' },
+  { label: 'City or area', token: '{{city_or_area}}' },
+  { label: 'Home value URL', token: '{{home_value_url}}' },
   { label: 'Request CMA link', token: '{{cma_request_link}}' },
   { label: 'Email address', token: '{{email}}' },
   { label: 'Phone', token: '{{phone}}' },
