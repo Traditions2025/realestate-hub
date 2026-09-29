@@ -314,7 +314,7 @@ router.post('/home-value/run', async (req, res) => {
 
 // ---- Home value form submissions, read off the notification email ----
 // dry=1 shows what it would do and writes nothing. Without it, each new submission
-// creates or updates the lead, tags it, sends the Loom follow-up, and steps the Home
+// creates or updates the lead, tags it, sends the follow-up, and steps the Home
 // Value campaign aside for 90 days.
 router.post('/home-value/intake', async (req, res) => {
   try {

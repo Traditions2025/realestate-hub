@@ -141,6 +141,28 @@ function savedSignatureHtml() {
   return (db.getSetting?.('email_signature', '') || '') || 'Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts'
 }
 
+// Does this body ALREADY end in a signature?
+//
+// The composer used to ask only whether the body contained the {{signature}} token, so a
+// designed template carrying its own hand-built signature block got a second one appended.
+// A real lead received the home value follow-up with two "Matt Smith" blocks and two phone
+// numbers on 2026-09-29.
+//
+// The test is the signature's own distinctive details — phone, address, domain — and it
+// takes TWO of them, so a body that merely mentions the office number once is not mistaken
+// for a signed one.
+export function alreadySigned(html) {
+  const s = String(html == null ? '' : html)
+  if (/\{\{\s*signature\s*\}\}/i.test(s)) return true
+  const marks = [
+    /\b319[-.\s]?431[-.\s]?5859\b/,                  // team phone
+    /mattsmithremax@gmail\.com/i,                    // team email
+    /mattsmithteam\.com/i,                           // team domain
+    /RE\/MAX\s+(Concepts|Real Estate Concepts)/i,    // brokerage line
+  ]
+  return marks.filter(re => re.test(s)).length >= 2
+}
+
 // Build the "homes they viewed" property cards for a client from the STORED
 // listings in the Hub (fub_activity). No FUB call — safe for bulk sends. Returns
 // '' when the client has no cached listings.
@@ -414,8 +436,17 @@ export function usableFirstName(raw) {
 // is transactional, internal, or a message one person wrote to one person, and must not
 // gain an opt-out footer.
 const BULK_CATEGORY = /^(drip|drip_test|auto|campaign|bulk)_/i
+// Marketing sends whose name does not fit the <prefix>_<id> convention, so the regex above
+// would miss them. home_value_followup is the auto-response to a home value form
+// submission: it answers something the person asked for, but it also invites further
+// contact ("Someone from the Matt Smith Team may reach out"), which is what makes it
+// marketing rather than purely transactional. It went out to a real lead on 2026-09-29
+// with no opt-out at all, which is the failure this list prevents.
+const BULK_CATEGORY_NAMES = new Set(['home_value_followup'])
 export function isBulkCategory(category) {
-  return !!category && BULK_CATEGORY.test(String(category))
+  if (!category) return false
+  const c = String(category)
+  return BULK_CATEGORY.test(c) || BULK_CATEGORY_NAMES.has(c.toLowerCase())
 }
 
 // ── Logo: delivered WITH the email, not fetched when it opens ─────────────────────
@@ -936,7 +967,11 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
 
 // Send to a single client
 router.post('/send', async (req, res) => {
-  const { client_id, to_email, subject, body, template, cc, bcc, attachments } = req.body
+  // `category` was accepted in the body and then dropped on the floor: it never reached
+  // sendViaSendGrid, so a send explicitly marked as marketing got no unsubscribe and the
+  // caller had no way to tell. A 1:1 email still passes nothing and still gets no footer,
+  // which is correct — the difference is that asking for one now works.
+  const { client_id, to_email, subject, body, template, category, cc, bcc, attachments } = req.body
   let client = null
   let recipient = to_email
 
@@ -958,9 +993,10 @@ router.post('/send', async (req, res) => {
 
   const filledSubject = client ? fillTemplate(subject, client) : subject
   // Manual composer emails don't carry a signature. Append Matt's saved signature unless the
-  // body already has one (a template with {{signature}}, or a literal signature already typed).
+  // body already has one — either the {{signature}} token or a signature block already in
+  // the copy, which is what alreadySigned() checks and what this used to miss.
   let outBody = String(body || '')
-  if (!/\{\{\s*signature\s*\}\}/i.test(outBody)) outBody += '<br><br>{{signature}}'
+  if (!alreadySigned(outBody)) outBody += '<br><br>{{signature}}'
   const filledBody = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
 
   try {
@@ -972,7 +1008,8 @@ router.post('/send', async (req, res) => {
       REPLY_TO,
       Array.isArray(cc) ? cc : [],
       Array.isArray(attachments) ? attachments : [],
-      withPersonalBcc(Array.isArray(bcc) ? bcc : [], recipient)
+      withPersonalBcc(Array.isArray(bcc) ? bcc : [], recipient),
+      category || null
     )
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
       template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
@@ -996,7 +1033,8 @@ router.post('/preview', (req, res) => {
   const { client_id, subject, body } = req.body || {}
   const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
   let outBody = String(body || '')
-  if (!/\{\{\s*signature\s*\}\}/i.test(outBody)) outBody += '<br><br>{{signature}}'
+  // Same rule as /send, so the preview is the email and not a near-miss of it.
+  if (!alreadySigned(outBody)) outBody += '<br><br>{{signature}}'
   const html = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
   const subj = client ? fillTemplate(String(subject || ''), client) : String(subject || '')
   res.json({ subject: subj, html })

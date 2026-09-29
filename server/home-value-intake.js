@@ -10,7 +10,7 @@
 // One submission does four things:
 //   1. finds or creates the Hub lead, and tags it
 //   2. records the estimates and what they told the form
-//   3. sends the follow-up email with the Loom
+//   3. sends the follow-up email
 //   4. steps the Home Value campaign aside for 90 days, so nobody is emailed "check your
 //      value" a week after they checked it
 //
@@ -154,7 +154,8 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
     deferred = deferOnHomeValueSubmission(client.id)
   } catch (e) { console.error('[home-value] defer failed:', e.message) }
 
-  // The follow-up with the Loom.
+  // The follow-up. The video came out on 2026-09-29 while Matt re-records it; the
+  // template is still found by name, so nothing here changes when it goes back in.
   let emailed = { ok: false, reason: 'not attempted' }
   try {
     const tpl = db.get('SELECT id, subject, body FROM templates WHERE name = ?', [FOLLOWUP_TEMPLATE])

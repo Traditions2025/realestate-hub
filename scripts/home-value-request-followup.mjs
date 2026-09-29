@@ -1,11 +1,17 @@
 // "Your home value estimate for ..." — the email that goes out after someone submits the
 // home value form on cedarrapidsmetroareahomevalue.sierrasellersites.com.
 //
-// Copy is John's, verbatim. The only additions are the merge fields and the Loom preview.
+// Copy is John's, verbatim. The only additions are the merge fields and the video.
 //
-// The Loom thumbnail uses `-with-play.jpg` (35KB, play button baked in) rather than
-// `-with-play.gif` (1MB) — an animated GIF that size is a poor thing to push into an inbox,
-// and several clients show only its first frame anyway.
+// The video came out on 2026-09-29 while Matt re-recorded it, and went back the same day
+// with his new one, "Improving Your Home Value Estimate" (84 seconds).
+//
+// Its thumbnail needs care. Loom names this video's thumbnails with a content hash, so the
+// tidy `<id>-with-play.jpg` URL the previous video used returns 403 here — the working
+// paths come from Loom's oEmbed endpoint. Of those, the .gif is 2.7MB, which is no thing to
+// push into an inbox, so the static .jpg is used. It has no play symbol baked in, which is
+// why there is an explicit "Watch the video" button underneath rather than a bare image
+// that gives no sign it is a video.
 //
 //   node scripts/home-value-request-followup.mjs [--dry]
 import fs from 'fs'
@@ -16,8 +22,10 @@ const NAME = 'Home Value Request — Follow-Up'
 const CATEGORY = 'Home Value Request'
 const LOGO = 'https://realestate-hub-1rzu.onrender.com/logo.jpg'
 
-const LOOM_URL = 'https://www.loom.com/share/38bcb36d11db495ba234dc10d57b39fa?sid=f398341f-8371-4b4e-b475-a51e7790778a'
-const LOOM_THUMB = 'https://cdn.loom.com/sessions/thumbnails/38bcb36d11db495ba234dc10d57b39fa-with-play.jpg'
+const VIDEO_TITLE = 'Improving Your Home Value Estimate'
+const VIDEO_URL = 'https://www.loom.com/share/3aeb361766324754b139272d99d75e11'
+// From Loom's oEmbed for this video; the un-hashed path is not served for it.
+const VIDEO_THUMB = 'https://cdn.loom.com/sessions/thumbnails/3aeb361766324754b139272d99d75e11-982517e2c2203e12.jpg'
 
 const NAVY = '#191a2e', GOLD = '#c9a227', INK = '#1f2937', BODY = '#4b5563'
 const MUTED = '#8a8f98', RULE = '#e6e8ec', PAGE = '#f2f3f5'
@@ -44,13 +52,14 @@ const body = `<table role="presentation" width="100%" cellpadding="0" cellspacin
         <h1 style="margin:0 0 18px;font-size:24px;line-height:1.3;font-weight:700;color:${INK};">Your estimate is a starting point. Here is what it cannot see.</h1>
         <p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:${BODY};">Hi {{first_name}},</p>
       </td></tr>
-      <tr><td align="center" style="padding:4px 32px 22px;">
-        <a href="${LOOM_URL}" style="display:block;text-decoration:none;">
-          <img src="${LOOM_THUMB}" alt="Watch: what an online estimate cannot see about your home" width="576" style="display:block;width:100%;max-width:576px;height:auto;border:1px solid ${RULE};border-radius:8px;" />
+      <tr><td align="center" style="padding:4px 32px 4px;">
+        <a href="${VIDEO_URL}" style="display:block;text-decoration:none;">
+          <img src="${VIDEO_THUMB}" alt="${VIDEO_TITLE} — watch the video" width="576" style="display:block;width:100%;max-width:576px;height:auto;border:1px solid ${RULE};border-radius:8px;" />
         </a>
-        <p style="margin:9px 0 0;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;font-size:13px;color:${MUTED};">
-          <a href="${LOOM_URL}" style="color:${MUTED};text-decoration:underline;">Watch the short video</a>
-        </p>
+      </td></tr>
+      <tr><td align="center" style="padding:14px 32px 24px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <a href="${VIDEO_URL}" style="display:inline-block;background:${NAVY};color:#ffffff;text-decoration:none;font-size:15px;font-weight:700;padding:12px 26px;border-radius:6px;">&#9654;&nbsp; Watch the video</a>
+        <p style="margin:10px 0 0;font-size:13px;color:${MUTED};">${VIDEO_TITLE} &middot; 1 min 24 sec</p>
       </td></tr>
       <tr><td style="padding:0 32px 26px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
         ${paras.map(t => `<p style="margin:0 0 16px;font-size:16px;line-height:1.65;color:${BODY};">${t}</p>`).join('\n        ')}
@@ -75,7 +84,7 @@ const payload = {
   name: NAME, type: 'email', category: CATEGORY,
   subject: 'Your home value estimate for {{street_address}}',
   body, is_html: 1,
-  tags: 'home-value, seller, cma-request, loom, auto-followup',
+  tags: 'home-value, seller, cma-request, video, auto-followup',
 }
 
 const pw = fs.readFileSync('C:/Users/USer/.claude/projects/c--Users-USer-Downloads-Claude-Code-Matt-Smith-Team/memory/.hub-automation-pw', 'utf8').trim()
@@ -91,4 +100,4 @@ if (hit) { await fetch(`${BASE}/api/templates/${hit.id}`, { method: 'PUT', heade
 else { id = (await fetch(BASE + '/api/templates', { method: 'POST', headers: H, body: JSON.stringify(payload) }).then(r => r.json())).id }
 console.log(`template ${id}: ${NAME}`)
 console.log(`subject: ${payload.subject}`)
-console.log(`loom   : ${LOOM_URL}`)
+console.log(`video  : ${VIDEO_URL}`)
