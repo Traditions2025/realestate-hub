@@ -303,7 +303,7 @@ if (DRY) { console.log('\n--dry: nothing written'); process.exit(0) }
 // One step per week, 7 days apart. Step 1 goes out on enrollment (delay 0).
 const steps = stepIds.map((s, i) => ({
   id: `hvw${String(s.n).padStart(2, '0')}`, template_id: Number(s.id),
-  delay_days: i === 0 ? 0 : 7, send_time: '09:00', send_time_end: '16:00', include_properties: false,
+  delay_days: i === 0 ? 0 : 7, send_time: '09:00', send_time_end: '17:00', include_properties: false,
 }))
 const drips = await fetch(BASE + '/api/drips', { headers: H }).then(r => r.json())
 const existingDrip = (Array.isArray(drips) ? drips : []).find(d => d.name === CAMPAIGN)
