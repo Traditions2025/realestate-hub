@@ -122,6 +122,24 @@ export function homeValuePreview({ limit = 25 } = {}) {
     in_active_past_drip: inPastDrip.size,
     closed_eligible: closedEligible.length,
     closed_eligible_in_past_drip: closedEligible.filter(c => inPastDrip.has(c.id)).length,
+    // WHY the rest are not in one. "Not in a past-client drip" is not the same as
+    // "transacted recently", and the difference decides whether excluding them is right.
+    closed_not_in_past_drip_why: (() => {
+      const out = { ever_enrolled_but_not_active: 0, never_enrolled: 0, active_in_another_drip: 0 }
+      const everIds = new Set(pastDripIds.length
+        ? db.all(`SELECT DISTINCT client_id FROM drip_enrollments WHERE drip_id IN (${pastDripIds.map(() => '?').join(',')})`, pastDripIds).map(r => r.client_id)
+        : [])
+      const activeOther = new Set(db.all("SELECT DISTINCT client_id FROM drip_enrollments WHERE status='active'").map(r => r.client_id))
+      for (const c of closedEligible) {
+        if (inPastDrip.has(c.id)) continue
+        if (everIds.has(c.id)) out.ever_enrolled_but_not_active++
+        else if (activeOther.has(c.id)) out.active_in_another_drip++
+        else out.never_enrolled++
+      }
+      return out
+    })(),
+    closed_not_in_past_drip_sample: closedEligible.filter(c => !inPastDrip.has(c.id)).slice(0, 8)
+      .map(c => ({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), city: c.city })),
     reasons: Object.fromEntries(Object.entries(reasons).sort((a, b) => b[1] - a[1])),
     next: eligible.slice(0, limit).map(c => ({
       id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
