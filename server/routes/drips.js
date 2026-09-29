@@ -292,6 +292,12 @@ router.get('/home-value/preview', async (req, res) => {
 })
 router.post('/home-value/settings', async (req, res) => {
   const b = req.body || {}
+  // Named people the team is actively working with — a listing being prepared, a
+  // valuation visit last week. The data cannot know this; a person does.
+  if (b.excluded_ids !== undefined) {
+    const ids = String(b.excluded_ids).split(',').map(x => Number(String(x).trim())).filter(Boolean)
+    db.setSetting('home_value_excluded_ids', ids.join(','))
+  }
   if (b.enabled !== undefined) db.setSetting('home_value_enroll_enabled', b.enabled ? '1' : '0')
   if (b.daily_limit !== undefined) db.setSetting('home_value_enroll_daily_limit', String(Math.max(1, Number(b.daily_limit) || 200)))
   const { homeValueConfig } = await import('../home-value-enroll.js')

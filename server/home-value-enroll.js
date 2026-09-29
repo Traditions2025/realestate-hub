@@ -65,6 +65,18 @@ export function homeValueEligibility(c, ctx = {}) {
   // should not get an email asking them to check their value; someone who checked a year
   // ago is a fair person to ask again. 30 days is the line.
   if (ctx.recentLookup?.has(c.id)) return 'checked their home value in the last 30 days'
+
+  // PAST CLIENTS (John, 2026-09-29). A Closed lead qualifies ONLY if they are already in
+  // a Lifelong Friends past-client nurture. That list was hand-picked to leave out anyone
+  // who transacted recently, so it carries a judgement the Hub cannot make for itself:
+  // nothing in the data says when somebody last bought or sold. A past client who was
+  // never put through that selection is left alone; John adds those by hand.
+  if (String(c.status || '').trim().toLowerCase() === 'closed' && !ctx.inPastDrip?.has(c.id))
+    return 'past client not in a Lifelong Friends nurture'
+
+  // Named exclusions — people the team is actively working with. The data cannot know
+  // this (a listing being prepared, a valuation visit last week); a person does.
+  if (ctx.excludedIds?.has(c.id)) return 'manually excluded'
   if (ctx.enrolledIds?.has(c.id)) return 'already in this campaign'
   if (ctx.busyToday?.has(c.id)) return 'another campaign email lands today'   // send-time guard is the real one
   return null
@@ -83,7 +95,13 @@ function buildContext(dripId) {
     db.all(`SELECT entity_id FROM activity_log
              WHERE action = 'home_value_submission' AND entity_type = 'client'
                AND created_at >= datetime('now', '-30 days')`).map(r => r.entity_id))
-  return { enrolledIds, busyToday, recentLookup }
+  const pastDripIds = db.all("SELECT id FROM drip_campaigns WHERE name LIKE 'Lifelong Friends%'").map(r => r.id)
+  const inPastDrip = new Set(pastDripIds.length
+    ? db.all(`SELECT DISTINCT client_id FROM drip_enrollments WHERE status='active' AND drip_id IN (${pastDripIds.map(() => '?').join(',')})`, pastDripIds).map(r => r.client_id)
+    : [])
+  const excludedIds = new Set(String(db.getSetting?.('home_value_excluded_ids', '') || '')
+    .split(',').map(s => Number(String(s).trim())).filter(Boolean))
+  return { enrolledIds, busyToday, recentLookup, inPastDrip, excludedIds }
 }
 
 const enrolledToday = (dripId) => db.get(
@@ -138,8 +156,19 @@ export function homeValuePreview({ limit = 25 } = {}) {
       }
       return out
     })(),
-    closed_not_in_past_drip_sample: closedEligible.filter(c => !inPastDrip.has(c.id)).slice(0, 8)
-      .map(c => ({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), city: c.city })),
+    // Why fewer past clients qualify than are in the nurture: being in the nurture is one
+    // requirement, the address/email rules are the others, and some fail those.
+    past_drip_members_not_eligible: (() => {
+      const eligibleIds = new Set(eligible.map(c => c.id))
+      const misses = {}
+      for (const id of inPastDrip) {
+        if (eligibleIds.has(id)) continue
+        const c = db.get('SELECT * FROM clients WHERE id = ?', [id])
+        const why = c ? (homeValueEligibility(c, ctx) || 'eligible') : 'lead not found'
+        misses[why] = (misses[why] || 0) + 1
+      }
+      return misses
+    })(),
     reasons: Object.fromEntries(Object.entries(reasons).sort((a, b) => b[1] - a[1])),
     next: eligible.slice(0, limit).map(c => ({
       id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
