@@ -6,21 +6,25 @@ import assert from 'node:assert/strict'
 import { usableStreet, usableCity } from '../server/routes/email.js'
 
 test('a real street line is returned untouched', () => {
-  for (const a of ['1428 Oakwood Dr', '632 Olive Dr Nw', '190 Cottage Grove Ave SE Unit#302',
+  for (const a of ['1428 Oakwood Dr', '190 Cottage Grove Ave SE Unit#302',
     '3495 McGowan Blvd', '10000 W Cemetary Rd'])
     assert.equal(usableStreet(a), a)
+  // the one exception: a lower-case quadrant is corrected, never passed through
+  assert.equal(usableStreet('632 Olive Dr Nw'), '632 Olive Dr NW')
 })
 
 test('a street named after a state is not mistaken for a jammed address', () => {
   // the exact false alarms the audit turned up
-  for (const a of ['2449 Wisconsin St Sw', '3300 Iowa Ave SE', '647 S Wisconsin St',
+  for (const a of ['3300 Iowa Ave SE', '647 S Wisconsin St',
     '301 W Illinois St', '947 Iowa Ave'])
     assert.equal(usableStreet(a), a, a + ' is a real address and must survive')
+  // survives the trim, and the quadrant is corrected on the way through
+  assert.equal(usableStreet('2449 Wisconsin St Sw'), '2449 Wisconsin St SW')
 })
 
 test('a jammed city/state/zip is trimmed back to the street', () => {
   assert.equal(usableStreet('180 Rosedale Road Marion IA 52302'), '180 Rosedale Road')
-  assert.equal(usableStreet('440 Norwick Rd Sw Cedar Rapids IA 52404'), '440 Norwick Rd Sw')
+  assert.equal(usableStreet('440 Norwick Rd Sw Cedar Rapids IA 52404'), '440 Norwick Rd SW')
   assert.equal(usableStreet('10000 W Cemetary Rd Fairfax, IA 52228'), '10000 W Cemetary Rd')
   assert.equal(usableStreet('1607 21st Street, Cedar Rapids, IA 52405'), '1607 21st Street')
   assert.equal(usableStreet('295 circle dr\nWalford, Iowa'), '295 circle dr')

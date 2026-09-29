@@ -292,8 +292,12 @@ const ZIP_TAIL = /[,\s]+\d{5}(?:-\d{4})?\s*$/
 // this. Only fully-uppercase values are touched; anything already mixed case is left
 // exactly as the team typed it.
 function tidyCase(raw) {
-  const s = String(raw == null ? '' : raw)
-  const letters = s.replace(/[^A-Za-z]/g, '')
+  // A quadrant is not a word, so it is uppercased whatever the rest of the value looks
+  // like. "3025 Towne House Dr Ne" was already mixed case, so the pass below skipped it
+  // and it reached a subject line reading "Dr Ne".
+  const orig = String(raw == null ? '' : raw)
+  const letters = orig.replace(/[^A-Za-z]/g, '')
+  const s = orig.replace(/\b(ne|nw|se|sw)\b/gi, m => m.toUpperCase())
   // Only touch a value that is ENTIRELY uppercase; anything already mixed case was typed
   // that way by a person and is left exactly as it is.
   if (letters.length < 4 || letters !== letters.toUpperCase()) return s
@@ -327,6 +331,10 @@ export function usableCity(raw) {
   c = c.replace(/,\s*(?:IA|Iowa|[A-Z]{2})\.?\s*$/i, '').replace(/[\s,]+$/, '').trim()
   if (!c || /^\d/.test(c)) return ''                      // "500 1st" is a street, not a town
   if (/^(ia|iowa|usa|us|linn|n\/?a|none|unknown)$/i.test(c)) return ''
+  // 782 imported rows have the street's quadrant sitting alone in the city column
+  // ("600 Nilsen Rd" / "Ne"). That is the address split at the wrong point, not a town,
+  // and rendering it would greet someone as living in "Ne".
+  if (/^(ne|nw|se|sw)$/i.test(c)) return ''
   return tidyCase(c)
 }
 

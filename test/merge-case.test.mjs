@@ -22,7 +22,9 @@ test('Mc and O names keep their inner capital', () => {
 })
 
 test('an address a person typed properly is never touched', () => {
-  for (const a of ['2025 Larry Dr Ne', '1195 Y Dr', '5935 Cedar Ridge Dr',
+  // '2025 Larry Dr Ne' used to sit in this list. It does not belong here: the quadrant
+  // was wrong, and see merge-quadrant.test.mjs for what it should be.
+  for (const a of ['1195 Y Dr', '5935 Cedar Ridge Dr',
     '190 Cottage Grove Ave SE Unit#302', '3495 McGowan Blvd'])
     assert.equal(usableStreet(a), a, a + ' was already fine and must be left alone')
 })

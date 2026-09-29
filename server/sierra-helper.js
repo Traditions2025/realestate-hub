@@ -59,8 +59,15 @@ export function processLead(lead, sierraStatusOverride) {
   const email = n(lead.email)
   const phone = n(lead.phone)
   const source = n(lead.source)
-  const address = n(lead.streetAddress || lead.address)
-  const city = n(lead.city)
+  // An import split some addresses at the wrong point and left the street's quadrant
+  // alone in the city column ("600 Nilsen Rd" / "Ne"). Put the quadrant back on the
+  // street and treat the city as missing, or the backfill below keeps restoring it.
+  let address = n(lead.streetAddress || lead.address)
+  let city = n(lead.city)
+  if (city && /^(ne|nw|se|sw)$/i.test(city)) {
+    if (address && !/\b(ne|nw|se|sw)\b\s*$/i.test(address)) address = `${address} ${city.toUpperCase()}`
+    city = null
+  }
   const state = n(lead.state) || 'IA'
   const zip = n(lead.zip || lead.postalCode)
 
