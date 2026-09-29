@@ -339,10 +339,14 @@ function chicagoNow() {
     hour: '2-digit', minute: '2-digit', hour12: false,
   }).formatToParts(new Date())
   const get = (t) => Number(parts.find(p => p.type === t).value)
+  const date = `${get('year')}-${String(get('month')).padStart(2,'0')}-${String(get('day')).padStart(2,'0')}`
   return {
-    date: `${get('year')}-${String(get('month')).padStart(2,'0')}-${String(get('day')).padStart(2,'0')}`,
+    date,
     hour: get('hour') === 24 ? 0 : get('hour'),  // some locales emit '24:00'
     minute: get('minute'),
+    // Day of week for that CHICAGO calendar date, 0=Sunday. Read at noon UTC so a DST
+    // boundary cannot roll the date backwards or forwards by one.
+    weekday: new Date(`${date}T12:00:00Z`).getUTCDay(),
   }
 }
 
@@ -387,6 +391,33 @@ async function checkFsboDailyTick() {
     const rep = await fsboDailyMaintenance()
     console.log(`[scheduler] FSBO daily: ${rep.junked.length} off-market -> Junk`)
   } catch (e) { console.error('[scheduler] FSBO daily error (non-fatal):', e.message) }
+}
+
+// Home Value enrollment, once each WEEKDAY morning.
+//
+// The engine existed but nothing ever called it, so switching enrollment "on" did nothing
+// at all — the only way anyone got enrolled was a manual POST to /home-value/run. This is
+// what makes `home_value_enroll_enabled` mean something.
+//
+// 9 AM deliberately: a day's batch is scheduled across the 9-5 send window, so 200 leads
+// trickle out over eight hours. Enrolling late in the day would compress the same volume
+// into the last hour, which is the wrong shape for a cold list.
+//
+// Weekdays only — this is prospecting, and a Saturday send earns nothing.
+const HOME_VALUE_ENROLL_HOUR = 9
+async function checkHomeValueEnrollTick() {
+  try {
+    const now = chicagoNow()
+    if (now.weekday === 0 || now.weekday === 6) return
+    const minutesPast = (now.hour - HOME_VALUE_ENROLL_HOUR) * 60 + now.minute
+    if (minutesPast < 0 || minutesPast > 5) return
+    if (db.getSetting?.('last_home_value_enroll_date') === now.date) return
+    db.setSetting?.('last_home_value_enroll_date', now.date)   // claim the slot before running
+    const { homeValueEnrollTick } = await import('./home-value-enroll.js')
+    const rep = await homeValueEnrollTick()
+    if (rep?.skipped) console.log(`[scheduler] Home Value enrollment: ${rep.skipped}`)
+    else console.log(`[scheduler] Home Value enrollment: ${rep?.enrolled ?? 0} enrolled`)
+  } catch (e) { console.error('[scheduler] Home Value enrollment error (non-fatal):', e.message) }
 }
 
 // Fire the Watch sweep once daily at 6 AM CT (idempotent via app_settings date key).
@@ -852,6 +883,9 @@ export function startScheduler() {
   // Daily Watch-status sweep - check every minute, fires at 6 AM CT (idempotent).
   // Catches backdated expired/cancelled + FSBO Watch leads the incremental sync misses.
   setInterval(checkWatchSweepTick, 60 * 1000)
+
+  // Home Value enrollment — weekday mornings, gated by home_value_enroll_enabled.
+  setInterval(checkHomeValueEnrollTick, 60 * 1000)
 
   // FSBO daily maintenance - check every minute, fires at 9:30 AM CT (idempotent).
   setInterval(checkFsboDailyTick, 60 * 1000)
