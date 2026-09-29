@@ -837,6 +837,12 @@ export const SMART_LIST_SQL = {
 
 // Map sort key to SQL ORDER BY
 const SORT_OPTIONS = {
+  // The only sort with a UNIQUE key, and so the only one that is safe to page through.
+  // Every other option ties — thousands of rows share a NULL sierra_update_date — and
+  // SQLite orders ties arbitrarily, so paging 5,000 at a time silently skipped and
+  // duplicated rows. A bulk audit that walks the whole file must ask for this one
+  // (found while auditing name formatting, 2026-09-29).
+  id_asc: 'id ASC',
   recent_activity: 'sierra_update_date DESC NULLS LAST',
   // "Recently Added" must mean WHEN THE LEAD LANDED IN THE HUB. register_date is
   // the Sierra/FUB website-registration date, which prospecting leads never have:
