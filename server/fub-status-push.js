@@ -29,12 +29,16 @@ export const PUSH_TAG = 'Hub: status synced'
 
 // FUB stages that mean something a Junk flag should not silently erase.
 //
-// The dry run surfaced six of these: a Past Client, a High Probability Seller and three
-// Seller (NURTURE) records, all marked Junk in the Hub. John's ask was that Junk leads
-// stop showing as ACTIVE or NEW in FUB - a past client is neither, and demoting one to
-// Dead loses history nobody asked to lose. These are reported for a person to look at
-// instead of being pushed.
-const PROTECTED_STAGE = /past client|closed|under contract|pending|nurture|high probability/i
+// The dry run surfaced 14 of these: seven Past Clients, a High Probability Seller, four
+// Seller (NURTURE)/Nurture records and a PLATINUM CLIENT, all marked Junk or DNC in the
+// Hub. John's ask was that Junk leads stop showing as ACTIVE or NEW in FUB - a past client
+// is neither, and demoting one to Dead loses history nobody asked to lose. These are
+// reported for a person to look at instead of being pushed.
+//
+// Stages that are merely INACTIVE are not protected and do push: Realist, FSBO, Expired,
+// Cancelled, Not in the Market, C - Cold 6+ Months, Foreclosures. None of those carry a
+// relationship a Junk flag would contradict.
+const PROTECTED_STAGE = /past client|closed|under contract|pending|nurture|high probability|platinum|vip/i
 
 const nowIso = () => new Date().toISOString()
 const norm = (s) => String(s || '').trim().toLowerCase()

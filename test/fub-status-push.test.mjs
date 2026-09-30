@@ -100,16 +100,17 @@ test('a meaningful FUB stage is reported for review, not demoted', async () => {
   // asserted on the source, because stubbing a dynamic import mid-suite is more fragile
   // than the thing it would be testing
   assert.match(src, /PROTECTED_STAGE/)
-  for (const stage of ['Past Client', 'Seller (NURTURE)', 'High Probability Sellers', 'Under Contract', 'Closed'])
-    assert.ok(/past client|closed|under contract|pending|nurture|high probability/i.test(stage),
+  for (const stage of ['Past Client', 'Seller (NURTURE)', 'High Probability Sellers', 'Under Contract', 'Closed', 'PLATINUM CLIENTS'])
+    assert.ok(/past client|closed|under contract|pending|nurture|high probability|platinum|vip/i.test(stage),
       `${stage} should be protected`)
   assert.match(src, /action: 'protected'/)
   assert.match(src, /review this one/)
 })
 
 test('ordinary stages are NOT protected, so the other 119 still push', () => {
-  const re = /past client|closed|under contract|pending|nurture|high probability/i
-  for (const stage of ['Lead', 'New Lead', 'Trash', 'Expired', 'Cancelled', 'Homeowner', 'Attempted Contact', ''])
+  const re = /past client|closed|under contract|pending|nurture|high probability|platinum|vip/i
+  for (const stage of ['Lead', 'New Lead', 'Trash', 'Expired', 'Cancelled', 'Homeowner', 'Attempted Contact',
+                       'Realist', 'FSBO', 'Not in the Market', 'C - Cold 6+ Months', 'Foreclosures', ''])
     assert.ok(!re.test(stage), `${stage} is not a stage worth protecting from a Junk flag`)
 })
 
