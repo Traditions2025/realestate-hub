@@ -115,6 +115,21 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
   const currentTags = Array.isArray(person?.tags) ? person.tags : []
   const fubName = String(person?.name || [person?.firstName, person?.lastName].filter(Boolean).join(' ') || '').trim()
   const hubName = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+  // If the Hub name and the FUB name are different PEOPLE, the link itself is wrong and
+  // pushing would stamp a status onto a stranger's record. 411 FUB people are claimed by
+  // more than one Hub lead (see duplicateLinks) and some of those groups hold unrelated
+  // names, so this is a real condition rather than a theoretical one.
+  if (!force && fubName && hubName && !namesAgree(hubName, fubName)) {
+    return {
+      client_id: client.id, fub_id: personId, name: hubName, fub_name: fubName,
+      hub_status: client.status, from_stage: currentStage, to_stage: stage,
+      action: 'name-mismatch',
+      already_pushed: currentTags.includes(PUSH_TAG),   // true = an earlier run wrote to this wrong record
+      why: `Hub has "${hubName}", FUB ${personId} is "${fubName}" — the link is wrong, pushing would write to the wrong person`,
+    }
+  }
+
+
   if (currentStage === stage && currentTags.includes(PUSH_TAG))
     return { client_id: client.id, fub_id: personId, action: 'already-matches', stage }
 
@@ -125,19 +140,6 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
       hub_status: client.status, from_stage: currentStage, to_stage: stage,
       action: 'protected',
       why: `${currentStage} carries history a Junk flag should not erase — review this one`,
-    }
-  }
-
-  // If the Hub name and the FUB name are different PEOPLE, the link itself is wrong and
-  // pushing would stamp a status onto a stranger's record. 411 FUB people are claimed by
-  // more than one Hub lead (see duplicateLinks) and some of those groups hold unrelated
-  // names, so this is a real condition rather than a theoretical one.
-  if (!force && fubName && hubName && !namesAgree(hubName, fubName)) {
-    return {
-      client_id: client.id, fub_id: personId, name: hubName, fub_name: fubName,
-      hub_status: client.status, from_stage: currentStage, to_stage: stage,
-      action: 'name-mismatch',
-      why: `Hub has "${hubName}", FUB ${personId} is "${fubName}" — the link is wrong, pushing would write to the wrong person`,
     }
   }
 

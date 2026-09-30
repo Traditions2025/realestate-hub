@@ -237,3 +237,12 @@ test('a mismatch is reported and nothing is written', () => {
   const guard = src.slice(src.indexOf("!namesAgree(hubName, fubName)"), src.indexOf("const tags = currentTags"))
   assert.ok(!/fubUpdatePerson/.test(guard), 'the mismatch path must return before any write')
 })
+
+// The first live run pushed 183 leads before this guard existed. If any of those links
+// were wrong, the record now carries our tag - and if the mismatch were checked AFTER
+// already-matches, it would report as 'matching' and the damage would stay invisible.
+test('a wrong link is checked before already-matches, so past damage is visible', () => {
+  assert.ok(src.indexOf("action: 'name-mismatch'") < src.indexOf("action: 'already-matches'"),
+    'a wrong link must never be reported as matching')
+  assert.match(src, /already_pushed: currentTags\.includes\(PUSH_TAG\)/)
+})
