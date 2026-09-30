@@ -1888,6 +1888,15 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // A bounce without its reason is not actionable: a dead mailbox and a full one look
+  // identical, so nothing downstream can tell which addresses are worth retrying. SendGrid
+  // sends both on every bounce and neither was being kept (John, 2026-09-30).
+  //   bounce_type  'bounce' = the server rejected it, 'blocked' = reputation or throttling
+  //   reason       the SMTP response, e.g. "550 5.1.1 ... does not exist"
+  //   sg_status    '5.x.x' permanent, '4.x.x' temporary
+  for (const [col, type] of [['bounce_type', 'TEXT'], ['reason', 'TEXT'], ['sg_status', 'TEXT']]) {
+    try { db.run(`ALTER TABLE email_events ADD COLUMN ${col} ${type}`) } catch {}
+  }
   try { db.run('CREATE INDEX IF NOT EXISTS idx_email_events_email ON email_events(email_id, event_type)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_email_log_pmid ON email_log(provider_message_id)') } catch {}
   for (const [name, type] of [

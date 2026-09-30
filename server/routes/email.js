@@ -1497,8 +1497,14 @@ router.post('/events', async (req, res) => {
       if (!row) continue
       const occurred = ev.timestamp ? new Date(Number(ev.timestamp) * 1000).toISOString() : new Date().toISOString()
       try {
-        db.run('INSERT INTO email_events (email_id, client_id, event_type, sg_message_id, sg_event_id, url, occurred_at) VALUES (?,?,?,?,?,?,?)',
-          [row.id, row.client_id, type, String(ev.sg_message_id || ''), sgEventId, ev.url || null, occurred])
+        db.run(`INSERT INTO email_events (email_id, client_id, event_type, sg_message_id, sg_event_id,
+                url, occurred_at, bounce_type, reason, sg_status) VALUES (?,?,?,?,?,?,?,?,?,?)`,
+          [row.id, row.client_id, type, String(ev.sg_message_id || ''), sgEventId, ev.url || null, occurred,
+           // 'bounce' is a rejection, 'blocked' is reputation or throttling and is usually
+           // temporary. Keeping the raw reason is what makes a retry policy possible at all.
+           ev.type ? String(ev.type) : null,
+           ev.reason ? String(ev.reason).slice(0, 500) : null,
+           ev.status ? String(ev.status) : null])
       } catch { continue }   // UNIQUE(sg_event_id) → duplicate webhook retry, already counted
       touchedEmails.add(row.id)
       if (row.client_id) touchedClients.add(row.client_id)
@@ -1522,6 +1528,59 @@ router.post('/events', async (req, res) => {
 // templates contain no unsubscribe and no substitution tag, so if one is being added it
 // is added here, by the account, and the only way to know is to ask. Returns settings
 // and group names only — never the API key.
+// SendGrid's own suppression lists, with the REASON for each address.
+//
+// The Hub records that an email bounced but not WHY: the webhook carries `type`
+// (hard bounce vs a temporary block) and `reason` (the SMTP response), and neither was
+// stored. Without them a dead mailbox and a full one look identical, and you cannot tell
+// which addresses are worth retrying (John, 2026-09-30).
+//
+// SendGrid keeps four separate lists and the difference matters:
+//   bounces  - the server rejected it. `status` 5.x.x is permanent, 4.x.x is temporary
+//   blocks   - reputation or throttling. Usually temporary and worth retrying later
+//   invalid  - malformed or a domain that does not resolve. Never deliverable
+//   spam     - the person pressed "report spam". Permanent, and a compliance matter
+//
+// Read-only.
+router.get('/suppressions', async (_req, res) => {
+  if (!SENDGRID_API_KEY) return res.status(400).json({ error: 'no SendGrid key configured' })
+  const A = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
+  const pull = async (path) => {
+    try {
+      const r = await fetch(`https://api.sendgrid.com/v3/suppression/${path}?limit=500`, { headers: A })
+      if (!r.ok) return { error: `HTTP ${r.status}` }
+      return await r.json()
+    } catch (e) { return { error: e.message } }
+  }
+  const [bounces, blocks, invalid, spam] = await Promise.all(
+    [pull('bounces'), pull('blocks'), pull('invalid_emails'), pull('spam_reports')])
+
+  // 5.x.x is a permanent failure and must never be retried. 4.x.x is temporary.
+  const permanent = (b) => /^5\d\d/.test(String(b.status || '').trim()) ||
+    /does not exist|no such user|user unknown|unknown user|mailbox unavailable|invalid recipient|recipient rejected|no mailbox|address rejected/i.test(String(b.reason || ''))
+
+  const arr = (x) => Array.isArray(x) ? x : []
+  const hard = arr(bounces).filter(permanent)
+  const soft = arr(bounces).filter(b => !permanent(b))
+
+  res.json({
+    counts: {
+      bounces_total: arr(bounces).length,
+      bounces_permanent: hard.length,
+      bounces_temporary: soft.length,
+      blocks: arr(blocks).length,
+      invalid: arr(invalid).length,
+      spam_reports: arr(spam).length,
+    },
+    permanent: hard.slice(0, 200).map(b => ({ email: b.email, status: b.status, reason: String(b.reason || '').slice(0, 160) })),
+    temporary: soft.slice(0, 200).map(b => ({ email: b.email, status: b.status, reason: String(b.reason || '').slice(0, 160) })),
+    blocks: arr(blocks).slice(0, 100).map(b => ({ email: b.email, reason: String(b.reason || '').slice(0, 160) })),
+    invalid: arr(invalid).slice(0, 100).map(b => ({ email: b.email, reason: String(b.reason || '').slice(0, 160) })),
+    spam_reports: arr(spam).slice(0, 100).map(b => ({ email: b.email })),
+    errors: { bounces: bounces.error, blocks: blocks.error, invalid: invalid.error, spam: spam.error },
+  })
+})
+
 router.get('/sendgrid-settings', async (_req, res) => {
   if (!SENDGRID_API_KEY) return res.status(400).json({ error: 'no SendGrid key configured' })
   const A = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
