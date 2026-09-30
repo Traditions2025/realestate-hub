@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import db, { initDb } from '../server/database.js'
 await initDb()
-const { STATUS_TO_STAGE, PUSH_TAG, candidates, pushOne } = await import('../server/fub-status-push.js')
+const { STATUS_TO_STAGE, PUSH_TAG, candidates, pushOne, remaining } = await import('../server/fub-status-push.js')
 
 const src = fs.readFileSync(new URL('../server/fub-status-push.js', import.meta.url), 'utf8')
 const helper = fs.readFileSync(new URL('../server/fub-helper.js', import.meta.url), 'utf8')
@@ -123,4 +123,47 @@ test('a lead with no mapping is skipped before any FUB call', async () => {
   const c = mkClient('new', '900003')
   const r = await pushOne(c)
   assert.match(String(r.skipped), /no mapping/)
+})
+
+// ── resumable ────────────────────────────────────────────────────────────────────────
+// The first live attempt sent all 228 in one request. It got 21 through, the request died,
+// and nothing recorded where it had stopped. The cursor is on id, which is unique, so a
+// resumed run neither skips nor repeats.
+test('the cursor pages forward without skipping or repeating', () => {
+  const now = new Date().toISOString()
+  const mk = () => db.run(
+    `INSERT INTO clients (first_name, last_name, email, type, status, fub_person_id, tags, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    ['Cursor', 'T' + Math.random().toString(36).slice(2, 8), `c${Date.now()}${Math.random()}@x.com`,
+     'buyer', 'junk', String(950000 + Math.floor(Math.random() * 9999)), '[]', now, now]).lastInsertRowid
+  const made = [mk(), mk(), mk()].sort((a, b) => a - b)
+
+  const seen = []
+  let after = made[0] - 1
+  for (let guard = 0; guard < 10; guard++) {
+    const page = candidates({ limit: 1, afterId: after })
+    if (!page.length) break
+    seen.push(page[0].id)
+    after = page[0].id
+    if (after >= made[2]) break
+  }
+  assert.deepEqual(seen, made, 'one at a time, in order, no duplicates')
+})
+
+test('remaining() counts what is still ahead of the cursor', () => {
+  const all = candidates({ limit: 5000 })
+  assert.equal(remaining(0), all.length)
+  if (all.length > 1) assert.equal(remaining(all[0].id), all.length - 1)
+})
+
+test('the cursor is recorded per lead, not only at the end', () => {
+  // if it were only set on a clean finish, a request that dies loses its place - which is
+  // exactly what happened on the first live run
+  assert.match(src, /out\.last_id = c\.id/)
+  const loop = src.slice(src.indexOf('for (const c of rows)'), src.indexOf('out.remaining = remaining'))
+  assert.match(loop, /out\.last_id = c\.id/, 'the cursor must advance inside the loop')
+})
+
+test('a caller can tell when it is finished', () => {
+  assert.match(src, /out\.done = out\.remaining === 0/)
 })

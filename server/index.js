@@ -995,6 +995,7 @@ async function start() {
         dryRun: !!req.body?.dry,
         limit: Math.min(Number(req.body?.limit) || 1000, 5000),
         force: !!req.body?.force,   // push even over a stage that carries history
+        afterId: Number(req.body?.afterId) || 0,   // resume cursor; see candidates()
       }))
     } catch (err) { res.status(500).json({ error: err.message }) }
   })

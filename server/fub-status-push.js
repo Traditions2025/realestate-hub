@@ -43,8 +43,14 @@ const PROTECTED_STAGE = /past client|closed|under contract|pending|nurture|high 
 const nowIso = () => new Date().toISOString()
 const norm = (s) => String(s || '').trim().toLowerCase()
 
-/** Leads whose Hub status should be reflected in FUB, and that have a FUB record. */
-export function candidates({ limit = 1000 } = {}) {
+/**
+ * Leads whose Hub status should be reflected in FUB, and that have a FUB record.
+ *
+ * Ordered by id and cursored on it, so a run can be done in short chunks. The first live
+ * attempt ran all 228 in one request, got 21 through, and then the request died with no
+ * way to tell where it had stopped. id is unique, so `afterId` never skips or repeats.
+ */
+export function candidates({ limit = 1000, afterId = 0 } = {}) {
   const statuses = Object.keys(STATUS_TO_STAGE)
   return db.all(
     `SELECT id, first_name, last_name, email, status, fub_person_id, tags
@@ -52,7 +58,19 @@ export function candidates({ limit = 1000 } = {}) {
       WHERE merged_into IS NULL
         AND fub_person_id IS NOT NULL AND fub_person_id != ''
         AND lower(trim(status)) IN (${statuses.map(() => '?').join(',')})
-      ORDER BY id LIMIT ?`, [...statuses, Number(limit)])
+        AND id > ?
+      ORDER BY id LIMIT ?`, [...statuses, Number(afterId) || 0, Number(limit)])
+}
+
+/** How many are left to look at from a cursor — so a caller knows when it is done. */
+export function remaining(afterId = 0) {
+  const statuses = Object.keys(STATUS_TO_STAGE)
+  return db.get(
+    `SELECT COUNT(*) n FROM clients
+      WHERE merged_into IS NULL
+        AND fub_person_id IS NOT NULL AND fub_person_id != ''
+        AND lower(trim(status)) IN (${statuses.map(() => '?').join(',')})
+        AND id > ?`, [...statuses, Number(afterId) || 0]).n
 }
 
 /**
@@ -114,9 +132,10 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
  * Push a batch. Paced deliberately: FUB rate-limits, and this is somebody's live CRM
  * rather than a scratch database.
  */
-export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false } = {}) {
-  const rows = candidates({ limit })
-  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0, results: [], dry: dryRun }
+export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false, afterId = 0 } = {}) {
+  const rows = candidates({ limit, afterId })
+  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0,
+                results: [], dry: dryRun, after_id: Number(afterId) || 0, last_id: Number(afterId) || 0 }
   for (const c of rows) {
     const r = await pushOne(c, { dryRun, force })
     if (r.action === 'updated' || r.action === 'would-update') out.updated++
@@ -125,10 +144,13 @@ export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260
     else if (r.error === 'not in FUB') out.missing++
     else if (r.error || r.action === 'failed') out.failed++
     if (r.action !== 'already-matches') out.results.push(r)
+    out.last_id = c.id   // the cursor to resume from, even if the request dies here
     // EVERY pass is paced, including a dry run: the dry run still reads each person from
     // FUB, and pacing only the writes is what hit the rate limit on 103 of 228.
     await new Promise(s => setTimeout(s, delayMs))
   }
+  out.remaining = remaining(out.last_id)
+  out.done = out.remaining === 0
   if (!dryRun && out.updated) {
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['fub_status_push_run', 'system', null, `${out.updated} updated, ${out.failed} failed, ${out.missing} missing`])
