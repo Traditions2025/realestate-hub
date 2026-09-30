@@ -984,6 +984,16 @@ async function start() {
     })
   })
 
+  // What stages FUB already has, so the Hub's statuses can be mapped onto them rather
+  // than inventing a parallel vocabulary (John, 2026-09-30). Read-only.
+  app.get('/api/fub/stages', async (_req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const [stages, users] = await Promise.all([fubGet('/stages'), fubGet('/users', { limit: 1 })])
+      res.json({ stages: stages.stages || stages, userCount: users?._metadata?.total ?? null })
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
   app.get('/api/fub/status', async (_req, res) => {
     try {
       const { fubConfigured, fubIdentity } = await import('./fub-helper.js')
