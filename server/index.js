@@ -1002,6 +1002,24 @@ async function start() {
 
   // Read-only: FUB people that more than one Hub lead claims. A push from either Hub
   // record overwrites the other, so these need a human to decide which lead is real.
+  // Put back FUB records this module wrote to in error, before the name guard existed.
+  // Takes explicit {fubId, stage} entries - there is no "undo everything", because which
+  // stage a wrongly-touched record should hold is a decision, not a rollback.
+  app.post('/api/fub/revert-push', async (req, res) => {
+    try {
+      const { revertPush } = await import('./fub-status-push.js')
+      const entries = Array.isArray(req.body?.entries) ? req.body.entries.slice(0, 50) : []
+      if (!entries.length) return res.status(400).json({ error: 'entries required' })
+      const dryRun = !!req.body?.dry
+      const results = []
+      for (const e of entries) {
+        results.push(await revertPush(e.fubId, { stage: e.stage || null, dryRun }))
+        await new Promise(s => setTimeout(s, 300))
+      }
+      res.json({ dry: dryRun, count: results.length, results })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')

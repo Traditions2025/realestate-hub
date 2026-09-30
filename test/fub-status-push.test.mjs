@@ -189,8 +189,11 @@ test('duplicate FUB links are reported', async () => {
 })
 
 test('the duplicate report is read-only', () => {
-  const fn = src.slice(src.indexOf('export function duplicateLinks'))
-  assert.ok(!/UPDATE|DELETE|INSERT/i.test(fn), 'it reports duplicates, it does not merge them')
+  const at = src.indexOf('export function duplicateLinks')
+  const next = src.indexOf('export async function revertPush', at + 10)
+  const fn = src.slice(at, next === -1 ? undefined : next)
+  assert.match(fn, /SELECT/, 'the slice should hold the function body')
+  assert.ok(!/UPDATE |DELETE |INSERT /i.test(fn), 'it reports duplicates, it does not merge them')
 })
 
 // ── the link itself can be wrong ──────────────────────────────────────────────────────
@@ -245,4 +248,27 @@ test('a wrong link is checked before already-matches, so past damage is visible'
   assert.ok(src.indexOf("action: 'name-mismatch'") < src.indexOf("action: 'already-matches'"),
     'a wrong link must never be reported as matching')
   assert.match(src, /already_pushed: currentTags\.includes\(PUSH_TAG\)/)
+})
+
+// ── putting back what the pre-guard run got wrong ─────────────────────────────────────
+test('the revert is narrow: drops our tag, no delete, no lead creation', () => {
+  const fn = src.slice(src.indexOf('export async function revertPush'))
+  assert.match(fn, /currentTags\.filter\(t => t !== PUSH_TAG\)/)
+  assert.ok(!/INSERT INTO clients/i.test(fn), 'it must not create or alter Hub leads')
+  assert.ok(!/fubDelete|method: 'DELETE'/.test(fn), 'nothing is deleted')
+  assert.match(fn, /stage \? \{ stage, tags \} : \{ tags \}/, 'stage is optional')
+})
+
+test('the revert records why it happened', () => {
+  const fn = src.slice(src.indexOf('export async function revertPush'))
+  assert.match(fn, /fub_push_reverted/)
+  assert.match(fn, /wrong link/)
+})
+
+test('a revert dry run writes nothing', () => {
+  const fn = src.slice(src.indexOf('export async function revertPush'))
+  const before = fn.indexOf('if (dryRun) return out')
+  assert.ok(before > 0, 'it must return before the write')
+  // match a CALL, not the import destructure that names the same function
+  assert.ok(!/fubUpdatePerson\(/.test(fn.slice(0, before)), 'no write may happen ahead of the dry-run return')
 })

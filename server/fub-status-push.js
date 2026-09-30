@@ -216,3 +216,43 @@ export function duplicateLinks({ limit = 200 } = {}) {
       ORDER BY n DESC, fub_person_id
       LIMIT ?`, [Number(limit)])
 }
+
+/**
+ * Put back a FUB record this module wrote to in error.
+ *
+ * Three leads were pushed before the name guard existed, onto FUB people who are someone
+ * else entirely (Hub "Fidel Taylor" -> FUB 14739 "Ghyslaine June", and two more). Only one
+ * of the three had its stage actually changed; the other two were already Dead and only
+ * picked up our tag.
+ *
+ * Narrow on purpose: it takes the FUB id and the stage to restore, removes PUSH_TAG so the
+ * record no longer claims the Hub agreed with it, and touches nothing else. `stage` is
+ * optional - omit it to drop the tag and leave the stage alone.
+ */
+export async function revertPush(fubId, { stage = null, dryRun = false } = {}) {
+  const personId = Number(fubId)
+  if (!personId) return { error: 'no fub id' }
+  const { fubGet, fubUpdatePerson } = await import('./fub-helper.js')
+  let person
+  try { person = await fubGet(`/people/${personId}`) }
+  catch (e) { return { fub_id: personId, error: e.status === 404 ? 'not in FUB' : e.message } }
+
+  const name = String(person?.name || [person?.firstName, person?.lastName].filter(Boolean).join(' ') || '').trim()
+  const currentTags = Array.isArray(person?.tags) ? person.tags : []
+  const tags = currentTags.filter(t => t !== PUSH_TAG)
+  const out = {
+    fub_id: personId, fub_name: name,
+    stage_now: String(person?.stage || ''), stage_restoring_to: stage || '(left alone)',
+    tag_removed: currentTags.length !== tags.length,
+    action: dryRun ? 'would-revert' : 'reverted',
+  }
+  if (dryRun) return out
+  try {
+    // tags always go back as the full array, since a PUT replaces it
+    await fubUpdatePerson(personId, stage ? { stage, tags } : { tags })
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['fub_push_reverted', 'system', null,
+       `FUB ${personId} (${name}): stage -> ${stage || 'unchanged'}, Hub tag removed (wrong link)`])
+    return out
+  } catch (e) { return { ...out, action: 'failed', error: e.message } }
+}
