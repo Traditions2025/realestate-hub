@@ -44,6 +44,24 @@ const nowIso = () => new Date().toISOString()
 const norm = (s) => String(s || '').trim().toLowerCase()
 
 /**
+ * Do these two names plausibly belong to the same person?
+ *
+ * Deliberately generous: a nickname, a married name, a missing middle initial or a
+ * reordered name should all still count as agreeing. It only needs to catch the case
+ * where the two names are unmistakably DIFFERENT people, because that means the
+ * fub_person_id link is wrong.
+ */
+export function namesAgree(a, b) {
+  const parts = (v) => norm(v).replace(/[^a-z\s]/g, ' ').split(/\s+/).filter(w => w.length > 1)
+  const A = parts(a), B = parts(b)
+  if (!A.length || !B.length) return true            // nothing to compare on
+  const shared = A.filter(w => B.includes(w))
+  if (shared.length) return true                      // any surname or first name in common
+  // a shortened first name still agrees: Abagail/Abby, Michael/Mike
+  return A.some(x => B.some(y => (x.startsWith(y) || y.startsWith(x)) && Math.min(x.length, y.length) >= 3))
+}
+
+/**
  * Leads whose Hub status should be reflected in FUB, and that have a FUB record.
  *
  * Ordered by id and cursored on it, so a run can be done in short chunks. The first live
@@ -95,6 +113,8 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
 
   const currentStage = String(person?.stage || '')
   const currentTags = Array.isArray(person?.tags) ? person.tags : []
+  const fubName = String(person?.name || [person?.firstName, person?.lastName].filter(Boolean).join(' ') || '').trim()
+  const hubName = `${client.first_name || ''} ${client.last_name || ''}`.trim()
   if (currentStage === stage && currentTags.includes(PUSH_TAG))
     return { client_id: client.id, fub_id: personId, action: 'already-matches', stage }
 
@@ -105,6 +125,19 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
       hub_status: client.status, from_stage: currentStage, to_stage: stage,
       action: 'protected',
       why: `${currentStage} carries history a Junk flag should not erase — review this one`,
+    }
+  }
+
+  // If the Hub name and the FUB name are different PEOPLE, the link itself is wrong and
+  // pushing would stamp a status onto a stranger's record. 411 FUB people are claimed by
+  // more than one Hub lead (see duplicateLinks) and some of those groups hold unrelated
+  // names, so this is a real condition rather than a theoretical one.
+  if (!force && fubName && hubName && !namesAgree(hubName, fubName)) {
+    return {
+      client_id: client.id, fub_id: personId, name: hubName, fub_name: fubName,
+      hub_status: client.status, from_stage: currentStage, to_stage: stage,
+      action: 'name-mismatch',
+      why: `Hub has "${hubName}", FUB ${personId} is "${fubName}" — the link is wrong, pushing would write to the wrong person`,
     }
   }
 
@@ -134,13 +167,14 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
  */
 export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false, afterId = 0 } = {}) {
   const rows = candidates({ limit, afterId })
-  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0,
+  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0, mismatched: 0,
                 results: [], dry: dryRun, after_id: Number(afterId) || 0, last_id: Number(afterId) || 0 }
   for (const c of rows) {
     const r = await pushOne(c, { dryRun, force })
     if (r.action === 'updated' || r.action === 'would-update') out.updated++
     else if (r.action === 'already-matches') out.unchanged++
     else if (r.action === 'protected') out.protected++
+    else if (r.action === 'name-mismatch') out.mismatched++
     else if (r.error === 'not in FUB') out.missing++
     else if (r.error || r.action === 'failed') out.failed++
     if (r.action !== 'already-matches') out.results.push(r)

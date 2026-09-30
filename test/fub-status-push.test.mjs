@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import db, { initDb } from '../server/database.js'
 await initDb()
-const { STATUS_TO_STAGE, PUSH_TAG, candidates, pushOne, remaining } = await import('../server/fub-status-push.js')
+const { STATUS_TO_STAGE, PUSH_TAG, candidates, pushOne, remaining, namesAgree } = await import('../server/fub-status-push.js')
 
 const src = fs.readFileSync(new URL('../server/fub-status-push.js', import.meta.url), 'utf8')
 const helper = fs.readFileSync(new URL('../server/fub-helper.js', import.meta.url), 'utf8')
@@ -191,4 +191,49 @@ test('duplicate FUB links are reported', async () => {
 test('the duplicate report is read-only', () => {
   const fn = src.slice(src.indexOf('export function duplicateLinks'))
   assert.ok(!/UPDATE|DELETE|INSERT/i.test(fn), 'it reports duplicates, it does not merge them')
+})
+
+// ── the link itself can be wrong ──────────────────────────────────────────────────────
+// duplicateLinks turned up groups holding UNRELATED names on one FUB id, e.g. FUB 484 is
+// claimed by Alexandria Schmidt, Abagail Wells and Latonya Chalmers. Pushing one of those
+// stamps a status onto a stranger's FUB record.
+test('unmistakably different people do not agree', () => {
+  for (const [a, b] of [
+    ['Abagail Wells', 'Latonya Chalmers'],
+    ['Jordan Larison', 'Steven Peacock'],
+    ['Alexandria Schmidt', 'Abagail Wells'],
+    ['Courtney Fox', 'Frank Di'],
+  ]) assert.equal(namesAgree(a, b), false, `${a} / ${b} are different people`)
+})
+
+// Generous on purpose: a false mismatch blocks a legitimate push, so only clear-cut
+// disagreements count.
+test('nicknames, married names and reorderings still agree', () => {
+  for (const [a, b] of [
+    ['Thomas Lutz', 'Thomas Lutz'],
+    ['Steve Smith', 'Steven Smith'],
+    ['Mike Zoll', 'Michael Zoll'],
+    ['Beth Blanchett', 'Preston Beth Blanchett'],
+    ['William McCullough', 'Bill McCullough'],   // surname carries it
+    ['Smith, Matt', 'Matt Smith'],
+  ]) assert.equal(namesAgree(a, b), true, `${a} / ${b} should be treated as one person`)
+})
+
+test('a missing name never blocks a push', () => {
+  // no name on either side is not evidence of a bad link
+  assert.equal(namesAgree('', 'Wade Letter'), true)
+  assert.equal(namesAgree('Wade Letter', ''), true)
+  assert.equal(namesAgree('', ''), true)
+})
+
+test('a single initial is not treated as a match', () => {
+  // one-letter tokens are dropped, so "A Wells" vs "A Chalmers" must not agree on "A"
+  assert.equal(namesAgree('A Wells', 'A Chalmers'), false)
+})
+
+test('a mismatch is reported and nothing is written', () => {
+  assert.match(src, /action: 'name-mismatch'/)
+  assert.match(src, /the link is wrong, pushing would write to the wrong person/)
+  const guard = src.slice(src.indexOf("!namesAgree(hubName, fubName)"), src.indexOf("const tags = currentTags"))
+  assert.ok(!/fubUpdatePerson/.test(guard), 'the mismatch path must return before any write')
 })
