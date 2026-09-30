@@ -157,3 +157,26 @@ export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260
   }
   return out
 }
+
+/**
+ * FUB people that more than one Hub lead points at.
+ *
+ * Found while reviewing the held-back list: Hub 11 and Hub 31649 both carry
+ * fub_person_id 6456. When two Hub leads map to one FUB person, whichever pushes last
+ * wins and the other silently disagrees with FUB from then on. Read-only - this reports
+ * them, it does not merge anything.
+ */
+export function duplicateLinks({ limit = 200 } = {}) {
+  return db.all(
+    `SELECT fub_person_id, COUNT(*) n,
+            GROUP_CONCAT(id) hub_ids,
+            GROUP_CONCAT(trim(COALESCE(first_name,'') || ' ' || COALESCE(last_name,'')), ' | ') names,
+            GROUP_CONCAT(COALESCE(status,''), ' | ') statuses
+       FROM clients
+      WHERE merged_into IS NULL
+        AND fub_person_id IS NOT NULL AND fub_person_id != ''
+      GROUP BY fub_person_id
+     HAVING COUNT(*) > 1
+      ORDER BY n DESC, fub_person_id
+      LIMIT ?`, [Number(limit)])
+}

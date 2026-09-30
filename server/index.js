@@ -1000,6 +1000,16 @@ async function start() {
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
 
+  // Read-only: FUB people that more than one Hub lead claims. A push from either Hub
+  // record overwrites the other, so these need a human to decide which lead is real.
+  app.get('/api/fub/duplicate-links', async (req, res) => {
+    try {
+      const { duplicateLinks } = await import('./fub-status-push.js')
+      const rows = duplicateLinks({ limit: Math.min(Number(req.query.limit) || 200, 1000) })
+      res.json({ count: rows.length, rows })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/stages', async (_req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')

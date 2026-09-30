@@ -167,3 +167,28 @@ test('the cursor is recorded per lead, not only at the end', () => {
 test('a caller can tell when it is finished', () => {
   assert.match(src, /out\.done = out\.remaining === 0/)
 })
+
+// ── one FUB person, two Hub leads ─────────────────────────────────────────────────────
+// Spotted in the held-back list: Hub 11 and Hub 31649 both carry fub_person_id 6456.
+// Whichever pushes last wins, and the other quietly disagrees with FUB from then on.
+test('duplicate FUB links are reported', async () => {
+  const { duplicateLinks } = await import('../server/fub-status-push.js')
+  const now = new Date().toISOString()
+  const shared = String(970000 + Math.floor(Math.random() * 9999))
+  const mk = (first) => db.run(
+    `INSERT INTO clients (first_name, last_name, email, type, status, fub_person_id, tags, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    [first, 'Twin', `t${Date.now()}${Math.random()}@x.com`, 'buyer', 'junk', shared, '[]', now, now]).lastInsertRowid
+  const a = mk('First'), b = mk('Second')
+
+  const row = duplicateLinks({ limit: 1000 }).find(r => String(r.fub_person_id) === shared)
+  assert.ok(row, 'two Hub leads on one FUB id should be reported')
+  assert.equal(row.n, 2)
+  const listed = String(row.hub_ids).split(',')
+  for (const id of [a, b]) assert.ok(listed.includes(String(id)), `Hub ${id} should be listed`)
+})
+
+test('the duplicate report is read-only', () => {
+  const fn = src.slice(src.indexOf('export function duplicateLinks'))
+  assert.ok(!/UPDATE|DELETE|INSERT/i.test(fn), 'it reports duplicates, it does not merge them')
+})
