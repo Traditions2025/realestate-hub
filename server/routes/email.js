@@ -1512,6 +1512,21 @@ router.post('/events', async (req, res) => {
       if (row.client_id && (type === 'spamreport' || type === 'unsubscribe')) {
         try { db.run('UPDATE clients SET marketing_email_opt_out=1 WHERE id=?', [row.client_id]) } catch {}
       }
+      // THE FEEDBACK LOOP. Without this the bounce stopped here: the lead stayed marked
+      // sendable, stayed enrolled, and every later send was discarded by SendGrid before
+      // it left the building. 61 sends went that way before this existed.
+      //
+      // The policy decides whether this particular failure is worth stopping over - a full
+      // inbox is not a dead address - and writes a tag saying why when it is.
+      if (row.client_id && (type === 'bounce' || type === 'dropped' || type === 'spamreport')) {
+        try {
+          const { applyFailure, removeFromActiveDrips } = await import('../bounce-policy.js')
+          const out = applyFailure(row.client_id, {
+            event_type: type, sg_status: ev.status, reason: ev.reason, bounce_type: ev.type,
+          })
+          if (out?.action === 'stopped') removeFromActiveDrips(row.client_id)
+        } catch (e) { console.error('[bounce-policy]', e.message) }
+      }
       // Soft behavioral signal for the AI: click > open; never a hard intent jump on its own.
       if (row.client_id && (type === 'open' || type === 'click')) {
         try { import('../ai-followup/behavioral.js').then(m => m.recordBehavioralEvent(row.client_id, type === 'click' ? 'email_click' : 'email_open', { source: 'sendgrid', ref: sgEventId })).catch(() => {}) } catch {}
@@ -1542,6 +1557,68 @@ router.post('/events', async (req, res) => {
 //   spam     - the person pressed "report spam". Permanent, and a compliance matter
 //
 // Read-only.
+// Backfill: apply the bounce policy to everything that already failed.
+//
+// 86 addresses SendGrid had rejected were still marked sendable and 25 were still enrolled,
+// because the feedback loop did not exist when they failed. SendGrid's own suppression
+// lists are the source of truth here rather than the Hub's log, since the Hub never
+// recorded WHY anything bounced.
+//
+// POST with {dry:true} to see the plan and change nothing.
+router.post('/backfill-bounces', async (req, res) => {
+  if (!SENDGRID_API_KEY) return res.status(400).json({ error: 'no SendGrid key configured' })
+  const dryRun = !!req.body?.dry
+  const A = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
+  const pull = async (path) => {
+    try {
+      const r = await fetch(`https://api.sendgrid.com/v3/suppression/${path}?limit=500`, { headers: A })
+      return r.ok ? await r.json() : []
+    } catch { return [] }
+  }
+  const [bounces, blocks, invalid, spam] = await Promise.all(
+    [pull('bounces'), pull('blocks'), pull('invalid_emails'), pull('spam_reports')])
+  const arr = (x) => Array.isArray(x) ? x : []
+
+  const { applyFailure, removeFromActiveDrips, classifyFailure } = await import('../bounce-policy.js')
+  const out = { stopped: [], kept: [], unmatched: 0, drips_removed: 0, dry: dryRun }
+
+  const consider = (list, event_type) => list.map(b => ({
+    email: String(b.email || '').toLowerCase().trim(),
+    failure: { event_type, sg_status: b.status, reason: b.reason },
+  }))
+
+  const work = [
+    ...consider(arr(spam), 'spamreport'),
+    ...consider(arr(invalid), 'bounce'),
+    ...consider(arr(bounces), 'bounce'),
+    ...consider(arr(blocks), 'bounce'),
+  ]
+
+  const seen = new Set()
+  for (const w of work) {
+    if (!w.email || seen.has(w.email)) continue
+    seen.add(w.email)
+    const c = db.get('SELECT id FROM clients WHERE lower(email) = ? AND merged_into IS NULL', [w.email])
+    if (!c) { out.unmatched++; continue }
+    const r = applyFailure(c.id, w.failure, { dryRun })
+    if (!r) continue
+    if (r.action === 'stopped') {
+      out.drips_removed += removeFromActiveDrips(c.id, { dryRun })
+      out.stopped.push({ email: w.email, client_id: c.id, tag: r.tag, status: r.status, reason: String(r.reason || '').slice(0, 120) })
+    } else if (r.action === 'kept') {
+      out.kept.push({ email: w.email, client_id: c.id, why: `${classifyFailure(w.failure)}, failed ${r.history?.count || 0}x over ${r.history?.spanDays || 0}d` })
+    }
+  }
+  out.summary = {
+    considered: seen.size,
+    stopped: out.stopped.length,
+    kept_sending: out.kept.length,
+    not_in_hub: out.unmatched,
+    drip_enrolments_ended: out.drips_removed,
+  }
+  res.json(out)
+})
+
 router.get('/suppressions', async (_req, res) => {
   if (!SENDGRID_API_KEY) return res.status(400).json({ error: 'no SendGrid key configured' })
   const A = { Authorization: `Bearer ${SENDGRID_API_KEY}` }
