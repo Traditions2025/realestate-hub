@@ -66,10 +66,21 @@ for (const file of walk(SRC)) {
 let cssChanges = 0
 if (fs.existsSync(CSS)) {
   const css = fs.readFileSync(CSS, 'utf8')
-  const next = css.replace(/(--text-[a-z-]+:\s*)(\d+(?:\.\d+)?)(px)/g, (m, head, num, unit) => {
+  // BOTH the tokens and every hardcoded font-size. app.css carries 274 hardcoded sizes,
+  // and leaving them out is what made Client Details come out smaller than Communications
+  // on the client profile: one was styled by CSS, the other inline, and only one moved.
+  let next = css.replace(/(--text-[a-z-]+:\s*)(\d+(?:\.\d+)?)(px)/g, (m, head, num, unit) => {
     const to = round(Number(num))
     if (to === Number(num)) return m
     note(num + 'px token', to + 'px'); cssChanges++
+    return head + to + unit
+  })
+  next = next.replace(/(font-size:\s*)(\d+(?:\.\d+)?)(px)/g, (m, head, num, unit) => {
+    const from = Number(num)
+    if (from < FLOOR) return m
+    const to = round(from)
+    if (to === from) return m
+    note(num + 'px css', to + 'px'); cssChanges++
     return head + to + unit
   })
   if (next !== css && APPLY) fs.writeFileSync(CSS, next)

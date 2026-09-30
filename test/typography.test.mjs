@@ -73,3 +73,32 @@ test('figures line up in columns, but not inside sentences', () => {
 test('form controls inherit the typeface rather than falling back to the browser default', () => {
   assert.match(css, /input, select, textarea, button \{ font-family: var\(--font-sans\)/)
 })
+
+// Client Details came out visibly smaller than Communications on the client profile:
+// Communications is styled with inline fontSize and got scaled, Client Details is styled
+// by .cp-* rules in app.css and did not. Two type systems, one of which moved.
+test('the stylesheet is not left behind when type is scaled', () => {
+  const sizes = [...css.matchAll(/font-size:\s*([\d.]+)px/g)].map(m => Number(m[1]))
+  assert.ok(sizes.length > 100, 'app.css should still carry its hardcoded sizes')
+  // 12px and 13px were the two most common, 125 and 57 uses. If either survives, the
+  // stylesheet has fallen behind the JSX again.
+  const stale = sizes.filter(n => n >= 11 && n <= 13.5)
+  assert.equal(stale.length, 0,
+    `${stale.length} rules are still at pre-scale sizes (${[...new Set(stale)].join(', ')}px)`)
+})
+
+test('the scaler covers CSS as well as JSX, so they cannot drift apart', async () => {
+  const fs2 = await import('node:fs')
+  const scaler = fs2.readFileSync(new URL('../scripts/scale-type.mjs', import.meta.url), 'utf8')
+  assert.ok(scaler.includes('font-size:'), 'the scaler must rewrite hardcoded font-size too')
+  assert.ok(scaler.includes('--text-'), 'and the tokens')
+  // both replacements have to run against the stylesheet, not just one
+  assert.equal((scaler.match(/next = next\.replace|let next = css\.replace/g) || []).length, 2)
+})
+
+test('Client Details and Communications end up on the same scale', () => {
+  // .cp-kv rows are Client Details; they were 13px while comms body was inline-scaled
+  const kv = css.match(/\.cp-kv > div \{[^}]*font-size:\s*([\d.]+)px/)
+  assert.ok(kv, '.cp-kv should still set a size')
+  assert.ok(Number(kv[1]) >= 15, `Client Details rows should be 15px+, got ${kv[1]}px`)
+})

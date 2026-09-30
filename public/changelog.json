@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-30T16:54:00.111Z",
+  "generated_at": "2026-09-30T17:23:37.115Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "99f82e3",
+      "date": "2026-09-30T11:57:19-05:00",
+      "subject": "Type: +10% across the whole Hub",
+      "title": "Type: +10% across the whole Hub",
+      "body": "John asked for 10% on top of the FUB-matched sizes. Both layers had to move: the tokens in\napp.css, and the 1,227 inline fontSize declarations in the JSX that actually govern what is\non screen.\n\n     783   13   -> 14.5\n     351   14   -> 15.5\n      22   18   -> 20\n      11   16   -> 17.5\n      10   17   -> 18.5\n     ...   plus the six --text-* tokens\n\nSizes land on the nearest HALF pixel rather than a whole one. Rounding 13px up to a whole\n14 is 8.3%, not 10, and at the sizes this app uses the rounding error is most of the\nadjustment. The actual average increase is 11.2%.\n\nAnything under 9px is left alone - at that size the text is an icon-adjacent label and\nscaling it does more harm than good.\n\nThe codemod is kept at scripts/scale-type.mjs and takes --scale, so a further step is one\ncommand. It is deliberately NOT idempotent: running it twice compounds, which makes \"one\nmore step\" a decision rather than something that happens by accident.\n\nTwo typography tests asserted the sizes matched FUB exactly. That stopped being the intent\nthe moment 10% was asked for on top, so they now assert the floor and the hierarchy instead\nof fixed numbers - which is what actually matters and what will survive the next change.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ee984e9",
       "date": "2026-09-30T11:23:44-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-20T17:31:30-05:00",
       "subject": "templates: convert FUB merge tokens on import + one-click 'Import from FUB' button on Templates page",
       "title": "templates: convert FUB merge tokens on import + one-click 'Import from FUB' button on Templates page",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "53bafef",
-      "date": "2026-08-20T17:28:16-05:00",
-      "subject": "templates: probe + import FUB text templates (tries several FUB endpoints); Sierra has no template API",
-      "title": "templates: probe + import FUB text templates (tries several FUB endpoints); Sierra has no template API",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
