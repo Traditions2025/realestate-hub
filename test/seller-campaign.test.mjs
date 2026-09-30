@@ -15,7 +15,7 @@ const seeded = { clients: [] }
 function mkClient(over = {}) {
   const cols = {
     first_name: over.first || 'Sella', last_name: 'Test' + Date.now() + Math.floor(Math.random() * 1e6),
-    type: 'seller', status: over.status || 'new', phone: over.phone === null ? null : '(319) 555-' + String(Math.floor(Math.random() * 9000) + 1000),
+    type: 'seller', status: over.status || 'new', phone: over.phone === null ? null : freshPhone().pretty,
     tags: '[]', created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
   }
   const keys = Object.keys(cols)
@@ -30,6 +30,27 @@ What are you thinking about updating before selling?: Kitchen
 When would generally be easiest for a quick 15-minute walkthrough?: Weekday afternoons
 Property address: 123 Main St, Cedar Rapids
 Form: SELLER | Fix It or Skip It`
+// A phone nobody is using yet.
+//
+// These fixtures used to build a number from four timestamp digits: '(319) 555-' + last
+// four. That is a 10,000-value space, and a long-lived dev database already holds 12,460
+// leads on a (319) 555-xxxx number, so a collision was certain. ingestFbLead dedupes on
+// phone, so the test got handed an existing BUYER instead of creating its seller, and the
+// suite failed for reasons that had nothing to do with the code under test.
+function freshPhone() {
+  for (let i = 0; i < 200; i++) {
+    const exch = 200 + Math.floor(Math.random() * 700)      // a valid NXX, not just 555
+    const line = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+    const p = `(319) ${exch}-${line}`
+    const digits = '1319' + exch + line
+    const taken = db.get(
+      "SELECT 1 FROM clients WHERE replace(replace(replace(replace(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ?",
+      ['%' + exch + line])
+    if (!taken) return { pretty: p, e164: '+' + digits }
+  }
+  throw new Error('could not find an unused phone')
+}
+
 
 test('both campaign names are the same family; matcher works', () => {
   assert.ok(m.isSellerFamily('SELLER | Fix It or Skip It'))

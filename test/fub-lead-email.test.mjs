@@ -7,6 +7,27 @@ import db, { initDb } from '../server/database.js'
 await initDb()
 const f = await import('../server/fub-leads.js')
 
+// A phone nobody is using yet.
+//
+// These fixtures used to build a number from four timestamp digits: '(319) 555-' + last
+// four. That is a 10,000-value space, and a long-lived dev database already holds 12,460
+// leads on a (319) 555-xxxx number, so a collision was certain. ingestFbLead dedupes on
+// phone, so the test got handed an existing BUYER instead of creating its seller, and the
+// suite failed for reasons that had nothing to do with the code under test.
+function freshPhone() {
+  for (let i = 0; i < 200; i++) {
+    const exch = 200 + Math.floor(Math.random() * 700)      // a valid NXX, not just 555
+    const line = String(Math.floor(Math.random() * 10000)).padStart(4, '0')
+    const p = `(319) ${exch}-${line}`
+    const digits = '1319' + exch + line
+    const taken = db.get(
+      "SELECT 1 FROM clients WHERE replace(replace(replace(replace(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ?",
+      ['%' + exch + line])
+    if (!taken) return { pretty: p, e164: '+' + digits }
+  }
+  throw new Error('could not find an unused phone')
+}
+
 test('NEW Facebook lead email parses fully', () => {
   const r = f.parseFubLeadEmail(
     'New Lead from Facebook - Rich Gholston',
@@ -44,7 +65,7 @@ test('handler is gated OFF by default and dedupes by Message-ID', async () => {
   db.setSetting('fub_lead_email_enabled', '0')
   // unique per run — the test DB persists, and the Message-ID dedupe is durable by design
   const uid = String(Date.now())
-  const phone = '+1319555' + uid.slice(-4)
+  const phone = freshPhone().e164
   const mail = { subject: 'New Lead from Facebook - Gate Check', text: `named Gate Check from Facebook User provided phone number: ${phone}`, messageId: `<gate1-${uid}@fub>` }
   assert.equal((await f.handleFubLeadEmail(mail)).skipped, 'disabled')
   db.setSetting('fub_lead_email_enabled', '1')
@@ -65,7 +86,7 @@ test('handler is gated OFF by default and dedupes by Message-ID', async () => {
 test('seller-campaign FB leads: seller type, seller tag, NO buyer automation', async () => {
   const { ingestFbLead } = await import('../server/lead-intake.js')
   const uniq = Date.now() + '' + Math.floor(Math.random() * 1e5)
-  const r = ingestFbLead({ first: 'Selltest', last: 'Guard' + uniq, phone: '(319) 555-' + String(uniq).slice(-4), listing: 'Fix It or Skip It Walkthrough' })
+  const r = ingestFbLead({ first: 'Selltest', last: 'Guard' + uniq, phone: freshPhone().pretty, listing: 'Fix It or Skip It Walkthrough' })
   const c = db.get('SELECT * FROM clients WHERE id=?', [r.client_id])
   assert.equal(c.type, 'seller')
   assert.ok(c.tags.includes('FB Seller Ad'))
