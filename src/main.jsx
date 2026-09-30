@@ -49,7 +49,17 @@ const reloadOnce = (key) => {
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').then(reg => {
-      setInterval(() => { try { reg.update() } catch {} }, 60 * 60 * 1000)
+      // Every 2 minutes, and whenever the tab is brought back to the front.
+      //
+      // This used to be hourly, which meant a tab left open during a deploy could sit on
+      // the old bundle for up to an hour and then pick the new one up at an arbitrary
+      // moment. Checking on focus is what makes it feel immediate: you come back to the
+      // tab, it already has the new version. The check is a conditional request for
+      // sw.js, so it costs a few hundred bytes.
+      const check = () => { try { reg.update() } catch {} }
+      setInterval(check, 2 * 60 * 1000)
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) check() })
+      window.addEventListener('online', check)
     }).catch(() => {})
   })
   navigator.serviceWorker.addEventListener('controllerchange', () => reloadOnce('sw_reloaded'))

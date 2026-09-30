@@ -1,8 +1,13 @@
 // MST Hub service worker — instant-load caching for slow mobile networks.
+// v9 (2026-09-30): survive a deploy. fetch() only REJECTS on a network failure, not on
+// an HTTP error, so while Render swapped instances the 502 page came back as a perfectly
+// good Response — the catch never ran, the cached shell was never used, and the Hub read
+// as down for the whole restart. A non-OK response is now treated the same as being
+// offline, so an open tab keeps working on the version it already has.
 // v8 (2026-09-16): purges v7 caches that were poisoned with HTML stored under
 // /assets/*.js URLs (the server used to SPA-fallback missing chunks), and never
 // caches a response whose content-type doesn't match what the URL should be.
-const CACHE_NAME = 'mst-hub-v8'
+const CACHE_NAME = 'mst-hub-v9'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {
@@ -41,7 +46,17 @@ self.addEventListener('fetch', (event) => {
     event.respondWith((async () => {
       const cached = await caches.match(event.request)
       if (cached) return cached
-      const fresh = await fetch(event.request)
+      // A deploy can swap instances mid-request. One retry covers the few seconds where
+      // the old instance has stopped and the new one is not listening yet; without it a
+      // single missed chunk white-screens the tab until a hard refresh.
+      let fresh
+      try {
+        fresh = await fetch(event.request)
+        if (!fresh.ok) throw new Error('status ' + fresh.status)
+      } catch (e) {
+        await new Promise(r => setTimeout(r, 1200))
+        try { fresh = await fetch(event.request) } catch (e2) { return new Response('', { status: 503 }) }
+      }
       const ct = (fresh.headers.get('content-type') || '').toLowerCase()
       const wantsCode = /\.(js|mjs|css)$/.test(url.pathname)
       const typeOk = wantsCode ? (ct.includes('javascript') || ct.includes('css')) : !ct.includes('text/html')
@@ -82,13 +97,17 @@ self.addEventListener('fetch', (event) => {
   // TWO refreshes to pick up a deploy — the first served the stale shell.)
   event.respondWith((async () => {
     const cache = await caches.open(CACHE_NAME)
+    const fromCache = async () =>
+      (await cache.match(event.request)) || (await cache.match('/index.html'))
     try {
       const fresh = await fetch(event.request)
-      if (fresh && fresh.status === 200) cache.put(event.request, fresh.clone())
-      return fresh
+      if (fresh && fresh.status === 200) { cache.put(event.request, fresh.clone()); return fresh }
+      // 502/503/504 during a deploy: serve the shell we already have rather than the
+      // host's error page. The asset hashes it references are cached too, so the app
+      // keeps working on the previous version until the new one is reachable.
+      return (await fromCache()) || fresh
     } catch (e) {
-      const cached = await cache.match(event.request)
-      return cached || (await cache.match('/index.html')) || new Response('Offline', { status: 503 })
+      return (await fromCache()) || new Response('Offline', { status: 503 })
     }
   })())
 })

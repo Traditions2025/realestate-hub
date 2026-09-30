@@ -1,7 +1,303 @@
 {
-  "generated_at": "2026-09-25T23:51:28.232Z",
+  "generated_at": "2026-09-30T15:49:54.955Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "81f490f",
+      "date": "2026-09-30T09:49:18-05:00",
+      "subject": "Dashboard: lifetime totals in one read",
+      "title": "Dashboard: lifetime totals in one read",
+      "body": "\"How many texts have we received\" had no answer anywhere. The dashboard counted outgoing\nonly, /api/email/stats counted the send log, and the inbox list caps at 1000 rows with no\ncount at all.\n\nGET /api/dashboard/totals returns email, text and call volume in both directions, AI\nenrolment, drip reach and client counts. It reads counts and nothing else.\n\nTwo distinctions the numbers would otherwise hide:\n\n  email_log vs communications - the first is what the Hub actually SENT through SendGrid,\n  the second is the conversation record, which also holds email history imported from\n  Gmail. Both are reported, because using either one alone answers a different question\n  than the one being asked.\n\n  enrolments vs people - one person can sit in more than one campaign, so counting\n  enrolments overstates how many people are being emailed. Both are reported.\n\nAI \"enrolled\" is managed AND enabled. A lead handed to a human can stay flagged as managed,\nso the managed count alone overstates it; both are returned.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "092928e",
+      "date": "2026-09-29T17:15:59-05:00",
+      "subject": "Home Value intake: run the poller, and tell the team a request came in",
+      "title": "Home Value intake: run the poller, and tell the team a request came in",
+      "body": "Nicole Morris submitted a home value request at 5 PM on 2026-09-29. She got no follow-up\nemail, and John never heard about it. Two causes, neither of them the matching logic.\n\n1. pollHomeValueSubmissions existed, worked, and nothing ever called it. The only way to\n   process a submission was a manual POST to /home-value/intake, so requests sat in the\n   mailbox until somebody thought to run it. Now on a 10-minute interval, with its own\n   catch so a failing IMAP poll cannot take the scheduler down with it.\n\n2. The Sierra notification only reaches mattsmithremax@gmail.com. A request could be\n   received, matched and answered without John seeing any of it. The intake now emails\n   both of them when a submission lands, deduped through activity_log the same way the FB\n   lead alert is, so re-reading the mailbox cannot alert twice for one form.\n\nThe alert also names BOTH names when they differ. She submitted as \"Nicole Morris\" and\nmatched the existing record for \"Niki Morris\" on her email address - correctly, and with\nno duplicate created - but seeing one name in the form and another in the Hub is exactly\nwhat makes somebody think the system made a mess.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6e267a4",
+      "date": "2026-09-29T16:34:55-05:00",
+      "subject": "Home Value: warm up to 200/day instead of starting there",
+      "title": "Home Value: warm up to 200/day instead of starting there",
+      "body": "200 cold emails a day from one sending domain is a real step up in volume, and mailbox\nproviders judge a sender on how suddenly that volume appears. Five enrolment days at 50,\nfive at 100, then the configured ceiling.\n\nIt counts DAYS THAT ACTUALLY ENROLLED rather than calendar days, so a weekend, a holiday\nor an outage cannot quietly spend a step of the ramp while sending nothing. Today does not\ncount itself either, so a morning run cannot raise its own afternoon limit. Nobody has to\nremember to raise the number, and the ceiling still wins if it is set lower than a ramp\nstep.\n\nThe settings endpoint now echoes excluded_ids, ramp_day and todays_limit back. The\nexclusion list was write-only: the one setting that keeps named people out of the campaign\ncould not be read to confirm it had saved, which had to be proved by adding a known-\neligible person and watching the eligible count fall by one.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d7021e5",
+      "date": "2026-09-29T16:16:02-05:00",
+      "subject": "Home Value enrollment: actually run it",
+      "title": "Home Value enrollment: actually run it",
+      "body": "The engine had a daily limit, an on/off setting and an exclusion list, and nothing ever\ncalled it. Turning enrollment \"on\" did nothing whatsoever - the only way anyone was ever\nenrolled was a manual POST to /home-value/run. `home_value_enroll_enabled` now means\nsomething.\n\nWeekday mornings at 9 AM CT. The hour matters: a day's batch is scheduled across the 9-5\nsend window, so 200 leads trickle out over eight hours. Enrolling late in the day would\ncompress the same volume into the last hour, which is the wrong shape for a cold list.\nWeekdays only, because this is prospecting.\n\nThe day is claimed in app_settings BEFORE the tick runs, so a slow run cannot double-enroll,\nmatching the FSBO and Watch sweeps.\n\nchicagoNow() gained a `weekday`. It had none, so the weekend check read `undefined === 0`\n-- false -- and would have enrolled every Saturday. It is derived from the Chicago calendar\ndate at noon UTC, because 10 PM CT Friday is already Saturday in UTC and reading the UTC\nday would skip a Friday and permit a Saturday.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e206659",
+      "date": "2026-09-29T15:52:42-05:00",
+      "subject": "Email: the home value auto-response had no unsubscribe, and signed itself twice",
+      "title": "Email: the home value auto-response had no unsubscribe, and signed itself twice",
+      "body": "Found by reading a delivered message in Matt's mailbox rather than the code, after John\nasked whether the home value email carries an unsubscribe. It does not, and the reason\nwas three separate gaps:\n\n1. The intake sends under the category `home_value_followup`, which did not match the\n   `<prefix>_<id>` bulk pattern, so no opt-out was attached at all. It answers something\n   the person asked for, but it also invites further contact (\"Someone from the Matt\n   Smith Team may reach out\"), which is what makes it marketing rather than purely\n   transactional. Added to the gate by name.\n\n2. /api/email/send accepted a `category` in the request body and never passed it to\n   sendViaSendGrid, so a send explicitly marked as marketing silently got no footer\n   either, and the caller had no way to tell. A 1:1 email still passes nothing and still\n   gets no footer, which is correct - the difference is that asking now works.\n\n3. The composer appended Matt's saved signature to a template that already ended in one.\n   Its comment claimed it skipped \"a literal signature already typed\"; the code only ever\n   checked for the {{signature}} token. A real lead received the follow-up with two\n   \"Matt Smith\" blocks and two phone numbers. alreadySigned() now looks for the\n   signature's own details - phone, email, domain, brokerage line - and takes TWO of them,\n   so a body that merely mentions the office number once is not mistaken for a signed one.\n   The live preview uses the same rule, so what it shows is what sends.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f122a85",
+      "date": "2026-09-29T12:59:22-05:00",
+      "subject": "Names: tidy them at ingest too, so the file stops drifting back",
+      "title": "Names: tidy them at ingest too, so the file stops drifting back",
+      "body": "The bulk repair left \"Zinse FADONOUGBO\" still shouting. Two separate causes, both now\nclosed.\n\nThe first was the paging bug fixed in 55a854b: walking the file under a non-unique sort\nskipped a handful of rows. Re-run under id_asc, the whole file needed only 14 more\nrecords - 3 the walk had missed, plus these:\n  - \"W Patrick W\" -> \"W Patrick\"   an initial before the name AND a duplicate after it;\n    safe to drop here because two tokens remain, which is why the main pass's guard\n    against reducing \"B J\" to \"B\" did not apply\n  - \"Charles H & Lori A\" -> \"Charles & Lori\"   both middle initials, or the pair reads\n    inconsistently\n  - last_name holding nothing but \"And\"  ->  empty\n  - \" Parceros \" -> \"Parceros\"   an entity keeps its spelling, but not its stray spaces\n\nThe second is that Sierra hands names back as they were typed upstream, so every sync\nre-imports ALL CAPS surnames and \"Mcgowan\". processLead now runs the same tidyName pass\nthe email merge uses, which is what makes this stay fixed rather than needing another\nsweep next month. It only title-cases a value that is entirely one case, so \"ShaLynn\"\nand \"DeWitt\" are untouched, and Mac names stay as spelled.\n\nVerified across all 45,878 clients under stable paging: 0 ALL CAPS surnames, 0 stray\nwhitespace, 0 doubled spaces, 0 uncapitalised Mc/O' names outside junk records. The\naddress audits re-run clean too - 0 in every class, and 23,581 of 23,679 addresses\nrender exactly as stored.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "55a854b",
+      "date": "2026-09-29T12:52:12-05:00",
+      "subject": "Clients list: a unique sort key, because paging the whole file was unreliable",
+      "title": "Clients list: a unique sort key, because paging the whole file was unreliable",
+      "body": "A re-audit after the name repair still showed an ALL CAPS surname, \"Zinse FADONOUGBO\".\nThe record was not new (created 2026-05-11) and nothing about it should have been\nskipped, which pointed at the method rather than the data.\n\nThe list pages with ORDER BY sierra_update_date DESC NULLS LAST. That key is not\nunique - thousands of rows share a NULL - and SQLite orders ties arbitrarily, so\nwalking 46k records 5,000 at a time can return a row twice and never return another.\nEvery bulk audit and repair run that way looked complete and was not.\n\nid_asc gives a unique key to page through. The default sort is unchanged, so the UI\nbehaves exactly as before. The audits are being re-run against it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2895a58",
+      "date": "2026-09-29T12:49:50-05:00",
+      "subject": "Names: an email address in first_name was merging into the greeting",
+      "title": "Names: an email address in first_name was merging into the greeting",
+      "body": "{{first_name}} fell back to \"there\" only when the column was EMPTY. A column holding\n\"Drewglenn04@hotmail.com\" is not empty, so it merged verbatim:\n\n  Hi Drewglenn04@hotmail.com,\n\n1,136 records hold an email address in first_name, 65 hold a placeholder (\"None\",\n\"Unknown\", \"Owner\", \"Resident\"), and a few hold mojibake from a bad import. AI\nenrollment already screened these out (ai-enrollment.js:318) but the drip merge and the\nseller SMS opener did not. usableFirstName now degrades all of them to \"there\" the same\nway an empty column already did, and the seller campaign's texts use the same guard.\n\nNone of them is in a live campaign today, but the Home Value engine reads the whole\nfile, so homeValueEligibility now requires a usable first name too.\n\nData repaired, 1,313 records:\n  - Mc/O' capitalisation       Mcmahan -> McMahan          467 + 11\n  - ALL CAPS                   MARIUS SHELBY -> Marius Shelby   1\n  - full name in first_name    \"Tim Healy\" -> Tim | Healy       208\n  - middle initials dropped    \"Katie T\" -> Katie, \"C Kendall\" -> Kendall   253 + 248\n  - \"And\" -> \"and\"             \"Cynthia And Ernie\" -> \"Cynthia and Ernie\"\n  - HTML entities decoded      \"Jerry &amp; Melissa\" -> \"Jerry & Melissa\"\n  - stray and doubled spaces\n\nLeft alone on purpose:\n  - 102 entities (trusts, estates, LLCs, churches, banks) - never rearranged\n  - couples with no surname (\"Sydney and Logan\"): which word is the surname is a guess\n  - \"B J\", \"R J\", \"W D\": a name that IS initials keeps both, because dropping the last\n    token would leave \"B\". Only a middle initial after a real first name is dropped.\n  - Mac names (Mackenzie, Mackinaw, Macbride) - spelled that way, and pinned in a test\n  - 1,230 junk records with no recoverable name; the guard greets them as \"there\"\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fd48274",
+      "date": "2026-09-29T12:36:38-05:00",
+      "subject": "Addresses: the street suffix was stranded in the city column on 861 records",
+      "title": "Addresses: the street suffix was stranded in the city column on 861 records",
+      "body": "Found by running every stored address through the real render function instead of\npattern-matching the data, which is how the stranded quadrant was missed the first\ntime. This is the same import bug one word further along:\n\n  \"301 N Gill\"            city \"St\"                -> \"301 N Gill St\"\n  \"402 N Center\"          city \"Point Rd Hiawatha\"  -> \"402 N Center Point Rd\", Hiawatha\n  \"2116 SW 17th\"          city \"St\"                -> \"2116 SW 17th St\"\n\nusableCity('Dr') returned 'Dr', so those people would have been greeted as living in\n\"Dr\" or \"Ct\". The guard now rejects a bare street suffix, and the 861 records have the\nsuffix back on the street.\n\nOnly street-TYPE words are in the list. Center, Point, Grove and Springs are\ndeliberately left out, because they are real town names here - every one of Center\nPoint, Mount Vernon, Central City, North Liberty and Belle Plaine still passes.\n\nTwo cases the first pass got wrong and this one handles: a quadrant is not appended\nwhen the street already carries it (\"2825 NW Schultz Drive\" + city \"NW Quadrant\" must\nnot gain a second NW), and \"Quadrant\" is a label for a part of town, not the name of\none, so it is not kept as a city.\n\nWhere the city value held nothing but the suffix the town is now empty rather than\nguessed - 853 of the 861. Seven kept a real town that was sitting behind the suffix.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "c311bc1",
+      "date": "2026-09-29T12:26:36-05:00",
+      "subject": "Addresses: a street named after a town kept its name, plus round-2 format rules",
+      "title": "Addresses: a street named after a town kept its name, plus round-2 format rules",
+      "body": "A wider audit than the case/quadrant pass, prompted by John asking what was still\nwrong. Two of these were live bugs, not cosmetics.\n\nTOWN_TAIL was eating part of good streets. It let the zip be zero digits long and,\nunder the /i flag, \"Rd\" satisfied the two-letter state slot, so \" Alburnett Rd.\"\nlooked exactly like a city tail and\n\n  5328 N. Alburnett Rd.  ->  5328 N\n\nJohn confirmed the record was already correct (\"5328 N Alburnett Rd, Central City,\nIA 52214\") - the data was fine and this function was the thing breaking it. A city\ntail is now only recognised when something marks it as one: a zip, the state, or a\ncomma directly before the town. Every street named Marion, Solon, Vinton, Amana or\nAlburnett keeps its name, and the real jammed tails still trim.\n\nAlso folded into the unconditional pass beside the quadrant, for the same reason -\nthese are wrong in any casing, so an all-one-case test cannot be what decides\nwhether to fix them:\n  - Mc/O' capitalisation   Mcgowan -> McGowan   (93 records)\n  - unit spacing           Unit#310 -> Unit 310  (5)\n  - trailing punctuation    \"955 Oak St.\" -> \"955 Oak St\"  (30 periods, 436 commas)\n  - directional period     \"5328 N. Alburnett Rd\" -> \"5328 N Alburnett Rd\"  (3)\n  - a city column holding a street line or bare state is not a town  (264)\n\nData repaired to match: 854 records in round 2, plus 3 directional periods. A sweep\nof all 23,679 mailable addresses through the real usableStreet now shows 23,578\nrendering exactly as stored, 0 trimmed, and 101 falling back to \"your home\" - PO\nboxes, \"None\", number-only and name-only values that cannot be repaired without new\ndata.\n\nDeliberately NOT changed: Mac names (Macbride, Mackenzie, Mackinaw are spelled that\nway), and 12 records whose address or city contains a newline, because those are two\nvalues in one field and collapsing the newline would splice two different addresses\ninto one line.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "b6f1848",
+      "date": "2026-09-29T11:58:25-05:00",
+      "subject": "Merge fields: a quadrant is uppercase, and \"Ne\" is not a town",
+      "title": "Merge fields: a quadrant is uppercase, and \"Ne\" is not a town",
+      "body": "A live preview of the first five home-value enrollments caught two things the\nall-one-case tidier could not see, because it only touched values that were\nentirely one case:\n\n  What could 3025 Towne House Dr Ne be worth today?\n\n\"Dr Ne\" was already mixed case, so it was left alone. 10,479 records carry a\nquadrant written that way. A quadrant is not a word, so tidyCase now uppercases\nit whatever the rest of the value looks like, and the case test reads the\noriginal so an all-lowercase address still gets title-cased.\n\nSeparately, 782 imported rows had the street's own quadrant sitting alone in the\ncity column (\"600 Nilsen Rd\" with city \"Ne\") - the address split at the wrong\npoint, which would have greeted someone as living in \"Ne\". usableCity now\nrejects a bare quadrant so the copy falls back to \"your area\", and\nprocessLead puts the quadrant back on the street and treats the city as\nmissing. Without that second half the sync's empty-city backfill would keep\nrestoring it. The town itself is not recoverable for most of these rows - only\n118 have a trustworthy zip - so none is invented.\n\nThree older assertions expected the lower-case quadrant to pass through\nuntouched. They were pinning the bug, and are corrected.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8052982",
+      "date": "2026-09-29T11:30:46-05:00",
+      "subject": "Merge fields: stop imported ALL-CAPS addresses shouting from the subject line",
+      "title": "Merge fields: stop imported ALL-CAPS addresses shouting from the subject line",
+      "body": "Checking the campaign's custom fields turned this up: 3,441 addresses and 3,841\ncities are stored entirely in capitals, so roughly one recipient in eight would\nhave received \"What could 1117 DEER RUN DRIVE NORTHEAST be worth today?\" — which\nreads as spam and is the opposite of the tone this campaign wants.\n\nFully-uppercase values are now title-cased at render. Anything already mixed case\nwas typed that way by a person and is left untouched. NE/NW/SE/SW stay capitals\nbecause they are not words, and Mc/O' names keep their inner capital.\n\nAlso added the three tokens this campaign introduced — street_address,\ncity_or_area, home_value_url — to the merge-field list. They worked, but were\nmissing from the picker, so nobody editing a template could see they existed.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b6dc451",
+      "date": "2026-09-29T11:18:05-05:00",
+      "subject": "Marketing email: one send window, 9-5, across every campaign",
+      "title": "Marketing email: one send window, 9-5, across every campaign",
+      "body": "John. The windows had drifted apart -- 9-11, 9-12, 9-14, 9-16, 9-17 and one step\nat 9-11:30 -- so identical campaigns behaved differently depending on when they\nwere built. All 13 now run 09:00-17:00.\n\nA wider window also paces better: the scheduler picks a random minute inside it,\nso a 200-lead day lands as a trickle across eight hours rather than a burst before\nnoon. That matters more now that Home Value can add 200 a day on top of the\nexisting traffic.\n\nAlready-scheduled sends keep their time; this governs what is scheduled from here.\nPrior values recorded before the change.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "149bc88",
+      "date": "2026-09-29T10:52:49-05:00",
+      "subject": "Home Value: past clients only via the Lifelong Friends nurture, plus named exclusions",
+      "title": "Home Value: past clients only via the Lifelong Friends nurture, plus named exclusions",
+      "body": "John's rule. A Closed lead qualifies only if already in a Lifelong Friends\npast-client nurture. That list was hand-picked to leave out anyone who transacted\nrecently, so it carries a judgement the Hub cannot make for itself -- nothing in\nthe data records when somebody last bought or sold. Past clients who were never\nput through that selection are left alone and John adds them by hand.\n\nNamed exclusions too, for people the team is actively working with: a listing\nbeing prepared, a valuation visit last week. Stored as a setting so more can be\nadded without a deploy.\n\nThe preview now also explains why fewer past clients qualify than sit in the\nnurture: membership is one requirement, the address and email rules are the\nothers, and some fail those.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "067aeec",
+      "date": "2026-09-29T10:40:29-05:00",
+      "subject": "Home Value preview: show WHY a past client is not in a past-client drip",
+      "title": "Home Value preview: show WHY a past client is not in a past-client drip",
+      "body": "\"Not in a past-client drip\" and \"transacted recently\" are not the same thing,\nand which of the two those 387 leads actually are decides whether excluding them\nis right or just convenient. Splits them into never enrolled, enrolled before but\nnot active now, and active in some other campaign.\n\nRead-only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "906f995",
+      "date": "2026-09-29T10:33:21-05:00",
+      "subject": "Home Value preview: count over all eligible rows, not the capped sample",
+      "title": "Home Value preview: count over all eligible rows, not the capped sample",
+      "body": "Counting Closed leads from the returned sample understated them: the sample is\ncapped at 200 and the /activity endpoint it was cross-referenced against returns\nat most 500 of 1,034 enrollments. Both numbers looked like findings and were\nartefacts. Counts now come from the full set and from drip_enrollments directly.\n\nRead-only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5020a02",
+      "date": "2026-09-29T10:22:57-05:00",
+      "subject": "Home Value: 30-day lookup rule, and a record-only intake to seed it",
+      "title": "Home Value: 30-day lookup rule, and a record-only intake to seed it",
+      "body": "John: do not enroll anyone who checked their value in the last 30 days. Someone\nwho looked last week should not be asked to look again; someone who looked a year\nago is fair to ask. Replaces the blanket \"has the tag\" exclusion, which shut out\npast lookups forever.\n\nRecency comes from the intake's own log, so it covers submissions the Hub never\nsaw. Which needs the history seeded -- hence recordOnly: it logs the submission\nand tags the lead but sends nothing and defers nothing, so backfilling old\nnotifications cannot email somebody today about a lookup they did weeks ago.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c384bfc",
+      "date": "2026-09-29T10:13:31-05:00",
+      "subject": "Home Value: runs alongside other campaigns, 90-day reset, intake off the email",
+      "title": "Home Value: runs alongside other campaigns, 90-day reset, intake off the email",
+      "body": "John, three things.\n\nCampaigns can now overlap where it makes sense. enrollInDrip gains allowConcurrent\nso Home Value sits beside Before the Sign rather than being refused, and the rule\nthat matters -- never two campaign emails to one person in a day -- moved to SEND\ntime in advanceDrip. It had to: a check at enrollment cannot catch a collision\nthat happens in week 14. A send that would be the second today is pushed to\ntomorrow and logged; the other one keeps its slot.\n\nA submission now defers the campaign 90 days instead of pausing it. The\nenrollment stays ACTIVE with a future date, because a paused one needs somebody\nto remember to resume it and nobody ever does.\n\nAnd the intake reads the Sierra notification email rather than waiting for the\ntag. It has to: both submissions on 09-28 were in Gmail and in Sierra within\nseconds and still had not reached the Hub hours later. One submission finds or\ncreates the lead, tags it, records the estimates and what they told the form,\nsends the Loom follow-up, and starts the 90-day clock. Repeat visits are counted\nrather than collapsed -- a second or third look is the strongest signal here.\n\nParser is pinned against the real notification text. The detail block opens on\nthe same line as its label, so a line-anchored match silently missed the address;\nthe tests caught it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "962f2fc",
+      "date": "2026-09-29T09:58:03-05:00",
+      "subject": "Home Value: automatic enrollment, paced, OFF by default",
+      "title": "Home Value: automatic enrollment, paced, OFF by default",
+      "body": "John's rules. Qualifies on a real street address (usableStreet, so a PO box or\n\"None\" does not count), status not active/pending/junk/donotcontact (matched\ncase-insensitively, because the data holds both \"junk\" and \"Junk\"), not an FSBO\nor Expired lead, a real non-opted-out email whose status is ValidAddress,\nTwoWayEmailing or Unknown, and no prior use of the home value tool -- somebody who\njust checked their value should get a conversation, not a drip about checking it.\n\nPaced at 200 a day. The rate is the point: the Hub has sent ~10,000 emails in its\nlife and this campaign is ~583,000 over six months.\n\nNobody gets two campaign emails in one day. enrollInDrip already refuses a lead\nactive in any other drip, which covers it more thoroughly than a date check, and\nthe same-day guard stays as a second line.\n\npauseOnHomeValueSubmission stops the drip the moment someone uses the tool, so a\nperson picks the conversation up from there.\n\nNothing runs until home_value_enroll_enabled is 1. /home-value/preview shows who\nwould go next and why the rest would not, and sends nothing.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9d22bb7",
+      "date": "2026-09-28T18:25:15-05:00",
+      "subject": "Inbox: search the team mailboxes by subject, read-only",
+      "title": "Inbox: search the team mailboxes by subject, read-only",
+      "body": "The poller only stores a message it can match to a client, by design, so anything\nsent by a system rather than a person never reaches the Hub and cannot be found\nthere -- a Sierra \"Contact Request\" from the home value site being the case in\nhand. This asks the mailbox directly, over Gmail's All Mail so archived messages\ncount, and writes nothing.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "479720e",
+      "date": "2026-09-28T18:18:13-05:00",
+      "subject": "Email: unsubscribe is just the word; Home Value carries the business address",
+      "title": "Email: unsubscribe is just the word; Home Value carries the business address",
+      "body": "John, both. The footer line is now the linked word \"Unsubscribe\" on its own,\nwith no sentence wrapped around it.\n\nAnd a physical postal address is required on commercial email under CAN-SPAM,\nwhich these are. Added to all 26 Home Value templates. Taken from the team's own\nsite, which publishes it in both its visible footer and its schema.org\nPostalAddress, rather than guessed at from listing data.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5dbd039",
+      "date": "2026-09-28T18:00:32-05:00",
+      "subject": "Test: slice the tracking block to its end, not a guessed character count",
+      "title": "Test: slice the tracking block to its end, not a guessed character count",
+      "body": "The footer markup grew and the fixed 1800-character window stopped reaching the\ntext: line the test was asserting on, so two checks failed on a change that was\nactually fine. Anchor on the end of the block instead.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "aba08e2",
+      "date": "2026-09-28T17:58:27-05:00",
+      "subject": "Email: the unsubscribe line sits inside the card's width, not against the page edge",
+      "title": "Email: the unsubscribe line sits inside the card's width, not against the page edge",
+      "body": "SendGrid appends subscription_tracking AFTER the whole body, so on a designed\nemail it landed outside the 640px card and would have sat full-width against the\npage edge, out of line with everything above it. Centering it in a table of the\nsame width and padding keeps it reading as the last line of the email.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "203baa0",
+      "date": "2026-09-28T17:55:19-05:00",
+      "subject": "Email: gate the unsubscribe on marketing mail, not on \"has a category\"",
+      "title": "Email: gate the unsubscribe on marketing mail, not on \"has a category\"",
+      "body": "Found while checking whether the change actually covered all marketing email:\nit covered far too much. EVERY automated send carries a category, so gating on\none existing would have put an unsubscribe footer on a password reset, a\ncalendar invite, an internal lead alert and an Inbox 1:1 -- the personal mail I\nhad said would stay clean.\n\nisBulkCategory names the marketing ones explicitly: drip_<id>, auto_<id>, and\nthe bulk composer. Everything else is transactional, internal, or one person\nwriting to one person, and gets nothing.\n\nTested against the real categories the codebase sends with, password_reset\namong them, so a new send path cannot quietly inherit a footer it should not\nhave.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1eda576",
+      "date": "2026-09-28T17:44:52-05:00",
+      "subject": "Email: bulk mail carries an unsubscribe again, 1:1 mail does not",
+      "title": "Email: bulk mail carries an unsubscribe again, 1:1 mail does not",
+      "body": "John's reading matches what the account settings showed: Marketing Campaigns\nmanages unsubscribes itself, the Email API does not, and the Hub uses the Email\nAPI. The account's own Subscription Tracking is off and there are no ASM groups,\nso nothing the Hub has ever sent carried an opt-out link -- the new campaign and\nevery existing drip alike.\n\nSo subscription tracking is set per send, and only when a category is present:\ndrips, sequences and campaigns carry it, while a 1:1 email an agent types to one\nperson stays clean.\n\nhtml and text are supplied rather than a substitution_tag. A tag is only swapped\nwhere a template already contains it, and none of the 375 templates does -- that\nis precisely how the missing link went unnoticed the first time round.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f6e810d",
+      "date": "2026-09-28T17:36:46-05:00",
+      "subject": "Drips: send the next step now instead of waiting for its slot",
+      "title": "Drips: send the next step now instead of waiting for its slot",
+      "body": "Somebody enrolls a lead and wants the first email to go today rather than\ntomorrow morning. /delay could only push a send later; there was no way to bring\none forward.\n\nRuns the real advanceDrip, so the enrollment moves on exactly as if the scheduler\nhad picked it up -- the step advances, the next one is scheduled, the send is\nlogged -- and every guard still applies: junk/DNC pulls them out, a reply pauses\nthe campaign. It ignores the step's send-time window on purpose, since asking for\nit now is the intent.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fc74391",
+      "date": "2026-09-28T17:22:10-05:00",
+      "subject": "Email diagnostic: match SendGrid's real setting names",
+      "title": "Email diagnostic: match SendGrid's real setting names",
+      "body": "SendGrid calls them \"click\", \"open\" and \"subscription\", not \"*_tracking\".\nMatching the longer name returned null for all three, which read as \"nothing is\nconfigured\" when it only meant \"nothing matched\". Also lists every setting name\nand its enabled flag, so a future rename cannot quietly produce the same wrong\nanswer.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9cba67e",
+      "date": "2026-09-28T17:19:32-05:00",
+      "subject": "Email: read-only view of what SendGrid's account does to our mail",
+      "title": "Email: read-only view of what SendGrid's account does to our mail",
+      "body": "Working out why drip emails carry no unsubscribe link. The Hub's 375 templates\ncontain no unsubscribe and no SendGrid substitution tag, and the saved signature\nhas none either -- so if anything is being added, the account is adding it, and\nguessing was not going to settle it.\n\nReturns subscription tracking, the account footer, ASM groups and whether the\nsuppression list is reachable. Settings and group names only, never the key.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "71983ea",
+      "date": "2026-09-28T17:00:02-05:00",
+      "subject": "Email: the logo travels with the message instead of loading on open",
+      "title": "Email: the logo travels with the message instead of loading on open",
+      "body": "John: the logo takes a second or two to appear. It was a hosted <img>, so it is\nonly requested when the reader opens the message. Now it is an inline (cid:)\nattachment that rides along inside the email, so it is already there the moment\nthe email renders. Nothing to fetch, nothing to wait for, and no dependency on\nthe Hub being reachable at the moment somebody opens a six-month-old email.\n\nTemplates still store the hosted URL, which keeps the Hub's own template preview\nworking; the swap happens at send time.\n\nAlso fixed the weight while I was in there. The header shows the logo at 210px\nand the file was 800px wide, so roughly four times the pixels were downloaded\nand thrown away. public/email-logo.jpg is the same artwork at 2x its display\nsize: 14KB against 44KB, 67% smaller.\n\nCallers can now set an attachment's disposition and content_id; the default is\nstill 'attachment', so nothing that sends files changes behaviour.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f19d9db",
+      "date": "2026-09-28T16:53:54-05:00",
+      "subject": "Drips: send one step to an address, to check a campaign before it goes live",
+      "title": "Drips: send one step to an address, to check a campaign before it goes live",
+      "body": "Testing through the composer route would have been misleading: /api/email/send\nappends the saved signature to whatever it is handed, and a drip send never does,\nso the test email would carry a signature block the real one does not have.\n\nThis goes through sendSequenceEmail, the same path the campaign uses, and renders\nmerge fields against a real lead so the address and city handling is actually\nexercised. It sends to the address asked for rather than the lead's own, so any\nlead can be the merge source without mailing them.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9bd8122",
+      "date": "2026-09-28T15:09:17-05:00",
+      "subject": "Merge fields: an address that is not a street line falls back instead of sending",
+      "title": "Merge fields: an address that is not a street line falls back instead of sending",
+      "body": "John, for the records the cleanup could not repair. An address merge field is not\nlike a name: it lands in a SUBJECT LINE, so a bad record reads as nonsense rather\nthan as a blank. \"What could Po Box 165 be worth today?\" and \"What could None be\nworth today?\" were both real, waiting to be sent.\n\nThe ~126 addresses and ~106 cities left after the data pass cannot be fixed by any\ntransform -- a PO box, \"None\", a bare house number, a street sitting in the city\ncolumn. So they are handled at render instead of in the data: anything that does\nnot read like a street line becomes \"your home\", anything that does not read like\na town becomes \"your area\". The copy was already written for both, so those\nrecords still send a sentence that makes sense rather than being skipped.\n\nIt also repairs on the fly, so a row that arrives dirty tomorrow needs no cleanup\nrun: a jammed \"180 Rosedale Road Marion IA 52302\" is trimmed to the street before\nuse. Trimming is anchored on the town names, not the state, because cutting at the\nstate turns that same address into \"180\" -- it eats the street.\n\nTests use the real broken values from the audit, including the false alarms that\nmust survive untouched: \"3300 Iowa Ave SE\" and \"2449 Wisconsin St Sw\" are real\naddresses that merely use a state name as a street name.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "49e3206",
+      "date": "2026-09-28T14:48:40-05:00",
+      "subject": "Home Value Weekly: footer drops the \"database\" line, carries real contact details",
+      "title": "Home Value Weekly: footer drops the \"database\" line, carries real contact details",
+      "body": "John: nobody should be told they are in a database and being watched. Out go\n\"You are receiving this because you are a homeowner in our database\" and the\n\"Cedar Rapids & Marion, Iowa\" line. The disclaimer stays, because an automated\nestimate really is a starting point and not an appraisal.\n\nIn its place the footer now carries who to actually contact: Matt, the team and\nbrokerage, phone, email and site. No separate signature block -- the footer IS\nthe signature for these.\n\nAlso gave the logo an explicit height. Several clients, Outlook among them,\nreserve no space for an image without one, which is the difference between a\nlogo appearing and a broken-image box sitting there while images load.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c5f3f9b",
+      "date": "2026-09-28T14:30:47-05:00",
+      "subject": "Home Value Weekly: drop the in-body unsubscribe, leave SendGrid's own in charge",
+      "title": "Home Value Weekly: drop the in-body unsubscribe, leave SendGrid's own in charge",
+      "body": "John: the SendGrid account already appends an unsubscribe on send, so the emails\nshould not carry their own.\n\nReverting the per-send subscription_tracking I added with it, because it was the\nmore dangerous half. Setting it per-send OVERRIDES the account-level default, so\nonce the {{unsubscribe}} token left the body that override would have inserted\nnothing and quietly removed the opt-out link altogether -- worse than the gap I\nthought I was closing. Unset, SendGrid's own footer stays in charge.\n\nAlso recorded in the builder that the value site asks for the address every time\nby design: Sierra exposes no way to prefill it (six parameter spellings tested,\nthe field stays empty), and that is accepted rather than a limitation to solve.\n\nAll 26 rebuilt and re-verified: no unsubscribe text left in any body, and all\n26 CTAs resolve to the team value site.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5644a8d",
+      "date": "2026-09-28T14:20:45-05:00",
+      "subject": "Home Value Weekly: week 3 subject uses the area, not the address",
+      "title": "Home Value Weekly: week 3 subject uses the area, not the address",
+      "body": "{{street_address}} there degraded to \"homes around your home\" for a lead with\nno address on file. The email is about the area anyway, so the area token reads\nright both ways: \"around Marion\" / \"around your area\".\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "142c75f",
+      "date": "2026-09-28T14:14:36-05:00",
+      "subject": "Home Value Weekly: 26-email homeowner campaign, plus an opt-out for bulk mail",
+      "title": "Home Value Weekly: 26-email homeowner campaign, plus an opt-out for bulk mail",
+      "body": "A 6-month weekly homeowner drip built as data + one shell rather than 26 hand-written\nemails, so subjects, copy, CTA labels, order and timing stay editable: the 26 land as\nordinary Hub templates and the schedule as an ordinary drip, both editable in the UI.\nscripts/home-value-weekly.mjs rebuilds them in place by name and never duplicates.\n\nThree merge tokens the campaign needed:\n  {{street_address}}  alias of address, so homeowner copy reads as what it is\n  {{city_or_area}}    {{city}} falls back to \"Cedar Rapids\", which asserts where\n                      someone lives; this one degrades to \"your area\" instead\n  {{home_value_url}}  the bare URL, for a designed email that puts the value tool\n                      behind its own button and needs the href, not a sentence\n\nAnd a compliance fix found on the way in: sequence/drip mail went out with NO\nunsubscribe link at all. SendGrid subscription tracking is now enabled for any send\ncarrying a category -- drips, sequences, campaigns -- and never for a 1:1 email an\nagent types to one person. The Event Webhook already turns an `unsubscribe` event into\nthe marketing opt-out flag, so the loop closes itself.\n\nCopy is evergreen throughout. Nothing claims a value moved, a neighbour sold, or an\nequity or mortgage figure, because the Hub holds no per-property valuation feed to\nsupport such a claim. The builder audits before it writes: banned money/urgency wording\nin subjects, subject length, body word count, 26 distinct subjects, CTA-label variety.\n\nNobody is enrolled. Starting it is a separate, deliberate step.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f92ca8c",
+      "date": "2026-09-28T11:55:58-05:00",
+      "subject": "Backfill a matched lead's blank phone from the master file sync",
+      "title": "Backfill a matched lead's blank phone from the master file sync",
+      "body": "A lead created before the sheet row had a phone (a timing race between the\ndaily MLS pull and the Forewarn lookup) never got one, because no later sync\nrevisited it once phone became Hub-owned data. Fill it once, when still blank;\nnever overwrite a phone that's already there.\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "014b16b",
+      "date": "2026-09-25T18:54:29-05:00",
+      "subject": "Profile: picture sits beside the social links, not at the column edge",
+      "title": "Profile: picture sits beside the social links, not at the column edge",
+      "body": "A right float pins the picture to the far edge of the CRM column, so on a wide\nscreen it ended up stranded a long way from the rows it belongs to (John).\n\nAs a flex sibling of the rows instead, it stays 10px from them at every width,\nmeasured: 1500px, 1180px and 390px all give the same 10px gap, where the float\nleft 63px of dead space beside it at 1500px. The rows take only the width they\nneed, so the picture follows them rather than the column.\n\nCard height unchanged at 384; it still adds no height of its own while the\nsocial rows are taller than it. No overlap, nothing past the frame, no sideways\nscroll at any width.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e80b01d",
       "date": "2026-09-25T18:46:13-05:00",
@@ -3704,302 +4000,6 @@
       "subject": "AI: Preview next text — draft the message without sending (opener/reply/follow-up) + card button",
       "title": "AI: Preview next text — draft the message without sending (opener/reply/follow-up) + card button",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e31d5d3",
-      "date": "2026-08-20T16:30:18-05:00",
-      "subject": "AI exclusions: search-with-suggestions chip picker (click to add), backed by real CRM tags/statuses/sources",
-      "title": "AI exclusions: search-with-suggestions chip picker (click to add), backed by real CRM tags/statuses/sources",
-      "body": "- GET /api/ai/facets: distinct tags (parsed from JSON arrays), statuses, sources (60s cache)\n- Settings exclusions: ChipPicker (type to filter real values, click/Enter to add chip, free text allowed) for tag/source + status; combination rules use datalist autocomplete\n- No more manual comma typing\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a6fa5a4",
-      "date": "2026-08-20T16:20:29-05:00",
-      "subject": "AI Settings: flexible autopilot exclusions — by tag/source, by status, and combination rules (tag AND status)",
-      "title": "AI Settings: flexible autopilot exclusions — by tag/source, by status, and combination rules (tag AND status)",
-      "body": "- isExcludedFromAutopilot now checks ai_autopilot_exclude (tag/source substrings) OR ai_exclude_statuses OR ai_exclude_rules (JSON [{tag,status}] both-match)\n- Settings 'Autopilot exclusions' builder: tags field, statuses field, add/remove combination rules\n- Tests extended: status exclusion + tag-AND-status combination rule\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "91f1c5c",
-      "date": "2026-08-20T16:15:02-05:00",
-      "subject": "AI: default autopilot-exclude to exact import tags (fsbo, MLS: Expired, MLS: Cancelled)",
-      "title": "AI: default autopilot-exclude to exact import tags (fsbo, MLS: Expired, MLS: Cancelled)",
-      "body": "Verified against real data: FSBO leads carry tags like ['FSBO ACTIVE','FSBO New'] + source 'FSBO Zillow'; all excluded by substring match.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9d33186",
-      "date": "2026-08-20T16:07:48-05:00",
-      "subject": "AI: Autopilot never auto-treats imported prospecting lists (expired/cancelled/FSBO) as new leads",
-      "title": "AI: Autopilot never auto-treats imported prospecting lists (expired/cancelled/FSBO) as new leads",
-      "body": "- isExcludedFromAutopilot(client): substring match on tags+source vs ai_autopilot_exclude (default 'fsbo,expired,cancel')\n- aiManages: under autopilot, excluded imports are NOT auto-managed (no responsive, no sweeps); an agent can still manually enable AI on one (ai_managed overrides)\n- newLeadSweep / reengagementSweep / behavioralSweep skip excluded leads (never queued)\n- Settings field to refine the excluded tags; test: FSBO/expired excluded, manual enable overrides. 26 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f281854",
-      "date": "2026-08-20T15:47:47-05:00",
-      "subject": "AI: qualifying follow-ups — 'Send AI now' picks opener / reply / next-question based on conversation state",
-      "title": "AI: qualifying follow-ups — 'Send AI now' picks opener / reply / next-question based on conversation state",
-      "body": "- handleFollowup: asks the single most useful unknown (buyer: area->price->beds->timeframe->financing; seller: address->timeframe->motivation), one question, no re-intro\n- send-now routes: no texts -> opener; last was inbound -> responsive answer+qualify; we texted, no reply -> qualifying follow-up\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a53ac28",
-      "date": "2026-08-20T15:23:52-05:00",
-      "subject": "AI: manual Send-AI-now falls back to a proactive opener if the reply path produced nothing (always sends on manual click unless compliance-blocked)",
-      "title": "AI: manual Send-AI-now falls back to a proactive opener if the reply path produced nothing (always sends on manual click unless compliance-blocked)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e8e24a4",
-      "date": "2026-08-20T15:20:03-05:00",
-      "subject": "AI: manual Send-AI-now nudges the model to actually reply (SEND_TEXT), not stay conservative",
-      "title": "AI: manual Send-AI-now nudges the model to actually reply (SEND_TEXT), not stay conservative",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f8310ce",
-      "date": "2026-08-20T15:16:42-05:00",
-      "subject": "AI: manual 'Send AI now' works with autopilot/flags off (force bypasses feature gates, keeps STOP/opt-out compliance)",
-      "title": "AI: manual 'Send AI now' works with autopilot/flags off (force bypasses feature gates, keeps STOP/opt-out compliance)",
-      "body": "- canSendSms skips AI feature-flag/pause gates when context.force; handleInboundText accepts {force} to skip flag/enrollment/human gates for a manual send-now\n- send-now route forces the responsive path when an inbound exists\n- Test: force bypasses flags but STOP still blocks. 25 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b7ce870",
-      "date": "2026-08-20T14:59:58-05:00",
-      "subject": "AI identity: 'John with Matt Smith Team at RE/MAX' (no 'the'); prompt enforces it",
-      "title": "AI identity: 'John with Matt Smith Team at RE/MAX' (no 'the'); prompt enforces it",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0c3aba8",
-      "date": "2026-08-20T14:52:18-05:00",
-      "subject": "HUB AI identity: texts as John with Matt Smith Team at RE/MAX; first text always includes MattSmithTeam.com",
-      "title": "HUB AI identity: texts as John with Matt Smith Team at RE/MAX; first text always includes MattSmithTeam.com",
-      "body": "- Prompt persona rewritten to first-person as John (default ai_persona updated); no longer disclaims being an agent\n- First-message directive: introduce as John with the Matt Smith Team at RE/MAX + include MattSmithTeam.com; context computes is_first_text\n- Hard guarantee: withSiteIfFirst appends MattSmithTeam.com on the first outbound text if the model omitted it\n- Settings hint clarifies identity + auto-website; tests +1 (first-text intro/website)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4cd6425",
-      "date": "2026-08-20T14:44:19-05:00",
-      "subject": "HUB AI: manual-first (Autopilot off) — AI only runs on leads you enable, no auto-enrollment/nurture",
-      "title": "HUB AI: manual-first (Autopilot off) — AI only runs on leads you enable, no auto-enrollment/nurture",
-      "body": "- New ai_autopilot flag (default OFF) + per-lead ai_managed enrollment\n- Manual mode (autopilot off): responsive + proactive AI only act on leads an agent explicitly enabled (aiManages gate); ALL sweeps (new-lead, nurture, re-engage, behavioral) + nurture cadence are hard-gated behind autopilot -> nothing auto-enrolls or auto-nurtures\n- 'Enable AI for this lead' / 'Send AI now' enroll that one lead; card shows 'AI managing this lead' vs 'AI not enabled here' + a manual-mode note\n- Settings: prominent Autopilot toggle with plain-language on/off explanation; proactive/nurture/behavioral disabled unless autopilot on\n- Test: manual-mode enrollment gate. 23 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ec2fb2b",
-      "date": "2026-08-20T14:35:35-05:00",
-      "subject": "HUB AI ISA: Reporting AI tab + Stages 3-6 (proactive scheduler, nurture cadence, re-engagement, behavioral, quality review)",
-      "title": "HUB AI ISA: Reporting AI tab + Stages 3-6 (proactive scheduler, nurture cadence, re-engagement, behavioral, quality review)",
-      "body": "- Reporting: '🤖 AI Follow-Up' tab (leads managed, sends, replies, response rate, high-intent, handoffs, tokens, by-day, scheduler health) + Recent AI messages review with 👍/👎 ratings\n- Stage 3 proactive: durable ai_scheduled_actions worker (restart-safe, idempotent, per-item eligibility re-check + state locking); newLeadSweep (cursor-based, never backfills the 45k) enqueues first-touch after the configured delay\n- Stage 4 nurture: increasing-spacing cadence (2/5/14/30/60d), stops on reply/handoff; reengagementSweep for dormant eligible leads\n- Stage 5 behavioral: behavioralSweep triggers on 4+ site views in 3 days with a 7-day cooldown (never on a single view)\n- Stage 6 quality: rating column + /ai/quality, /ai/actions/:id/rate, /ai/scheduler\n- orchestrator: shared runOutbound (compliance re-check, quiet hours, daily cap, race guard) powers proactive+nurture; reply cancels pending scheduled\n- Wired ticks into scheduler.js (drain 60s, new-lead sweep 5m, reengage+behavioral hourly) — all cheap no-ops while flags off\n- Tests: +2 (scheduler dedup/no-op-when-off, reply cancels scheduled). 22 total. All flags remain OFF.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6922ef8",
-      "date": "2026-08-20T14:24:35-05:00",
-      "subject": "HUB AI ISA Stage 2 frontend: Settings panel, per-lead AI card, Opportunities queue, Inbox AI badge",
-      "title": "HUB AI ISA Stage 2 frontend: Settings panel, per-lead AI card, Opportunities queue, Inbox AI badge",
-      "body": "- Settings: 'HUB AI Follow-Up (AI ISA)' panel — master + per-feature flags (all off), cadence config (handoff threshold, daily cap, new-lead delay, quiet hours), persona, live diagnostics\n- Clients profile: 'HUB AI' card — AI state, intent score+level, rolling summary, signals, open handoff; controls Enable/Pause today/Take over/Send AI now/Stop/Resume\n- New 'AI Opportunities' page (nav+route): high-intent handoff queue with Mine/Unassigned/Urgent filters; Call (softphone) / Take over / Resolve\n- Inbox: subtle 'AI' badge on messages HUB AI sent (sent_by_type='ai'); shown as 'HUB AI', not 'You'\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e397984",
-      "date": "2026-08-20T14:21:27-05:00",
-      "subject": "HUB AI ISA Stage 2: responsive AI text engine + control API (flags OFF)",
-      "title": "HUB AI ISA Stage 2: responsive AI text engine + control API (flags OFF)",
-      "body": "- server/ai-followup/: prompts.js (versioned, modular: persona/Fair Housing/security/handoff/JSON contract), context.js (bounded decision context, no lifetime transcript), memory.js (structured merge, no blank overwrite), orchestrator.js (handleInboundText + handleProactive: HUB-gated compliance, race-condition guard, quiet hours, intent update, memory, handoff, full audit, fail-safe)\n- Wired: inbound text -> orchestrator (gated, non-blocking); manual /send tagged sent_by_type=human -> humanTakeover (AI backs off, cancels scheduled)\n- server/routes/ai.js: per-lead AI card + controls (enable/pause/resume/takeover/stop/prefs/send-now), Opportunities queue, settings (flags+config), diagnostics, analytics\n- Model authority strictly limited: server validates action set, never lets model set permissions; STOP blocks AI even with flags on\n- Tests: +9 (STOP blocks AI, do_not_text vs do_not_call independence, flag gating, state transitions, takeover cancels scheduled, intent bands, high-intent phrases, quiet-hours wrap, prompt guardrails). 20 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f6833ed",
-      "date": "2026-08-20T14:13:11-05:00",
-      "subject": "HUB AI ISA Stage 1 foundation: schema + compliance policy + AI state machine (flags OFF)",
-      "title": "HUB AI ISA Stage 1 foundation: schema + compliance policy + AI state machine (flags OFF)",
-      "body": "- Tables: communication_preferences, ai_lead_state, lead_intelligence, lead_events, ai_actions, ai_handoffs, ai_scheduled_actions, ai_intent_history; comms gains sent_by_type + ai_action_id\n- server/ai-followup/: policy.js (canSendSms/canAiCall centralized; do_not_text != do_not_call), state.js (AI state machine separate from CRM stage, transitions audited, human-takeover cancels scheduled sends), audit.js, events.js, handoff.js (createAiHandoff -> Opportunities + notify), intent.js (explainable 0-100 scorer), flags.js (feature flags default OFF + quiet hours)\n- STOP/START now routes through policy.applyOptOut (keeps hub_text_opt_out + prefs in sync). No autonomous behavior yet.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6c4c3c4",
-      "date": "2026-08-20T13:52:48-05:00",
-      "subject": "Live-call voicemail drop + voicemail library on Templates",
-      "title": "Live-call voicemail drop + voicemail library on Templates",
-      "body": "- Voicemails managed on Templates tab: upload named MP3/WAV clips (voicemails table + /api/voicemails GET/POST/DELETE)\n- Softphone 'Drop voicemail' menu during an active call: plays a saved recording into the callee's voicemail then hangs up your leg. Marks the call 'Left voicemail'.\n- Mechanics: outbound Dial <Number> gets a statusCallback -> /api/voice/child-status maps parent(browser)->child(callee) leg (voice-state.js); POST /api/inbox/drop-voicemail redirects the child leg via Twilio call-modify (updateCallTwiml) to <Play><Hangup>\n- Captures the browser call SID for targeting; single-softphone fallback to latest active leg\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5499186",
-      "date": "2026-08-20T13:36:11-05:00",
-      "subject": "Dialer inside Clients + custom voicemail greeting + power-dialer reporting",
-      "title": "Dialer inside Clients + custom voicemail greeting + power-dialer reporting",
-      "body": "- Removed the separate Power Dialer nav tab; it's launched from Clients bulk action 'Call Leads (Power Dialer)' (route kept, hidden)\n- Custom voicemail greeting: upload your own MP3/WAV (POST/GET/DELETE /api/inbox/voicemail-greeting); voicemail TwiML plays it via <Play> instead of the robot voice. Settings 'Voicemail greeting' block with audio preview + replace/remove\n- Power Dialer call-list reporting: dialer_log table, /outcome logs each outcome, GET /api/reporting/dialer, and a 'Power Dialer — call list' section on the Reporting Calls tab (calls logged / connected / appointments / do-not-call + recent call table)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e8c576c",
-      "date": "2026-08-20T13:22:38-05:00",
-      "subject": "docs: manifest — Power Dialer (#12) delivered; whole review complete",
-      "title": "docs: manifest — Power Dialer (#12) delivered; whole review complete",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "docs"
-    },
-    {
-      "hash": "723687e",
-      "date": "2026-08-20T13:20:02-05:00",
-      "subject": "#12 Power Dialer — work a call list end to end inside the Hub",
-      "title": "#12 Power Dialer — work a call list end to end inside the Hub",
-      "body": "- New Power Dialer page (PIPELINE nav): build a queue (least-recently-contacted / never-called / new leads / assigned-to-me, or a Clients selection via ?client_ids), then Call -> log outcome -> next. Optional auto-dial-next.\n- Rings through the existing browser softphone on the Hub number; CallWidget now emits hubcall:started/ended so the dialer advances automatically\n- server/routes/dialer.js: GET /queue (excludes Do Not Contact/Junk + no-phone; presets + explicit ids) and POST /outcome (annotates the latest call log or creates one, emits call_disposition, 'Do not call' -> Do Not Contact + removes campaigns)\n- Clients bulk menu: 'Power Dial Selected'\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "073922c",
-      "date": "2026-08-20T12:47:50-05:00",
-      "subject": "docs: manifest — CRM-workflow layer (ownership, routing, triggers, campaigns, realtime, tests)",
-      "title": "docs: manifest — CRM-workflow layer (ownership, routing, triggers, campaigns, realtime, tests)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "docs"
-    },
-    {
-      "hash": "e4d1e69",
-      "date": "2026-08-20T12:44:49-05:00",
-      "subject": "#11 real-time inbox (SSE) + #10 expanded test coverage",
-      "title": "#11 real-time inbox (SSE) + #10 expanded test coverage",
-      "body": "- GET /api/inbox/stream (Server-Sent Events): pushes a 'changed' event on any new communication; inbox refreshes near-instantly. EventSource token via ?token= (whitelisted). 45s poll kept as a backstop (also catches delivery-status updates)\n- Extracted pure server/comms-logic.js (businessOpen, toMinutes, bulkExcluded); index.js business-hours now uses it\n- Tests: +2 (business hours open/closed boundaries, bulk exclusion) — 11 total\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9c0dd28",
-      "date": "2026-08-20T12:42:25-05:00",
-      "subject": "#9 Bulk campaign management",
-      "title": "#9 Bulk campaign management",
-      "body": "- text_campaigns table + campaign_id on communications; bulk-text records an auditable campaign (name, created_by, recipient math, status sending->sent)\n- Double-launch guard: identical name/body within 120s -> 409 'launched moments ago, re-send anyway?' (force to override)\n- GET /inbox/campaigns with live counts: sent, delivered, failed, replies (recipients who texted back after launch), opt-outs\n- BulkTextModal: campaign name field + duplicate confirm; Reporting Texting tab shows a Bulk campaigns table\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2a90d5d",
-      "date": "2026-08-20T12:39:26-05:00",
-      "subject": "#8 Automation triggers on communication events",
-      "title": "#8 Automation triggers on communication events",
-      "body": "- Enabled/added comm-event triggers in the shared registry: Incoming Text, Missed Call, Text Replied, Voicemail Received, Call Outcome Set (with per-outcome filter)\n- Emit automation events at each point: inbound text (new_message_received + text_replied), missed call + after-hours (missed_call), voicemail (voicemail_received), call disposition (call_disposition)\n- Event processor matches call_disposition by configured outcome\n- Now: incoming text -> assign/task, missed call -> task, appointment-set -> stage change, etc. can be built in the Automations builder\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c5db028",
-      "date": "2026-08-20T12:37:27-05:00",
-      "subject": "#7 Inbound call routing + business hours",
-      "title": "#7 Inbound call routing + business hours",
-      "body": "- Business hours (tz, open/close, days): outside hours, inbound calls go straight to an after-hours greeting + voicemail instead of ringing the browser\n- Optional forward-to-mobile on a missed call (rings a cell, falls through to voicemail via /voice/voicemail-fallback)\n- After-hours calls also fire the missed-call text-back\n- Settings 'Call Routing & Business Hours' panel with live Open/Closed indicator; GET/POST /api/settings/voice\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a5fa964",
-      "date": "2026-08-20T12:34:51-05:00",
-      "subject": "#5 Conversation ownership: assign conversations to an agent, Mine/Unassigned filters, assignee chips",
-      "title": "#5 Conversation ownership: assign conversations to an agent, Mine/Unassigned filters, assignee chips",
-      "body": "- Owner = clients.agent_assigned. GET /inbox/agents (configurable via inbox_agents setting, default Matt,John,Hunter), POST /thread/:id/assign\n- Inbox list returns assigned_to per conversation + supports ?assigned=<agent>|unassigned\n- Sidebar: All/Mine/Unassigned filter + 'I am' agent picker (localStorage); assignee chip on list rows; reassign dropdown in the thread header\n- Assigning emits a contact_assigned automation event\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fe66657",
-      "date": "2026-08-20T12:18:46-05:00",
-      "subject": "docs: update comms manifest (compliance, enforce, unknown queue, missed-call text-back, scheduled texting)",
-      "title": "docs: update comms manifest (compliance, enforce, unknown queue, missed-call text-back, scheduled texting)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "docs"
-    },
-    {
-      "hash": "aa99a2f",
-      "date": "2026-08-20T12:15:14-05:00",
-      "subject": "Scheduled one-to-one texting",
-      "title": "Scheduled one-to-one texting",
-      "body": "- scheduled_texts table + scheduler tick (every 60s) sends due texts after a FRESH compliance re-check at send time (STOP / Do Not Contact / no-phone are canceled, not sent)\n- Endpoints: POST /schedule-text, GET /scheduled?client_id, POST /scheduled/:id/cancel\n- Lead-profile inline composer: 'Schedule' button (datetime) + pending-scheduled list with cancel\n- Inbox text reply: 'Schedule' send option\n- Sends land in the normal conversation thread; agent + timezone captured\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f464025",
-      "date": "2026-08-20T12:11:52-05:00",
-      "subject": "Unknown-inbound capture queue + missed-call auto text-back",
-      "title": "Unknown-inbound capture queue + missed-call auto text-back",
-      "body": "- Inbound texts AND calls from numbers not in the CRM are now captured (client_id NULL, thread_key u_<phone10>) instead of dropped — no lost leads. Shown in the inbox with an Unknown badge; John gets an email alert for unknown texters.\n- UnknownPane: view the conversation + one-click 'Create lead' or 'Link to existing' (re-points the whole thread onto the client, then it becomes a normal conversation)\n- Missed-call auto text-back: when an inbound call goes unanswered, HUB texts the caller (configurable message, on/off). Uses the same permission model — skips STOP/Do-Not-Contact; unknown callers allowed. Deduped per call.\n- Settings: missed-call text-back toggle + editable message; webhook signature telemetry (valid/invalid, ready-to-enforce) surfaced in the diagnostics panel\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "431326d",
-      "date": "2026-08-20T12:00:21-05:00",
-      "subject": "Comms compliance: Do-Not-Call disposition -> Do Not Contact status (removes all campaigns); exclude DNC from bulk; webhook signature telemetry",
-      "title": "Comms compliance: Do-Not-Call disposition -> Do Not Contact status (removes all campaigns); exclude DNC from bulk; webhook signature telemetry",
-      "body": "- 'Do not call' disposition now sets lead status=donotcontact and stopSequencesForClient (removes active drip + automation enrollments), instead of setting the text opt-out. STOP-to-Hub remains the only hard text block.\n- Bulk texting excludes Do Not Contact / Junk statuses (new do_not_contact bucket in the excluded breakdown)\n- Twilio webhook guard records valid/invalid signature telemetry; GET /api/settings/twilio/signature reports ready_to_enforce (>=1 valid, 0 invalid)\n- Tests: +1 (isStopStatus / STOP_STATUSES)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a150b79",
-      "date": "2026-08-20T10:21:27-05:00",
-      "subject": "Inbox+lead texting: channel-scoped thread, link previews, MMS photos, text templates; inline profile text box",
-      "title": "Inbox+lead texting: channel-scoped thread, link previews, MMS photos, text templates; inline profile text box",
-      "body": "- Inbox thread respects the channel filter (Texts filter hides emails/calls)\n- Text bubbles: clickable links + OpenGraph link-preview cards; inline MMS images\n- Reply composer: text mode hides Subject, adds template picker + insert photo (MMS)\n- Server: /link-preview (OG, SSRF-guarded, cached), /upload-media (MMS), /media proxy, sendSms MediaUrl, /uploads static\n- Lead profile Text button now opens an inline box under the action bar (not a modal behind the drawer): text, template, merge fields, photo, add more recipients\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c052a94",
-      "date": "2026-08-20T09:42:19-05:00",
-      "subject": "Reporting: split Texting and Calls into separate tabs; remove idle phone-status chip",
-      "title": "Reporting: split Texting and Calls into separate tabs; remove idle phone-status chip",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "17566fd",
-      "date": "2026-08-20T09:32:18-05:00",
-      "subject": "Settings: comms diagnostics panel + toggles; softphone DTMF keypad",
-      "title": "Settings: comms diagnostics panel + toggles; softphone DTMF keypad",
-      "body": "- Settings → Text Messaging now has a \"Communications Diagnostics\" panel: live\n  health check (account, number capabilities, SMS/voice webhooks, A2P, browser\n  calling, signature mode, recording) shown as Healthy/Needs attention/Not\n  configured (no secrets), plus admin toggles to enforce webhook signatures and\n  enable call recording.\n- Softphone: in-call DTMF keypad (sends digits for phone menus/extensions).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "247934a",
-      "date": "2026-08-20T09:28:37-05:00",
-      "subject": "Reporting: Texting & Calls analytics tab",
-      "title": "Reporting: Texting & Calls analytics tab",
-      "body": "New GET /api/reporting/comms aggregates the communications log (instant, no Twilio\ncalls): texts sent/received, delivery + reply rate, failed; calls placed/received/\nanswered/missed, voicemails, avg call length; call dispositions; and volume-by-day.\nReporting tab gets a \"💬 Texting & Calls\" view — metric cards, a by-day bar chart,\nand a dispositions breakdown, matching the existing Reporting UI.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "173a826",
-      "date": "2026-08-20T09:10:00-05:00",
-      "subject": "Comms center: bulk texting + near-real-time inbox",
-      "title": "Comms center: bulk texting + near-real-time inbox",
-      "body": "- Bulk SMS: POST /api/inbox/bulk-text dedups phone numbers, excludes STOP opt-outs +\n  no-phone, fills merge fields per contact, and queues sends in the background (paced\n  for Twilio limits) — returns the recipient breakdown immediately. New \"💬 Text\n  Selected\" bulk action in Clients with template + merge-field picker and a\n  pre-send confirmation showing who's excluded.\n- Inbox now auto-refreshes the conversation list + open thread every 15s, so incoming\n  texts/calls and delivery-status updates appear without a manual refresh.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "aca98e2",
-      "date": "2026-08-20T09:06:55-05:00",
-      "subject": "Compliance: legacy opt-outs are informational; only STOP-to-our-number blocks TEXT",
-      "title": "Compliance: legacy opt-outs are informational; only STOP-to-our-number blocks TEXT",
-      "body": "Per policy (new Hub number + fresh A2P campaign): prior/imported opt-outs no longer\nblock anything — we can text and call. The ONLY hard text block is hub_text_opt_out,\nset when a contact replies STOP to OUR Hub number (cleared by START). Calling is never\nblocked by any opt-out.\n\n- New clients.hub_text_opt_out (NOT synced from Sierra, so it persists).\n- Inbound STOP/START now sets hub_text_opt_out (not the Sierra-synced text_opt_out).\n- Manual text send + automation send_text block only on hub_text_opt_out.\n- \"Do not call\" disposition stops future texts (hub_text_opt_out) but no longer junks\n  the lead or blocks calling.\n- Profile: Text shown unless hub_text_opt_out; Call always; prior text_opt_out shown as\n  informational (\"texting still allowed\"), STOP shown as a hard \"texting stopped\".\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "020b4da",
-      "date": "2026-08-19T19:04:46-05:00",
-      "subject": "Comms center: diagnostics health check, SMS templates + merge fields, tests",
-      "title": "Comms center: diagnostics health check, SMS templates + merge fields, tests",
-      "body": "- Admin diagnostics: GET /api/settings/twilio/health returns per-item ok/attention/\n  missing (account, number capabilities, SMS+voice webhooks, A2P campaign, browser\n  calling, signature mode, recording) — no secrets. POST /api/settings/twilio/mode\n  flips signature enforcement + call recording.\n- SMS templates + merge fields: text send now fills merge fields per recipient via\n  the shared fillTemplate and strips any unresolved {{...}} (customers never see a\n  raw placeholder). Profile text composer got a template picker + merge-field inserter.\n- Extracted pure twilio-sig.js (signature/phone-key/opt-out) for unit testing; added\n  test/comms.test.mjs (8 tests: signature valid/tampered/forged/missing, phone-format\n  matching, STOP/START, merge-field stripping) + npm test. Production build verified.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b3f9295",
-      "date": "2026-08-19T18:58:43-05:00",
-      "subject": "Comms center UI: delivery status, voicemail playback, call notes + dispositions",
-      "title": "Comms center UI: delivery status, voicemail playback, call notes + dispositions",
-      "body": "- Inbox thread now shows: text delivery state (Sending/Delivered/⚠Failed+reason,\n  friendly not raw codes), MMS attachment count, missed-call highlight, call/voicemail\n  duration, voicemail audio player + transcript, and call recording playback.\n- Secure media proxy GET /api/inbox/recording/:id streams Twilio recordings/voicemail\n  through the Hub with account auth (never exposes Twilio media URLs/creds); accepts a\n  query token so <audio> works. Whitelisted with its own token check in auth.js.\n- Call/voicemail rows get a notes + disposition editor (POST /api/inbox/:id/annotate);\n  the \"Do not call\" disposition opts the contact out everywhere (text_opt_out + DNC).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

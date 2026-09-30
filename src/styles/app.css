@@ -96,9 +96,12 @@ body[data-theme="light"] {
   --bg-hover: #e2e8f0;
   --border: #cbd5e1;
   --border-light: #94a3b8;
-  --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #64748b;
+  /* FUB's body text is a soft blue-grey, not near-black: rgb(54,70,80) with
+     rgb(147,165,178) for secondary detail. Lower contrast than #0f172a, and easier to sit
+     in front of all day, while still clearing WCAG AA on white. */
+  --text-primary: #364650;
+  --text-secondary: #5b6b78;
+  --text-muted: #93a5b2;
   --border-subtle: #e8ecf2;
   color-scheme: light;
 }
@@ -123,12 +126,22 @@ body[data-theme="light"] .empty-state {
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* One place to change the typeface. With an Adobe Fonts licence this becomes
+   'proxima-nova' and the whole app follows, because everything inherits from body. */
+:root {
+  --font-sans: 'Figtree', 'Proxima Nova', -apple-system, BlinkMacSystemFont, 'Segoe UI',
+               Helvetica, Arial, sans-serif;
+}
+
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg-primary);
   color: var(--text-primary);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Figures line up in columns: prices, counts, dates, phone numbers */
+  font-variant-numeric: tabular-nums;
 }
 
 /* ---- Layout ---- */
@@ -4419,16 +4432,61 @@ img[width], img[height] { height: auto; }
    Semantic scales the whole app can lean on. Existing values are close to these
    already — the tokens make future work consistent without a risky mass rewrite. */
 :root {
+  /* Sizes matched to Follow Up Boss (John, 2026-09-30): 16px for navigation and section
+     headings, 14px for body AND table rows. The old 13px table text was the main thing
+     making dense screens hard to read, and it is the one number FUB is most obviously
+     more generous about.
+
+     LINE HEIGHT IS THE DELIBERATE DIFFERENCE. FUB sets 14px text on a 14px line, which is
+     1.0 - fine for a single-line cell, actively hard to read the moment anything wraps.
+     The ask was readability, so single-line rows stay compact while anything that can run
+     to two lines gets room. Copying 1.0 everywhere would have worked against the point. */
   --text-page-title: 26px;
   --text-section: 16px;
   --text-body: 14px;
-  --text-table: 13px;
+  --text-table: 14px;
   --text-meta: 12px;
   --text-caption: 11px;
+
+  --leading-tight: 1.15;   /* single-line table cells, pills, badges */
+  --leading-snug: 1.35;    /* headings, buttons */
+  --leading-normal: 1.55;  /* body copy, anything that wraps */
+  --leading-loose: 1.7;    /* long-form notes and descriptions */
   --space-1: 4px; --space-2: 8px; --space-3: 12px; --space-4: 16px;
   --space-5: 24px; --space-6: 32px; --space-7: 48px;
   --radius-sm: 6px; --radius: 8px; --radius-lg: 12px;
 }
+/* ---- Readability pass, matched to FUB (John, 2026-09-30) ----
+   Tables were the weak point: 13px on a tight line. 14px with real leading, and headers
+   that read as labels rather than shouting. */
+table, .data-table, .clients-table { font-size: var(--text-table); }
+table td, .data-table td { line-height: var(--leading-normal); }
+table th, .data-table th {
+  font-size: var(--text-caption);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  line-height: var(--leading-snug);
+}
+/* A cell that cannot wrap keeps the compact single-line rhythm FUB has */
+td.nowrap, td .nowrap, .cell-single { line-height: var(--leading-tight); }
+
+/* Body copy and anything that wraps gets room to breathe */
+p, .note, .detail-value, .comm-body, .notes-body { line-height: var(--leading-normal); }
+.comm-body, .note-content, .lead-note { line-height: var(--leading-loose); }
+
+/* Headings: tighter leading, slight negative tracking so they read as one shape */
+h1, h2, h3, h4 { line-height: var(--leading-snug); letter-spacing: -0.01em; }
+
+/* Controls sit at body size rather than shrinking below it */
+input, select, textarea, button { font-family: var(--font-sans); }
+input, select, textarea { font-size: var(--text-body); line-height: var(--leading-normal); }
+
+/* Numbers in columns line up. Already on for the whole app; turned OFF where a
+   proportional figure reads better, which is anywhere a number sits inside a sentence. */
+p, .comm-body, .note-content { font-variant-numeric: normal; }
+
 .page-header h1 { font-size: var(--text-page-title); letter-spacing: -0.015em; }
 .page-subtitle { font-size: var(--text-meta); }
 

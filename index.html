@@ -12,7 +12,14 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <!-- Typography matched to Follow Up Boss (John, 2026-09-30).
+       FUB sets proxima-nova, which is licensed through Adobe Fonts and cannot be
+       self-hosted or pulled from Google Fonts without that licence. Figtree is the closest
+       free face: same geometric-humanist build, same open apertures, and it holds up at
+       13-14px where Montserrat gets too wide and Inter reads colder.
+       WITH an Adobe Fonts subscription this becomes exact - swap this link for the Typekit
+       kit and change --font-sans in app.css to proxima-nova. Nothing else has to move. -->
+  <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <script>
     // Apply the accent theme before first paint: user override, else cached team
     // default, else Matt Smith Gold. App.jsx refreshes the team default after login.
