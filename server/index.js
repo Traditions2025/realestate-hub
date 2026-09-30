@@ -986,6 +986,18 @@ async function start() {
 
   // What stages FUB already has, so the Hub's statuses can be mapped onto them rather
   // than inventing a parallel vocabulary (John, 2026-09-30). Read-only.
+  // Push the Hub's status to FUB. One direction: the Hub is master for status.
+  // POST {dry:true} to see the plan without touching anything.
+  app.post('/api/fub/push-statuses', async (req, res) => {
+    try {
+      const { pushStatuses } = await import('./fub-status-push.js')
+      res.json(await pushStatuses({
+        dryRun: !!req.body?.dry,
+        limit: Math.min(Number(req.body?.limit) || 1000, 5000),
+      }))
+    } catch (err) { res.status(500).json({ error: err.message }) }
+  })
+
   app.get('/api/fub/stages', async (_req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')

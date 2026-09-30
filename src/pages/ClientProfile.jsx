@@ -250,6 +250,8 @@ export default function ClientProfile() {
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
+          {assessorUrl(client) && <a className="lead-action-btn" href={assessorUrl(client)} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
+          {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 14.5, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
         </div>
@@ -582,6 +584,26 @@ function AltPhoneLabels({ client, onSaved }) {
   )
 }
 const plusBtnStyle = { border: '1px solid var(--accent-border)', background: 'none', color: 'var(--accent)', borderRadius: 6, width: 20, height: 20, lineHeight: '16px', fontSize: 15.5, cursor: 'pointer', padding: 0 }
+
+// Which assessor holds this property.
+//
+// Cedar Rapids has its OWN city assessor; Linn County covers everywhere else in the county
+// — Marion, Hiawatha, Robins, Ely and the rest. Sending a Cedar Rapids address to the
+// county site finds nothing, and most of the file is Cedar Rapids, so the routing is not
+// an optimisation (John, 2026-09-30).
+//
+// This opens the assessor's search with the address filled in rather than the parcel page
+// itself. Both sites gate on a disclaimer cookie and search by POST, so there is no URL
+// that takes an address and lands on a parcel. A resolver that finds and stores each
+// parcel id would make this a true deep link; until then this is one click away and,
+// unlike a scraper, it does not break when they redesign the site.
+export function assessorUrl(client) {
+  const street = String(client?.address || '').trim()
+  if (!street) return null
+  const city = String(client?.city || '').trim().toLowerCase()
+  const host = city === 'cedar rapids' ? 'cedarrapids' : 'linn'
+  return `https://${host}.iowaassessors.com/search/res/results.php?ifulladdress=${encodeURIComponent(street)}&process=1`
+}
 
 function ClientDetails({ client, onSaved }) {
   const cid = client.id

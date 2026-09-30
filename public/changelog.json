@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-09-30T17:23:37.115Z",
+  "generated_at": "2026-09-30T23:14:51.398Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a7ad903",
+      "date": "2026-09-30T18:12:24-05:00",
+      "subject": "FUB: read the account's stages, so Hub statuses can be mapped onto what already exists rather than inventing a parallel vocabulary.",
+      "title": "FUB: read the account's stages, so Hub statuses can be mapped onto what already exists rather than inventing a parallel vocabulary.",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "74ed42d",
+      "date": "2026-09-30T15:47:19-05:00",
+      "subject": "Bounces now stop the email, and say why",
+      "title": "Bounces now stop the email, and say why",
+      "body": "The loop that was missing. A bounce was recorded and nothing acted on it: 86 addresses\nSendGrid had already rejected were still marked sendable, 25 were still enrolled in live\ncampaigns, and 61 sends were discarded before they left the building.\n\nTHE SMTP CODE DECIDES, NOT A RETRY COUNT. Half the bounces on file are recoverable, so a\nblanket \"three strikes\" would be wrong in both directions: it hammers dead mailboxes two\nextra times each, and risks dropping real people whose inbox happened to be full that week.\n\n  permanent   550 5.1.1 no such mailbox     stopped on the FIRST failure\n  temporary   inbox full, inactive, 4.x.x   kept; stopped after 3 failures over 30+ days\n  spam        the person pressed report      stopped immediately, opt-out flag set\n\nThe trap worth naming: Gmail and Outlook answer \"inbox full\" with a FIVE-series code\n(5.2.2). Reading the first digit alone would have thrown away real people - Nicole Long\namong them, whose address is fine and who simply has a full inbox.\n\nEVERY STOP SAYS WHY. A tag on the lead (filterable in the Clients list), a note on the\nprofile carrying the actual SMTP response rather than a summary, and an activity row:\n\n  Email Stopped: Hard Bounce\n  Email Stopped: Spam Report\n  Email Stopped: Repeated Soft Bounce\n\nStopping also ends any active drip enrolment, so a suppressed address stops consuming\ncampaign slots.\n\nPOST /api/email/backfill-bounces applies the same policy to everything that already failed,\nusing SendGrid's own suppression lists as the source of truth - the Hub never recorded why\nanything bounced, so its own log cannot answer the question. Takes {dry:true}.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5bd92d2",
+      "date": "2026-09-30T14:22:52-05:00",
+      "subject": "Email: record WHY a message failed, and read SendGrid's own suppression lists",
+      "title": "Email: record WHY a message failed, and read SendGrid's own suppression lists",
+      "body": "John asked whether to retry a bounce a few times before giving up, or whether we already\nknow which addresses are genuinely dead. We did not know. The Hub recorded that an email\nbounced and nothing else, so a dead mailbox and a full one looked identical and no retry\npolicy was possible at all.\n\nSendGrid sends the answer on every bounce and it was being thrown away:\n  type    'bounce' = the server rejected it, 'blocked' = reputation or throttling\n  reason  the SMTP response, e.g. \"550 5.1.1 ... does not exist\"\n  status  5.x.x permanent, 4.x.x temporary\n\nemail_events now keeps all three. Going forward every failure is classifiable.\n\nFor the 156 bounces already on record, GET /api/email/suppressions reads SendGrid's own\nlists, which is ground truth rather than inference. It keeps the four apart because they\nmean different things and deserve different handling:\n\n  bounces  rejected by the server; 5.x.x permanent, 4.x.x worth retrying\n  blocks   reputation or throttling; usually temporary\n  invalid  malformed, or a domain that does not resolve; never deliverable\n  spam     the person pressed report spam; permanent, and a compliance matter\n\nRead-only. It neither modifies SendGrid state nor writes to the Hub - a test asserts both,\nbecause a suppression endpoint that can delete suppressions is a foot-gun.\n\nNo suppression policy is applied yet. That needs the classification above to exist first,\nand it needs John's decision on the retry threshold.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9c4378f",
+      "date": "2026-09-30T12:25:00-05:00",
+      "subject": "Type: the stylesheet was two steps behind the JSX",
+      "title": "Type: the stylesheet was two steps behind the JSX",
+      "body": "Client Details read visibly smaller than Communications on the client profile, and the\nreason is that this app has TWO type systems. Communications is styled with inline\nfontSize and got scaled twice. Client Details is styled by .cp-* rules in app.css, which\ngot scaled neither time - 274 hardcoded font-size declarations, 125 of them at 12px.\n\napp.css now replays both passes in order rather than guessing one multiplier, so it lands\non exactly the values the JSX already has:\n\n    pass 1   11->12  12->13  12.5->13  13->14  13.5->14\n    pass 2   x1.10 to the nearest half pixel\n\n    12px -> 14.5      13px -> 15.5      14px -> 15.5      16px -> 17.5\n\nThree rules survived the sweep and were fixed by hand rather than by re-running the\ncatch-up, because that script is not idempotent and a second pass would have double-scaled\nthe other 271.\n\nscale-type.mjs now rewrites hardcoded font-size as well as the tokens, so the two systems\ncannot drift apart on the next change. Three tests pin it: no rule may sit at a pre-scale\nsize, the scaler must touch both, and Client Details rows must not fall behind 15px.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "99f82e3",
       "date": "2026-09-30T11:57:19-05:00",
@@ -3967,38 +3999,6 @@
       "date": "2026-08-20T17:41:34-05:00",
       "subject": "templates: handle unclosed FUB tokens (%greeting_time) + 'Good %greeting_time'; re-import refreshes existing imported:fub templates",
       "title": "templates: handle unclosed FUB tokens (%greeting_time) + 'Good %greeting_time'; re-import refreshes existing imported:fub templates",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "413e9c3",
-      "date": "2026-08-20T17:38:10-05:00",
-      "subject": "templates: skip FUB templates that use a Ylopo link entirely (not just strip the token)",
-      "title": "templates: skip FUB templates that use a Ylopo link entirely (not just strip the token)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8c7c75e",
-      "date": "2026-08-20T17:35:58-05:00",
-      "subject": "templates: map all 11 FUB tokens to Hub fields (address, email, last_viewed_address, lender_name); only Ylopo/URL tokens with no equivalent are stripped",
-      "title": "templates: map all 11 FUB tokens to Hub fields (address, email, last_viewed_address, lender_name); only Ylopo/URL tokens with no equivalent are stripped",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3f14b08",
-      "date": "2026-08-20T17:33:25-05:00",
-      "subject": "templates: fub-text probe returns distinct + unmapped FUB tokens for compliance audit",
-      "title": "templates: fub-text probe returns distinct + unmapped FUB tokens for compliance audit",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9362cda",
-      "date": "2026-08-20T17:31:30-05:00",
-      "subject": "templates: convert FUB merge tokens on import + one-click 'Import from FUB' button on Templates page",
-      "title": "templates: convert FUB merge tokens on import + one-click 'Import from FUB' button on Templates page",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
