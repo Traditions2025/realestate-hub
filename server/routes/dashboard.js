@@ -467,6 +467,59 @@ router.get('/', (req, res) => {
 // Dismiss one Needs-Attention item ("✓ Done — already addressed"). Keyed per item, so a NEW
 // reply/call from the same person resurfaces. Dismissing an AI handoff resolves it in the
 // real handoff queue (same state the AI Opportunities page uses).
+// Lifetime totals across every channel, in one read.
+//
+// These were not available anywhere: the dashboard counted outgoing only, /api/email/stats
+// counted the send log, and the inbox list caps at 1000 rows with no count at all. Asking
+// "how many texts have we received" had no answer (John, 2026-09-30).
+//
+// email_log and communications count DIFFERENT things and both are reported:
+//   email_log      - what the Hub actually sent through SendGrid
+//   communications - the conversation record, which also holds email history imported
+//                    from Gmail, so it is larger and is the right number for "conversations"
+router.get('/totals', (_req, res) => {
+  const n = (sql, params = []) => { try { return db.get(sql, params).c } catch { return null } }
+  const comms = (channel, direction) =>
+    n('SELECT COUNT(*) c FROM communications WHERE channel = ? AND direction = ?', [channel, direction])
+
+  res.json({
+    email: {
+      sent_via_hub: n("SELECT COUNT(*) c FROM email_log WHERE status = 'sent'"),
+      send_failures: n("SELECT COUNT(*) c FROM email_log WHERE status != 'sent'"),
+      sent_logged: comms('email', 'outgoing'),
+      received: comms('email', 'incoming'),
+    },
+    text: {
+      sent: comms('text', 'outgoing'),
+      received: comms('text', 'incoming'),
+    },
+    calls: {
+      outgoing: comms('call', 'outgoing'),
+      incoming: comms('call', 'incoming'),
+    },
+    ai: {
+      // managed AND enabled: a lead can be handed to a human and stay flagged as managed
+      enrolled: n('SELECT COUNT(*) c FROM ai_lead_state WHERE ai_managed = 1 AND ai_enabled = 1'),
+      managed_total: n('SELECT COUNT(*) c FROM ai_lead_state WHERE ai_managed = 1'),
+      handoffs_open: n("SELECT COUNT(*) c FROM ai_handoffs WHERE status = 'open'"),
+    },
+    drips: {
+      // people, not enrolments: one person can sit in more than one campaign
+      people_active: n("SELECT COUNT(DISTINCT client_id) c FROM drip_enrollments WHERE status = 'active'"),
+      enrolments_active: n("SELECT COUNT(*) c FROM drip_enrollments WHERE status = 'active'"),
+      enrolments_ever: n('SELECT COUNT(*) c FROM drip_enrollments'),
+      emails_delivered: n("SELECT COUNT(*) c FROM drip_executions WHERE status = 'success'"),
+    },
+    clients: {
+      total: n('SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL'),
+      mailable: n(`SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL
+                     AND email IS NOT NULL AND email != ''
+                     AND lower(coalesce(status,'')) NOT IN ('junk','donotcontact')`),
+    },
+    generated_at: new Date().toISOString(),
+  })
+})
+
 router.post('/attention/dismiss', (req, res) => {
   const { type, client_id, ref, undo } = req.body || {}
   if (!type) return res.status(400).json({ error: 'type required' })
