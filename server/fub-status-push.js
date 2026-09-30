@@ -27,6 +27,15 @@ export const STATUS_TO_STAGE = {
 // from, rather than wondering why a lead went quiet.
 export const PUSH_TAG = 'Hub: status synced'
 
+// FUB stages that mean something a Junk flag should not silently erase.
+//
+// The dry run surfaced six of these: a Past Client, a High Probability Seller and three
+// Seller (NURTURE) records, all marked Junk in the Hub. John's ask was that Junk leads
+// stop showing as ACTIVE or NEW in FUB - a past client is neither, and demoting one to
+// Dead loses history nobody asked to lose. These are reported for a person to look at
+// instead of being pushed.
+const PROTECTED_STAGE = /past client|closed|under contract|pending|nurture|high probability/i
+
 const nowIso = () => new Date().toISOString()
 const norm = (s) => String(s || '').trim().toLowerCase()
 
@@ -46,7 +55,7 @@ export function candidates({ limit = 1000 } = {}) {
  * Push one lead. Reads the FUB record first, because a PUT REPLACES the tag array and
  * sending only the new tag would wipe everything else on the record.
  */
-export async function pushOne(client, { dryRun = false } = {}) {
+export async function pushOne(client, { dryRun = false, force = false } = {}) {
   const stage = STATUS_TO_STAGE[norm(client.status)]
   if (!stage) return { client_id: client.id, skipped: 'no mapping for ' + client.status }
   const personId = Number(client.fub_person_id)
@@ -66,6 +75,16 @@ export async function pushOne(client, { dryRun = false } = {}) {
   const currentTags = Array.isArray(person?.tags) ? person.tags : []
   if (currentStage === stage && currentTags.includes(PUSH_TAG))
     return { client_id: client.id, fub_id: personId, action: 'already-matches', stage }
+
+  if (PROTECTED_STAGE.test(currentStage) && !force) {
+    return {
+      client_id: client.id, fub_id: personId,
+      name: `${client.first_name || ''} ${client.last_name || ''}`.trim(),
+      hub_status: client.status, from_stage: currentStage, to_stage: stage,
+      action: 'protected',
+      why: `${currentStage} carries history a Junk flag should not erase — review this one`,
+    }
+  }
 
   const tags = currentTags.includes(PUSH_TAG) ? currentTags : [...currentTags, PUSH_TAG]
   const result = {
@@ -91,17 +110,20 @@ export async function pushOne(client, { dryRun = false } = {}) {
  * Push a batch. Paced deliberately: FUB rate-limits, and this is somebody's live CRM
  * rather than a scratch database.
  */
-export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 220 } = {}) {
+export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false } = {}) {
   const rows = candidates({ limit })
-  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, results: [], dry: dryRun }
+  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0, results: [], dry: dryRun }
   for (const c of rows) {
-    const r = await pushOne(c, { dryRun })
+    const r = await pushOne(c, { dryRun, force })
     if (r.action === 'updated' || r.action === 'would-update') out.updated++
     else if (r.action === 'already-matches') out.unchanged++
+    else if (r.action === 'protected') out.protected++
     else if (r.error === 'not in FUB') out.missing++
     else if (r.error || r.action === 'failed') out.failed++
     if (r.action !== 'already-matches') out.results.push(r)
-    if (!dryRun) await new Promise(s => setTimeout(s, delayMs))
+    // EVERY pass is paced, including a dry run: the dry run still reads each person from
+    // FUB, and pacing only the writes is what hit the rate limit on 103 of 228.
+    await new Promise(s => setTimeout(s, delayMs))
   }
   if (!dryRun && out.updated) {
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',

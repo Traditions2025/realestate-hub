@@ -994,6 +994,7 @@ async function start() {
       res.json(await pushStatuses({
         dryRun: !!req.body?.dry,
         limit: Math.min(Number(req.body?.limit) || 1000, 5000),
+        force: !!req.body?.force,   // push even over a stage that carries history
       }))
     } catch (err) { res.status(500).json({ error: err.message }) }
   })

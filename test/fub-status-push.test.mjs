@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import db, { initDb } from '../server/database.js'
 await initDb()
-const { STATUS_TO_STAGE, PUSH_TAG, candidates } = await import('../server/fub-status-push.js')
+const { STATUS_TO_STAGE, PUSH_TAG, candidates, pushOne } = await import('../server/fub-status-push.js')
 
 const src = fs.readFileSync(new URL('../server/fub-status-push.js', import.meta.url), 'utf8')
 const helper = fs.readFileSync(new URL('../server/fub-helper.js', import.meta.url), 'utf8')
@@ -69,6 +69,57 @@ test('a lead with no FUB id is never considered', () => {
 })
 
 test('it is paced, because this is a live CRM', () => {
-  assert.match(src, /delayMs = 220/)
+  assert.match(src, /delayMs = 260/)
   assert.match(src, /setTimeout\(s, delayMs\)/)
+})
+
+// The first dry run failed on 103 of 228 with a FUB 429. The pacing was inside an
+// `if (!dryRun)`, but a dry run still READS every person to see their current stage, so
+// the reads ran flat out.
+test('a dry run is paced too, because it still reads every person from FUB', () => {
+  assert.ok(!/if \(!dryRun\) await new Promise/.test(src),
+    'pacing only the writes is what tripped the rate limit')
+  const loop = src.slice(src.indexOf('for (const c of rows)'))
+  assert.match(loop, /await new Promise\(s => setTimeout\(s, delayMs\)\)/)
+})
+
+// ── the six that would have lost something ───────────────────────────────────────────
+// The dry run would have demoted a Past Client, a High Probability Seller and three
+// Seller (NURTURE) records to Dead. John asked that Junk leads stop showing as ACTIVE or
+// NEW in FUB; a past client is neither.
+const mkClient = (status, fub) => {
+  const now = new Date().toISOString()
+  return db.get('SELECT * FROM clients WHERE id = ?', [db.run(
+    `INSERT INTO clients (first_name, last_name, email, type, status, fub_person_id, tags, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?)`,
+    ['Guard', 'T' + Math.random().toString(36).slice(2, 8), `g${Date.now()}${Math.random()}@x.com`,
+     'buyer', status, fub, '[]', now, now]).lastInsertRowid])
+}
+
+test('a meaningful FUB stage is reported for review, not demoted', async () => {
+  // asserted on the source, because stubbing a dynamic import mid-suite is more fragile
+  // than the thing it would be testing
+  assert.match(src, /PROTECTED_STAGE/)
+  for (const stage of ['Past Client', 'Seller (NURTURE)', 'High Probability Sellers', 'Under Contract', 'Closed'])
+    assert.ok(/past client|closed|under contract|pending|nurture|high probability/i.test(stage),
+      `${stage} should be protected`)
+  assert.match(src, /action: 'protected'/)
+  assert.match(src, /review this one/)
+})
+
+test('ordinary stages are NOT protected, so the other 119 still push', () => {
+  const re = /past client|closed|under contract|pending|nurture|high probability/i
+  for (const stage of ['Lead', 'New Lead', 'Trash', 'Expired', 'Cancelled', 'Homeowner', 'Attempted Contact', ''])
+    assert.ok(!re.test(stage), `${stage} is not a stage worth protecting from a Junk flag`)
+})
+
+test('the guard can be overridden deliberately, and is off by default', () => {
+  assert.match(src, /pushOne\(client, \{ dryRun = false, force = false \} = \{\}\)/)
+  assert.match(src, /PROTECTED_STAGE\.test\(currentStage\) && !force/)
+})
+
+test('a lead with no mapping is skipped before any FUB call', async () => {
+  const c = mkClient('new', '900003')
+  const r = await pushOne(c)
+  assert.match(String(r.skipped), /no mapping/)
 })
