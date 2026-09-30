@@ -24,18 +24,18 @@ function CustomFields() {
             {MERGE_FIELDS.map(([tok, label, desc, source]) => (
               <tr key={tok}>
                 <td>
-                  <code style={{ fontSize: 13, cursor: 'pointer' }} title="Click to copy" onClick={() => copy(tok)}>{tok}</code>
-                  {copied === tok && <span style={{ fontSize: 13, color: 'var(--accent, #2563eb)', marginLeft: 6 }}>copied</span>}
+                  <code style={{ fontSize: 14.5, cursor: 'pointer' }} title="Click to copy" onClick={() => copy(tok)}>{tok}</code>
+                  {copied === tok && <span style={{ fontSize: 14.5, color: 'var(--accent, #2563eb)', marginLeft: 6 }}>copied</span>}
                 </td>
                 <td style={{ fontWeight: 600 }}>{label}</td>
-                <td style={{ fontSize: 14 }}>{desc || ''}</td>
+                <td style={{ fontSize: 15.5 }}>{desc || ''}</td>
                 <td><span className="email-status-tag">{source || 'System'}</span></td>
               </tr>
             ))}
           </tbody>
         </table>
       </div>
-      <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>
+      <p className="muted" style={{ fontSize: 14.5, marginTop: 10 }}>
         {MERGE_FIELDS.length} fields · Transaction/closing emails also have deal-specific fields ({'{{closing_date}}'}, {'{{earnest_money}}'}, {'{{lender_name}}'}, etc.) that live in the transaction templates.
       </p>
     </div>
@@ -141,7 +141,7 @@ function HubUpdates() {
         </select>
       </div>
 
-      <div className="muted" style={{margin: '8px 0 14px', fontSize: 13}}>
+      <div className="muted" style={{margin: '8px 0 14px', fontSize: 14.5}}>
         {entries.length} total updates
         {data?.generated_at && ` · last updated ${new Date(data.generated_at).toLocaleString()}`}
         {' · '}showing {filtered.length}
@@ -178,7 +178,7 @@ function HubUpdates() {
                       </div>
                     )}
                     {hasBody && !isExpanded && (
-                      <div className="muted" style={{fontSize: 13, marginTop: 2}}>Click to expand details</div>
+                      <div className="muted" style={{fontSize: 14.5, marginTop: 2}}>Click to expand details</div>
                     )}
                   </div>
                 </div>
@@ -296,7 +296,7 @@ function ActivityLog() {
         </select>
       </div>
 
-      <div className="muted" style={{margin: '8px 0 14px', fontSize: 13}}>
+      <div className="muted" style={{margin: '8px 0 14px', fontSize: 14.5}}>
         {items.length} of {total.toLocaleString()} entries
       </div>
 
@@ -414,7 +414,7 @@ function EmailLog() {
         <button className="btn btn-sm btn-secondary" onClick={load} disabled={loading}>{loading ? 'Loading...' : '↻ Refresh'}</button>
       </div>
 
-      <div className="muted" style={{margin: '8px 0 14px', fontSize: 13}}>
+      <div className="muted" style={{margin: '8px 0 14px', fontSize: 14.5}}>
         {total.toLocaleString()} total emails ·{' '}
         <span style={{color: '#10b981'}}>{sentCount.toLocaleString()} sent</span>
         {' · '}
@@ -533,7 +533,7 @@ function MigratePreListings() {
   return (
     <div style={{padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16}}>
       <h3 style={{margin: '0 0 10px'}}>Migrate pre-listings into Transactions</h3>
-      <p style={{margin: '0 0 12px', fontSize: 14, color: 'var(--text-muted)'}}>
+      <p style={{margin: '0 0 12px', fontSize: 15.5, color: 'var(--text-muted)'}}>
         Moves each existing pre-listing into the Transactions tab with status=<strong>Pre-Listing</strong>.
         Unchecked pre-listing checklist items become open tasks (category: Listing) linked to the new transaction.
         Source pre_listings rows are marked <strong>Migrated</strong> (not deleted) so nothing is lost.
@@ -550,13 +550,13 @@ function MigratePreListings() {
 
       {result && (
         <div style={{marginTop: 14, padding: 12, background: 'var(--bg-elevated)', borderRadius: 6}}>
-          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 14, marginBottom: 10}}>
+          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 15.5, marginBottom: 10}}>
             <span>📋 <strong>{result.total_source}</strong> source pre-listings</span>
             <span style={{color: '#10b981'}}>✅ <strong>{result.created}</strong> {result.dry_run ? 'would migrate' : 'migrated'}</span>
             <span style={{color: '#f59e0b'}}>⏭ <strong>{result.skipped}</strong> skipped (already in transactions)</span>
             {!result.dry_run && <span>📌 <strong>{result.tasks_created}</strong> tasks created</span>}
           </div>
-          <table style={{width: '100%', fontSize: 13, borderCollapse: 'collapse'}}>
+          <table style={{width: '100%', fontSize: 14.5, borderCollapse: 'collapse'}}>
             <thead><tr style={{textAlign: 'left', borderBottom: '1px solid var(--border)'}}>
               <th style={{padding: 6}}>Address</th>
               <th style={{padding: 6}}>Owner</th>
@@ -573,7 +573,7 @@ function MigratePreListings() {
                     {r.action === 'would-create'&& <span style={{color: '#3b82f6'}}>would create</span>}
                     {r.action === 'skip'        && <span style={{color: '#f59e0b'}}>skipped</span>}
                   </td>
-                  <td style={{padding: 6, color: 'var(--text-muted)', fontSize: 13}}>
+                  <td style={{padding: 6, color: 'var(--text-muted)', fontSize: 14.5}}>
                     {r.tasks_created !== undefined ? `${r.tasks_created} open tasks` : (r.would_create_tasks !== undefined ? `${r.would_create_tasks} tasks would be created` : r.reason)}
                   </td>
                 </tr>
@@ -623,20 +623,20 @@ function BulkTagFromSheet() {
     <div>
       <div style={{padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16}}>
         <h3 style={{margin: '0 0 10px'}}>Bulk-tag clients from a Google Sheet</h3>
-        <p style={{margin: '0 0 14px', fontSize: 14, color: 'var(--text-muted)'}}>
+        <p style={{margin: '0 0 14px', fontSize: 15.5, color: 'var(--text-muted)'}}>
           Pulls a public Google Sheet, filters rows where a column equals a value, matches each row to a hub client by phone (last 10 digits), and adds the tag both locally and to Sierra. Pre-filled for the FSBO Master Off Market batch.
         </p>
         <div style={{display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10}}>
-          <label style={{fontSize: 13}}>Sheet ID
+          <label style={{fontSize: 14.5}}>Sheet ID
             <input value={form.sheet_id} onChange={e => f('sheet_id', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
           </label>
-          <label style={{fontSize: 13}}>Tag to apply
+          <label style={{fontSize: 14.5}}>Tag to apply
             <input value={form.tag} onChange={e => f('tag', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
           </label>
-          <label style={{fontSize: 13}}>Filter column
+          <label style={{fontSize: 14.5}}>Filter column
             <input value={form.filter_column} onChange={e => f('filter_column', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
           </label>
-          <label style={{fontSize: 13}}>Filter value
+          <label style={{fontSize: 14.5}}>Filter value
             <input value={form.filter_value} onChange={e => f('filter_value', e.target.value)} style={{width: '100%', padding: 6, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-primary)', color: 'var(--text-primary)'}} />
           </label>
         </div>
@@ -653,7 +653,7 @@ function BulkTagFromSheet() {
       {result && (
         <div style={{padding: 16, background: 'var(--bg-secondary)', borderRadius: 8, border: '1px solid var(--border)'}}>
           <h3 style={{margin: '0 0 10px'}}>{result.dry_run ? 'Preview' : 'Results'}</h3>
-          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 14, marginBottom: 14}}>
+          <div style={{display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 15.5, marginBottom: 14}}>
             <span><strong>{result.total_filtered}</strong> rows matched filter</span>
             <span><strong style={{color: '#10b981'}}>{result.matched}</strong> matched a hub client</span>
             <span><strong style={{color: '#f59e0b'}}>{result.no_match}</strong> no hub match</span>
@@ -663,7 +663,7 @@ function BulkTagFromSheet() {
               {result.sierra_failed > 0 && <span><strong style={{color: '#ef4444'}}>{result.sierra_failed}</strong> Sierra failed</span>}
             </>}
           </div>
-          <table style={{width: '100%', fontSize: 13, borderCollapse: 'collapse'}}>
+          <table style={{width: '100%', fontSize: 14.5, borderCollapse: 'collapse'}}>
             <thead><tr style={{textAlign: 'left', borderBottom: '1px solid var(--border)'}}>
               <th style={{padding: 6}}>Sheet Name</th><th style={{padding: 6}}>Hub Match</th><th style={{padding: 6}}>Action</th><th style={{padding: 6}}>Sierra</th>
             </tr></thead>
@@ -673,7 +673,7 @@ function BulkTagFromSheet() {
                   <td style={{padding: 6}}>{r.sheet_name}</td>
                   <td style={{padding: 6}}>{r.matched ? `#${r.hub_client_id} ${r.hub_name}` : <span style={{color: '#f59e0b'}}>{r.reason}</span>}</td>
                   <td style={{padding: 6}}>{r.action || '—'}</td>
-                  <td style={{padding: 6, fontSize: 13}}>{r.sierra || '—'}</td>
+                  <td style={{padding: 6, fontSize: 14.5}}>{r.sierra || '—'}</td>
                 </tr>
               ))}
             </tbody>
@@ -728,10 +728,10 @@ function SystemsStatus() {
               )}
             </div>
             {syncHealth.updates_since_full_sync > 0 && (
-              <div style={{fontSize: 13, opacity: 0.8}}>{syncHealth.updates_since_full_sync.toLocaleString()} lead updates since last full sync</div>
+              <div style={{fontSize: 14.5, opacity: 0.8}}>{syncHealth.updates_since_full_sync.toLocaleString()} lead updates since last full sync</div>
             )}
             {incrementalIsStale && (
-              <div style={{color: '#fbbf24', fontSize: 13, marginTop: 4}}>
+              <div style={{color: '#fbbf24', fontSize: 14.5, marginTop: 4}}>
                 ⚠ Incremental sync hasn't run in 30+ min — scheduler may have stopped. Click "Run Sync Now" to trigger one.
               </div>
             )}
@@ -764,7 +764,7 @@ function SystemsStatus() {
             {realistStats.total_properties.toLocaleString()} properties imported ·{' '}
             {realistStats.enriched_clients.toLocaleString()} clients enriched
             {realistStats.last_import && (
-              <span style={{fontSize: 13, marginLeft: 10, opacity: 0.7}}>
+              <span style={{fontSize: 14.5, marginLeft: 10, opacity: 0.7}}>
                 Last import: {realistStats.last_import.split('.')[0].replace('T', ' ')}
               </span>
             )}

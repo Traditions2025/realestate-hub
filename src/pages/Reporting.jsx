@@ -11,8 +11,8 @@ const ago = (ts) => {
   return `${Math.floor(mins / 1440)} day${Math.floor(mins / 1440) === 1 ? '' : 's'} ago`
 }
 const pct = (num, den) => den > 0 ? `${Math.round((num / den) * 100)}%` : '0%'
-const th = { textAlign: 'left', padding: '10px 12px', fontSize: 13, color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
-const td = { padding: '12px', fontSize: 14, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
+const th = { textAlign: 'left', padding: '10px 12px', fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 600, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
+const td = { padding: '12px', fontSize: 15.5, borderBottom: '1px solid var(--border)', whiteSpace: 'nowrap' }
 
 export default function Reporting() {
   const [tab, setTab] = useState('email')
@@ -34,7 +34,7 @@ export default function Reporting() {
 
   // A metric number becomes a button when there's a count to drill into.
   const stat = (n, den, color, onClick) => {
-    const inner = <>{n || 0} <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>({pct(n, den)})</span></>
+    const inner = <>{n || 0} <span style={{ color: 'var(--text-muted)', fontSize: 14.5 }}>({pct(n, den)})</span></>
     if (!onClick || !(n > 0)) return <span style={{ color }}>{inner}</span>
     return <button onClick={onClick} title="See who" style={{ color, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', textDecoration: 'underline', textDecorationStyle: 'dotted', textUnderlineOffset: 3 }}>{inner}</button>
   }
@@ -104,10 +104,10 @@ export default function Reporting() {
                         style={{ fontWeight: 600, color: 'var(--accent, #2563eb)', background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', font: 'inherit', textAlign: 'left' }}>
                         {c.subject}
                       </button>
-                      {c.source === 'sendgrid' && <span style={{ marginLeft: 8, fontSize: 13, background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }}>SendGrid</span>}
-                      {c.source === 'hub-log' && <span style={{ marginLeft: 8, fontSize: 13, background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }} title="Sent from the Hub before per-campaign tracking existed">Hub (log)</span>}
+                      {c.source === 'sendgrid' && <span style={{ marginLeft: 8, fontSize: 14.5, background: '#e0e7ff', color: '#3730a3', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }}>SendGrid</span>}
+                      {c.source === 'hub-log' && <span style={{ marginLeft: 8, fontSize: 14.5, background: '#fef3c7', color: '#92400e', padding: '1px 6px', borderRadius: 4, verticalAlign: 'middle' }} title="Sent from the Hub before per-campaign tracking existed">Hub (log)</span>}
                     </div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>From: {c.from_name || 'Matt Smith Team'}</div>
+                    <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>From: {c.from_name || 'Matt Smith Team'}</div>
                   </td>
                   <td style={{ ...td, color: 'var(--text-muted)' }}>{ago(c.created_at)}</td>
                   <td style={td}>{c.status === 'finished' ? <span style={{ color: '#10b981' }}>✓ Finished</span> : <span style={{ color: '#f59e0b' }}>Sending…</span>}</td>
@@ -124,7 +124,7 @@ export default function Reporting() {
         </table>
       </div>
 
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 10 }}>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 10 }}>
         Click a subject to view the email that went out. Click any opens/clicks/unsubscribes/bounces number to see exactly who. Opens/clicks can take a few hours to populate after a send. % is of Sent (bounces are of Recipients).
       </p>
       </>)}
@@ -149,7 +149,7 @@ function EmailPreview({ subject, campaign_id, onClose }) {
         : data === null ? <div style={{ padding: 20, color: 'var(--text-muted)' }}>No stored copy of this email is available. (Emails sent outside the Hub don’t keep a body copy here.)</div>
           : (
             <div>
-              <div style={{ padding: '8px 12px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
+              <div style={{ padding: '8px 12px', background: 'var(--bg-elevated)', borderBottom: '1px solid var(--border)', fontSize: 15.5 }}>
                 <div><strong>Subject:</strong> {data.subject}</div>
                 <div style={{ color: 'var(--text-muted)', marginTop: 2 }}>From: {data.from_name || 'Matt Smith Team'}{data.from_email ? ` <${data.from_email}>` : ''} · {data.sent_at ? String(data.sent_at).replace('T', ' ').slice(0, 16) : ''}</div>
               </div>
@@ -181,7 +181,7 @@ function PeopleList({ subject, date, metric, label, onClose }) {
                     <td>{r.email}</td>
                     {metric === 'opens' && <td>{r.opens}</td>}
                     {metric === 'clicks' && <td>{r.clicks}</td>}
-                    <td className="muted" style={{ fontSize: 13 }}>{r.last_event_time ? String(r.last_event_time).replace('T', ' ').slice(0, 16) : ''}</td>
+                    <td className="muted" style={{ fontSize: 14.5 }}>{r.last_event_time ? String(r.last_event_time).replace('T', ' ').slice(0, 16) : ''}</td>
                   </tr>
                 ))}
               </tbody>
@@ -206,11 +206,11 @@ function AttributionReport() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {d.funnel.map((f, i) => (
             <div key={f.stage} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div style={{ width: 220, fontSize: 14 }}>{f.stage}</div>
+              <div style={{ width: 220, fontSize: 15.5 }}>{f.stage}</div>
               <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 4, height: 22, position: 'relative' }}>
                 <div style={{ width: `${(f.count / maxF) * 100}%`, background: ['#2563eb', '#0891b2', '#f59e0b', '#10b981'][i] || '#64748b', height: '100%', borderRadius: 4, minWidth: 2 }} />
               </div>
-              <div style={{ width: 90, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{f.count.toLocaleString()}{i > 0 && d.funnel[0].count ? <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 400 }}> · {Math.round((f.count / d.funnel[0].count) * 100)}%</span> : ''}</div>
+              <div style={{ width: 90, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{f.count.toLocaleString()}{i > 0 && d.funnel[0].count ? <span style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 400 }}> · {Math.round((f.count / d.funnel[0].count) * 100)}%</span> : ''}</div>
             </div>
           ))}
         </div>
@@ -220,12 +220,12 @@ function AttributionReport() {
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
           {[['AI-managed leads', d.ai.managed], ['AI-managed closed', d.ai.managed_closed], ['AI-managed conversion', d.ai.managed_conversion + '%'], ['AI texts sent', d.ai.ai_texts_sent], ['Human texts sent', d.ai.human_texts_sent]].map(([l, v]) => (
             <div key={l} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', minWidth: 130 }}>
-              <div style={{ fontSize: 22, fontWeight: 800 }}>{typeof v === 'number' ? v.toLocaleString() : v}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 }}>{l}</div>
+              <div style={{ fontSize: 24, fontWeight: 800 }}>{typeof v === 'number' ? v.toLocaleString() : v}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 }}>{l}</div>
             </div>
           ))}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 10, fontStyle: 'italic' }}>{d.note}</div>
+        <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 10, fontStyle: 'italic' }}>{d.note}</div>
       </div>
       <div className="detail-section" style={{ padding: 0, overflowX: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 500 }}>
@@ -256,17 +256,17 @@ function AiReport() {
   const maxDay = Math.max(1, ...(d.by_day || []).map(x => x.n))
   const Card = ({ label, value, sub, color }) => (
     <div className="detail-section" style={{ padding: '14px 16px', minWidth: 130, flex: '1 1 130px' }}>
-      <div style={{ fontSize: 26, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
-      {sub != null && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 28.5, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+      {sub != null && <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
     </div>
   )
   return (
     <div>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Range:</span>
+        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Range:</span>
         {[7, 30, 90].map(n => <button key={n} className={`btn btn-sm ${days === n ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDays(n)}>{n}d</button>)}
-        {diag && <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: diag.flags?.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{diag.flags?.ai_followup_enabled ? '● AI active' : '○ AI off (enable in Settings)'}</span>}
+        {diag && <span style={{ marginLeft: 'auto', fontSize: 14.5, fontWeight: 700, color: diag.flags?.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{diag.flags?.ai_followup_enabled ? '● AI active' : '○ AI off (enable in Settings)'}</span>}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
         <Card label="Leads managed by AI" value={d.leads_managed} color="#2563eb" />
@@ -278,26 +278,26 @@ function AiReport() {
       </div>
       <div className="detail-section" style={{ padding: 16 }}>
         <h4 style={{ margin: '0 0 12px' }}>AI messages by day</h4>
-        {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No AI activity yet. Turn on HUB AI Follow-Up in Settings.</div> : (
+        {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No AI activity yet. Turn on HUB AI Follow-Up in Settings.</div> : (
           <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>
             {d.by_day.map(x => <div key={x.day} title={`${x.day}: ${x.n}`} style={{ flex: 1, height: `${(x.n / maxDay) * 110}px`, background: '#2563eb', borderRadius: '2px 2px 0 0', minWidth: 4 }} />)}
           </div>
         )}
       </div>
-      <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 13, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
+      <div style={{ display: 'flex', gap: 20, marginTop: 12, fontSize: 14.5, color: 'var(--text-muted)', flexWrap: 'wrap' }}>
         <span>AI token usage: {(d.tokens_input || 0).toLocaleString()} in / {(d.tokens_output || 0).toLocaleString()} out</span>
         {sched && <span>Scheduler: {sched.pending} pending · {sched.completed_24h} sent/24h · {sched.failed} failed{sched.next_execute_at ? ` · next ${new Date(String(sched.next_execute_at).replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : ''}</span>}
       </div>
 
       <div className="detail-section" style={{ padding: 16, marginTop: 16 }}>
         <h4 style={{ margin: '0 0 12px' }}>Recent AI messages (rate to improve)</h4>
-        {quality.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No AI messages yet.</div> : (
+        {quality.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No AI messages yet.</div> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {quality.slice(0, 25).map(m => (
               <div key={m.id} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', borderBottom: '1px solid var(--border)', paddingBottom: 8 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}><strong style={{ color: 'var(--text-primary)' }}>{m.name}</strong> · {m.action_type}{m.intent != null ? ` · intent ${m.intent}` : ''}</div>
-                  <div style={{ fontSize: 14, marginTop: 2 }}>{m.text}</div>
+                  <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}><strong style={{ color: 'var(--text-primary)' }}>{m.name}</strong> · {m.action_type}{m.intent != null ? ` · intent ${m.intent}` : ''}</div>
+                  <div style={{ fontSize: 15.5, marginTop: 2 }}>{m.text}</div>
                 </div>
                 <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
                   <button className={`btn btn-sm ${m.rating === 'good' ? 'btn-primary' : 'btn-secondary'}`} title="Good" onClick={() => rate(m.id, m.rating === 'good' ? '' : 'good')}>👍</button>
@@ -317,25 +317,25 @@ function Campaigns() {
   React.useEffect(() => { authFetch('/api/inbox/campaigns').then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => setRows([])) }, [])
   if (rows === undefined || !rows.length) return null
   const fmt = (iso) => { try { return new Date(String(iso).includes('T') ? iso : String(iso).replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) } catch { return iso } }
-  const th = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 13, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-muted)', textAlign: 'left' }
+  const th = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 14.5, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-muted)', textAlign: 'left' }
   const td = { padding: '6px 8px', borderBottom: '1px solid var(--border)' }
   return (
     <div className="detail-section" style={{ padding: 16, marginTop: 16 }}>
       <h4 style={{ margin: '0 0 12px' }}>Bulk campaigns</h4>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15.5 }}>
           <thead><tr>{['Campaign', 'Sent', 'Delivered', 'Failed', 'Replies', 'Opt-outs', 'When'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
           <tbody>
             {rows.map(c => (
               <tr key={c.id}>
-                <td style={td}><div style={{ fontWeight: 600 }}>{c.name || '(unnamed)'}</div><div style={{ fontSize: 13, color: 'var(--text-muted)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.body}</div></td>
+                <td style={td}><div style={{ fontWeight: 600 }}>{c.name || '(unnamed)'}</div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.body}</div></td>
                 <td style={td}>{c.sent}{c.status === 'sending' && <span style={{ color: '#f59e0b' }}> …</span>}</td>
                 <td style={{ ...td, color: '#10b981' }}>{c.delivered}</td>
                 <td style={{ ...td, color: c.failed ? '#ef4444' : 'inherit' }}
                   title={(c.failure_reasons || []).map(r => `${r.n}× ${r.reason}`).join('\n') || undefined}>
                   {c.failed}
                   {c.failed > 0 && (c.failure_reasons || []).length > 0 && (
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
+                    <div style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 400, marginTop: 2 }}>
                       {(c.failure_reasons || []).slice(0, 2).map(r => `${r.n}× ${String(r.reason).slice(0, 34)}`).join(' · ')}
                     </div>
                   )}
@@ -362,9 +362,9 @@ function CommsReport({ mode = 'texting' }) {
   const dur = (s) => { s = Number(s || 0); return s ? `${Math.floor(s / 60)}m ${s % 60}s` : '0s' }
   const Card = ({ label, value, sub, color }) => (
     <div className="detail-section" style={{ padding: '14px 16px', minWidth: 130, flex: '1 1 130px' }}>
-      <div style={{ fontSize: 26, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
-      {sub != null && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+      <div style={{ fontSize: 28.5, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+      {sub != null && <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
     </div>
   )
   const maxTextDay = Math.max(1, ...(d.by_day || []).map(x => Math.max(x.texts_out || 0, x.texts_in || 0)))
@@ -372,7 +372,7 @@ function CommsReport({ mode = 'texting' }) {
   const maxDisp = Math.max(1, ...(d.dispositions || []).map(x => x.n))
   const rangeBar = (
     <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'center' }}>
-      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Range:</span>
+      <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Range:</span>
       {[7, 30, 90].map(n => <button key={n} className={`btn btn-sm ${days === n ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDays(n)}>{n}d</button>)}
     </div>
   )
@@ -389,7 +389,7 @@ function CommsReport({ mode = 'texting' }) {
       </div>
       <div className="detail-section" style={{ padding: 16 }}>
         <h4 style={{ margin: '0 0 12px' }}>Texts by day</h4>
-        {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No texting activity yet.</div> : (
+        {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No texting activity yet.</div> : (
           <>
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>
               {d.by_day.map(x => {
@@ -402,7 +402,7 @@ function CommsReport({ mode = 'texting' }) {
                 )
               })}
             </div>
-            <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>
+            <div style={{ display: 'flex', gap: 14, marginTop: 10, fontSize: 14.5, color: 'var(--text-muted)' }}>
               <span><span style={{ display: 'inline-block', width: 9, height: 9, background: '#2563eb', borderRadius: 2, marginRight: 4 }} />Texts out</span>
               <span><span style={{ display: 'inline-block', width: 9, height: 9, background: '#10b981', borderRadius: 2, marginRight: 4 }} />Texts in</span>
             </div>
@@ -428,7 +428,7 @@ function CommsReport({ mode = 'texting' }) {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 16 }}>
         <div className="detail-section" style={{ padding: 16 }}>
           <h4 style={{ margin: '0 0 12px' }}>Calls by day</h4>
-          {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No call activity yet.</div> : (
+          {(d.by_day || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No call activity yet.</div> : (
             <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 120 }}>
               {d.by_day.map(x => (
                 <div key={x.day} title={`${x.day}\nCalls ${x.calls}`} style={{ flex: 1, height: `${((x.calls || 0) / maxCallDay) * 110}px`, background: '#8b5cf6', borderRadius: '2px 2px 0 0', minWidth: 4 }} />
@@ -438,15 +438,15 @@ function CommsReport({ mode = 'texting' }) {
         </div>
         <div className="detail-section" style={{ padding: 16 }}>
           <h4 style={{ margin: '0 0 12px' }}>Call dispositions</h4>
-          {(d.dispositions || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No dispositions logged yet. Set one on a call in the Inbox.</div> : (
+          {(d.dispositions || []).length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No dispositions logged yet. Set one on a call in the Inbox.</div> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {d.dispositions.map(x => (
                 <div key={x.d} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <div style={{ width: 130, fontSize: 13, flexShrink: 0 }}>{x.d}</div>
+                  <div style={{ width: 130, fontSize: 14.5, flexShrink: 0 }}>{x.d}</div>
                   <div style={{ flex: 1, background: 'var(--bg-secondary)', borderRadius: 4, height: 16, overflow: 'hidden' }}>
                     <div style={{ width: `${(x.n / maxDisp) * 100}%`, height: '100%', background: '#8b5cf6' }} />
                   </div>
-                  <div style={{ width: 28, textAlign: 'right', fontSize: 13, fontWeight: 700 }}>{x.n}</div>
+                  <div style={{ width: 28, textAlign: 'right', fontSize: 14.5, fontWeight: 700 }}>{x.n}</div>
                 </div>
               ))}
             </div>
@@ -454,7 +454,7 @@ function CommsReport({ mode = 'texting' }) {
         </div>
       </div>
       <PowerDialerReport days={days} />
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 12 }}>Live from the communications log — updates as texts and calls happen. Delivery rate is of texts with a final Twilio status; reply rate is distinct contacts who texted back.</p>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 12 }}>Live from the communications log — updates as texts and calls happen. Delivery rate is of texts with a final Twilio status; reply rate is distinct contacts who texted back.</p>
     </div>
   )
 }
@@ -466,11 +466,11 @@ function PowerDialerReport({ days }) {
   const fmt = (iso) => { try { return new Date(String(iso).includes('T') ? iso : String(iso).replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
   const Card = ({ label, value, color }) => (
     <div className="detail-section" style={{ padding: '12px 14px', minWidth: 120, flex: '1 1 120px' }}>
-      <div style={{ fontSize: 24, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
+      <div style={{ fontSize: 26.5, fontWeight: 800, color: color || 'var(--text-primary)', lineHeight: 1.1 }}>{value}</div>
+      <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 3 }}>{label}</div>
     </div>
   )
-  const th = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 13, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-muted)', textAlign: 'left' }
+  const th = { padding: '6px 8px', borderBottom: '1px solid var(--border)', fontSize: 14.5, textTransform: 'uppercase', letterSpacing: '.03em', color: 'var(--text-muted)', textAlign: 'left' }
   const td = { padding: '6px 8px', borderBottom: '1px solid var(--border)', verticalAlign: 'top' }
   return (
     <div style={{ marginTop: 20 }}>
@@ -483,7 +483,7 @@ function PowerDialerReport({ days }) {
       </div>
       <div className="detail-section" style={{ padding: 16 }}>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15.5 }}>
             <thead><tr>{['Contact', 'Phone', 'Outcome', 'Notes', 'By', 'When'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
             <tbody>
               {d.recent.map(r => (

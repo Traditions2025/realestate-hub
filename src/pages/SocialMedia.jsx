@@ -305,12 +305,12 @@ export default function SocialMedia() {
                 <button type="button" className="btn-sm btn-danger" style={{ marginTop: 4 }} onClick={() => f2('image_file', '')}>Remove</button>
               </div>
             ) : (
-              <div style={{ width: 120, height: 120, borderRadius: 8, border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 13 }}>No image</div>
+              <div style={{ width: 120, height: 120, borderRadius: 8, border: '1px dashed var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 14.5 }}>No image</div>
             )}
             <div>
               <input type="file" accept="image/*,video/mp4" onChange={e => uploadImage(e.target.files[0])} />
-              {uploading && <div style={{ fontSize: 13, color: 'var(--accent)' }}>Uploading…</div>}
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>JPG/PNG/MP4, up to 25MB. Stored on the Hub and served to the platforms.</div>
+              {uploading && <div style={{ fontSize: 14.5, color: 'var(--accent)' }}>Uploading…</div>}
+              <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 4 }}>JPG/PNG/MP4, up to 25MB. Stored on the Hub and served to the platforms.</div>
             </div>
           </div>
 
@@ -348,14 +348,14 @@ export default function SocialMedia() {
           {editing && editingItem && (
             <div style={{ marginTop: 14, padding: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-subtle, rgba(127,127,127,.06))' }}>
               <h4 style={{ margin: '0 0 8px' }}>Auto-Publish</h4>
-              <div style={{ fontSize: 14, marginBottom: 8 }}>
+              <div style={{ fontSize: 15.5, marginBottom: 8 }}>
                 Status: <strong>{pubBadge[editingItem.publish_status] || 'Not queued'}</strong>
                 {editingItem.published_at && <span style={{ color: 'var(--text-muted)' }}> · {new Date(editingItem.published_at).toLocaleString()}</span>}
               </div>
               {editingItem.publish_results && (() => {
                 let rs = []; try { rs = JSON.parse(editingItem.publish_results) } catch {}
                 return rs.length ? (
-                  <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 13 }}>
+                  <ul style={{ margin: '0 0 8px', paddingLeft: 18, fontSize: 14.5 }}>
                     {rs.map((r, i) => (
                       <li key={i} style={{ color: r.ok === false || r.error ? 'var(--danger, #e11)' : 'inherit' }}>
                         {r.platform || 'target'}: {r.ok === false || r.error ? `failed ${r.error || ''}` : 'posted'}
@@ -368,7 +368,7 @@ export default function SocialMedia() {
               {['queued', 'posting'].includes(editingItem.publish_status)
                 ? <button type="button" className="btn btn-secondary" onClick={unqueuePost}>Cancel publish</button>
                 : <button type="button" className="btn btn-primary" onClick={queuePost}>Queue for publishing now</button>}
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+              <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 6 }}>
                 Queued posts are picked up by n8n at (or after) the scheduled time and posted to the checked pages.
               </div>
             </div>
@@ -398,7 +398,7 @@ export default function SocialMedia() {
       {/* n8n setup */}
       <Modal open={setupOpen} onClose={() => setSetupOpen(false)} title="Publishing Setup (n8n)">
         {!config ? <p>Loading…</p> : (
-          <div style={{ fontSize: 14, lineHeight: 1.6 }}>
+          <div style={{ fontSize: 15.5, lineHeight: 1.6 }}>
             <p>n8n connects the Hub to your social pages. Point an n8n workflow at these endpoints and it will publish queued posts and report back.</p>
             <label>Public base URL of this Hub
               <input value={config.public_base_url} onChange={e => setConfig(c => ({ ...c, public_base_url: e.target.value }))} />
@@ -415,7 +415,7 @@ export default function SocialMedia() {
                 <li>For each returned post, post <code>image_url</code> + <code>caption</code> to each name in <code>targets</code> (Facebook / Instagram / LinkedIn / Google Business nodes).</li>
                 <li>HTTP POST the Result callback with <code>{'{ id, ok, results:[{platform, ok, post_id, url, error}] }'}</code>.</li>
               </ol>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>
+              <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 6 }}>
                 Once the result comes back successful, the Hub deletes the uploaded image from disk automatically (it already lives on the platforms) to keep storage small. Failed posts keep their image so you can retry.
               </div>
             </div>
@@ -431,9 +431,9 @@ function FieldRow({ label, value }) {
   const copy = () => { try { navigator.clipboard.writeText(value) } catch {} }
   return (
     <div style={{ marginBottom: 8 }}>
-      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</div>
+      <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{label}</div>
       <div style={{ display: 'flex', gap: 6 }}>
-        <input readOnly value={value} style={{ fontFamily: 'monospace', fontSize: 13 }} onFocus={e => e.target.select()} />
+        <input readOnly value={value} style={{ fontFamily: 'monospace', fontSize: 14.5 }} onFocus={e => e.target.select()} />
         <button type="button" className="btn btn-sm btn-secondary" onClick={copy}>Copy</button>
       </div>
     </div>

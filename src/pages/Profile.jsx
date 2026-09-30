@@ -86,7 +86,7 @@ export default function Profile() {
     } catch (e) { setErr('Could not remove the photo.') } finally { setPhotoBusy(false) }
   }
 
-  const fld = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, width: '100%' }
+  const fld = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, width: '100%' }
 
   if (!me) return <div className="page"><div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading profile…</div></div>
 
@@ -107,20 +107,20 @@ export default function Profile() {
               : <span className="profile-initials-lg">{initialsOf(me.name)}</span>}
           </div>
           <div className="profile-photo-actions">
-            <div style={{ fontWeight: 700, fontSize: 15 }}>{me.name}</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{ROLE_LABELS[me.role] || me.role} · {me.email}</div>
+            <div style={{ fontWeight: 700, fontSize: 16.5 }}>{me.name}</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{ROLE_LABELS[me.role] || me.role} · {me.email}</div>
             <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
               <button className="btn btn-secondary btn-sm" onClick={pickPhoto} disabled={photoBusy}>
                 {photoBusy ? 'Working…' : me.avatar ? 'Change Photo' : 'Upload Photo'}
               </button>
               {me.avatar && <button className="btn btn-sm" onClick={removePhoto} disabled={photoBusy} style={{ color: '#ef4444' }}>Remove Photo</button>}
             </div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>JPG, PNG, or WEBP. It's cropped to a square automatically.</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 6 }}>JPG, PNG, or WEBP. It's cropped to a square automatically.</div>
             <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" onChange={onFile} style={{ display: 'none' }} aria-label="Choose a profile photo" />
           </div>
         </div>
 
-        {err && <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,.1)', color: '#ef4444', fontSize: 14 }}>{err}</div>}
+        {err && <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'rgba(239,68,68,.1)', color: '#ef4444', fontSize: 15.5 }}>{err}</div>}
 
         <div className="profile-fields">
           <label>

@@ -90,7 +90,7 @@ export default function SmartAudiences() {
             <option value="all">ALL conditions (AND)</option>
             <option value="any">ANY condition (OR)</option>
           </select>
-          <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>of the following:</span>
+          <span style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>of the following:</span>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -131,7 +131,7 @@ export default function SmartAudiences() {
       {/* Live preview */}
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, flexWrap: 'wrap' }}>
-          <div style={{ fontSize: 32, fontWeight: 800, color: 'var(--text-primary)' }}>
+          <div style={{ fontSize: 35, fontWeight: 800, color: 'var(--text-primary)' }}>
             {preview?.error ? '—' : (preview ? preview.count.toLocaleString() : '…')}
           </div>
           <div style={{ color: 'var(--text-muted)' }}>{busy ? 'updating…' : 'contacts match'}{preview?.error && <span style={{ color: '#ef4444' }}> · {preview.error}</span>}</div>
@@ -140,15 +140,15 @@ export default function SmartAudiences() {
             <button className="btn btn-primary" onClick={save} disabled={!preview || preview.error}>Save as list</button>
           </div>
         </div>
-        {saveMsg && <div style={{ fontSize: 13, color: saveMsg.startsWith('Saved') ? '#10b981' : '#b45309', marginTop: 6 }}>{saveMsg}</div>}
+        {saveMsg && <div style={{ fontSize: 14.5, color: saveMsg.startsWith('Saved') ? '#10b981' : '#b45309', marginTop: 6 }}>{saveMsg}</div>}
         {preview?.sample?.length > 0 && (
           <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {preview.sample.slice(0, 12).map(s => (
-              <span key={s.id} style={{ fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 9px' }}>
+              <span key={s.id} style={{ fontSize: 14.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, padding: '3px 9px' }}>
                 {`${s.first_name || ''} ${s.last_name || ''}`.trim() || s.phone}{s.city ? ` · ${s.city}` : ''}
               </span>
             ))}
-            {preview.count > 12 && <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center' }}>+{(preview.count - 12).toLocaleString()} more</span>}
+            {preview.count > 12 && <span style={{ fontSize: 14.5, color: 'var(--text-muted)', alignSelf: 'center' }}>+{(preview.count - 12).toLocaleString()} more</span>}
           </div>
         )}
       </div>
@@ -159,9 +159,9 @@ export default function SmartAudiences() {
           <h4 style={{ marginTop: 0 }}>Saved lists</h4>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {lists.slice(0, 20).map(l => (
-              <div key={l.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 14, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
+              <div key={l.id} style={{ display: 'flex', gap: 10, alignItems: 'baseline', fontSize: 15.5, padding: '4px 0', borderBottom: '1px solid var(--border)' }}>
                 <span style={{ fontWeight: 600 }}>{l.name}</span>
-                {l.is_dynamic ? <span style={{ fontSize: 13, color: '#0369a1', textTransform: 'uppercase' }}>dynamic</span> : null}
+                {l.is_dynamic ? <span style={{ fontSize: 14.5, color: '#0369a1', textTransform: 'uppercase' }}>dynamic</span> : null}
                 <span style={{ marginLeft: 'auto', color: 'var(--text-muted)' }}>{(l.count ?? 0).toLocaleString()} contacts</span>
               </div>
             ))}

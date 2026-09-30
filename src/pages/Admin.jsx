@@ -18,7 +18,7 @@ const ROLE_LABEL = {
   owner: 'Owner', admin: 'Admin', agent: 'Agent',
   transaction_coordinator: 'Transaction Coordinator', isa: 'ISA', marketing: 'Marketing', read_only: 'Read Only',
 }
-const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, boxSizing: 'border-box' }
+const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, boxSizing: 'border-box' }
 
 export default function Admin() {
   const [tab, setTab] = useState('users')
@@ -92,20 +92,20 @@ function UsersAdmin() {
   const roleOpts = roles.length ? roles : Object.keys(ROLE_LABEL)
   return (
     <div>
-      {err && <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 14 }}>{err}</div>}
+      {err && <div style={{ background: 'rgba(239,68,68,.1)', border: '1px solid rgba(239,68,68,.3)', color: '#ef4444', padding: '8px 12px', borderRadius: 6, marginBottom: 12, fontSize: 15.5 }}>{err}</div>}
 
       {/* Set-password modal (with show/hide toggle) */}
       {pwModal && (
         <div onClick={() => setPwModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, width: 380, maxWidth: '90vw' }}>
             <h4 style={{ marginTop: 0 }}>Set password</h4>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '2px 0 10px' }}>{pwModal.name} · {pwModal.email}</p>
+            <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '2px 0 10px' }}>{pwModal.name} · {pwModal.email}</p>
             <PasswordField value={newPw} onChange={e => setNewPw(e.target.value)} placeholder="New password (min 8 characters)" autoComplete="new-password" autoFocus inputStyle={fld} onKeyDown={e => { if (e.key === 'Enter') savePw() }} />
             <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
               <button className="btn btn-sm" onClick={() => setPwModal(null)}>Cancel</button>
               <button className="btn btn-primary btn-sm" onClick={savePw} disabled={pwBusy}>{pwBusy ? '…' : 'Set password'}</button>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>Setting a password signs this user out of all devices.</p>
+            <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 8 }}>Setting a password signs this user out of all devices.</p>
           </div>
         </div>
       )}
@@ -114,22 +114,22 @@ function UsersAdmin() {
       <div className="detail-section" style={{ marginBottom: 18 }}>
         <h4>Add a user</h4>
         <form onSubmit={add} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 8, alignItems: 'end' }}>
-          <label style={{ fontSize: 13 }}>Name<input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={fld} /></label>
-          <label style={{ fontSize: 13 }}>Email<input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={fld} /></label>
-          <label style={{ fontSize: 13 }}>Phone<input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={fld} /></label>
-          <label style={{ fontSize: 13 }}>Role<select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={fld}>{roleOpts.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}</select></label>
-          <label style={{ fontSize: 13 }}>Password (optional)<PasswordField value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="min 8 chars, or leave blank to invite" autoComplete="new-password" inputStyle={fld} /></label>
+          <label style={{ fontSize: 14.5 }}>Name<input required value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} style={fld} /></label>
+          <label style={{ fontSize: 14.5 }}>Email<input required type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} style={fld} /></label>
+          <label style={{ fontSize: 14.5 }}>Phone<input value={form.phone} onChange={e => setForm(f => ({ ...f, phone: e.target.value }))} style={fld} /></label>
+          <label style={{ fontSize: 14.5 }}>Role<select value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} style={fld}>{roleOpts.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}</select></label>
+          <label style={{ fontSize: 14.5 }}>Password (optional)<PasswordField value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="min 8 chars, or leave blank to invite" autoComplete="new-password" inputStyle={fld} /></label>
           <button className="btn btn-primary" disabled={busy}>{busy ? 'Adding…' : '+ Add user'}</button>
         </form>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>Leave the password blank to create an “invited” account, then set a password later. Passwords are stored hashed (scrypt) — never in plain text.</p>
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 6 }}>Leave the password blank to create an “invited” account, then set a password later. Passwords are stored hashed (scrypt) — never in plain text.</p>
       </div>
 
       {/* User list */}
       <div className="detail-section">
         <h4>Users ({users.length})</h4>
         <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
-            <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 13, textTransform: 'uppercase', letterSpacing: '.04em' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15.5 }}>
+            <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 14.5, textTransform: 'uppercase', letterSpacing: '.04em' }}>
               <th style={{ padding: '6px 8px' }}>Name</th><th style={{ padding: '6px 8px' }}>Email</th><th style={{ padding: '6px 8px' }}>Role</th><th style={{ padding: '6px 8px' }}>Status</th><th style={{ padding: '6px 8px' }}>Last login</th><th style={{ padding: '6px 8px' }}>Actions</th>
             </tr></thead>
             <tbody>
@@ -138,7 +138,7 @@ function UsersAdmin() {
                   <td style={{ padding: '7px 8px', fontWeight: 600 }}>
                     {editing?.id === u.id
                       ? <input value={editing.name} onChange={e => setEditing(s => ({ ...s, name: e.target.value }))} style={{ ...fld, padding: '4px 6px' }} />
-                      : <>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 13 }}>🔐</span> : null}</>}
+                      : <>{u.name}{u.two_factor_enabled ? <span title="2FA on" style={{ marginLeft: 6, fontSize: 14.5 }}>🔐</span> : null}</>}
                   </td>
                   <td style={{ padding: '7px 8px', color: 'var(--text-secondary)' }}>
                     {editing?.id === u.id
@@ -146,14 +146,14 @@ function UsersAdmin() {
                       : u.email}
                   </td>
                   <td style={{ padding: '7px 8px' }}>
-                    <select value={u.role} onChange={e => patch(u.id, { role: e.target.value })} style={{ ...fld, width: 'auto', fontSize: 13, padding: '4px 6px' }}>
+                    <select value={u.role} onChange={e => patch(u.id, { role: e.target.value })} style={{ ...fld, width: 'auto', fontSize: 14.5, padding: '4px 6px' }}>
                       {roleOpts.map(r => <option key={r} value={r}>{ROLE_LABEL[r] || r}</option>)}
                     </select>
                   </td>
                   <td style={{ padding: '7px 8px' }}>
-                    <span style={{ fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: u.status === 'active' ? 'rgba(16,185,129,.12)' : u.status === 'invited' ? 'rgba(245,158,11,.14)' : 'rgba(239,68,68,.12)', color: u.status === 'active' ? '#10b981' : u.status === 'invited' ? '#b45309' : '#ef4444' }}>{u.status}</span>
+                    <span style={{ fontSize: 14.5, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: u.status === 'active' ? 'rgba(16,185,129,.12)' : u.status === 'invited' ? 'rgba(245,158,11,.14)' : 'rgba(239,68,68,.12)', color: u.status === 'active' ? '#10b981' : u.status === 'invited' ? '#b45309' : '#ef4444' }}>{u.status}</span>
                   </td>
-                  <td style={{ padding: '7px 8px', color: 'var(--text-muted)', fontSize: 13 }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
+                  <td style={{ padding: '7px 8px', color: 'var(--text-muted)', fontSize: 14.5 }}>{u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : '—'}</td>
                   <td style={{ padding: '7px 8px', whiteSpace: 'nowrap' }}>
                     {editing?.id === u.id ? (
                       <>
@@ -187,14 +187,14 @@ function RolesPanel() {
   const [data, setData] = useState(null)
   const [err, setErr] = useState('')
   useEffect(() => { authFetch('/api/users/roles').then(r => r.json()).then(d => d.error ? setErr(d.error) : setData(d)).catch(() => setErr('Failed to load')) }, [])
-  if (err) return <div style={{ color: '#ef4444', fontSize: 14 }}>{err}</div>
+  if (err) return <div style={{ color: '#ef4444', fontSize: 15.5 }}>{err}</div>
   if (!data) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
   return (
     <div className="detail-section">
       <h4>What each role can do</h4>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Owner has full control. Permissions are enforced server-side; route-by-route enforcement is rolling out.</p>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 10 }}>Owner has full control. Permissions are enforced server-side; route-by-route enforcement is rolling out.</p>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ borderCollapse: 'collapse', fontSize: 13 }}>
+        <table style={{ borderCollapse: 'collapse', fontSize: 14.5 }}>
           <thead><tr>
             <th style={{ padding: '6px 8px', textAlign: 'left', position: 'sticky', left: 0, background: 'var(--bg-primary)' }}>Permission</th>
             {data.roles.map(r => <th key={r} style={{ padding: '6px 8px', writingMode: 'vertical-rl', transform: 'rotate(180deg)', color: 'var(--navy, var(--text-primary))', fontWeight: 700 }}>{ROLE_LABEL[r] || r}</th>)}
@@ -226,17 +226,17 @@ function TeamPanel() {
   return (
     <div className="detail-section">
       <h4>Team directory</h4>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Teammates you can loop into a client text and assign conversations to. (This is the contact directory — login accounts are under “Users & Access”.)</p>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 10 }}>Teammates you can loop into a client text and assign conversations to. (This is the contact directory — login accounts are under “Users & Access”.)</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
         {agents.map(a => (
           <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
             <span style={{ fontWeight: 600 }}>{a.name}</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 14 }}>{a.phone || '—'}</span>
-            {a.title && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>· {a.title}</span>}
+            <span style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>{a.phone || '—'}</span>
+            {a.title && <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>· {a.title}</span>}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => remove(a.id)}>Remove</button>
           </div>
         ))}
-        {agents.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No teammates yet.</div>}
+        {agents.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No teammates yet.</div>}
       </div>
       <form onSubmit={add} style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Name" style={{ ...fld, width: 'auto', flex: '1 1 150px' }} />
@@ -270,24 +270,24 @@ function EmailPanel() {
   return (
     <div className="detail-section">
       <h4>Connected email inboxes</h4>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Connect a Gmail account with an <b>App Password</b> (Google Account → Security → 2-Step Verification → App passwords). The Hub reads client replies from these inboxes and can pull full email history.</p>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 10 }}>Connect a Gmail account with an <b>App Password</b> (Google Account → Security → 2-Step Verification → App passwords). The Hub reads client replies from these inboxes and can pull full email history.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
         {boxes.map(b => (
           <div key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
             <span style={{ fontWeight: 600 }}>{b.user}</span>
-            <span style={{ fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: b.connected ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: b.connected ? '#10b981' : '#ef4444' }}>{b.connected ? 'connected' : 'not connected'}</span>
-            {b.last_error && <span style={{ fontSize: 13, color: '#b45309' }}>{b.last_error}</span>}
+            <span style={{ fontSize: 14.5, fontWeight: 700, padding: '2px 8px', borderRadius: 10, background: b.connected ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: b.connected ? '#10b981' : '#ef4444' }}>{b.connected ? 'connected' : 'not connected'}</span>
+            {b.last_error && <span style={{ fontSize: 14.5, color: '#b45309' }}>{b.last_error}</span>}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => test(b.id)}>Test</button>
             <button className="btn btn-sm" onClick={() => remove(b.id)}>Disconnect</button>
           </div>
         ))}
-        {boxes.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No inboxes connected yet.</div>}
+        {boxes.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No inboxes connected yet.</div>}
       </div>
       <form onSubmit={add} style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input type="email" value={form.user} onChange={e => setForm(f => ({ ...f, user: e.target.value }))} placeholder="you@gmail.com" style={{ ...fld, width: 'auto', flex: '1 1 200px' }} />
         <input type="password" value={form.app_password} onChange={e => setForm(f => ({ ...f, app_password: e.target.value }))} placeholder="16-char app password" style={{ ...fld, width: 'auto', flex: '1 1 200px' }} />
         <button className="btn btn-primary" disabled={busy}>{busy ? 'Connecting…' : '+ Connect inbox'}</button>
-        {msg && <span style={{ fontSize: 13, color: msg.startsWith('✓') ? '#10b981' : '#b45309' }}>{msg}</span>}
+        {msg && <span style={{ fontSize: 14.5, color: msg.startsWith('✓') ? '#10b981' : '#b45309' }}>{msg}</span>}
       </form>
     </div>
   )
@@ -322,10 +322,10 @@ function RoutingPanel() {
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <h4 style={{ margin: 0 }}>Automatic lead routing</h4>
-          <span style={{ fontSize: 13, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: enabled ? 'rgba(16,185,129,.12)' : 'rgba(107,114,128,.15)', color: enabled ? '#10b981' : 'var(--text-muted)' }}>{enabled ? 'ON' : 'OFF'}</span>
+          <span style={{ fontSize: 14.5, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: enabled ? 'rgba(16,185,129,.12)' : 'rgba(107,114,128,.15)', color: enabled ? '#10b981' : 'var(--text-muted)' }}>{enabled ? 'ON' : 'OFF'}</span>
           <button className={`btn btn-sm ${enabled ? '' : 'btn-primary'}`} style={{ marginLeft: 'auto' }} onClick={toggle}>{enabled ? 'Turn off' : 'Turn on'}</button>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 8 }}>
           {enabled
             ? 'ON — routing will assign matching leads per your rules when you run it. A lead that already has an agent is never reassigned automatically.'
             : 'OFF — nothing is being routed. Configure your rules below, then turn this on when you’re ready. Rules only take effect while this is ON.'}
@@ -338,15 +338,15 @@ function RoutingPanel() {
           <h4 style={{ margin: 0 }}>Routing rules ({rules.length})</h4>
           <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setEditing({ name: '', priority: 100, method: 'round_robin', conditions: {}, targets: [] })}>+ Add rule</button>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 10px' }}>Evaluated top to bottom (lowest priority number first); the first match wins.</p>
-        {rules.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No rules yet.</div> : (
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '6px 0 10px' }}>Evaluated top to bottom (lowest priority number first); the first match wins.</p>
+        {rules.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No rules yet.</div> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {rules.map(r => (
               <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', opacity: r.enabled ? 1 : 0.55 }}>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)', width: 34 }}>#{r.priority}</span>
+                <span style={{ fontSize: 14.5, color: 'var(--text-muted)', width: 34 }}>#{r.priority}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{METHOD_LABEL[r.method] || r.method} → {(r.targets || []).map(t => t.agent + (r.method === 'weighted' ? ` (${t.weight || 1})` : '')).join(', ') || '(no agents)'}</div>
+                  <div style={{ fontWeight: 600, fontSize: 15.5 }}>{r.name}</div>
+                  <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{METHOD_LABEL[r.method] || r.method} → {(r.targets || []).map(t => t.agent + (r.method === 'weighted' ? ` (${t.weight || 1})` : '')).join(', ') || '(no agents)'}</div>
                 </div>
                 <button className="btn btn-sm" onClick={() => toggleRule(r)}>{r.enabled ? 'Disable' : 'Enable'}</button>
                 <button className="btn btn-sm" onClick={() => setEditing(r)}>Edit</button>
@@ -360,13 +360,13 @@ function RoutingPanel() {
       {/* Run */}
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <h4>Run on unassigned leads</h4>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 8px' }}>Preview shows what would happen without changing anything. Apply actually assigns (requires routing ON).</p>
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '4px 0 8px' }}>Preview shows what would happen without changing anything. Apply actually assigns (requires routing ON).</p>
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="btn btn-sm" onClick={() => run(false)}>👁 Preview</button>
           <button className="btn btn-primary btn-sm" onClick={() => run(true)} disabled={!enabled} title={enabled ? '' : 'Turn routing on first'}>Apply</button>
         </div>
         {runResult && (
-          <div style={{ marginTop: 10, fontSize: 13 }}>
+          <div style={{ marginTop: 10, fontSize: 14.5 }}>
             {!runResult.ok ? <span style={{ color: '#b45309' }}>{runResult.reason}</span> : (
               <>
                 <div>{runResult.dryRun ? 'Would route' : 'Routed'} <b>{runResult.routed}</b> of {runResult.considered} unassigned leads.</div>
@@ -380,8 +380,8 @@ function RoutingPanel() {
       {/* History */}
       <div className="detail-section">
         <h4>Recent routing history</h4>
-        {history.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No routing has happened yet.</div> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+        {history.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No routing has happened yet.</div> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 14.5 }}>
             {history.map(h => (
               <div key={h.id} style={{ display: 'flex', gap: 10, borderBottom: '1px solid var(--border)', padding: '4px 0' }}>
                 <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{h.created_at ? new Date(h.created_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
@@ -419,19 +419,19 @@ function RuleEditor({ rule, agents, onClose, onSaved }) {
       <div onClick={e => e.stopPropagation()} style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 20, width: 560, maxWidth: '96vw', maxHeight: '90vh', overflowY: 'auto' }}>
         <h4 style={{ marginTop: 0 }}>{rule.id ? 'Edit rule' : 'New routing rule'}</h4>
         <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1.5fr', gap: 8, marginBottom: 10 }}>
-          <label style={{ fontSize: 13 }}>Name<input value={f.name} onChange={e => setF(s => ({ ...s, name: e.target.value }))} style={inp} /></label>
-          <label style={{ fontSize: 13 }}>Priority<input type="number" value={f.priority} onChange={e => setF(s => ({ ...s, priority: e.target.value }))} style={inp} /></label>
-          <label style={{ fontSize: 13 }}>Method<select value={f.method} onChange={e => setF(s => ({ ...s, method: e.target.value }))} style={inp}>{Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
+          <label style={{ fontSize: 14.5 }}>Name<input value={f.name} onChange={e => setF(s => ({ ...s, name: e.target.value }))} style={inp} /></label>
+          <label style={{ fontSize: 14.5 }}>Priority<input type="number" value={f.priority} onChange={e => setF(s => ({ ...s, priority: e.target.value }))} style={inp} /></label>
+          <label style={{ fontSize: 14.5 }}>Method<select value={f.method} onChange={e => setF(s => ({ ...s, method: e.target.value }))} style={inp}>{Object.entries(METHOD_LABEL).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></label>
         </div>
-        <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 6px' }}>Conditions (leave blank = matches anything)</div>
+        <div style={{ fontSize: 14.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '4px 0 6px' }}>Conditions (leave blank = matches anything)</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
           {[['sources', 'Sources'], ['cities', 'Cities'], ['zips', 'ZIP codes'], ['types', 'Types (buyer/seller/both)'], ['statuses', 'Statuses'], ['tags_any', 'Tags (any of)']].map(([k, label]) => (
-            <label key={k} style={{ fontSize: 13 }}>{label}<input value={csv(f.conditions[k])} onChange={e => setC(k, fromCsv(e.target.value))} placeholder="comma-separated" style={inp} /></label>
+            <label key={k} style={{ fontSize: 14.5 }}>{label}<input value={csv(f.conditions[k])} onChange={e => setC(k, fromCsv(e.target.value))} placeholder="comma-separated" style={inp} /></label>
           ))}
-          <label style={{ fontSize: 13 }}>Min price<input type="number" value={f.conditions.price_min || ''} onChange={e => setC('price_min', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
-          <label style={{ fontSize: 13 }}>Max price<input type="number" value={f.conditions.price_max || ''} onChange={e => setC('price_max', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
+          <label style={{ fontSize: 14.5 }}>Min price<input type="number" value={f.conditions.price_min || ''} onChange={e => setC('price_min', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
+          <label style={{ fontSize: 14.5 }}>Max price<input type="number" value={f.conditions.price_max || ''} onChange={e => setC('price_max', e.target.value ? Number(e.target.value) : undefined)} style={inp} /></label>
         </div>
-        <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '12px 0 6px' }}>Assign to</div>
+        <div style={{ fontSize: 14.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '12px 0 6px' }}>Assign to</div>
         {f.targets.map((t, i) => (
           <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
             <select value={t.agent} onChange={e => setF(s => { const ts = [...s.targets]; ts[i] = { ...ts[i], agent: e.target.value }; return { ...s, targets: ts } })} style={{ ...inp, flex: 1 }}>
@@ -489,9 +489,9 @@ function HealthPanel() {
     try { const d = await authFetch('/api/gdrive/backup-now', { method: 'POST' }).then(r => r.json()); if (d.error) notify('Backup failed: ' + d.error); else if (d.skipped) notify('Skipped: ' + d.skipped); else notify(`Backed up ${d.uploaded} (${d.sizeKb} KB) to Google Drive → Matt Smith Team Hub / Render.`); load() }
     catch (e) { notify('Backup failed: ' + e.message) } finally { setGBusy(false) }
   }
-  if (err) return <div className="detail-section"><h4>System Health</h4><div style={{ color: '#ef4444', fontSize: 14 }}>{err}</div></div>
+  if (err) return <div className="detail-section"><h4>System Health</h4><div style={{ color: '#ef4444', fontSize: 15.5 }}>{err}</div></div>
   const b = health?.backup
-  const badge = (ok, okText, badText) => <span style={{ fontSize: 13, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
+  const badge = (ok, okText, badText) => <span style={{ fontSize: 14.5, fontWeight: 700, padding: '2px 9px', borderRadius: 10, background: ok ? 'rgba(16,185,129,.12)' : 'rgba(239,68,68,.12)', color: ok ? '#10b981' : '#ef4444' }}>{ok ? okText : badText}</span>
   return (
     <div>
       {/* Integrations + queues (P2-6) */}
@@ -501,8 +501,8 @@ function HealthPanel() {
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             {Object.entries(intg.integrations).map(([k, v]) => (
               <div key={k} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px', minWidth: 150 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{badge(v.ok, 'OK', 'Off')}<span style={{ fontWeight: 600, fontSize: 14, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</span></div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{v.detail}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>{badge(v.ok, 'OK', 'Off')}<span style={{ fontWeight: 600, fontSize: 15.5, textTransform: 'capitalize' }}>{k.replace(/_/g, ' ')}</span></div>
+                <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 3 }}>{v.detail}</div>
               </div>
             ))}
           </div>
@@ -510,19 +510,19 @@ function HealthPanel() {
           <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
             {Object.entries(intg.queues).map(([k, v]) => (
               <div key={k} style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: v > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{v}</div>
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: v > 0 ? '#f59e0b' : 'var(--text-primary)' }}>{v}</div>
+                <div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>{k.replace(/_/g, ' ')}</div>
               </div>
             ))}
           </div>
-          {intg.sync?.last_error && <div style={{ fontSize: 13, color: '#ef4444', marginTop: 10 }}>Last sync error: {intg.sync.last_error.message}</div>}
+          {intg.sync?.last_error && <div style={{ fontSize: 14.5, color: '#ef4444', marginTop: 10 }}>Last sync error: {intg.sync.last_error.message}</div>}
         </div>
       )}
 
       {/* Data export (P2-7) */}
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <h4>Data Export</h4>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 0 }}>Download your data as CSV. Secrets, logins, and keys are never exported.</p>
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 0 }}>Download your data as CSV. Secrets, logins, and keys are never exported.</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {['clients', 'transactions', 'tasks', 'notes', 'communications'].map(t => (
             <button key={t} className="btn btn-sm btn-secondary" onClick={() => exportTable(t)}>⬇ {t}.csv</button>
@@ -534,15 +534,15 @@ function HealthPanel() {
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <h4>Database</h4>
         {!dbh ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div> : (
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 14 }}>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Integrity</div>{badge(dbh.integrity_ok, `✓ ${dbh.quick_check}`, `⚠ ${dbh.quick_check || 'unknown'}`)}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Size</div>{dbh.size_mb} MB</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Persistent</div>{badge(dbh.is_persistent, 'yes (disk)', 'no (ephemeral)')}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Journal</div>{dbh.journal_mode || '—'}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tables</div>{dbh.tables ?? '—'}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Migrations</div>{dbh.migrations ?? '—'}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clients</div>{dbh.clients?.toLocaleString?.() ?? '—'}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sync errors (24h)</div>{badge(!dbh.recent_sync_errors, '0', String(dbh.recent_sync_errors))}</div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 15.5 }}>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Integrity</div>{badge(dbh.integrity_ok, `✓ ${dbh.quick_check}`, `⚠ ${dbh.quick_check || 'unknown'}`)}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Size</div>{dbh.size_mb} MB</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Persistent</div>{badge(dbh.is_persistent, 'yes (disk)', 'no (ephemeral)')}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Journal</div>{dbh.journal_mode || '—'}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Tables</div>{dbh.tables ?? '—'}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Migrations</div>{dbh.migrations ?? '—'}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Clients</div>{dbh.clients?.toLocaleString?.() ?? '—'}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Sync errors (24h)</div>{badge(!dbh.recent_sync_errors, '0', String(dbh.recent_sync_errors))}</div>
           </div>
         )}
       </div>
@@ -551,15 +551,15 @@ function HealthPanel() {
       <div className="detail-section" style={{ marginBottom: 16 }}>
         <h4>Backups</h4>
         {!b ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div> : (
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 14 }}>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(b.ok, '✓ Healthy', '⚠ Attention')}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Newest backup</div>{b.newest ? `${b.newest.name.replace('realestate-hub.db.', '')} · ${b.newest.sizeKb} KB` : '— none —'}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Age</div>{b.age_hours != null ? `${b.age_hours}h ` : '—'}{badge(!b.stale, 'fresh', 'stale')}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Verified usable</div>{badge(b.verified, `✓ integrity ok${b.verify?.clients != null ? ` · ${b.verify.clients} clients` : ''}`, '⚠ not verified')}</div>
-            <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total on disk</div>{b.count}</div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 15.5 }}>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(b.ok, '✓ Healthy', '⚠ Attention')}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Newest backup</div>{b.newest ? `${b.newest.name.replace('realestate-hub.db.', '')} · ${b.newest.sizeKb} KB` : '— none —'}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Age</div>{b.age_hours != null ? `${b.age_hours}h ` : '—'}{badge(!b.stale, 'fresh', 'stale')}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Verified usable</div>{badge(b.verified, `✓ integrity ok${b.verify?.clients != null ? ` · ${b.verify.clients} clients` : ''}`, '⚠ not verified')}</div>
+            <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total on disk</div>{b.count}</div>
           </div>
         )}
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>Each backup is opened and integrity-checked, so “verified usable” means a real, restorable database — not just that the backup job ran.</p>
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 8 }}>Each backup is opened and integrity-checked, so “verified usable” means a real, restorable database — not just that the backup job ran.</p>
       </div>
 
       {/* Off-site backup: Google Drive */}
@@ -569,9 +569,9 @@ function HealthPanel() {
           const g = health?.gdrive
           if (!g) return <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
           if (!g.oauth_configured) return (
-            <div style={{ fontSize: 14 }}>
+            <div style={{ fontSize: 15.5 }}>
               <div style={{ color: '#b45309', marginBottom: 8 }}>⚠ Not set up yet. Create a Google OAuth client, then paste it here (one-time).</div>
-              <ol style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, margin: '0 0 10px 18px' }}>
+              <ol style={{ fontSize: 14.5, color: 'var(--text-muted)', lineHeight: 1.7, margin: '0 0 10px 18px' }}>
                 <li>Google Cloud Console → APIs &amp; Services → <b>Enable the Google Drive API</b>.</li>
                 <li>Credentials → Create OAuth client ID → type <b>Web application</b>.</li>
                 <li>Add this Authorized redirect URI: <code style={{ background: 'var(--bg-secondary)', padding: '1px 5px', borderRadius: 4 }}>{window.location.origin}/api/gdrive/callback</code></li>
@@ -587,15 +587,15 @@ function HealthPanel() {
           )
           if (!g.connected) return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>Not connected. Backups go to <b>{g.folder}</b>.</span>
+              <span style={{ fontSize: 15.5, color: 'var(--text-muted)' }}>Not connected. Backups go to <b>{g.folder}</b>.</span>
               <a className="btn btn-primary btn-sm" href="/api/gdrive/connect">🔗 Connect Google Drive</a>
             </div>
           )
           return (
-            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 14, alignItems: 'center' }}>
-              <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(true, '✓ Connected', '')}</div>
-              <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Folder</div>{g.folder}</div>
-              <div><div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Last off-site backup</div>{g.last_backup_at ? `${new Date(g.last_backup_at).toLocaleString()}${g.last_backup_kb ? ` · ${g.last_backup_kb} KB` : ''}` : '— none yet —'}</div>
+            <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 15.5, alignItems: 'center' }}>
+              <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Status</div>{badge(true, '✓ Connected', '')}</div>
+              <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Folder</div>{g.folder}</div>
+              <div><div style={{ fontSize: 14.5, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Last off-site backup</div>{g.last_backup_at ? `${new Date(g.last_backup_at).toLocaleString()}${g.last_backup_kb ? ` · ${g.last_backup_kb} KB` : ''}` : '— none yet —'}</div>
               <button className="btn btn-sm" onClick={gdriveBackupNow} disabled={gBusy}>{gBusy ? 'Backing up…' : '⤒ Back up now'}</button>
               <a className="btn btn-sm" href="/api/gdrive/connect" title="Reconnect a different Google account">Reconnect</a>
             </div>
@@ -610,19 +610,19 @@ function HealthPanel() {
           {failures.length > 0 && <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={resolveAll}>Resolve all</button>}
           <button className="btn btn-sm" onClick={load}>↻ Refresh</button>
         </div>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 8px' }}>Failed sends, backups, and background jobs — nothing is silently lost.</p>
+        <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '6px 0 8px' }}>Failed sends, backups, and background jobs — nothing is silently lost.</p>
         {failures.length === 0 ? (
-          <div style={{ color: '#10b981', fontSize: 14 }}>✓ No open failures.</div>
+          <div style={{ color: '#10b981', fontSize: 15.5 }}>✓ No open failures.</div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {failures.map(f => (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 12px' }}>
-                <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,.12)', color: '#ef4444' }}>{f.kind}</span>
+                <span style={{ fontSize: 14.5, fontWeight: 700, textTransform: 'uppercase', padding: '2px 7px', borderRadius: 8, background: 'rgba(239,68,68,.12)', color: '#ef4444' }}>{f.kind}</span>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600 }}>{f.summary || '(no summary)'}{f.retry_count > 0 && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 400 }}> · recurred {f.retry_count}×</span>}</div>
-                  <div style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.last_error}</div>
+                  <div style={{ fontSize: 15.5, fontWeight: 600 }}>{f.summary || '(no summary)'}{f.retry_count > 0 && <span style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 400 }}> · recurred {f.retry_count}×</span>}</div>
+                  <div style={{ fontSize: 14.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.last_error}</div>
                 </div>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{f.updated_at ? new Date(f.updated_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
+                <span style={{ fontSize: 14.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{f.updated_at ? new Date(f.updated_at.replace(' ', 'T') + 'Z').toLocaleString() : ''}</span>
                 <button className="btn btn-sm" onClick={() => resolve(f.id)}>Resolve</button>
               </div>
             ))}
@@ -638,14 +638,14 @@ function AuditPanel() {
   const [rows, setRows] = useState([])
   const [err, setErr] = useState('')
   useEffect(() => { authFetch('/api/users/audit?limit=200').then(r => r.json()).then(d => Array.isArray(d) ? setRows(d) : setErr(d.error || 'Not permitted')).catch(() => setErr('Failed to load')) }, [])
-  if (err) return <div className="detail-section"><h4>Audit log</h4><div style={{ color: '#ef4444', fontSize: 14 }}>{err}</div></div>
+  if (err) return <div className="detail-section"><h4>Audit log</h4><div style={{ color: '#ef4444', fontSize: 15.5 }}>{err}</div></div>
   return (
     <div className="detail-section">
       <h4>System audit log</h4>
-      <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Logins, user/role changes, password resets, and permission checks. Newest first.</p>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 10 }}>Logins, user/role changes, password resets, and permission checks. Newest first.</p>
       <div style={{ overflowX: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
-          <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 13, textTransform: 'uppercase' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5 }}>
+          <thead><tr style={{ textAlign: 'left', color: 'var(--text-muted)', fontSize: 14.5, textTransform: 'uppercase' }}>
             <th style={{ padding: '5px 8px' }}>When</th><th style={{ padding: '5px 8px' }}>Action</th><th style={{ padding: '5px 8px' }}>Actor</th><th style={{ padding: '5px 8px' }}>Target</th><th style={{ padding: '5px 8px' }}>IP</th>
           </tr></thead>
           <tbody>
@@ -655,7 +655,7 @@ function AuditPanel() {
                 <td style={{ padding: '5px 8px', fontFamily: 'monospace' }}>{r.action}</td>
                 <td style={{ padding: '5px 8px' }}>{r.actor || '—'}</td>
                 <td style={{ padding: '5px 8px', color: 'var(--text-muted)' }}>{r.entity_type ? `${r.entity_type}${r.entity_id ? ' #' + r.entity_id : ''}` : '—'}</td>
-                <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 13 }}>{r.ip_address || ''}</td>
+                <td style={{ padding: '5px 8px', color: 'var(--text-muted)', fontSize: 14.5 }}>{r.ip_address || ''}</td>
               </tr>
             ))}
             {rows.length === 0 && <tr><td colSpan={5} style={{ padding: 12, color: 'var(--text-muted)' }}>No audit entries yet.</td></tr>}

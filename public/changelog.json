@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-30T16:22:20.213Z",
+  "generated_at": "2026-09-30T16:54:00.111Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ee984e9",
+      "date": "2026-09-30T11:23:44-05:00",
+      "subject": "Type: raise the inline sizes, because the tokens were not controlling them",
+      "title": "Type: raise the inline sizes, because the tokens were not controlling them",
+      "body": "Matching the tokens to FUB barely changed anything on screen, and the live page showed why:\n1,228 inline `fontSize` declarations across the JSX beat any stylesheet rule, and the app's\ndominant size was 12px (661 uses), not the 14px token. The Clients list is not even a\ntable - it is divs - so the table rules reached almost nothing.\n\nOne step up, applied to 1,103 sites across 41 files:\n\n     661   12px -> 13px\n     301   13px -> 14px\n     122   12.5px -> 13px\n      13   13.5px -> 14px\n       6   11px -> 12px\n\nAnything already 14px or larger is untouched. Those are headings and deliberate emphasis;\nmoving them would change the hierarchy rather than the legibility, and the ask was\nlegibility.\n\nThe codemod is kept at scripts/bump-inline-type.mjs. It only rewrites a NUMERIC fontSize\ninside a style object, so string values like '0.9em' are left alone - those are relative\nalready and scale on their own.\n\nThe real lesson is that this app cannot be restyled from app.css alone. 1,228 inline sizes\nis the actual design system, and the tokens are decoration until that is reversed.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d5a8c91",
       "date": "2026-09-30T10:51:28-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-20T17:28:16-05:00",
       "subject": "templates: probe + import FUB text templates (tries several FUB endpoints); Sierra has no template API",
       "title": "templates: probe + import FUB text templates (tries several FUB endpoints); Sierra has no template API",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "748dacd",
-      "date": "2026-08-20T17:19:17-05:00",
-      "subject": "AI text tweaks: greet with Hi/Hello never Hey (prompt + safety net); property type = single-family vs condo, plus home style (ranch/two-story/other)",
-      "title": "AI text tweaks: greet with Hi/Hello never Hey (prompt + safety net); property type = single-family vs condo, plus home style (ranch/two-story/other)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

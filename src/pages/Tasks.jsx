@@ -445,7 +445,7 @@ export default function Tasks() {
                         )}
                       </div>
                       {item.status === 'done' && item.completed_at && (
-                        <div style={{marginTop: 6, fontSize: 13, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4}} title={new Date(item.completed_at).toLocaleString()}>
+                        <div style={{marginTop: 6, fontSize: 14.5, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4}} title={new Date(item.completed_at).toLocaleString()}>
                           ✓ Completed {new Date(item.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })}
                         </div>
                       )}
@@ -454,7 +454,7 @@ export default function Tasks() {
                           <button
                             type="button"
                             className="btn-sm btn-secondary"
-                            style={{fontSize: 13, padding: '2px 8px'}}
+                            style={{fontSize: 14.5, padding: '2px 8px'}}
                             onClick={(e) => { e.stopPropagation(); openNudge(item) }}
                             title="Send a quick email reminder to Matt or Leo about this task"
                           >👋 Nudge</button>
@@ -475,7 +475,7 @@ export default function Tasks() {
             </div>
             <div className="kanban-cards">
               {txDeadlines.length === 0 ? (
-                <div style={{padding: '20px 12px', color: 'var(--text-muted)', fontSize: 13, textAlign: 'center'}}>
+                <div style={{padding: '20px 12px', color: 'var(--text-muted)', fontSize: 14.5, textAlign: 'center'}}>
                   No upcoming deadlines on active transactions.
                 </div>
               ) : txDeadlines.map((it, idx) => {
@@ -500,10 +500,10 @@ export default function Tasks() {
                     <div className="kanban-card-top">
                       {tag ? (
                         <span style={{
-                          fontSize: 13, fontWeight: 700, color: c, letterSpacing: 0.4,
+                          fontSize: 14.5, fontWeight: 700, color: c, letterSpacing: 0.4,
                         }}>{tag}</span>
                       ) : (
-                        <span style={{fontSize: 13, color: 'var(--text-muted)'}}>UPCOMING</span>
+                        <span style={{fontSize: 14.5, color: 'var(--text-muted)'}}>UPCOMING</span>
                       )}
                     </div>
                     <div className="kanban-card-title">{it.label}</div>
@@ -512,10 +512,10 @@ export default function Tasks() {
                     </div>
                     <div className="kanban-card-footer">
                       <span style={{color: c, fontWeight: 600}}>{dateStr}</span>
-                      <span style={{color: 'var(--text-muted)', fontSize: 13}}>{daysOut}</span>
+                      <span style={{color: 'var(--text-muted)', fontSize: 14.5}}>{daysOut}</span>
                     </div>
                     {it.status && (
-                      <div style={{fontSize: 13, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>
+                      <div style={{fontSize: 14.5, color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 4}}>{it.status}</div>
                     )}
                   </div>
                 )
@@ -546,12 +546,12 @@ export default function Tasks() {
                 : filteredTasks.map(item => (
                 <tr key={item.id} className={item.status === 'done' ? 'row-done' : ''}>
                   <td><input type="checkbox" checked={item.status === 'done'} onChange={() => toggleDone(item)} /></td>
-                  <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}{item.related_name && <div style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 400 }}>👤 {item.related_name}</div>}</td>
+                  <td className="cell-primary" onClick={() => openEdit(item)}>{item.title}{item.related_name && <div style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 400 }}>👤 {item.related_name}</div>}</td>
                   <td><StatusBadge status={item.priority} /></td>
                   <td><StatusBadge status={item.status} /></td>
                   <td>{item.assigned_to || '—'}</td>
                   <td className={item.due_date && item.due_date < today && item.status !== 'done' ? 'overdue' : ''}>{item.due_date || '—'}</td>
-                  <td style={{color: item.completed_at ? '#10b981' : 'var(--text-muted)', fontSize: 13}} title={item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}>
+                  <td style={{color: item.completed_at ? '#10b981' : 'var(--text-muted)', fontSize: 14.5}} title={item.completed_at ? new Date(item.completed_at).toLocaleString() : ''}>
                     {item.completed_at
                       ? new Date(item.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: '2-digit' })
                       : '—'}
@@ -619,7 +619,7 @@ export default function Tasks() {
               {agents.map(a => <option key={a} value={a}>{a}</option>)}
               {form.assigned_to && !agents.includes(form.assigned_to) && <option value={form.assigned_to}>{form.assigned_to}</option>}
             </select></label>
-            <label style={{ alignSelf: 'flex-end', fontSize: 13, color: 'var(--text-muted)', fontWeight: 400 }}>
+            <label style={{ alignSelf: 'flex-end', fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 400 }}>
               With a time + assignee, we email a calendar invite and ping Slack 30 &amp; 5 min before it's due.
             </label>
           </div>
@@ -629,18 +629,18 @@ export default function Tasks() {
             const notes = parseNotes(form.notes_log)
             return (
               <div style={{marginTop: 16, padding: '12px 14px', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6}}>
-                <h4 style={{margin: '0 0 10px', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--accent)'}}>📝 Notes ({notes.length})</h4>
+                <h4 style={{margin: '0 0 10px', fontSize: 15.5, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--accent)'}}>📝 Notes ({notes.length})</h4>
                 {notes.length > 0 && (
                   <div style={{maxHeight: 240, overflowY: 'auto', marginBottom: 12, display: 'flex', flexDirection: 'column', gap: 8}}>
                     {notes.map((nt, i) => (
-                      <div key={i} style={{padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 4, fontSize: 14, position: 'relative'}}>
-                        <div style={{fontSize: 13, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 8}}>
+                      <div key={i} style={{padding: '8px 10px', background: 'var(--bg-secondary)', borderRadius: 4, fontSize: 15.5, position: 'relative'}}>
+                        <div style={{fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 4, display: 'flex', justifyContent: 'space-between', gap: 8}}>
                           <span>
                             {nt.by ? <strong>{nt.by}</strong> : <em>—</em>}
                             {' · '}
                             {nt.at ? new Date(nt.at).toLocaleString(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
                           </span>
-                          <button type="button" className="btn-sm btn-danger" style={{padding: '0 6px', fontSize: 13}} onClick={() => removeNote(i)} title="Delete this note">✕</button>
+                          <button type="button" className="btn-sm btn-danger" style={{padding: '0 6px', fontSize: 14.5}} onClick={() => removeNote(i)} title="Delete this note">✕</button>
                         </div>
                         <div style={{whiteSpace: 'pre-wrap', wordBreak: 'break-word'}}>{nt.text}</div>
                       </div>
@@ -662,7 +662,7 @@ export default function Tasks() {
                   />
                   <button type="button" className="btn btn-sm btn-primary" disabled={!noteText.trim()} onClick={addNote}>Add</button>
                 </div>
-                <div style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 4}}>Tip: Cmd/Ctrl + Enter to add quickly</div>
+                <div style={{fontSize: 14.5, color: 'var(--text-muted)', marginTop: 4}}>Tip: Cmd/Ctrl + Enter to add quickly</div>
               </div>
             )
           })()}
@@ -729,7 +729,7 @@ export default function Tasks() {
           />
         </label>
         {nudgeTask && (
-          <div className="muted" style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, fontSize: 13, marginTop: 8}}>
+          <div className="muted" style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, fontSize: 14.5, marginTop: 8}}>
             <strong>Task preview:</strong><br/>
             {nudgeTask.title}<br/>
             Status: {(nudgeTask.status || '').replace(/_/g, ' ')} · Priority: {nudgeTask.priority}
@@ -761,7 +761,7 @@ export default function Tasks() {
             null
           return (
             <div>
-              <div style={{fontSize: 14, color: 'var(--text-muted)', marginBottom: 14}}>
+              <div style={{fontSize: 15.5, color: 'var(--text-muted)', marginBottom: 14}}>
                 <strong style={{color: 'var(--text-primary)'}}>{it.address}</strong>
               </div>
 

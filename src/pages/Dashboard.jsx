@@ -42,20 +42,20 @@ function Section({ title, link, linkLabel, children, accent }) {
   return (
     <div className="card" style={{ padding: '14px 16px', borderTop: accent ? `3px solid ${accent}` : undefined }}>
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 10 }}>
-        <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{title}</h3>
-        {link && <Link to={link} style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600 }}>{linkLabel || 'View →'}</Link>}
+        <h3 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{title}</h3>
+        {link && <Link to={link} style={{ marginLeft: 'auto', fontSize: 14.5, fontWeight: 600 }}>{linkLabel || 'View →'}</Link>}
       </div>
       {children}
     </div>
   )
 }
-const Empty = ({ children }) => <div style={{ fontSize: 14, color: 'var(--text-muted)', padding: '4px 0' }}>{children}</div>
+const Empty = ({ children }) => <div style={{ fontSize: 15.5, color: 'var(--text-muted)', padding: '4px 0' }}>{children}</div>
 
 // A clickable count chip (pipeline / prospecting rows).
 function Chip({ to, label, value, tone }) {
   const colors = { red: '#ef4444', amber: '#d97706', green: '#059669', purple: '#7c3aed', blue: '#2563eb' }
   const inner = (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-secondary)', fontSize: 13, cursor: to ? 'pointer' : 'default' }}>
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 14, border: '1px solid var(--border)', background: 'var(--bg-secondary)', fontSize: 14.5, cursor: to ? 'pointer' : 'default' }}>
       <span style={{ color: 'var(--text-secondary)' }}>{label}</span>
       <strong style={{ color: tone ? colors[tone] : 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>{Number(value || 0).toLocaleString()}</strong>
     </span>
@@ -166,7 +166,7 @@ export default function Dashboard() {
       {loadError && !data && <LoadErrorBanner what="the dashboard" onRetry={load} />}
       <div className="page-header" style={{ marginBottom: 10 }}>
         <div>
-          <h1 style={{ marginBottom: 2 }}>{greeting}{firstName ? `, ${firstName}` : ''} {refreshing && <span style={{ fontSize: 13, color: 'var(--text-muted)', fontWeight: 400 }}>· refreshing…</span>}</h1>
+          <h1 style={{ marginBottom: 2 }}>{greeting}{firstName ? `, ${firstName}` : ''} {refreshing && <span style={{ fontSize: 14.5, color: 'var(--text-muted)', fontWeight: 400 }}>· refreshing…</span>}</h1>
           <p className="page-subtitle">{dateLine}</p>
         </div>
       </div>
@@ -195,13 +195,13 @@ export default function Dashboard() {
                   return (
                     <div key={i} style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 8, padding: '8px 10px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <strong style={{ fontSize: 14 }}>{a.client_id ? <Link to={`/clients/${a.client_id}`} style={{ color: 'inherit' }}>{a.name}</Link> : a.name}</strong>
-                        <span style={{ fontSize: 13, fontWeight: 800, color: meta.color, letterSpacing: '.04em' }}>{meta.badge}</span>
-                        {a.intent != null && <span style={{ fontSize: 13, fontWeight: 700, background: 'rgba(37,99,235,.12)', color: '#2563eb', borderRadius: 10, padding: '1px 7px' }}>Intent {a.intent}</span>}
-                        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(a.at)}</span>
+                        <strong style={{ fontSize: 15.5 }}>{a.client_id ? <Link to={`/clients/${a.client_id}`} style={{ color: 'inherit' }}>{a.name}</Link> : a.name}</strong>
+                        <span style={{ fontSize: 14.5, fontWeight: 800, color: meta.color, letterSpacing: '.04em' }}>{meta.badge}</span>
+                        {a.intent != null && <span style={{ fontSize: 14.5, fontWeight: 700, background: 'rgba(37,99,235,.12)', color: '#2563eb', borderRadius: 10, padding: '1px 7px' }}>Intent {a.intent}</span>}
+                        <span style={{ marginLeft: 'auto', fontSize: 14.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(a.at)}</span>
                       </div>
-                      <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 2 }}>{a.reason}{a.agent ? ` · ${a.agent}` : ''}</div>
-                      {a.detail && <div style={{ fontSize: 13, marginTop: 3, fontStyle: 'italic' }}>“{a.detail}”</div>}
+                      <div style={{ fontSize: 14.5, color: 'var(--text-secondary)', marginTop: 2 }}>{a.reason}{a.agent ? ` · ${a.agent}` : ''}</div>
+                      {a.detail && <div style={{ fontSize: 14.5, marginTop: 3, fontStyle: 'italic' }}>“{a.detail}”</div>}
                       <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
                         {a.client_id && <Link className="btn btn-sm btn-primary" to={`/inbox?client=${a.client_id}`}>Reply</Link>}
                         {a.client_id && <Link className="btn btn-sm" to={`/clients/${a.client_id}`}>Open</Link>}
@@ -228,12 +228,12 @@ export default function Dashboard() {
             <button className="btn btn-sm btn-primary" disabled={mfBusy} onClick={syncMasterFiles}>
               {mfBusy ? 'Checking master files…' : '🔄 Check Master Files Now'}
             </button>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>
               Auto-checks hourly · Last: {timeAgo(masterUpdates.expired_last_sync || masterUpdates.fsbo_last_sync) || '—'}
             </span>
           </div>
-          {mfResult && <div style={{ fontSize: 13, marginBottom: 8, color: mfResult.startsWith('✓') ? '#059669' : '#dc2626' }}>{mfResult}</div>}
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em', marginBottom: 6 }}>
+          {mfResult && <div style={{ fontSize: 14.5, marginBottom: 8, color: mfResult.startsWith('✓') ? '#059669' : '#dc2626' }}>{mfResult}</div>}
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-muted)', letterSpacing: '.04em', marginBottom: 6 }}>
             {masterUpdates.showing === 'recent' ? 'NO CHANGES YET TODAY — MOST RECENT:' : `TODAY: ${masterUpdates.today_count} CHANGE${masterUpdates.today_count === 1 ? '' : 'S'}`}
           </div>
           {(masterUpdates.items || []).length === 0
@@ -245,18 +245,18 @@ export default function Dashboard() {
                 return (
                   <div key={u.id} style={{ display: 'flex', gap: 8, alignItems: 'baseline', padding: '4px 2px', borderBottom: '1px solid var(--border)' }}>
                     <span style={{ color: meta[1], fontWeight: 800 }}>{meta[0]}</span>
-                    <span style={{ fontSize: 13, flex: 1 }}>
+                    <span style={{ fontSize: 14.5, flex: 1 }}>
                       <Link to={u.client_id ? `/clients/${u.client_id}` : '/clients'} style={{ color: 'inherit', textDecoration: 'none' }}><strong>{u.client_name}</strong></Link>
-                      <span style={{ fontSize: 13, fontWeight: 800, marginLeft: 6, color: meta[1] }}>{label}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : (u.sub || 'Cancelled/Expired').toUpperCase()}</span>
-                      <div style={{ color: 'var(--text-secondary)', fontSize: 13, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
+                      <span style={{ fontSize: 14.5, fontWeight: 800, marginLeft: 6, color: meta[1] }}>{label}</span>
+                      <span style={{ fontSize: 14.5, fontWeight: 700, marginLeft: 6, color: u.list === 'fsbo' ? '#7c3aed' : '#2563eb' }}>{u.list === 'fsbo' ? 'FSBO' : (u.sub || 'Cancelled/Expired').toUpperCase()}</span>
+                      <div style={{ color: 'var(--text-secondary)', fontSize: 14.5, display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'baseline' }}>
                         <span>{u.address || u.detail}</span>
                         {u.dom != null && u.dom !== '' && <span style={{ color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>DOM {u.dom}</span>}
-                        {u.url && <a href={u.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 13, whiteSpace: 'nowrap' }}>View listing →</a>}
+                        {u.url && <a href={u.url} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} style={{ fontSize: 14.5, whiteSpace: 'nowrap' }}>View listing →</a>}
                       </div>
-                      {u.address && /price/i.test(label) && <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>{u.detail.split(' — ')[0]}</div>}
+                      {u.address && /price/i.test(label) && <div style={{ color: 'var(--text-muted)', fontSize: 14.5 }}>{u.detail.split(' — ')[0]}</div>}
                     </span>
-                    <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(u.created_at)}</span>
+                    <span style={{ fontSize: 14.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{timeAgo(u.created_at)}</span>
                   </div>
                 )
               })}
@@ -284,13 +284,13 @@ export default function Dashboard() {
         </Section>
         <Section title="Transactions" link="/transactions" accent="#2563eb">
           <div style={{ display: 'flex', gap: 14, marginBottom: 8 }}>
-            <div><div style={{ fontSize: 22, fontWeight: 800 }}>{tx.open ?? 0}</div><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Open / Pending</div></div>
-            <div><div style={{ fontSize: 22, fontWeight: 800, color: tx.deadlines_today ? '#d97706' : 'var(--text-primary)' }}>{tx.deadlines_today ?? 0}</div><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Deadlines Today</div></div>
+            <div><div style={{ fontSize: 24, fontWeight: 800 }}>{tx.open ?? 0}</div><div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Open / Pending</div></div>
+            <div><div style={{ fontSize: 24, fontWeight: 800, color: tx.deadlines_today ? '#d97706' : 'var(--text-primary)' }}>{tx.deadlines_today ?? 0}</div><div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Deadlines Today</div></div>
           </div>
           {(tx.closings_7d || []).length === 0 ? <Empty>No closings in the next 7 days.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
               {tx.closings_7d.map((c, i) => (
-                <Link key={i} to="/transactions" style={{ display: 'flex', gap: 8, fontSize: 13, textDecoration: 'none', color: 'inherit' }}>
+                <Link key={i} to="/transactions" style={{ display: 'flex', gap: 8, fontSize: 14.5, textDecoration: 'none', color: 'inherit' }}>
                   <strong style={{ minWidth: 52, color: '#2563eb' }}>{fmtDay(c.date)}</strong>
                   <span>Closing · {c.address}</span>
                 </Link>
@@ -298,7 +298,7 @@ export default function Dashboard() {
             </div>
           )}
           {(tx.deadline_items || []).length > 0 && (
-            <div style={{ marginTop: 8, fontSize: 13, color: '#d97706' }}>
+            <div style={{ marginTop: 8, fontSize: 14.5, color: '#d97706' }}>
               {tx.deadline_items.map((d, i) => <div key={i}>⚠ {d.label} · {d.address}</div>)}
             </div>
           )}
@@ -316,7 +316,7 @@ export default function Dashboard() {
           {[...(radar.examples?.repeat || []).map(r => ({ ...r, note: `viewed ${r.prop} ×${r.n} this week` })),
             ...(radar.examples?.reengaged || []).map(r => ({ ...r, note: 'back after a long quiet stretch' })),
             ...(radar.examples?.past_clients || []).map(r => ({ ...r, note: 'past client browsing again' }))].slice(0, 5).map((r, i) => (
-              <div key={i} style={{ fontSize: 13, padding: '2px 0' }}>
+              <div key={i} style={{ fontSize: 14.5, padding: '2px 0' }}>
                 <Link to={`/clients/${r.id}`} style={{ fontWeight: 600 }}>{r.name}</Link>
                 <span style={{ color: 'var(--text-secondary)' }}> — {r.note}</span>
               </div>
@@ -328,11 +328,11 @@ export default function Dashboard() {
             <Chip label="AI-Managed" value={ai.managed} tone="purple" />
             <Chip to="/ai-opportunities" label="Waiting for Human" value={ai.handoffs_open} tone={ai.handoffs_open ? 'red' : 'purple'} />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, fontSize: 13 }}>
-            <div><strong style={{ fontSize: 18 }}>{ai.sent_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>AI texts today</div></div>
-            <div><strong style={{ fontSize: 18 }}>{ai.responses_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Responses</div></div>
-            <div><strong style={{ fontSize: 18 }}>{ai.intent_up_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Intent increases</div></div>
-            <div><strong style={{ fontSize: 18, color: ai.failed_today ? '#ef4444' : 'inherit' }}>{ai.failed_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Failed actions</div></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, fontSize: 14.5 }}>
+            <div><strong style={{ fontSize: 20 }}>{ai.sent_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>AI texts today</div></div>
+            <div><strong style={{ fontSize: 20 }}>{ai.responses_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Responses</div></div>
+            <div><strong style={{ fontSize: 20 }}>{ai.intent_up_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Intent increases</div></div>
+            <div><strong style={{ fontSize: 20, color: ai.failed_today ? '#ef4444' : 'inherit' }}>{ai.failed_today ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Failed actions</div></div>
           </div>
         </Section>
       </div>
@@ -340,27 +340,27 @@ export default function Dashboard() {
       {/* ── Row 5: Prospecting + Communication Health ─────────────── */}
       <div style={row}>
         <Section title="Prospecting" link="/clients?list=FSBO" linkLabel="Open lists →">
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>FSBO</div>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>FSBO</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
             <Chip to="/clients?list=FSBO" label="Available" value={prospecting.fsbo_available} />
             <Chip to="/clients?list=FSBO" label="Aging 30+" value={prospecting.fsbo_aging_30} tone="amber" />
             <Chip to="/clients?smart=fsbo_dom14_no_text_2w" label="Follow-Up Due" value={prospecting.fsbo_followup_due} tone="red" />
           </div>
-          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>CANCELLED / EXPIRED</div>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 4 }}>CANCELLED / EXPIRED</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <Chip to="/clients?list=Cancelled" label="On List" value={prospecting.cx_total} />
             <Chip to="/clients?smart=cx_no_response" label="No Response Yet" value={prospecting.cx_no_response} tone="amber" />
           </div>
         </Section>
         <Section title="Communication Health" link="/inbox" linkLabel="Open Inbox →">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, fontSize: 13, marginBottom: 8 }}>
-            <div><strong style={{ fontSize: 18 }}>{comm.texts_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts sent</div></div>
-            <div><strong style={{ fontSize: 18 }}>{comm.texts_received ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts received</div></div>
-            <div><strong style={{ fontSize: 18 }}>{comm.calls ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Calls</div></div>
-            <div><strong style={{ fontSize: 18 }}>{comm.emails_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails sent</div></div>
-            <div><strong style={{ fontSize: 18 }}>{comm.emails_month ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails this month</div></div>
-            <div><strong style={{ fontSize: 18 }}>{comm.texts_month ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts this month</div></div>
-            <div><strong style={{ fontSize: 18 }}>{comm.drip_enrolled ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>In drip campaigns</div></div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, fontSize: 14.5, marginBottom: 8 }}>
+            <div><strong style={{ fontSize: 20 }}>{comm.texts_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts sent</div></div>
+            <div><strong style={{ fontSize: 20 }}>{comm.texts_received ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts received</div></div>
+            <div><strong style={{ fontSize: 20 }}>{comm.calls ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Calls</div></div>
+            <div><strong style={{ fontSize: 20 }}>{comm.emails_sent ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails sent</div></div>
+            <div><strong style={{ fontSize: 20 }}>{comm.emails_month ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Emails this month</div></div>
+            <div><strong style={{ fontSize: 20 }}>{comm.texts_month ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>Texts this month</div></div>
+            <div><strong style={{ fontSize: 20 }}>{comm.drip_enrolled ?? 0}</strong><div style={{ color: 'var(--text-muted)' }}>In drip campaigns</div></div>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             <Chip to="/inbox" label="Need Response" value={comm.need_response} tone="amber" />
@@ -375,12 +375,12 @@ export default function Dashboard() {
         <div style={{ ...row, gridTemplateColumns: '1fr' }}>
           <Section title="Follow-Up Coverage" accent={coverage.kpi_unprotected_connected ? '#dc2626' : '#059669'} link="/clients?smart=falling_through_cracks" linkLabel="Open list →">
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
-              <div style={{ fontSize: 26, fontWeight: 800, color: coverage.kpi_unprotected_connected ? '#dc2626' : '#059669' }}>
+              <div style={{ fontSize: 28.5, fontWeight: 800, color: coverage.kpi_unprotected_connected ? '#dc2626' : '#059669' }}>
                 {coverage.kpi_unprotected_connected}
               </div>
-              <div style={{ fontSize: 14 }}>
+              <div style={{ fontSize: 15.5 }}>
                 <div style={{ fontWeight: 700 }}>Connected leads without future coverage</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Team target: 0 — every connected lead should have a next touch scheduled somewhere.</div>
+                <div style={{ color: 'var(--text-muted)', fontSize: 14.5 }}>Team target: 0 — every connected lead should have a next touch scheduled somewhere.</div>
               </div>
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -400,8 +400,8 @@ export default function Dashboard() {
       {business && (
         <div style={{ ...row, gridTemplateColumns: 'minmax(330px, 640px)' }}>
           <Section title="Business Performance" link="/reporting" linkLabel="Reporting →">
-            <table style={{ width: '100%', fontSize: 14, borderCollapse: 'collapse' }}>
-              <thead><tr style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'right' }}><th style={{ textAlign: 'left', fontWeight: 600 }}></th><th style={{ fontWeight: 700 }}>MTD</th><th style={{ fontWeight: 700 }}>YTD</th></tr></thead>
+            <table style={{ width: '100%', fontSize: 15.5, borderCollapse: 'collapse' }}>
+              <thead><tr style={{ color: 'var(--text-muted)', fontSize: 14.5, textAlign: 'right' }}><th style={{ textAlign: 'left', fontWeight: 600 }}></th><th style={{ fontWeight: 700 }}>MTD</th><th style={{ fontWeight: 700 }}>YTD</th></tr></thead>
               <tbody style={{ fontVariantNumeric: 'tabular-nums' }}>
                 <tr><td style={{ padding: '4px 0' }}>New Leads</td><td style={{ textAlign: 'right' }}>{(business.mtd?.new_leads ?? 0).toLocaleString()}</td><td style={{ textAlign: 'right' }}>{(business.ytd?.new_leads ?? 0).toLocaleString()}</td></tr>
                 <tr><td style={{ padding: '4px 0' }}>Closed</td><td style={{ textAlign: 'right' }}>{business.mtd?.closed ?? 0}</td><td style={{ textAlign: 'right' }}>{business.ytd?.closed ?? 0}</td></tr>
@@ -415,17 +415,17 @@ export default function Dashboard() {
       {/* ── Row 7: System health ──────────────────────────────────── */}
       <div style={{ marginBottom: 14 }}>
         {health.ok ? (
-          <div className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+          <div className="card" style={{ padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8, fontSize: 15.5 }}>
             <span style={{ color: '#059669', fontWeight: 700 }}>✓ System Healthy</span>
-            <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>
+            <span style={{ color: 'var(--text-muted)', fontSize: 14.5 }}>
               Sierra {timeAgo(health.sierra_last) || '—'} · Backup {timeAgo(health.backup_last) || '—'} · FSBO sync {timeAgo(health.fsbo_sync_last) || '—'} · Expired sync {timeAgo(health.expired_sync_last) || '—'}
             </span>
           </div>
         ) : (
-          <div className="card" style={{ padding: '10px 16px', borderLeft: '3px solid #ef4444', fontSize: 14 }}>
+          <div className="card" style={{ padding: '10px 16px', borderLeft: '3px solid #ef4444', fontSize: 15.5 }}>
             <strong style={{ color: '#ef4444' }}>⚠ System issues</strong>
             {health.issues.map((s, i) => <div key={i} style={{ marginTop: 2 }}>⚠ {s}</div>)}
-            <Link to="/updates" style={{ fontSize: 13 }}>Open diagnostics →</Link>
+            <Link to="/updates" style={{ fontSize: 14.5 }}>Open diagnostics →</Link>
           </div>
         )}
       </div>
@@ -434,24 +434,24 @@ export default function Dashboard() {
       <div style={{ marginBottom: 14 }}>
         <div className="card" style={{ padding: '10px 16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }} onClick={() => setSchedOpen(o => !o)}>
-            <span style={{ fontSize: 13, color: 'var(--text-muted)', marginRight: 8 }}>{schedOpen ? '▾' : '▸'}</span>
-            <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
+            <span style={{ fontSize: 14.5, color: 'var(--text-muted)', marginRight: 8 }}>{schedOpen ? '▾' : '▸'}</span>
+            <h3 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>
               Today's Schedule{schedule.length ? ` (${schedule.length})` : ''}
             </h3>
             {!schedOpen && schedule.length > 0 && (
-              <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ marginLeft: 10, fontSize: 14.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {fmtTime(schedule[0].time) || ''} {schedule[0].title}
               </span>
             )}
-            <Link to="/calendar" onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap' }}>View Calendar →</Link>
+            <Link to="/calendar" onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto', fontSize: 14.5, fontWeight: 600, whiteSpace: 'nowrap' }}>View Calendar →</Link>
           </div>
           {schedOpen && (schedule.length === 0 ? <Empty>No appointments scheduled today.</Empty> : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
               {schedule.map((e, i) => (
                 <Link key={i} to={e.link || '/calendar'} style={{ display: 'flex', gap: 10, alignItems: 'baseline', textDecoration: 'none', color: 'inherit', padding: '4px 2px', borderBottom: i < schedule.length - 1 ? '1px solid var(--border)' : 'none' }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, minWidth: 66, color: '#2563eb', fontVariantNumeric: 'tabular-nums' }}>{fmtTime(e.time) || '—'}</span>
-                  <span style={{ fontSize: 14, fontWeight: 600 }}>{e.title}</span>
-                  <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 'auto', textAlign: 'right' }}>{e.location}</span>
+                  <span style={{ fontSize: 14.5, fontWeight: 700, minWidth: 66, color: '#2563eb', fontVariantNumeric: 'tabular-nums' }}>{fmtTime(e.time) || '—'}</span>
+                  <span style={{ fontSize: 15.5, fontWeight: 600 }}>{e.title}</span>
+                  <span style={{ fontSize: 14.5, color: 'var(--text-muted)', marginLeft: 'auto', textAlign: 'right' }}>{e.location}</span>
                 </Link>
               ))}
             </div>

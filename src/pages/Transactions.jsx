@@ -890,7 +890,7 @@ export default function Transactions() {
                   <div className="pipeline-card-address">{pl.property_address}</div>
                   <div className="pipeline-card-meta">
                     <span>{pl.owner_name || '—'}</span>
-                    <span style={{fontSize: 13, color: progress === 100 ? '#10b981' : '#3b82f6'}}>{progress}%</span>
+                    <span style={{fontSize: 14.5, color: progress === 100 ? '#10b981' : '#3b82f6'}}>{progress}%</span>
                   </div>
                   <div className="progress-bar" style={{marginTop: 6, height: 4}}>
                     <div className="progress-fill" style={{ width: `${progress}%`, backgroundColor: progress === 100 ? '#10b981' : '#3b82f6' }}></div>
@@ -902,7 +902,7 @@ export default function Transactions() {
               )
             })}
             {activePreListings.length === 0 && (
-              <div style={{padding: '20px 14px', fontSize: 13, color: 'var(--text-muted)', textAlign: 'center'}}>
+              <div style={{padding: '20px 14px', fontSize: 14.5, color: 'var(--text-muted)', textAlign: 'center'}}>
                 No pre-listings
               </div>
             )}
@@ -1163,7 +1163,7 @@ export default function Transactions() {
                     type="button"
                     onClick={() => { f('client_id', ''); setClientSearch(''); setClientResults([]) }}
                     title="Change client"
-                    style={{position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 16}}
+                    style={{position: 'absolute', top: 8, right: 10, background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: 17.5}}
                   >✕</button>
                   <div className="linked-client-name">
                     📇 {linkedClient.first_name} {linkedClient.last_name}
@@ -1207,7 +1207,7 @@ export default function Transactions() {
                     </div>
                   )}
                   {clientOpen && clientSearch.trim().length >= 2 && clientResults.length === 0 && (
-                    <div style={{padding: '8px 12px', fontSize: 13, color: 'var(--text-muted)'}}>No matches — try a different search</div>
+                    <div style={{padding: '8px 12px', fontSize: 14.5, color: 'var(--text-muted)'}}>No matches — try a different search</div>
                   )}
                 </div>
               )}
@@ -1217,7 +1217,7 @@ export default function Transactions() {
             <div style={{ marginTop: 12 }}>
               <label style={{ display: 'block' }}>Additional people on this transaction</label>
               {!editing ? (
-                <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Save the transaction first, then add co-buyers or co-sellers here.</p>
+                <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 0' }}>Save the transaction first, then add co-buyers or co-sellers here.</p>
               ) : (
                 <>
                   {people.length > 0 && (
@@ -1226,8 +1226,8 @@ export default function Transactions() {
                         <div key={p.id} className="linked-client-card" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px' }}>
                           <span style={{ fontWeight: 600 }}>{p.name || 'Unnamed'}</span>
                           <span className="email-status-tag">{p.role}</span>
-                          {p.email && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>✉ {p.email}</span>}
-                          {p.phone && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>☎ {p.phone}</span>}
+                          {p.email && <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>✉ {p.email}</span>}
+                          {p.phone && <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>☎ {p.phone}</span>}
                           <button type="button" className="btn-sm btn-danger" style={{ marginLeft: 'auto' }} onClick={() => removePerson(p.id)}>Remove</button>
                         </div>
                       ))}
@@ -1264,7 +1264,7 @@ export default function Transactions() {
                     </div>
                     <button type="button" className="btn btn-sm btn-secondary" disabled={!personSearch.trim()} onClick={() => addPerson({ name: personSearch.trim() })}>Add</button>
                   </div>
-                  <p className="muted" style={{ fontSize: 13, margin: '4px 0 0' }}>Pick a CRM match to link the lead, or type a name and click Add for someone not in the CRM.</p>
+                  <p className="muted" style={{ fontSize: 14.5, margin: '4px 0 0' }}>Pick a CRM match to link the lead, or type a name and click Add for someone not in the CRM.</p>
                 </>
               )}
             </div>
@@ -1367,7 +1367,7 @@ export default function Transactions() {
               </label>
             </div>
             {form.type_of_finance === 'Cash' && (
-              <p className="muted" style={{margin: '0 0 8px', fontSize: 13}}>Cash purchase — no mortgage/financing contingency and no appraisal, so these are cleared.</p>
+              <p className="muted" style={{margin: '0 0 8px', fontSize: 14.5}}>Cash purchase — no mortgage/financing contingency and no appraisal, so these are cleared.</p>
             )}
             <div className="form-row">
               <label>Mortgage Contingency
@@ -1422,10 +1422,10 @@ export default function Transactions() {
               </label>
             </div>
             {editing && form.final_walkthrough && (
-              <div style={{padding: '10px 12px', background: 'rgba(168,85,247,0.07)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: 6, fontSize: 14, marginTop: 8}}>
+              <div style={{padding: '10px 12px', background: 'rgba(168,85,247,0.07)', border: '1px solid rgba(168,85,247,0.25)', borderRadius: 6, fontSize: 15.5, marginTop: 8}}>
                 <div style={{marginBottom: 6}}>🚶 <strong>Walkthrough on the hub calendar:</strong> auto-synced.</div>
                 {form.final_walkthrough_time && form.final_walkthrough_location && (
-                  <div style={{fontSize: 13, color: form.final_walkthrough_invite_sent_at ? '#10b981' : '#fbbf24', marginBottom: 8}}>
+                  <div style={{fontSize: 14.5, color: form.final_walkthrough_invite_sent_at ? '#10b981' : '#fbbf24', marginBottom: 8}}>
                     {form.final_walkthrough_invite_sent_at
                       ? `✓ Team walkthrough invite sent — ${new Date(form.final_walkthrough_invite_sent_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`
                       : '⏳ Team invite will fire on next Save (time + location set).'}
@@ -1498,7 +1498,7 @@ export default function Transactions() {
           {/* Contract Contingencies — control which sections appear in the buyer email */}
           <div className="form-section">
             <h4>Contract Terms</h4>
-            <p className="muted" style={{margin: '0 0 8px', fontSize: 13}}>These control which sections appear in the buyer "Under Contract / Next Steps" email.</p>
+            <p className="muted" style={{margin: '0 0 8px', fontSize: 14.5}}>These control which sections appear in the buyer "Under Contract / Next Steps" email.</p>
             <label className="checkbox-label">
               <input type="checkbox" checked={!!form.has_insurance_contingency} onChange={() => check('has_insurance_contingency')} />
               Insurance contingency in contract (7 business days)
@@ -1527,7 +1527,7 @@ export default function Transactions() {
                   {MORTGAGE_PAYOFF_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select></label>
               ) : (
-                <div style={{fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center', fontStyle: 'italic'}}>
+                <div style={{fontSize: 14.5, color: 'var(--text-muted)', alignSelf: 'center', fontStyle: 'italic'}}>
                   Mortgage Payoff<br/>(listing-side only)
                 </div>
               )}
@@ -1592,7 +1592,7 @@ export default function Transactions() {
             return (
               <>
                 <div className="form-section form-full">
-                  <h4>Listing & Disclosures <span style={{fontSize: 13, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8}}>{sideLabel}</span></h4>
+                  <h4>Listing & Disclosures <span style={{fontSize: 14.5, fontWeight: 500, color: 'var(--text-muted)', marginLeft: 8}}>{sideLabel}</span></h4>
                   <label>Dotloop Transaction Status<select value={form.dotloop_status || 'Not Submitted'} onChange={e => f('dotloop_status', e.target.value)}>
                     {DOTLOOP_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                   </select></label>
@@ -1616,12 +1616,12 @@ export default function Transactions() {
                     </select>
                   </label>
                   {editing && form.closing_date && (
-                    <div style={{marginTop: 12, padding: '10px 12px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, fontSize: 14}}>
+                    <div style={{marginTop: 12, padding: '10px 12px', background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.25)', borderRadius: 6, fontSize: 15.5}}>
                       <div style={{marginBottom: 8}}>
                         📅 <strong>Closing on the hub calendar:</strong> auto-synced from this transaction. Edits here update the calendar event.
                       </div>
                       {form.closing_time && form.closing_location && (
-                        <div style={{fontSize: 13, color: form.closing_invite_sent_at ? '#10b981' : '#fbbf24', marginBottom: 8}}>
+                        <div style={{fontSize: 14.5, color: form.closing_invite_sent_at ? '#10b981' : '#fbbf24', marginBottom: 8}}>
                           {form.closing_invite_sent_at
                             ? `✓ Team auto-invite sent to John + Matt — ${new Date(form.closing_invite_sent_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}. Re-fires automatically if Closing Time or Location changes.`
                             : '⏳ Team auto-invite will fire to John + Matt the next time this transaction is saved (Closing Time + Location are both set).'
@@ -1713,7 +1713,7 @@ export default function Transactions() {
           {editing && (
             <div className="form-section form-full">
               <h4>📋 Custom Checklist</h4>
-              <p className="muted" style={{margin: '0 0 8px', fontSize: 13}}>
+              <p className="muted" style={{margin: '0 0 8px', fontSize: 14.5}}>
                 Any item you add here also appears on the Tasks tab under TODO (category: Listing).
               </p>
               <CustomChecklist transactionId={editing} address={form.property_address} />
@@ -1753,19 +1753,19 @@ export default function Transactions() {
             <div className="marketing-section" style={{ marginTop: 10, borderTop: '1px solid var(--border)', paddingTop: 12 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                 <h4 style={{ margin: 0 }}>Marketing Checklist</h4>
-                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>
                   {countMarketingDone(form.marketing_tasks)}/{MARKETING_TOTAL} done
                 </span>
               </div>
-              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+              <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '0 0 10px' }}>
                 Clears automatically when this moves to Under Contract.
               </p>
               {MARKETING_TASK_GROUPS.map(group => (
                 <div key={group.stage} style={{ marginBottom: 10 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
+                  <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
                   <div className="checklist-grid">
                     {group.tasks.map(([key, label]) => (
-                      <label key={key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: '3px 0', margin: 0, cursor: 'pointer', fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
+                      <label key={key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: '3px 0', margin: 0, cursor: 'pointer', fontSize: 15.5, fontWeight: 400, textAlign: 'left' }}>
                         <input type="checkbox" style={{ flexShrink: 0, marginTop: 2, width: 16, height: 16 }} checked={!!(form.marketing_tasks?.[key]?.done)} onChange={() => toggleMarketing(key)} />
                         <span>{label}</span>
                       </label>
@@ -1842,7 +1842,7 @@ export default function Transactions() {
               const pct = Math.round((done / MARKETING_TOTAL) * 100)
               return (
                 <div style={{ margin: '12px 0 4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 15.5, fontWeight: 600, marginBottom: 6 }}>
                     <span>Marketing Checklist</span>
                     <span style={{ color: pct === 100 ? '#10b981' : '#3b82f6' }}>{done}/{MARKETING_TOTAL} · {pct}%</span>
                   </div>
@@ -1854,10 +1854,10 @@ export default function Transactions() {
             })()}
             {MARKETING_TASK_GROUPS.map(group => (
               <div key={group.stage} style={{ marginBottom: 10 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
+                <div style={{ fontSize: 14.5, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>{group.stage}</div>
                 <div className="checklist-grid">
                   {group.tasks.map(([key, label]) => (
-                    <label key={key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: '3px 0', margin: 0, cursor: 'pointer', fontSize: 14, fontWeight: 400, textAlign: 'left' }}>
+                    <label key={key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: '3px 0', margin: 0, cursor: 'pointer', fontSize: 15.5, fontWeight: 400, textAlign: 'left' }}>
                       <input type="checkbox" style={{ flexShrink: 0, marginTop: 2, width: 16, height: 16 }} checked={!!(plEditing.marketing_tasks?.[key]?.done)} onChange={() => togglePlMarketing(key)} />
                       <span>{label}</span>
                     </label>
@@ -1937,7 +1937,7 @@ export default function Transactions() {
         </div>
         <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, marginTop: 8}}>
-          <span style={{fontSize: 14, fontWeight: 500}}>Body</span>
+          <span style={{fontSize: 15.5, fontWeight: 500}}>Body</span>
           <div style={{display: 'flex', gap: 6}}>
             <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
               📁 Load HTML File
@@ -1964,8 +1964,8 @@ export default function Transactions() {
           showPreview={false}
           compact
         />
-        <textarea ref={txEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 14, resize: 'vertical'}} />
-        <p className="muted" style={{fontSize: 13, margin: '2px 0 0'}}>
+        <textarea ref={txEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 15.5, resize: 'vertical'}} />
+        <p className="muted" style={{fontSize: 14.5, margin: '2px 0 0'}}>
           📁 Load HTML · 📷 Inline Images (so they render) · plain text also auto-formats with paragraphs and clickable links.
         </p>
 
@@ -2000,16 +2000,16 @@ export default function Transactions() {
                   <button
                     type="button"
                     onClick={() => setEmailForm(p => ({ ...p, attachments: p.attachments.filter((_, idx) => idx !== i) }))}
-                    style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 14}}
+                    style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 15.5}}
                   >✕</button>
                 </span>
               ))}
-              <span className="muted" style={{fontSize: 13, alignSelf: 'center'}}>
+              <span className="muted" style={{fontSize: 14.5, alignSelf: 'center'}}>
                 Total: {((emailForm.attachments.reduce((s, a) => s + a.size, 0)) / 1024 / 1024).toFixed(2)} MB
               </span>
             </div>
           )}
-          <p className="muted" style={{fontSize: 13, margin: '4px 0 0'}}>SendGrid limit: 30 MB total. PDFs, images, and most file types supported.</p>
+          <p className="muted" style={{fontSize: 14.5, margin: '4px 0 0'}}>SendGrid limit: 30 MB total. PDFs, images, and most file types supported.</p>
         </div>
 
         <div className="form-actions">
@@ -2026,7 +2026,7 @@ export default function Transactions() {
           <p className="muted" style={{margin: '0 0 8px'}}>
             Sample using transaction data + linked client info
           </p>
-          <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 14}}>
+          <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 15.5}}>
             <strong>To:</strong> {emailForm.to_email || '(no recipient)'}<br/>
             <strong>Subject:</strong> {emailForm.subject || '(no subject)'}
           </div>
@@ -2144,17 +2144,17 @@ function CustomChecklist({ transactionId, address }) {
             return (
               <div key={it.id} style={{display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--bg-elevated)', borderRadius: 4}}>
                 <input type="checkbox" checked={it.status === 'done'} onChange={() => toggle(it)} />
-                <span style={{flex: 1, fontSize: 14, textDecoration: it.status === 'done' ? 'line-through' : 'none', color: it.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)'}}>
+                <span style={{flex: 1, fontSize: 15.5, textDecoration: it.status === 'done' ? 'line-through' : 'none', color: it.status === 'done' ? 'var(--text-muted)' : 'var(--text-primary)'}}>
                   {it.title}
                 </span>
-                {it.assigned_to && <span style={{fontSize: 13, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
+                {it.assigned_to && <span style={{fontSize: 14.5, color: 'var(--text-muted)'}}>{it.assigned_to}</span>}
                 <input
                   type="date"
                   value={it.due_date || ''}
                   onChange={e => updateDate(it, e.target.value)}
                   title={overdue ? 'Overdue' : 'Due date'}
                   style={{
-                    fontSize: 13,
+                    fontSize: 14.5,
                     padding: '2px 6px',
                     border: `1px solid ${overdue ? '#ef4444' : 'var(--border)'}`,
                     borderRadius: 3,
@@ -2174,7 +2174,7 @@ function CustomChecklist({ transactionId, address }) {
           value={newTitle}
           onChange={e => setNewTitle(e.target.value)}
           placeholder="Add a custom checklist item..."
-          style={{flex: 1, padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14}}
+          style={{flex: 1, padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5}}
           maxLength={200}
           disabled={loading}
         />
@@ -2183,7 +2183,7 @@ function CustomChecklist({ transactionId, address }) {
           value={newDueDate}
           onChange={e => setNewDueDate(e.target.value)}
           title="Optional due date"
-          style={{padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14}}
+          style={{padding: 8, border: '1px solid var(--border)', borderRadius: 4, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5}}
           disabled={loading}
         />
         <button type="submit" className="btn btn-secondary" disabled={loading || !newTitle.trim()}>

@@ -40,19 +40,19 @@ export default function Duplicates() {
       {groups === null ? <div style={{ color: 'var(--text-muted)' }}>Loading…</div>
         : groups.length === 0 ? (
           <div className="detail-section" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-            <div style={{ fontSize: 34 }}>✓</div><div style={{ marginTop: 8, fontWeight: 600, color: 'var(--text-primary)' }}>No phone-number duplicates found</div>
+            <div style={{ fontSize: 37.5 }}>✓</div><div style={{ marginTop: 8, fontWeight: 600, color: 'var(--text-primary)' }}>No phone-number duplicates found</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             {groups.map(g => (
               <div key={g.key} className="detail-section">
-                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>Phone ···{String(g.key).slice(-4)} · {g.count} records</div>
+                <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 8 }}>Phone ···{String(g.key).slice(-4)} · {g.count} records</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {g.members.map(m => (
                     <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, flexWrap: 'wrap' }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontWeight: 600 }}>{`${m.first_name || ''} ${m.last_name || ''}`.trim() || m.phone} <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>#{m.id}</span></div>
-                        <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{[m.address, m.city, m.email].filter(Boolean).join(' · ') || '—'} · {m.status} · {m.comms} comms{m.sierra_lead_id ? ' · Sierra ' + m.sierra_lead_id : ''}</div>
+                        <div style={{ fontWeight: 600 }}>{`${m.first_name || ''} ${m.last_name || ''}`.trim() || m.phone} <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>#{m.id}</span></div>
+                        <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{[m.address, m.city, m.email].filter(Boolean).join(' · ') || '—'} · {m.status} · {m.comms} comms{m.sierra_lead_id ? ' · Sierra ' + m.sierra_lead_id : ''}</div>
                       </div>
                       <button className="btn btn-sm btn-primary" disabled={busy === g.key} onClick={() => merge(g, m.id)}>{busy === g.key ? '…' : 'Keep this, merge others →'}</button>
                     </div>

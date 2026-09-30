@@ -70,14 +70,14 @@ export default function Automations() {
       {loading ? <div className="empty-state-full">Loading automations…</div>
         : list.length === 0 ? (
           <div className="empty-state-full" style={{ textAlign: 'center', padding: 40 }}>
-            <div style={{ fontSize: 40 }}>⚡</div>
+            <div style={{ fontSize: 44 }}>⚡</div>
             <div style={{ fontWeight: 600, marginTop: 8 }}>{items.length ? 'No automations match your filters' : 'No automations yet'}</div>
             <div style={{ color: 'var(--text-muted)', margin: '6px 0 14px' }}>{items.length ? 'Try clearing the search or status filter.' : 'Start from a template or a blank canvas.'}</div>
             {!items.length && <button className="btn btn-primary" onClick={() => setGallery(true)}>+ Create your first automation</button>}
           </div>
         ) : view === 'table' ? (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15.5 }}>
               <thead><tr>{['Name', 'Status', 'Trigger', 'Enrolled', 'Completed', 'Failed', 'Updated', ''].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {list.map(a => { const s = STATUS_STYLE[a.status] || STATUS_STYLE.draft; return (
@@ -99,12 +99,12 @@ export default function Automations() {
               <div key={a.id} className="detail-section" style={{ padding: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
                   <div style={{ flex: 1, cursor: 'pointer' }} onClick={() => setBuilderId(a.id)}>
-                    <div style={{ fontWeight: 600, fontSize: 15 }}>{a.name}</div>
-                    <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{a.trigger_label} · updated {ago(a.updated_at)}</div>
+                    <div style={{ fontWeight: 600, fontSize: 16.5 }}>{a.name}</div>
+                    <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 2 }}>{a.trigger_label} · updated {ago(a.updated_at)}</div>
                   </div>
                   <span style={{ ...pill, background: s.bg, color: s.fg }}>{s.label}</span>
                 </div>
-                <div style={{ display: 'flex', gap: 16, margin: '12px 0', fontSize: 13 }}>
+                <div style={{ display: 'flex', gap: 16, margin: '12px 0', fontSize: 14.5 }}>
                   <Stat n={a.enrolled} label="Enrolled" /><Stat n={a.completed} label="Completed" /><Stat n={a.failed} label="Failed" color={a.failed ? '#ef4444' : undefined} />
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -145,7 +145,7 @@ function RowMenu({ a, act, remove, rename, duplicate, edit, viewActivity, compac
     </div>
   )
 }
-const MI = ({ children, onClick, danger }) => <button onClick={onClick} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'transparent', border: 'none', color: danger ? '#ef4444' : 'var(--text-primary)', cursor: 'pointer', fontSize: 14 }}>{children}</button>
+const MI = ({ children, onClick, danger }) => <button onClick={onClick} style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'transparent', border: 'none', color: danger ? '#ef4444' : 'var(--text-primary)', cursor: 'pointer', fontSize: 15.5 }}>{children}</button>
 
 // ---------------- template gallery ----------------
 function TemplateGallery({ onPick, onClose }) {
@@ -153,20 +153,20 @@ function TemplateGallery({ onPick, onClose }) {
     <div style={modalWrap} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: 720, maxHeight: '82vh', background: 'var(--bg-primary,#0f172a)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
-          <div><div style={{ fontWeight: 700, fontSize: 17 }}>Create an automation</div><div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Start blank or from a proven template.</div></div>
+          <div><div style={{ fontWeight: 700, fontSize: 18.5 }}>Create an automation</div><div style={{ fontSize: 15.5, color: 'var(--text-muted)' }}>Start blank or from a proven template.</div></div>
           <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={onClose}>✕</button>
         </div>
         <div style={{ overflowY: 'auto', padding: 18, display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(210px,1fr))', gap: 14 }}>
           <div onClick={() => onPick(null)} style={tplCard}>
-            <div style={{ fontSize: 26 }}>＋</div><div style={{ fontWeight: 600, marginTop: 6 }}>Blank automation</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Start from an empty canvas.</div>
+            <div style={{ fontSize: 28.5 }}>＋</div><div style={{ fontWeight: 600, marginTop: 6 }}>Blank automation</div>
+            <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 3 }}>Start from an empty canvas.</div>
           </div>
           {STARTER_TEMPLATES.map(t => (
             <div key={t.id} onClick={() => onPick(t)} style={tplCard}>
-              <div style={{ fontSize: 22 }}>{t.icon}</div>
+              <div style={{ fontSize: 24 }}>{t.icon}</div>
               <div style={{ fontWeight: 600, marginTop: 6 }}>{t.name}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{t.description}</div>
-              <div style={{ fontSize: 13, color: 'var(--accent,#2563eb)', marginTop: 6 }}>{t.audience}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 3 }}>{t.description}</div>
+              <div style={{ fontSize: 14.5, color: 'var(--accent,#2563eb)', marginTop: 6 }}>{t.audience}</div>
             </div>
           ))}
         </div>
@@ -192,7 +192,7 @@ function ActivityModal({ id, name, onClose }) {
     <div style={modalWrap} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: 760, maxHeight: '85vh', background: 'var(--bg-primary,#0f172a)', border: '1px solid var(--border)', borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center' }}>
-          <div><div style={{ fontWeight: 700 }}>{name} — Activity</div><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Who’s in this automation and where they are.</div></div>
+          <div><div style={{ fontWeight: 700 }}>{name} — Activity</div><div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Who’s in this automation and where they are.</div></div>
           <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={onClose}>✕</button>
         </div>
         {metrics && (
@@ -209,14 +209,14 @@ function ActivityModal({ id, name, onClose }) {
           {loading ? <div style={{ color: 'var(--text-muted)', padding: 20 }}>Loading…</div>
             : rows.length === 0 ? <div style={{ color: 'var(--text-muted)', padding: 20, textAlign: 'center' }}>No contacts {filter ? `with status “${filter}”` : 'enrolled yet'}.</div>
               : (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 15.5 }}>
                   <thead><tr>{['Contact', 'Status', 'Entered', 'Last error'].map(h => <th key={h} style={th}>{h}</th>)}</tr></thead>
                   <tbody>{rows.map(r => (
                     <tr key={r.id}>
                       <td style={td}>{(r.first_name || '') + ' ' + (r.last_name || '') || r.email || `#${r.client_id}`}</td>
                       <td style={td}><span style={{ color: ecolor[r.status] || 'inherit', fontWeight: 600 }}>{r.status}</span></td>
                       <td style={{ ...td, color: 'var(--text-muted)' }}>{ago(r.entered_at)}</td>
-                      <td style={{ ...td, color: '#ef4444', fontSize: 13 }}>{r.last_error || ''}</td>
+                      <td style={{ ...td, color: '#ef4444', fontSize: 14.5 }}>{r.last_error || ''}</td>
                     </tr>))}</tbody>
                 </table>
               )}
@@ -227,11 +227,11 @@ function ActivityModal({ id, name, onClose }) {
 }
 
 // ---------------- bits ----------------
-const Stat = ({ n, label, color }) => <div><div style={{ fontSize: 20, fontWeight: 700, color: color || 'var(--text-primary)' }}>{n ?? 0}</div><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{label}</div></div>
+const Stat = ({ n, label, color }) => <div><div style={{ fontSize: 22, fontWeight: 700, color: color || 'var(--text-primary)' }}>{n ?? 0}</div><div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{label}</div></div>
 const ago = (iso) => { if (!iso) return '—'; const s = Math.floor((Date.now() - new Date(iso.includes('Z') || iso.includes('T') ? iso : iso.replace(' ', 'T') + 'Z').getTime()) / 1000); if (isNaN(s)) return '—'; if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)}m ago`; if (s < 86400) return `${Math.floor(s / 3600)}h ago`; return `${Math.floor(s / 86400)}d ago` }
-const ctl = (w) => ({ width: w, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 })
-const th = { textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 13, textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }
+const ctl = (w) => ({ width: w, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5 })
+const th = { textAlign: 'left', padding: '8px 10px', borderBottom: '1px solid var(--border)', color: 'var(--text-muted)', fontSize: 14.5, textTransform: 'uppercase', letterSpacing: 0.5, whiteSpace: 'nowrap' }
 const td = { padding: '9px 10px', borderBottom: '1px solid var(--border)' }
-const pill = { fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }
+const pill = { fontSize: 14.5, fontWeight: 700, padding: '2px 8px', borderRadius: 10, whiteSpace: 'nowrap' }
 const modalWrap = { position: 'fixed', inset: 0, zIndex: 1250, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }
 const tplCard = { border: '1px solid var(--border)', borderRadius: 10, padding: 16, cursor: 'pointer', background: 'var(--bg-secondary)' }

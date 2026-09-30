@@ -21,22 +21,22 @@ export default function TemplatePicker({ templates, onPick, label = 'Insert temp
   const filtered = needle ? list.filter(t => (t.name || '').toLowerCase().includes(needle) || plain(t.body).toLowerCase().includes(needle)) : list
   return (
     <div ref={ref} style={{ position: 'relative', display: 'inline-block' }}>
-      <button type="button" className="btn btn-sm btn-secondary" onClick={() => { setOpen(o => !o); setQ('') }} style={{ fontSize: 13 }}
+      <button type="button" className="btn btn-sm btn-secondary" onClick={() => { setOpen(o => !o); setQ('') }} style={{ fontSize: 14.5 }}
         title="Search and insert a saved template">📄 {label}{list.length ? ` (${list.length})` : ''} ▾</button>
       {open && (
         <div style={{ position: 'absolute', zIndex: 70, top: '100%', left: 0, marginTop: 4, width: 300, maxWidth: '86vw', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 12px 32px rgba(0,0,0,0.28)', overflow: 'hidden' }}>
           <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search templates…"
-            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 14, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px', fontSize: 15.5, border: 'none', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', outline: 'none' }} />
           <div style={{ maxHeight: 280, overflowY: 'auto' }}>
             {filtered.length === 0
-              ? <div style={{ padding: '12px', fontSize: 13, color: 'var(--text-muted)' }}>{list.length ? 'No templates match.' : 'No templates yet.'}</div>
+              ? <div style={{ padding: '12px', fontSize: 14.5, color: 'var(--text-muted)' }}>{list.length ? 'No templates match.' : 'No templates yet.'}</div>
               : filtered.map(t => (
                 <div key={t.id} onClick={() => { onPick(t); setOpen(false) }}
                   style={{ padding: '8px 11px', cursor: 'pointer', borderBottom: '1px solid var(--border)' }}
                   onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-secondary)' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{t.name || '(untitled)'}</div>
-                  {t.body && <div style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plain(t.body).slice(0, 70)}</div>}
+                  <div style={{ fontWeight: 600, fontSize: 14.5, color: 'var(--text-primary)' }}>{t.name || '(untitled)'}</div>
+                  {t.body && <div style={{ fontSize: 14.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{plain(t.body).slice(0, 70)}</div>}
                 </div>
               ))}
           </div>

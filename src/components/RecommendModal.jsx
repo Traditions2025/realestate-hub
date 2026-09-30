@@ -202,7 +202,7 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
             {items.map(it => (
               <span key={it.id} className="lead-tag" style={{padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6}}>
                 {it.company || it.name}
-                <button type="button" onClick={() => removeItem(it.id)} style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 14}}>✕</button>
+                <button type="button" onClick={() => removeItem(it.id)} style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 15.5}}>✕</button>
               </span>
             ))}
             {items.length === 0 && <span className="muted">No {kind}s selected yet</span>}
@@ -239,7 +239,7 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
             {recipients.map(c => (
               <span key={c.id} className="lead-tag" style={{padding: '5px 10px', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(59, 130, 246, 0.18)', color: '#93c5fd'}}>
                 {c.first_name} {c.last_name}
-                <button type="button" onClick={() => removeRecipient(c.id)} style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 14}}>✕</button>
+                <button type="button" onClick={() => removeRecipient(c.id)} style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 15.5}}>✕</button>
               </span>
             ))}
             {recipients.length === 0 && <span className="muted">No clients selected — search below to add</span>}
@@ -277,7 +277,7 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
             onChange={e => setRecommendationFor(e.target.value)}
             style={{width: '100%'}}
           />
-          <p className="muted" style={{fontSize: 13, margin: '4px 0 0'}}>Used in the subject + intro line. Leave blank for a generic recommendation.</p>
+          <p className="muted" style={{fontSize: 14.5, margin: '4px 0 0'}}>Used in the subject + intro line. Leave blank for a generic recommendation.</p>
         </div>
 
         {/* Subject + body — auto-built but editable */}
@@ -304,7 +304,7 @@ export default function RecommendModal({ open, onClose, kind = 'vendor', initial
             rows={12}
             value={body}
             onChange={e => { setBody(e.target.value); setTouchedBody(true) }}
-            style={{width: '100%', fontFamily: 'monospace', fontSize: 14}}
+            style={{width: '100%', fontFamily: 'monospace', fontSize: 15.5}}
           />
         </div>
 

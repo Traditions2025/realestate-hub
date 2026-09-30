@@ -157,9 +157,9 @@ export default function AutomationBuilder({ automationId, onClose }) {
       {/* ---------- HEADER ---------- */}
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 16px', borderBottom: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
         <button className="btn btn-sm btn-secondary" onClick={() => onClose?.(dirty)} aria-label="Back to automations">← Back</button>
-        <input aria-label="Automation name" value={name} onChange={e => setName(e.target.value)} style={{ fontSize: 16, fontWeight: 600, background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '4px 8px', color: 'var(--text-primary)', width: 280 }} onFocus={e => e.target.style.borderColor = 'var(--border)'} onBlur={e => e.target.style.borderColor = 'transparent'} />
+        <input aria-label="Automation name" value={name} onChange={e => setName(e.target.value)} style={{ fontSize: 17.5, fontWeight: 600, background: 'transparent', border: '1px solid transparent', borderRadius: 6, padding: '4px 8px', color: 'var(--text-primary)', width: 280 }} onFocus={e => e.target.style.borderColor = 'var(--border)'} onBlur={e => e.target.style.borderColor = 'transparent'} />
         <span style={{ ...chip, background: statusChip.bg, color: statusChip.fg }}>{statusChip.label}</span>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>
           {saving ? 'Saving…' : saveError ? <span style={{ color: '#ef4444' }}>{saveError}</span> : dirty ? '● Unsaved changes' : savedAt ? `Saved ${timeago(savedAt)}` : ''}
         </span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center', position: 'relative' }}>
@@ -183,7 +183,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
 
       {/* validation banner */}
       {!validation.ok && (
-        <div style={{ padding: '8px 16px', background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
+        <div style={{ padding: '8px 16px', background: 'rgba(245,158,11,0.12)', borderBottom: '1px solid rgba(245,158,11,0.3)', display: 'flex', alignItems: 'center', gap: 10, fontSize: 15.5 }}>
           <span style={{ color: '#f59e0b', fontWeight: 600 }}>⚠ {validation.errors.length} thing{validation.errors.length === 1 ? '' : 's'} to fix before activating</span>
           <button className="btn btn-sm btn-secondary" onClick={() => setShowValidation(s => !s)}>{showValidation ? 'Hide' : 'Show'}</button>
         </div>
@@ -191,7 +191,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
       {showValidation && !validation.ok && (
         <div style={{ padding: '8px 16px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', maxHeight: 140, overflowY: 'auto' }}>
           {validation.errors.map((e, i) => (
-            <div key={i} style={{ fontSize: 14, padding: '3px 0', cursor: e.nodeId ? 'pointer' : 'default', color: e.nodeId ? 'var(--accent, #2563eb)' : 'var(--text-primary)' }} onClick={() => e.nodeId && setSelId(e.nodeId)}>• {e.message}</div>
+            <div key={i} style={{ fontSize: 15.5, padding: '3px 0', cursor: e.nodeId ? 'pointer' : 'default', color: e.nodeId ? 'var(--accent, #2563eb)' : 'var(--text-primary)' }} onClick={() => e.nodeId && setSelId(e.nodeId)}>• {e.message}</div>
           ))}
         </div>
       )}
@@ -200,10 +200,10 @@ export default function AutomationBuilder({ automationId, onClose }) {
         {/* ---------- SIDEBAR ---------- */}
         <aside style={{ width: 300, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', display: 'flex', flexDirection: 'column' }}>
           <div style={{ padding: 12, borderBottom: '1px solid var(--border)' }}>
-            <input aria-label="Search steps" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search triggers & steps…" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14 }} />
+            <input aria-label="Search steps" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search triggers & steps…" style={{ width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 15.5 }} />
             <div style={{ display: 'flex', marginTop: 10, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
               {['triggers', 'steps'].map(t => (
-                <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', fontSize: 14, textTransform: 'capitalize', background: tab === t ? 'var(--accent, #2563eb)' : 'transparent', color: tab === t ? '#fff' : 'var(--text-primary)' }}>{t}</button>
+                <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', fontSize: 15.5, textTransform: 'capitalize', background: tab === t ? 'var(--accent, #2563eb)' : 'transparent', color: tab === t ? '#fff' : 'var(--text-primary)' }}>{t}</button>
               ))}
             </div>
           </div>
@@ -254,7 +254,7 @@ export default function AutomationBuilder({ automationId, onClose }) {
 
         {/* ---------- CONFIG DRAWER ---------- */}
         {trig && !selNode && (
-          <div style={{ width: 300, borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 20, color: 'var(--text-muted)', fontSize: 14 }}>
+          <div style={{ width: 300, borderLeft: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 20, color: 'var(--text-muted)', fontSize: 15.5 }}>
             Click any step to configure it. Use the ＋ buttons on the canvas to add steps between others, or pick from the left.
           </div>
         )}
@@ -276,7 +276,7 @@ function TreeRenderer({ graph, fromId, branch, onSelect, selId, errsByNode, open
   visited = visited || new Set()
   const cid = childId(graph, fromId, branch)
   if (!cid) return <PlusSlot onClick={() => openPicker(fromId, branch)} />
-  if (visited.has(cid)) return <div style={{ fontSize: 13, color: '#94a3b8', padding: 8 }}>↩ loops to earlier step</div>
+  if (visited.has(cid)) return <div style={{ fontSize: 14.5, color: '#94a3b8', padding: 8 }}>↩ loops to earlier step</div>
   visited.add(cid)
   const node = nodeById(graph, cid)
   if (!node) return null
@@ -290,7 +290,7 @@ function TreeRenderer({ graph, fromId, branch, onSelect, selId, errsByNode, open
         <div style={{ display: 'flex', gap: 26, alignItems: 'flex-start', marginTop: 6 }}>
           {branches.map(bk => (
             <div key={bk} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: bk === 'no' || bk === 'timeout' ? '#ef4444' : bk === 'yes' || bk === 'met' || bk === 'continue' ? '#10b981' : '#6366f1', padding: '2px 10px', borderRadius: 10, marginTop: 8 }}>{branchLabel(node, bk)}</span>
+              <span style={{ fontSize: 14.5, fontWeight: 700, color: '#fff', background: bk === 'no' || bk === 'timeout' ? '#ef4444' : bk === 'yes' || bk === 'met' || bk === 'continue' ? '#10b981' : '#6366f1', padding: '2px 10px', borderRadius: 10, marginTop: 8 }}>{branchLabel(node, bk)}</span>
               <TreeRenderer graph={graph} fromId={node.id} branch={bk} onSelect={onSelect} selId={selId} errsByNode={errsByNode} openPicker={openPicker} branchLabel={branchLabel} visited={new Set(visited)} />
             </div>
           ))}
@@ -311,12 +311,12 @@ function NodeCard({ node, selected, onClick, errs }) {
       <div style={{ height: 4, background: accent }} />
       <div style={{ padding: '11px 13px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 17 }}>{iconFor(node)}</span>
-          <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{labelFor(node)}</span>
-          {node.kind === 'trigger' && <span style={{ fontSize: 9, letterSpacing: 1, color: accent, fontWeight: 700 }}>TRIGGER</span>}
-          {hasErr && <span title={errs.join('\n')} style={{ color: '#ef4444', fontSize: 14 }}>⚠</span>}
+          <span style={{ fontSize: 18.5 }}>{iconFor(node)}</span>
+          <span style={{ fontWeight: 600, fontSize: 15.5, flex: 1 }}>{labelFor(node)}</span>
+          {node.kind === 'trigger' && <span style={{ fontSize: 10, letterSpacing: 1, color: accent, fontWeight: 700 }}>TRIGGER</span>}
+          {hasErr && <span title={errs.join('\n')} style={{ color: '#ef4444', fontSize: 15.5 }}>⚠</span>}
         </div>
-        <div style={{ fontSize: 13, color: '#64748b', marginTop: 4 }}>{nodeSummary(node)}</div>
+        <div style={{ fontSize: 14.5, color: '#64748b', marginTop: 4 }}>{nodeSummary(node)}</div>
       </div>
     </div>
   )
@@ -327,7 +327,7 @@ const PlusSlot = ({ onClick }) => (
   <>
     <Connector />
     <button onClick={onClick} title="Add a step here" aria-label="Add step"
-      style={{ width: 30, height: 30, borderRadius: 8, border: '1.5px dashed #64748b', background: 'rgba(15,23,42,0.6)', color: '#cbd5e1', fontSize: 17, cursor: 'pointer', lineHeight: '26px' }}>＋</button>
+      style={{ width: 30, height: 30, borderRadius: 8, border: '1.5px dashed #64748b', background: 'rgba(15,23,42,0.6)', color: '#cbd5e1', fontSize: 18.5, cursor: 'pointer', lineHeight: '26px' }}>＋</button>
   </>
 )
 
@@ -342,7 +342,7 @@ function StepPicker({ onPick, onClose }) {
     <div style={{ position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
       <div onClick={e => e.stopPropagation()} style={{ width: 440, maxHeight: '75vh', background: 'var(--bg-primary, #0f172a)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         <div style={{ padding: 14, borderBottom: '1px solid var(--border)' }}>
-          <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search steps…" style={{ width: '100%', padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }} />
+          <input autoFocus value={q} onChange={e => setQ(e.target.value)} placeholder="Search steps…" style={{ width: '100%', padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5 }} />
         </div>
         <div style={{ overflowY: 'auto', padding: 12 }}>
           {(controls.length || !ql) && <><CategoryHead color={CATEGORY_COLOR.control} label="Controls" />{controls.map(it => <SidebarItem key={it.type} it={it} onClick={() => onPick(it)} accent={CATEGORY_COLOR.control} />)}</>}
@@ -358,7 +358,7 @@ function StepPicker({ onPick, onClose }) {
 const CategoryHead = ({ color, label }) => (
   <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '4px 0 7px' }}>
     <span style={{ width: 8, height: 8, borderRadius: 2, background: color }} />
-    <span style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
+    <span style={{ fontSize: 14.5, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 600 }}>{label}</span>
   </div>
 )
 function SidebarItem({ it, onClick, accent }) {
@@ -367,22 +367,22 @@ function SidebarItem({ it, onClick, accent }) {
       style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${accent}`, borderRadius: 8, padding: '8px 10px', marginBottom: 7, cursor: 'pointer', background: 'var(--bg-primary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
         <span>{it.icon}</span>
-        <span style={{ fontWeight: 600, fontSize: 14, flex: 1 }}>{it.label}</span>
-        {it.live === false && <span style={{ fontSize: 9, background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: 4 }}>SOON</span>}
+        <span style={{ fontWeight: 600, fontSize: 15.5, flex: 1 }}>{it.label}</span>
+        {it.live === false && <span style={{ fontSize: 10, background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: 4 }}>SOON</span>}
       </div>
-      {it.desc && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
+      {it.desc && <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
     </div>
   )
 }
-const NoResults = ({ q }) => <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 14, padding: 20 }}>{q ? `No steps match “${q}”` : 'Nothing here yet.'}</div>
+const NoResults = ({ q }) => <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: 15.5, padding: 20 }}>{q ? `No steps match “${q}”` : 'Nothing here yet.'}</div>
 const EmptyCanvas = () => (
   <div style={{ textAlign: 'center', color: '#94a3b8', marginTop: 60, maxWidth: 320 }}>
-    <div style={{ fontSize: 40 }}>⚡</div>
+    <div style={{ fontSize: 44 }}>⚡</div>
     <div style={{ fontWeight: 600, color: '#e2e8f0', marginTop: 6 }}>Start with a trigger</div>
-    <div style={{ fontSize: 14, marginTop: 4 }}>Pick what kicks off this automation from the <strong>Triggers</strong> list on the left.</div>
+    <div style={{ fontSize: 15.5, marginTop: 4 }}>Pick what kicks off this automation from the <strong>Triggers</strong> list on the left.</div>
   </div>
 )
-const ZoomBtn = ({ children, ...p }) => <button {...p} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 15 }}>{children}</button>
+const ZoomBtn = ({ children, ...p }) => <button {...p} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg-secondary)', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 16.5 }}>{children}</button>
 
 function startPan(setPan) {
   return (e) => {
@@ -398,7 +398,7 @@ function startPan(setPan) {
 const timeago = (iso) => { const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000); if (s < 60) return 'just now'; if (s < 3600) return `${Math.floor(s / 60)}m ago`; return `${Math.floor(s / 3600)}h ago` }
 
 const overlay = { position: 'fixed', inset: 0, zIndex: 1200, background: 'var(--bg-primary, #0f172a)', display: 'flex', flexDirection: 'column' }
-const chip = { fontSize: 13, fontWeight: 700, padding: '3px 9px', borderRadius: 10, letterSpacing: 0.5 }
+const chip = { fontSize: 14.5, fontWeight: 700, padding: '3px 9px', borderRadius: 10, letterSpacing: 0.5 }
 const STATUS_CHIP = {
   draft: { label: 'DRAFT', bg: '#e2e8f0', fg: '#475569' },
   active: { label: '● ACTIVE', bg: 'rgba(16,185,129,0.15)', fg: '#10b981' },
@@ -406,4 +406,4 @@ const STATUS_CHIP = {
   error: { label: '⚠ ERROR', bg: 'rgba(239,68,68,0.15)', fg: '#ef4444' },
 }
 const menu = { position: 'absolute', top: 40, right: 0, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.3)', minWidth: 160, zIndex: 20, overflow: 'hidden' }
-const menuItem = { display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 14 }
+const menuItem = { display: 'block', width: '100%', textAlign: 'left', padding: '9px 14px', background: 'transparent', border: 'none', color: 'var(--text-primary)', cursor: 'pointer', fontSize: 15.5 }

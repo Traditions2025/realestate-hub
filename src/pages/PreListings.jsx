@@ -280,8 +280,8 @@ export default function PreListings() {
           <label>Notes<textarea value={form.notes} onChange={e => f2('notes', e.target.value)} rows={3} /></label>
           {editing && (
             <div style={{marginTop: 16, padding: '12px 14px', background: 'rgba(200, 155, 74, 0.08)', border: '1px solid rgba(200, 155, 74, 0.3)', borderRadius: 6}}>
-              <h4 style={{margin: '0 0 8px', fontSize: 14, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--accent)'}}>📧 Send Pre-Listing Email</h4>
-              <p className="muted" style={{margin: '0 0 8px', fontSize: 13}}>Templates: photo day prep, walkthrough recap, listing agreement ready. Auto-CC the team.</p>
+              <h4 style={{margin: '0 0 8px', fontSize: 15.5, textTransform: 'uppercase', letterSpacing: 0.8, color: 'var(--accent)'}}>📧 Send Pre-Listing Email</h4>
+              <p className="muted" style={{margin: '0 0 8px', fontSize: 14.5}}>Templates: photo day prep, walkthrough recap, listing agreement ready. Auto-CC the team.</p>
               <button type="button" className="btn btn-secondary" onClick={openEmail}>Open Email Composer</button>
             </div>
           )}
@@ -316,7 +316,7 @@ export default function PreListings() {
         </div>
         <label>Subject<input value={emailForm.subject} onChange={e => setEmailForm(p => ({ ...p, subject: e.target.value }))} style={{width: '100%'}} /></label>
         <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4, marginTop: 8}}>
-          <span style={{fontSize: 14, fontWeight: 500}}>Body</span>
+          <span style={{fontSize: 15.5, fontWeight: 500}}>Body</span>
           <div style={{display: 'flex', gap: 6}}>
             <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
               📁 Load HTML File
@@ -343,8 +343,8 @@ export default function PreListings() {
           showPreview={false}
           compact
         />
-        <textarea ref={plEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 14, resize: 'vertical'}} />
-        <p className="muted" style={{fontSize: 13, margin: '2px 0 0'}}>
+        <textarea ref={plEmailBodyRef} rows={20} value={emailForm.body} onChange={e => setEmailForm(p => ({ ...p, body: e.target.value }))} style={{width: '100%', fontFamily: 'monospace', fontSize: 15.5, resize: 'vertical'}} />
+        <p className="muted" style={{fontSize: 14.5, margin: '2px 0 0'}}>
           📁 Load HTML · 📷 Inline Images (so they render) · plain text auto-formats.
         </p>
 
@@ -379,13 +379,13 @@ export default function PreListings() {
                   <button
                     type="button"
                     onClick={() => setEmailForm(p => ({ ...p, attachments: p.attachments.filter((_, idx) => idx !== i) }))}
-                    style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 14}}
+                    style={{background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', padding: 0, fontSize: 15.5}}
                   >✕</button>
                 </span>
               ))}
             </div>
           )}
-          <p className="muted" style={{fontSize: 13, margin: '4px 0 0'}}>SendGrid limit: 30 MB total.</p>
+          <p className="muted" style={{fontSize: 14.5, margin: '4px 0 0'}}>SendGrid limit: 30 MB total.</p>
         </div>
 
         <div className="form-actions">
@@ -403,16 +403,16 @@ export default function PreListings() {
         )}
         {!diagLoading && diagData && !diagData.error && (
           <div style={{display: 'flex', flexDirection: 'column', gap: 16}}>
-            <div style={{padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 6, fontSize: 14}}>
+            <div style={{padding: '10px 14px', background: 'var(--bg-elevated)', borderRadius: 6, fontSize: 15.5}}>
               <strong>{diagData.summary.shouldBeListedCount}</strong> pre-listing(s) match an active transaction or listing and should be flipped to <em>Listed</em>.<br/>
               <strong>{diagData.summary.duplicateGroups}</strong> address(es) appear on multiple pre-listing rows ({diagData.summary.duplicateRows} total rows).
             </div>
 
             <div>
               <h3 style={{margin: '0 0 8px'}}>Should be Listed ({diagData.shouldBeListed.length})</h3>
-              {diagData.shouldBeListed.length === 0 && <div style={{color: 'var(--text-muted)', fontSize: 14}}>None.</div>}
+              {diagData.shouldBeListed.length === 0 && <div style={{color: 'var(--text-muted)', fontSize: 15.5}}>None.</div>}
               {diagData.shouldBeListed.length > 0 && (
-                <table style={{width: '100%', fontSize: 14, borderCollapse: 'collapse'}}>
+                <table style={{width: '100%', fontSize: 15.5, borderCollapse: 'collapse'}}>
                   <thead><tr style={{textAlign: 'left', borderBottom: '1px solid var(--border)'}}>
                     <th style={{padding: 6}}>Address</th><th style={{padding: 6}}>Owner</th>
                     <th style={{padding: 6}}>Current Status</th><th style={{padding: 6}}>Matched With</th>
@@ -433,18 +433,18 @@ export default function PreListings() {
 
             <div>
               <h3 style={{margin: '0 0 8px'}}>Duplicate Address Groups ({diagData.duplicates.length})</h3>
-              {diagData.duplicates.length === 0 && <div style={{color: 'var(--text-muted)', fontSize: 14}}>None.</div>}
+              {diagData.duplicates.length === 0 && <div style={{color: 'var(--text-muted)', fontSize: 15.5}}>None.</div>}
               {diagData.duplicates.map(g => (
                 <div key={g.normalized} style={{border: '1px solid var(--border)', borderRadius: 4, padding: 8, marginBottom: 8}}>
-                  <div style={{fontSize: 13, color: 'var(--text-muted)', marginBottom: 4}}>{g.normalized}</div>
-                  <table style={{width: '100%', fontSize: 14, borderCollapse: 'collapse'}}>
+                  <div style={{fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 4}}>{g.normalized}</div>
+                  <table style={{width: '100%', fontSize: 15.5, borderCollapse: 'collapse'}}>
                     <tbody>
                       {g.rows.map((pl, i) => (
                         <tr key={pl.id} style={{borderBottom: '1px solid var(--border)'}}>
                           <td style={{padding: 4, width: 80}}>{i === 0 ? <strong style={{color: '#10b981'}}>KEEP</strong> : <span style={{color: '#ef4444'}}>delete</span>}</td>
                           <td style={{padding: 4}}>{pl.property_address}</td>
                           <td style={{padding: 4}}>{pl.status}</td>
-                          <td style={{padding: 4, fontSize: 13, color: 'var(--text-muted)'}}>updated {pl.updated_at}</td>
+                          <td style={{padding: 4, fontSize: 14.5, color: 'var(--text-muted)'}}>updated {pl.updated_at}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -471,7 +471,7 @@ export default function PreListings() {
 
       <Modal open={emailPreviewOpen} onClose={() => setEmailPreviewOpen(false)} title="Email Preview" wide>
         <div>
-          <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 14}}>
+          <div style={{padding: '8px 12px', background: 'var(--bg-primary)', borderRadius: 4, marginBottom: 8, fontSize: 15.5}}>
             <strong>To:</strong> {emailForm.to_email || '(no recipient)'}<br/>
             <strong>Subject:</strong> {emailForm.subject || '(no subject)'}
           </div>

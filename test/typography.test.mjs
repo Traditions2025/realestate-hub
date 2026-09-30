@@ -26,14 +26,29 @@ test('the webfont is actually loaded', () => {
   assert.match(html, /preconnect[\s\S]{0,200}fonts\.gstatic\.com/)
 })
 
-test('table text is 14px, matching FUB, not the old 13px', () => {
-  assert.match(css, /--text-table: 14px/)
-  assert.ok(!/--text-table: 13px/.test(css), '13px was the main thing making dense screens hard to read')
+// FUB's own sizes were the starting point, then John asked for 10% on top (2026-09-30).
+// So these are deliberately LARGER than FUB, and the tokens sit on half-pixels because
+// rounding 13px to a whole 14 drifts to 8.3% rather than the 10 that was asked for.
+test('table text is above FUB’s 14px, and well clear of the old 13px', () => {
+  const m = css.match(/--text-table: ([\d.]+)px/)
+  assert.ok(m, '--text-table must be defined')
+  assert.ok(Number(m[1]) >= 15, `table text should be 15px or more, got ${m[1]}px`)
 })
 
-test('body and section sizes match FUB', () => {
-  assert.match(css, /--text-body: 14px/)
-  assert.match(css, /--text-section: 16px/)
+test('body and section carry the same 10% as everything else', () => {
+  const body = Number(css.match(/--text-body: ([\d.]+)px/)[1])
+  const section = Number(css.match(/--text-section: ([\d.]+)px/)[1])
+  assert.ok(body >= 15, `body should be 15px or more, got ${body}px`)
+  assert.ok(section > body, 'a section heading must still outrank body text')
+})
+
+test('the hierarchy survived the scale', () => {
+  // '\\d' inside a template literal collapses to a plain 'd', so the class has to be
+  // escaped for the RegExp constructor rather than written as if it were a literal.
+  const t = (name) => Number(css.match(new RegExp('--text-' + name + ': ([\\d.]+)px'))[1])
+  const order = ['caption', 'meta', 'body', 'section', 'page-title'].map(t)
+  for (let i = 1; i < order.length; i++)
+    assert.ok(order[i] >= order[i - 1], `type scale went backwards at step ${i}: ${order.join(' < ')}`)
 })
 
 test('FUB\u2019s softer text colours are used, not near-black', () => {

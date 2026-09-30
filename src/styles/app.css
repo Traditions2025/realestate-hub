@@ -4441,12 +4441,12 @@ img[width], img[height] { height: auto; }
      1.0 - fine for a single-line cell, actively hard to read the moment anything wraps.
      The ask was readability, so single-line rows stay compact while anything that can run
      to two lines gets room. Copying 1.0 everywhere would have worked against the point. */
-  --text-page-title: 26px;
-  --text-section: 16px;
-  --text-body: 14px;
-  --text-table: 14px;
-  --text-meta: 12px;
-  --text-caption: 11px;
+  --text-page-title: 28.5px;
+  --text-section: 17.5px;
+  --text-body: 15.5px;
+  --text-table: 15.5px;
+  --text-meta: 13px;
+  --text-caption: 12px;
 
   --leading-tight: 1.15;   /* single-line table cells, pills, badges */
   --leading-snug: 1.35;    /* headings, buttons */

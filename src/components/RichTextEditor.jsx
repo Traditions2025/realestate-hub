@@ -99,7 +99,7 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
     insertCardForUrl(url)
   }
 
-  const tbBtn = { padding: '4px 9px', background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #d1d5db)', borderRadius: 4, fontSize: 14, cursor: 'pointer', color: 'var(--text-primary, #111)' }
+  const tbBtn = { padding: '4px 9px', background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #d1d5db)', borderRadius: 4, fontSize: 15.5, cursor: 'pointer', color: 'var(--text-primary, #111)' }
   const B = ({ label, cmd, arg, title }) => (
     <button type="button" title={title} onMouseDown={e => e.preventDefault()} onClick={() => exec(cmd, arg)} style={tbBtn}>{label}</button>
   )
@@ -136,7 +136,7 @@ export default function RichTextEditor({ value, onChange, minHeight = 220 }) {
         onKeyUp={saveSel}
         onMouseUp={saveSel}
         onPaste={onPaste}
-        style={{ minHeight, maxHeight: '48vh', overflowY: 'auto', padding: '12px 14px', fontSize: 14, lineHeight: 1.6, outline: 'none', fontFamily: 'Arial, Helvetica, sans-serif', background: '#ffffff', color: '#111827' }}
+        style={{ minHeight, maxHeight: '48vh', overflowY: 'auto', padding: '12px 14px', fontSize: 15.5, lineHeight: 1.6, outline: 'none', fontFamily: 'Arial, Helvetica, sans-serif', background: '#ffffff', color: '#111827' }}
       />
     </div>
   )

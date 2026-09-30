@@ -99,7 +99,7 @@ function insertAtCursor(ref, token, current, setValue) {
 function MergeFieldPicker({ onPick }) {
   return (
     <select value="" onChange={e => { if (e.target.value) onPick(e.target.value); e.target.value = '' }}
-      title="Insert a custom field" style={{ fontSize: 13, padding: '4px 6px' }}>
+      title="Insert a custom field" style={{ fontSize: 14.5, padding: '4px 6px' }}>
       <option value="">+ Custom field…</option>
       {MERGE_FIELDS.map(([tok, label]) => <option key={tok} value={tok}>{label}</option>)}
     </select>
@@ -138,14 +138,14 @@ function VoicemailManager() {
     <section className="detail-section" style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0 }}>🎙 Voicemail Recordings</h3>
-        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Upload MP3/WAV clips (record on your phone or computer). Use them for one-click voicemail drops during a call.</span>
+        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Upload MP3/WAV clips (record on your phone or computer). Use them for one-click voicemail drops during a call.</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
-        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Buyer follow-up drop)" style={{ padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, minWidth: 260 }} />
+        <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Buyer follow-up drop)" style={{ padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, minWidth: 260 }} />
         <input ref={fileRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => upload(e.target.files?.[0])} />
         <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { if (!name.trim()) { notify('Give the voicemail a name first.'); return } fileRef.current?.click() }}>{busy ? 'Uploading…' : '＋ Upload MP3/WAV'}</button>
       </div>
-      {list.length === 0 ? <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No voicemails yet. Record one on your phone or computer and upload it here.</div> : (
+      {list.length === 0 ? <div style={{ fontSize: 15.5, color: 'var(--text-muted)' }}>No voicemails yet. Record one on your phone or computer and upload it here.</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {list.map(v => (
             <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
@@ -373,9 +373,9 @@ export default function Templates() {
                   <td><span className={`type-pill type-${item.type === 'both' ? 'both' : 'buyer'}`} style={{background: 'var(--bg-elevated)', color: 'var(--text-secondary)', borderColor: 'var(--border)'}}>{typeMeta.icon} {typeMeta.label}</span></td>
                   <td>{item.category || <span className="muted">—</span>}</td>
                   <td>{item.subject || <span className="muted">—</span>}</td>
-                  <td className="muted" style={{fontSize: 13, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{snippet || '—'}</td>
+                  <td className="muted" style={{fontSize: 14.5, maxWidth: 280, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>{snippet || '—'}</td>
                   <td>{item.used_count || 0}</td>
-                  <td className="muted" style={{fontSize: 13}}>{(item.updated_at || '').split('T')[0] || (item.updated_at || '').split(' ')[0] || '—'}</td>
+                  <td className="muted" style={{fontSize: 14.5}}>{(item.updated_at || '').split('T')[0] || (item.updated_at || '').split(' ')[0] || '—'}</td>
                   <td style={{whiteSpace: 'nowrap'}}>
                     <button className="btn-sm" onClick={() => copyBody(item)} title="Copy body to clipboard">Copy</button>
                     <button className="btn-sm" onClick={() => openEdit(item)}>Edit</button>
@@ -394,7 +394,7 @@ export default function Templates() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setTxOpen(v => !v)}>
           <h3 style={{ margin: 0 }}>Transaction Emails {txOpen ? '▾' : '▸'}</h3>
           <span className="email-status-tag">{txTemplates.length}</span>
-          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Sent from the Transactions tab — each deal's details (address, names, dates, price) fill in automatically</span>
+          <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Sent from the Transactions tab — each deal's details (address, names, dates, price) fill in automatically</span>
         </div>
         {txOpen && (
           <div className="table-container" style={{ marginTop: 10 }}>
@@ -405,7 +405,7 @@ export default function Templates() {
                   <tr key={t.id}>
                     <td className="cell-primary" style={{ cursor: 'pointer' }} onClick={() => setViewTx(t)}>{t.name}</td>
                     <td><span className="email-status-tag">{t.recipient === 'client' ? (t.role || 'client') : t.recipient}</span></td>
-                    <td style={{ fontSize: 14 }}>{t.subject}</td>
+                    <td style={{ fontSize: 15.5 }}>{t.subject}</td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <button className="btn-sm" onClick={() => setViewTx(t)}>View</button>
                       <button className="btn-sm" onClick={() => { try { navigator.clipboard.writeText(t.body || '') } catch {} }} title="Copy body">Copy</button>
@@ -421,8 +421,8 @@ export default function Templates() {
       <Modal open={!!viewTx} onClose={() => setViewTx(null)} title={viewTx?.name || 'Transaction Email'} wide>
         {viewTx && (<>
           <p style={{ margin: '0 0 8px' }}><strong>Subject:</strong> {viewTx.subject}</p>
-          <div style={{ whiteSpace: 'pre-wrap', fontSize: 14, lineHeight: 1.6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, maxHeight: '55vh', overflowY: 'auto' }}>{viewTx.body}</div>
-          <p className="muted" style={{ fontSize: 13, marginTop: 10 }}>Sent from the <strong>Transactions</strong> tab. Merge fields like {'{{property_address}}'}, {'{{client_first_names}}'}, {'{{closing_date}}'} fill in from the specific deal when you send it there.</p>
+          <div style={{ whiteSpace: 'pre-wrap', fontSize: 15.5, lineHeight: 1.6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, maxHeight: '55vh', overflowY: 'auto' }}>{viewTx.body}</div>
+          <p className="muted" style={{ fontSize: 14.5, marginTop: 10 }}>Sent from the <strong>Transactions</strong> tab. Merge fields like {'{{property_address}}'}, {'{{client_first_names}}'}, {'{{closing_date}}'} fill in from the specific deal when you send it there.</p>
           <div className="form-actions"><button className="btn btn-secondary" onClick={() => setViewTx(null)}>Close</button></div>
         </>)}
       </Modal>
@@ -452,7 +452,7 @@ export default function Templates() {
           {form.type === 'email' ? (
             <div>
               <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '6px 0 4px'}}>
-                <span style={{fontSize: 14, fontWeight: 500}}>Message</span>
+                <span style={{fontSize: 15.5, fontWeight: 500}}>Message</span>
                 <div style={{display: 'flex', gap: 6}}>
                   <button type="button" className={`btn btn-sm ${tplView === 'wysiwyg' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTplView('wysiwyg')}>✎ Edit</button>
                   <button type="button" className={`btn btn-sm ${tplView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTplView('html')}>{'</>'} HTML</button>
@@ -469,10 +469,10 @@ export default function Templates() {
                     <EmailToolbar textareaRef={tplBodyRef} body={form.body} setBody={(b) => setForm(p => ({ ...p, body: b }))} showPreview={false} compact />
                     <MergeFieldPicker onPick={tok => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))} />
                   </div>
-                  <textarea ref={tplBodyRef} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={16} style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}} />
+                  <textarea ref={tplBodyRef} value={form.body} onChange={e => setForm(p => ({ ...p, body: e.target.value }))} rows={16} style={{width: '100%', fontFamily: 'monospace', fontSize: 14.5, resize: 'vertical'}} />
                 </>
               )}
-              <p style={{fontSize: 13, color: 'var(--text-muted)', margin: '4px 0'}}>
+              <p style={{fontSize: 14.5, color: 'var(--text-muted)', margin: '4px 0'}}>
                 Write it like a normal email. Merge fields: {'{{first_name}} {{last_name}} {{city}} {{address}}'}.
               </p>
             </div>
@@ -480,7 +480,7 @@ export default function Templates() {
             <label>Body
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '4px 0', flexWrap: 'wrap' }}>
                 <MergeFieldPicker onPick={tok => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))} />
-                <button type="button" className="btn btn-sm" style={{ fontSize: 13 }}
+                <button type="button" className="btn btn-sm" style={{ fontSize: 14.5 }}
                   title="Detect merge fields from a pasted template (any format) and convert them to our fields"
                   onClick={() => {
                     const { text, mapped, unmapped } = normalizeMergeFields(form.body)
@@ -492,7 +492,7 @@ export default function Templates() {
                   }}>🔀 Match custom fields</button>
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                   {MERGE_FIELDS.slice(0, 5).map(([tok, label]) => (
-                    <button key={tok} type="button" className="btn btn-sm btn-secondary" style={{ fontSize: 13, padding: '2px 7px' }}
+                    <button key={tok} type="button" className="btn btn-sm btn-secondary" style={{ fontSize: 14.5, padding: '2px 7px' }}
                       onClick={() => insertAtCursor(tplBodyRef, tok, form.body, b => setForm(p => ({ ...p, body: b })))}>{label}</button>
                   ))}
                 </div>
@@ -504,7 +504,7 @@ export default function Templates() {
                 rows={8}
                 required
                 placeholder={form.type === 'text' ? 'Hi {{first_name}}, quick note...' : 'Template body — supports {{first_name}}, {{address}}, etc.'}
-                style={{width: '100%', fontFamily: 'monospace', fontSize: 13, resize: 'vertical'}}
+                style={{width: '100%', fontFamily: 'monospace', fontSize: 14.5, resize: 'vertical'}}
               />
             </label>
           )}
@@ -535,7 +535,7 @@ export default function Templates() {
               style={{width: '100%', height: 480, border: 0, background: '#fff'}}
             />
           ) : (
-            <pre style={{whiteSpace: 'pre-wrap', padding: 16, margin: 0, fontFamily: 'inherit', fontSize: 14, lineHeight: 1.5}}>{form.body}</pre>
+            <pre style={{whiteSpace: 'pre-wrap', padding: 16, margin: 0, fontFamily: 'inherit', fontSize: 15.5, lineHeight: 1.5}}>{form.body}</pre>
           )}
         </div>
       </Modal>

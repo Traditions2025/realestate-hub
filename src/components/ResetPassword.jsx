@@ -47,7 +47,7 @@ export default function ResetPassword() {
               {error && <div className="login-error">{error}</div>}
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>{loading ? 'Saving...' : 'Set new password'}</button>
             </form>
-            <a href="/" style={{ marginTop: 12, display: 'inline-block', color: '#2563eb', fontSize: 14 }}>← Back to sign in</a>
+            <a href="/" style={{ marginTop: 12, display: 'inline-block', color: '#2563eb', fontSize: 15.5 }}>← Back to sign in</a>
           </>
         )}
       </div>

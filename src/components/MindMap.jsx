@@ -4,8 +4,8 @@ import { authFetch } from '../api'
 
 const COLORS = ['#ffffff', '#fde68a', '#bbf7d0', '#bfdbfe', '#fecaca', '#e9d5ff', '#fed7aa', '#c7d2fe', '#cbd5e1']
 const TEAM = ['Matt', 'John', 'Hunter', 'Cherryl']
-const lbl = { display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }
-const inp = { width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 14, marginTop: 4 }
+const lbl = { display: 'block', fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 12 }
+const inp = { width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: 15.5, marginTop: 4 }
 
 // Miro-style visual workspace for a project: draggable cards, connectors, colors,
 // due dates, assignees, links. State persists to the project's canvas_data.
@@ -90,10 +90,10 @@ export default function MindMap({ projectId, projectName, initial, onClose }) {
         <button className="btn btn-secondary btn-sm" onClick={() => setScale(s => Math.min(2, +(s + 0.1).toFixed(2)))}>+</button>
         <button className="btn btn-secondary btn-sm" onClick={() => setScale(s => Math.max(0.4, +(s - 0.1).toFixed(2)))}>−</button>
         <button className="btn btn-secondary btn-sm" onClick={() => { setPan({ x: 40, y: 40 }); setScale(1) }}>Reset view</button>
-        <span style={{ fontSize: 13, color: connectingFrom ? '#2563eb' : 'var(--text-muted)' }}>
+        <span style={{ fontSize: 14.5, color: connectingFrom ? '#2563eb' : 'var(--text-muted)' }}>
           {connectingFrom ? '➜ click another card to connect (or empty space to cancel)' : 'Drag cards • drag empty space to pan • ↔ handle to connect'}
         </span>
-        <span style={{ marginLeft: 'auto', fontSize: 13, color: saved === 'saved' ? '#10b981' : saved === 'error' ? '#ef4444' : 'var(--text-muted)' }}>
+        <span style={{ marginLeft: 'auto', fontSize: 14.5, color: saved === 'saved' ? '#10b981' : saved === 'error' ? '#ef4444' : 'var(--text-muted)' }}>
           {saved === 'saving' ? 'Saving…' : saved === 'error' ? '⚠ Save failed' : '✓ Saved'}
         </span>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>✕ Close</button>
@@ -116,23 +116,23 @@ export default function MindMap({ projectId, projectName, initial, onClose }) {
               <div key={n.id} onMouseDown={(e) => onMouseDownNode(e, n.id)}
                 style={{ position: 'absolute', left: n.x, top: n.y, width: n.w || 190, background: n.color || '#fff', border: selectedId === n.id ? '2px solid #2563eb' : '1px solid #cbd5e1', borderRadius: 8, boxShadow: '0 2px 8px rgba(0,0,0,0.25)', cursor: 'move', color: '#111827', userSelect: 'none' }}>
                 <div style={{ padding: '8px 10px' }}>
-                  <div style={{ fontWeight: 600, fontSize: 14, wordBreak: 'break-word' }}>{n.title || 'Untitled'}</div>
-                  {n.notes && <div style={{ fontSize: 13, color: '#475569', marginTop: 4, whiteSpace: 'pre-wrap' }}>{n.notes}</div>}
+                  <div style={{ fontWeight: 600, fontSize: 15.5, wordBreak: 'break-word' }}>{n.title || 'Untitled'}</div>
+                  {n.notes && <div style={{ fontSize: 14.5, color: '#475569', marginTop: 4, whiteSpace: 'pre-wrap' }}>{n.notes}</div>}
                   {(n.due_date || n.assignee || n.link) && (
                     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-                      {n.due_date && <span style={{ fontSize: 13, background: '#0f172a', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>📅 {n.due_date}</span>}
-                      {n.assignee && <span style={{ fontSize: 13, background: '#1d4ed8', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>👤 {n.assignee}</span>}
-                      {n.link && <a href={n.link} target="_blank" rel="noreferrer" onMouseDown={e => e.stopPropagation()} style={{ fontSize: 13, color: '#2563eb' }}>🔗 link</a>}
+                      {n.due_date && <span style={{ fontSize: 14.5, background: '#0f172a', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>📅 {n.due_date}</span>}
+                      {n.assignee && <span style={{ fontSize: 14.5, background: '#1d4ed8', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>👤 {n.assignee}</span>}
+                      {n.link && <a href={n.link} target="_blank" rel="noreferrer" onMouseDown={e => e.stopPropagation()} style={{ fontSize: 14.5, color: '#2563eb' }}>🔗 link</a>}
                     </div>
                   )}
                 </div>
                 <button title="Connect to another card" onMouseDown={e => { e.stopPropagation(); setConnectingFrom(n.id) }}
-                  style={{ position: 'absolute', right: -11, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: '50%', border: '2px solid #fff', background: '#2563eb', color: '#fff', cursor: 'crosshair', fontSize: 13, lineHeight: '18px', padding: 0 }}>↔</button>
+                  style={{ position: 'absolute', right: -11, top: '50%', transform: 'translateY(-50%)', width: 22, height: 22, borderRadius: '50%', border: '2px solid #fff', background: '#2563eb', color: '#fff', cursor: 'crosshair', fontSize: 14.5, lineHeight: '18px', padding: 0 }}>↔</button>
               </div>
             ))}
           </div>
           {nodes.length === 0 && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 14, pointerEvents: 'none' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569', fontSize: 15.5, pointerEvents: 'none' }}>
               Click <strong style={{ margin: '0 4px' }}>+ Add Card</strong> to start building your workspace.
             </div>
           )}

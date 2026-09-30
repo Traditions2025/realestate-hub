@@ -25,7 +25,7 @@ function AnnotatedShot({ name, accent = '#2563eb', annos = [], caption }) {
           <i style={{ width: 10, height: 10, borderRadius: '50%', background: '#e5837a' }} />
           <i style={{ width: 10, height: 10, borderRadius: '50%', background: '#e6c17a' }} />
           <i style={{ width: 10, height: 10, borderRadius: '50%', background: '#8fc98f' }} />
-          {caption && <span style={{ marginLeft: 8, fontSize: 13, color: 'var(--text-muted)' }}>{caption}</span>}
+          {caption && <span style={{ marginLeft: 8, fontSize: 14.5, color: 'var(--text-muted)' }}>{caption}</span>}
         </div>
         <div style={{ position: 'relative', lineHeight: 0, background: '#fff' }}>
           {src
@@ -42,7 +42,7 @@ function AnnotatedShot({ name, accent = '#2563eb', annos = [], caption }) {
               }}>
               <span style={{
                 position: 'absolute', left: -11, top: -11, width: 22, height: 22, borderRadius: '50%',
-                background: accent, color: '#fff', fontSize: 13, fontWeight: 800, display: 'grid', placeItems: 'center',
+                background: accent, color: '#fff', fontSize: 14.5, fontWeight: 800, display: 'grid', placeItems: 'center',
                 boxShadow: '0 1px 4px rgba(0,0,0,.35)',
               }}>{a.n}</span>
             </div>
@@ -58,8 +58,8 @@ function AnnotatedShot({ name, accent = '#2563eb', annos = [], caption }) {
               border: '1px solid ' + (hot === a.n ? accent : 'var(--border)'),
               background: hot === a.n ? tint(8) : 'transparent', transition: 'background .12s,border-color .12s',
             }}>
-            <span style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: '50%', background: accent, color: '#fff', fontSize: 13, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{a.n}</span>
-            <div><b style={{ color: 'var(--text-primary)', fontSize: 14 }}>{a.h}</b>{a.t ? <span style={{ color: 'var(--text-secondary)', fontSize: 14 }}> — {a.t}</span> : null}</div>
+            <span style={{ flex: '0 0 auto', width: 22, height: 22, borderRadius: '50%', background: accent, color: '#fff', fontSize: 14.5, fontWeight: 800, display: 'grid', placeItems: 'center' }}>{a.n}</span>
+            <div><b style={{ color: 'var(--text-primary)', fontSize: 15.5 }}>{a.h}</b>{a.t ? <span style={{ color: 'var(--text-secondary)', fontSize: 15.5 }}> — {a.t}</span> : null}</div>
           </li>
         ))}
       </ol>
@@ -209,35 +209,35 @@ export default function WhatsNew() {
         border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', marginBottom: 22,
         background: 'linear-gradient(120deg, color-mix(in srgb, var(--accent, #2563eb) 10%, var(--bg-card)), var(--bg-card))',
       }}>
-        <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--accent, #2563eb)' }}>
+        <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: 1, textTransform: 'uppercase', color: 'var(--accent, #2563eb)' }}>
           What’s new · since August 3, 2026
         </div>
-        <div style={{ fontSize: 22, fontWeight: 800, margin: '6px 0 4px', color: 'var(--text-primary)' }}>
+        <div style={{ fontSize: 24, fontWeight: 800, margin: '6px 0 4px', color: 'var(--text-primary)' }}>
           Everything we added to the Hub
         </div>
-        <div style={{ color: 'var(--text-secondary)', fontSize: 14.5 }}>
+        <div style={{ color: 'var(--text-secondary)', fontSize: 16 }}>
           A visual tour of every upgrade. The numbered boxes on each screen point to the new bits — the note under each screen explains it. Hit <b>“Show me →”</b> to jump to the live feature.
         </div>
       </div>
 
       {GROUPS.map(g => (
         <div key={g.heading} style={{ marginBottom: 28 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 12px' }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 12px' }}>
             {g.heading}
           </div>
           <div style={{ display: 'grid', gap: 18 }}>
             {g.items.map(it => (
               <div key={it.title} style={{ border: '1px solid var(--border)', borderRadius: 14, padding: 18, background: 'var(--bg-card)' }}>
                 <div style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
-                  <div style={{ flex: '0 0 auto', width: 44, height: 44, borderRadius: 11, display: 'grid', placeItems: 'center', fontSize: 22, background: `color-mix(in srgb, ${it.accent} 16%, transparent)` }}>{it.icon}</div>
+                  <div style={{ flex: '0 0 auto', width: 44, height: 44, borderRadius: 11, display: 'grid', placeItems: 'center', fontSize: 24, background: `color-mix(in srgb, ${it.accent} 16%, transparent)` }}>{it.icon}</div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>{it.title}</span>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: it.accent, background: `color-mix(in srgb, ${it.accent} 14%, transparent)`, padding: '2px 8px', borderRadius: 999 }}>{it.date}</span>
+                      <span style={{ fontSize: 18.5, fontWeight: 700, color: 'var(--text-primary)' }}>{it.title}</span>
+                      <span style={{ fontSize: 14.5, fontWeight: 700, color: it.accent, background: `color-mix(in srgb, ${it.accent} 14%, transparent)`, padding: '2px 8px', borderRadius: 999 }}>{it.date}</span>
                     </div>
-                    <div style={{ color: 'var(--text-secondary)', fontSize: 14, marginTop: 5, lineHeight: 1.5 }}>{it.desc}</div>
+                    <div style={{ color: 'var(--text-secondary)', fontSize: 15.5, marginTop: 5, lineHeight: 1.5 }}>{it.desc}</div>
                     {it.points && it.points.length > 0 && (
-                      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: 14, lineHeight: 1.55 }}>
+                      <ul style={{ margin: '8px 0 0', paddingLeft: 18, color: 'var(--text-secondary)', fontSize: 15.5, lineHeight: 1.55 }}>
                         {it.points.map((p, i) => <li key={i}>{p}</li>)}
                       </ul>
                     )}
@@ -253,7 +253,7 @@ export default function WhatsNew() {
         </div>
       ))}
 
-      <div style={{ color: 'var(--text-muted)', fontSize: 14, padding: '6px 0 20px' }}>
+      <div style={{ color: 'var(--text-muted)', fontSize: 15.5, padding: '6px 0 20px' }}>
         That’s the tour. The full development history is under <b>Hub Updates</b>.
       </div>
     </div>
