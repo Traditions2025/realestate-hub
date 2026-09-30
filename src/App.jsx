@@ -46,7 +46,7 @@ function GlobalSearch() {
         <span style={{ position: 'absolute', left: 10, top: 9, color: 'var(--text-muted)' }}>⌕</span>
         {open && res && (
           <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,.18)', maxHeight: 380, overflowY: 'auto' }}>
-            {res.length === 0 ? <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 13 }}>No matches</div>
+            {res.length === 0 ? <div style={{ padding: 12, color: 'var(--text-muted)', fontSize: 14 }}>No matches</div>
               : res.map((r, i) => {
                 // Real link so right-click / middle-click / Cmd-click can open in a new tab;
                 // a plain click still does in-app navigation via go().
@@ -57,10 +57,10 @@ function GlobalSearch() {
                   style={{ display: 'flex', gap: 10, alignItems: 'baseline', padding: '8px 12px', cursor: 'pointer', textDecoration: 'none', color: 'inherit', background: i === active ? 'var(--bg-secondary)' : 'transparent', borderBottom: '1px solid var(--rule-2, var(--border))' }}>
                   <span style={{ color: 'var(--text-muted)' }}>{TYPE_ICON[r.type] || '•'}</span>
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontWeight: 600, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
-                    {r.subtitle && <div style={{ fontSize: 12, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>}
+                    <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.title}</div>
+                    {r.subtitle && <div style={{ fontSize: 13, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.subtitle}</div>}
                   </div>
-                  <span style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.04em' }}>{r.type}</span>
+                  <span style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--text-muted)', letterSpacing: '.04em' }}>{r.type}</span>
                 </a>
                 )
               })}
@@ -116,23 +116,23 @@ function NotificationBell() {
     <div ref={ref} style={{ position: 'relative' }}>
       <button className="header-icon-btn" onClick={openList} title="Notifications" aria-label="Notifications" style={{ position: 'relative' }}>
         <span style={{ fontVariantEmoji: 'text' }}>🔔</span>
-        {unread > 0 && <span style={{ position: 'absolute', top: -2, right: -4, background: '#ef4444', color: '#fff', fontSize: 12, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
+        {unread > 0 && <span style={{ position: 'absolute', top: -2, right: -4, background: '#ef4444', color: '#fff', fontSize: 13, fontWeight: 700, borderRadius: 10, padding: '0 5px', minWidth: 16, textAlign: 'center' }}>{unread > 99 ? '99+' : unread}</span>}
       </button>
       {open && (
         <div style={{ position: 'absolute', right: 0, top: '100%', marginTop: 6, width: 340, maxWidth: 'calc(100vw - 24px)', maxHeight: 460, overflowY: 'auto', background: 'var(--card, var(--bg-secondary))', border: '1px solid var(--border)', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.2)', zIndex: 60 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', borderBottom: '1px solid var(--border)' }}>
-            <strong style={{ fontSize: 13 }}>Notifications</strong>
+            <strong style={{ fontSize: 14 }}>Notifications</strong>
             <div style={{ display: 'flex', gap: 8 }}>
-              {!pushOn && <button className="btn-link" style={{ fontSize: 12 }} onClick={enablePush}>Enable push</button>}
-              <button className="btn-link" style={{ fontSize: 12 }} onClick={markAll}>Mark all read</button>
+              {!pushOn && <button className="btn-link" style={{ fontSize: 13 }} onClick={enablePush}>Enable push</button>}
+              <button className="btn-link" style={{ fontSize: 13 }} onClick={markAll}>Mark all read</button>
             </div>
           </div>
-          {items.length === 0 ? <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 13 }}>Nothing yet.</div>
+          {items.length === 0 ? <div style={{ padding: 16, color: 'var(--text-muted)', fontSize: 14 }}>Nothing yet.</div>
             : items.map(n => (
               <div key={n.id} onClick={() => go(n)} style={{ padding: '9px 12px', borderBottom: '1px solid var(--rule-2, var(--border))', cursor: 'pointer', background: n.read ? 'transparent' : 'var(--bg-secondary)' }}>
-                <div style={{ fontSize: 13, fontWeight: n.read ? 500 : 700 }}>{n.title}</div>
-                {n.body && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(n.created_at)}</div>
+                <div style={{ fontSize: 14, fontWeight: n.read ? 500 : 700 }}>{n.title}</div>
+                {n.body && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{n.body}</div>}
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{fmt(n.created_at)}</div>
               </div>
             ))}
         </div>
@@ -183,7 +183,7 @@ function AccountMenu({ me, theme, toggleTheme, logout, size = 32 }) {
           <button className="account-menu-item" role="menuitem" onClick={() => go('/settings')}>Settings</button>
           <div className="account-menu-sep" />
           <div className="account-menu-row">
-            <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Appearance</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Appearance</span>
             <div className="account-theme-seg" role="group" aria-label="Theme">
               <button className={theme === 'light' ? 'active' : ''} aria-pressed={theme === 'light'} onClick={() => theme !== 'light' && toggleTheme()}>☼ Light</button>
               <button className={theme === 'dark' ? 'active' : ''} aria-pressed={theme === 'dark'} onClick={() => theme !== 'dark' && toggleTheme()}>☾ Dark</button>
@@ -299,8 +299,8 @@ class ErrorBoundary extends React.Component {
     if (this.state.err) return (
       <div style={{ padding: 24, maxWidth: 900 }}>
         <h2 style={{ color: '#ef4444', marginTop: 0 }}>Something went wrong on this page.</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>The rest of the app is fine. Send this to your developer:</p>
-        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 12, maxHeight: 320, overflow: 'auto' }}>{String(this.state.err?.stack || this.state.err)}</pre>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>The rest of the app is fine. Send this to your developer:</p>
+        <pre style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, fontSize: 13, maxHeight: 320, overflow: 'auto' }}>{String(this.state.err?.stack || this.state.err)}</pre>
         <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
           {/* A crash often means this tab is running a stale build — a real reload
               pulls the current one; re-rendering the same broken code never helps. */}

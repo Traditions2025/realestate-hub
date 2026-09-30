@@ -45,7 +45,7 @@ export default function AiOpportunities() {
               {[['🔥', 'High-intent', intel.summary.high_intent], ['↩️', 'Need a reply', intel.summary.needs_reply], ['🤖', 'AI handoffs', intel.summary.handoffs_pending], ['📈', 'Re-engaged', intel.summary.reengaged], ['🏠', 'Repeat viewers', intel.summary.repeat_views], ['🏷', 'Seller opps', intel.summary.seller_opps]].map(([icon, label, n]) => (
                 <div key={label} style={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 10, padding: '10px 14px', minWidth: 108 }}>
                   <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{icon} {n}</div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 }}>{label}</div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.4px', marginTop: 2 }}>{label}</div>
                 </div>
               ))}
             </div>
@@ -59,11 +59,11 @@ export default function AiOpportunities() {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                         <span style={{ fontWeight: 700 }}>{q.name}</span>
-                        <span style={{ fontSize: 12, fontWeight: 700, color: LEVEL_COLOR[q.level] || '#64748b' }}>intent {q.intent}{q.peak > q.intent ? ` (peak ${q.peak})` : ''}</span>
-                        {q.needs_reply && <span style={{ fontSize: 12, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 6px', borderRadius: 4 }}>REPLIED</span>}
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtPhone(q.phone)} · {q.type || 'lead'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: LEVEL_COLOR[q.level] || '#64748b' }}>intent {q.intent}{q.peak > q.intent ? ` (peak ${q.peak})` : ''}</span>
+                        {q.needs_reply && <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 6px', borderRadius: 4 }}>REPLIED</span>}
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{fmtPhone(q.phone)} · {q.type || 'lead'}</span>
                       </div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <b style={{ color: '#b45309' }}>{q.recommended_action}.</b> {q.reasons.join(' · ')}{q.summary ? ` — ${q.summary}` : ''}
                       </div>
                     </div>
@@ -78,7 +78,7 @@ export default function AiOpportunities() {
       )}
 
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)', marginRight: 4 }}>Handoffs:</span>
+        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-secondary)', marginRight: 4 }}>Handoffs:</span>
         {[['all', 'All'], ['mine', 'Mine'], ['unassigned', 'Unassigned'], ['urgent', 'Urgent']].map(([k, l]) => (
           <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setFilter(k)}>{l}</button>
         ))}
@@ -88,7 +88,7 @@ export default function AiOpportunities() {
           <div className="detail-section" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
             <div style={{ fontSize: 34 }}>✅</div>
             <div style={{ fontWeight: 600, marginTop: 8, color: 'var(--text-primary)' }}>No open opportunities</div>
-            <div style={{ fontSize: 13, marginTop: 6 }}>When AI detects high intent (tour request, offer interest, seller lead, hot buyer), it will appear here.</div>
+            <div style={{ fontSize: 14, marginTop: 6 }}>When AI detects high intent (tour request, offer interest, seller lead, hot buyer), it will appear here.</div>
           </div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 14 }}>
@@ -96,14 +96,14 @@ export default function AiOpportunities() {
               <div key={o.id} className="detail-section" style={{ padding: 16, borderLeft: `4px solid ${o.urgency === 'urgent' ? '#ef4444' : '#f59e0b'}` }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 800, fontSize: 17 }}>{o.name}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: o.urgency === 'urgent' ? '#ef4444' : '#f59e0b', padding: '1px 7px', borderRadius: 4 }}>{o.urgency}</span>
-                  {o.intent_score != null && <span style={{ fontSize: 12, fontWeight: 700, color: LEVEL_COLOR[o.intent_level] || '#64748b' }}>intent {o.intent_score}</span>}
-                  <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{ago(o.created_at)} waiting</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: o.urgency === 'urgent' ? '#ef4444' : '#f59e0b', padding: '1px 7px', borderRadius: 4 }}>{o.urgency}</span>
+                  {o.intent_score != null && <span style={{ fontSize: 13, fontWeight: 700, color: LEVEL_COLOR[o.intent_level] || '#64748b' }}>intent {o.intent_score}</span>}
+                  <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-muted)' }}>{ago(o.created_at)} waiting</span>
                 </div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 3 }}>{fmtPhone(o.phone)} · {o.type || 'lead'}{o.source ? ' · ' + o.source : ''}{o.assigned_to ? ' · ' + o.assigned_to : ' · unassigned'}</div>
-                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 8, color: '#b45309' }}>{o.reason}</div>
-                {o.summary && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>{o.summary}</div>}
-                {o.recommended_action && <div style={{ fontSize: 12.5, color: 'var(--text-muted)', marginTop: 6 }}>Next: {o.recommended_action}</div>}
+                <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>{fmtPhone(o.phone)} · {o.type || 'lead'}{o.source ? ' · ' + o.source : ''}{o.assigned_to ? ' · ' + o.assigned_to : ' · unassigned'}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, marginTop: 8, color: '#b45309' }}>{o.reason}</div>
+                {o.summary && <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginTop: 6, lineHeight: 1.4 }}>{o.summary}</div>}
+                {o.recommended_action && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6 }}>Next: {o.recommended_action}</div>}
                 <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                   <button className="btn btn-primary btn-sm" onClick={() => call(o)}>📞 Call</button>
                   <button className="btn btn-sm" onClick={() => takeover(o.client_id, o.id)}>Take over</button>

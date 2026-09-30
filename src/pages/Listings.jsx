@@ -796,7 +796,7 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
                     <>
                       <div>✗ {autoFillResult.message}</div>
                       {autoFillResult.tried && autoFillResult.tried.length > 0 && (
-                        <div style={{marginTop: 8, fontSize: 12, opacity: 0.85}}>
+                        <div style={{marginTop: 8, fontSize: 13, opacity: 0.85}}>
                           <div style={{fontWeight: 600, marginBottom: 4}}>Sources tried:</div>
                           {autoFillResult.tried.map((t, i) => (
                             <div key={i} style={{marginBottom: 2}}>
@@ -807,7 +807,7 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
                           ))}
                         </div>
                       )}
-                      <div style={{marginTop: 8, fontSize: 12, opacity: 0.85}}>
+                      <div style={{marginTop: 8, fontSize: 13, opacity: 0.85}}>
                         💡 Tip: open one of the links above to see if the property exists on that site. If it does, paste the URL into the Import tab. If not, the property may not be currently listed for sale — upload the MLS PDF instead.
                       </div>
                     </>
@@ -1168,7 +1168,7 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
                   showPreview={false}
                   compact
                 />
-                <textarea ref={matchBodyRef} rows={14} value={matchBody} onChange={e => setMatchBody(e.target.value)} style={{width: '100%', fontFamily: 'monospace', fontSize: 12.5}} />
+                <textarea ref={matchBodyRef} rows={14} value={matchBody} onChange={e => setMatchBody(e.target.value)} style={{width: '100%', fontFamily: 'monospace', fontSize: 13}} />
               </div>
 
               <div className="form-actions">

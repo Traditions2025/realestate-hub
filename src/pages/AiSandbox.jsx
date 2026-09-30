@@ -135,12 +135,12 @@ export default function AiSandbox() {
       {/* Lead setup */}
       <div className="detail-section" style={{ marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'end' }}>
-          <label style={{ fontSize: 12 }}>Lead name<br /><input className="input" value={leadName} onChange={e => setLeadName(e.target.value)} style={{ width: 130 }} /></label>
-          <label style={{ fontSize: 12 }}>Type<br /><select className="input" value={leadType} onChange={e => setLeadType(e.target.value)} style={{ width: 130 }}><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="both">Buyer/Seller</option></select></label>
-          <label style={{ fontSize: 12 }}>City<br /><input className="input" value={leadCity} onChange={e => setLeadCity(e.target.value)} style={{ width: 130 }} /></label>
+          <label style={{ fontSize: 13 }}>Lead name<br /><input className="input" value={leadName} onChange={e => setLeadName(e.target.value)} style={{ width: 130 }} /></label>
+          <label style={{ fontSize: 13 }}>Type<br /><select className="input" value={leadType} onChange={e => setLeadType(e.target.value)} style={{ width: 130 }}><option value="buyer">Buyer</option><option value="seller">Seller</option><option value="both">Buyer/Seller</option></select></label>
+          <label style={{ fontSize: 13 }}>City<br /><input className="input" value={leadCity} onChange={e => setLeadCity(e.target.value)} style={{ width: 130 }} /></label>
           <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Live intent</div>
-            <div style={{ fontSize: 26, fontWeight: 800, color: LEVEL_COLOR[levelName(intent)] }}>{intent} <span style={{ fontSize: 13 }}>{levelName(intent)}</span></div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Live intent</div>
+            <div style={{ fontSize: 26, fontWeight: 800, color: LEVEL_COLOR[levelName(intent)] }}>{intent} <span style={{ fontSize: 14 }}>{levelName(intent)}</span></div>
           </div>
         </div>
       </div>
@@ -148,7 +148,7 @@ export default function AiSandbox() {
       {/* Online activity → AI reaches out first (proactive) */}
       <div className="detail-section" style={{ marginBottom: 14 }}>
         <h4 style={{ marginTop: 0 }}>🌐 Online activity — AI reaches out first</h4>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>The lead is browsing the site. The AI opens the conversation with a contextual, no-pressure message (never "I saw you browsing").</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>The lead is browsing the site. The AI opens the conversation with a contextual, no-pressure message (never "I saw you browsing").</p>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {ONLINE_ACTIVITIES.map(a => (
             <button key={a.label} className="btn btn-sm" disabled={busy} onClick={() => startOnlineActivity(a)} title={a.activity.description}>{a.icon} {a.label}</button>
@@ -159,7 +159,7 @@ export default function AiSandbox() {
       {/* No recent activity → revive old buyer leads (rotating bank) */}
       <div className="detail-section" style={{ marginBottom: 14 }}>
         <h4 style={{ marginTop: 0 }}>💤 No recent activity — revive old buyer leads</h4>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>Reconnect an old buyer lead with no recent online activity. Rotates through all 20 approved openers (Hi/Hello + time of day, John intro, MattSmithTeam.com at the end). Click again to see the next one.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Reconnect an old buyer lead with no recent online activity. Rotates through all 20 approved openers (Hi/Hello + time of day, John intro, MattSmithTeam.com at the end). Click again to see the next one.</p>
         <button className="btn btn-sm" disabled={busy} onClick={startRevive}>💤 Revive an old buyer lead</button>
       </div>
 
@@ -176,9 +176,9 @@ export default function AiSandbox() {
       {/* Conversation */}
       <div className="detail-section" style={{ marginBottom: 14 }}>
         <div ref={scrollRef} style={{ maxHeight: 460, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 12, padding: 4 }}>
-          {messages.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 13, textAlign: 'center', padding: 20 }}>Pick an <b>online activity</b> to watch the AI reach out first, a <b>lead message</b> to watch it reply, or type below as the lead.</div>}
+          {messages.length === 0 && <div style={{ color: 'var(--text-muted)', fontSize: 14, textAlign: 'center', padding: 20 }}>Pick an <b>online activity</b> to watch the AI reach out first, a <b>lead message</b> to watch it reply, or type below as the lead.</div>}
           {messages.map((m, i) => m.role === 'event' ? (
-            <div key={i} style={{ alignSelf: 'center', fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px dashed var(--border)', borderRadius: 20, padding: '4px 12px' }}>🌐 {m.text}</div>
+            <div key={i} style={{ alignSelf: 'center', fontSize: 13, color: 'var(--text-muted)', background: 'var(--bg-secondary)', border: '1px dashed var(--border)', borderRadius: 20, padding: '4px 12px' }}>🌐 {m.text}</div>
           ) : m.role === 'lead' ? (
             <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '80%', background: '#2563eb', color: '#fff', padding: '8px 12px', borderRadius: '12px 12px 2px 12px', fontSize: 14 }}>{m.text}</div>
           ) : (
@@ -187,18 +187,18 @@ export default function AiSandbox() {
                 style={{ background: 'var(--bg-secondary)', border: `1px solid ${refiningIdx === i ? 'var(--accent, #2563eb)' : 'var(--border)'}`, padding: '8px 12px', borderRadius: '12px 12px 12px 2px', fontSize: 14, cursor: m.req ? 'pointer' : 'default', position: 'relative' }}
                 title={m.req ? 'Click to refine this reply' : undefined}>
                 {m.text}
-                {m.req && <span style={{ position: 'absolute', top: 4, right: 8, fontSize: 12, color: 'var(--text-muted)' }}>✎</span>}
+                {m.req && <span style={{ position: 'absolute', top: 4, right: 8, fontSize: 13, color: 'var(--text-muted)' }}>✎</span>}
               </div>
               {refiningIdx === i && (
                 <div style={{ marginTop: 6, background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.25)', borderRadius: 8, padding: '8px 10px' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#2563eb', marginBottom: 6 }}>Refine this reply — tell the AI what to change</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', marginBottom: 6 }}>Refine this reply — tell the AI what to change</div>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', marginBottom: 6 }}>
                     {['Make it shorter', 'Warmer and more personal', "Don't use their name", 'Add our website', 'Ask one clear question', 'Less salesy'].map(s => (
-                      <button key={s} className="btn btn-sm btn-secondary" style={{ fontSize: 12, padding: '2px 7px' }} disabled={busy} onClick={() => refineMessage(i, s)}>{s}</button>
+                      <button key={s} className="btn btn-sm btn-secondary" style={{ fontSize: 13, padding: '2px 7px' }} disabled={busy} onClick={() => refineMessage(i, s)}>{s}</button>
                     ))}
                   </div>
                   <div style={{ display: 'flex', gap: 6 }}>
-                    <input className="input" style={{ flex: 1, fontSize: 13 }} placeholder="or type your own instruction…" value={refineText}
+                    <input className="input" style={{ flex: 1, fontSize: 14 }} placeholder="or type your own instruction…" value={refineText}
                       onChange={e => setRefineText(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && refineText.trim()) refineMessage(i, refineText) }} disabled={busy} autoFocus />
                     <button className="btn btn-primary btn-sm" disabled={busy || !refineText.trim()} onClick={() => refineMessage(i, refineText)}>{busy ? '…' : 'Update'}</button>
                   </div>
@@ -207,11 +207,11 @@ export default function AiSandbox() {
               {m.work && <WorkPanel work={m.work} />}
             </div>
           ))}
-          {busy && <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: 13 }}>AI is thinking…</div>}
+          {busy && <div style={{ alignSelf: 'flex-start', color: 'var(--text-muted)', fontSize: 14 }}>AI is thinking…</div>}
         </div>
       </div>
 
-      {err && <div className="detail-section" style={{ marginBottom: 14, color: '#ef4444', fontSize: 13 }}>{err}</div>}
+      {err && <div className="detail-section" style={{ marginBottom: 14, color: '#ef4444', fontSize: 14 }}>{err}</div>}
 
       {/* Composer (you play the lead) */}
       <div style={{ display: 'flex', gap: 8 }}>
@@ -229,19 +229,19 @@ function levelName(n) { return n >= 85 ? 'URGENT' : n >= 70 ? 'HIGH' : n >= 50 ?
 function WorkPanel({ work }) {
   const mem = flattenMemory(work.memory)
   return (
-    <div style={{ marginTop: 6, background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 8, padding: '8px 11px', fontSize: 12 }}>
+    <div style={{ marginTop: 6, background: 'rgba(37,99,235,0.05)', border: '1px solid rgba(37,99,235,0.2)', borderRadius: 8, padding: '8px 11px', fontSize: 13 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <span style={{ fontWeight: 700, color: '#2563eb' }}>🤖 AI work</span>
-        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: '#2563eb', padding: '1px 7px', borderRadius: 4 }}>{ACTION_LABEL[work.action] || work.action}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#fff', background: '#2563eb', padding: '1px 7px', borderRadius: 4 }}>{ACTION_LABEL[work.action] || work.action}</span>
         <span>intent {work.intent_before} → <b style={{ color: LEVEL_COLOR[work.intent_level] }}>{work.intent_after}</b> ({work.intent_delta >= 0 ? '+' : ''}{work.intent_delta})</span>
         {work.conversation_type && <span style={{ color: 'var(--text-muted)' }}>· type: {work.conversation_type}</span>}
         {work.handoff?.required && <span style={{ color: '#b45309', fontWeight: 700 }}>· ⚑ handoff: {work.handoff.reason}</span>}
-        <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 12 }}>{work.latency_ms}ms</span>
+        <span style={{ marginLeft: 'auto', color: 'var(--text-muted)', fontSize: 13 }}>{work.latency_ms}ms</span>
       </div>
       {work.intent_signals?.length > 0 && <div style={{ marginTop: 4 }}><b>Signals:</b> {work.intent_signals.join(' · ')}</div>}
       {mem.length > 0 && <div style={{ marginTop: 4 }}><b>Learned:</b> {mem.map(([k, v]) => `${k}: ${v}`).join(' · ')}</div>}
       {work.summary && <div style={{ marginTop: 4, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{work.summary}</div>}
-      {work.next_state && <div style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: 12 }}>Next state: {work.next_state}</div>}
+      {work.next_state && <div style={{ marginTop: 4, color: 'var(--text-muted)', fontSize: 13 }}>Next state: {work.next_state}</div>}
     </div>
   )
 }

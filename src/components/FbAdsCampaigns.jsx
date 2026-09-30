@@ -50,8 +50,8 @@ export default function FbAdsCampaigns() {
       {needsToken && (
         <div style={{ border: '1px solid #f59e0b', background: 'rgba(245,158,11,0.08)', borderRadius: 10, padding: '12px 14px', marginBottom: 14 }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Facebook access token {data.token_error ? 'expired' : 'needed'}</div>
-          {data.token_error && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginBottom: 6 }}>{data.token_error}</div>}
-          <div style={{ fontSize: 12.5, marginBottom: 8 }}>
+          {data.token_error && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 6 }}>{data.token_error}</div>}
+          <div style={{ fontSize: 13, marginBottom: 8 }}>
             Generate one in <b>Graph API Explorer</b> (app: Matt Smith Team Reporting, permission ads_read), extend it in the Access Token Debugger, then paste it here.
           </div>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -62,11 +62,11 @@ export default function FbAdsCampaigns() {
       )}
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
           Account {data.account_id} · Last synced {data.last_sync ? new Date(data.last_sync).toLocaleString() : 'never'} · auto-refreshes every 6h
         </div>
         <button className="btn btn-secondary" disabled={busy} onClick={refresh}>{busy ? 'Refreshing…' : '↻ Refresh from Facebook'}</button>
-        {msg && <span style={{ fontSize: 12.5 }}>{msg}</span>}
+        {msg && <span style={{ fontSize: 13 }}>{msg}</span>}
       </div>
 
       <div className="stats-grid stats-small">
@@ -92,8 +92,8 @@ export default function FbAdsCampaigns() {
             )}
             {(data.campaigns || []).map(c => (
               <tr key={c.campaign_id}>
-                <td style={{ fontWeight: 600, maxWidth: 240 }}>{c.name}<div style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 400 }}>{c.objective}</div></td>
-                <td><span style={{ color: STATUS_COLOR[c.effective_status] || 'var(--text-secondary)', fontWeight: 700, fontSize: 12 }}>{c.effective_status}</span></td>
+                <td style={{ fontWeight: 600, maxWidth: 240 }}>{c.name}<div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 400 }}>{c.objective}</div></td>
+                <td><span style={{ color: STATUS_COLOR[c.effective_status] || 'var(--text-secondary)', fontWeight: 700, fontSize: 13 }}>{c.effective_status}</span></td>
                 <td>{fmtD(c.start_time)}</td>
                 <td>{fmt$(c.daily_budget)}</td>
                 <td>{fmt$(c.spend)}</td>
@@ -104,7 +104,7 @@ export default function FbAdsCampaigns() {
                 <td style={{ fontWeight: 700 }}>{fmtN(c.leads)}</td>
                 <td>{fmt$(c.cost_per_lead)}</td>
                 <td>{fmtN(c.video_views)}</td>
-                <td style={{ fontSize: 12 }}>{c.last7 ? `${fmtN(c.last7.leads)} leads · ${fmt$(c.last7.spend)} · ${fmtN(c.last7.impressions)} impr` : '—'}</td>
+                <td style={{ fontSize: 13 }}>{c.last7 ? `${fmtN(c.last7.leads)} leads · ${fmt$(c.last7.spend)} · ${fmtN(c.last7.impressions)} impr` : '—'}</td>
               </tr>
             ))}
           </tbody>

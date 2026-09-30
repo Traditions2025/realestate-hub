@@ -20,7 +20,7 @@ function StatusChip({ status }) {
   else if (/past|client|closed/.test(s)) { color = '#2563eb'; bg = 'rgba(37,99,235,.12)' }
   else if (/junk|donotcontact|blocked|trash|archive/.test(s)) { color = '#dc2626'; bg = 'rgba(220,38,38,.12)' }
   const label = String(status).replace(/_/g, ' ').replace(/\b\w/g, m => m.toUpperCase())
-  return <span style={{ fontSize: 12, fontWeight: 600, color, background: bg, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>{label}</span>
+  return <span style={{ fontSize: 13, fontWeight: 600, color, background: bg, borderRadius: 10, padding: '2px 8px', whiteSpace: 'nowrap' }}>{label}</span>
 }
 
 export default function CampaignMatch() {
@@ -111,7 +111,7 @@ export default function CampaignMatch() {
             {analyzing ? 'Analyzing database…' : '◎ Analyze Database'}
           </button>
         </div>
-        {analyzing && <div className="card-body" style={{ paddingTop: 0, fontSize: 13, color: 'var(--text-muted)' }}>Reading the full lead history against this campaign's profile. This takes a moment while the AI scores the top candidates…</div>}
+        {analyzing && <div className="card-body" style={{ paddingTop: 0, fontSize: 14, color: 'var(--text-muted)' }}>Reading the full lead history against this campaign's profile. This takes a moment while the AI scores the top candidates…</div>}
       </div>
 
       {result && (
@@ -124,7 +124,7 @@ export default function CampaignMatch() {
             <div className="stat-card stat-blue"><div className="stat-number">{c.total_eligible}</div><div className="stat-label">Total Eligible</div></div>
             <div className="stat-card stat-rose"><div className="stat-number">{c.not_recommended}</div><div className="stat-label">Not Recommended</div></div>
           </div>
-          {!result.campaign.ai && <p className="muted" style={{ fontSize: 12, marginTop: -8 }}>Note: AI scoring is not configured on the server, so these are ranked by the deterministic signal score only.</p>}
+          {!result.campaign.ai && <p className="muted" style={{ fontSize: 13, marginTop: -8 }}>Note: AI scoring is not configured on the server, so these are ranked by the deterministic signal score only.</p>}
 
           {/* toolbar */}
           <div className="toolbar" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -137,7 +137,7 @@ export default function CampaignMatch() {
             <button className="btn btn-sm btn-secondary" onClick={selectShown}>Select shown</button>
             <button className="btn btn-sm btn-secondary" onClick={clearSel} disabled={!sel.size}>Clear</button>
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{sel.size} selected</span>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{sel.size} selected</span>
               <button className="btn btn-primary" disabled={!sel.size} onClick={openEnroll}>Enroll Selected ({sel.size})</button>
             </div>
           </div>
@@ -152,11 +152,11 @@ export default function CampaignMatch() {
                   return (
                     <tr key={row.id}>
                       <td><input type="checkbox" checked={sel.has(row.id)} onChange={() => toggle(row.id)} /></td>
-                      <td><div style={{ fontWeight: 600 }}>{row.name}</div><div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{row.city || ''}{row.city && row.type ? ' · ' : ''}{row.type || ''}</div></td>
+                      <td><div style={{ fontWeight: 600 }}>{row.name}</div><div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{row.city || ''}{row.city && row.type ? ' · ' : ''}{row.type || ''}</div></td>
                       <td><StatusChip status={row.status} /></td>
-                      <td><span style={{ fontWeight: 700, color: g.color, background: g.bg, borderRadius: 12, padding: '2px 9px', fontSize: 13 }}>{row.match}%</span></td>
-                      <td>{row.intent ? <span style={{ fontSize: 12 }}>{row.intent}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
-                      <td style={{ fontSize: 13 }}>{row.why}</td>
+                      <td><span style={{ fontWeight: 700, color: g.color, background: g.bg, borderRadius: 12, padding: '2px 9px', fontSize: 14 }}>{row.match}%</span></td>
+                      <td>{row.intent ? <span style={{ fontSize: 13 }}>{row.intent}</span> : <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
+                      <td style={{ fontSize: 14 }}>{row.why}</td>
                     </tr>
                   )
                 })}
@@ -169,12 +169,12 @@ export default function CampaignMatch() {
             <div className="card" style={{ marginTop: 16 }}>
               <div className="card-header" style={{ cursor: 'pointer' }} onClick={() => setShowNotRec(v => !v)}>
                 <h3>Not Recommended ({result.counts.not_recommended}) {showNotRec ? '▾' : '▸'}</h3>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Would-be candidates the Hub is holding back — and why</span>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Would-be candidates the Hub is holding back — and why</span>
               </div>
               {showNotRec && (
                 <div className="card-body">
                   {result.not_recommended.map(n => (
-                    <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                    <div key={n.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                       <span style={{ fontWeight: 600 }}>{n.name} <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>{n.city || ''}</span></span>
                       <span style={{ color: 'var(--text-muted)' }}>{n.reason}</span>
                     </div>
@@ -200,8 +200,8 @@ export default function CampaignMatch() {
         {preflight?.warnings?.length > 0 && (
           <div style={{ margin: '10px 0', padding: 10, borderRadius: 8, background: 'rgba(217,119,6,.1)', border: '1px solid rgba(217,119,6,.3)' }}>
             <div style={{ fontWeight: 600, marginBottom: 4 }}>Quality check</div>
-            {preflight.warnings.map((w, i) => <div key={i} style={{ fontSize: 13 }}>• {w.text}</div>)}
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>They'll still be enrolled — this is just a heads-up.</div>
+            {preflight.warnings.map((w, i) => <div key={i} style={{ fontSize: 14 }}>• {w.text}</div>)}
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>They'll still be enrolled — this is just a heads-up.</div>
           </div>
         )}
         <div className="form-actions">

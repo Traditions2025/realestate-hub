@@ -27,8 +27,8 @@ const STATUSES = ['new', 'active', 'prime', 'pending', 'watch', 'qualify', 'clos
 const TEAM = ['Matt', 'John', 'Hunter', 'Cherryl']
 const EXECUTABLE_ACTIONS = ['send_email', 'add_tag', 'remove_tag', 'add_note', 'update_status', 'assign', 'create_task']
 
-const inp = { width: '100%', padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, marginTop: 4 }
-const lbl = { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 12 }
+const inp = { width: '100%', padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, marginTop: 4 }
+const lbl = { display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 12 }
 const uid = () => 's' + Math.random().toString(36).slice(2, 9)
 
 export default function FlowBuilder({ initial, onClose, onSaved }) {
@@ -77,8 +77,8 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
 
   const sidebarItem = (it, onClick, key) => (
     <div key={key} onClick={onClick} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px', marginBottom: 8, cursor: 'pointer', background: 'var(--bg-secondary)' }}>
-      <div style={{ fontWeight: 600, fontSize: 13 }}>{it.icon} {it.label}</div>
-      {it.desc && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
+      <div style={{ fontWeight: 600, fontSize: 14 }}>{it.icon} {it.label}</div>
+      {it.desc && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>{it.desc}</div>}
     </div>
   )
 
@@ -89,10 +89,10 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
       {/* header */}
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Automation name…" style={{ ...inp, marginTop: 0, width: 280 }} />
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Runs at</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Runs at</span>
         <input type="time" value={runTime} onChange={e => setRunTime(e.target.value)} style={{ ...inp, marginTop: 0, width: 120 }} />
         <button className="btn btn-sm btn-secondary" onClick={previewAudience}>Preview audience</button>
-        {audience && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{audience.error ? audience.error : `${audience.count} leads match`}</span>}
+        {audience && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{audience.error ? audience.error : `${audience.count} leads match`}</span>}
         <span style={{ marginLeft: 'auto' }} />
         <button className="btn btn-sm btn-secondary" onClick={() => save(false)} disabled={saving}>Save draft</button>
         <button className="btn btn-sm btn-primary" onClick={() => save(true)} disabled={saving || !complete} title={complete ? '' : 'Configure all steps first'}>✓ Save &amp; Activate</button>
@@ -103,20 +103,20 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
         {/* left sidebar */}
         <div style={{ width: 300, borderRight: '1px solid var(--border)', padding: 14, overflowY: 'auto', background: 'var(--bg-secondary)' }}>
           <div style={{ display: 'flex', gap: 0, marginBottom: 12, border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden' }}>
-            <button onClick={() => setTab('triggers')} style={{ flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', fontSize: 13, background: tab === 'triggers' ? 'var(--accent, #2563eb)' : 'transparent', color: tab === 'triggers' ? '#fff' : 'var(--text-primary)' }}>Triggers</button>
-            <button onClick={() => setTab('steps')} style={{ flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', fontSize: 13, background: tab === 'steps' ? 'var(--accent, #2563eb)' : 'transparent', color: tab === 'steps' ? '#fff' : 'var(--text-primary)' }}>Steps</button>
+            <button onClick={() => setTab('triggers')} style={{ flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', fontSize: 14, background: tab === 'triggers' ? 'var(--accent, #2563eb)' : 'transparent', color: tab === 'triggers' ? '#fff' : 'var(--text-primary)' }}>Triggers</button>
+            <button onClick={() => setTab('steps')} style={{ flex: 1, padding: '7px 0', border: 'none', cursor: 'pointer', fontSize: 14, background: tab === 'steps' ? 'var(--accent, #2563eb)' : 'transparent', color: tab === 'steps' ? '#fff' : 'var(--text-primary)' }}>Steps</button>
           </div>
           {tab === 'triggers' ? (
             <>
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>Pick what starts the automation.</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Pick what starts the automation.</p>
               {TRIGGERS.map(t => sidebarItem(t, () => { setTrigger({ type: t.type, label: t.label, icon: t.icon }); setSelKey('trigger') }, t.type))}
-              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8 }}>Only <strong>Daily Schedule</strong> fires automatically today; event triggers run on the daily pass for now.</p>
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8 }}>Only <strong>Daily Schedule</strong> fires automatically today; event triggers run on the daily pass for now.</p>
             </>
           ) : (
             <>
-              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '4px 0 6px', letterSpacing: 1 }}>Controls</div>
+              <div style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '4px 0 6px', letterSpacing: 1 }}>Controls</div>
               {CONTROLS.map(c => sidebarItem(c, () => addStep(c), c.kind))}
-              <div style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '12px 0 6px', letterSpacing: 1 }}>Actions</div>
+              <div style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--text-muted)', margin: '12px 0 6px', letterSpacing: 1 }}>Actions</div>
               {ACTIONS.map(a => sidebarItem(a, () => addStep(a), a.actionType))}
             </>
           )}
@@ -149,7 +149,7 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
                 <div style={{ textAlign: 'center', padding: '18px 22px', border: '1px solid var(--border)', borderRadius: 12, background: '#0f172a', minWidth: 190 }}>
                   <div style={{ width: 32, height: 32, borderRadius: '50%', background: complete ? '#10b981' : '#f59e0b', color: '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>{complete ? '✓' : '⏱'}</div>
                   <div style={{ fontWeight: 600, color: complete ? '#10b981' : '#f59e0b' }}>{complete ? 'Ready to activate' : 'Almost there'}</div>
-                  <div style={{ fontSize: 12, color: '#94a3b8', marginTop: 4 }}>{complete ? 'Save & Activate up top' : 'Configure all steps completely'}</div>
+                  <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>{complete ? 'Save & Activate up top' : 'Configure all steps completely'}</div>
                 </div>
               </>
             )}
@@ -162,8 +162,8 @@ export default function FlowBuilder({ initial, onClose, onSaved }) {
             {selKey === 'trigger' ? (
               <>
                 <h4 style={{ marginTop: 0 }}>Trigger</h4>
-                <p style={{ fontSize: 13 }}>{trigger.icon} <strong>{trigger.label}</strong></p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>This automation starts on this trigger. Add Conditions below to control who qualifies, and Actions for what happens.</p>
+                <p style={{ fontSize: 14 }}>{trigger.icon} <strong>{trigger.label}</strong></p>
+                <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>This automation starts on this trigger. Add Conditions below to control who qualifies, and Actions for what happens.</p>
               </>
             ) : (
               <>
@@ -188,14 +188,14 @@ function FlowCard({ title, badge, accent, selected, onClick }) {
     <div onClick={onClick} style={{ minWidth: 230, background: '#fff', color: '#0f172a', borderRadius: 10, border: selected ? `2px solid ${accent}` : '1px solid #cbd5e1', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', cursor: 'pointer', overflow: 'hidden' }}>
       <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 8, fontWeight: 600, color: accent, borderLeft: `4px solid ${accent}` }}>
         {title}
-        {badge && <span style={{ marginLeft: 'auto', fontSize: 12, background: '#fef3c7', color: '#b45309', padding: '2px 7px', borderRadius: 5, letterSpacing: 1 }}>{badge}</span>}
+        {badge && <span style={{ marginLeft: 'auto', fontSize: 13, background: '#fef3c7', color: '#b45309', padding: '2px 7px', borderRadius: 5, letterSpacing: 1 }}>{badge}</span>}
       </div>
     </div>
   )
 }
 function DelayPill({ step, selected, onClick }) {
   const c = step.config || {}
-  return <div onClick={onClick} style={{ padding: '6px 12px', background: '#fff', color: '#b45309', border: selected ? '2px solid #f59e0b' : '1px solid #cbd5e1', borderRadius: 20, fontSize: 13, cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.2)' }}>⏱ {c.amount || 1} {c.unit || 'day'}{(c.amount || 1) > 1 ? 's' : ''}</div>
+  return <div onClick={onClick} style={{ padding: '6px 12px', background: '#fff', color: '#b45309', border: selected ? '2px solid #f59e0b' : '1px solid #cbd5e1', borderRadius: 20, fontSize: 14, cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.2)' }}>⏱ {c.amount || 1} {c.unit || 'day'}{(c.amount || 1) > 1 ? 's' : ''}</div>
 }
 function Connector() { return <div style={{ width: 2, height: 22, background: '#334155' }} /> }
 
@@ -249,7 +249,7 @@ function StepConfig({ step, onChange, templates }) {
         </>}
         {c.field === 'inactive_days' && <label style={lbl}>Days+<input type="number" style={inp} value={c.value || ''} onChange={e => onChange({ value: e.target.value })} /></label>}
         {c.field === 'city' && <label style={lbl}>City<input style={inp} value={c.value || ''} onChange={e => onChange({ value: e.target.value })} /></label>}
-        {(c.field === 'has_listing_views' || c.field === 'has_email') && <p style={{ fontSize: 12, color: 'var(--text-muted)' }}>Only leads where this is true continue.</p>}
+        {(c.field === 'has_listing_views' || c.field === 'has_email') && <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Only leads where this is true continue.</p>}
       </>
     )
   }
@@ -258,7 +258,7 @@ function StepConfig({ step, onChange, templates }) {
       <div style={{ display: 'flex', gap: 8 }}>
         <label style={{ ...lbl, flex: 1 }}>Wait<input type="number" min="1" style={inp} value={c.amount || ''} onChange={e => onChange({ amount: e.target.value })} /></label>
         <label style={{ ...lbl, flex: 1 }}>Unit<select style={inp} value={c.unit || 'day'} onChange={e => onChange({ unit: e.target.value })}><option value="hour">hours</option><option value="day">days</option><option value="week">weeks</option></select></label>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', flexBasis: '100%' }}>Delays are shown in the flow; timed execution activates with the sequence engine.</p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', flexBasis: '100%' }}>Delays are shown in the flow; timed execution activates with the sequence engine.</p>
       </div>
     )
   }
@@ -276,7 +276,7 @@ function StepConfig({ step, onChange, templates }) {
         <label style={{ ...lbl, flex: 1 }}>Due in (days)<input type="number" style={inp} value={c.days_offset ?? ''} onChange={e => onChange({ days_offset: e.target.value })} /></label>
       </div>
     </>)
-    case 'send_text': return <p style={{ fontSize: 12, color: '#f59e0b' }}>Text sending activates once Twilio is connected.</p>
+    case 'send_text': return <p style={{ fontSize: 13, color: '#f59e0b' }}>Text sending activates once Twilio is connected.</p>
     default: return null
   }
 }

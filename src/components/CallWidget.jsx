@@ -148,12 +148,12 @@ export default function CallWidget() {
 
   return (
     <div style={wrap}>
-      <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 6 }}>
+      <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 6 }}>
         {status === 'incoming' ? 'Incoming call' : status === 'connecting' ? 'Connecting…' : status === 'ringing' ? 'Ringing…' : status === 'active' ? `On call · ${mmss(seconds)}` : 'Call'}
       </div>
       <div style={{ fontSize: 18, fontWeight: 700 }}>{title}</div>
-      {sub && <div style={{ fontSize: 13, color: 'var(--text-muted, #6b7280)' }}>{sub}</div>}
-      {err && <div style={{ fontSize: 12, color: '#ef4444', marginTop: 6 }}>{err}</div>}
+      {sub && <div style={{ fontSize: 14, color: 'var(--text-muted, #6b7280)' }}>{sub}</div>}
+      {err && <div style={{ fontSize: 13, color: '#ef4444', marginTop: 6 }}>{err}</div>}
 
       <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
         {status === 'incoming' ? (
@@ -171,14 +171,14 @@ export default function CallWidget() {
       {status === 'active' && vms.length > 0 && (
         <div style={{ marginTop: 10, position: 'relative' }}>
           <button onClick={() => setVmMenu(m => !m)} disabled={dropping}
-            style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, #e5e7eb)', background: 'var(--bg-secondary, #f8fafc)', color: 'var(--text-primary, #111)', fontWeight: 700, cursor: 'pointer', fontSize: 13 }}>
+            style={{ width: '100%', padding: '9px 0', borderRadius: 10, border: '1px solid var(--border, #e5e7eb)', background: 'var(--bg-secondary, #f8fafc)', color: 'var(--text-primary, #111)', fontWeight: 700, cursor: 'pointer', fontSize: 14 }}>
             {dropping ? 'Dropping voicemail…' : '🎙 Drop voicemail ▾'}
           </button>
           {vmMenu && (
             <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, marginBottom: 6, background: 'var(--bg-primary, #fff)', border: '1px solid var(--border, #e5e7eb)', borderRadius: 10, boxShadow: '0 8px 24px rgba(0,0,0,.28)', maxHeight: 200, overflowY: 'auto', zIndex: 5 }}>
               {vms.map(v => (
                 <button key={v.id} onClick={() => dropVoicemail(v.id)} title="Play this recording into their voicemail, then hang up"
-                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderBottom: '1px solid var(--border, #eee)', background: 'none', color: 'var(--text-primary, #111)', cursor: 'pointer', fontSize: 13 }}>{v.name}</button>
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '9px 12px', border: 'none', borderBottom: '1px solid var(--border, #eee)', background: 'none', color: 'var(--text-primary, #111)', cursor: 'pointer', fontSize: 14 }}>{v.name}</button>
               ))}
             </div>
           )}
@@ -186,7 +186,7 @@ export default function CallWidget() {
       )}
       {status === 'active' && (
         <div style={{ marginTop: 10 }}>
-          <button onClick={() => setKeypad(k => !k)} style={{ border: 'none', background: 'none', color: 'var(--text-muted, #6b7280)', fontSize: 12, cursor: 'pointer', fontWeight: 600 }}>{keypad ? '▾ Hide keypad' : '▸ Keypad'}</button>
+          <button onClick={() => setKeypad(k => !k)} style={{ border: 'none', background: 'none', color: 'var(--text-muted, #6b7280)', fontSize: 13, cursor: 'pointer', fontWeight: 600 }}>{keypad ? '▾ Hide keypad' : '▸ Keypad'}</button>
           {keypad && (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 6, marginTop: 8 }}>
               {['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'].map(dg => (

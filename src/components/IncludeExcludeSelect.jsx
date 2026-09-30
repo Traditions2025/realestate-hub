@@ -28,7 +28,7 @@ export default function IncludeExcludeSelect({ options, include = [], exclude = 
   }
   const remove = (v) => onChange({ include: include.filter(x => x !== v), exclude: exclude.filter(x => x !== v) })
 
-  const seg = (active, color) => ({ padding: '2px 9px', fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : 'var(--text-muted)' })
+  const seg = (active, color) => ({ padding: '2px 9px', fontSize: 13, fontWeight: 600, border: 'none', cursor: 'pointer', background: active ? color : 'transparent', color: active ? '#fff' : 'var(--text-muted)' })
 
   return (
     <div ref={ref}>
@@ -62,7 +62,7 @@ export default function IncludeExcludeSelect({ options, include = [], exclude = 
             const isExc = exclude.includes(v)
             return (
               <div key={v} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={labelFor(v)}>{labelFor(v)}</span>
+                <span style={{ flex: 1, fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={labelFor(v)}>{labelFor(v)}</span>
                 <div style={{ display: 'inline-flex', border: '1px solid var(--border)', borderRadius: 6, overflow: 'hidden', flexShrink: 0 }}>
                   <button type="button" onClick={() => setMode(v, 'include')} style={seg(!isExc, '#16a34a')}>Include</button>
                   <button type="button" onClick={() => setMode(v, 'exclude')} style={{ ...seg(isExc, '#dc2626'), borderLeft: '1px solid var(--border)' }}>Exclude</button>

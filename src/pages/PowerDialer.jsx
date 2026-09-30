@@ -81,24 +81,24 @@ export default function PowerDialer() {
       <div className="page">
         <div className="page-header"><div><h1>Power Dialer</h1><p className="page-subtitle">Work a call list end to end — call, log the outcome, move to the next. Calls ring right here in the Hub.</p></div></div>
         <div className="detail-section" style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 14, padding: 20 }}>
-          <label style={{ fontSize: 13 }}>
+          <label style={{ fontSize: 14 }}>
             <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>Who to call</div>
             <select value={preset} onChange={e => setPreset(e.target.value)} style={fld}>
               {PRESETS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
           </label>
-          {preset === 'assigned' && !myAgent && <div style={{ fontSize: 12, color: '#f59e0b' }}>Pick who you are in the Inbox sidebar first (the “I am” selector), or choose another list.</div>}
+          {preset === 'assigned' && !myAgent && <div style={{ fontSize: 13, color: '#f59e0b' }}>Pick who you are in the Inbox sidebar first (the “I am” selector), or choose another list.</div>}
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-            <label style={{ fontSize: 13, flex: 1 }}>
+            <label style={{ fontSize: 14, flex: 1 }}>
               <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>Status (optional)</div>
               <input value={status} onChange={e => setStatus(e.target.value)} placeholder="e.g. lead, active" style={fld} />
             </label>
-            <label style={{ fontSize: 13, width: 120 }}>
+            <label style={{ fontSize: 14, width: 120 }}>
               <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>How many</div>
               <input type="number" min="1" max="200" value={limit} onChange={e => setLimit(e.target.value)} style={fld} />
             </label>
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Do Not Contact and Junk leads, and anyone without a phone, are automatically skipped.</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Do Not Contact and Junk leads, and anyone without a phone, are automatically skipped.</div>
           <button className="btn btn-primary" onClick={loadQueue} disabled={loading}>{loading ? 'Building…' : 'Build call queue →'}</button>
         </div>
       </div>
@@ -127,7 +127,7 @@ export default function PowerDialer() {
       <div className="page-header">
         <div><h1>Power Dialer</h1><p className="page-subtitle">{idx + 1} of {queue.length} · {queue.length - idx - 1} left</p></div>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <label style={{ fontSize: 12.5, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
             <input type="checkbox" checked={autoAdvance} onChange={e => setAutoAdvance(e.target.checked)} /> Auto-dial next
           </label>
           <button className="btn btn-secondary btn-sm" onClick={() => setQueue(null)}>End session</button>
@@ -141,17 +141,17 @@ export default function PowerDialer() {
       <div className="detail-section" style={{ maxWidth: 640, padding: 22 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
           <div style={{ fontSize: 24, fontWeight: 800 }}>{current.name}</div>
-          {current.status && <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '2px 8px', borderRadius: 4 }}>{current.status}</span>}
-          {current.agent_assigned && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>· {current.agent_assigned}</span>}
+          {current.status && <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '2px 8px', borderRadius: 4 }}>{current.status}</span>}
+          {current.agent_assigned && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>· {current.agent_assigned}</span>}
         </div>
         <div style={{ fontSize: 18, color: 'var(--text-secondary)', marginTop: 4 }}>{fmtPhone(current.phone)}</div>
-        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 12.5, color: 'var(--text-muted)' }}>
+        <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>
           {current.source && <span>Source: {current.source}</span>}
           {current.city && <span>{current.city}</span>}
           <span>Last contact: {fmtWhen(current.last_contact_at)}</span>
           <span>Last call: {fmtWhen(current.last_call_at)}</span>
         </div>
-        {current.notes && <div style={{ marginTop: 10, fontSize: 13, fontStyle: 'italic', color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 10 }}>“{current.notes}”</div>}
+        {current.notes && <div style={{ marginTop: 10, fontSize: 14, fontStyle: 'italic', color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 10 }}>“{current.notes}”</div>}
 
         <div style={{ display: 'flex', gap: 10, marginTop: 18 }}>
           <button className="btn btn-primary" style={{ fontSize: 16, padding: '12px 22px', background: onCall ? '#6b7280' : undefined }} onClick={() => callNow(current)} disabled={onCall}>
@@ -162,14 +162,14 @@ export default function PowerDialer() {
 
         {(ended || disp || notes) && (
           <div style={{ marginTop: 18, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 8 }}>Call outcome</div>
+            <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.04em', color: 'var(--text-muted)', marginBottom: 8 }}>Call outcome</div>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
               {DISPOSITIONS.map(d => (
                 <button key={d} onClick={() => setDisp(d)} className={`btn btn-sm ${disp === d ? 'btn-primary' : 'btn-secondary'}`} style={d === 'Do not call' && disp === d ? { background: '#ef4444' } : undefined}>{d}</button>
               ))}
             </div>
             <textarea value={notes} onChange={e => setNotes(e.target.value)} rows={3} placeholder="Call notes…" style={{ ...fld, width: '100%', resize: 'vertical' }} />
-            {disp === 'Do not call' && <div style={{ fontSize: 12, color: '#b45309', marginTop: 6 }}>Marks the contact Do Not Contact and removes them from all campaigns.</div>}
+            {disp === 'Do not call' && <div style={{ fontSize: 13, color: '#b45309', marginTop: 6 }}>Marks the contact Do Not Contact and removes them from all campaigns.</div>}
             <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
               <button className="btn btn-primary" disabled={saving} onClick={saveAndNext}>{saving ? 'Saving…' : (idx + 1 >= queue.length ? 'Save & finish' : 'Save & next →')}</button>
               {(disp || notes) && <button className="btn btn-secondary btn-sm" onClick={() => { setDisp(''); setNotes('') }}>Clear</button>}
@@ -181,4 +181,4 @@ export default function PowerDialer() {
   )
 }
 
-const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
+const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }

@@ -22,7 +22,7 @@ export function notify(msg) {
 // list that failed to load needs a banner where the data should be + a retry.
 export function LoadErrorBanner({ onRetry, what = 'this page' }) {
   return (
-    <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', padding: '12px 16px', margin: '12px 0', background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 10, fontSize: 13.5 }}>
+    <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, justifyContent: 'space-between', padding: '12px 16px', margin: '12px 0', background: 'rgba(239,68,68,.08)', border: '1px solid rgba(239,68,68,.35)', borderRadius: 10, fontSize: 14 }}>
       <span>Couldn't load {what}. Check your connection — the Hub retries nothing on its own.</span>
       <button className="btn btn-secondary btn-sm" onClick={onRetry} style={{ flexShrink: 0 }}>Retry</button>
     </div>
@@ -65,7 +65,7 @@ export function ConfirmHost() {
       <div role="alertdialog" aria-modal="true" aria-label={state.title} onClick={e => e.stopPropagation()}
         style={{ background: 'var(--bg-primary)', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 20px', width: '100%', maxWidth: 400, boxShadow: '0 20px 50px rgba(0,0,0,.35)' }}>
         <div style={{ fontSize: 15.5, fontWeight: 700, marginBottom: state.body ? 6 : 14 }}>{state.title}</div>
-        {state.body && <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>{state.body}</div>}
+        {state.body && <div style={{ fontSize: 14, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 14 }}>{state.body}</div>}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
           <button ref={cancelRef} className="btn btn-secondary" onClick={() => finish(false)}>Cancel</button>
           <button className="btn" onClick={() => finish(true)}

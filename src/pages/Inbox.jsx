@@ -17,7 +17,7 @@ const CHANNELS = [
 ]
 const chMeta = (k) => CHANNELS.find(c => c.key === k) || CHANNELS[0]
 const INTENT_COLORS = { 'Needs Response': '#2563eb', 'Question': '#0ea5e9', 'Scheduling Request': '#8b5cf6', 'Property Interest': '#10b981', 'High Intent': '#ef4444', 'Information Request': '#f59e0b', 'No Response Needed': '#64748b' }
-const intentBadgeStyle = (intent) => ({ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
+const intentBadgeStyle = (intent) => ({ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
 const FOLDERS = [{ key: 'inbox', label: 'Inbox' }, { key: 'sent', label: 'Sent' }, { key: 'closed', label: 'Closed' }]
 const DISPOSITIONS = ['Connected', 'Left voicemail', 'No answer', 'Busy', 'Wrong number', 'Appointment set', 'Interested', 'Not interested', 'Call back later', 'Do not call']
 
@@ -58,9 +58,9 @@ function LinkPreview({ url }) {
     <a href={url} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 6, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', textDecoration: 'none', maxWidth: 300, background: 'var(--bg-primary)' }}>
       {d.image && <img src={d.image} alt="" onError={e => { e.target.style.display = 'none' }} style={{ width: '100%', maxHeight: 150, objectFit: 'cover', display: 'block' }} />}
       <div style={{ padding: '8px 10px' }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.site}</div>
-        <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.25, marginTop: 2 }}>{d.title}</div>
-        {d.description && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.description}</div>}
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.03em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{d.site}</div>
+        <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', lineHeight: 1.25, marginTop: 2 }}>{d.title}</div>
+        {d.description && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{d.description}</div>}
       </div>
     </a>
   )
@@ -80,12 +80,12 @@ function CallDispo({ m, onSaved }) {
   const pickDisp = async (v) => { setDisp(v); if (v === 'Do not call' && !await confirmDialog('Mark this contact Do Not Contact? This sets their status to Do Not Contact and removes them from every active drip + automation campaign. It does not block a deliberate 1:1 text or call.')) return; save({ disposition: v }) }
   return (
     <div style={{ marginTop: 6, display: 'flex', flexDirection: 'column', gap: 5 }}>
-      <select value={disp} onChange={e => pickDisp(e.target.value)} style={{ fontSize: 12, padding: '3px 6px', maxWidth: 200 }}>
+      <select value={disp} onChange={e => pickDisp(e.target.value)} style={{ fontSize: 13, padding: '3px 6px', maxWidth: 200 }}>
         <option value="">Set outcome…</option>
         {DISPOSITIONS.map(d => <option key={d} value={d}>{d}</option>)}
       </select>
-      <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} onBlur={() => dirty && save({ notes })} rows={2} placeholder="Call notes…" style={{ fontSize: 12, padding: '5px 7px', resize: 'vertical', width: '100%', maxWidth: 320 }} />
-      {saving && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>saving…</span>}
+      <textarea value={notes} onChange={e => { setNotes(e.target.value); setDirty(true) }} onBlur={() => dirty && save({ notes })} rows={2} placeholder="Call notes…" style={{ fontSize: 13, padding: '5px 7px', resize: 'vertical', width: '100%', maxWidth: 320 }} />
+      {saving && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>saving…</span>}
     </div>
   )
 }
@@ -396,7 +396,7 @@ export default function Inbox() {
       <div className={'inbox-panes' + (hasSelection ? ' has-selection' : '')} style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden', height: 'calc(100dvh - 168px)', minHeight: 460 }}>
         {/* left: folders + filters */}
         <aside className="inbox-folders" style={{ width: 210, borderRight: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: 14, flexShrink: 0 }}>
-          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
+          <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>My Inbox</div>
           {FOLDERS.map(f => (
             <button key={f.key} onClick={() => { setFolder(f.key); setSel(null) }} style={folderBtn(folder === f.key)}>
               <span>{f.label}</span>
@@ -404,21 +404,21 @@ export default function Inbox() {
             </button>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
-          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Channels</div>
+          <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Channels</div>
           {CHANNELS.map(c => (
-            <label key={c.key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 13, fontWeight: 400 }}>
+            <label key={c.key} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 8, padding: '5px 0', cursor: 'pointer', fontSize: 14, fontWeight: 400 }}>
               <input type="checkbox" checked={channels.includes(c.key)} onChange={() => toggleChannel(c.key)} />
               <span style={{ color: c.color, fontVariantEmoji: 'text' }}>{c.icon}</span> {c.label}
               {(counts.by_channel?.[c.key] || 0) > 0 && <span style={{ ...badge, marginLeft: 'auto' }}>{counts.by_channel[c.key]}</span>}
             </label>
           ))}
           <div style={{ borderTop: '1px solid var(--border)', margin: '14px 0 10px' }} />
-          <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Assigned</div>
+          <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, marginBottom: 8 }}>Assigned</div>
           {[['all', 'All'], ['mine', 'Mine'], ['unassigned', 'Unassigned']].map(([k, l]) => (
             <button key={k} onClick={() => setAssignFilter(k)} style={folderBtn(assignFilter === k)}>{l}</button>
           ))}
-          <div style={{ marginTop: 10, fontSize: 12, color: 'var(--text-muted)' }}>I am</div>
-          <select value={myAgent} onChange={e => chooseAgent(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '6px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+          <div style={{ marginTop: 10, fontSize: 13, color: 'var(--text-muted)' }}>I am</div>
+          <select value={myAgent} onChange={e => chooseAgent(e.target.value)} style={{ width: '100%', marginTop: 4, padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
             <option value="">(choose)</option>
             {agents.map(a => <option key={a} value={a}>{a}</option>)}
           </select>
@@ -431,13 +431,13 @@ export default function Inbox() {
               <button onClick={() => setUnreadOnly(false)} style={toggleBtn(!unreadOnly)}>All</button>
               <button onClick={() => setUnreadOnly(true)} style={toggleBtn(unreadOnly)}>Unread</button>
             </div>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, address, MLS #…" style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, address, MLS #…" style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }} />
           </div>
           {/* Prospecting filter: a second dimension on top of All/Unread — Cancelled/Expired
               and FSBO conversations stay in the ONE unified inbox, this just isolates them. */}
           <div style={{ display: 'flex', gap: 6, alignItems: 'center', padding: '6px 10px', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
             {(() => {
-              const chip = (active, color) => ({ flex: '0 0 auto', padding: '3px 10px', borderRadius: 14, border: '1px solid ' + (active ? (color || 'var(--primary, #2563eb)') : 'var(--border)'), fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? (color || 'var(--primary, #2563eb)') : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
+              const chip = (active, color) => ({ flex: '0 0 auto', padding: '3px 10px', borderRadius: 14, border: '1px solid ' + (active ? (color || 'var(--primary, #2563eb)') : 'var(--border)'), fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? (color || 'var(--primary, #2563eb)') : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
               return (<>
                 <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '.04em', flex: '0 0 auto' }}>Prospecting</span>
                 <button onClick={() => setProspect('')} style={chip(!prospect)}>All</button>
@@ -451,7 +451,7 @@ export default function Inbox() {
           {isMobile && (
             <div style={{ display: 'flex', gap: 6, padding: '8px 10px', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
               {(() => {
-                const chip = (active) => ({ flex: '0 0 auto', padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? 'var(--primary, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
+                const chip = (active) => ({ flex: '0 0 auto', padding: '6px 12px', borderRadius: 16, border: '1px solid var(--border)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', background: active ? 'var(--primary, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
                 const same = (a) => a.length === channels.length && a.every(x => channels.includes(x))
                 // Calls = calls + voicemails combined into one filter.
                 const opts = [['All', ['email', 'text', 'call', 'voicemail']], ['✉ Emails', ['email']], ['💬 Texts', ['text']], ['☎ Calls', ['call', 'voicemail']]]
@@ -481,7 +481,7 @@ export default function Inbox() {
                       : prospect === 'fsbo' ? (unreadOnly ? 'No unread FSBO conversations' : 'No FSBO conversations')
                       : unreadOnly ? 'No unread messages' : 'No messages yet'}
                   </div>
-                  <div style={{ fontSize: 13, marginTop: 6 }}>Incoming client texts, calls, and emails will show up here once texting is connected. Only messages from a matched client appear.</div>
+                  <div style={{ fontSize: 14, marginTop: 6 }}>Incoming client texts, calls, and emails will show up here once texting is connected. Only messages from a matched client appear.</div>
                 </div>
               ) : convos.map(c => {
                 const m = chMeta(c.last?.channel)
@@ -495,18 +495,18 @@ export default function Inbox() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontWeight: c.unread_count ? 700 : 600, fontSize: 14 }}>{c.contact_name}</span>
-                        {c.unknown && <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>}
-                        {c.assigned_to && <span title={`Assigned to ${c.assigned_to}`} style={{ fontSize: 12, fontWeight: 700, color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '1px 6px', borderRadius: 4 }}>{c.assigned_to}</span>}
-                        {c.msg_count > 1 && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
+                        {c.unknown && <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>}
+                        {c.assigned_to && <span title={`Assigned to ${c.assigned_to}`} style={{ fontSize: 13, fontWeight: 700, color: '#0369a1', background: 'rgba(3,105,161,.12)', padding: '1px 6px', borderRadius: 4 }}>{c.assigned_to}</span>}
+                        {c.msg_count > 1 && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.msg_count}</span>}
                         {c.ai_intent && c.ai_intent !== 'No Response Needed' && <span style={intentBadgeStyle(c.ai_intent)}>{c.ai_intent}</span>}
-                        <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
+                        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-muted)' }}>{fmtDate(c.last?.occurred_at)}</span>
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
-                        <span title={m.label} style={{ color: m.color, fontSize: 12, fontVariantEmoji: 'text' }}>{m.icon}</span>
-                        <span style={{ fontSize: 13, fontWeight: c.unread_count ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.last?.subject || c.last?.preview || '(no subject)'}</span>
+                        <span title={m.label} style={{ color: m.color, fontSize: 13, fontVariantEmoji: 'text' }}>{m.icon}</span>
+                        <span style={{ fontSize: 14, fontWeight: c.unread_count ? 600 : 400, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{c.last?.subject || c.last?.preview || '(no subject)'}</span>
                         {c.last?.has_attachment ? <span style={{ marginLeft: 'auto' }}>📎</span> : null}
                       </div>
-                      {c.last?.subject && <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{c.last?.preview}</div>}
+                      {c.last?.subject && <div style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', marginTop: 2 }}>{c.last?.preview}</div>}
                       {/* Prospecting context: which property this conversation is about, without
                           opening the profile. Cancelled/Expired: status + address + MLS # (omitted
                           when unknown). FSBO: status + DOM + address. */}
@@ -515,8 +515,8 @@ export default function Inbox() {
                           <span style={{ flex: '0 0 auto', fontSize: 10.5, fontWeight: 800, letterSpacing: '.03em', padding: '1px 7px', borderRadius: 4, textTransform: 'uppercase', color: '#fff', background: c.prospect.kind === 'fsbo' ? '#059669' : '#d97706' }}>
                             {c.prospect.kind === 'fsbo' ? `FSBO · ${c.prospect.label}${c.prospect.fsbo_dom != null ? ` · DOM ${c.prospect.fsbo_dom}` : ''}` : c.prospect.label}
                           </span>
-                          {c.prospect.price ? <span style={{ flex: '0 0 auto', fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>${Number(c.prospect.price).toLocaleString()}</span> : null}
-                          {c.prospect.address && <span style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.prospect.address}</span>}
+                          {c.prospect.price ? <span style={{ flex: '0 0 auto', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>${Number(c.prospect.price).toLocaleString()}</span> : null}
+                          {c.prospect.address && <span style={{ fontSize: 13, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', minWidth: 0 }}>{c.prospect.address}</span>}
                           {c.prospect.mls_number && <span style={{ flex: '0 0 auto', fontSize: 11.5, color: 'var(--text-muted)' }}>MLS #{c.prospect.mls_number}</span>}
                         </div>
                       )}
@@ -558,7 +558,7 @@ export default function Inbox() {
                   const color = statusColor(c.status)
                   return (
                     <span title={`Lead status: ${formatStatus(c.status)}`}
-                      style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, border: `1px solid ${color}40`, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
+                      style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, border: `1px solid ${color}40`, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
                       {formatStatus(c.status)}
                     </span>
                   )
@@ -587,17 +587,17 @@ export default function Inbox() {
                   if (!isFsbo && c.off_market_date) bits.push(`Off Market: ${String(c.off_market_date).slice(0, 10)}`)
                   if (isFsbo && c.fsbo_dom != null && c.fsbo_dom !== '') bits.push(`DOM ${c.fsbo_dom}`)
                   return (<>
-                    <span title="Listing context from the master files" style={{ fontSize: 12, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
+                    <span title="Listing context from the master files" style={{ fontSize: 13, fontWeight: 800, letterSpacing: '.04em', padding: '3px 10px', borderRadius: 999, background: color + '1f', color, whiteSpace: 'nowrap', textTransform: 'uppercase' }}>{label}</span>
                     {bits.length > 0 && (
                       <span onClick={() => navigate('/clients/' + sel)} title="Open the lead profile"
-                        style={{ fontSize: 12, color: 'var(--text-secondary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', flex: '0 1 auto' }}>
+                        style={{ fontSize: 13, color: 'var(--text-secondary)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer', flex: '0 1 auto' }}>
                         {bits.join(' · ')}
                       </span>
                     )}
                   </>)
                 })()}
                 <select value={selConvo?.assigned_to || ''} onChange={e => assignThread(sel, e.target.value)} title="Assign this conversation"
-                  style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
+                  style={{ marginLeft: 'auto', padding: '5px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}>
                   <option value="">Unassigned</option>
                   {agents.map(a => <option key={a} value={a}>{a}</option>)}
                 </select>
@@ -606,7 +606,7 @@ export default function Inbox() {
               <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', minWidth: 0, padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
                 {hiddenEmails > 0 && (
                   <a href={'/clients/' + sel} onClick={(e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button === 1) return; e.preventDefault(); navigate('/clients/' + sel) }}
-                    style={{ alignSelf: 'center', fontSize: 12, color: 'var(--text-muted)', textDecoration: 'none', border: '1px dashed var(--border)', borderRadius: 999, padding: '4px 14px' }}>
+                    style={{ alignSelf: 'center', fontSize: 13, color: 'var(--text-muted)', textDecoration: 'none', border: '1px dashed var(--border)', borderRadius: 999, padding: '4px 14px' }}>
                     {hiddenEmails} earlier email{hiddenEmails === 1 ? '' : 's'} — view on the lead profile →
                   </a>
                 )}
@@ -623,9 +623,9 @@ export default function Inbox() {
                   if (!expanded) {
                     return (
                       <div key={m.id} onClick={toggle} title="Click to expand" style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '9px 12px', cursor: 'pointer', background: 'var(--bg-secondary)', display: 'flex', gap: 8, alignItems: 'baseline' }}>
-                        <span style={{ fontWeight: 600, fontSize: 13, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{out ? 'You' : (m.contact_name || 'Them')}</span>
-                        <span style={{ fontSize: 13, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{m.subject ? m.subject + ' — ' : ''}{m.preview || ''}</span>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(m.occurred_at)}</span>
+                        <span style={{ fontWeight: 600, fontSize: 14, whiteSpace: 'nowrap', color: 'var(--text-primary)' }}>{out ? 'You' : (m.contact_name || 'Them')}</span>
+                        <span style={{ fontSize: 14, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{m.subject ? m.subject + ' — ' : ''}{m.preview || ''}</span>
+                        <span style={{ fontSize: 13, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{fmtDate(m.occurred_at)}</span>
                       </div>
                     )
                   }
@@ -642,7 +642,7 @@ export default function Inbox() {
                     const frameHtml = isHtml ? EMAIL_FIT_CSS + html : html
                     return (
                       <div key={m.id} style={{ border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
-                        <div onClick={total > 1 ? toggle : undefined} title={total > 1 ? 'Click to collapse' : undefined} style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 12, color: 'var(--text-muted)', cursor: total > 1 ? 'pointer' : 'default' }}>
+                        <div onClick={total > 1 ? toggle : undefined} title={total > 1 ? 'Click to collapse' : undefined} style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 13, color: 'var(--text-muted)', cursor: total > 1 ? 'pointer' : 'default' }}>
                           <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {out ? `You → ${m.contact_name}` : `${m.contact_name} → You`} · {fmtDate(m.occurred_at)}
                           {m.subject && <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginLeft: 8 }}>{m.subject}</span>}
                         </div>
@@ -663,7 +663,7 @@ export default function Inbox() {
                   const link0 = isText ? firstUrl(textBody) : null
                   return (
                     <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                         <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : m.contact_name} · {fmtDate(m.occurred_at)}
                         {m.sent_by_type === 'ai' && <span style={{ marginLeft: 6, fontSize: 9, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 5px', borderRadius: 3, letterSpacing: '.03em' }}>AI</span>}
                         {m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
@@ -675,34 +675,34 @@ export default function Inbox() {
                         {/* Inline MMS photos (streamed through the auth'd media proxy) */}
                         {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
                           ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
-                          : <div key={i} style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
+                          : <div key={i} style={{ fontSize: 13, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
                         {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
-                        {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
+                        {isVoicemail && m.transcript && <div style={{ fontSize: 13, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
                         {isCall && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                         {m.call_summary && (
-        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+        <details style={{ fontSize: 13, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
           <summary style={{ cursor: 'pointer', fontWeight: 700 }}>📋 AI Call Summary</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.call_summary}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.call_summary}</pre>
         </details>
       )}
                         {m.call_summary && m.transcript && (
-        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+        <details style={{ fontSize: 13, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
           <summary style={{ cursor: 'pointer', fontWeight: 700 }}>💬 Transcript</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.transcript}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.transcript}</pre>
         </details>
       )}
 
                       </div>
                       {link0 && <LinkPreview url={link0} />}
-                      {dstat && <div style={{ fontSize: 12, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+                      {dstat && <div style={{ fontSize: 13, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
                       {/* Tracked email engagement chips (SendGrid events) — subtle, opens are a soft signal */}
                       {m.channel === 'email' && out && m.eng && (
                         <div style={{ display: 'flex', gap: 5, justifyContent: 'flex-end', marginTop: 3, flexWrap: 'wrap' }}>
                           {['bounce', 'dropped', 'spamreport'].includes(m.eng.status)
-                            ? <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⚠ {m.eng.status}</span>
-                            : (m.eng.delivered_at || m.eng.status === 'delivered') && <span style={{ fontSize: 12, fontWeight: 700, color: '#059669' }}>Delivered</span>}
-                          {m.eng.opens > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: '#2563eb' }}>Opened {m.eng.opens}×</span>}
-                          {m.eng.clicks > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed' }}>Clicked {m.eng.clicks}×</span>}
+                            ? <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>⚠ {m.eng.status}</span>
+                            : (m.eng.delivered_at || m.eng.status === 'delivered') && <span style={{ fontSize: 13, fontWeight: 700, color: '#059669' }}>Delivered</span>}
+                          {m.eng.opens > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: '#2563eb' }}>Opened {m.eng.opens}×</span>}
+                          {m.eng.clicks > 0 && <span style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed' }}>Clicked {m.eng.clicks}×</span>}
                         </div>
                       )}
                       {(isCall || isVoicemail) && <CallDispo m={m} onSaved={() => openThread(sel)} />}
@@ -715,8 +715,8 @@ export default function Inbox() {
                 <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10, background: 'var(--bg-primary)' }}>
                   <button className="btn btn-primary btn-sm" onClick={() => setReplyOpen(true)}>✍ Reply</button>
                   {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
-                  {ai && ai.summary && <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{ai.summary}</span>}
-                  {aiBusy === 'suggest' && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading…</span>}
+                  {ai && ai.summary && <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{ai.summary}</span>}
+                  {aiBusy === 'suggest' && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Reading…</span>}
                 </div>
               ) : (
                 <div style={{ borderTop: '1px solid var(--border)', padding: 12, display: 'flex', flexDirection: 'column', gap: 8, background: 'var(--bg-primary)' }}>
@@ -725,22 +725,22 @@ export default function Inbox() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <button className="btn btn-sm" disabled={!!aiBusy} onClick={openSuggestion} title="Show the AI-suggested reply and drop it into the box">{aiBusy === 'suggest' ? '✨ Thinking…' : `✨ Suggested ${replyChannel === 'text' ? 'text' : 'reply'}`}</button>
                       {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
-                      {ai && ai.summary && <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{ai.summary}</span>}
+                      {ai && ai.summary && <span style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>{ai.summary}</span>}
                       <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={() => setReplyOpen(false)} title="Minimize the reply box">▾ Minimize</button>
                     </div>
                   ) : (
                     <>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 {replyChannel === 'text' ? 'Suggested Text' : 'Suggested Response'}</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: '#a78bfa' }}>🤖 {replyChannel === 'text' ? 'Suggested Text' : 'Suggested Response'}</span>
                         {ai && ai.intent && <span style={intentBadgeStyle(ai.intent)}>{ai.intent}</span>}
-                        {ai && ai.stale && <span style={{ fontSize: 12, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
+                        {ai && ai.stale && <span style={{ fontSize: 13, color: 'var(--warning, #f59e0b)' }}>● new email since last suggestion</span>}
                         <button className="btn btn-sm" style={{ marginLeft: 'auto' }} disabled={!!aiBusy} onClick={() => generateSuggestion(sel, true)}>{aiBusy === 'suggest' ? '…' : '↻ Regenerate'}</button>
                         <button className="btn btn-sm btn-secondary" onClick={() => setAiOpen(false)} title="Hide the suggestion">▾ Hide</button>
                       </div>
                       {/* Follow-up angle picker: choose WHAT the suggestion anchors on instead of letting
                           the AI guess. Every angle stays natural and zero-pressure by doctrine. */}
                       <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-                        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+                        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
                         {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
                           <button key={k || 'auto'} className="btn btn-sm" disabled={!!aiBusy}
                             style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
@@ -748,10 +748,10 @@ export default function Inbox() {
                             onClick={() => { setAiApproach(k); generateSuggestion(sel, true, k) }}>{l}</button>
                         ))}
                       </div>
-                      {ai && ai.ai_available === false && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>AI is not configured on the server.</div>}
-                      {ai && ai.error && <div style={{ fontSize: 12, color: 'var(--danger)' }}>{ai.error}</div>}
-                      {ai && ai.summary && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 8 }}>{ai.summary}</div>}
-                      {aiBusy === 'suggest' && !(ai && ai.summary) && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
+                      {ai && ai.ai_available === false && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>AI is not configured on the server.</div>}
+                      {ai && ai.error && <div style={{ fontSize: 13, color: 'var(--danger)' }}>{ai.error}</div>}
+                      {ai && ai.summary && <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,0.4)', paddingLeft: 8 }}>{ai.summary}</div>}
+                      {aiBusy === 'suggest' && !(ai && ai.summary) && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
                     </>
                   )}
 
@@ -776,26 +776,26 @@ export default function Inbox() {
                       {replyMedia.map((mm, i) => (
                         <div key={i} style={{ position: 'relative' }}>
                           <img src={mm.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
-                          <button onClick={() => setReplyMedia(list => list.filter((_, j) => j !== i))} title="Remove" style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 12, lineHeight: '20px', padding: 0 }}>✕</button>
+                          <button onClick={() => setReplyMedia(list => list.filter((_, j) => j !== i))} title="Remove" style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 13, lineHeight: '20px', padding: 0 }}>✕</button>
                         </div>
                       ))}
                     </div>
                   )}
 
-                  {replyChannel === 'email' && <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />}
-                  <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={replyChannel === 'text' ? 3 : 5} placeholder={replyChannel === 'text' ? 'Write your text…' : 'Write your reply…'} style={{ padding: '8px 10px', fontSize: 13, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
+                  {replyChannel === 'email' && <input value={reply.subject} onChange={e => setReply(v => ({ ...v, subject: e.target.value }))} placeholder="Subject" style={{ padding: '7px 9px', fontSize: 14, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />}
+                  <textarea value={reply.body} onChange={e => setReply(v => ({ ...v, body: e.target.value }))} rows={replyChannel === 'text' ? 3 : 5} placeholder={replyChannel === 'text' ? 'Write your text…' : 'Write your reply…'} style={{ padding: '8px 10px', fontSize: 14, lineHeight: 1.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', resize: 'vertical' }} />
 
                   {aiOpen && (
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <input value={aiCtx} onChange={e => setAiCtx(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustReply(null, aiCtx.trim()) }} placeholder="Add context for the AI (e.g. tell them we can meet Saturday)…" style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                      <input value={aiCtx} onChange={e => setAiCtx(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustReply(null, aiCtx.trim()) }} placeholder="Add context for the AI (e.g. tell them we can meet Saturday)…" style={{ flex: 1, minWidth: 0, padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
                       <button className="btn btn-sm" disabled={!!aiBusy || !aiCtx.trim()} onClick={() => adjustReply(null, aiCtx.trim())}>{aiBusy === 'context' ? '…' : 'Apply'}</button>
                     </div>
                   )}
 
                   {schedOpen && replyChannel === 'text' && (
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send at:</span>
-                      <input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} style={{ padding: '6px 8px', fontSize: 12.5, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
+                      <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Send at:</span>
+                      <input type="datetime-local" value={sendAt} onChange={e => setSendAt(e.target.value)} style={{ padding: '6px 8px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }} />
                       <button className="btn btn-primary btn-sm" disabled={sending || !sendAt || (!reply.body.trim() && !replyMedia.length)} onClick={scheduleReply}>{sending ? '…' : 'Schedule send'}</button>
                       <button className="btn btn-sm" onClick={() => setSchedOpen(false)}>Cancel</button>
                     </div>
@@ -809,7 +809,7 @@ export default function Inbox() {
                     {replyChannel === 'text' && !schedOpen && <button className="btn btn-sm" disabled={!reply.body.trim() && !replyMedia.length} onClick={() => setSchedOpen(true)} title="Schedule for later">🕑 Schedule</button>}
                     {replyChannel === 'text' && selNums.length > 1 && (
                       <select value={toPhone || selNums[0]} onChange={e => setToPhone(e.target.value)} title="Which of this lead's numbers to text"
-                        style={{ fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
+                        style={{ fontSize: 13, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary)', color: 'var(--text-primary)' }}>
                         {selNums.map((p, i) => <option key={p} value={p}>to {p} ({(selLead && phoneLabelMap(selLead)[phoneD10(p)]) || (i === 0 ? 'main' : 'additional')})</option>)}
                       </select>
                     )}
@@ -856,7 +856,7 @@ function Composer({ onClose, onSent }) {
     notify(`Sent to ${r.sent} recipient(s).` + (failed.length ? ` ${failed.length} skipped (${failed.map(f => f.error).join(', ')}).` : ''))
     onSent()
   }
-  const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }
+  const fld = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14 }
 
   return (
     <Modal open onClose={onClose} title="New Message" wide>
@@ -866,15 +866,15 @@ function Composer({ onClose, onSent }) {
           {[{ k: 'email', label: '✉ Email' }, { k: 'text', label: '💬 Text' }].map(c => (
             <button key={c.k} onClick={() => setChannel(c.k)} className={`btn btn-sm ${channel === c.k ? 'btn-primary' : 'btn-secondary'}`}>{c.label}</button>
           ))}
-          {channel === 'text' && <span style={{ fontSize: 12, color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 6 }}>Texts send via Twilio (set it up in Settings).</span>}
+          {channel === 'text' && <span style={{ fontSize: 13, color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 6 }}>Texts send via Twilio (set it up in Settings).</span>}
         </div>
 
         {/* recipients */}
         <div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>To ({channel === 'email' ? 'client emails' : 'client phones'})</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>To ({channel === 'email' ? 'client emails' : 'client phones'})</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
             {recips.map(r => (
-              <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 12 }}>
+              <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 13 }}>
                 {`${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email}
                 <button onClick={() => remove(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
               </span>
@@ -885,9 +885,9 @@ function Composer({ onClose, onSent }) {
             {results.length > 0 && (
               <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
                 {results.map(c => (
-                  <div key={c.id} onClick={() => add(c)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <div key={c.id} onClick={() => add(c)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                     <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{channel === 'email' ? (c.email || 'no email') : (c.phone || 'no phone')}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{channel === 'email' ? (c.email || 'no email') : (c.phone || 'no phone')}</div>
                   </div>
                 ))}
               </div>
@@ -897,7 +897,7 @@ function Composer({ onClose, onSent }) {
 
         {channel === 'email' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={fld} />}
         <div>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Message</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Message</div>
           {channel === 'email'
             ? <RichTextEditor value={body} onChange={setBody} minHeight={200} />
             : <textarea value={body} onChange={e => setBody(e.target.value)} rows={5} style={{ ...fld, resize: 'vertical' }} placeholder="Message" />}
@@ -949,13 +949,13 @@ function GroupPane({ sel, onClose }) {
         <div style={{ fontWeight: 700 }}>👥 {sel.name || 'Group text'}</div>
         <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={onClose}>Close</button>
       </div>
-      {participants.length > 0 && <div style={{ padding: '6px 16px', fontSize: 12, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>Recipients: {participants.join(', ')}</div>}
+      {participants.length > 0 && <div style={{ padding: '6px 16px', fontSize: 13, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>Recipients: {participants.join(', ')}</div>}
       <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
         {rows.map(m => {
           const out = m.direction === 'outgoing'
           return (
             <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : senderLine(m)} · {fmtDate(m.occurred_at)}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : senderLine(m)} · {fmtDate(m.occurred_at)}</div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
                 <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
               </div>
@@ -996,12 +996,12 @@ function UnknownPane({ sel, onClose, onLinked }) {
     try { const r = await authFetch('/api/inbox/unknown/link', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, client_id: cid }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else notify(d.error || 'Could not link') }
     catch (e) { notify(e.message) } finally { setBusy(false) }
   }
-  const inp = { padding: '7px 9px', fontSize: 13, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }
+  const inp = { padding: '7px 9px', fontSize: 14, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)' }
   return (
     <>
       <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{ fontWeight: 700 }}>{fmtPhoneDisp(sel.phone)}</div>
-        <span style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>
+        <span style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: '#f59e0b', padding: '1px 6px', borderRadius: 4 }}>Unknown</span>
         <button className="btn btn-sm btn-secondary" style={{ marginLeft: 'auto' }} onClick={onClose}>Close</button>
       </div>
       <div style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -1016,7 +1016,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
           const link0 = m.channel === 'text' ? firstUrl(textBody) : null
           return (
             <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '80%' }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                 <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : (m.contact_name || 'Them')} · {fmtDate(m.occurred_at)}{m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
               </div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
@@ -1025,12 +1025,12 @@ function UnknownPane({ sel, onClose, onLinked }) {
                   : (textBody ? <div style={{ fontSize: 14, whiteSpace: 'pre-wrap' }}><LinkifiedText text={textBody} light={out && !missed} /></div> : null)}
                 {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
                   ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
-                  : <div key={i} style={{ fontSize: 12, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
+                  : <div key={i} style={{ fontSize: 13, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
                 {(isVoicemail || isCall) && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
-                {isVoicemail && m.transcript && <div style={{ fontSize: 12.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
+                {isVoicemail && m.transcript && <div style={{ fontSize: 13, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
               </div>
               {link0 && <LinkPreview url={link0} />}
-              {dstat && <div style={{ fontSize: 12, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
+              {dstat && <div style={{ fontSize: 13, color: dstat.c, textAlign: 'right', marginTop: 2 }}>{dstat.t}</div>}
             </div>
           )
         })}
@@ -1038,7 +1038,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
       <div style={{ borderTop: '1px solid var(--border)', padding: 12, background: 'var(--bg-primary)' }}>
         {mode === null && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 12.5, color: 'var(--text-secondary)' }}>This number isn't a contact yet. Add them to reply and start a normal conversation.</span>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>This number isn't a contact yet. Add them to reply and start a normal conversation.</span>
             <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setMode('create')}>+ Create lead</button>
             <button className="btn btn-sm" onClick={() => setMode('link')}>Link to existing</button>
           </div>
@@ -1047,7 +1047,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
             <input value={fn} onChange={e => setFn(e.target.value)} placeholder="First name" style={inp} />
             <input value={ln} onChange={e => setLn(e.target.value)} placeholder="Last name" style={inp} />
-            <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{fmtPhoneDisp(sel.phone)}</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{fmtPhoneDisp(sel.phone)}</span>
             <button className="btn btn-sm" onClick={() => setMode(null)}>Cancel</button>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={createLead} style={{ marginLeft: 'auto' }}>{busy ? 'Creating…' : 'Create lead'}</button>
           </div>
@@ -1061,9 +1061,9 @@ function UnknownPane({ sel, onClose, onLinked }) {
             {results.length > 0 && (
               <div style={{ position: 'absolute', bottom: '100%', left: 0, right: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, marginBottom: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
                 {results.map(c => (
-                  <div key={c.id} onClick={() => linkTo(c.id)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                  <div key={c.id} onClick={() => linkTo(c.id)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
                     <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{c.phone || c.email || ''}</div>
+                    <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{c.phone || c.email || ''}</div>
                   </div>
                 ))}
               </div>
@@ -1101,7 +1101,7 @@ function autoSizeFrame(e) {
   } catch { e.target.style.height = '400px' }
 }
 
-const folderBtn = (active) => ({ display: 'flex', alignItems: 'center', width: '100%', padding: '8px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13.5, marginBottom: 2, background: active ? 'var(--accent, #2563eb)' : 'transparent', color: active ? '#fff' : 'var(--text-primary)' })
-const toggleBtn = (active) => ({ padding: '6px 12px', border: 'none', cursor: 'pointer', fontSize: 12.5, background: active ? 'var(--accent, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
-const badge = { fontSize: 12, fontWeight: 700, background: '#2563eb', color: '#fff', borderRadius: 10, padding: '1px 7px', marginLeft: 'auto' }
+const folderBtn = (active) => ({ display: 'flex', alignItems: 'center', width: '100%', padding: '8px 10px', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 14, marginBottom: 2, background: active ? 'var(--accent, #2563eb)' : 'transparent', color: active ? '#fff' : 'var(--text-primary)' })
+const toggleBtn = (active) => ({ padding: '6px 12px', border: 'none', cursor: 'pointer', fontSize: 13, background: active ? 'var(--accent, #2563eb)' : 'var(--bg-secondary)', color: active ? '#fff' : 'var(--text-primary)' })
+const badge = { fontSize: 13, fontWeight: 700, background: '#2563eb', color: '#fff', borderRadius: 10, padding: '1px 7px', marginLeft: 'auto' }
 const pad = { padding: 20, color: 'var(--text-muted)' }

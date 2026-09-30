@@ -29,10 +29,10 @@ function PhoneStatusBadge({ client }) {
   try { if (client.sms_line_checked_at) when = new Date(String(client.sms_line_checked_at).replace(' ', 'T')).toLocaleDateString() } catch {}
   return (
     <div style={{ margin: '3px 0 5px' }}>
-      <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 10, color: fg, background: bg }}>
+      <span style={{ fontSize: 13, fontWeight: 700, padding: '2px 8px', borderRadius: 10, color: fg, background: bg }}>
         {tone === 'good' ? '✓ ' : tone === 'bad' ? '⚠ ' : ''}{label}
       </span>
-      {when && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>checked {when}</span>}
+      {when && <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 6 }}>checked {when}</span>}
     </div>
   )
 }
@@ -251,12 +251,12 @@ export default function ClientProfile() {
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
-          {refreshMsg && <span style={{ fontSize: 12, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
+          {refreshMsg && <span style={{ fontSize: 13, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
         </div>
         {apptOpen && <AppointmentModal client={client} onClose={() => setApptOpen(false)} />}
         {noteOpen && (
           <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'flex-start' }}>
-            <textarea value={noteText} autoFocus onChange={e => setNoteText(e.target.value)} placeholder="Add an internal note…" rows={2} style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, resize: 'vertical' }} />
+            <textarea value={noteText} autoFocus onChange={e => setNoteText(e.target.value)} placeholder="Add an internal note…" rows={2} style={{ flex: 1, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, resize: 'vertical' }} />
             <button className="btn btn-primary btn-sm" onClick={saveNote} disabled={savingNote || !noteText.trim()}>{savingNote ? 'Saving…' : 'Save Note'}</button>
           </div>
         )}
@@ -372,7 +372,7 @@ function FsboCampaignCard({ cid, client }) {
   return (
     <Section title="FSBO Campaign" id="fsbocamp">
       {!en ? (
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
           {ev.decision === 'waiting'
             ? <div><strong style={{ color: '#2563eb' }}>WAITING FOR DOM</strong> — DOM {ev.dom}, campaign starts at DOM {ev.dom + (ev.days_until || 0)} ({ev.days_until} day{ev.days_until === 1 ? '' : 's'} away).</div>
             : ev.decision === 'eligible'
@@ -380,10 +380,10 @@ function FsboCampaignCard({ cid, client }) {
               : <div style={{ color: 'var(--text-muted)' }}>Not in the campaign — {ev.reason_code}: {ev.reason}</div>}
         </div>
       ) : (
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
           <div style={{ fontWeight: 800, color: meta.color, marginBottom: 4 }}>{meta.label}</div>
-          {en.status === 'responded' && <div style={{ fontSize: 12, marginBottom: 4 }}>{en.response_class ? <>Classified: <strong>{en.response_class}</strong> — </> : null}the campaign has stopped; reply personally.</div>}
-          {en.status === 'stopped' && en.stop_reason && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {en.stop_reason}</div>}
+          {en.status === 'responded' && <div style={{ fontSize: 13, marginBottom: 4 }}>{en.response_class ? <>Classified: <strong>{en.response_class}</strong> — </> : null}the campaign has stopped; reply personally.</div>}
+          {en.status === 'stopped' && en.stop_reason && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {en.stop_reason}</div>}
           <div><strong>Property:</strong> {en.listing_address || client.address || '—'} · DOM {ev.dom ?? client.fsbo_dom ?? '?'} · {client.fsbo_status || 'off list'}</div>
           <div><strong>Attempts:</strong> {en.attempt_count || 0}{en.last_angle ? ` · last angle ${en.last_angle}` : ''}{en.started_dom != null ? ` · started at DOM ${en.started_dom}` : ''}</div>
           {en.status === 'active' && <div><strong>Next send:</strong> {en.next_send_at ? fmtD(en.next_send_at) : '—'} (weekday 9–4 window)</div>}
@@ -395,11 +395,11 @@ function FsboCampaignCard({ cid, client }) {
             {en.status === 'active' && <button className="btn btn-sm" onClick={previewNext}>👁 Preview next</button>}
             {(st.log || []).length > 0 && <button className="btn btn-sm" onClick={() => setShowLog(v => !v)}>{showLog ? 'Hide log' : `Log (${st.log.length})`}</button>}
           </div>
-          {next && <div style={{ marginTop: 8, fontSize: 12, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)' }}>{next.eligible ? <><strong>Attempt {next.attempt} · {next.angle}:</strong> {next.message}</> : <>Would not send: {next.reason}</>}</div>}
+          {next && <div style={{ marginTop: 8, fontSize: 13, padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)' }}>{next.eligible ? <><strong>Attempt {next.attempt} · {next.angle}:</strong> {next.message}</> : <>Would not send: {next.reason}</>}</div>}
           {showLog && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
               {st.log.map(l => (
-                <div key={l.id} style={{ fontSize: 12, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
+                <div key={l.id} style={{ fontSize: 13, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
                   <span style={{ color: 'var(--text-muted)' }}>{fmtD(l.created_at)} · </span>
                   <strong>{l.event}</strong>{l.angle ? ` · ${l.angle}` : ''}{l.reason ? ` · ${l.reason}` : ''}{l.dom != null ? ` · DOM ${l.dom}` : ''}
                   {l.body ? <div style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap' }}>{String(l.body).slice(0, 160)}</div> : null}
@@ -434,16 +434,16 @@ function CxCampaignCard({ cid, client }) {
   return (
     <Section title="Cancelled/Expired Campaign" id="cxcamp">
       {!st.enrolled ? (
-        <div style={{ fontSize: 13 }}>
+        <div style={{ fontSize: 14 }}>
           <div style={{ color: 'var(--text-muted)', marginBottom: 8 }}>Not enrolled in the connection campaign.</div>
           <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => act('enroll')}>Enroll in Campaign</button>
-          {!st.enabled && <div style={{ fontSize: 12, color: '#d97706', marginTop: 6 }}>Master switch is OFF (Settings) — enrolled leads won't be texted until it's on.</div>}
+          {!st.enabled && <div style={{ fontSize: 13, color: '#d97706', marginTop: 6 }}>Master switch is OFF (Settings) — enrolled leads won't be texted until it's on.</div>}
         </div>
       ) : (
-        <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+        <div style={{ fontSize: 14, lineHeight: 1.7 }}>
           <div style={{ fontWeight: 800, color: meta.color, marginBottom: 4 }}>{meta.label}</div>
-          {st.status === 'ineligible' && st.stop_reason && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {st.stop_reason}</div>}
-          {st.status === 'response_received' && st.response_class && <div style={{ fontSize: 12, marginBottom: 4 }}>Classified: <strong>{st.response_class}</strong> — reply personally; the AI stays silent on this lead.</div>}
+          {st.status === 'ineligible' && st.stop_reason && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {st.stop_reason}</div>}
+          {st.status === 'response_received' && st.response_class && <div style={{ fontSize: 13, marginBottom: 4 }}>Classified: <strong>{st.response_class}</strong> — reply personally; the AI stays silent on this lead.</div>}
           <div><strong>Attempts:</strong> {st.attempt_count || 0}{st.last_angle ? ` · last angle ${st.last_angle}` : ''}</div>
           {st.status === 'active' && <div><strong>Next outreach:</strong> {st.next_send_at ? fmtD(st.next_send_at) : '—'} (weekday window)</div>}
           <div><strong>Off market:</strong> {client.off_market_date || 'unknown'}{st.days_off_market != null ? ` · ${st.days_off_market}d · ${st.age_bucket}` : ` · ${st.age_bucket} language`}</div>
@@ -456,7 +456,7 @@ function CxCampaignCard({ cid, client }) {
           {showLog && (
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 220, overflowY: 'auto' }}>
               {st.log.map(l => (
-                <div key={l.id} style={{ fontSize: 12, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
+                <div key={l.id} style={{ fontSize: 13, borderLeft: '2px solid var(--border)', paddingLeft: 7 }}>
                   <span style={{ color: 'var(--text-muted)' }}>{fmtD(l.created_at)} · </span>
                   <strong>{l.event}</strong>
                   {l.angle ? ` · ${l.angle}` : ''}{l.age_bucket ? ` · ${l.age_bucket}` : ''}
@@ -504,8 +504,8 @@ function CallActionButton({ client, name }) {
               style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', background: 'none', cursor: 'pointer', padding: '8px 12px' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{num}</div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{num}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
             </button>
           ))}
         </div>
@@ -574,7 +574,7 @@ function AltPhoneLabels({ client, onSaved }) {
     <p style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '2px 0 3px' }}>
       {nums.map(p => (
         <button key={p} onClick={() => rename(p)} title="Click to set who this number belongs to"
-          style={{ fontSize: 12, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 9px', cursor: 'pointer' }}>
+          style={{ fontSize: 13, border: '1px solid var(--border)', borderRadius: 999, background: 'var(--bg-secondary)', color: 'var(--text-secondary)', padding: '2px 9px', cursor: 'pointer' }}>
           {p} — {map[phoneD10(p)] || 'set nickname ✎'}
         </button>
       ))}
@@ -684,12 +684,12 @@ function TagEditor({ client, onSaved }) {
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
       {shown.map(t => (
-        <span key={t} className="cp-tagchip">{t}<button title="Remove tag" disabled={busy} onClick={() => apply([], [t])} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', marginLeft: 4, fontSize: 12, opacity: 0.7 }}>×</button></span>
+        <span key={t} className="cp-tagchip">{t}<button title="Remove tag" disabled={busy} onClick={() => apply([], [t])} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', marginLeft: 4, fontSize: 13, opacity: 0.7 }}>×</button></span>
       ))}
       {tags.length > 8 && !showAll && <button className="btn btn-sm btn-secondary" onClick={() => setShowAll(true)}>+{tags.length - 8} more</button>}
-      {!tags.length && <span style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>No tags</span>}
+      {!tags.length && <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>No tags</span>}
       {adding
-        ? <input autoFocus value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && val.trim()) { apply([val.trim()], []); setVal(''); setAdding(false) } if (e.key === 'Escape') { setAdding(false); setVal('') } }} onBlur={() => { if (val.trim()) apply([val.trim()], []); setVal(''); setAdding(false) }} placeholder="new tag…" style={{ padding: '2px 7px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 110 }} />
+        ? <input autoFocus value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && val.trim()) { apply([val.trim()], []); setVal(''); setAdding(false) } if (e.key === 'Escape') { setAdding(false); setVal('') } }} onBlur={() => { if (val.trim()) apply([val.trim()], []); setVal(''); setAdding(false) }} placeholder="new tag…" style={{ padding: '2px 7px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 110 }} />
         : <button className="btn btn-sm" onClick={() => setAdding(true)} disabled={busy}>+ Tag</button>}
     </div>
   )
@@ -742,20 +742,20 @@ function Communications({ client, onOpenText, onAddNote }) {
       right={<div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{FILTERS.map(([k, l]) => <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setFilter(k); setLimit(15) }}>{l}</button>)}{filter === 'note'
         ? <button className="btn btn-sm btn-primary" onClick={onAddNote}>+ Add Note</button>
         : <button className="btn btn-sm btn-primary" onClick={onOpenText}>+ New</button>}</div>}>
-      <input value={q} onChange={e => setQ(e.target.value)} placeholder={filter === 'note' ? 'Search notes…' : 'Search communications…'} style={{ width: '100%', padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, marginBottom: 10 }} />
+      <input value={q} onChange={e => setQ(e.target.value)} placeholder={filter === 'note' ? 'Search notes…' : 'Search communications…'} style={{ width: '100%', padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, marginBottom: 10 }} />
       {filter === 'note' ? (
         <>
-          {!notes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No notes yet.</div>
+          {!notes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No notes yet.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map((ln, i) => {
               const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
-              return <div key={i} style={{ fontSize: 13, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
+              return <div key={i} style={{ fontSize: 14, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
             })}</div>}
           {notes.length > shownNotes.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({notes.length - shownNotes.length})</button>}
         </>
       ) : (
         <>
-          {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Loading…</div>
-            : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Nothing here yet.</div>
+          {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading…</div>
+            : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Nothing here yet.</div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
           {items.length > shown.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({items.length - shown.length})</button>}
         </>
@@ -769,7 +769,7 @@ function EmailEngagement({ eng }) {
   const [open, setOpen] = useState(false)
   const [events, setEvents] = useState(null)
   if (!eng) return null
-  const chip = (label, color) => <span key={label} style={{ fontSize: 12, fontWeight: 700, color, border: `1px solid ${color}33`, background: `${color}14`, borderRadius: 10, padding: '1px 7px' }}>{label}</span>
+  const chip = (label, color) => <span key={label} style={{ fontSize: 13, fontWeight: 700, color, border: `1px solid ${color}33`, background: `${color}14`, borderRadius: 10, padding: '1px 7px' }}>{label}</span>
   const chips = []
   if (['bounce', 'dropped', 'spamreport'].includes(eng.status)) chips.push(chip('⚠ ' + eng.status, '#ef4444'))
   else if (eng.delivered_at || eng.status === 'delivered') chips.push(chip('Delivered', '#059669'))
@@ -784,11 +784,11 @@ function EmailEngagement({ eng }) {
     <div style={{ marginTop: 5 }}>
       <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap', alignItems: 'center' }}>
         {chips}
-        {eng.last_opened_at && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>last opened {fmtCommWhen(eng.last_opened_at)}</span>}
-        {(eng.opens || eng.clicks) ? <button onClick={loadEvents} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#2563eb', padding: 0 }}>{open ? 'hide' : 'engagement ▾'}</button> : null}
+        {eng.last_opened_at && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>last opened {fmtCommWhen(eng.last_opened_at)}</span>}
+        {(eng.opens || eng.clicks) ? <button onClick={loadEvents} style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 13, color: '#2563eb', padding: 0 }}>{open ? 'hide' : 'engagement ▾'}</button> : null}
       </div>
       {open && (
-        <div style={{ marginTop: 5, fontSize: 12, color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 8, overflowWrap: 'anywhere' }}>
+        <div style={{ marginTop: 5, fontSize: 13, color: 'var(--text-secondary)', borderLeft: '2px solid var(--border)', paddingLeft: 8, overflowWrap: 'anywhere' }}>
           {events === null ? 'Loading…' : events.length === 0 ? 'No events.' : events.map((e, i) => (
             <div key={i}>{fmtCommWhen(e.occurred_at)} — {e.event_type}{e.url ? `: ${String(e.url).slice(0, 80)}` : ''}</div>
           ))}
@@ -811,12 +811,12 @@ function CommItem({ m }) {
     return (
       <div style={{ display: 'flex', justifyContent: out ? 'flex-end' : 'flex-start' }}>
         <div style={{ maxWidth: '78%', minWidth: 110 }}>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
             {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')}
             {!out && m.conversation_sid && m.from_addr ? ` · ${(() => { const d = String(m.from_addr).replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : m.from_addr })()}` : ''}
             {' · '}{fmtCommWhen(m.occurred_at)}
           </div>
-          <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 13, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
+          <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 14, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
             {text || '📎 attachment'}
           </div>
         </div>
@@ -825,7 +825,7 @@ function CommItem({ m }) {
   }
   return (
     <div style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--text-muted)', marginBottom: 3 }}>
         <span style={{ color: meta.color, fontWeight: 700 }}>{meta.icon} {meta.label}</span>
         <span>{out ? '↗ outbound' : '↙ inbound'}</span>
         {aiSent && <span style={{ color: '#7c3aed', fontWeight: 700 }}>· HUB AI</span>}
@@ -833,20 +833,20 @@ function CommItem({ m }) {
         {m.disposition ? <span>· {m.disposition}</span> : null}
         <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
       </div>
-      {m.channel === 'email' && m.subject && <div style={{ fontSize: 12.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
-      {text && <div style={{ fontSize: 13, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
+      {m.channel === 'email' && m.subject && <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
+      {text && <div style={{ fontSize: 14, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
       {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
-      {m.transcript && !m.call_summary && <div style={{ fontSize: 12, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
+      {m.transcript && !m.call_summary && <div style={{ fontSize: 13, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
       {m.call_summary && (
-        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+        <details style={{ fontSize: 13, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
           <summary style={{ cursor: 'pointer', fontWeight: 700 }}>📋 AI Call Summary</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.call_summary}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.call_summary}</pre>
         </details>
       )}
       {m.call_summary && m.transcript && (
-        <details style={{ fontSize: 12.5, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
+        <details style={{ fontSize: 13, marginTop: 6, border: '1px solid var(--border)', borderRadius: 8, padding: '6px 10px', background: 'var(--bg-secondary)' }}>
           <summary style={{ cursor: 'pointer', fontWeight: 700 }}>💬 Transcript</summary>
-          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 12.5, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.transcript}</pre>
+          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13, lineHeight: 1.5, margin: '6px 0 0', maxHeight: 320, overflowY: 'auto' }}>{m.transcript}</pre>
         </details>
       )}
 
@@ -945,22 +945,22 @@ function EmailComposer({ client, onClose, onSent, initial }) {
       if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else notify('Email not sent: ' + (d.error || 'unknown'))
     } catch (e) { notify('Email failed: ' + e.message) } finally { setSending(false) }
   }
-  const inputStyle = { width: '100%', padding: '7px 9px', marginBottom: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)', fontSize: 13 }
+  const inputStyle = { width: '100%', padding: '7px 9px', marginBottom: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)', fontSize: 14 }
   return (
     <div style={{ marginTop: 8, padding: 10, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 6, alignItems: 'center', flexWrap: 'wrap' }}>
         {clientEmails.length > 1 ? (
           <select value={toEmail || clientEmails[0]} onChange={e => setToEmail(e.target.value)} title="Which of this lead's email addresses to send to"
-            style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
+            style={{ fontSize: 13, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
             {clientEmails.map((em, i) => <option key={em} value={em}>To: {em}{i === 0 ? ' (main)' : ''}</option>)}
           </select>
         ) : (
-          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>To: {client.email}</span>
+          <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>To: {client.email}</span>
         )}
         <TemplatePicker templates={templates} onPick={t => { if (t.subject) setSubject(t.subject); setBody(withSig(stripHtml(t.body))) }} />
         <select value="" onChange={e => { if (e.target.value) { insertToken(e.target.value); e.target.value = '' } }}
           title="Insert a merge field at the cursor"
-          style={{ fontSize: 12, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
+          style={{ fontSize: 13, padding: '4px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }}>
           <option value="">+ Insert field…</option>
           {fields.map(f => <option key={f.token} value={f.token}>{f.label}</option>)}
         </select>
@@ -973,7 +973,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
         {aiOpen && (
           <div style={{ marginTop: 6, border: '1px solid rgba(124,58,237,.35)', borderRadius: 8, padding: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
+              <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.04em', color: 'var(--text-muted)' }}>ANGLE</span>
               {[['', 'Auto'], ['conversation', '💬 Continue conversation'], ['activity', '🌐 Website activity'], ['checkin', '👋 Soft check-in']].map(([k, l]) => (
                 <button key={k || 'auto'} className="btn btn-sm" disabled={aiBusy}
                   style={aiApproach === k ? { background: '#7c3aed', color: '#fff', borderColor: '#7c3aed' } : {}}
@@ -981,15 +981,15 @@ function EmailComposer({ client, onClose, onSent, initial }) {
                   onClick={() => { setAiApproach(k); suggest(k) }}>{l}</button>
               ))}
             </div>
-            {aiBusy && <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
-            {aiSug?.error && <div style={{ fontSize: 12, color: '#ef4444' }}>{aiSug.error}</div>}
+            {aiBusy && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Reading the conversation…</div>}
+            {aiSug?.error && <div style={{ fontSize: 13, color: '#ef4444' }}>{aiSug.error}</div>}
             {aiSug && aiSug.has_incoming === false && !aiBusy && !aiSug.error && (
-              <div style={{ fontSize: 12, color: '#7c3aed', fontWeight: 600 }}>First outreach — they haven't written back yet, so this drafts an opener instead of a reply.</div>
+              <div style={{ fontSize: 13, color: '#7c3aed', fontWeight: 600 }}>First outreach — they haven't written back yet, so this drafts an opener instead of a reply.</div>
             )}
-            {aiSug?.summary && !aiBusy && <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,.4)', paddingLeft: 8 }}>{aiSug.summary}</div>}
+            {aiSug?.summary && !aiBusy && <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '2px solid rgba(124,58,237,.4)', paddingLeft: 8 }}>{aiSug.summary}</div>}
             {aiSug?.suggestion && !aiBusy && (aiSug.suggestion.body || aiSug.suggestion.subject) && (
               <>
-                <div style={{ fontSize: 12.5, whiteSpace: 'pre-wrap', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, lineHeight: 1.45 }}>
+                <div style={{ fontSize: 13, whiteSpace: 'pre-wrap', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 6, padding: 8, lineHeight: 1.45 }}>
                   {aiSug.suggestion.subject && <div style={{ fontWeight: 700, marginBottom: 4 }}>{aiSug.suggestion.subject}</div>}
                   {aiSug.suggestion.body}
                 </div>
@@ -1004,26 +1004,26 @@ function EmailComposer({ client, onClose, onSent, initial }) {
                   <input value={aiCtx} onChange={e => setAiCtx(e.target.value)}
                     placeholder="Add context for the AI (e.g. spoke on the phone yesterday, mention the open house)…"
                     onKeyDown={e => { if (e.key === 'Enter' && aiCtx.trim() && !aiBusy) adjustSuggestion('', aiCtx.trim()) }}
-                    style={{ flex: 1, padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 12.5 }} />
+                    style={{ flex: 1, padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13 }} />
                   <button className="btn btn-sm" disabled={aiBusy || !aiCtx.trim()} onClick={() => adjustSuggestion('', aiCtx.trim())}>Apply</button>
                 </div>
               </>
             )}
             {aiSug && !aiBusy && !aiSug.error && !(aiSug.suggestion && (aiSug.suggestion.body || aiSug.suggestion.subject)) && (
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>No draft came back. Pick an angle above or hit an angle button again to retry.</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No draft came back. Pick an angle above or hit an angle button again to retry.</div>
             )}
           </div>
         )}
       </div>
       <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Subject" style={inputStyle} />
-      <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Write your email…" style={{ width: '100%', padding: 9, fontSize: 13, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+      <textarea ref={taRef} value={body} onChange={e => setBody(e.target.value)} rows={7} placeholder="Write your email…" style={{ width: '100%', padding: 9, fontSize: 14, lineHeight: 1.5, resize: 'vertical', fontFamily: 'inherit' }} />
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
         Fields like <code>{'{{first_name}}'}</code> and <code>{'{{signature}}'}</code> fill in automatically when the email is sent. Use Preview to see the final version for {client.first_name || 'this lead'}.
       </div>
       {preview && (
         <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 6, background: '#fff' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 9px', borderBottom: '1px solid var(--border)' }}>PREVIEW · Subject: {preview.subject || '(no subject)'}</div>
-          <div style={{ padding: 12, color: '#0f172a', fontSize: 13, maxHeight: 320, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: preview.html || '' }} />
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 9px', borderBottom: '1px solid var(--border)' }}>PREVIEW · Subject: {preview.subject || '(no subject)'}</div>
+          <div style={{ padding: 12, color: '#0f172a', fontSize: 14, maxHeight: 320, overflow: 'auto' }} dangerouslySetInnerHTML={{ __html: preview.html || '' }} />
         </div>
       )}
       <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
@@ -1062,13 +1062,13 @@ function PropertyActivity({ client, onSaved }) {
     <Section title={client.type === 'seller' || listings.length ? 'Subject Property / Activity' : 'Property Activity'} id="propact"
       right={hasFsbo ? <button className="btn btn-sm btn-danger" onClick={removeFsbo} title="Not the owner? Remove this FSBO listing and stop it re-attaching.">Remove FSBO</button> : null}>
       {listings.map((l, i) => (
-        <div key={i} style={{ fontSize: 13, marginBottom: 6 }}>
+        <div key={i} style={{ fontSize: 14, marginBottom: 6 }}>
           <strong>{l.address || '—'}</strong> {l.status ? <span className="cp-badge">{l.status}</span> : null} {(() => { const dom = domLive(l.list_date, l.dom); return dom != null ? <span style={{ color: 'var(--text-muted)' }}>DOM {dom}</span> : null })()}
           {l.link && <> — <a href={l.link} target="_blank" rel="noopener noreferrer" style={{ color: '#006aff', fontWeight: 600 }}>View Listing ↗</a></>}
         </div>
       ))}
-      {!listings.length && client.fsbo_status && <div style={{ fontSize: 13, marginBottom: 6 }}>FSBO status: <span className="cp-badge">{client.fsbo_status}</span></div>}
-      {lastViewed && <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Last website activity: {lastViewed}{client.last_fub_activity_type ? ` · ${client.last_fub_activity_type}` : ''}</div>}
+      {!listings.length && client.fsbo_status && <div style={{ fontSize: 14, marginBottom: 6 }}>FSBO status: <span className="cp-badge">{client.fsbo_status}</span></div>}
+      {lastViewed && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Last website activity: {lastViewed}{client.last_fub_activity_type ? ` · ${client.last_fub_activity_type}` : ''}</div>}
     </Section>
   )
 }
@@ -1100,12 +1100,12 @@ function SellerIntentCard({ cid }) {
   if (!d) return null
   const PRI_COLOR = { 'PRIORITY 1': '#dc2626', 'PRIORITY 2': '#ea580c', 'PRIORITY 3': '#ca8a04', NURTURE: '#6b7280', EARLY: '#6b7280' }
   const sub = d.submissions?.[0]
-  const L = ({ k, v }) => v ? <div style={{ display: 'flex', gap: 8, fontSize: 13, padding: '2px 0' }}><span style={{ color: 'var(--text-muted)', minWidth: 118 }}>{k}</span><span>{v}</span></div> : null
+  const L = ({ k, v }) => v ? <div style={{ display: 'flex', gap: 8, fontSize: 14, padding: '2px 0' }}><span style={{ color: 'var(--text-muted)', minWidth: 118 }}>{k}</span><span>{v}</span></div> : null
   return (
     <section className="cp-card">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
         <h3 style={{ margin: 0, fontSize: 14.5 }}>🏷 Seller Intent</h3>
-        {d.priority && d.priority !== 'UNRANKED' && <span style={{ fontSize: 12, fontWeight: 800, color: PRI_COLOR[d.priority] || 'var(--text-muted)' }}>{d.priority}</span>}
+        {d.priority && d.priority !== 'UNRANKED' && <span style={{ fontSize: 13, fontWeight: 800, color: PRI_COLOR[d.priority] || 'var(--text-muted)' }}>{d.priority}</span>}
       </div>
       <L k="Timeframe" v={d.seller_timeframe} />
       <L k="Considering" v={d.seller_improvement} />
@@ -1115,7 +1115,7 @@ function SellerIntentCard({ cid }) {
       <L k="Actual campaign" v={sub?.campaign_raw} />
       <L k="Submitted" v={sub ? String(sub.created_at).slice(0, 10) : null} />
       {d.sequence && <L k="Sequence" v={`${d.sequence.status}${d.sequence.status === 'active' ? ` — next text step ${d.sequence.next_step + 1}` : ''}`} />}
-      {d.seller_availability && <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>Scheduling tip: "You mentioned {d.seller_availability.toLowerCase()} usually work best — is there a day next week that's easiest?" (preference, not a confirmed time)</div>}
+      {d.seller_availability && <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, fontStyle: 'italic' }}>Scheduling tip: "You mentioned {d.seller_availability.toLowerCase()} usually work best — is there a day next week that's easiest?" (preference, not a confirmed time)</div>}
     </section>
   )
 }
@@ -1139,10 +1139,10 @@ function AppointmentsCard({ cid, client }) {
   }
   const STATUS_COLOR = { scheduled: '#3b82f6', confirmed: '#10b981', completed: '#059669', cancelled: '#ef4444', no_show: '#b45309' }
   const Row = ({ r }) => (
-    <div style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+    <div style={{ padding: '8px 0', borderBottom: '1px solid var(--border)', fontSize: 14 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, alignItems: 'baseline' }}>
         <strong>{r.type_name || r.title}</strong>
-        <span style={{ fontSize: 12, fontWeight: 700, color: STATUS_COLOR[r.appt_status] || 'var(--text-muted)' }}>{(r.appt_status || 'event').replace('_', '-')}</span>
+        <span style={{ fontSize: 13, fontWeight: 700, color: STATUS_COLOR[r.appt_status] || 'var(--text-muted)' }}>{(r.appt_status || 'event').replace('_', '-')}</span>
       </div>
       <div style={{ color: 'var(--text-secondary)' }}>{r.when}{r.location ? ` · ${r.location}` : ''}{r.team_member ? ` · ${r.team_member}` : ''}</div>
       {['scheduled', 'confirmed'].includes(r.appt_status) && (
@@ -1160,12 +1160,12 @@ function AppointmentsCard({ cid, client }) {
         <h3 style={{ margin: 0, fontSize: 14.5 }}>📅 Appointments</h3>
         <button className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>Schedule Appointment</button>
       </div>
-      {rows === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div> : (
+      {rows === null ? <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Loading…</div> : (
         <>
-          {!rows.length && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No appointments yet — book one with Schedule Appointment.</div>}
-          {upcoming.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '6px 0 2px' }}>Upcoming</div>}
+          {!rows.length && <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No appointments yet — book one with Schedule Appointment.</div>}
+          {upcoming.length > 0 && <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '6px 0 2px' }}>Upcoming</div>}
           {upcoming.map(r => <Row key={r.id} r={r} />)}
-          {past.length > 0 && <div style={{ fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '10px 0 2px' }}>Previous</div>}
+          {past.length > 0 && <div style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted)', margin: '10px 0 2px' }}>Previous</div>}
           {past.slice(0, 6).map(r => <Row key={r.id} r={r} />)}
         </>
       )}
@@ -1197,7 +1197,7 @@ function ScheduleTypedModal({ client, onClose }) {
       onClose()
     } finally { setSaving(false) }
   }
-  const inp = { padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '7px 9px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
       <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, width: '100%', maxWidth: 480, maxHeight: '86vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
@@ -1208,12 +1208,12 @@ function ScheduleTypedModal({ client, onClose }) {
           </select>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             {days.slice(0, 10).map(d => <button key={d} className={`btn btn-sm ${date === d ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDate(d)}>{new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</button>)}
-            {!days.length && <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Finding open days…</span>}
+            {!days.length && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Finding open days…</span>}
           </div>
           {date && (
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {slots.map(sl => <button key={sl.time} className={`btn btn-sm ${time === sl.time ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setTime(sl.time)}>{t12(sl.time)}</button>)}
-              {!slots.length && <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading times…</span>}
+              {!slots.length && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading times…</span>}
             </div>
           )}
           <textarea style={{ ...inp, resize: 'vertical' }} rows={2} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Notes (optional)" />
@@ -1252,7 +1252,7 @@ function AppointmentModal({ client, onClose }) {
       setTimeout(onClose, 1400)
     } catch (e) { setMsg('⚠ ' + e.message) } finally { setSaving(false) }
   }
-  const inp = { padding: '7px 9px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '7px 9px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={onClose}>
       <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 12, padding: 18, width: '100%', maxWidth: 460 }} onClick={e => e.stopPropagation()}>
@@ -1276,7 +1276,7 @@ function AppointmentModal({ client, onClose }) {
         <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
           <button className="btn btn-primary" disabled={saving || !title.trim()} onClick={save}>{saving ? 'Saving…' : 'Save + Send Invite'}</button>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          {msg && <span style={{ fontSize: 12.5, color: msg.startsWith('✓') ? '#10b981' : '#ef4444' }}>{msg}</span>}
+          {msg && <span style={{ fontSize: 13, color: msg.startsWith('✓') ? '#10b981' : '#ef4444' }}>{msg}</span>}
         </div>
       </div>
     </div>
@@ -1299,7 +1299,7 @@ function AiIntelligence({ ai, followup, cid }) {
   }
   return (
     <Section title="AI Intelligence" id="ai" right={<button className="btn btn-sm" onClick={() => setFull(f => !f)}>{full ? 'Hide' : 'Open Full AI'}</button>}>
-      <div style={{ fontSize: 13, lineHeight: 1.7 }}>
+      <div style={{ fontSize: 14, lineHeight: 1.7 }}>
         <div><strong>Intent:</strong> {intent ?? '—'} {level ? `· ${String(level).toUpperCase()}` : ''}</div>
         <div><strong>AI:</strong> {ai?.ai_managed ? 'Managed' : 'Manual'}</div>
         {ai?.ai_state && <div><strong>State:</strong> {String(ai.ai_state).replace(/_/g, ' ').toLowerCase()}</div>}
@@ -1312,7 +1312,7 @@ function AiIntelligence({ ai, followup, cid }) {
                 : `${enroll.decision} · ${enroll.reason || enroll.reason_code}`}
             </span>
             {!['ALREADY_ENROLLED', 'NOT_FOUND', 'MERGED'].includes(enroll.reason_code) && (
-              <button className="btn btn-sm" style={{ fontSize: 12 }} onClick={toggleExclude}>
+              <button className="btn btn-sm" style={{ fontSize: 13 }} onClick={toggleExclude}>
                 {enroll.reason_code === 'MANUAL_EXCLUDE' ? 'Allow auto-enroll' : 'Exclude'}
               </button>
             )}
@@ -1321,19 +1321,19 @@ function AiIntelligence({ ai, followup, cid }) {
       </div>
       {rec && (rec.recommended_action || rec.recommendation || rec.reason || rec.summary) && (
         <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(124,58,237,.06)', border: '1px solid rgba(124,58,237,.25)', borderRadius: 8 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Next Best Action</div>
-          <div style={{ fontSize: 13, fontWeight: 600, marginTop: 2 }}>{rec.recommended_action || rec.recommendation?.label || rec.action || rec.title || 'Follow up'}</div>
-          {(rec.reason || rec.recommendation?.rationale || rec.summary) && <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 3 }}>{rec.reason || rec.recommendation?.rationale || rec.summary}</div>}
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Next Best Action</div>
+          <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>{rec.recommended_action || rec.recommendation?.label || rec.action || rec.title || 'Follow up'}</div>
+          {(rec.reason || rec.recommendation?.rationale || rec.summary) && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3 }}>{rec.reason || rec.recommendation?.rationale || rec.summary}</div>}
         </div>
       )}
       {rec && rec.email && (rec.email.subject || rec.email.body) && (
         <div style={{ marginTop: 8, padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Suggested Email</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase' }}>Suggested Email</div>
             <button className="btn btn-sm btn-primary" onClick={() => window.dispatchEvent(new CustomEvent('cp-compose-email', { detail: { subject: rec.email.subject || '', body: rec.email.body || '' } }))}>✉ Use in Email</button>
           </div>
-          {rec.email.subject && <div style={{ fontSize: 12.5, fontWeight: 600, marginTop: 4 }}>{rec.email.subject}</div>}
-          {rec.email.body && <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 3, whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}>{rec.email.body}</div>}
+          {rec.email.subject && <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{rec.email.subject}</div>}
+          {rec.email.body && <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 3, whiteSpace: 'pre-wrap', maxHeight: 180, overflow: 'auto' }}>{rec.email.body}</div>}
         </div>
       )}
       {full && <div style={{ marginTop: 10 }}><AiIsaCard clientId={cid} /></div>}
@@ -1353,12 +1353,12 @@ function TasksCard({ cid, name, address }) {
   const open = (tasks || []).filter(t => t.status !== 'done')
   const overdue = open.filter(t => t.due_date && t.due_date < today)
   const upcoming = open.filter(t => !(t.due_date && t.due_date < today))
-  const row = (t, bad) => <div key={t.id} style={{ fontSize: 13, display: 'flex', gap: 6, padding: '3px 0' }}><span>○</span><span style={{ flex: 1 }}>{t.title}</span>{t.due_date && <span style={{ fontSize: 12, color: bad ? '#ef4444' : 'var(--text-muted)' }}>{t.due_date}</span>}</div>
+  const row = (t, bad) => <div key={t.id} style={{ fontSize: 14, display: 'flex', gap: 6, padding: '3px 0' }}><span>○</span><span style={{ flex: 1 }}>{t.title}</span>{t.due_date && <span style={{ fontSize: 13, color: bad ? '#ef4444' : 'var(--text-muted)' }}>{t.due_date}</span>}</div>
   return (
     <Section title={`Tasks${open.length ? ` (${open.length})` : ''}`} id="taskscard" right={<button className="btn btn-sm" onClick={() => setAddOpen(o => !o)}>+ Add</button>}>
       {addOpen && <QuickAddTask clientId={cid} clientName={name} clientAddress={address} onAdded={() => { reload(); setAddOpen(false) }} />}
-      {tasks === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
-        : !open.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No open tasks.</div>
+      {tasks === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>…</div>
+        : !open.length ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>No open tasks.</div>
           : <div style={{ marginTop: addOpen ? 8 : 0 }}>
             {overdue.length > 0 && <><div className="cp-sub" style={{ color: '#ef4444' }}>Overdue</div>{overdue.map(t => row(t, true))}</>}
             {upcoming.length > 0 && <><div className="cp-sub">Upcoming</div>{upcoming.slice(0, 6).map(t => row(t, false))}</>}
@@ -1378,12 +1378,12 @@ function TransactionsCard({ cid, onAdd, navigate }) {
   useEffect(() => { const h = () => reload(); window.addEventListener('cp-txns-changed', h); window.addEventListener('cp-tasks-changed', h); return () => { window.removeEventListener('cp-txns-changed', h); window.removeEventListener('cp-tasks-changed', h) } }, [reload])
   return (
     <Section title="Transactions" id="txns" right={<button className="btn btn-sm" onClick={onAdd}>+ Add</button>}>
-      {txns === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
-        : !txns.length ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>None</div>
+      {txns === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>…</div>
+        : !txns.length ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>None</div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>{txns.map(t => (
-            <div key={t.id} style={{ fontSize: 13, cursor: 'pointer' }} onClick={() => navigate('/transactions')}>
+            <div key={t.id} style={{ fontSize: 14, cursor: 'pointer' }} onClick={() => navigate('/transactions')}>
               <strong>{t.property_address || t.address || t.type || 'Transaction'}</strong>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{[t.type, t.property_status || t.status, t.closing_date].filter(Boolean).join(' · ')}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{[t.type, t.property_status || t.status, t.closing_date].filter(Boolean).join(' · ')}</div>
             </div>
           ))}<button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => navigate('/transactions')}>View all →</button></div>}
     </Section>
@@ -1395,7 +1395,7 @@ function TransactionsCard({ cid, onAdd, navigate }) {
 // next send to that day; presets push out from the current schedule.
 function DelayMenu({ onDelayDays, onDelayUntil, disabled }) {
   const today = new Date().toISOString().slice(0, 10)
-  const sel = { fontSize: 12, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }
+  const sel = { fontSize: 13, padding: '3px 6px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)' }
   return (
     <span style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}>
       <select disabled={disabled} value="" onChange={e => { if (e.target.value) { onDelayDays(Number(e.target.value)); e.target.value = '' } }} title="Delay by a preset" style={sel}>
@@ -1437,18 +1437,18 @@ function ActionPlans({ cid }) {
       setPreview(r)
     } catch (err) { notify('Preview failed: ' + err.message) }
   }
-  const pill = (label, on) => <span style={{ fontSize: 12, padding: '1px 7px', borderRadius: 10, background: on ? '#fef3c7' : '#dcfce7', color: on ? '#92400e' : '#166534' }}>{label}</span>
+  const pill = (label, on) => <span style={{ fontSize: 13, padding: '1px 7px', borderRadius: 10, background: on ? '#fef3c7' : '#dcfce7', color: on ? '#92400e' : '#166534' }}>{label}</span>
   const shell = { border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px', marginBottom: 6 }
   const dripRow = (e) => {
     const eid = e.enrollment_id, paused = e.status === 'paused', next = fmtPlanDate(e.next_run_at), busy = busyId === eid
     return (
       <div key={'d' + eid} style={shell}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>💧</span><span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{e.drip_name}</span>{pill(paused ? 'Paused' : 'Active', paused)}
+          <span>💧</span><span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{e.drip_name}</span>{pill(paused ? 'Paused' : 'Active', paused)}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '5px 0 7px' }}>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', margin: '5px 0 7px' }}>
           {e.next_step_subject
-            ? <>Next: <button onClick={() => openPreview(e)} style={{ border: 'none', background: 'none', padding: 0, color: 'var(--primary,#2563eb)', cursor: 'pointer', fontSize: 12, textDecoration: 'underline' }}>Email {e.next_step_number} of {e.total_steps}: {e.next_step_subject}</button></>
+            ? <>Next: <button onClick={() => openPreview(e)} style={{ border: 'none', background: 'none', padding: 0, color: 'var(--primary,#2563eb)', cursor: 'pointer', fontSize: 13, textDecoration: 'underline' }}>Email {e.next_step_number} of {e.total_steps}: {e.next_step_subject}</button></>
             : <>All {e.total_steps} emails sent</>}
           {next && <> · {paused ? 'was set for' : 'sends'} {next}</>}
         </div>
@@ -1468,9 +1468,9 @@ function ActionPlans({ cid }) {
     return (
       <div key={'a' + eid} style={shell}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span>⚡</span><span style={{ flex: 1, fontWeight: 600, fontSize: 13 }}>{e.automation_name}</span>{pill(paused ? 'Paused' : (e.status === 'waiting' ? 'Waiting' : 'Active'), paused)}
+          <span>⚡</span><span style={{ flex: 1, fontWeight: 600, fontSize: 14 }}>{e.automation_name}</span>{pill(paused ? 'Paused' : (e.status === 'waiting' ? 'Waiting' : 'Active'), paused)}
         </div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', margin: '5px 0 7px' }}>{next ? `Next step ${paused ? 'was set for' : 'runs'} ${next}` : 'Running'}</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', margin: '5px 0 7px' }}>{next ? `Next step ${paused ? 'was set for' : 'runs'} ${next}` : 'Running'}</div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {paused
             ? <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => call('automation', eid, 'resume')}>▶ Resume</button>
@@ -1483,18 +1483,18 @@ function ActionPlans({ cid }) {
   }
   return (
     <Section title="Action Plans" id="plans" right={<div style={{ display: 'flex', gap: 4 }}><button className="btn btn-sm" onClick={() => setPicker('drip')}>+ Drip</button><button className="btn btn-sm" onClick={() => setPicker('automation')}>+ Automation</button></div>}>
-      {seq === null ? <div style={{ color: 'var(--text-muted)', fontSize: 12.5 }}>…</div>
-        : (!drips.length && !autos.length && !picker) ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Not enrolled in any plans.</div>
+      {seq === null ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>…</div>
+        : (!drips.length && !autos.length && !picker) ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Not enrolled in any plans.</div>
           : <>{drips.map(dripRow)}{autos.map(autoRow)}</>}
       {picker && <EnrollPicker kind={picker} cid={cid} onClose={() => setPicker(null)} onDone={() => { setPicker(null); reload() }} />}
       {preview && (
         <div onClick={() => setPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, maxWidth: 640, width: '100%', maxHeight: '85vh', overflow: 'auto' }}>
             <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
-              <strong style={{ fontSize: 13, color: '#0f172a' }}>{preview.drip} — Subject: {preview.subject || '(no subject)'}</strong>
+              <strong style={{ fontSize: 14, color: '#0f172a' }}>{preview.drip} — Subject: {preview.subject || '(no subject)'}</strong>
               <button className="btn btn-sm" onClick={() => setPreview(null)}>Close</button>
             </div>
-            <div style={{ padding: 16, fontSize: 13, color: '#0f172a' }} dangerouslySetInnerHTML={{ __html: preview.body || '' }} />
+            <div style={{ padding: 16, fontSize: 14, color: '#0f172a' }} dangerouslySetInnerHTML={{ __html: preview.body || '' }} />
           </div>
         </div>
       )}
@@ -1514,9 +1514,9 @@ function EnrollPicker({ kind, cid, onClose, onDone }) {
   }
   return (
     <div style={{ marginTop: 8, padding: 8, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)' }}>
-      {items === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
-        : !items.length ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{kind === 'automation' ? 'No active automations.' : 'No drip campaigns.'}</div>
-          : <select value={sel} onChange={e => setSel(e.target.value)} autoFocus style={{ width: '100%', padding: '6px 8px', fontSize: 13 }}><option value="">— pick a {kind} —</option>{items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>}
+      {items === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div>
+        : !items.length ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{kind === 'automation' ? 'No active automations.' : 'No drip campaigns.'}</div>
+          : <select value={sel} onChange={e => setSel(e.target.value)} autoFocus style={{ width: '100%', padding: '6px 8px', fontSize: 14 }}><option value="">— pick a {kind} —</option>{items.map(i => <option key={i.id} value={i.id}>{i.name}</option>)}</select>}
       <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}><button className="btn btn-sm btn-secondary" onClick={onClose}>Cancel</button><button className="btn btn-sm btn-primary" disabled={busy || !sel} onClick={enroll}>{busy ? 'Enrolling…' : 'Enroll'}</button></div>
     </div>
   )
@@ -1529,12 +1529,12 @@ function SierraActivity({ client }) {
   if (!client.sierra_lead_id) return null
   return (
     <Section title={`Sierra Activity${rows ? ` (${rows.length})` : ''}`} id="sierra">
-      {rows === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
-        : !rows.length ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No Sierra activity.</div>
+      {rows === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div>
+        : !rows.length ? <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No Sierra activity.</div>
           : <><div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible' }}>
             {rows.slice(0, exp ? 60 : 5).map((a, i) => (
-              <div key={a.id || i} style={{ fontSize: 12.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 12 }}><span>{a.author || 'Sierra System'}</span><span>{a.date ? new Date(a.date).toLocaleDateString() : ''}</span></div>
+              <div key={a.id || i} style={{ fontSize: 13, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 13 }}><span>{a.author || 'Sierra System'}</span><span>{a.date ? new Date(a.date).toLocaleDateString() : ''}</span></div>
                 <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{a.contents}</div>
               </div>))}
           </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
@@ -1549,15 +1549,15 @@ function FubActivity({ cid }) {
   const pv = (rows || []).filter(a => a.prop_street).length
   return (
     <Section title={`Follow Up Boss Activity${rows ? ` (${rows.length}${pv ? ` · ${pv} property views` : ''})` : ''}`} id="fub">
-      {rows === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
+      {rows === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div>
         : <><div style={{ display: 'flex', flexDirection: 'column', maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible', border: '1px solid var(--border)', borderRadius: 6 }}>
           {rows.slice(0, exp ? 150 : 5).map((a, i) => {
             const when = a.occurred_at ? new Date(a.occurred_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''
             const addr = a.prop_street ? `${a.prop_street}, ${a.prop_city || ''} ${a.prop_state || ''}`.trim() : ''
-            return (<div key={a.id || i} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ fontWeight: 600 }}>{a.type}</span><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{when}</span></div>
-              {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
-              {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{a.page_title}</div>}
+            return (<div key={a.id || i} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}><span style={{ fontWeight: 600 }}>{a.type}</span><span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{when}</span></div>
+              {addr && <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 2 }}>{addr}{a.prop_mls ? ` · MLS ${a.prop_mls}` : ''}{a.prop_price ? ` · $${Number(a.prop_price).toLocaleString()}` : ''}</div>}
+              {!addr && a.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 2 }}>{a.page_title}</div>}
             </div>)
           })}
         </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
@@ -1572,9 +1572,9 @@ function WebsiteActivity({ cid }) {
   if (data && (!sum || !sum.total_events)) return null
   return (
     <Section title={`Website Activity${sum ? ` (${sum.total_events} events)` : ''}`} id="website">
-      {data === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div>
+      {data === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div>
         : <>
-          <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 12 }}>
+          <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 13 }}>
             <div><div style={{ fontSize: 17, fontWeight: 700 }}>{sum.pageviews || 0}</div><span style={{ color: 'var(--text-muted)' }}>page views</span></div>
             <div><div style={{ fontSize: 17, fontWeight: 700, color: '#3b82f6' }}>{sum.listing_views || 0}</div><span style={{ color: 'var(--text-muted)' }}>listings</span></div>
             <div><div style={{ fontSize: 17, fontWeight: 700, color: '#f59e0b' }}>{sum.saves || 0}</div><span style={{ color: 'var(--text-muted)' }}>saves</span></div>
@@ -1583,9 +1583,9 @@ function WebsiteActivity({ cid }) {
           <div style={{ maxHeight: exp ? 300 : 'none', overflowY: exp ? 'auto' : 'visible', border: '1px solid var(--border)', borderRadius: 6 }}>
             {events.slice(0, exp ? 50 : 5).map(e => {
               const label = { pageview: '👁 page view', listing_view: '🏠 listing view', save: '⭐ saved', pageduration: '⏱ time' }[e.event_type] || e.event_type
-              return (<div key={e.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontWeight: 600 }}>{label}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span><span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</span></div>
-                {e.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 2 }}>{e.page_title}</div>}
+              return (<div key={e.id} style={{ padding: '6px 10px', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}><span style={{ fontWeight: 600 }}>{label}{e.listing_mls ? ` · MLS ${e.listing_mls}` : ''}</span><span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{e.created_at ? new Date(e.created_at).toLocaleString() : ''}</span></div>
+                {e.page_title && <div style={{ color: 'var(--text-secondary)', fontSize: 13, marginTop: 2 }}>{e.page_title}</div>}
               </div>)
             })}
           </div>
@@ -1604,10 +1604,10 @@ function ListingInterest({ client }) {
   const addrOf = (x) => x.address || x.street || [x.prop_street, x.prop_city].filter(Boolean).join(', ') || x.name || 'Listing'
   return (
     <Section title="Listing Interest" id="interest">
-      {d === null ? <div style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>Loading…</div> : <>
-        {ss.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">Saved searches ({ss.length})</div>{ss.slice(0, 4).map((s, i) => <div key={i} style={{ fontSize: 12.5 }}>{s.name || s.criteria || s.summary || [s.city, s.min_price && `$${Number(s.min_price).toLocaleString()}+`].filter(Boolean).join(' · ') || 'Search'}</div>)}</div>}
-        {sl.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">⭐ Saved properties ({sl.length})</div>{sl.slice(0, 6).map((l, i) => <div key={i} style={{ fontSize: 12.5 }}>{addrOf(l)}{l.price ? ` · $${Number(l.price).toLocaleString()}` : ''}</div>)}</div>}
-        {la.length > 0 && <div><div className="cp-sub">🏠 Listing activity ({la.length})</div>{la.slice(0, 6).map((a, i) => <div key={i} style={{ fontSize: 12.5 }}>{addrOf(a)}<span style={{ color: 'var(--text-muted)' }}>{a.date ? ` · ${new Date(a.date).toLocaleDateString()}` : ''}</span></div>)}</div>}
+      {d === null ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</div> : <>
+        {ss.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">Saved searches ({ss.length})</div>{ss.slice(0, 4).map((s, i) => <div key={i} style={{ fontSize: 13 }}>{s.name || s.criteria || s.summary || [s.city, s.min_price && `$${Number(s.min_price).toLocaleString()}+`].filter(Boolean).join(' · ') || 'Search'}</div>)}</div>}
+        {sl.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">⭐ Saved properties ({sl.length})</div>{sl.slice(0, 6).map((l, i) => <div key={i} style={{ fontSize: 13 }}>{addrOf(l)}{l.price ? ` · $${Number(l.price).toLocaleString()}` : ''}</div>)}</div>}
+        {la.length > 0 && <div><div className="cp-sub">🏠 Listing activity ({la.length})</div>{la.slice(0, 6).map((a, i) => <div key={i} style={{ fontSize: 13 }}>{addrOf(a)}<span style={{ color: 'var(--text-muted)' }}>{a.date ? ` · ${new Date(a.date).toLocaleDateString()}` : ''}</span></div>)}</div>}
       </>}
     </Section>
   )
@@ -1680,18 +1680,18 @@ function CoverageCard({ cid, client, onChanged }) {
   const openTaskAdd = () => { window.dispatchEvent(new CustomEvent('cp-open-task-add')); document.getElementById('taskscard')?.scrollIntoView({ behavior: 'smooth' }) }
   return (
     <Section title="Follow-Up Coverage" id="coverage">
-      {!cov ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Evaluating…</div> : (
+      {!cov ? <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>Evaluating…</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ fontSize: 15, fontWeight: 800, color: meta.color }}>{meta.label}</div>
-          <div style={{ fontSize: 12.5, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px' }}>
+          <div style={{ fontSize: 13, display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '3px 10px' }}>
             <span style={{ color: 'var(--text-muted)' }}>Relationship</span><span style={{ textTransform: 'capitalize' }}>{String(cov.relationship_level || '').replace(/_/g, ' ')}</span>
             <span style={{ color: 'var(--text-muted)' }}>Last real contact</span>
             <span>{cov.days_since_meaningful_contact != null ? `${cov.days_since_meaningful_contact} days ago` : 'never'}{cov.max_allowed_silence_days ? ` (limit ${cov.max_allowed_silence_days}d)` : ''}</span>
             <span style={{ color: 'var(--text-muted)' }}>Next action</span><span style={{ color: nextLabel ? 'inherit' : '#dc2626', fontWeight: nextLabel ? 500 : 700 }}>{nextLabel || (cov.coverage_status === 'snoozed' ? `Wakes ${fmtD(cov.snooze_until)}` : 'None scheduled')}</span>
             {cov.next_action_owner && <><span style={{ color: 'var(--text-muted)' }}>Owner</span><span>{cov.next_action_owner}</span></>}
           </div>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{cov.reason}</div>
-          {cov.recommended_action && <div style={{ fontSize: 12.5, fontWeight: 600, color: meta.color }}>Recommended: {cov.recommended_action}</div>}
+          <div style={{ fontSize: 13, color: 'var(--text-secondary)', fontStyle: 'italic' }}>{cov.reason}</div>
+          {cov.recommended_action && <div style={{ fontSize: 13, fontWeight: 600, color: meta.color }}>Recommended: {cov.recommended_action}</div>}
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
             <button className="btn btn-sm btn-primary" onClick={openTaskAdd}>+ Follow-Up</button>
             {cov.coverage_status !== 'snoozed'
@@ -1704,15 +1704,15 @@ function CoverageCard({ cid, client, onChanged }) {
           </div>
           {snoozeOpen && (
             <div style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <label style={{ fontSize: 12, flexDirection: 'row', display: 'flex', alignItems: 'center', gap: 6 }}>Until
+              <label style={{ fontSize: 13, flexDirection: 'row', display: 'flex', alignItems: 'center', gap: 6 }}>Until
                 <input type="date" value={snoozeDate} min={new Date(Date.now() + 86400000).toISOString().slice(0, 10)} onChange={e => setSnoozeDate(e.target.value)} style={{ padding: '3px 6px' }} />
               </label>
-              <input placeholder="Reason (e.g. reconnect after the holidays, lease ends in March)" value={snoozeWhy} onChange={e => setSnoozeWhy(e.target.value)} style={{ padding: '5px 8px', fontSize: 12.5 }} />
+              <input placeholder="Reason (e.g. reconnect after the holidays, lease ends in March)" value={snoozeWhy} onChange={e => setSnoozeWhy(e.target.value)} style={{ padding: '5px 8px', fontSize: 13 }} />
               <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn btn-sm btn-primary" disabled={busy || !snoozeDate} onClick={() => act('snooze', { until: snoozeDate, reason: snoozeWhy })}>Snooze</button>
                 <button className="btn btn-sm" onClick={() => setSnoozeOpen(false)}>Cancel</button>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>When the date arrives the lead wakes up, re-evaluates, and surfaces in Needs Attention until covered again.</div>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>When the date arrives the lead wakes up, re-evaluates, and surfaces in Needs Attention until covered again.</div>
             </div>
           )}
         </div>

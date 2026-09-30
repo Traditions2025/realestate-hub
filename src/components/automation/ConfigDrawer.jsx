@@ -4,9 +4,9 @@ import {
   getDef, CONDITION_FIELDS, OPERATORS, operatorsForType, STATUSES, TEAM, MERGE_VARS, validateNode,
 } from '../../../shared/automationRegistry.js'
 
-const inp = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, marginTop: 4 }
-const lbl = { display: 'block', fontSize: 12, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 500 }
-const help = { fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }
+const inp = { width: '100%', padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, marginTop: 4 }
+const lbl = { display: 'block', fontSize: 13, color: 'var(--text-muted)', marginBottom: 12, fontWeight: 500 }
+const help = { fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }
 
 const asArray = (v) => Array.isArray(v) ? v : (v == null || v === '' ? [] : String(v).split(',').map(s => s.trim()).filter(Boolean))
 
@@ -31,7 +31,7 @@ export default function ConfigDrawer({ node, graph, templates = [], automations 
       case 'date': control = <input type="date" {...common} />; break
       case 'toggle': control = (
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginTop: 4 }}>
-          <input type="checkbox" checked={!!v} onChange={e => set({ [field.key]: e.target.checked })} /> <span style={{ fontSize: 13 }}>{field.label}</span>
+          <input type="checkbox" checked={!!v} onChange={e => set({ [field.key]: e.target.checked })} /> <span style={{ fontSize: 14 }}>{field.label}</span>
         </label>); break
       case 'select': control = (
         <select {...common}>
@@ -64,13 +64,13 @@ export default function ConfigDrawer({ node, graph, templates = [], automations 
         <span style={{ fontSize: 18 }}>{def.icon}</span>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 600, fontSize: 14 }}>{def.label}</div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{def.desc}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>{def.desc}</div>
         </div>
         <button className="btn btn-sm btn-secondary" onClick={onClose} aria-label="Close">✕</button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
-        {!def.live && <div style={{ background: '#fef3c7', color: '#92400e', padding: '8px 10px', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>⏳ This step is coming soon. You can add it to visualize the flow, but the automation can’t be activated while it’s in use.</div>}
+        {!def.live && <div style={{ background: '#fef3c7', color: '#92400e', padding: '8px 10px', borderRadius: 6, fontSize: 13, marginBottom: 12 }}>⏳ This step is coming soon. You can add it to visualize the flow, but the automation can’t be activated while it’s in use.</div>}
 
         {node.type === 'condition' ? (
           <ConditionEditor c={c} set={set} />
@@ -85,17 +85,17 @@ export default function ConfigDrawer({ node, graph, templates = [], automations 
 
         {node.type === 'send_email' && (
           <div style={{ marginTop: 8, padding: 10, border: '1px dashed var(--border)', borderRadius: 6 }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>Personalization — click to copy</div>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 6 }}>Personalization — click to copy</div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {MERGE_VARS.map(m => <button key={m.token} type="button" title={m.label} onClick={() => navigator.clipboard?.writeText(m.token)} style={{ fontSize: 11, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', color: 'var(--text-primary)' }}>{m.token}</button>)}
+              {MERGE_VARS.map(m => <button key={m.token} type="button" title={m.label} onClick={() => navigator.clipboard?.writeText(m.token)} style={{ fontSize: 12, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 6px', cursor: 'pointer', color: 'var(--text-primary)' }}>{m.token}</button>)}
             </div>
           </div>
         )}
 
         {errs.length > 0 && (
           <div style={{ marginTop: 14, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 6, padding: '8px 10px' }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: '#ef4444', marginBottom: 4 }}>⚠ Needs attention</div>
-            {errs.map((e, i) => <div key={i} style={{ fontSize: 12, color: 'var(--text-primary)' }}>• {e}</div>)}
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#ef4444', marginBottom: 4 }}>⚠ Needs attention</div>
+            {errs.map((e, i) => <div key={i} style={{ fontSize: 13, color: 'var(--text-primary)' }}>• {e}</div>)}
           </div>
         )}
       </div>
@@ -129,7 +129,7 @@ function ConditionEditor({ c, set }) {
         return (
           <div key={i} style={{ border: '1px solid var(--border)', borderRadius: 8, padding: 10, marginBottom: 10 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Rule {i + 1}</span>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rule {i + 1}</span>
               <button className="btn btn-sm btn-danger" style={{ padding: '1px 7px' }} onClick={() => del(i)}>✕</button>
             </div>
             <select style={{ ...inp, marginTop: 0, marginBottom: 6 }} value={r.field || ''} onChange={e => { const fd = CONDITION_FIELDS.find(f => f.value === e.target.value); update(i, { field: e.target.value, op: operatorsForType(fd?.type)[0], value: '' }) }}>

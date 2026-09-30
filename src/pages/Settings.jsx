@@ -9,7 +9,7 @@ const EMPTY_ACCOUNT = { name: '', title: '', phone: '', email: '', brokerage: ''
 // one labeled input for the Business Registration grid
 function bfield(label, key, business, bf, fld, span) {
   return (
-    <label key={key} style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)', ...(span ? { gridColumn: span } : {}) }}>{label}
+    <label key={key} style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)', ...(span ? { gridColumn: span } : {}) }}>{label}
       <input style={fld} value={business[key] || ''} onChange={e => bf(key, e.target.value)} />
     </label>
   )
@@ -47,28 +47,28 @@ function ServiceBalances() {
   const lowTwilio = tw.balance != null && tw.balance < 10
   const card = { border: '1px solid var(--border)', borderRadius: 10, padding: 16, display: 'grid', gap: 6, background: 'var(--surface, #fff)' }
   const big = (color) => ({ fontSize: 26, fontWeight: 700, color: color || 'var(--text)', fontVariantNumeric: 'tabular-nums' })
-  const lbl = { fontSize: 12, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }
-  const link = { fontSize: 12, color: 'var(--primary, #2563eb)', textDecoration: 'none' }
+  const lbl = { fontSize: 13, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }
+  const link = { fontSize: 13, color: 'var(--primary, #2563eb)', textDecoration: 'none' }
   return (
     <section className="detail-section">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
         <h4 style={{ margin: 0 }}>Service Balances</h4>
         <button className="btn btn-sm" onClick={load} disabled={busy}>{busy ? 'Refreshing…' : '↻ Refresh'}</button>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '4px 0 12px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '4px 0 12px' }}>
         What the texting + AI run on. Twilio is live; Claude/AI is estimated from the Hub's own usage logs.
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(260px,100%),1fr))', gap: 12 }}>
         {/* Twilio */}
         <div style={card}>
           <span style={lbl}>Twilio (texts + calls)</span>
-          {tw.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 13 }}>{tw.error}</span> : (
+          {tw.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 14 }}>{tw.error}</span> : (
             <>
               <span style={big(lowTwilio ? 'var(--danger,#dc2626)' : (tw.balance < 0 ? 'var(--danger,#dc2626)' : undefined))}>{money(tw.balance, tw.currency)}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                 Account: <b style={{ color: tw.account_status === 'active' ? 'var(--success,#16a34a)' : 'var(--danger,#dc2626)' }}>{tw.account_status || 'unknown'}</b>
               </span>
-              {lowTwilio && <span style={{ fontSize: 12, color: 'var(--danger,#dc2626)' }}>⚠ Low balance — top up before running texts.</span>}
+              {lowTwilio && <span style={{ fontSize: 13, color: 'var(--danger,#dc2626)' }}>⚠ Low balance — top up before running texts.</span>}
               {tw.top_up_url && <a href={tw.top_up_url} target="_blank" rel="noreferrer" style={link}>Add funds / manage billing →</a>}
             </>
           )}
@@ -77,11 +77,11 @@ function ServiceBalances() {
         <div style={card}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
             <span style={lbl}>Claude / AI (texting brain)</span>
-            {!edit && <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 12 }} onClick={() => { setBalInput(cl.saved_balance != null ? String(cl.saved_balance) : ''); setEdit(true) }}>Update</button>}
+            {!edit && <button className="btn btn-sm" style={{ padding: '2px 8px', fontSize: 13 }} onClick={() => { setBalInput(cl.saved_balance != null ? String(cl.saved_balance) : ''); setEdit(true) }}>Update</button>}
           </div>
-          {cl.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 13 }}>{cl.error}</span> : edit ? (
+          {cl.error ? <span style={{ color: 'var(--danger,#dc2626)', fontSize: 14 }}>{cl.error}</span> : edit ? (
             <div style={{ display: 'grid', gap: 6 }}>
-              <label style={{ fontSize: 12, color: 'var(--text-muted)' }}>Remaining balance from console.anthropic.com</label>
+              <label style={{ fontSize: 13, color: 'var(--text-muted)' }}>Remaining balance from console.anthropic.com</label>
               <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <span style={{ fontSize: 18, color: 'var(--text-muted)' }}>$</span>
                 <input value={balInput} onChange={e => setBalInput(e.target.value)} placeholder="19.75" inputMode="decimal"
@@ -93,17 +93,17 @@ function ServiceBalances() {
           ) : (
             <>
               <span style={big()}>{cl.saved_balance != null ? money(cl.saved_balance) : '—'}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                 remaining balance{cl.saved_balance_at ? ` · you entered this ${new Date(cl.saved_balance_at).toLocaleDateString('en-US', { timeZone: 'America/Chicago', month: 'short', day: 'numeric' })}` : ' · not set — tap Update'}
               </span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Est. Hub usage: {money(cl.est_spend_30d)} / 30 days · {cl.ai_actions_30d ?? 0} actions · {cl.model}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.4 }}>{cl.note}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Est. Hub usage: {money(cl.est_spend_30d)} / 30 days · {cl.ai_actions_30d ?? 0} actions · {cl.model}</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.4 }}>{cl.note}</span>
               {cl.billing_url && <a href={cl.billing_url} target="_blank" rel="noreferrer" style={link}>Open Anthropic billing to check / top up →</a>}
             </>
           )}
         </div>
       </div>
-      {data?.checked_at && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 8, display: 'block' }}>Checked {new Date(data.checked_at).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT</span>}
+      {data?.checked_at && <span style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 8, display: 'block' }}>Checked {new Date(data.checked_at).toLocaleString('en-US', { timeZone: 'America/Chicago' })} CT</span>}
     </section>
   )
 }
@@ -199,7 +199,7 @@ export default function Settings() {
     )
   }
 
-  const fld = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 13, width: '100%' }
+  const fld = { padding: '8px 10px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 14, width: '100%' }
   const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12 }
 
   return (
@@ -223,24 +223,24 @@ export default function Settings() {
           <section className="detail-section">
             <h4>Account Info</h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 12, marginTop: 8 }}>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Name
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Name
                 <input style={fld} value={account.name} onChange={e => setAccount(a => ({ ...a, name: e.target.value }))} placeholder="Matt Smith" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Title
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Title
                 <input style={fld} value={account.title} onChange={e => setAccount(a => ({ ...a, title: e.target.value }))} placeholder="Realtor / Team Lead" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Phone
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Phone
                 <input style={fld} value={account.phone} onChange={e => setAccount(a => ({ ...a, phone: e.target.value }))} placeholder="(319) 555-0100" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Email
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Email
                 <input style={fld} value={account.email} onChange={e => setAccount(a => ({ ...a, email: e.target.value }))} placeholder="matt@mattsmithteam.com" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Brokerage
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Brokerage
                 <input style={fld} value={account.brokerage} onChange={e => setAccount(a => ({ ...a, brokerage: e.target.value }))} placeholder="RE/MAX Real Estate Concepts" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Email “From” name
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Email “From” name
                 <input style={fld} value={fromName} onChange={e => setFromName(e.target.value)} placeholder="Matt Smith" />
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>The sender name recipients see (e.g. “Matt Smith”). From address stays matt@mattsmithteam.com.</span>
+                <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>The sender name recipients see (e.g. “Matt Smith”). From address stays matt@mattsmithteam.com.</span>
               </label>
             </div>
           </section>
@@ -250,7 +250,7 @@ export default function Settings() {
               <h4 style={{ margin: 0 }}>Email Signature</h4>
               <button className="btn btn-sm btn-secondary" onClick={buildFromAccount} title="Generate a signature from the account info above">✨ Build from Account Info</button>
             </div>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 10px' }}>This is added to the bottom of emails you compose and generate (e.g. “Homes They Viewed”).</p>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 10px' }}>This is added to the bottom of emails you compose and generate (e.g. “Homes They Viewed”).</p>
             <RichTextEditor value={signature} onChange={setSignature} minHeight={160} />
           </section>
             </SettingsGroup>
@@ -268,24 +268,24 @@ export default function Settings() {
             <SettingsGroup id="comms" title="Communications" desc="Twilio texting, call routing and business hours, A2P business registration.">
           <section className="detail-section">
             <h4 style={{ margin: 0 }}>Text Messaging (Twilio)</h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
               Connect Twilio to text clients from the Hub and get their replies in the Inbox. Your <strong>Account SID</strong> + <strong>Auth Token</strong> come from the Twilio Console; the <strong>From number</strong> is your Twilio phone number (or set a Messaging Service SID instead). Credentials are stored securely here, never in code.
             </p>
             <div style={grid}>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Account SID
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Account SID
                 <input style={fld} value={tw.account_sid || ''} onChange={e => setTw(t => ({ ...t, account_sid: e.target.value }))} placeholder="AC…" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Auth Token
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Auth Token
                 <input style={fld} type="password" value={twToken} onChange={e => setTwToken(e.target.value)} placeholder={tw.auth_token_set ? `•••• saved (…${tw.auth_token_last4})` : 'your 32-char auth token'} />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>From number
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>From number
                 <input style={fld} value={tw.from_number || ''} onChange={e => setTw(t => ({ ...t, from_number: e.target.value }))} placeholder="+13194088407" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Messaging Service SID (optional)
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Messaging Service SID (optional)
                 <input style={fld} value={tw.messaging_service_sid || ''} onChange={e => setTw(t => ({ ...t, messaging_service_sid: e.target.value }))} placeholder="MG… (use instead of From)" />
               </label>
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--text-primary)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 14, color: 'var(--text-primary)' }}>
               <input type="checkbox" checked={!!tw.enabled} onChange={e => setTw(t => ({ ...t, enabled: e.target.checked }))} />
               Texting enabled
             </label>
@@ -293,10 +293,10 @@ export default function Settings() {
               <button className="btn btn-sm btn-primary" onClick={saveTwilio} disabled={twBusy}>{twBusy ? 'Saving…' : 'Save & Test'}</button>
               <button className="btn btn-sm btn-secondary" onClick={testTwilio} disabled={twBusy}>Test connection</button>
               {twStatus && (twStatus.ok
-                ? <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>● Connected ({twStatus.status}){twStatus.name ? ' · ' + twStatus.name : ''}</span>
-                : <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444' }}>⚠ {twStatus.error || ('code ' + twStatus.code)}</span>)}
+                ? <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981' }}>● Connected ({twStatus.status}){twStatus.name ? ' · ' + twStatus.name : ''}</span>
+                : <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444' }}>⚠ {twStatus.error || ('code ' + twStatus.code)}</span>)}
             </div>
-            <div style={{ marginTop: 14, fontSize: 12, color: 'var(--text-muted)' }}>
+            <div style={{ marginTop: 14, fontSize: 13, color: 'var(--text-muted)' }}>
               <div><strong>Inbound webhook</strong> — in Twilio, open your number → Messaging → “A message comes in” → set to <em>Webhook (HTTP POST)</em> and paste:</div>
               <code style={{ display: 'inline-block', marginTop: 4, padding: '5px 9px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, wordBreak: 'break-all', color: 'var(--text-primary)' }}>{tw.inbound_webhook}</code>
               <div style={{ marginTop: 6 }}>That routes replies (and STOP/START opt-outs) into the Inbox automatically.</div>
@@ -306,16 +306,16 @@ export default function Settings() {
           {/* Business Registration (Twilio A2P) */}
           <section className="detail-section">
             <h4 style={{ margin: 0 }}>Business Registration</h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
               Required by major cell carriers and Twilio (our dialer/texting provider) to verify the business and keep text messages deliverable. This is stored here so it's ready when we turn on texting.
             </p>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '4px 0 8px', fontWeight: 700 }}>General</div>
+            <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '4px 0 8px', fontWeight: 700 }}>General</div>
             <div style={grid}>
               {bfield('Business Name', 'business_name', business, bf, fld)}
               {bfield('Business Type', 'business_type', business, bf, fld)}
               {bfield('Website', 'website', business, bf, fld, '1 / -1')}
             </div>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Physical Address</div>
+            <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Physical Address</div>
             <div style={grid}>
               {bfield('Address Line 1', 'address1', business, bf, fld, '1 / -1')}
               {bfield('Address Line 2', 'address2', business, bf, fld, '1 / -1')}
@@ -324,12 +324,12 @@ export default function Settings() {
               {bfield('Zip Code', 'zip', business, bf, fld)}
               {bfield('Country', 'country', business, bf, fld)}
             </div>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Registration & Status</div>
+            <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Registration & Status</div>
             <div style={grid}>
               {bfield('Company Status', 'company_status', business, bf, fld)}
               {bfield('Business Registration # (EIN)', 'ein', business, bf, fld)}
             </div>
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Points of Contact</div>
+            <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', margin: '14px 0 8px', fontWeight: 700 }}>Points of Contact</div>
             <div style={grid}>
               {bfield('Name', 'poc_name', business, bf, fld)}
               {bfield('Email', 'poc_email', business, bf, fld)}
@@ -343,7 +343,7 @@ export default function Settings() {
           {/* Inbox email connections (multiple mailboxes) */}
           <section className="detail-section">
             <h4 style={{ margin: 0 }}>Inbox Email Connections</h4>
-            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+            <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
               Connect one or more inboxes so incoming client emails appear in the Inbox tab (checked every minute, no DNS). Each inbox is read <strong>directly</strong> — no forwarding — and <strong>only client-matched emails</strong> are shown, so promotional mail never clutters the Hub. Uses a Google <strong>App Password</strong> (Security → 2-Step Verification → App passwords → “Mail”), not the real password.
             </p>
 
@@ -352,15 +352,15 @@ export default function Settings() {
                 {mailboxes.map(mb => (
                   <div key={mb.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)', borderRadius: 8, padding: '10px 12px' }}>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13 }}>{mb.user}</div>
-                      <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      <div style={{ fontWeight: 600, fontSize: 14 }}>{mb.user}</div>
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
                         {mb.host !== 'imap.gmail.com' ? `${mb.host} · ` : ''}
                         {mb.connected ? `last checked ${mb.last_poll ? new Date(mb.last_poll).toLocaleTimeString() : '—'} · ${mb.imported} imported` : (mb.last_error ? `Error: ${mb.last_error}` : 'not checked yet')}
                       </div>
                     </div>
                     {mb.connected
-                      ? <span style={{ fontSize: 12, fontWeight: 700, color: '#10b981', background: 'rgba(16,185,129,0.15)', padding: '2px 8px', borderRadius: 10 }}>● Connected</span>
-                      : <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 10 }}>⚠ Error</span>}
+                      ? <span style={{ fontSize: 13, fontWeight: 700, color: '#10b981', background: 'rgba(16,185,129,0.15)', padding: '2px 8px', borderRadius: 10 }}>● Connected</span>
+                      : <span style={{ fontSize: 13, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.15)', padding: '2px 8px', borderRadius: 10 }}>⚠ Error</span>}
                     <button className="btn btn-sm btn-secondary" onClick={() => testMb(mb.id)} disabled={mbBusy}>Test</button>
                     <button className="btn btn-sm btn-danger" onClick={() => removeMb(mb.id, mb.user)}>Remove</button>
                   </div>
@@ -368,17 +368,17 @@ export default function Settings() {
               </div>
             )}
 
-            <div style={{ fontSize: 12, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, margin: '4px 0 8px' }}>Add a mailbox</div>
+            <div style={{ fontSize: 13, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--text-muted)', fontWeight: 700, margin: '4px 0 8px' }}>Add a mailbox</div>
             <div style={grid}>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>Email address
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>Email address
                 <input style={fld} value={mbUser} onChange={e => setMbUser(e.target.value)} placeholder="matt@mattsmithteam.com" />
               </label>
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)' }}>App Password
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)' }}>App Password
                 <input style={fld} type="password" value={mbPw} onChange={e => setMbPw(e.target.value)} placeholder="xxxx xxxx xxxx xxxx" />
               </label>
             </div>
             {mbAdvanced && (
-              <label style={{ display: 'grid', gap: 4, fontSize: 12, color: 'var(--text-muted)', marginTop: 10 }}>IMAP host (only if not Gmail/Workspace)
+              <label style={{ display: 'grid', gap: 4, fontSize: 13, color: 'var(--text-muted)', marginTop: 10 }}>IMAP host (only if not Gmail/Workspace)
                 <input style={fld} value={mbHost} onChange={e => setMbHost(e.target.value)} placeholder="imap.gmail.com" />
               </label>
             )}
@@ -428,18 +428,18 @@ function ChipPicker({ value, options, onChange, placeholder }) {
   const add = (v) => { v = String(v).trim(); if (v && !arr.some(x => x.toLowerCase() === v.toLowerCase())) onChange([...arr, v].join(',')); setQ(''); setOpen(false) }
   const remove = (v) => onChange(arr.filter(x => x !== v).join(','))
   const sugg = q.trim() ? (options || []).filter(o => o.toLowerCase().includes(q.trim().toLowerCase()) && !arr.some(x => x.toLowerCase() === o.toLowerCase())).slice(0, 12) : []
-  const chip = { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '2px 8px', fontSize: 12 }
+  const chip = { display: 'inline-flex', alignItems: 'center', gap: 5, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 14, padding: '2px 8px', fontSize: 13 }
   return (
     <div style={{ position: 'relative', maxWidth: 560 }}>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', border: '1px solid var(--border)', borderRadius: 6, padding: '5px 8px', background: 'var(--bg-secondary)' }}>
-        {arr.map(v => <span key={v} style={chip}>{v}<button onClick={() => remove(v)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 12, padding: 0 }}>✕</button></span>)}
+        {arr.map(v => <span key={v} style={chip}>{v}<button onClick={() => remove(v)} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: 13, padding: 0 }}>✕</button></span>)}
         <input value={q} onChange={e => { setQ(e.target.value); setOpen(true) }} onFocus={() => setOpen(true)} onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={e => { if (e.key === 'Enter' && q.trim()) { e.preventDefault(); add(q) } if (e.key === 'Backspace' && !q && arr.length) remove(arr[arr.length - 1]) }}
-          placeholder={arr.length ? '' : placeholder} style={{ flex: 1, minWidth: 140, border: 'none', background: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: 13 }} />
+          placeholder={arr.length ? '' : placeholder} style={{ flex: 1, minWidth: 140, border: 'none', background: 'none', color: 'var(--text-primary)', outline: 'none', fontSize: 14 }} />
       </div>
       {open && sugg.length > 0 && (
         <div style={{ position: 'absolute', zIndex: 30, top: '100%', left: 0, right: 0, marginTop: 4, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
-          {sugg.map(o => <div key={o} onMouseDown={() => add(o)} style={{ padding: '7px 11px', cursor: 'pointer', fontSize: 13, borderBottom: '1px solid var(--border)' }}>{o}</div>)}
+          {sugg.map(o => <div key={o} onMouseDown={() => add(o)} style={{ padding: '7px 11px', cursor: 'pointer', fontSize: 14, borderBottom: '1px solid var(--border)' }}>{o}</div>)}
         </div>
       )}
     </div>
@@ -452,32 +452,32 @@ function AiExclusions({ cfg, saveCfg }) {
   const [facets, setFacets] = React.useState({ tags: [], statuses: [], sources: [] })
   const [rules, setRules] = React.useState(() => { try { const r = JSON.parse(cfg.ai_exclude_rules || '[]'); return Array.isArray(r) ? r : [] } catch { return [] } })
   React.useEffect(() => { authFetch('/api/ai/facets').then(r => r.json()).then(f => setFacets({ tags: f.tags || [], statuses: f.statuses || [], sources: f.sources || [] })).catch(() => {}) }, [])
-  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '6px 8px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   const saveRules = (r) => { setRules(r); saveCfg('ai_exclude_rules', JSON.stringify(r.filter(x => (x.tag || '').trim() || (x.status || '').trim()))) }
   const setRule = (i, k, v) => { const n = rules.map((x, j) => j === i ? { ...x, [k]: v } : x); setRules(n) }
   const tagOpts = [...new Set([...(facets.tags || []), ...(facets.sources || [])])]
   return (
     <div style={{ marginTop: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>Autopilot exclusions</div>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 10 }}>Leads matching any of these are never auto-contacted (first-touch, nurture, re-engage, behavioral, or auto-reply). Type to search your tags/statuses and click to add. You can still turn AI on for a lead manually.</div>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Autopilot exclusions</div>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 10 }}>Leads matching any of these are never auto-contacted (first-touch, nurture, re-engage, behavioral, or auto-reply). Type to search your tags/statuses and click to add. You can still turn AI on for a lead manually.</div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by tag or source</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by tag or source</div>
         <ChipPicker value={cfg.ai_autopilot_exclude} options={tagOpts} onChange={v => saveCfg('ai_autopilot_exclude', v)} placeholder="Search tags or sources…" />
       </div>
       <div style={{ marginBottom: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by status</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 3 }}>Exclude by status</div>
         <ChipPicker value={cfg.ai_exclude_statuses} options={facets.statuses} onChange={v => saveCfg('ai_exclude_statuses', v)} placeholder="Search statuses…" />
       </div>
       <div>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>Combination rules — exclude when a tag AND a status both match</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>Combination rules — exclude when a tag AND a status both match</div>
         <datalist id="ai-tag-opts">{tagOpts.map(t => <option key={t} value={t} />)}</datalist>
         <datalist id="ai-status-opts">{(facets.statuses || []).map(t => <option key={t} value={t} />)}</datalist>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           {rules.map((r, i) => (
             <div key={i} style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>tag</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>tag</span>
               <input list="ai-tag-opts" value={r.tag || ''} onChange={e => setRule(i, 'tag', e.target.value)} onBlur={() => saveRules(rules)} placeholder="search tag" style={{ ...inp, width: 170 }} />
-              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>AND status</span>
+              <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>AND status</span>
               <input list="ai-status-opts" value={r.status || ''} onChange={e => setRule(i, 'status', e.target.value)} onBlur={() => saveRules(rules)} placeholder="search status" style={{ ...inp, width: 170 }} />
               <button className="btn btn-sm" onClick={() => saveRules(rules.filter((_, j) => j !== i))}>✕</button>
             </div>
@@ -526,24 +526,24 @@ function AppearanceSettings() {
   return (
     <section className="detail-section">
       <h4 style={{ margin: '0 0 4px' }}>🎨 Accent Theme</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
         Team default: <strong style={{ textTransform: 'capitalize' }}>{teamAccent || '…'}</strong>{override ? <> · your override: <strong style={{ textTransform: 'capitalize' }}>{override}</strong></> : ' · you follow the team default'}
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
         {ACCENT_OPTIONS.map(([key, label, swatch]) => (
           <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 8px', borderRadius: 8, border: `1px solid ${effective === key ? 'var(--accent-border)' : 'var(--border)'}`, background: effective === key ? 'var(--accent-subtle)' : 'transparent' }}>
             <span style={{ width: 16, height: 16, borderRadius: '50%', background: swatch, flex: '0 0 auto', boxShadow: effective === key ? '0 0 0 2px var(--accent-border)' : 'none' }} />
-            <span style={{ fontSize: 13, flex: 1 }}>{label}{key === teamAccent && <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 6 }}>team default</span>}</span>
+            <span style={{ fontSize: 14, flex: 1 }}>{label}{key === teamAccent && <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 6 }}>team default</span>}</span>
             <button className="btn btn-sm btn-secondary" onClick={() => chooseMine(key)}>{effective === key ? '✓ In use' : 'Use'}</button>
             <button className="btn btn-sm" disabled={saving || key === teamAccent} title="Owner/admin: make this the default for the whole team" onClick={() => setTeam(key)}>Set for team</button>
           </div>
         ))}
       </div>
       <div style={{ marginTop: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 10, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.05em', color: 'var(--text-muted)' }}>PREVIEW</span>
+        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.05em', color: 'var(--text-muted)' }}>PREVIEW</span>
         <button className="btn btn-sm btn-primary">+ Add Client</button>
-        <span style={{ fontSize: 13, fontWeight: 600, borderBottom: '2px solid var(--accent)', paddingBottom: 2 }}>Selected tab</span>
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />Active element</span>
+        <span style={{ fontSize: 14, fontWeight: 600, borderBottom: '2px solid var(--accent)', paddingBottom: 2 }}>Selected tab</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14 }}><span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)' }} />Active element</span>
       </div>
     </section>
   )
@@ -573,7 +573,7 @@ function RealistImportSettings() {
   return (
     <section className="detail-section">
       <h4 style={{ margin: '0 0 4px' }}>\ud83c\udfd8 Import Realist CSV</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>
         Upload a Realist export to enrich leads with home values, sale prices, year built, sell score and owner-occupied flags. Records auto-match to clients by address.
       </p>
       <label className="btn btn-sm btn-secondary" style={{ cursor: 'pointer', position: 'relative', overflow: 'hidden', display: 'inline-block' }}>
@@ -594,7 +594,7 @@ function RealistImportSettings() {
             finally { setBusy(false); e.target.value = '' }
           }} />
       </label>
-      {result && <div style={{ fontSize: 12.5, marginTop: 8, color: result.startsWith('\u2713') ? '#059669' : '#dc2626' }}>{result}</div>}
+      {result && <div style={{ fontSize: 13, marginTop: 8, color: result.startsWith('\u2713') ? '#059669' : '#dc2626' }}>{result}</div>}
     </section>
   )
 }
@@ -622,20 +622,20 @@ function FsboCampaignSettings() {
     try { const r = await authFetch('/api/lists/fsbo/campaign/preview'); setPreview(await r.json()) } catch { setPreview(null) } finally { setPreviewing(false) }
   }
   if (stats === undefined) return null
-  if (stats === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>🏠 FSBO Auto Text Campaign</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  if (stats === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>🏠 FSBO Auto Text Campaign</h4><div style={{ color: '#ef4444', fontSize: 14 }}>Could not load.</div></section>
   return (
     <section className="detail-section">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h4 style={{ margin: 0 }}>🏠 FSBO Auto Text Campaign</h4>
-        <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999, fontWeight: 600, background: stats.enabled ? '#dcfce7' : 'var(--bg-secondary)', color: stats.enabled ? '#15803d' : 'var(--text-muted)' }}>{stats.enabled ? 'ON' : 'OFF'}</span>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+        <span style={{ fontSize: 13, padding: '2px 10px', borderRadius: 999, fontWeight: 600, background: stats.enabled ? '#dcfce7' : 'var(--bg-secondary)', color: stats.enabled ? '#15803d' : 'var(--text-muted)' }}>{stats.enabled ? 'ON' : 'OFF'}</span>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14 }}>
           <input type="checkbox" checked={!!stats.enabled} disabled={saving} onChange={e => toggle(e.target.checked)} /> Master switch
         </label>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
         No eligible FSBO reaches 14 days on market and gets forgotten: at <strong>DOM {stats.dom_threshold}</strong> an Available FSBO with a valid mobile auto-enrolls and gets the approved availability-check text at the next weekday 9AM–4PM CT slot, the still-available check +7 days, the market-analysis message +7 more — then an availability check every 40+ days while it stays Available. Sends trickle 1–2.5 min apart; eligibility rechecks before every text; a reply stops everything and hands the seller to a human (<strong>no auto-replies, ever</strong>); Off Market stops the campaign; manual pause/remove always wins; history is permanent.
       </p>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 14, marginBottom: 10 }}>
         <span>Active: <strong>{stats.active}</strong></span>
         <span>Responses: <strong>{stats.responded}</strong></span>
         <span>Paused: <strong>{stats.paused}</strong> · Removed: <strong>{stats.removed}</strong> · Stopped: <strong>{stats.stopped}</strong></span>
@@ -644,10 +644,10 @@ function FsboCampaignSettings() {
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn btn-secondary" disabled={previewing} onClick={runPreview}>{previewing ? 'Evaluating…' : '🔍 Dry run (no writes)'}</button>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Evaluates every tracked FSBO and shows who would enroll — sends nothing.</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Evaluates every tracked FSBO and shows who would enroll — sends nothing.</span>
       </div>
       {preview && (
-        <div style={{ marginTop: 10, fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg-secondary)' }}>
+        <div style={{ marginTop: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg-secondary)' }}>
           <div style={{ marginBottom: 6 }}>
             Evaluated <strong>{preview.evaluated}</strong> → would enroll <strong>{preview.would_enroll}</strong>.
             {' '}{Object.entries(preview.by_decision || {}).map(([k, v]) => `${k}: ${v}`).join(' · ')}
@@ -692,9 +692,9 @@ function AiEnrollmentSettings() {
     try { const r = await authFetch('/api/ai/enrollment/preview?scan=800&limit=15'); setPreview(await r.json()) } catch { setPreview(null) } finally { setPreviewing(false) }
   }
   if (sum === undefined) return null
-  if (sum === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>🎯 AI Auto-Enrollment</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  if (sum === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>🎯 AI Auto-Enrollment</h4><div style={{ color: '#ef4444', fontSize: 14 }}>Could not load.</div></section>
   const cfg = sum.config || {}
-  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '6px 8px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   const mode = cfg.mode || 'off'
   const modeLabel = { off: 'Manual (engine off)', fresh: 'Fresh leads only', full: 'Fresh + Reactivation' }
   const todayFresh = (sum.enrolled_today || {}).fresh || 0
@@ -703,40 +703,40 @@ function AiEnrollmentSettings() {
     <section className="detail-section">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h4 style={{ margin: 0 }}>🎯 AI Auto-Enrollment</h4>
-        <span style={{ fontSize: 12, padding: '2px 10px', borderRadius: 999, fontWeight: 600, background: mode === 'off' ? 'var(--bg-secondary)' : mode === 'fresh' ? '#dbeafe' : '#dcfce7', color: mode === 'off' ? 'var(--text-muted)' : mode === 'fresh' ? '#1d4ed8' : '#15803d' }}>{modeLabel[mode]}</span>
+        <span style={{ fontSize: 13, padding: '2px 10px', borderRadius: 999, fontWeight: 600, background: mode === 'off' ? 'var(--bg-secondary)' : mode === 'fresh' ? '#dbeafe' : '#dcfce7', color: mode === 'off' ? 'var(--text-muted)' : mode === 'fresh' ? '#1d4ed8' : '#15803d' }}>{modeLabel[mode]}</span>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>
         Automatically hands eligible <strong>New-status</strong> leads to the AI texting system. <strong>Fresh lane</strong>: brand-new incoming leads get an immediate first touch (never capped — speed to lead). <strong>Reactivation lane</strong>: works through the old New-status database in small daily batches (weekdays 9AM-4PM, staggered sends). Hard exclusions always win: prospecting imports (Realist, Import, Forewarn…), FSBO, Cancelled/Expired + CX Connect leads, STOP/opt-outs, landlines, and <strong>spammy registrations</strong> (a real first + last name is required — email-as-name, digits or gibberish are skipped). "New" is a status, not an age — old leads are never excluded for being old.
       </p>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
-        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Mode
+        <label style={{ fontSize: 14, display: 'flex', gap: 6, alignItems: 'center' }}>Mode
           <select style={inp} value={mode} disabled={saving} onChange={e => save({ mode: e.target.value })}>
             <option value="off">Manual (off)</option>
             <option value="fresh">Fresh leads only</option>
             <option value="full">Fresh + Reactivation</option>
           </select>
         </label>
-        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Reactivation / day
+        <label style={{ fontSize: 14, display: 'flex', gap: 6, alignItems: 'center' }}>Reactivation / day
           <input style={{ ...inp, width: 70 }} type="number" min="1" defaultValue={cfg.daily_limit} disabled={saving} onBlur={e => Number(e.target.value) !== cfg.daily_limit && save({ daily_limit: Number(e.target.value) })} />
         </label>
-        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Fresh window (days)
+        <label style={{ fontSize: 14, display: 'flex', gap: 6, alignItems: 'center' }}>Fresh window (days)
           <input style={{ ...inp, width: 55 }} type="number" min="1" defaultValue={cfg.fresh_window_days} disabled={saving} onBlur={e => Number(e.target.value) !== cfg.fresh_window_days && save({ fresh_window_days: Number(e.target.value) })} />
         </label>
-        <label style={{ fontSize: 13, display: 'flex', gap: 6, alignItems: 'center' }}>Hold after human contact (h)
+        <label style={{ fontSize: 14, display: 'flex', gap: 6, alignItems: 'center' }}>Hold after human contact (h)
           <input style={{ ...inp, width: 55 }} type="number" min="1" defaultValue={cfg.defer_human_hours} disabled={saving} onBlur={e => Number(e.target.value) !== cfg.defer_human_hours && save({ defer_human_hours: Number(e.target.value) })} />
         </label>
       </div>
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 13, marginBottom: 10 }}>
+      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 14, marginBottom: 10 }}>
         <span>Enrolled today: <strong>{todayFresh}</strong> fresh · <strong>{todayReact}</strong> reactivation{mode === 'full' ? ` / ${cfg.daily_limit}` : ''}</span>
         <span>All-time: <strong>{(sum.enrolled_total || {}).fresh || 0}</strong> fresh · <strong>{(sum.enrolled_total || {}).reactivation || 0}</strong> reactivation</span>
         <span style={{ color: 'var(--text-muted)' }}>{sum.in_window ? 'Inside the send window now' : 'Outside the send window (weekdays 9AM-4PM CT)'}</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
         <button className="btn btn-secondary" disabled={previewing} onClick={runPreview}>{previewing ? 'Evaluating…' : '🔍 Dry run (no writes)'}</button>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Evaluates the next batch of candidates and shows what WOULD happen — enrolls nobody, sends nothing.</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Evaluates the next batch of candidates and shows what WOULD happen — enrolls nobody, sends nothing.</span>
       </div>
       {preview && (
-        <div style={{ marginTop: 10, fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg-secondary)' }}>
+        <div style={{ marginTop: 10, fontSize: 13, border: '1px solid var(--border)', borderRadius: 8, padding: 10, background: 'var(--bg-secondary)' }}>
           <div style={{ marginBottom: 6 }}>
             Scanned <strong>{preview.scanned}</strong> candidates → <strong>{(preview.by_decision || {}).eligible || 0}</strong> eligible, {(preview.by_decision || {}).deferred || 0} deferred, {(preview.by_decision || {}).excluded || 0} excluded.
             {' '}Fresh-lane KPI (eligible fresh not yet enrolled): <strong style={{ color: preview.fresh_eligible_unenrolled ? '#b45309' : '#15803d' }}>{preview.fresh_eligible_unenrolled}</strong>
@@ -761,7 +761,7 @@ function AiEnrollmentSettings() {
         </div>
       )}
       {(sum.recent_enrollments || []).length > 0 && (
-        <details style={{ marginTop: 10, fontSize: 12 }}>
+        <details style={{ marginTop: 10, fontSize: 13 }}>
           <summary style={{ cursor: 'pointer', color: 'var(--text-muted)' }}>Recent enrollments ({sum.recent_enrollments.length})</summary>
           <div style={{ marginTop: 6 }}>
             {sum.recent_enrollments.map(r => (
@@ -798,7 +798,7 @@ function CxCampaignSettings() {
   return (
     <div style={{ marginBottom: 18 }}>
       <h3 style={{ fontSize: 14, margin: '0 0 6px' }}>Cancelled/Expired Connection Campaign</h3>
-      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
         Persistent make-contact texting for Cancelled/Expired leads: two intro attempts, then weekly rotating check-ins (weekdays 9AM-4PM only) until they respond.
         A response stops everything and flags human follow-up — the AI never replies to these leads.
       </p>
@@ -809,12 +809,12 @@ function CxCampaignSettings() {
         <button className="btn btn-sm btn-secondary" onClick={bulkEnroll} disabled={busy}>Enroll Cancelled/Expired list…</button>
       </div>
       {stats && (
-        <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 8 }}>
+        <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
           Active {n('active')} · Responded {n('response_received')} · Paused {n('paused')} · Stopped {n('ineligible')} · Sent {stats.sent_total} texts · {stats.responses} responses
         </div>
       )}
       {enrollResult && (
-        <div style={{ fontSize: 12.5, marginTop: 6 }}>
+        <div style={{ fontSize: 13, marginTop: 6 }}>
           {enrollResult.ok
             ? <>✓ Enrolled {enrollResult.enrolled} of {enrollResult.total} from "{enrollResult.list}". Skipped {enrollResult.skipped?.length || 0}{enrollResult.skipped?.length ? ` (top reasons: ${[...new Set(enrollResult.skipped.slice(0, 6).map(s => String(s.reason).split(':')[0]))].join(', ')})` : ''}.</>
             : <span style={{ color: '#ef4444' }}>Enroll failed: {enrollResult.reason || enrollResult.error}</span>}
@@ -855,24 +855,24 @@ function SierraSyncSettings() {
   return (
     <div style={{ marginBottom: 18 }}>
       <h3 style={{ fontSize: 14, margin: '0 0 6px' }}>Sierra Full Sync</h3>
-      <p style={{ fontSize: 12.5, color: 'var(--text-muted)', margin: '0 0 10px' }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 10px' }}>
         Pulls every Sierra lead across all statuses. The regular incremental sync already runs every 10 minutes — use this only when you want a full refresh.
       </p>
       <button className="btn btn-secondary" onClick={run} disabled={busy}>
         {busy ? 'Syncing Sierra…' : `Sync All Sierra Leads${counts ? ` (${counts.total.toLocaleString()})` : ''}`}
       </button>
-      {status === 'starting' && <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)' }}>Starting Sierra sync…</div>}
+      {status === 'starting' && <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-muted)' }}>Starting Sierra sync…</div>}
       {status && status.syncing && status.progress && (
-        <div style={{ marginTop: 8, fontSize: 12.5, color: 'var(--text-muted)' }}>
+        <div style={{ marginTop: 8, fontSize: 13, color: 'var(--text-muted)' }}>
           Syncing… {status.progress.synced} synced{status.progress.currentStatus ? ` (currently: ${status.progress.currentStatus})` : ''}
         </div>
       )}
       {status && status.total_synced !== undefined && (
-        <div style={{ marginTop: 8, fontSize: 12.5, color: '#059669' }}>
+        <div style={{ marginTop: 8, fontSize: 13, color: '#059669' }}>
           ✓ Sync complete: {status.total_synced} leads ({status.added} new, {status.updated} updated)
         </div>
       )}
-      {status && status.error && <div style={{ marginTop: 8, fontSize: 12.5, color: '#ef4444' }}>Sync error: {status.error}</div>}
+      {status && status.error && <div style={{ marginTop: 8, fontSize: 13, color: '#ef4444' }}>Sync error: {status.error}</div>}
     </div>
   )
 }
@@ -894,12 +894,12 @@ function MasterFileSettings() {
   return (
     <section className="detail-section">
       <h4 style={{ margin: '0 0 4px' }}>📋 Master Files (FSBO + Cancelled/Expired)</h4>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
         Re-checks both master Google Sheets right now (they also auto-check hourly). Status changes land as a note on each lead and in the dashboard updates box.
       </div>
       <button className="btn btn-sm btn-primary" disabled={busy} onClick={run}>{busy ? 'Checking both master files…' : '🔄 Check Master Files Now'}</button>
       {result && (
-        <div style={{ fontSize: 12.5, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
+        <div style={{ fontSize: 13, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 3 }}>
           <div style={{ color: result.fsbo && !result.fsbo.error ? '#059669' : '#dc2626' }}>{line('FSBO', result.fsbo)}</div>
           <div style={{ color: result.expired && !result.expired.error ? '#059669' : '#dc2626' }}>{line('Cancelled/Expired', result.expired)}</div>
           {Array.isArray(result.updates) && result.updates.length > 0 && (
@@ -920,7 +920,7 @@ function CoverageSettings() {
   const [saving, setSaving] = React.useState(false)
   React.useEffect(() => { authFetch('/api/coverage/settings').then(r => r.json()).then(d => setCfg(d.config)).catch(() => setCfg(null)) }, [])
   if (cfg === undefined) return null
-  if (cfg === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Follow-Up Coverage</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  if (cfg === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Follow-Up Coverage</h4><div style={{ color: '#ef4444', fontSize: 14 }}>Could not load.</div></section>
   const FIELDS = [
     ['high_intent', 'High intent (days)'], ['active_opportunity', 'Active opportunity (days)'], ['qualified', 'Qualified (days)'],
     ['connected_buyer', 'Connected buyer (days)'], ['connected_seller', 'Connected seller (days)'], ['watch', 'Watch / longer-term (days)'],
@@ -935,15 +935,15 @@ function CoverageSettings() {
   return (
     <section className="detail-section">
       <h4 style={{ margin: '0 0 4px' }}>🕳 Follow-Up Coverage (maximum silence)</h4>
-      <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+      <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 8 }}>
         How long each relationship level may go without a real touch before it shows At Risk. A lead with no future task, AI action, nurture, transaction or snooze is Unprotected regardless.
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 8 }}>
         {FIELDS.map(([k, label]) => (
-          <label key={k} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, fontSize: 12.5 }}>
+          <label key={k} style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', gap: 6, fontSize: 13 }}>
             <span style={{ flex: 1 }}>{label}</span>
             <input type="number" min="1" value={cfg[k] ?? ''} onChange={e => setCfg(c => ({ ...c, [k]: Number(e.target.value) }))}
-              style={{ width: 64, padding: '4px 6px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
+              style={{ width: 64, padding: '4px 6px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }} />
           </label>
         ))}
       </div>
@@ -964,13 +964,13 @@ function AiFollowUpSettings() {
   const saveFlag = async (k, v) => { setSaving(true); try { const r = await authFetch('/api/ai/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ flags: { [k]: v } }) }); const d = await r.json(); setS(x => ({ ...x, flags: d.flags })) } finally { setSaving(false); authFetch('/api/ai/diagnostics').then(r => r.json()).then(setDiag).catch(() => {}) } }
   const saveCfg = async (k, v) => { const r = await authFetch('/api/ai/settings', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: { [k]: v } }) }); const d = await r.json(); setS(x => ({ ...x, config: d.config })) }
   if (s === undefined) return null
-  if (s === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>HUB AI Follow-Up</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  if (s === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>HUB AI Follow-Up</h4><div style={{ color: '#ef4444', fontSize: 14 }}>Could not load.</div></section>
   const f = s.flags || {}, cfg = s.config || {}
-  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '6px 8px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   const Toggle = ({ k, label, hint, disabled }) => (
-    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, opacity: disabled ? .5 : 1 }}>
+    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, opacity: disabled ? .5 : 1 }}>
       <input type="checkbox" checked={!!f[k]} disabled={disabled || saving} onChange={e => saveFlag(k, e.target.checked)} />
-      {label} {hint && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{hint}</span>}
+      {label} {hint && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{hint}</span>}
     </label>
   )
   const masterOff = !f.ai_followup_enabled
@@ -978,14 +978,14 @@ function AiFollowUpSettings() {
     <section className="detail-section">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h4 style={{ margin: 0 }}>🤖 HUB AI Follow-Up (AI ISA)</h4>
-        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: f.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{f.ai_followup_enabled ? '● Active' : '○ Off'}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: f.ai_followup_enabled ? '#10b981' : 'var(--text-muted)' }}>{f.ai_followup_enabled ? '● Active' : '○ Off'}</span>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Autonomous SMS follow-up + qualification. Everything is off until you enable it. STOP always blocks AI, and a human reply always pauses it. <strong>Start with Autopilot OFF</strong> and turn AI on per lead (on their profile) to test it before letting it run on its own.</p>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Autonomous SMS follow-up + qualification. Everything is off until you enable it. STOP always blocks AI, and a human reply always pauses it. <strong>Start with Autopilot OFF</strong> and turn AI on per lead (on their profile) to test it before letting it run on its own.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
         <Toggle k="ai_followup_enabled" label="Master switch" hint="(nothing autonomous runs without this)" />
         <div style={{ padding: '9px 11px', borderRadius: 8, background: f.ai_autopilot ? 'rgba(245,158,11,.12)' : 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
           <Toggle k="ai_autopilot" label="Autopilot" hint="" disabled={masterOff} />
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 24 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, paddingLeft: 24 }}>
             {f.ai_autopilot
               ? '⚠ ON: AI can act on ALL eligible leads and the auto sweeps (new-lead, nurture, re-engage, behavioral) run.'
               : 'OFF (recommended to start): AI ONLY acts on leads you turn on individually from their profile. No auto-enrollment, no auto nurture.'}
@@ -999,19 +999,19 @@ function AiFollowUpSettings() {
         <Toggle k="ai_voice_enabled" label="AI voice" hint="(future — keep off)" disabled={masterOff} />
       </div>
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 14 }}>
-        <label style={{ fontSize: 12.5 }}>Handoff at intent ≥ <input type="number" min="1" max="100" defaultValue={cfg.ai_intent_handoff_threshold} onBlur={e => saveCfg('ai_intent_handoff_threshold', e.target.value)} style={{ ...inp, width: 70 }} /></label>
-        <label style={{ fontSize: 12.5 }}>Max AI texts/day <input type="number" min="1" max="20" defaultValue={cfg.ai_followup_max_per_day} onBlur={e => saveCfg('ai_followup_max_per_day', e.target.value)} style={{ ...inp, width: 60 }} /></label>
-        <label style={{ fontSize: 12.5 }}>New-lead delay (min) <input type="number" min="0" defaultValue={cfg.ai_new_lead_delay_minutes} onBlur={e => saveCfg('ai_new_lead_delay_minutes', e.target.value)} style={{ ...inp, width: 60 }} /></label>
-        <label style={{ fontSize: 12.5 }}>Quiet hours <input type="time" defaultValue={cfg.ai_quiet_hours_start} onBlur={e => saveCfg('ai_quiet_hours_start', e.target.value)} style={inp} /> to <input type="time" defaultValue={cfg.ai_quiet_hours_end} onBlur={e => saveCfg('ai_quiet_hours_end', e.target.value)} style={inp} /></label>
+        <label style={{ fontSize: 13 }}>Handoff at intent ≥ <input type="number" min="1" max="100" defaultValue={cfg.ai_intent_handoff_threshold} onBlur={e => saveCfg('ai_intent_handoff_threshold', e.target.value)} style={{ ...inp, width: 70 }} /></label>
+        <label style={{ fontSize: 13 }}>Max AI texts/day <input type="number" min="1" max="20" defaultValue={cfg.ai_followup_max_per_day} onBlur={e => saveCfg('ai_followup_max_per_day', e.target.value)} style={{ ...inp, width: 60 }} /></label>
+        <label style={{ fontSize: 13 }}>New-lead delay (min) <input type="number" min="0" defaultValue={cfg.ai_new_lead_delay_minutes} onBlur={e => saveCfg('ai_new_lead_delay_minutes', e.target.value)} style={{ ...inp, width: 60 }} /></label>
+        <label style={{ fontSize: 13 }}>Quiet hours <input type="time" defaultValue={cfg.ai_quiet_hours_start} onBlur={e => saveCfg('ai_quiet_hours_start', e.target.value)} style={inp} /> to <input type="time" defaultValue={cfg.ai_quiet_hours_end} onBlur={e => saveCfg('ai_quiet_hours_end', e.target.value)} style={inp} /></label>
       </div>
       <div style={{ marginTop: 10 }}>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>AI identity (how it introduces itself)</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>AI identity (how it introduces itself)</div>
         <input defaultValue={cfg.ai_persona} onBlur={e => saveCfg('ai_persona', e.target.value)} style={{ ...inp, width: '100%', maxWidth: 520 }} />
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Texts in first person as this person. Every first text also includes MattSmithTeam.com automatically.</div>
+        <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>Texts in first person as this person. Every first text also includes MattSmithTeam.com automatically.</div>
       </div>
       <AiExclusions cfg={cfg} saveCfg={saveCfg} />
       {diag && (
-        <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
+        <div style={{ marginTop: 14, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 13, display: 'flex', flexWrap: 'wrap', gap: 14 }}>
           <span><strong>Diagnostics:</strong></span>
           <span style={{ color: diag.anthropic_configured ? '#10b981' : '#ef4444' }}>{diag.anthropic_configured ? 'Anthropic ✓' : 'Anthropic not configured'}</span>
           <span>model {diag.model}</span>
@@ -1051,38 +1051,38 @@ function AiEvalPanel() {
     <section className="detail-section">
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <h4 style={{ margin: 0 }}>🧪 AI Regression Eval</h4>
-        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Gate before broadening Autopilot</span>
+        <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Gate before broadening Autopilot</span>
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           <button className="btn btn-sm" disabled={busy} onClick={() => run('buyer')}>Buyer</button>
           <button className="btn btn-sm" disabled={busy} onClick={() => run('seller')}>Seller</button>
           <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => run()}>{busy ? 'Running…' : 'Run full suite'}</button>
         </div>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Scores every scenario 0-2 against a rubric. Any ignored STOP, hallucinated price/valuation, steering, or fair-housing violation is a hard auto-fail (score 0). Runs use the live model — this can take a minute.</p>
-      {err && <div style={{ fontSize: 12.5, color: '#ef4444', marginBottom: 8 }}>{err}</div>}
-      {runs.length === 0 ? <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No runs yet.</div> : (
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Scores every scenario 0-2 against a rubric. Any ignored STOP, hallucinated price/valuation, steering, or fair-housing violation is a hard auto-fail (score 0). Runs use the live model — this can take a minute.</p>
+      {err && <div style={{ fontSize: 13, color: '#ef4444', marginBottom: 8 }}>{err}</div>}
+      {runs.length === 0 ? <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No runs yet.</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
           {runs.slice(0, 8).map(r => (
-            <div key={r.id} onClick={() => openRun(r.id)} style={{ display: 'flex', gap: 12, alignItems: 'baseline', fontSize: 13, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', background: detail?.id === r.id ? 'var(--bg-secondary)' : 'transparent', border: '1px solid var(--border)' }}>
+            <div key={r.id} onClick={() => openRun(r.id)} style={{ display: 'flex', gap: 12, alignItems: 'baseline', fontSize: 14, padding: '5px 8px', borderRadius: 6, cursor: 'pointer', background: detail?.id === r.id ? 'var(--bg-secondary)' : 'transparent', border: '1px solid var(--border)' }}>
               <span style={{ fontWeight: 700, color: r.pass_rate >= 0.9 && r.autofails === 0 ? '#10b981' : r.autofails > 0 ? '#ef4444' : '#f59e0b' }}>{pct(r.pass_rate)}</span>
               <span style={{ color: 'var(--text-secondary)' }}>{r.passed}/{r.total} passed</span>
               {r.autofails > 0 && <span style={{ color: '#ef4444', fontWeight: 600 }}>{r.autofails} auto-fail{r.autofails === 1 ? '' : 's'}</span>}
               <span style={{ color: 'var(--text-muted)' }}>avg {r.avg_score}</span>
-              <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)' }}>{r.model} · prompt {r.prompt_version}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-muted)' }}>{r.model} · prompt {r.prompt_version}</span>
             </div>
           ))}
         </div>
       )}
       {detail && Array.isArray(detail.results) && (
         <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}>Run #{detail.id} — {detail.results.length} scenarios (worst first)</div>
+          <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Run #{detail.id} — {detail.results.length} scenarios (worst first)</div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 320, overflowY: 'auto' }}>
             {detail.results.map(x => (
-              <div key={x.scenario_id} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 12 }}>
+              <div key={x.scenario_id} style={{ display: 'flex', gap: 8, alignItems: 'baseline', fontSize: 13 }}>
                 <span style={{ width: 16, fontWeight: 800, color: scoreColor(x.score) }}>{x.score}</span>
-                <span style={{ fontSize: 12, textTransform: 'uppercase', color: 'var(--text-muted)', width: 44 }}>{x.segment}</span>
+                <span style={{ fontSize: 13, textTransform: 'uppercase', color: 'var(--text-muted)', width: 44 }}>{x.segment}</span>
                 <span style={{ flex: 1 }}>{x.title}</span>
-                {x.autofail && <span style={{ color: '#ef4444', fontSize: 12 }}>⚠ {x.autofail}</span>}
+                {x.autofail && <span style={{ color: '#ef4444', fontSize: 13 }}>⚠ {x.autofail}</span>}
               </div>
             ))}
           </div>
@@ -1101,21 +1101,21 @@ function TeamAgents() {
   React.useEffect(() => { load() }, [])
   const add = async () => { if (!name.trim()) return; await authFetch('/api/agents', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name, phone, title }) }).catch(() => {}); setName(''); setPhone(''); setTitle(''); load() }
   const del = async (id) => { if (!await confirmDialog('Remove this agent from the directory?')) return; await authFetch('/api/agents/' + id, { method: 'DELETE' }).catch(() => {}); load() }
-  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '6px 8px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   return (
     <section className="detail-section">
       <h4 style={{ margin: '0 0 6px' }}>Team Agents</h4>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 12px' }}>Your team roster — used to assign conversations and to loop a teammate into a client text.</p>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 12px' }}>Your team roster — used to assign conversations and to loop a teammate into a client text.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 }}>
         {list.map(a => (
-          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px', fontSize: 13, flexWrap: 'wrap' }}>
+          <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 10, border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px', fontSize: 14, flexWrap: 'wrap' }}>
             <span style={{ fontWeight: 600, minWidth: 140 }}>{a.name}</span>
             <span style={{ color: 'var(--text-secondary)' }}>{a.phone || '(no phone)'}</span>
-            {a.title && <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{a.title}</span>}
+            {a.title && <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{a.title}</span>}
             <button className="btn btn-sm" style={{ marginLeft: 'auto' }} onClick={() => del(a.id)}>Remove</button>
           </div>
         ))}
-        {list.length === 0 && <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>No agents yet.</div>}
+        {list.length === 0 && <div style={{ fontSize: 14, color: 'var(--text-muted)' }}>No agents yet.</div>}
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Name" style={{ ...inp, width: 170 }} />
@@ -1148,28 +1148,28 @@ function VoiceRouting() {
   }
   const removeVm = async () => { await authFetch('/api/inbox/voicemail-greeting', { method: 'DELETE' }).catch(() => {}); setVmUrl('') }
   if (v === undefined) return null
-  if (v === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Call Routing</h4><div style={{ color: '#ef4444', fontSize: 13 }}>Could not load.</div></section>
+  if (v === null) return <section className="detail-section"><h4 style={{ margin: 0 }}>Call Routing</h4><div style={{ color: '#ef4444', fontSize: 14 }}>Could not load.</div></section>
   const DAYS = [['1', 'Mon'], ['2', 'Tue'], ['3', 'Wed'], ['4', 'Thu'], ['5', 'Fri'], ['6', 'Sat'], ['0', 'Sun']]
   const daySet = new Set((v.days || '').split(',').map(s => s.trim()).filter(Boolean))
   const toggleDay = (d) => { const s = new Set(daySet); s.has(d) ? s.delete(d) : s.add(d); save({ days: DAYS.map(([k]) => k).filter(k => s.has(k)).join(',') }) }
-  const inp = { padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
+  const inp = { padding: '6px 8px', fontSize: 14, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)' }
   return (
     <section className="detail-section">
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <h4 style={{ margin: 0 }}>Call Routing &amp; Business Hours</h4>
-        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 700, color: v.open_now ? '#10b981' : '#f59e0b' }}>{v.open_now ? '● Open now' : '● Closed now'}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, fontWeight: 700, color: v.open_now ? '#10b981' : '#f59e0b' }}>{v.open_now ? '● Open now' : '● Closed now'}</span>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>How the Hub number handles inbound calls.</p>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 10 }}>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>How the Hub number handles inbound calls.</p>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 10 }}>
         <input type="checkbox" checked={v.business_hours_enabled} onChange={e => save({ business_hours_enabled: e.target.checked })} />
-        Use business hours <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(outside hours → straight to voicemail)</span>
+        Use business hours <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>(outside hours → straight to voicemail)</span>
       </label>
       {v.business_hours_enabled && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingLeft: 24, marginBottom: 12 }}>
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 13 }}>Open</span>
+            <span style={{ fontSize: 14 }}>Open</span>
             <input type="time" defaultValue={v.open} onBlur={e => save({ open: e.target.value })} style={inp} />
-            <span style={{ fontSize: 13 }}>to</span>
+            <span style={{ fontSize: 14 }}>to</span>
             <input type="time" defaultValue={v.close} onBlur={e => save({ close: e.target.value })} style={inp} />
             <select defaultValue={v.tz} onChange={e => save({ tz: e.target.value })} style={inp}>
               {['America/Chicago', 'America/New_York', 'America/Denver', 'America/Los_Angeles'].map(t => <option key={t} value={t}>{t.replace('America/', '')}</option>)}
@@ -1179,14 +1179,14 @@ function VoiceRouting() {
             {DAYS.map(([k, l]) => <button key={k} onClick={() => toggleDay(k)} className={`btn btn-sm ${daySet.has(k) ? 'btn-primary' : 'btn-secondary'}`}>{l}</button>)}
           </div>
           <div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 4 }}>After-hours greeting</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 4 }}>After-hours greeting</div>
             <textarea defaultValue={v.afterhours_message} onBlur={e => save({ afterhours_message: e.target.value })} rows={2} style={{ ...inp, width: '100%', maxWidth: 520, resize: 'vertical' }} />
           </div>
         </div>
       )}
       <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 12px' }} />
-      <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Voicemail greeting</div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '0 0 8px' }}>Upload your own voicemail greeting (MP3 or WAV) to play instead of the automated voice. Record it on your phone or computer and upload here.</p>
+      <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 6 }}>Voicemail greeting</div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '0 0 8px' }}>Upload your own voicemail greeting (MP3 or WAV) to play instead of the automated voice. Record it on your phone or computer and upload here.</p>
       {vmUrl
         ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             <audio controls src={vmUrl} style={{ height: 34 }} />
@@ -1195,18 +1195,18 @@ function VoiceRouting() {
           </div>
         : <div style={{ marginBottom: 12 }}>
             <button className="btn btn-sm btn-secondary" onClick={() => vmRef.current?.click()} disabled={vmBusy}>{vmBusy ? 'Uploading…' : '🎙 Upload greeting'}</button>
-            <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>Currently using the automated voice.</span>
+            <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 8 }}>Currently using the automated voice.</span>
           </div>}
       <input ref={vmRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => uploadVm(e.target.files?.[0])} />
 
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, marginBottom: 8 }}>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, marginBottom: 8 }}>
         <input type="checkbox" checked={v.forward_on_missed} onChange={e => save({ forward_on_missed: e.target.checked })} />
-        Forward to a mobile when a call is missed <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(rings your cell before voicemail)</span>
+        Forward to a mobile when a call is missed <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>(rings your cell before voicemail)</span>
       </label>
       {v.forward_on_missed && (
         <div style={{ paddingLeft: 24, display: 'flex', gap: 8, alignItems: 'center' }}>
           <input defaultValue={v.forward_number} onBlur={e => save({ forward_number: e.target.value })} placeholder="Mobile number e.g. (319) 555-1234" style={{ ...inp, minWidth: 260 }} />
-          {saving && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>saving…</span>}
+          {saving && <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>saving…</span>}
         </div>
       )}
     </section>
@@ -1243,22 +1243,22 @@ function CommsDiagnostics() {
         <h4 style={{ margin: 0 }}>Communications Diagnostics</h4>
         <button className="btn btn-sm btn-secondary" onClick={run} disabled={busy} style={{ marginLeft: 'auto' }}>{busy ? '…' : '↻ Re-check'}</button>
       </div>
-      <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Live check of texting + calling configuration. No secrets are shown.</p>
-      {health === undefined ? <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>Checking…</div>
-        : health === null ? <div style={{ color: '#ef4444', fontSize: 13 }}>Could not run diagnostics.</div>
+      <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '6px 0 12px' }}>Live check of texting + calling configuration. No secrets are shown.</p>
+      {health === undefined ? <div style={{ color: 'var(--text-muted)', fontSize: 14 }}>Checking…</div>
+        : health === null ? <div style={{ color: '#ef4444', fontSize: 14 }}>Could not run diagnostics.</div>
           : <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {(health.checks || []).map(c => (
-              <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
+              <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 14 }}>
                 <span style={{ width: 9, height: 9, borderRadius: '50%', background: dot[c.status], flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, width: 200, flexShrink: 0 }}>{c.name}</span>
-                <span style={{ fontSize: 12, fontWeight: 700, color: dot[c.status], width: 120, flexShrink: 0 }}>{label[c.status]}</span>
-                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>{c.detail}</span>
+                <span style={{ fontSize: 13, fontWeight: 700, color: dot[c.status], width: 120, flexShrink: 0 }}>{label[c.status]}</span>
+                <span style={{ color: 'var(--text-muted)', fontSize: 13 }}>{c.detail}</span>
               </div>
             ))}
           </div>}
 
       {sig && (
-        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 12.5 }}>
+        <div style={{ marginTop: 12, padding: '8px 12px', borderRadius: 8, background: 'var(--bg-secondary)', fontSize: 13 }}>
           <strong>Webhook signatures:</strong> {sig.valid} valid, {sig.invalid} invalid ·{' '}
           {sig.mode === 'enforce'
             ? <span style={{ color: '#10b981', fontWeight: 700 }}>Enforcing ✓</span>
@@ -1270,22 +1270,22 @@ function CommsDiagnostics() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 14 }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
           <input type="checkbox" checked={enforce} onChange={e => { setEnforce(e.target.checked); saveMode({ signature_mode: e.target.checked ? 'enforce' : 'monitor' }) }} />
-          Enforce webhook signatures <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(reject forged Twilio requests)</span>
+          Enforce webhook signatures <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>(reject forged Twilio requests)</span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
           <input type="checkbox" checked={record} onChange={e => { setRecord(e.target.checked); saveMode({ record_calls: e.target.checked }) }} />
-          Record calls <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(check local consent rules first)</span>
+          Record calls <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>(check local consent rules first)</span>
         </label>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
           <input type="checkbox" checked={mcb} onChange={e => { setMcb(e.target.checked); saveMode({ missed_call_textback: e.target.checked }) }} />
-          Auto text-back on missed calls <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(texts the caller when nobody answers)</span>
+          Auto text-back on missed calls <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>(texts the caller when nobody answers)</span>
         </label>
         {mcb && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', paddingLeft: 24 }}>
             <textarea value={mcbMsg} onChange={e => setMcbMsg(e.target.value)} rows={2} maxLength={320}
-              style={{ flex: 1, maxWidth: 460, padding: '6px 8px', fontSize: 12.5, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', resize: 'vertical' }} />
+              style={{ flex: 1, maxWidth: 460, padding: '6px 8px', fontSize: 13, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', resize: 'vertical' }} />
             <button className="btn btn-sm btn-secondary" disabled={!mcbMsg.trim()} onClick={() => saveMode({ missed_call_message: mcbMsg })}>Save message</button>
           </div>
         )}

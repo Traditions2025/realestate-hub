@@ -47,7 +47,7 @@ export default function LoginScreen({ onLogin }) {
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>{loading ? 'Checking...' : 'Sign in'}</button>
             </form>
             <button type="button" onClick={() => { setMode('forgot'); setError(''); setNotice('') }}
-              style={{ marginTop: 12, background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 13 }}>
+              style={{ marginTop: 12, background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 14 }}>
               Forgot password?
             </button>
           </>
@@ -57,11 +57,11 @@ export default function LoginScreen({ onLogin }) {
             <form onSubmit={handleForgot}>
               <input type="email" placeholder="Email" value={identifier} onChange={e => setIdentifier(e.target.value)} autoComplete="email" autoFocus required />
               {error && <div className="login-error">{error}</div>}
-              {notice && <div style={{ color: '#10b981', fontSize: 13, margin: '8px 0' }}>{notice}</div>}
+              {notice && <div style={{ color: '#10b981', fontSize: 14, margin: '8px 0' }}>{notice}</div>}
               <button type="submit" className="btn btn-primary" disabled={loading} style={{ width: '100%' }}>{loading ? 'Sending...' : 'Send reset link'}</button>
             </form>
             <button type="button" onClick={() => { setMode('login'); setError(''); setNotice('') }}
-              style={{ marginTop: 12, background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 13 }}>
+              style={{ marginTop: 12, background: 'none', border: 'none', color: '#2563eb', cursor: 'pointer', fontSize: 14 }}>
               ← Back to sign in
             </button>
           </>

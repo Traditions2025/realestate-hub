@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-09-30T15:49:54.955Z",
+  "generated_at": "2026-09-30T16:22:20.213Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "d5a8c91",
+      "date": "2026-09-30T10:51:28-05:00",
+      "subject": "Deploys stop taking the Hub down, and typography matched to Follow Up Boss",
+      "title": "Deploys stop taking the Hub down, and typography matched to Follow Up Boss",
+      "body": "TWO SEPARATE PROBLEMS, ONE OF WHICH WAS NOT WHAT IT LOOKED LIKE.\n\n1. \"The site becomes unavailable for a few minutes, then we have to hard refresh.\"\n\n   The cause was not slow booting. fetch() only REJECTS on a network failure, never on an\n   HTTP error, so while Render swapped instances its 502 page came back as a perfectly\n   good Response. The service worker's catch block never ran, the cached shell was never\n   used, and the error page went straight to the user - for the whole restart.\n\n   A non-OK response is now treated exactly like being offline: an open tab keeps working\n   on the version it already has, using assets it already cached, until the new instance\n   is reachable. A failed asset fetch also gets one retry after 1.2s, because a single\n   missed chunk white-screens a tab until a hard refresh.\n\n   The update check moved from hourly to every 2 minutes AND on tab focus. Hourly meant a\n   tab left open during a deploy could sit on the old bundle for up to an hour and then\n   pick up the new one at an arbitrary moment.\n\n2. Typography matched to FUB.\n\n   FUB sets proxima-nova, which is licensed through Adobe Fonts - it cannot be self-hosted\n   or pulled from Google Fonts. Figtree is the closest free face: same geometric-humanist\n   build and open apertures, and it holds at 13-14px where Montserrat is too wide and\n   Inter reads colder. The stack already names Proxima Nova, so buying the licence later\n   is a Typekit link plus one token.\n\n   Matched exactly: 16px sections, 14px body AND TABLE ROWS (13px was the main thing\n   making dense screens hard to read), and FUB's softer text colours - rgb(54,70,80) for\n   body, rgb(147,165,178) for secondary, rather than near-black.\n\n   ONE DELIBERATE DEPARTURE: FUB sets 14px text on a 14px line. That is fine for a\n   single-line cell and hard work the moment anything wraps. The ask was readability, so\n   single-line cells stay compact and anything that can wrap gets real leading. Copying\n   1.0 everywhere would have worked against the point of the request.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "81f490f",
       "date": "2026-09-30T09:49:18-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-20T17:19:17-05:00",
       "subject": "AI text tweaks: greet with Hi/Hello never Hey (prompt + safety net); property type = single-family vs condo, plus home style (ranch/two-story/other)",
       "title": "AI text tweaks: greet with Hi/Hello never Hey (prompt + safety net); property type = single-family vs condo, plus home style (ranch/two-story/other)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "dc1c96e",
-      "date": "2026-08-20T16:54:25-05:00",
-      "subject": "AI: Preview next text — draft the message without sending (opener/reply/follow-up) + card button",
-      "title": "AI: Preview next text — draft the message without sending (opener/reply/follow-up) + card button",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
