@@ -99,11 +99,28 @@ test('the duplicate chip row is gone', () => {
   assert.ok(!/<div className="cp-badges">/.test(src), 'the row duplicated Client Details')
 })
 
-test('nothing was lost: the two unique chips are on the details card', () => {
+test('the Realist Score chip lives on the details card, still editable', () => {
   const crm = src.slice(src.indexOf("<div className=\"cp-sub\">CRM</div>"))
   const card = crm.slice(0, crm.indexOf('Social'))
   assert.match(card, /<strong>Realist Score:<\/strong>\s*<RealistScoreBadge/, 'still click-to-edit')
-  assert.match(card, /<strong>Intent:<\/strong>/)
+})
+
+// Intent moved here when the chip row went, then came straight back out: the AI
+// Intelligence panel already shows the same number and level (John, 2026-10-01).
+test('Intent is not repeated on the details card', () => {
+  const crm = src.slice(src.indexOf("<div className=\"cp-sub\">CRM</div>"))
+  const card = crm.slice(0, crm.indexOf('Social'))
+  assert.ok(!/<strong>Intent:<\/strong>/.test(card), 'the AI panel is the one place for it')
+  assert.ok(!/intentLevel/.test(src), 'the prop it needed should not linger unused')
+})
+
+// The badge shows lead_score with its grade (902 A+); the composite line showed
+// realist_sell_score, the same 902. One number, one place.
+test('Sell Score is not repeated under the badge', () => {
+  assert.ok(!/Sell Score \$\{client\.realist_sell_score\}/.test(src))
+  // and it must not gate the row either, or a lead with only a sell score shows an empty one
+  const row = src.slice(src.indexOf('<strong>Realist:</strong>') - 400, src.indexOf('<strong>Realist:</strong>'))
+  assert.ok(!/realist_sell_score/.test(row), 'dropped from the visibility test too')
 })
 
 test('Type, Status and Agent stay editable where they already were', () => {
@@ -111,11 +128,6 @@ test('Type, Status and Agent stay editable where they already were', () => {
   const card = crm.slice(0, crm.indexOf('Social'))
   for (const pill of ['TypePill', 'StatusPill', 'AgentPill'])
     assert.match(card, new RegExp(`<${pill} client=\{client\} onSaved=\{onSaved\}`), `${pill} must remain`)
-})
-
-test('intent reaches the details card from the parent', () => {
-  assert.match(src, /function ClientDetails\(\{ client, onSaved, intent = null, intentLevel = null \}\)/)
-  assert.match(src, /<ClientDetails client=\{client\} onSaved=\{load\} intent=\{intent\} intentLevel=\{ai\?\.intent\?\.level\}/)
 })
 
 test('the actions sit on the name line', () => {

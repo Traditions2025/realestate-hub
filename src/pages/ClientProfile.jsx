@@ -269,7 +269,7 @@ export default function ClientProfile() {
         )}
         {(() => {
           const renderers = {
-            details: () => <ClientDetails client={client} onSaved={load} intent={intent} intentLevel={ai?.intent?.level} />,
+            details: () => <ClientDetails client={client} onSaved={load} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             propact: () => <PropertyActivity client={client} onSaved={load} />,
@@ -602,7 +602,7 @@ export function assessorUrl(client) {
   return `https://${host}.iowaassessors.com/search/res/results.php?ifulladdress=${encodeURIComponent(street)}&process=1`
 }
 
-function ClientDetails({ client, onSaved, intent = null, intentLevel = null }) {
+function ClientDetails({ client, onSaved }) {
   const cid = client.id
   const [altAdd, setAltAdd] = useState(null) // 'phones' | 'emails' | null
   // MLS # / Off Market Date are prospecting-list fields — only shown for FSBO and
@@ -647,11 +647,12 @@ function ClientDetails({ client, onSaved, intent = null, intentLevel = null }) {
               here and the row went (John, 2026-10-01). Still click-to-edit.
               NOTE: this is the Realist SCORE, not the Realist property data below it. */}
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Realist Score:</strong> <RealistScoreBadge client={client} onSaved={onSaved} /></p>
-          <p><strong>Intent:</strong> {intent != null ? `${intent}${intentLevel ? ' · ' + String(intentLevel).toUpperCase() : ''}` : '—'}</p>
-          {(client.realist_market_value || client.realist_sell_score || client.realist_year_built) && (
+          {/* Sell Score is deliberately absent: it is the same number as the Realist Score
+              badge above (John, 2026-10-01), and it is dropped from the visibility test
+              too, or a lead carrying only a sell score would show an empty Realist row. */}
+          {(client.realist_market_value || client.realist_year_built || client.realist_owner_occupied != null) && (
             <p><strong>Realist:</strong> {[
               client.realist_market_value ? `$${Number(client.realist_market_value).toLocaleString()} est. value` : null,
-              client.realist_sell_score ? `Sell Score ${client.realist_sell_score}` : null,
               client.realist_year_built ? `Built ${client.realist_year_built}` : null,
               client.realist_owner_occupied != null ? (client.realist_owner_occupied ? 'Owner-occupied' : 'Non-owner-occupied') : null,
             ].filter(Boolean).join(' · ')}</p>
