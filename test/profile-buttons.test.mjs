@@ -121,3 +121,21 @@ test('the FUB button uses this account and hides when there is no id', () => {
 test('the assessor button hides when there is no address', () => {
   assert.match(src, /\{assessorUrl\(client\) && <a/)
 })
+
+// ── the stale search box ─────────────────────────────────────────────────────────────
+// The assessor's own field comes back holding whatever was searched LAST. John noticed it
+// as a convenience on desktop ("we just need to enter"), but pressing enter without
+// replacing it re-runs the PREVIOUS client's property. Verified against the live site:
+// search an address, return to /search/res/, and the box still contains it.
+test('the user is told the search box holds the last address', () => {
+  const fn = src.slice(src.indexOf('export function copyAssessorAddress'))
+  assert.match(fn, /holds your last search/, 'the toast has to warn about the stale value')
+  const row = src.slice(src.indexOf('assessorUrl(client) &&'), src.indexOf('assessorUrl(client) &&') + 600)
+  assert.match(row, /holds the last address you searched/, 'and so should the hover text')
+})
+
+test('the warning does not drown out the address itself', () => {
+  const fn = src.slice(src.indexOf('export function copyAssessorAddress'))
+  // the copied value leads; the caution follows
+  assert.ok(fn.indexOf('Copied') < fn.indexOf('Clear the search box'))
+})

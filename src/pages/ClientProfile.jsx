@@ -250,7 +250,7 @@ export default function ClientProfile() {
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
-          {assessorUrl(client) && <a className="lead-action-btn" href={assessorUrl(client)} target="_blank" rel="noopener noreferrer" title={`Opens the assessor search and copies "${assessorSearchTerm(client)}" ready to paste`} onClick={() => copyAssessorAddress(client)}><span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
+          {assessorUrl(client) && <a className="lead-action-btn" href={assessorUrl(client)} target="_blank" rel="noopener noreferrer" title={`Opens the assessor search and copies "${assessorSearchTerm(client)}". Replace what is already in the box: it holds the last address you searched.`} onClick={() => copyAssessorAddress(client)}><span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
           {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 14.5, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
@@ -627,16 +627,21 @@ export function assessorSearchTerm(client) {
 /**
  * Put the street address on the clipboard as the assessor page opens.
  *
+ * The wording matters. The assessor's search box comes back PRE-FILLED with whatever was
+ * searched last, so pressing enter without replacing it silently re-runs the previous
+ * client's property (John, 2026-10-01: on desktop "we just need to enter" — which is the
+ * trap, not a shortcut). Verified: search one address, return to /search/res/, and the
+ * field still holds it.
+ *
  * Never blocks the link: the navigation is the point, the copy is a convenience, and
  * clipboard access can be refused (an insecure context, or permission denied).
  */
 export function copyAssessorAddress(client) {
   const term = assessorSearchTerm(client)
   if (!term) return
+  const msg = `Copied "${term}". Clear the search box before pasting: it still holds your last search.`
   try {
-    navigator.clipboard?.writeText(term)
-      .then(() => notify(`Copied "${term}" — paste it into the assessor's Address field`))
-      .catch(() => {})
+    navigator.clipboard?.writeText(term).then(() => notify(msg)).catch(() => {})
   } catch {}
 }
 
