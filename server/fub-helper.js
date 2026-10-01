@@ -73,14 +73,20 @@ export async function fubPut(endpoint, body) {
 }
 
 /**
- * Create something in FUB. Used for ONE thing: adding the stages the parity push needs
- * (John, 2026-10-01). It never creates a PERSON - pulling leads out of FUB is what would
- * make duplicates, and that rule has not changed.
+ * Create something in FUB: a stage, or a person.
+ *
+ * Creating a person was refused until John asked for it (2026-10-01: "when someone is
+ * added in HUB make sure they are also pushed in FUB"). That is not a loosening of the
+ * duplicate rule - the rule has always been about DIRECTION. Nothing is pulled FROM FUB
+ * into the Hub, because that is what makes Hub duplicates. Pushing a Hub lead INTO FUB is
+ * the opposite, and the Hub is master.
+ *
+ * The caller searches FUB first: linkOrCreateInFub never creates a person it can already
+ * find by email or phone.
  */
 export async function fubPost(endpoint, body) {
   const auth = authHeader()
   if (!auth) throw new Error('Follow Up Boss API key not configured')
-  if (/^\/people/.test(String(endpoint))) throw new Error('refusing to create a person in FUB')
   const resp = await fetch(`${FUB_API_URL}${endpoint}`, {
     method: 'POST',
     headers: { 'Authorization': auth, 'Content-Type': 'application/json', 'X-System': 'MattSmithTeamHub' },

@@ -326,3 +326,116 @@ export async function ensureStages({ dryRun = false } = {}) {
   }
   return out
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// NEW HUB LEADS GO INTO FUB
+//
+// John, 2026-10-01: "when someone is added in HUB make sure they are also pushed in FUB".
+//
+// SEARCH BEFORE CREATE. FUB can be searched by email and by phone, and both return the
+// exact person, so a lead that already exists there is LINKED rather than duplicated. That
+// is safer than trusting FUB's own dedupe semantics, which we have not verified.
+//
+// Direction is unchanged: nothing is pulled FROM FUB. Creating a FUB person from a Hub
+// lead is the opposite of that, and the Hub is master.
+
+/** Leads the Hub has created that FUB does not know about yet. */
+export function unlinkedSince(sinceIso, { limit = 200, afterId = 0 } = {}) {
+  return db.all(
+    `SELECT id, first_name, last_name, email, phone, status, type, source, created_at
+       FROM clients
+      WHERE merged_into IS NULL
+        AND (fub_person_id IS NULL OR fub_person_id = '')
+        AND created_at >= ?
+        AND (COALESCE(email,'') != '' OR COALESCE(phone,'') != '')
+        AND id > ?
+      ORDER BY id LIMIT ?`, [sinceIso, Number(afterId) || 0, Number(limit)])
+}
+
+export const PUSH_NEW_SINCE_KEY = 'fub_push_new_since'
+
+/**
+ * Link a Hub lead to its FUB record, creating one only if FUB genuinely has nobody.
+ *
+ * A lead with neither an email nor a phone is skipped: there is nothing to match on, so
+ * creating would be the one case that CAN duplicate, and the record would be useless in
+ * FUB anyway.
+ */
+export async function linkOrCreateInFub(client, { dryRun = false } = {}) {
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
+  const out = { client_id: client.id, name }
+  const email = String(client.email || '').trim()
+  const phone = String(client.phone || '').trim()
+  if (!email && !phone) return { ...out, action: 'skipped', why: 'no email or phone to match on' }
+
+  const { fubGet, fubPost } = await import('./fub-helper.js')
+
+  // 1. does FUB already have them?
+  for (const [field, value] of [['email', email], ['phone', phone]]) {
+    if (!value) continue
+    try {
+      const b = await fubGet('/people', { [field]: value, limit: 2 })
+      const hit = (b?.people || [])[0]
+      if (hit?.id) {
+        if (!dryRun) db.run('UPDATE clients SET fub_person_id = ?, updated_at = ? WHERE id = ?',
+          [String(hit.id), nowIso(), client.id])
+        return { ...out, action: dryRun ? 'would-link' : 'linked', matched_on: field,
+                 fub_id: hit.id, fub_name: hit.name || null, stage: hit.stage || null }
+      }
+    } catch (e) { return { ...out, action: 'failed', error: String(e.message).slice(0, 140) } }
+    await new Promise(s => setTimeout(s, 260))
+  }
+
+  // 2. genuinely new to FUB
+  const stage = stageFor(client) || 'Lead'   // an unmapped status still needs somewhere to land
+  const body = {
+    firstName: client.first_name || '',
+    lastName: client.last_name || '',
+    stage,
+    source: String(client.source || 'Matt Smith Team Hub').slice(0, 100),
+    tags: [PUSH_TAG],
+    emails: email ? [{ value: email }] : [],
+    phones: phone ? [{ value: phone }] : [],
+  }
+  if (dryRun) return { ...out, action: 'would-create', stage, email: email || null, phone: phone || null }
+  try {
+    const made = await fubPost('/people', body)
+    if (made?.id) db.run('UPDATE clients SET fub_person_id = ?, updated_at = ? WHERE id = ?',
+      [String(made.id), nowIso(), client.id])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['fub_person_created', 'client', client.id, `created in FUB as ${made?.id} (stage ${stage})`])
+    return { ...out, action: 'created', fub_id: made?.id || null, stage }
+  } catch (e) { return { ...out, action: 'failed', error: String(e.message).slice(0, 140) } }
+}
+
+/** Sweep the Hub leads FUB does not know about. Paced and resumable, like every other push. */
+export async function pushNewLeads({ dryRun = false, limit = 200, afterId = 0, since = null,
+                                     delayMs = 260 } = {}) {
+  // "Moving forward" means exactly that: the cutoff is set the first time this runs, so it
+  // never backfills the ~14,000 older unlinked leads by surprise.
+  let cutoff = since || db.getSetting(PUSH_NEW_SINCE_KEY)
+  if (!cutoff) {
+    cutoff = nowIso()
+    if (!dryRun) db.setSetting(PUSH_NEW_SINCE_KEY, cutoff)
+  }
+  const rows = unlinkedSince(cutoff, { limit, afterId })
+  const out = { since: cutoff, dry: dryRun, considered: rows.length,
+                linked: 0, created: 0, skipped: 0, failed: 0, results: [], last_id: Number(afterId) || 0 }
+  for (const c of rows) {
+    const r = await linkOrCreateInFub(c, { dryRun })
+    out.last_id = c.id
+    if (r.action === 'linked' || r.action === 'would-link') out.linked++
+    else if (r.action === 'created' || r.action === 'would-create') out.created++
+    else if (r.action === 'skipped') out.skipped++
+    else out.failed++
+    out.results.push(r)
+    await new Promise(s => setTimeout(s, delayMs))
+  }
+  out.remaining = db.get(
+    `SELECT COUNT(*) n FROM clients WHERE merged_into IS NULL
+       AND (fub_person_id IS NULL OR fub_person_id = '') AND created_at >= ?
+       AND (COALESCE(email,'') != '' OR COALESCE(phone,'') != '') AND id > ?`,
+    [cutoff, out.last_id]).n
+  out.done = out.remaining === 0
+  return out
+}

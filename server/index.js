@@ -1013,6 +1013,20 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Push Hub leads FUB does not know about. Searches FUB by email then phone first, so a
+  // lead that already exists there is LINKED, never duplicated. Takes {dry:true}.
+  app.post('/api/fub/push-new-leads', async (req, res) => {
+    try {
+      const { pushNewLeads } = await import('./fub-status-push.js')
+      res.json(await pushNewLeads({
+        dryRun: !!req.body?.dry,
+        limit: Math.min(Number(req.body?.limit) || 200, 500),
+        afterId: Number(req.body?.afterId) || 0,
+        since: req.body?.since || null,
+      }))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.post('/api/fub/ensure-stages', async (req, res) => {
     try {
       const { ensureStages } = await import('./fub-status-push.js')

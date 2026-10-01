@@ -63,12 +63,13 @@ test('nothing is ever pulled from FUB', () => {
   assert.match(src, /ONE DIRECTION ONLY/)
 })
 
-// POST exists now, for stages. The rule it used to enforce - never create a PERSON -
-// still holds, and is enforced in the helper rather than by the absence of POST.
-test('it never creates a person in FUB', () => {
-  assert.match(helper, /refusing to create a person in FUB/)
-  assert.ok(!/fubPost\('\/people/.test(src), 'nothing may post to /people')
-  assert.match(src, /not in FUB/, 'a missing record is reported, not created')
+// CHANGED AGAIN 2026-10-01: creating a person in FUB is now wanted. The invariant that
+// matters was never "no POST" - it is DIRECTION. Nothing is pulled FROM FUB into the Hub,
+// and a person is only created after searching FUB for them.
+test('a person is created only after FUB has been searched', () => {
+  assert.match(src, /export async function linkOrCreateInFub/)
+  assert.match(helper, /Nothing is pulled FROM FUB/)
+  assert.match(src, /not in FUB/, 'a missing record on the status push is still reported, not created')
 })
 
 test('the write path is narrow: one person, no bulk, no delete', () => {
@@ -321,4 +322,60 @@ test('prime leads are considered for a push', () => {
   assert.match(src, /\[\.\.\.Object\.keys\(STATUS_TO_STAGE\), 'prime'\]/)
   assert.match(src, /SELECT id, first_name, last_name, email, status, type, fub_person_id/,
     'the prime split needs the lead type')
+})
+
+// ── new Hub leads go into FUB (John, 2026-10-01) ─────────────────────────────────────
+// "when someone is added in HUB make sure they are also pushed in FUB". The duplicate
+// rule was never about writing - it is about DIRECTION. Nothing is pulled FROM FUB.
+test('FUB is searched before anything is created', () => {
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  const beforeCreate = fn.slice(0, fn.indexOf("// 2. genuinely new to FUB"))
+  assert.match(beforeCreate, /fubGet\('\/people', \{ \[field\]: value/, 'it must look first')
+  assert.match(beforeCreate, /\[\['email', email\], \['phone', phone\]\]/, 'both fields, in order')
+  // a CALL, not the import destructure that names the same function
+  assert.ok(!/fubPost\(/.test(beforeCreate), 'nothing may be created before the search')
+})
+
+test('a lead already in FUB is linked, not duplicated', () => {
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  assert.match(fn, /action: dryRun \? 'would-link' : 'linked'/)
+  assert.match(fn, /UPDATE clients SET fub_person_id = \?/)
+})
+
+test('a lead with nothing to match on is skipped, not created', () => {
+  // no email and no phone is the ONE case that could genuinely duplicate in FUB
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  assert.match(fn, /if \(!email && !phone\) return \{ \.\.\.out, action: 'skipped'/)
+})
+
+test('an unmapped status still lands somewhere sensible', () => {
+  // 'new' is not in the mapping on purpose, but a brand-new FUB record needs a stage
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  assert.match(fn, /const stage = stageFor\(client\) \|\| 'Lead'/)
+})
+
+test('"moving forward" means a cutoff, not a backfill', () => {
+  // there are ~14,000 older unlinked leads; the cutoff is stamped on first run
+  const fn = src.slice(src.indexOf('export async function pushNewLeads'))
+  assert.match(fn, /db\.getSetting\(PUSH_NEW_SINCE_KEY\)/)
+  assert.match(fn, /cutoff = nowIso\(\)/)
+  assert.match(src, /created_at >= \?/)
+})
+
+test('only leads with a way to be matched are considered', () => {
+  const fn = src.slice(src.indexOf('export function unlinkedSince'))
+  assert.match(fn, /COALESCE\(email,''\) != '' OR COALESCE\(phone,''\) != ''/)
+  assert.match(fn, /fub_person_id IS NULL OR fub_person_id = ''/)
+})
+
+test('creating a person is paced and resumable like every other push', () => {
+  const fn = src.slice(src.indexOf('export async function pushNewLeads'))
+  assert.match(fn, /setTimeout\(s, delayMs\)/)
+  assert.match(fn, /out\.last_id = c\.id/)
+})
+
+test('nothing is pulled FROM FUB into the Hub', () => {
+  // the invariant the lifted guard used to stand for
+  assert.ok(!/INSERT INTO clients/i.test(src), 'this module must never create a Hub lead')
+  assert.match(helper, /Nothing is pulled FROM FUB/)
 })
