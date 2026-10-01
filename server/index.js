@@ -990,6 +990,29 @@ async function start() {
   // POST {dry:true} to see the plan without touching anything.
   // Create any stage the status mapping needs (only 'Watch' today). Additive: a new
   // stage affects nobody until a lead is moved into it. Takes {dry:true}.
+  // Read-only: can FUB be SEARCHED by email/phone before creating? That decides whether
+  // pushing new Hub leads into FUB can be done without risking duplicates there.
+  app.get('/api/fub/probe-search', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const email = String(req.query.email || '')
+      const phone = String(req.query.phone || '')
+      const out = {}
+      const t = async (label, params) => {
+        try {
+          const b = await fubGet('/people', { ...params, limit: 3 })
+          const rows = b?.people || []
+          out[label] = { ok: true, total: b?._metadata?.total ?? null, returned: rows.length,
+                         first: rows[0] ? { id: rows[0].id, name: rows[0].name, stage: rows[0].stage } : null }
+        } catch (e) { out[label] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 140) } }
+        await new Promise(s2 => setTimeout(s2, 300))
+      }
+      if (email) { await t('by_email', { email }); await t('by_q_email', { q: email }) }
+      if (phone) { await t('by_phone', { phone }); await t('by_q_phone', { q: phone }) }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.post('/api/fub/ensure-stages', async (req, res) => {
     try {
       const { ensureStages } = await import('./fub-status-push.js')
