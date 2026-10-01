@@ -147,6 +147,36 @@ router.post('/master-updates/backfill-today', async (_req, res) => {
   res.json({ ok: true, backfilled: n, enriched, scanned: rows.length })
 })
 // Recent master-file changes (feeds the dashboard "Cancelled/Expired/FSBO Updates" box).
+// Read-only: what does the RUNNING process see? The sync reported Off Market=35 while the
+// same code against the same URL gives Off Market=25, Disregard=7, Sold=3 locally, so this
+// reports the resolved URL and the raw-to-normalised mapping from inside the deployed
+// process rather than guessing from the outside.
+router.get('/fsbo/diagnose', async (_req, res) => {
+  try {
+    const m = await import('../fsbo-master.js')
+    const url = m.fsboMasterCsvUrl()
+    const resp = await fetch(url, { headers: { 'User-Agent': 'MattSmithHub/1.0' } })
+    const text = await resp.text()
+    const rows = m.parseCsv(text)
+    const header = rows[0].map(h => String(h || '').trim())
+    const iF = header.findIndex(h => h.toLowerCase() === 'fsbo status')
+    const raw = {}, mapped = {}
+    for (const r of rows.slice(1)) {
+      if (!r.some(c => String(c).trim())) continue
+      const v = String(r[iF] || '').trim()
+      raw[v || '(blank)'] = (raw[v || '(blank)'] || 0) + 1
+      const n = m.normStatus(v) || '(skipped)'
+      mapped[n] = (mapped[n] || 0) + 1
+    }
+    res.json({
+      url, http: resp.status, bytes: text.length, data_rows: rows.length - 1,
+      fsbo_status_col: iF, header_sample: header.slice(0, 12),
+      probe: { Disregard: m.normStatus('Disregard'), Sold: m.normStatus('Sold'), Available: m.normStatus('Available') },
+      raw_values: raw, normalised: mapped,
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.post('/fsbo/sync', async (_req, res) => {
   try {
     const report = await syncFsboMaster()
