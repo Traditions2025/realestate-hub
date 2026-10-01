@@ -250,3 +250,10 @@ test('a blocked popup falls through to the link instead of doing nothing', () =>
   assert.ok(open > 0 && prevent > open, 'the tab must be opened BEFORE the default is prevented')
   assert.match(fn, /if \(!tab\) return/)
 })
+
+test('the tooltip names the assessor the parcel actually lives on', () => {
+  // a cached reply carries only the url, so `host` is undefined and every parcel read
+  // "Linn County" - including cedarrapids ones
+  assert.match(src, /cedarrapids\\./.source ? /test\(assessor\.parcel\)/ : /x/)
+  assert.ok(!/assessor\.host === 'cedarrapids'/.test(src), 'host is absent on a cached reply')
+})

@@ -347,7 +347,7 @@ export default function ClientProfile() {
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
           {assessorUrl(client) && <a className="lead-action-btn" href={assessor?.parcel || assessorUrl(client)} target="_blank" rel="noopener noreferrer"
             onClick={openAssessor}
-            title={assessor?.parcel ? `Opens ${assessor.shown || 'this property'} on the ${assessor.host === 'cedarrapids' ? 'Cedar Rapids city' : 'Linn County'} assessor`
+            title={assessor?.parcel ? `Opens ${assessor.shown || 'this property'} on the ${/cedarrapids\./.test(assessor.parcel) ? 'Cedar Rapids city' : 'Linn County'} assessor`
                  : assessor ? `No assessor record found (${assessor.reason || 'not matched'}) — opens the search page` : 'Looking up the parcel…'}>
             <span className="lead-action-icon">🏛</span><span>{assessorBusy ? 'Opening…' : 'Assessor'}</span></a>}
           {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
