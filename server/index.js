@@ -1286,7 +1286,9 @@ async function start() {
   app.get('/api/fub/stages', async (_req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')
-      const [stages, users] = await Promise.all([fubGet('/stages'), fubGet('/users', { limit: 1 })])
+      // FUB pages stages at 10 by default, which quietly hid most of the list - the
+      // account has far more than ten, and a mapping built from a short list would be wrong.
+      const [stages, users] = await Promise.all([fubGet('/stages', { limit: 100 }), fubGet('/users', { limit: 1 })])
       res.json({ stages: stages.stages || stages, userCount: users?._metadata?.total ?? null })
     } catch (err) { res.status(500).json({ error: err.message }) }
   })
