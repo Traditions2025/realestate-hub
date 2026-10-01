@@ -257,3 +257,55 @@ test('the tooltip names the assessor the parcel actually lives on', () => {
   assert.match(src, /cedarrapids\\./.source ? /test\(assessor\.parcel\)/ : /x/)
   assert.ok(!/assessor\.host === 'cedarrapids'/.test(src), 'host is absent on a cached reply')
 })
+
+// ── the profile layout consolidation (John, 2026-10-01) ──────────────────────────────
+test('four activity boxes became one', () => {
+  // Property Activity, Listing Interest, Website Activity and Follow Up Boss Activity were
+  // each a card answering "what has this person been doing"
+  const at = src.indexOf('const renderers = {')
+  // slice FORWARD from the renderers: 'return (' appears far earlier in the file
+  const r = src.slice(at, src.indexOf('return (', at))
+  assert.match(r, /website: \(\) => \(/)
+  assert.match(r, /<Section title="Website Activity" id="webact">/)
+  for (const c of ['PropertyActivity', 'ListingInterest', 'WebsiteActivity', 'FubActivity'])
+    assert.ok(r.includes(c), `${c} should render inside the combined box`)
+  for (const k of ['propact:', 'interest:', 'fub:'])
+    assert.ok(!r.includes(k), `${k} should no longer be its own box`)
+})
+
+test('a Section can render as a sub-heading instead of a card', () => {
+  // this is what let four bodies share one card without rewriting any of them
+  assert.match(src, /function Section\(\{ title, children, right, defaultOpen = true, id, className = '', sub = false \}\)/)
+  assert.match(src, /if \(sub\) return \(/)
+})
+
+test('the Activity timeline box is gone, and so is its import', () => {
+  assert.ok(!src.includes('ContactTimeline'), 'it was only used by that box')
+  assert.ok(!/activity: \(\) => <Section title="Activity"/.test(src))
+})
+
+test('Sierra notes moved into Communications, and the old box is gone', () => {
+  assert.ok(!src.includes('function SierraActivity'), 'the standalone box should be removed')
+  assert.match(src, /api\/sierra\/lead-notes/, 'Communications fetches them now')
+  assert.match(src, /setSierraNotes/)
+  // and they count on the tab
+  assert.match(src, /label\('Notes', n\('note'\) \+ noteLines\.length \+ sierraNotes\.length\)/)
+})
+
+test('every communications tab carries a count', () => {
+  for (const t of ["label('All'", "label('Texts'", "label('Calls'", "label('Emails'", "label('Notes'"])
+    assert.ok(src.includes(t), `${t} should show a count`)
+})
+
+test('the Calls tab includes voicemails', () => {
+  // they are callish everywhere else in this file but were excluded from their own filter
+  assert.match(src, /filter === 'call' \? \(m\.channel === 'call' \|\| m\.channel === 'voicemail'\)/)
+  assert.match(src, /label\('Calls', n\('call'\) \+ n\('voicemail'\)\)/)
+})
+
+test('long messages clamp to a uniform height with a working toggle', () => {
+  assert.match(src, /const CLAMP_LINES = 6/)
+  assert.match(src, /WebkitLineClamp: CLAMP_LINES/)
+  // the measurement must be skipped while expanded or Show less vanishes
+  assert.match(src, /if \(!el \|\| expanded\) return/)
+})

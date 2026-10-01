@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
 import TemplatePicker from '../components/TemplatePicker'
 import {
-  InlineName, InlineField, QuickAddTask, ContactTimeline, AiIsaCard,
+  InlineName, InlineField, QuickAddTask, AiIsaCard,
   InlineTextComposer, COMM_META, commToText, stripQuotedDisplay, fmtCommWhen, fmtDur, recUrl, SIERRA_STATUSES,
   phoneD10, phoneLabelMap,
 } from './Clients'
@@ -95,10 +95,22 @@ import { loadClientsNav, markClientsReturn } from '../lib/clientsNav'
 // reviewable by scrolling — no primary tabs. Reuses HUB's existing components + APIs (no
 // duplicated SMS/email/AI/task/transaction/Sierra systems).
 
-function Section({ title, children, right, defaultOpen = true, id, className = '' }) {
+function Section({ title, children, right, defaultOpen = true, id, className = '', sub = false }) {
   const key = id ? 'cp_sec_' + id : null
   const [open, setOpen] = useState(() => { try { return key && localStorage.getItem(key) != null ? localStorage.getItem(key) === '1' : defaultOpen } catch { return defaultOpen } })
   const toggle = () => setOpen(o => { const n = !o; try { if (key) localStorage.setItem(key, n ? '1' : '0') } catch {} return n })
+  // `sub` renders a heading INSIDE an existing card instead of a card of its own, which is
+  // how Property Activity, Listing Interest, Website Activity and Follow Up Boss Activity
+  // became one box without rewriting any of their bodies (John, 2026-10-01).
+  if (sub) return (
+    <div style={{ marginTop: 10 }}>
+      <div onClick={toggle} style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer', paddingBottom: 4, borderBottom: '1px solid var(--border)' }}>
+        <strong style={{ fontSize: 14.5, letterSpacing: '.02em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{open ? '▾' : '▸'} {title}</strong>
+        {right && <div onClick={e => e.stopPropagation()} style={{ marginLeft: 'auto' }}>{right}</div>}
+      </div>
+      {open && <div style={{ marginTop: 8 }}>{children}</div>}
+    </div>
+  )
   return (
     <section className={'cp-card' + (className ? ' ' + className : '')}>
       <div className="cp-sec-head" onClick={toggle}>
@@ -377,12 +389,20 @@ export default function ClientProfile() {
             details: () => <ClientDetails client={client} onSaved={load} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
-            propact: () => <PropertyActivity client={client} onSaved={load} />,
-            interest: () => <ListingInterest client={client} />,
-            website: () => <WebsiteActivity cid={cid} />,
-            fub: () => <FubActivity cid={cid} />,
-            sierra: () => <SierraActivity client={client} />,
-            activity: () => <Section title="Activity" id="activity"><ContactTimeline clientId={cid} /></Section>,
+            // Four boxes became one (John, 2026-10-01): Property Activity, Listing
+            // Interest, Website Activity and Follow Up Boss Activity were all answering
+            // "what has this person been doing", each in its own card.
+            website: () => (
+              <Section title="Website Activity" id="webact">
+                <PropertyActivity client={client} onSaved={load} sub />
+                <ListingInterest client={client} sub />
+                <WebsiteActivity cid={cid} sub />
+                <FubActivity cid={cid} sub />
+              </Section>
+            ),
+            // `sierra` and `activity` retired (John, 2026-10-01): the Sierra notes moved
+            // into Communications > Notes, where every other note already lives, and the
+            // Activity timeline box was nearly always empty.
             // "Social & Research" retired (John, 2026-09-25): LinkedIn and Facebook are now
             // editable rows inside Client Details, where the rest of the contact detail lives.
             coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
@@ -866,6 +886,16 @@ function Communications({ client, onOpenText, onAddNote }) {
   const [q, setQ] = useState('')
   const load = useCallback(() => authFetch('/api/inbox/thread/' + cid).then(r => r.json()).then(d => setRows(Array.isArray(d) ? d.slice().reverse() : [])).catch(() => setRows([])), [cid])
   useEffect(() => { load() }, [load])
+  // Sierra's notes used to sit in a box of their own. Every other note is in this tab, so
+  // these join them rather than making someone look in two places (John, 2026-10-01).
+  // They come from Sierra's API, not from `communications`, so they are fetched here and
+  // merged for display only - nothing is written to the Hub's tables.
+  const [sierraNotes, setSierraNotes] = useState([])
+  useEffect(() => {
+    if (!client.sierra_lead_id) { setSierraNotes([]); return }
+    authFetch(`/api/sierra/lead-notes/${client.sierra_lead_id}`).then(r => r.json())
+      .then(a => setSierraNotes(Array.isArray(a) ? a : [])).catch(() => setSierraNotes([]))
+  }, [client.sierra_lead_id])
   useEffect(() => { const h = () => load(); window.addEventListener('cp-comms-changed', h); return () => window.removeEventListener('cp-comms-changed', h) }, [load])
   // Notes live here now: the standalone Notes box merged into this tab strip.
   const noteLines = client.notes ? String(client.notes).split('\n').filter(Boolean) : []
@@ -878,7 +908,7 @@ function Communications({ client, onOpenText, onAddNote }) {
     ['text', label('Texts', n('text'))],
     ['call', label('Calls', n('call') + n('voicemail'))],
     ['email', label('Emails', n('email'))],
-    ['note', label('Notes', n('note') + noteLines.length)],
+    ['note', label('Notes', n('note') + noteLines.length + sierraNotes.length)],
   ]
   // FUB notes are real timeline rows, so they are no longer filtered out here. The old
   // exclusion predates the import, when the only 'notes' were the free-text field below
@@ -903,7 +933,23 @@ function Communications({ client, onOpenText, onAddNote }) {
               free-text notes typed on the profile. */}
           {shown.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: notes.length ? 10 : 0 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
           {items.length > shown.length && <button className="btn btn-sm" style={{ marginBottom: 10 }} onClick={() => setLimit(l => l + 25)}>Load more notes ({items.length - shown.length})</button>}
-          {!notes.length && !shown.length ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No notes yet.</div>
+          {sierraNotes.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
+              {sierraNotes
+                .slice().sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0))
+                .filter(a2 => !q.trim() || String(a2.contents || '').toLowerCase().includes(q.toLowerCase()))
+                .slice(0, limit).map((a2, i) => (
+                <div key={a2.id || 'sn' + i} style={{ fontSize: 15.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 14.5 }}>
+                    <span>📝 Sierra · {a2.author || 'Sierra System'}</span>
+                    <span>{a2.date ? new Date(a2.date).toLocaleDateString() : ''}</span>
+                  </div>
+                  <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{a2.contents}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {!notes.length && !shown.length && !sierraNotes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No notes yet.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map((ln, i) => {
               const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
               return <div key={i} style={{ fontSize: 15.5, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
@@ -1242,7 +1288,7 @@ function domLive(listDate, stored) {
 }
 
 // ── Property / Web activity ──────────────────────────────────────────────
-function PropertyActivity({ client, onSaved }) {
+function PropertyActivity({ client, onSaved, sub = false }) {
   let listings = []
   try { listings = JSON.parse(client.fsbo_listings || '[]') } catch {}
   const hasFsbo = !!(client.fsbo_status || listings.length)
@@ -1256,7 +1302,7 @@ function PropertyActivity({ client, onSaved }) {
     } catch (e) { notify('Remove failed: ' + e.message) }
   }
   return (
-    <Section title={client.type === 'seller' || listings.length ? 'Subject Property / Activity' : 'Property Activity'} id="propact"
+    <Section title={client.type === 'seller' || listings.length ? 'Subject Property / Activity' : 'Property Activity'} id="propact" sub={sub}
       right={hasFsbo ? <button className="btn btn-sm btn-danger" onClick={removeFsbo} title="Not the owner? Remove this FSBO listing and stop it re-attaching.">Remove FSBO</button> : null}>
       {listings.map((l, i) => (
         <div key={i} style={{ fontSize: 15.5, marginBottom: 6 }}>
@@ -1720,32 +1766,13 @@ function EnrollPicker({ kind, cid, onClose, onDone }) {
 }
 
 // ── Sierra activity / notes ──────────────────────────────────────────────
-function SierraActivity({ client }) {
-  const [rows, setRows] = useState(null); const [exp, setExp] = useState(false)
-  useEffect(() => { if (!client.sierra_lead_id) { setRows([]); return } authFetch(`/api/sierra/lead-notes/${client.sierra_lead_id}`).then(r => r.json()).then(a => setRows(Array.isArray(a) ? a.slice().sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0)) : [])).catch(() => setRows([])) }, [client.sierra_lead_id])
-  if (!client.sierra_lead_id) return null
-  return (
-    <Section title={`Sierra Activity${rows ? ` (${rows.length})` : ''}`} id="sierra">
-      {rows === null ? <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Loading…</div>
-        : !rows.length ? <div style={{ fontSize: 15.5, color: 'var(--text-muted)' }}>No Sierra activity.</div>
-          : <><div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible' }}>
-            {rows.slice(0, exp ? 60 : 5).map((a, i) => (
-              <div key={a.id || i} style={{ fontSize: 14.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 14.5 }}><span>{a.author || 'Sierra System'}</span><span>{a.date ? new Date(a.date).toLocaleDateString() : ''}</span></div>
-                <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{a.contents}</div>
-              </div>))}
-          </div>{rows.length > 5 && <button className="btn btn-sm" style={{ marginTop: 8 }} onClick={() => setExp(v => !v)}>{exp ? 'Show less' : `View all (${rows.length})`}</button>}</>}
-    </Section>
-  )
-}
-// ── Follow Up Boss activity ──────────────────────────────────────────────
-function FubActivity({ cid }) {
+function FubActivity({ cid, sub = false }) {
   const [rows, setRows] = useState(null); const [exp, setExp] = useState(false)
   useEffect(() => { authFetch(`/api/fub/activity/live?client_id=${cid}`).then(r => r.json()).then(d => { const arr = Array.isArray(d) ? d : (Array.isArray(d?.rows) ? d.rows : []); setRows(arr.slice().sort((a, b) => new Date(b.occurred_at || 0) - new Date(a.occurred_at || 0))) }).catch(() => setRows([])) }, [cid])
   if (rows && !rows.length) return null
   const pv = (rows || []).filter(a => a.prop_street).length
   return (
-    <Section title={`Follow Up Boss Activity${rows ? ` (${rows.length}${pv ? ` · ${pv} property views` : ''})` : ''}`} id="fub">
+    <Section title={`Follow Up Boss Activity${rows ? ` (${rows.length}${pv ? ` · ${pv} property views` : ''})` : ''}`} id="fub" sub={sub}>
       {rows === null ? <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Loading…</div>
         : <><div style={{ display: 'flex', flexDirection: 'column', maxHeight: exp ? 340 : 'none', overflowY: exp ? 'auto' : 'visible', border: '1px solid var(--border)', borderRadius: 6 }}>
           {rows.slice(0, exp ? 150 : 5).map((a, i) => {
@@ -1762,13 +1789,13 @@ function FubActivity({ cid }) {
   )
 }
 // ── Website (Hub pixel) activity ─────────────────────────────────────────
-function WebsiteActivity({ cid }) {
+function WebsiteActivity({ cid, sub = false }) {
   const [data, setData] = useState(null); const [exp, setExp] = useState(false)
   useEffect(() => { authFetch(`/api/track/activity/${cid}?limit=50`).then(r => r.json()).then(setData).catch(() => setData({ summary: { total_events: 0 }, events: [] })) }, [cid])
   const sum = data?.summary; const events = data?.events || []
   if (data && (!sum || !sum.total_events)) return null
   return (
-    <Section title={`Website Activity${sum ? ` (${sum.total_events} events)` : ''}`} id="website">
+    <Section title={`Website Activity${sum ? ` (${sum.total_events} events)` : ''}`} id="website" sub={sub}>
       {data === null ? <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Loading…</div>
         : <>
           <div style={{ display: 'flex', gap: 14, marginBottom: 8, fontSize: 14.5 }}>
@@ -1792,7 +1819,7 @@ function WebsiteActivity({ cid }) {
   )
 }
 // ── Listing interest (Sierra saved searches / properties) ────────────────
-function ListingInterest({ client }) {
+function ListingInterest({ client, sub = false }) {
   const [d, setD] = useState(null)
   useEffect(() => { if (!client.sierra_lead_id) { setD({}); return } authFetch(`/api/sierra/lead-listings/${client.sierra_lead_id}`).then(r => r.json()).then(setD).catch(() => setD({})) }, [client.sierra_lead_id])
   if (!client.sierra_lead_id) return null
@@ -1800,7 +1827,7 @@ function ListingInterest({ client }) {
   if (d && !ss.length && !sl.length && !la.length) return null
   const addrOf = (x) => x.address || x.street || [x.prop_street, x.prop_city].filter(Boolean).join(', ') || x.name || 'Listing'
   return (
-    <Section title="Listing Interest" id="interest">
+    <Section title="Listing Interest" id="interest" sub={sub}>
       {d === null ? <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Loading…</div> : <>
         {ss.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">Saved searches ({ss.length})</div>{ss.slice(0, 4).map((s, i) => <div key={i} style={{ fontSize: 14.5 }}>{s.name || s.criteria || s.summary || [s.city, s.min_price && `$${Number(s.min_price).toLocaleString()}+`].filter(Boolean).join(' · ') || 'Search'}</div>)}</div>}
         {sl.length > 0 && <div style={{ marginBottom: 8 }}><div className="cp-sub">⭐ Saved properties ({sl.length})</div>{sl.slice(0, 6).map((l, i) => <div key={i} style={{ fontSize: 14.5 }}>{addrOf(l)}{l.price ? ` · $${Number(l.price).toLocaleString()}` : ''}</div>)}</div>}
@@ -1813,7 +1840,7 @@ function ListingInterest({ client }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'propact', 'interest', 'website', 'fub', 'sierra', 'activity'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'website'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {
