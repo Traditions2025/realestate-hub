@@ -6,10 +6,24 @@ import { authFetch } from '../api'
 // script in index.html), registers a Device with an access token from the Hub, and
 // exposes window.hubCall(number, name) so any page can start a call. Handles incoming
 // calls with Accept / Reject. Fails quietly if voice isn't set up yet.
+//
+// SETUP IS RETRIED, because it used to be attempted exactly once (John, 2026-10-01:
+// "The Hub phone is not connected yet"). Any single hiccup left deviceRef null and the
+// phone dead until someone reloaded the page by hand — and the most common hiccup is a
+// deploy: Render restarts, /api/voice/token answers with an HTML error page, r.json()
+// throws, and the phone never comes back even though the server is healthy seconds later.
+// Now it backs off and retries, retries when the tab is looked at again or the network
+// returns, and a Call button connects on demand instead of only complaining.
 export default function CallWidget() {
   const deviceRef = useRef(null)
   const callRef = useRef(null)
   const timerRef = useRef(null)
+  const initRef = useRef(null)      // in-flight setup, so parallel callers share one attempt
+  const retryRef = useRef(null)     // pending backoff timer
+  const attemptRef = useRef(0)
+  // The setup effect runs once with [], so its closure would keep the FIRST regErr
+  // forever. The ref is what the Call button reads to say why it could not connect.
+  const regErrRef = useRef('')
   const [ready, setReady] = useState(false)
   const [status, setStatus] = useState('idle')   // idle | incoming | connecting | active | error
   const [peer, setPeer] = useState({ number: '', name: '' })
@@ -17,7 +31,8 @@ export default function CallWidget() {
   const [seconds, setSeconds] = useState(0)
   const [err, setErr] = useState('')
   const [reg, setReg] = useState('connecting')   // connecting | ready | error
-  const [regErr, setRegErr] = useState('')
+  const [regErr, _setRegErr] = useState('')
+  const setRegErr = (v) => { regErrRef.current = v || ''; _setRegErr(v) }
   const [keypad, setKeypad] = useState(false)
   const [vms, setVms] = useState([])
   const [vmMenu, setVmMenu] = useState(false)
@@ -68,12 +83,15 @@ export default function CallWidget() {
       try { const s = await navigator.mediaDevices.getUserMedia({ audio: true }); s.getTracks().forEach(t => t.stop()); return true }
       catch { setRegErr('Microphone is blocked — click the 🔒 in the address bar and allow the mic, or calls won\'t have audio.'); return false }
     }
+    // Throws on a failure worth retrying; resolves once the Device is registered.
     const init = async () => {
-      if (!(await waitForSdk())) { setReg('error'); setRegErr('Phone SDK failed to load'); return }
+      if (!(await waitForSdk())) { setReg('error'); setRegErr('Phone SDK failed to load'); throw new Error('sdk') }
       const Twilio = window.Twilio
       let tok
-      try { const r = await authFetch('/api/voice/token'); tok = await r.json() } catch { setReg('error'); setRegErr('Could not get a phone token'); return }
-      if (!tok || !tok.ok || !tok.token) { setReg('error'); setRegErr(tok?.error || 'Voice is not set up yet'); return }
+      // A restarting server answers with HTML, so r.json() throws here. That is a blip,
+      // not a configuration problem, and it must not be fatal.
+      try { const r = await authFetch('/api/voice/token'); tok = await r.json() } catch { setReg('error'); setRegErr('Could not get a phone token'); throw new Error('token') }
+      if (!tok || !tok.ok || !tok.token) { setReg('error'); setRegErr(tok?.error || 'Voice is not set up yet'); throw new Error(tok?.error || 'not set up') }
       if (cancelled) return
       try {
         // maxCallSignalingTimeoutMs: a dropped signaling websocket (error 31005)
@@ -96,23 +114,86 @@ export default function CallWidget() {
           wireCall(call)
         })
         await device.register()
-      } catch (e) { setReg('error'); setRegErr(e?.message || 'Phone failed to start') }
+      } catch (e) {
+        // a half-built Device must not look like a working one to ensureDevice()
+        try { deviceRef.current?.destroy() } catch {}
+        deviceRef.current = null
+        setReg('error'); setRegErr(e?.message || 'Phone failed to start')
+        throw e
+      }
     }
     const refreshToken = async () => { try { const r = await authFetch('/api/voice/token'); const t = await r.json(); if (t?.token && deviceRef.current) deviceRef.current.updateToken(t.token) } catch {} }
-    init()
+
+    // One attempt at a time; everyone waiting shares it.
+    const ensureDevice = () => {
+      if (deviceRef.current) return Promise.resolve(deviceRef.current)
+      if (initRef.current) return initRef.current
+      setReg('connecting')
+      initRef.current = init()
+        .then(() => { attemptRef.current = 0; return deviceRef.current })
+        .finally(() => { initRef.current = null })
+      return initRef.current
+    }
+
+    // Backoff: 2s, 4s, 8s, 15s, then every 30s. It keeps trying rather than giving up,
+    // because the usual cause clears itself within a minute.
+    const DELAYS = [2000, 4000, 8000, 15000, 30000]
+    const scheduleRetry = () => {
+      if (cancelled || deviceRef.current || retryRef.current) return
+      const wait = DELAYS[Math.min(attemptRef.current++, DELAYS.length - 1)]
+      retryRef.current = setTimeout(() => {
+        retryRef.current = null
+        if (cancelled || deviceRef.current) return
+        ensureDevice().catch(() => scheduleRetry())
+      }, wait)
+    }
+
+    ensureDevice().catch(() => scheduleRetry())
+
+    // Coming back to the tab, or back online, is the moment to try again immediately
+    // rather than sitting out the rest of a backoff.
+    const retryNow = () => {
+      if (cancelled || deviceRef.current || document.visibilityState === 'hidden') return
+      clearTimeout(retryRef.current); retryRef.current = null
+      attemptRef.current = 0
+      ensureDevice().catch(() => scheduleRetry())
+    }
+    window.addEventListener('online', retryNow)
+    document.addEventListener('visibilitychange', retryNow)
 
     // Global entry point used by Call buttons across the app.
     window.hubCall = async (number, name) => {
-      if (!deviceRef.current) { notify('The Hub phone is not connected yet. If this persists, Voice may still need setup in Settings.'); return }
       if (!number) return
+      // Connect on demand. Pressing Call is the clearest signal that the phone is wanted
+      // NOW, so it waits for one setup attempt instead of refusing outright.
+      let device = deviceRef.current
+      if (!device) {
+        setPeer({ number, name: name || '' }); setStatus('connecting')
+        try { device = await ensureDevice() } catch { device = null }
+      }
+      if (!device) {
+        setStatus('idle')
+        scheduleRetry()
+        notify(regErrRef.current
+          ? `The Hub phone could not connect: ${regErrRef.current}. Retrying — try again in a moment, or check Voice in Settings.`
+          : 'The Hub phone is not connected yet. Retrying — try again in a moment, or check Voice in Settings.')
+        return
+      }
       try {
         setPeer({ number, name: name || '' }); setStatus('connecting')
-        const call = await deviceRef.current.connect({ params: { To: number } })
+        const call = await device.connect({ params: { To: number } })
         wireCall(call)
       } catch (e) { setErr(e?.message || 'Could not place call'); endLocal() }
     }
 
-    return () => { cancelled = true; stopTimer(); try { window.hubCall = undefined; deviceRef.current?.destroy() } catch {} }
+    return () => {
+      cancelled = true; stopTimer()
+      clearTimeout(retryRef.current); retryRef.current = null
+      window.removeEventListener('online', retryNow)
+      document.removeEventListener('visibilitychange', retryNow)
+      try { window.hubCall = undefined; deviceRef.current?.destroy() } catch {}
+      deviceRef.current = null
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
