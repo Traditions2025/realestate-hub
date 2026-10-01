@@ -147,3 +147,32 @@ test('a dry run writes nothing', () => {
 test('undated rows are dropped rather than sorted to the top of the timeline', () => {
   assert.ok(src.includes('if (!row.occurred_at) continue'))
 })
+
+// ── the UI has to show them ──────────────────────────────────────────────────────────
+// The import is pointless if nothing renders it. The profile explicitly filtered
+// channel='note' OUT of the list, and the Notes tab showed the free-text notes field
+// instead — so 1,001 imported notes were invisible until this changed.
+const profile = fs.readFileSync(new URL('../src/pages/ClientProfile.jsx', import.meta.url), 'utf8')
+const clients = fs.readFileSync(new URL('../src/pages/Clients.jsx', import.meta.url), 'utf8')
+
+test('notes are no longer filtered out of the timeline', () => {
+  assert.ok(!profile.includes(".filter(m => m.channel !== 'note')"),
+    'that exclusion is what hid every imported note')
+})
+
+test('the note channel has its own icon and label', () => {
+  assert.ok(clients.includes("note: { icon: '📝', label: 'Note'"),
+    'without this a note renders as a bullet and the raw word "note"')
+})
+
+test('an internal note shows its author, not a direction', () => {
+  // a note is written ABOUT the lead, never sent to them, so "inbound" would be wrong
+  assert.ok(profile.includes("m.direction === 'internal'"))
+  assert.ok(profile.includes('· by {m.agent}'))
+})
+
+test('the Notes tab renders imported notes as well as typed ones', () => {
+  const tab = profile.slice(profile.indexOf("{filter === 'note' ? ("))
+  assert.ok(tab.includes('shown.map(m => <CommItem'), 'the imported rows must appear')
+  assert.ok(tab.includes('Load more notes'))
+})
