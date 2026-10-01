@@ -1022,6 +1022,27 @@ async function start() {
         const q = String(req.query.q || '').toLowerCase()
         if (q) out.match = out.updated_since.rows.filter(x => (x.name || '').toLowerCase().includes(q))
       } catch (e) { out.updated_since = { ok: false, error: String(e.message).slice(0, 220) } }
+      // PASS 2, exactly as the sync runs it: leadCreationDateFrom wants MM/dd/yyyy, not
+      // ISO. This is the pass meant to catch brand-new leads whose updateDate the first
+      // pass misses, so if a new registration is missing from the Hub, this is where to look.
+      try {
+        const d = since
+        const mmddyyyy = `${String(d.getUTCMonth() + 1).padStart(2, '0')}/${String(d.getUTCDate()).padStart(2, '0')}/${d.getUTCFullYear()}`
+        const r = await sierraGet('/leads/find', {
+          leadCreationDateFrom: mmddyyyy, includeSavedSearches: 'false', includeTags: 'false',
+          pageSize: 100, pageNumber: 1,
+        })
+        const data = r.data || r
+        const leads = data.leads || []
+        const q2 = String(req.query.q || '').toLowerCase()
+        out.created_since = {
+          ok: true, filter: mmddyyyy, count: leads.length,
+          match: leads.filter(l => `${l.firstName || ''} ${l.lastName || ''}`.toLowerCase().includes(q2))
+            .map(l => ({ id: l.id, name: `${l.firstName || ''} ${l.lastName || ''}`.trim(),
+                         email: l.emailAddress || l.email, created: l.creationDate,
+                         status: l.leadStatus, source: l.source })),
+        }
+      } catch (e) { out.created_since = { ok: false, error: String(e.message).slice(0, 220) } }
       res.json(out)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
