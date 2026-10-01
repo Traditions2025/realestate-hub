@@ -992,29 +992,33 @@ async function start() {
   // stage affects nobody until a lead is moved into it. Takes {dry:true}.
   // Read-only: can FUB be SEARCHED by email/phone before creating? That decides whether
   // pushing new Hub leads into FUB can be done without risking duplicates there.
-  // Read-only: does Sierra have this lead yet, and when did it register them? The Hub
-  // pulls website registrations from Sierra, so when one is missing this says whether the
-  // lead never arrived at Sierra or arrived and the sync skipped it.
+  // Read-only: does Sierra have this lead yet? Uses /leads/find, the same call the
+  // incremental sync makes - a guess at /leads returns 405. Distinguishes a lead that
+  // never reached Sierra from one that reached it and the sync skipped.
   app.get('/api/sierra/probe-lead', async (req, res) => {
     try {
       const { sierraGet } = await import('./sierra-helper.js')
-      const q = String(req.query.q || '')
-      const since = String(req.query.since || new Date(Date.now() - 6 * 3600e3).toISOString())
-      const out = {}
+      const hours = Math.min(Number(req.query.hours) || 12, 168)
+      const since = new Date(Date.now() - hours * 3600e3)
+      const iso = since.toISOString().slice(0, 19)
+      const out = { since: iso }
       try {
-        const b = await sierraGet('/leads', { search: q, limit: 5 })
-        const rows = b?.leads || b?.data || (Array.isArray(b) ? b : [])
-        out.search = { ok: true, returned: rows.length, rows: rows.slice(0, 5).map(r => ({
-          id: r.id, name: `${r.firstName || r.first_name || ''} ${r.lastName || r.last_name || ''}`.trim(),
-          email: r.email, created: r.createdDate || r.created_date || r.registerDate, source: r.source })) }
-      } catch (e) { out.search = { ok: false, error: String(e.message).slice(0, 200) } }
-      try {
-        const b = await sierraGet('/leads', { updatedAfter: since, limit: 10 })
-        const rows = b?.leads || b?.data || (Array.isArray(b) ? b : [])
-        out.recent = { ok: true, returned: rows.length, since, rows: rows.slice(0, 10).map(r => ({
-          id: r.id, name: `${r.firstName || r.first_name || ''} ${r.lastName || r.last_name || ''}`.trim(),
-          created: r.createdDate || r.created_date || r.registerDate })) }
-      } catch (e) { out.recent = { ok: false, error: String(e.message).slice(0, 200) } }
+        const r = await sierraGet('/leads/find', {
+          leadUpdateDateFrom: iso, includeSavedSearches: 'false', includeTags: 'false',
+          pageSize: 100, pageNumber: 1,
+        })
+        const data = r.data || r
+        const leads = data.leads || []
+        out.updated_since = {
+          ok: true, count: leads.length,
+          rows: leads.slice(0, 25).map(l => ({
+            id: l.id, name: `${l.firstName || ''} ${l.lastName || ''}`.trim(),
+            email: l.emailAddress || l.email, created: l.creationDate, updated: l.updateDate,
+          })),
+        }
+        const q = String(req.query.q || '').toLowerCase()
+        if (q) out.match = out.updated_since.rows.filter(x => (x.name || '').toLowerCase().includes(q))
+      } catch (e) { out.updated_since = { ok: false, error: String(e.message).slice(0, 220) } }
       res.json(out)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
