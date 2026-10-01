@@ -244,7 +244,7 @@ export default function ClientProfile() {
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
-          {assessorUrl(client) && <a className="lead-action-btn" href={assessorUrl(client)} target="_blank" rel="noopener noreferrer" title={`Opens the assessor search and copies "${assessorSearchTerm(client)}". Replace what is already in the box: it holds the last address you searched.`} onClick={() => copyAssessorAddress(client)}><span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
+          {assessorUrl(client) && <a className="lead-action-btn" href={assessorUrl(client)} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
           {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 14.5, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
@@ -592,52 +592,16 @@ const plusBtnStyle = { border: '1px solid var(--accent-border)', background: 'no
 // that takes an address and lands on a parcel. A resolver that finds and stores each
 // parcel id would make this a true deep link; until then this is one click away and,
 // unlike a scraper, it does not break when they redesign the site.
-/**
- * The county's Real Estate Search page.
- *
- * It used to point at /search/res/results.php?ifulladdress=…&process=1, which simply does
- * not exist on these sites: the link landed on an empty Residential Building Search and
- * "View Results" returned nothing at all (John, 2026-10-01).
- *
- * The right page is /search/res/, and it cannot be pre-filled from a URL — every query
- * parameter is ignored, because the search form sits behind a disclaimer the site makes
- * you accept first. So the button opens the correct page and puts the street address on
- * the clipboard, which makes it one paste: John's example, "6528 Medford Ln NE", is
- * exactly what finds the property.
- */
+// Deep-links the lead's street address into the county assessor's Real Estate Search.
+// Cedar Rapids has its own CITY assessor; everything else in the county is Linn.
 export function assessorUrl(client) {
   const street = String(client?.address || '').trim()
   if (!street) return null
-  // Cedar Rapids has its own CITY assessor; everything else in the county is Linn.
   const city = String(client?.city || '').trim().toLowerCase()
   const host = city === 'cedar rapids' ? 'cedarrapids' : 'linn'
-  return `https://${host}.iowaassessors.com/search/res/`
+  return `https://${host}.iowaassessors.com/search/res/results.php?ifulladdress=${encodeURIComponent(street)}&process=1`
 }
 
-/** The street address on its own — what the assessor's Address field wants. */
-export function assessorSearchTerm(client) {
-  return String(client?.address || '').trim()
-}
-
-/**
- * Put the street address on the clipboard as the assessor page opens.
- *
- * The wording matters. The assessor's search box comes back PRE-FILLED with whatever was
- * searched last, so pressing enter without replacing it silently re-runs the previous
- * client's property (John, 2026-10-01: on desktop "we just need to enter" — which is the
- * trap, not a shortcut). Verified: search one address, return to /search/res/, and the
- * field still holds it.
- *
- * Never blocks the link: the navigation is the point, the copy is a convenience, and
- * clipboard access can be refused (an insecure context, or permission denied).
- */
-export function copyAssessorAddress(client) {
-  const term = assessorSearchTerm(client)
-  if (!term) return
-  const msg = `Copied "${term}". Clear the search box before pasting: it still holds your last search.`
-  try {
-    navigator.clipboard?.writeText(term).then(() => notify(msg)).catch(() => {})
-  } catch {}
 }
 
 function ClientDetails({ client, onSaved, intent = null, intentLevel = null }) {
