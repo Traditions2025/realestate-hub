@@ -1000,8 +1000,10 @@ async function start() {
       const { sierraGet } = await import('./sierra-helper.js')
       const hours = Math.min(Number(req.query.hours) || 12, 168)
       const since = new Date(Date.now() - hours * 3600e3)
-      // Sierra rejects a bare timestamp: it wants a timezone designator, so keep the Z
-      const iso = since.toISOString()
+      // Sierra accepts ISO 8601 with the Z marker and WITHOUT milliseconds - the same
+      // shape toSierraDate() produces for the real sync. A bare timestamp, or one with
+      // milliseconds, comes back 400.
+      const iso = since.toISOString().replace(/\.\d{3}Z$/, 'Z')
       const out = { since: iso }
       try {
         const r = await sierraGet('/leads/find', {
