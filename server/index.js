@@ -1224,6 +1224,26 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: how big is an Active-first conversation sync? Counts the leads it covers
+  // and what the Hub already holds for them, before anything is fetched or written.
+  app.get('/api/fub/conversation-scope', async (_req, res) => {
+    try {
+      const linked = "merged_into IS NULL AND fub_person_id IS NOT NULL AND fub_person_id != ''"
+      const byStatus = db.all(
+        `SELECT lower(trim(status)) s, COUNT(*) n FROM clients WHERE ${linked}
+          GROUP BY lower(trim(status)) ORDER BY n DESC`)
+      const active = db.get(`SELECT COUNT(*) n FROM clients WHERE ${linked} AND lower(trim(status))='active'`).n
+      const comms = db.get(
+        `SELECT COUNT(*) n FROM communications WHERE client_id IN
+           (SELECT id FROM clients WHERE ${linked} AND lower(trim(status))='active')`).n
+      const already = db.get(
+        "SELECT COUNT(*) n FROM communications WHERE external_id LIKE 'fub_%'").n
+      res.json({ linked_total: db.get(`SELECT COUNT(*) n FROM clients WHERE ${linked}`).n,
+                 active_linked: active, by_status: byStatus,
+                 comms_rows_for_active: comms, fub_rows_already_imported: already })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
