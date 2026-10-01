@@ -145,12 +145,20 @@ export default function ClientProfile() {
     if (!client?.id) return
     e.preventDefault()
     if (assessorBusyRef.current) return
-    const tab = window.open('', '_blank', 'noopener')  // must happen in the click itself
+    // Opened in the click itself (after an await a popup blocker stops it), and sent
+    // STRAIGHT to the assessor's search page rather than left blank - their site can take
+    // the better part of a minute, and a blank tab for that long reads as broken. When the
+    // parcel lands the tab jumps to it; if it never resolves, he is already where he
+    // needs to be.
+    const tab = window.open(assessorUrl(client) || 'about:blank', '_blank', 'noopener')
     assessorBusyRef.current = true; setAssessorBusy(true)
     const done = (url) => {
       assessorBusyRef.current = false; setAssessorBusy(false)
       if (!tab || tab.closed) return
-      try { tab.location.replace(url) } catch { try { tab.close() } catch {} ; window.open(url, '_blank', 'noopener') }
+      // Nothing to jump to: leave him on the search page already open.
+      if (!url || url === assessorUrl(client)) return
+      // Writing location on a window we opened is allowed cross-origin; reading it is not.
+      try { tab.location.replace(url) } catch { window.open(url, '_blank', 'noopener') }
     }
     authFetch(`/api/clients/${client.id}/assessor`)
       .then(r => r.json())

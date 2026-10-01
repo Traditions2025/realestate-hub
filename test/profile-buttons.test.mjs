@@ -191,8 +191,8 @@ test('the button says what it will open', () => {
 // few seconds, and the href is only the fallback until it resolves.
 test('the tab is opened inside the click, not after the await', () => {
   // window.open after an await is what popup blockers stop
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 1200)
-  const open = fn.indexOf("window.open('', '_blank'")
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
+  const open = fn.indexOf('window.open(')
   const fetchAt = fn.indexOf('authFetch(')
   assert.ok(open > 0 && fetchAt > 0, 'both should be present')
   assert.ok(open < fetchAt, 'the tab must be opened before the lookup starts')
@@ -200,16 +200,25 @@ test('the tab is opened inside the click, not after the await', () => {
 })
 
 test('a resolved parcel is a plain link, with no handler in the way', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 400)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
   assert.match(fn, /if \(assessor\?\.parcel\) return/)
 })
 
 test('a failed lookup still opens something', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 1400)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
+  // the tab already sits on the search page, so a failure simply leaves it there
   assert.match(fn, /\.catch\(\(\) => done\(assessorUrl\(client\)\)\)/)
   assert.match(fn, /d\.parcel \|\| d\.search/)
+  assert.match(fn, /window\.open\(assessorUrl\(client\)/, 'it opens somewhere useful immediately')
 })
 
 test('a second click while one is running is ignored', () => {
   assert.match(src, /if \(assessorBusyRef\.current\) return/)
+})
+
+test('the waiting tab shows the assessor, never a blank page', () => {
+  // their site can take the better part of a minute; a blank tab that long reads as broken
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
+  assert.match(fn, /window\.open\(assessorUrl\(client\) \|\| 'about:blank'/)
+  assert.match(fn, /if \(!url \|\| url === assessorUrl\(client\)\) return/, 'no pointless re-navigation')
 })
