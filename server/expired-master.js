@@ -157,7 +157,7 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
     counts: { off_market: 0, back_on_market: 0, sold: 0, unknown: 0 },
     matched: 0, unmatched: 0, name_mismatch: 0, wrote: 0,
     junked: 0, already_junk: 0, created: 0,
-    unmatched_addresses: [], name_mismatches: [], would_junk: [], junk_new: [], junk_skipped_sold_old: [], would_create: [], skipped_company: [],
+    unmatched_addresses: [], name_mismatches: [], would_junk: [], junk_new: [], junk_skipped_sold_old: [], would_create: [], skipped_company: [], skipped_our_screen: [],
   }
 
   // Address+City index of live Hub clients (multiple people can share an address → keep a list).
@@ -192,6 +192,18 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       const hasName = row.name && !/^\(unknown\)$/.test(row.name)
       if (cls === 'off_market' && key && hasName && isCompanyName(row.name)) {
         report.skipped_company.push(`${row.name} — ${row.address}, ${row.city}`)
+        continue
+      }
+      // The master file keeps EVERY surfaced listing for the record, skips and all — a
+      // short-lived listing, an agent-owned one, an LLC (company-name check above already
+      // covers that one) all still show up here with Cancelled/Expired in the status
+      // column; the daily pull's own screening verdict ("Skipped, ...") is the FIRST thing
+      // written into the Notes blob (see build-master-file.js), so it's readable right off
+      // row.notes. Known gap since 2026-09-08 (Maurice Burt, Bernard Hughes), recurred
+      // 2026-10-01 (Joseph Saidi, Jaymee Glenn-Burns both short-lived/quick-pend, auto-
+      // created as real Hub leads anyway) before this check existed.
+      if (cls === 'off_market' && key && hasName && /^skipped\b/i.test(row.notes || '')) {
+        report.skipped_our_screen.push(`${row.name} — ${row.address}, ${row.city} (${row.notes.split(';')[0]})`)
         continue
       }
       const createable = cls === 'off_market' && key && hasName

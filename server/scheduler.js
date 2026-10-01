@@ -158,7 +158,7 @@ async function syncSierraIncremental() {
       if (stale) {
         const { syncExpiredMaster } = await import('./expired-master.js')
         const rep = await syncExpiredMaster()
-        console.log(`[scheduler] Expired master: ${rep.matched}/${rep.sheet_rows} matched, ${rep.wrote} written, ${rep.junked} junked, ${rep.unmatched} unmatched`)
+        console.log(`[scheduler] Expired master: ${rep.matched}/${rep.sheet_rows} matched, ${rep.wrote} written, ${rep.junked} junked, ${rep.unmatched} unmatched, ${rep.created} created, ${rep.skipped_our_screen.length} skipped (our own screen)`)
       }
     } catch (e) { console.error('[scheduler] Expired master sync error (non-fatal):', e.message) }
 
