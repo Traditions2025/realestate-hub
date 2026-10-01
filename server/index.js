@@ -1257,6 +1257,35 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: for a sample of leads per Hub status, what FUB stage do they hold today?
+  // Shows what a status-parity push would actually move, before anything is written.
+  app.get('/api/fub/status-crosstab', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const per = Math.min(Number(req.query.per) || 12, 40)
+      const statuses = String(req.query.statuses || 'new,closed,watch,prime,active,qualify,pending,not_in_market,archived')
+        .split(',').map(x => x.trim()).filter(Boolean)
+      const out = {}
+      for (const st of statuses) {
+        const rows = db.all(
+          `SELECT id, fub_person_id FROM clients
+            WHERE merged_into IS NULL AND fub_person_id IS NOT NULL AND fub_person_id != ''
+              AND lower(trim(status)) = ? ORDER BY RANDOM() LIMIT ?`, [st, per])
+        const tally = {}
+        for (const r of rows) {
+          try {
+            const p = await fubGet(`/people/${Number(r.fub_person_id)}`)
+            const stage = String(p?.stage || '(none)')
+            tally[stage] = (tally[stage] || 0) + 1
+          } catch (e) { tally['(error)'] = (tally['(error)'] || 0) + 1 }
+          await new Promise(s2 => setTimeout(s2, 260))
+        }
+        out[st] = { sampled: rows.length, fub_stages: tally }
+      }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/conversation-scope', async (_req, res) => {
     try {
       const linked = "merged_into IS NULL AND fub_person_id IS NOT NULL AND fub_person_id != ''"
