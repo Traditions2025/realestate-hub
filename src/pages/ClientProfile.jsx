@@ -972,7 +972,9 @@ function CommItem({ m }) {
           : <span>{out ? '↗ outbound' : '↙ inbound'}</span>}
         {aiSent && <span style={{ color: '#7c3aed', fontWeight: 700 }}>· HUB AI</span>}
         {m.duration_sec ? <span>· {fmtDur(m.duration_sec)}</span> : null}
-        {m.disposition ? <span>· {m.disposition}</span> : null}
+        {/* For a note the disposition holds the source system, which duplicates the
+            author when the system IS the author ("by Follow Up Boss · Follow Up Boss"). */}
+        {m.disposition && m.disposition !== m.agent ? <span>· {m.disposition}</span> : null}
         <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
       </div>
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}

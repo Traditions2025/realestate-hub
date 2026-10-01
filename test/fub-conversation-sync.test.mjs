@@ -176,3 +176,8 @@ test('the Notes tab renders imported notes as well as typed ones', () => {
   assert.ok(tab.includes('shown.map(m => <CommItem'), 'the imported rows must appear')
   assert.ok(tab.includes('Load more notes'))
 })
+
+test('a note does not repeat its source when the system is the author', () => {
+  // rendered as "Note · by Follow Up Boss · Follow Up Boss" before this
+  assert.ok(profile.includes('m.disposition !== m.agent'))
+})
