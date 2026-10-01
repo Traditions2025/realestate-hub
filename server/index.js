@@ -1144,6 +1144,27 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: the RAW event rows for one person, including `source` and `type`, which
+  // /activity/live strips out when it maps to fub_activity. Needed to answer why a lead
+  // did or did not trip the Facebook ad watcher, whose gate is source + type.
+  app.get('/api/fub/probe-person-events', async (req, res) => {
+    const pid = Number(req.query.personId) || 0
+    if (!pid) return res.status(400).json({ error: 'personId required' })
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const d = await fubGet('/events', { personId: pid, limit: 40, sort: '-created' })
+      res.json({
+        total: d?._metadata?.total ?? null,
+        events: (d?.events || []).map(e => ({
+          id: e.id, created: e.created, occurred: e.occurred, type: e.type, source: e.source,
+          message: String(e.message || '').slice(0, 300),
+          description: String(e.description || '').slice(0, 160),
+          property: e.property ? `${e.property.street || ''}, ${e.property.city || ''}` : null,
+        })),
+      })
+    } catch (e) { res.status(500).json({ error: e.message, status: e.status || null }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
