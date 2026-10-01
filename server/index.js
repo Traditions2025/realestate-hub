@@ -1046,6 +1046,36 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Second probe: the three things that decide the sync design.
+  //   1. webhooks  - push beats polling 264k notes
+  //   2. updatedAfter / sort - whether an incremental pull is even possible
+  //   3. per-person texts and emails - the only way to read those at all
+  app.get('/api/fub/probe-sync', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const out = {}
+      const t = async (label, ep, params) => {
+        try { const b = await fubGet(ep, params || {}); const k = Object.keys(b || {}).find(x => Array.isArray(b[x]))
+              out[label] = { ok: true, total: b?._metadata?.total ?? null, count: k ? b[k].length : 0,
+                             collection: k, first: k && b[k][0] ? b[k][0] : null } }
+        catch (e) { out[label] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 200) } }
+        await new Promise(s => setTimeout(s, 350))
+      }
+      await t('webhooks', '/webhooks')
+      await t('webhookEvents', '/webhookEvents')
+      await t('notes_sorted_desc', '/notes', { limit: 2, sort: '-updated' })
+      await t('notes_updatedAfter', '/notes', { limit: 2, updatedAfter: '2026-09-29T00:00:00Z' })
+      await t('calls_updatedAfter', '/calls', { limit: 2, updatedAfter: '2026-09-29T00:00:00Z' })
+      const pid = Number(req.query.personId) || 0
+      if (pid) {
+        await t('texts_for_person', '/textMessages', { personId: pid, limit: 3 })
+        await t('emails_for_person', '/emails', { personId: pid, limit: 3 })
+        await t('notes_for_person', '/notes', { personId: pid, limit: 3 })
+      }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
