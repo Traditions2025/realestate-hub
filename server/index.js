@@ -1000,7 +1000,8 @@ async function start() {
       const { sierraGet } = await import('./sierra-helper.js')
       const hours = Math.min(Number(req.query.hours) || 12, 168)
       const since = new Date(Date.now() - hours * 3600e3)
-      const iso = since.toISOString().slice(0, 19)
+      // Sierra rejects a bare timestamp: it wants a timezone designator, so keep the Z
+      const iso = since.toISOString()
       const out = { since: iso }
       try {
         const r = await sierraGet('/leads/find', {
