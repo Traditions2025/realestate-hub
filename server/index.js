@@ -1062,6 +1062,7 @@ async function start() {
         await new Promise(s => setTimeout(s, 350))
       }
       await t('webhooks', '/webhooks')
+      await t('sources', '/sources')
       await t('webhookEvents', '/webhookEvents')
       await t('notes_sorted_desc', '/notes', { limit: 2, sort: '-updated' })
       await t('notes_updatedAfter', '/notes', { limit: 2, updatedAfter: '2026-09-29T00:00:00Z' })
@@ -1169,21 +1170,24 @@ async function start() {
   // inquiry came in as source "Zillow", which the Facebook watcher's gate rejects, so
   // this measures how many leads that gate is letting past.
   app.get('/api/fub/probe-event-sources', async (req, res) => {
-    const want = Math.min(Number(req.query.pages) || 6, 20)
+    const want = Math.min(Number(req.query.pages) || 2, 4)
+    const startOffset = Math.max(Number(req.query.offset) || 0, 0)
     try {
       const { fubGet } = await import('./fub-helper.js')
       const LEAD = /registration|inquiry|lead/i
-      const bySource = {}, recent = []
+      const bySource = {}, recent = [], allSources = {}
       const sinceDays = Math.min(Number(req.query.days) || 30, 365)
       const cutoff = new Date(Date.now() - sinceDays * 864e5).toISOString()
       let scanned = 0, oldestSeen = null
       for (let i = 0; i < want; i++) {
-        const d = await fubGet('/events', { limit: 100, offset: i * 100, sort: '-created' })
+        const d = await fubGet('/events', { limit: 100, offset: startOffset + i * 100, sort: '-created' })
         const evs = d?.events || []
         if (!evs.length) break
         for (const e of evs) {
           scanned++
           oldestSeen = e.created
+          const anySrc = String(e.source || '(none)')
+          allSources[anySrc] = (allSources[anySrc] || 0) + 1
           if (String(e.created || '') < cutoff) continue
           if (!LEAD.test(String(e.type || ''))) continue
           const src = String(e.source || '(none)')
@@ -1196,7 +1200,8 @@ async function start() {
         if (String(evs[evs.length - 1]?.created || '') < cutoff) break
         await new Promise(s2 => setTimeout(s2, 350))
       }
-      res.json({ scanned, window_days: sinceDays, oldest_scanned: oldestSeen, by_source: bySource, recent })
+      res.json({ scanned, offset: startOffset, window_days: sinceDays, oldest_scanned: oldestSeen,
+                 by_source: bySource, all_sources_seen: allSources, recent })
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
