@@ -3,6 +3,7 @@ import SchedulingSettings from '../components/SchedulingSettings'
 import React, { useState, useEffect, useRef } from 'react'
 import { authFetch } from '../api'
 import RichTextEditor from '../components/RichTextEditor'
+import VoiceRecorder from '../components/VoiceRecorder'
 
 const EMPTY_ACCOUNT = { name: '', title: '', phone: '', email: '', brokerage: '' }
 
@@ -1186,7 +1187,7 @@ function VoiceRouting() {
       )}
       <div style={{ borderTop: '1px solid var(--border)', margin: '4px 0 12px' }} />
       <div style={{ fontSize: 15.5, fontWeight: 600, marginBottom: 6 }}>Voicemail greeting</div>
-      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '0 0 8px' }}>Upload your own voicemail greeting (MP3 or WAV) to play instead of the automated voice. Record it on your phone or computer and upload here.</p>
+      <p style={{ fontSize: 14.5, color: 'var(--text-muted)', margin: '0 0 8px' }}>Record your own voicemail greeting here, or upload an MP3/WAV, to play instead of the automated voice.</p>
       {vmUrl
         ? <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
             <audio controls src={vmUrl} style={{ height: 34 }} />
@@ -1194,7 +1195,11 @@ function VoiceRouting() {
             <button className="btn btn-sm" onClick={removeVm}>Remove (use automated voice)</button>
           </div>
         : <div style={{ marginBottom: 12 }}>
-            <button className="btn btn-sm btn-secondary" onClick={() => vmRef.current?.click()} disabled={vmBusy}>{vmBusy ? 'Uploading…' : '🎙 Upload greeting'}</button>
+            <button className="btn btn-sm btn-secondary" onClick={() => vmRef.current?.click()} disabled={vmBusy}>{vmBusy ? 'Uploading…' : '⬆ Upload greeting'}</button>
+        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>or</span>
+        <VoiceRecorder disabled={vmBusy} label="Record greeting" onReady={(blob) => {
+          if (blob) uploadVm(new File([blob], 'greeting.wav', { type: 'audio/wav' }))
+        }} />
             <span style={{ fontSize: 14.5, color: 'var(--text-muted)', marginLeft: 8 }}>Currently using the automated voice.</span>
           </div>}
       <input ref={vmRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => uploadVm(e.target.files?.[0])} />

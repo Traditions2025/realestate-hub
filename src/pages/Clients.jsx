@@ -3350,10 +3350,12 @@ export default function Clients() {
                     <span>Call</span>
                   </button>
                 )}
-                <button className="lead-action-btn lead-action-voicemail" title="Recorded voicemail drops — coming with Twilio" onClick={() => notify('Recorded voicemail drops are planned with Twilio. Coming soon.')}>
+                {/* Voicemail drops ARE built: record or upload clips on Templates, then drop one
+                    mid-call from the phone widget. This button used to say "coming soon",
+                    which is what John hit looking for the recorder (2026-10-01). */}
+                <button className="lead-action-btn lead-action-voicemail" title="Record or manage voicemail drops on the Templates tab, then drop one during a call" onClick={() => navigate('/templates')}>
                   <span className="lead-action-icon">🎙</span>
                   <span>Voicemail</span>
-                  <span className="lead-action-soon">soon</span>
                 </button>
                 <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}>
                   <span className="lead-action-icon">📝</span>

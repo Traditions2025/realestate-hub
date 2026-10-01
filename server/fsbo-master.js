@@ -63,19 +63,40 @@ export function parseCsv(text) {
   return rows
 }
 
-// Normalize an "FSBO Status" cell to a canonical value or null. Three real values:
+// Normalize an "FSBO Status" cell to a canonical value or null. Five real values:
 //   Available   — still for sale FSBO → active list + text sequence
 //   Pending     — under contract / spoken for → dead lead → Junk, off the list
+//   Sold        — it sold → dead lead → Junk, off the list
+//   Disregard   — they listed with an agent → dead lead → Junk, off the list
 //   Off Market  — withdrawn / expired, did NOT sell → stays on list (labeled), not texted
-// Pending and Off Market are DIFFERENT: only Pending is junked.
-function normStatus(v) {
+//
+// Off Market is the ONLY one of the four non-Available values that stays. The others are
+// finished, one way or another; Off Market means they tried and failed to sell alone,
+// which makes them a better prospect, not a worse one.
+//
+// Sold and Disregard used to fall through to null, and a null status makes the whole row
+// SKIPPED - which is not the same as removed. Four of the seven Disregard rows were still
+// sitting on the Hub's FSBO list, frozen at the "Off Market" they held before the sheet
+// was changed (John, 2026-10-01).
+export function normStatus(v) {
   const s = String(v || '').trim().toLowerCase()
   if (!s) return null
   if (s.startsWith('avail')) return 'Available'
   if (s.startsWith('pend') || s.includes('contract')) return 'Pending'
+  if (s.startsWith('sold')) return 'Sold'
+  if (s.startsWith('disregard')) return 'Disregard'
   if (s.startsWith('off') || s.startsWith('withdraw') || s.startsWith('expire')) return 'Off Market'
   return null
 }
+
+// The statuses that take a lead off the FSBO list, and why - the reason is written onto
+// the record so the profile says what happened rather than just going quiet.
+export const JUNK_FSBO_STATUS = {
+  Pending: 'Under Contract — FSBO went Pending, status changed to Junk (no longer an active FSBO)',
+  Sold: 'Sold — the FSBO sold, status changed to Junk (no longer an active FSBO)',
+  Disregard: 'Listed with an agent — status changed to Junk (no longer an FSBO)',
+}
+export const JUNK_FSBO_LABEL = { Pending: 'Under Contract', Sold: 'Sold', Disregard: 'Listed with an Agent' }
 
 // The list price lives inside the Notes column as a Zillow blob ("$170,000\n1235 14th St...").
 // Pull the first plausible whole-dollar price ($10k-$100M) that isn't a /mo or /sqft figure.
@@ -301,10 +322,16 @@ export async function syncFsboMaster() {
       db.run("UPDATE clients SET fsbo_status=NULL, fsbo_list_date=NULL, fsbo_dom=NULL, fsbo_listings=NULL, merged_into=?, updated_at=? WHERE id=?", [canonical.id, now, l.id])
       report.deduped++
     }
+    // Aggregating a seller with several listings: Available wins if ANY listing is still
+    // for sale. Otherwise take an ending the group actually carries (Sold, Disregard,
+    // Pending) before falling back to Off Market - the old fallback could relabel a seller
+    // who had sold, or listed with an agent, as merely Off Market and leave them on the list.
     const anyAvail = combined.some(x => String(x.status || '').toLowerCase() === 'available')
+    const groupEnding = ['Sold', 'Disregard', 'Pending']
+      .find(e => combined.some(x => String(x.status || '').toLowerCase() === e.toLowerCase()))
     const prim = combined.find(x => String(x.status || '').toLowerCase() === 'available') || combined[0] || {}
     db.run("UPDATE clients SET fsbo_listings=?, fsbo_status=?, address=COALESCE(?,address), fsbo_link=COALESCE(?,fsbo_link), updated_at=? WHERE id=?",
-      [JSON.stringify(combined), anyAvail ? 'Available' : (canonical.fsbo_status || 'Off Market'), prim.address || null, prim.link || null, now, canonical.id])
+      [JSON.stringify(combined), anyAvail ? 'Available' : (groupEnding || canonical.fsbo_status || 'Off Market'), prim.address || null, prim.link || null, now, canonical.id])
   }
   // ONE-TIME correction: an earlier rule wrongly junked Off Market FSBOs. Off Market is NOT
   // Pending — those sellers stay on the list. Restore any Off Market lead still sitting in Junk
@@ -318,13 +345,23 @@ export async function syncFsboMaster() {
   // active list and is moved to Junk, pulled out of every sequence. We keep fsbo_status =
   // 'Pending' as the record of WHY it left. Off Market (withdrawn/expired, did NOT sell) is
   // DIFFERENT: those stay on the list, labeled, and are simply not texted.
+  // Pending, Sold and Disregard all end the lead; Off Market does not (John, 2026-10-01).
+  // fsbo_status is kept as the record of WHICH ending it was.
   report.junked_pending = 0
-  for (const c of db.all("SELECT id, status FROM clients WHERE fsbo_status='Pending' AND merged_into IS NULL")) {
+  report.junked_by_status = {}
+  const ending = Object.keys(JUNK_FSBO_STATUS)
+  for (const c of db.all(
+    `SELECT id, status, fsbo_status FROM clients
+      WHERE fsbo_status IN (${ending.map(() => '?').join(',')}) AND merged_into IS NULL`, ending)) {
+    // Never clobber a record already in a terminal state - junk, do-not-contact, archived
+    // or closed. A closed lead in particular is somebody the team finished work with.
     if (isJunkish(c.status)) continue
+    const why = JUNK_FSBO_STATUS[c.fsbo_status]
     db.run("UPDATE clients SET status='junk', updated_at=? WHERE id=?", [now, c.id])
-    try { stopSequencesForClient(c.id, 'FSBO went Pending (under contract)') } catch {}
-    logMasterUpdate(c.id, 'fsbo', 'junked', 'Under Contract — FSBO went Pending, status changed to Junk (no longer an active FSBO)', { label: 'Under Contract' })
+    try { stopSequencesForClient(c.id, `FSBO ${c.fsbo_status}`) } catch {}
+    logMasterUpdate(c.id, 'fsbo', 'junked', why, { label: JUNK_FSBO_LABEL[c.fsbo_status] })
     report.junked_pending++
+    report.junked_by_status[c.fsbo_status] = (report.junked_by_status[c.fsbo_status] || 0) + 1
   }
   report.in_list_now = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != ''").n
   report.on_list = db.get("SELECT COUNT(*) n FROM clients WHERE fsbo_status IS NOT NULL AND fsbo_status != '' AND merged_into IS NULL AND lower(status) NOT IN ('junk','donotcontact','archived')").n

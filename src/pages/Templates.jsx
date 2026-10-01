@@ -5,6 +5,7 @@ import Modal from '../components/Modal'
 import EmailToolbar from '../components/EmailToolbar'
 import RichTextEditor from '../components/RichTextEditor'
 import { autoEmbedYoutubeLinks } from '../components/inlineImages'
+import VoiceRecorder from '../components/VoiceRecorder'
 
 const TYPE_OPTIONS = [
   { value: 'email', label: 'Email', icon: '✉' },
@@ -121,6 +122,7 @@ function VoicemailManager() {
   const [list, setList] = useState([])
   const [name, setName] = useState('')
   const [busy, setBusy] = useState(false)
+  const [recorded, setRecorded] = useState(null)
   const fileRef = useRef(null)
   const load = () => authFetch('/api/voicemails').then(r => r.json()).then(d => setList(Array.isArray(d) ? d : [])).catch(() => {})
   useEffect(() => { load() }, [])
@@ -128,7 +130,10 @@ function VoicemailManager() {
     if (!file) return
     setBusy(true)
     try {
-      const fd = new FormData(); fd.append('name', name.trim() || 'Voicemail'); fd.append('file', file)
+      const fd = new FormData(); fd.append('name', name.trim() || 'Voicemail')
+      // A recorded Blob has no filename. Busboy reads the type from the part, and the
+      // endpoint accepts only mp3/wav, so the name is given explicitly.
+      fd.append('file', file, file.name || 'recording.wav')
       const r = await authFetch('/api/voicemails', { method: 'POST', body: fd }); const d = await r.json()
       if (d.success) { setName(''); load() } else notify(d.error || 'Upload failed')
     } catch (e) { notify(e.message) } finally { setBusy(false); if (fileRef.current) fileRef.current.value = '' }
@@ -138,14 +143,24 @@ function VoicemailManager() {
     <section className="detail-section" style={{ marginBottom: 16 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <h3 style={{ margin: 0 }}>🎙 Voicemail Recordings</h3>
-        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Upload MP3/WAV clips (record on your phone or computer). Use them for one-click voicemail drops during a call.</span>
+        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Record one here, or upload an MP3/WAV. Use them for one-click voicemail drops during a call.</span>
       </div>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', margin: '12px 0' }}>
         <input value={name} onChange={e => setName(e.target.value)} placeholder="Name (e.g. Buyer follow-up drop)" style={{ padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, minWidth: 260 }} />
         <input ref={fileRef} type="file" accept="audio/mpeg,audio/mp3,audio/wav,.mp3,.wav" style={{ display: 'none' }} onChange={e => upload(e.target.files?.[0])} />
         <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => { if (!name.trim()) { notify('Give the voicemail a name first.'); return } fileRef.current?.click() }}>{busy ? 'Uploading…' : '＋ Upload MP3/WAV'}</button>
+        <span style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>or</span>
+        <VoiceRecorder disabled={busy} onReady={(blob) => {
+          if (!blob) { setRecorded(null); return }
+          if (!name.trim()) { notify('Give the voicemail a name first, then save the recording.'); setRecorded(blob); return }
+          setRecorded(blob)
+        }} />
+        {recorded && <button className="btn btn-primary btn-sm" disabled={busy} onClick={() => {
+          if (!name.trim()) { notify('Give the voicemail a name first.'); return }
+          upload(new File([recorded], 'recording.wav', { type: 'audio/wav' })); setRecorded(null)
+        }}>{busy ? 'Saving…' : '✓ Save recording'}</button>}
       </div>
-      {list.length === 0 ? <div style={{ fontSize: 15.5, color: 'var(--text-muted)' }}>No voicemails yet. Record one on your phone or computer and upload it here.</div> : (
+      {list.length === 0 ? <div style={{ fontSize: 15.5, color: 'var(--text-muted)' }}>No voicemails yet. Name one, then press Record.</div> : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {list.map(v => (
             <div key={v.id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
