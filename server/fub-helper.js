@@ -72,6 +72,30 @@ export async function fubPut(endpoint, body) {
   return resp.json()
 }
 
+/**
+ * Create something in FUB. Used for ONE thing: adding the stages the parity push needs
+ * (John, 2026-10-01). It never creates a PERSON - pulling leads out of FUB is what would
+ * make duplicates, and that rule has not changed.
+ */
+export async function fubPost(endpoint, body) {
+  const auth = authHeader()
+  if (!auth) throw new Error('Follow Up Boss API key not configured')
+  if (/^\/people/.test(String(endpoint))) throw new Error('refusing to create a person in FUB')
+  const resp = await fetch(`${FUB_API_URL}${endpoint}`, {
+    method: 'POST',
+    headers: { 'Authorization': auth, 'Content-Type': 'application/json', 'X-System': 'MattSmithTeamHub' },
+    body: JSON.stringify(body),
+  })
+  if (!resp.ok) {
+    let text = ''
+    try { text = (await resp.text()).slice(0, 300) } catch {}
+    const err = new Error(`FUB API ${resp.status} ${resp.statusText}${text ? ' — ' + text : ''}`)
+    err.status = resp.status
+    throw err
+  }
+  return resp.json()
+}
+
 /** Update one person's stage and/or tags. Returns the updated person. */
 export async function fubUpdatePerson(personId, { stage = null, tags = null } = {}) {
   const body = {}

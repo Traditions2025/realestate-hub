@@ -18,10 +18,53 @@
 // uses FUB's pipeline. Adding more mappings later is a line in STATUS_TO_STAGE.
 import db from './database.js'
 
+// HUB status -> FUB stage. Built so the two systems read the same and nobody has to
+// translate between them (John, 2026-10-01: "Mark McDermott shows Prime in HUB but in FUB
+// he shows as Seller (NURTURE)").
+//
+// The mapping is NOT guesswork - it follows where these people already sit in FUB, sampled
+// before any of it was written:
+//   closed  -> Past Client        (11 of 12 already there)
+//   pending -> Under Contract     (1 of 1)
+//   active  -> ACTIVE WITH AGENT  (5 of 10; FUB's own word for a working lead)
+//   not_in_market -> Not in the Market
+//   watch   -> Watch              (CREATED for this; FUB had no equivalent and those leads
+//                                  were scattered across Nurture, Seller (NURTURE) and six more)
+//
+// DELIBERATELY ABSENT:
+//   new     - 28,676 people, and in FUB about half are staged 'Realist', which records
+//             where the lead came from. Hub's 'new' does not carry that, so pushing would
+//             flatten ~20,000 records and lose the source for good (John's call).
+//   qualify, archived - a couple of people each and no clean FUB equivalent; guessing one
+//             would misfile them for no benefit.
 export const STATUS_TO_STAGE = {
   junk: 'Dead',
   donotcontact: 'Do not Contact',
+  closed: 'Past Client',
+  pending: 'Under Contract',
+  active: 'ACTIVE WITH AGENT',
+  not_in_market: 'Not in the Market',
+  watch: 'Watch',
 }
+
+// 'prime' is the one status FUB splits by who the person is, and it already does so:
+// High Probability Buyer vs High Probability Sellers. Taking the Hub's type keeps that
+// distinction instead of flattening both into one stage.
+export const PRIME_STAGE = { buyer: 'High Probability Buyer', seller: 'High Probability Sellers' }
+
+/** The FUB stage this lead should hold, or null when the Hub status is not mapped. */
+export function stageFor(client) {
+  const st = String(client?.status || '').trim().toLowerCase()
+  if (st === 'prime') {
+    const t = String(client?.type || '').trim().toLowerCase()
+    return PRIME_STAGE[t] || PRIME_STAGE.buyer
+  }
+  return STATUS_TO_STAGE[st] || null
+}
+
+// The stage that has to exist in FUB before a push can use it. Everything else in the
+// mapping was already in the account.
+export const STAGE_TO_CREATE = 'Watch'
 
 // Written onto the FUB record so anyone looking there can see where the decision came
 // from, rather than wondering why a lead went quiet.
@@ -69,9 +112,9 @@ export function namesAgree(a, b) {
  * way to tell where it had stopped. id is unique, so `afterId` never skips or repeats.
  */
 export function candidates({ limit = 1000, afterId = 0 } = {}) {
-  const statuses = Object.keys(STATUS_TO_STAGE)
+  const statuses = [...Object.keys(STATUS_TO_STAGE), 'prime']
   return db.all(
-    `SELECT id, first_name, last_name, email, status, fub_person_id, tags
+    `SELECT id, first_name, last_name, email, status, type, fub_person_id, tags
        FROM clients
       WHERE merged_into IS NULL
         AND fub_person_id IS NOT NULL AND fub_person_id != ''
@@ -82,7 +125,7 @@ export function candidates({ limit = 1000, afterId = 0 } = {}) {
 
 /** How many are left to look at from a cursor — so a caller knows when it is done. */
 export function remaining(afterId = 0) {
-  const statuses = Object.keys(STATUS_TO_STAGE)
+  const statuses = [...Object.keys(STATUS_TO_STAGE), 'prime']
   return db.get(
     `SELECT COUNT(*) n FROM clients
       WHERE merged_into IS NULL
@@ -96,7 +139,7 @@ export function remaining(afterId = 0) {
  * sending only the new tag would wipe everything else on the record.
  */
 export async function pushOne(client, { dryRun = false, force = false } = {}) {
-  const stage = STATUS_TO_STAGE[norm(client.status)]
+  const stage = stageFor(client)
   if (!stage) return { client_id: client.id, skipped: 'no mapping for ' + client.status }
   const personId = Number(client.fub_person_id)
   if (!personId) return { client_id: client.id, skipped: 'no fub id' }
@@ -133,7 +176,12 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
   if (currentStage === stage && currentTags.includes(PUSH_TAG))
     return { client_id: client.id, fub_id: personId, action: 'already-matches', stage }
 
-  if (PROTECTED_STAGE.test(currentStage) && !force) {
+  // The guard now applies ONLY to a demotion. Overwriting a meaningful stage is the whole
+  // point of the parity push - a Prime lead SHOULD stop reading as Seller (NURTURE) - but
+  // dropping a Past Client to Dead still loses history nobody asked to lose, so Dead and
+  // Do not Contact keep the protection (John, 2026-10-01).
+  const demoting = stage === 'Dead' || stage === 'Do not Contact'
+  if (demoting && PROTECTED_STAGE.test(currentStage) && !force) {
     return {
       client_id: client.id, fub_id: personId,
       name: `${client.first_name || ''} ${client.last_name || ''}`.trim(),
@@ -255,4 +303,26 @@ export async function revertPush(fubId, { stage = null, dryRun = false } = {}) {
        `FUB ${personId} (${name}): stage -> ${stage || 'unchanged'}, Hub tag removed (wrong link)`])
     return out
   } catch (e) { return { ...out, action: 'failed', error: e.message } }
+}
+
+/**
+ * Make sure every stage the mapping needs exists in FUB.
+ *
+ * Only 'Watch' is missing — the rest of the mapping follows stages the account already
+ * had. Creating a stage is additive and affects nobody until a lead is moved into it.
+ */
+export async function ensureStages({ dryRun = false } = {}) {
+  const { fubGet, fubPost } = await import('./fub-helper.js')
+  const d = await fubGet('/stages', { limit: 100 })
+  const have = new Set((d?.stages || []).map(x => String(x.name)))
+  const wanted = [...new Set([...Object.values(STATUS_TO_STAGE), ...Object.values(PRIME_STAGE)])]
+  const missing = wanted.filter(w => !have.has(w))
+  const out = { existing: have.size, wanted, missing, created: [], dry: dryRun }
+  if (dryRun || !missing.length) return out
+  for (const name of missing) {
+    try { await fubPost('/stages', { name }); out.created.push(name) }
+    catch (e) { out.error = `${name}: ${String(e.message).slice(0, 120)}`; break }
+    await new Promise(s => setTimeout(s, 300))
+  }
+  return out
 }

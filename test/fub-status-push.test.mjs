@@ -8,22 +8,54 @@ import assert from 'node:assert/strict'
 import fs from 'node:fs'
 import db, { initDb } from '../server/database.js'
 await initDb()
-const { STATUS_TO_STAGE, PUSH_TAG, candidates, pushOne, remaining, namesAgree } = await import('../server/fub-status-push.js')
+const { STATUS_TO_STAGE, PRIME_STAGE, stageFor, PUSH_TAG, candidates, pushOne, remaining, namesAgree } = await import('../server/fub-status-push.js')
 
 const src = fs.readFileSync(new URL('../server/fub-status-push.js', import.meta.url), 'utf8')
 const helper = fs.readFileSync(new URL('../server/fub-helper.js', import.meta.url), 'utf8')
 
-test('only Junk and Do Not Contact are mapped', () => {
-  // the other Hub statuses have no FUB equivalent, and inventing one would mean guessing
-  // at how the team uses their pipeline
-  assert.deepEqual(Object.keys(STATUS_TO_STAGE).sort(), ['donotcontact', 'junk'])
+// WIDENED 2026-10-01: it was Junk and Do Not Contact only. John asked for the two systems
+// to read the same, after finding Mark McDermott Prime in the Hub and Seller (NURTURE) in
+// FUB. The mapping follows where these people ALREADY sit in FUB, sampled first.
+test('the mapping covers the statuses with a real FUB equivalent', () => {
   assert.equal(STATUS_TO_STAGE.junk, 'Dead')
   assert.equal(STATUS_TO_STAGE.donotcontact, 'Do not Contact')
+  assert.equal(STATUS_TO_STAGE.closed, 'Past Client')          // 11 of 12 sampled already there
+  assert.equal(STATUS_TO_STAGE.pending, 'Under Contract')
+  assert.equal(STATUS_TO_STAGE.active, 'ACTIVE WITH AGENT')
+  assert.equal(STATUS_TO_STAGE.not_in_market, 'Not in the Market')
+  assert.equal(STATUS_TO_STAGE.watch, 'Watch')
 })
 
-test('the stages are ones FUB already has, not new ones', () => {
-  // Dead (15,919 people) and Do not Contact (285) both existed before this was built
-  assert.ok(!/POST.*\/stages|createStage/i.test(src), 'it must not create stages')
+// The one that must NOT be pushed: 28,676 people, about half staged 'Realist' in FUB,
+// which records where the lead came from. The Hub's 'new' does not carry that.
+test("'new' is deliberately absent, so the Realist source survives", () => {
+  assert.equal(STATUS_TO_STAGE.new, undefined)
+  assert.equal(stageFor({ status: 'new' }), null)
+})
+
+test('a couple of statuses with no clean equivalent are left alone', () => {
+  for (const st of ['qualify', 'archived', 'none'])
+    assert.equal(stageFor({ status: st }), null, `${st} should not be guessed at`)
+})
+
+// FUB splits this one by who the person is, and already does so.
+test('prime follows the lead type, buyer or seller', () => {
+  assert.equal(stageFor({ status: 'prime', type: 'seller' }), 'High Probability Sellers')
+  assert.equal(stageFor({ status: 'prime', type: 'buyer' }), 'High Probability Buyer')
+  assert.equal(stageFor({ status: 'PRIME', type: 'Seller' }), 'High Probability Sellers')
+  // an unknown type must still land somewhere sensible rather than nowhere
+  assert.equal(stageFor({ status: 'prime', type: '' }), PRIME_STAGE.buyer)
+})
+
+// CHANGED 2026-10-01: all but one stage already existed. FUB had no equivalent of Watch -
+// those leads were scattered across Nurture, Seller (NURTURE) and six others - so that one
+// is created. Creating a stage is additive and moves nobody by itself.
+test('only the missing stage is created, and creation is additive', () => {
+  const fn = src.slice(src.indexOf('export async function ensureStages'))
+  assert.match(fn, /const missing = wanted\.filter\(w => !have\.has\(w\)\)/,
+    'it must only create what is absent')
+  assert.match(fn, /fubPost\('\/stages'/)
+  assert.ok(!/DELETE|fubDelete/.test(fn), 'it never removes a stage')
 })
 
 test('nothing is ever pulled from FUB', () => {
@@ -31,9 +63,12 @@ test('nothing is ever pulled from FUB', () => {
   assert.match(src, /ONE DIRECTION ONLY/)
 })
 
-test('it never creates a person in FUB either', () => {
-  assert.ok(!/fubPost|method: 'POST'/.test(src), 'a missing FUB record is reported, not created')
-  assert.match(src, /not in FUB/)
+// POST exists now, for stages. The rule it used to enforce - never create a PERSON -
+// still holds, and is enforced in the helper rather than by the absence of POST.
+test('it never creates a person in FUB', () => {
+  assert.match(helper, /refusing to create a person in FUB/)
+  assert.ok(!/fubPost\('\/people/.test(src), 'nothing may post to /people')
+  assert.match(src, /not in FUB/, 'a missing record is reported, not created')
 })
 
 test('the write path is narrow: one person, no bulk, no delete', () => {
@@ -271,4 +306,19 @@ test('a revert dry run writes nothing', () => {
   assert.ok(before > 0, 'it must return before the write')
   // match a CALL, not the import destructure that names the same function
   assert.ok(!/fubUpdatePerson\(/.test(fn.slice(0, before)), 'no write may happen ahead of the dry-run return')
+})
+
+// The protection only covers a DEMOTION now. Overwriting a meaningful stage is the point
+// of parity - a Prime lead SHOULD stop reading as Seller (NURTURE) - but dropping a Past
+// Client to Dead still loses history (John, 2026-10-01).
+test('the stage guard applies to demotions only', () => {
+  assert.match(src, /const demoting = stage === 'Dead' \|\| stage === 'Do not Contact'/)
+  assert.match(src, /if \(demoting && PROTECTED_STAGE\.test\(currentStage\) && !force\)/)
+})
+
+test('prime leads are considered for a push', () => {
+  // candidates() keys off the mapping, and prime is computed rather than listed in it
+  assert.match(src, /\[\.\.\.Object\.keys\(STATUS_TO_STAGE\), 'prime'\]/)
+  assert.match(src, /SELECT id, first_name, last_name, email, status, type, fub_person_id/,
+    'the prime split needs the lead type')
 })

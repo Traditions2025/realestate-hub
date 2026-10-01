@@ -988,6 +988,15 @@ async function start() {
   // than inventing a parallel vocabulary (John, 2026-09-30). Read-only.
   // Push the Hub's status to FUB. One direction: the Hub is master for status.
   // POST {dry:true} to see the plan without touching anything.
+  // Create any stage the status mapping needs (only 'Watch' today). Additive: a new
+  // stage affects nobody until a lead is moved into it. Takes {dry:true}.
+  app.post('/api/fub/ensure-stages', async (req, res) => {
+    try {
+      const { ensureStages } = await import('./fub-status-push.js')
+      res.json(await ensureStages({ dryRun: !!req.body?.dry }))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.post('/api/fub/push-statuses', async (req, res) => {
     try {
       const { pushStatuses } = await import('./fub-status-push.js')
