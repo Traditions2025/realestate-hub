@@ -29,7 +29,8 @@ test('Cedar Rapids has its own city assessor, everywhere else is the county', ()
 test('both hosts are tried, because the city line does not decide it', () => {
   // both at once now: sequentially a miss on the first host cost a full round trip before
   // the second started, which is where the 27s worst case came from
-  assert.match(src, /Promise\.all\(\[first, second\]\.map/)
+  assert.match(src, /\[first, second\]/, 'both hosts are attempted')
+  assert.match(src, /await Promise\.all\(attempts\.map/, 'and they go at once')
   assert.match(src, /outside the city limits/i)
   // the city's own assessor must still win when both answer
   assert.match(src, /for \(const out of tried\)/)
@@ -156,4 +157,38 @@ test('the lookup never writes anything but the cache', () => {
   const writes = [...src.matchAll(/UPDATE\s+(\w+)\s+SET\s+([^']*?)WHERE/gis)].map(m => m[1] + ': ' + m[2].trim())
   assert.equal(writes.length, 1, 'exactly one write')
   assert.match(writes[0], /^clients: assessor_url = \?, assessor_checked_at = \?/)
+})
+
+// ── the two real misses, 2026-10-01 ──────────────────────────────────────────────────
+const { abbreviateStreet } = await import('../server/assessor-lookup.js')
+
+// "7114 E Park Ct NE" DID resolve - the guard threw the correct parcel away, because the
+// site prints the directional in full and only the street suffix was being expanded.
+test('a directional written in full is the same address', () => {
+  assert.ok(addressesAgree('7114 E Park Ct NE', '7114 EAST PARK CT NE CEDAR RAPIDS, IA 52402-0000'))
+  assert.ok(addressesAgree('100 N Oak St', '100 NORTH OAK STREET MARION, IA'))
+  assert.ok(addressesAgree('100 W 3rd Ave', '100 WEST 3RD AVENUE MARION, IA'))
+})
+
+test('opposite directions are still different addresses', () => {
+  assert.ok(!addressesAgree('100 Oak St N', '100 OAK STREET SOUTH CEDAR RAPIDS, IA'))
+  assert.ok(!addressesAgree('100 E Oak St', '100 WEST OAK ST CEDAR RAPIDS, IA'))
+})
+
+// "3731 Tanager Drive North" finds nothing; "3731 Tanager Dr N" lands on the parcel.
+test('a spelled-out street is also tried abbreviated', () => {
+  assert.equal(abbreviateStreet('3731 Tanager Drive North'), '3731 Tanager Dr N')
+  assert.equal(abbreviateStreet('12 Sunset Boulevard'), '12 Sunset Blvd')
+  assert.equal(abbreviateStreet('9 Elm Court South'), '9 Elm Ct S')
+})
+
+test('an address that is already abbreviated adds no extra request', () => {
+  for (const a of ['146 38th St NE', '609 Green Valley Ter SE', '1370 Wiley Blvd NW'])
+    assert.equal(abbreviateStreet(a), '', `${a} should produce no variant`)
+})
+
+test('both spellings and both hosts go at once', () => {
+  assert.match(src, /const spellings = \[street, abbreviateStreet\(street\)\]\.filter\(Boolean\)/)
+  assert.match(src, /for \(const host of \[first, second\]\) for \(const term of spellings\)/)
+  assert.match(src, /await Promise\.all\(attempts\.map/)
 })

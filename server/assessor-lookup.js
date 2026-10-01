@@ -63,6 +63,30 @@ const ABBREV = {
   CIR: 'CIRCLE', CIRCLE: 'CIRCLE', PL: 'PLACE', PLACE: 'PLACE', TER: 'TERRACE',
   TERRACE: 'TERRACE', PKWY: 'PARKWAY', PARKWAY: 'PARKWAY', HWY: 'HIGHWAY', HIGHWAY: 'HIGHWAY',
   TRL: 'TRAIL', TRAIL: 'TRAIL', WAY: 'WAY', SQ: 'SQUARE', SQUARE: 'SQUARE',
+  // Directionals matter as much as the suffix: the site prints "7114 EAST PARK CT NE" for
+  // "7114 E Park Ct NE", and without these the guard threw away a correct parcel.
+  N: 'NORTH', NORTH: 'NORTH', S: 'SOUTH', SOUTH: 'SOUTH',
+  E: 'EAST', EAST: 'EAST', W: 'WEST', WEST: 'WEST',
+}
+
+// The reverse, for the SEARCH term. "3731 Tanager Drive North" finds nothing; the same
+// address as "3731 Tanager Dr N" lands on the parcel, so the abbreviated form is tried too.
+const SHORTEN = {
+  STREET: 'ST', AVENUE: 'AVE', ROAD: 'RD', DRIVE: 'DR', LANE: 'LN', COURT: 'CT',
+  BOULEVARD: 'BLVD', CIRCLE: 'CIR', PLACE: 'PL', TERRACE: 'TER', PARKWAY: 'PKWY',
+  HIGHWAY: 'HWY', TRAIL: 'TRL', SQUARE: 'SQ',
+  NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W',
+}
+
+/** The abbreviated spelling of a street, or '' when it is already abbreviated. */
+export function abbreviateStreet(street) {
+  const words = String(street || '').trim().split(/\s+/)
+  const out = words.map(w => {
+    const key = w.toUpperCase().replace(/[^A-Z]/g, '')
+    return SHORTEN[key] ? (w === w.toUpperCase() ? SHORTEN[key] : SHORTEN[key].charAt(0) + SHORTEN[key].slice(1).toLowerCase()) : w
+  })
+  const joined = out.join(' ')
+  return joined.toUpperCase() === String(street || '').trim().toUpperCase() ? '' : joined
 }
 export function normAddress(s) {
   return String(s || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim()
@@ -195,15 +219,20 @@ export async function resolveParcel(address, city) {
   const first = assessorHost(city)
   const second = first === 'cedarrapids' ? 'linn' : 'cedarrapids'
 
-  // Both hosts at once. Sequentially this took up to 27s, because a miss on the first host
-  // pays for a full four-request round trip before the second even starts - and the city
-  // line is wrong often enough to matter (3 of 9). It is one lookup per lead ever, since
-  // the answer is cached, so the extra request is worth not making someone wait.
-  const tried = await Promise.all([first, second].map(async (host) => {
-    try { return { host, ...(await lookupOn(host, street)) } }
-    catch (e) { return { host, error: e.message } }
+  // Every host and spelling at once. Sequentially this took up to 27s, because a miss on
+  // the first host paid a full four-request round trip before the second even started, and
+  // the city line is wrong often enough to matter (3 of 9). Running them together keeps the
+  // wait to a single round trip, and it is one lookup per lead ever because it is cached.
+  const spellings = [street, abbreviateStreet(street)].filter(Boolean)
+  const attempts = []
+  for (const host of [first, second]) for (const term of spellings) attempts.push({ host, term })
+
+  const tried = await Promise.all(attempts.map(async ({ host, term }) => {
+    try { return { host, term, ...(await lookupOn(host, term)) } }
+    catch (e) { return { host, term, error: e.message } }
   }))
-  // The city's own assessor wins when both answer, which is the order they were tried in.
+  // Order decides the winner: the city's own assessor before the county, and the address as
+  // written before the abbreviated guess.
   for (const out of tried) {
     if (out.error || !out.url) continue
     // Never hand back a parcel that is not the address asked for.
