@@ -303,3 +303,69 @@ export async function importConversations({ status = 'active', dryRun = false, l
   }
   return out
 }
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// BULK, FOR A FULL BACKFILL
+//
+// Per-person is right for a scoped run; for the whole base it is the wrong shape. Three
+// calls per lead at 260ms is about six hours for the 28,676 'new' leads alone. Notes and
+// calls can be paged in bulk instead - 264k notes in ~2,600 calls, roughly eleven minutes
+// - and notes were 263 of 343 rows in a sample, so bulk covers the large majority of the
+// value in minutes. Texts stay per-person because FUB requires a personId for those.
+//
+// Rows for people the Hub does not know are DROPPED, never inserted as orphans and never
+// used to create a lead: pulling leads out of FUB is what would make duplicates.
+
+/** Page a bulk endpoint, mapping and storing as it goes. */
+export async function importBulk(kind, { dryRun = false, pages = 50, pageSize = 100,
+                                         offset = 0, delayMs = 260, since = null } = {}) {
+  const spec = CHANNELS.find(c => c.kind === kind)
+  if (!spec) return { error: `no such channel: ${kind}` }
+  const people = personMap()
+  const { fubGet } = await import('./fub-helper.js')
+  const out = { kind, dry: dryRun, pages: 0, fetched: 0, added: 0, unmatched: 0,
+                skipped_own: 0, offset_start: offset, next_offset: offset, done: false }
+
+  for (let p = 0; p < pages; p++) {
+    const params = { limit: pageSize, offset: out.next_offset, sort: 'created' }
+    if (since) params.updatedAfter = since
+    let rows = []
+    try {
+      const b = await fubGet(spec.endpoint, params)
+      const key = Object.keys(b || {}).find(k => Array.isArray(b[k]))
+      rows = key ? b[key] : []
+      if (out.total == null) out.total = b?._metadata?.total ?? null
+    } catch (e) { out.error = String(e.message).slice(0, 120); break }
+
+    out.pages++
+    out.fetched += rows.length
+    if (!rows.length) { out.done = true; break }
+
+    for (const r of rows) {
+      if (String(r.systemName || '') === HUB_SYSTEM_NAME) { out.skipped_own++; continue }
+      const who = people.get(String(r.personId))
+      if (!who) { out.unmatched++; continue }      // not a Hub lead: drop it, never create one
+      const row = spec.map(r, who)
+      if (!row.occurred_at) continue
+      if (!dryRun) out.added += storeRow(row)
+      else out.added++
+    }
+    out.next_offset += rows.length
+    if (rows.length < pageSize) { out.done = true; break }
+
+    // the disk is watched as it goes; a full backfill is exactly when it could fill
+    const free = freeGb()
+    if (!dryRun && free != null && free < MIN_FREE_GB) {
+      out.stopped = `disk fell to ${free.toFixed(2)} GB free, below the ${MIN_FREE_GB} GB floor`
+      break
+    }
+    await new Promise(s => setTimeout(s, delayMs))
+  }
+  const free = freeGb()
+  out.free_gb = free == null ? null : +free.toFixed(2)
+  if (!dryRun && out.added) {
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['fub_bulk_imported', 'system', null, `${out.added} ${kind} rows (offset ${out.offset_start} to ${out.next_offset})`])
+  }
+  return out
+}

@@ -1242,6 +1242,21 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Bulk backfill for notes/calls - the full-history path. Paged and resumable by offset,
+  // so a long run goes in short requests instead of one that outlives the proxy.
+  app.post('/api/fub/import-bulk', async (req, res) => {
+    try {
+      const { importBulk } = await import('./fub-conversation-sync.js')
+      res.json(await importBulk(String(req.body?.kind || 'note'), {
+        dryRun: !!req.body?.dry,
+        pages: Math.min(Number(req.body?.pages) || 10, 40),
+        pageSize: Math.min(Number(req.body?.pageSize) || 100, 100),
+        offset: Math.max(Number(req.body?.offset) || 0, 0),
+        since: req.body?.since || null,
+      }))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/conversation-scope', async (_req, res) => {
     try {
       const linked = "merged_into IS NULL AND fub_person_id IS NOT NULL AND fub_person_id != ''"
