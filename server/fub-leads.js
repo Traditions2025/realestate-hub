@@ -1,11 +1,14 @@
-// FUB → Hub FACEBOOK-AD LEAD WATCHER. Facebook's lead ads deliver into FUB; this
-// watches FUB's event stream (lead registrations/inquiries — NOT the people
-// database) and ingests ONLY Facebook-ad events into the Hub, so the team gets
-// the notification + instant AI first touch the FUB side never provides.
+// FUB → Hub PORTAL LEAD WATCHER. Facebook lead ads and the listing portals deliver into
+// FUB; this watches FUB's event stream (lead registrations/inquiries — NOT the people
+// database) and ingests only those events into the Hub, so the team gets the notification
+// the FUB side never provides — plus, for Facebook ads, the instant AI first touch.
+//
+// Facebook-only until 2026-10-01, which is why a Zillow inquiry on 510 Broadway was
+// missed. Now watches Zillow, Realtor.com and Homes.com too (DEFAULT_WATCH_SOURCES).
 //
 // HARD SCOPE RULES (the Hub must never mass-import FUB):
 //   - reads /v1/events only — never walks /v1/people
-//   - only events whose SOURCE matches the Facebook lead-ads integration
+//   - only events whose SOURCE is one of the watched portals
 //   - only events with a lead-ish TYPE (registration / inquiry / lead)
 //   - cursor starts at "now" on first run — zero historical import
 //   - every candidate passes the shared intake dedupe (phone, then email), so an
@@ -17,11 +20,57 @@ import { fubGet, fubConfigured } from './fub-helper.js'
 import { ingestFbLead } from './lead-intake.js'
 
 const nowIso = () => new Date().toISOString()
-const FB_SOURCE_RE = /facebook|instagram lead/i
 const LEAD_TYPE_RE = /registration|inquiry|lead/i
 
+// WHICH LEAD SOURCES THIS WATCHES (John, 2026-10-01).
+//
+// It was Facebook-only, which is why Dawn Moore was missed: her 510 Broadway inquiry came
+// in as source "Zillow" and the gate rejected it. John asked for Zillow, Realtor.com and
+// Homes.com as well.
+//
+// A setting rather than a constant, so another portal can be added without a deploy. The
+// names are matched case-insensitively as substrings, which covers the real spellings in
+// the Hub's own source list: "Zillow" and "FSBO Zillow", "Realtor" and "Realtor.com",
+// "Homes.com".
+//
+// DELIBERATELY ABSENT: mattsmithteam.com and Sierra Interactive. Those leads already reach
+// the Hub through the Sierra sync, so watching them here would mean a second notification
+// and duplicate outreach to people the team is already working.
+export const DEFAULT_WATCH_SOURCES = 'facebook,instagram lead,zillow,realtor,homes.com'
+
+export function watchedSources() {
+  return String(db.getSetting('lead_watch_sources', DEFAULT_WATCH_SOURCES) || DEFAULT_WATCH_SOURCES)
+    .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+}
+
+/** Does this source string name one of the watched portals? Returns the match, or ''. */
+export function matchWatchedSource(source) {
+  const s = String(source || '').toLowerCase()
+  if (!s) return ''
+  return watchedSources().find(w => s.includes(w)) || ''
+}
+
+/**
+ * Which portal a lead came from, in presentable form.
+ *
+ * The label decides the tag, the note, the notification wording and - the part that
+ * matters - whether the Facebook ad automation runs. John's opener bank is written for
+ * Facebook ads and references the ad, so it must never go to a Zillow inquiry.
+ */
+export function portalLabel(source) {
+  const s = String(source || '').toLowerCase()
+  if (/instagram/.test(s)) return 'Instagram'
+  if (/facebook/.test(s)) return 'Facebook'
+  if (/zillow/.test(s)) return 'Zillow'
+  if (/realtor/.test(s)) return 'Realtor.com'
+  if (/homes\.com/.test(s)) return 'Homes.com'
+  return String(source || '').trim() || 'Unknown'
+}
+
+export const isFacebookPortal = (label) => /facebook|instagram/i.test(String(label || ''))
+
 function looksLikeAdEvent(e) {
-  return FB_SOURCE_RE.test(String(e.source || '')) && LEAD_TYPE_RE.test(String(e.type || ''))
+  return !!matchWatchedSource(e.source) && LEAD_TYPE_RE.test(String(e.type || ''))
 }
 
 function extractLead(e) {
@@ -46,6 +95,7 @@ function extractLead(e) {
     || (msg.match(/(0-3|1-3|3-6|6-12)\s*_?months|just curious[^.\n]*/i) || [''])[0]).replace(/_/g, ' ')
   const lender = line(/working with a lender\??:?\s*(yes|no)/i)
   return { first, last, email, phone, listing: String(listing).slice(0, 80),
+    portal: portalLabel(e.source),
     timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(), raw: msg.slice(0, 4000) }
 }
 
@@ -70,15 +120,29 @@ async function hydrate(e) {
 //        tag, notify, AI first text via the fresh lane)
 //   "Lead Alert from Facebook - <name>" → existing person re-registered: tag +
 //        note + notification ONLY (no new record, no auto-AI)
-// Hot Sheet digests and other sources (Zillow etc) are ignored. Idempotent by
-// Message-ID; gated by fub_lead_email_enabled (ships OFF).
+// As of 2026-10-01 the same applies to Zillow, Realtor.com and Homes.com - see
+// DEFAULT_WATCH_SOURCES. Only Facebook gets the automated opener; a portal lead
+// gets the record, the tag, the note and the alert, because John's opener bank is
+// written for Facebook ads and would read wrong to a Zillow enquirer.
+// Hot Sheet digests are ignored, as are mattsmithteam.com and Sierra Interactive,
+// which already arrive through the Sierra sync. Idempotent by Message-ID; gated by
+// fub_lead_email_enabled (ships OFF).
 export function parseFubLeadEmail(subject, text) {
   const subj = String(subject || '')
   const body = String(text || '')
-  const isFacebook = /from facebook/i.test(subj) || /named [^\n]{2,60} from facebook|alert for [^\n]{2,60} from facebook/i.test(body)
   const isNew = /^new lead from/i.test(subj.trim())
   const isAlert = /lead alert/i.test(subj)
-  if (!isFacebook || (!isNew && !isAlert)) return null
+  if (!isNew && !isAlert) return null
+  // The source named after "from", in the subject first and then the body. The subject is
+  // authoritative; see the meta note in handleFubLeadEmail.
+  const named = (subj.match(/(?:new lead|lead alert)\s+from\s+([^-–\n]+)/i)
+    || body.match(/(?:named|alert for)\s+[^\n]{2,60}\s+from\s+([A-Za-z0-9.\- ]{3,30})/i)
+    || [])[1] || ''
+  // Match the watched list against the named source, and fall back to scanning the whole
+  // subject and body - some notifications word it differently.
+  const matched = matchWatchedSource(named) || matchWatchedSource(subj) || matchWatchedSource(body)
+  if (!matched) return null
+  const portal = portalLabel(named.trim() || matched)
   // subject: "New Lead from Facebook - Rich Gholston" / "Lead Alert from Facebook - Steven Franklin - $499,000"
   const parts = subj.split(' - ').map(s => s.trim())
   let name = parts[1] || ''
@@ -92,6 +156,7 @@ export function parseFubLeadEmail(subject, text) {
   const listing = line(/^form:\s*(.+)$/im) || line(/^ad(?: campaign)?:\s*(.+)$/im) || ''
   return {
     kind: isNew ? 'new' : 'alert',
+    portal,
     first: nm[0] || '', last: nm.slice(1).join(' ') || '',
     phone, email, listing: String(listing).slice(0, 80),
     timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(),
@@ -103,11 +168,11 @@ export async function handleFubLeadEmail(parsedMail) {
   if (db.getSetting('fub_lead_email_enabled', '0') !== '1') return { skipped: 'disabled' }
   const html = String(parsedMail.html || '')
   const lead = parseFubLeadEmail(parsedMail.subject, String(parsedMail.text || html.replace(/<[^>]+>/g, ' ')))
-  if (!lead) return { skipped: 'not a Facebook lead email' }
+  if (!lead) return { skipped: 'not a watched lead source' }
   // The FUB email carries machine-readable meta tags — prefer them over text parsing.
   // NOTE: the meta source can disagree with a Facebook subject (Christi Masters'
   // alert said "from Facebook" in the subject but meta source "mattsmithteam.com").
-  // The SUBJECT is authoritative for the Facebook check — meta never vetoes it.
+  // The SUBJECT is authoritative for the source check — meta never vetoes it.
   const meta = (n) => { const m = html.match(new RegExp(`<meta name="lead_${n}" content="([^"]*)"`, 'i')); return m ? m[1].trim() : '' }
   const mName = meta('name'); if (mName) { const nm = mName.split(/\s+/); lead.first = nm[0] || lead.first; lead.last = nm.slice(1).join(' ') || lead.last }
   if (meta('phone')) lead.phone = meta('phone')

@@ -52,9 +52,19 @@ test('ALERT (existing lead) Facebook email parses, price in subject handled', ()
   assert.match(r.timeline, /lender: yes/)
 })
 
-test('non-Facebook and digest emails are ignored', () => {
-  assert.equal(f.parseFubLeadEmail('New Lead from Zillow - Kelley Mc - $334,900',
-    "You've received a new lead named Kelley Mc from Zillow interested in 510 Broadway St, Springville, IA 52336 ($334900) KM (319) 480-8898 kelleymcn@gmail.com"), null)
+// CHANGED 2026-10-01: Zillow used to be ignored here, which is why Dawn Moore's 510
+// Broadway inquiry was missed. John asked for Zillow, Realtor.com and Homes.com to be
+// watched too, so this now asserts the portals are ingested AND that the sources which
+// already arrive via the Sierra sync are still left alone.
+test('watched portals are ingested, and digests and website leads are still ignored', () => {
+  const zillow = f.parseFubLeadEmail('New Lead from Zillow - Kelley Mc - $334,900',
+    "You've received a new lead named Kelley Mc from Zillow interested in 510 Broadway St, Springville, IA 52336 ($334900) KM (319) 480-8898 kelleymcn@gmail.com")
+  assert.ok(zillow, 'a Zillow lead must now be ingested')
+  assert.equal(zillow.portal, 'Zillow')
+  assert.equal(zillow.first, 'Kelley')
+  assert.equal(zillow.last, 'Mc', 'the price must not be read as the name')
+
+  // the team's own website: already synced from Sierra, so watching it would double up
   assert.equal(f.parseFubLeadEmail('Lead Alert for Brian Boss',
     'Follow Up Boss Lead alert for Brian Boss from cedarrapidshomeforsale (319) 390-8095 boss-brian@aramark.com'), null)
   assert.equal(f.parseFubLeadEmail('Follow Up Boss Hot Sheet: Thursday, September 17',
