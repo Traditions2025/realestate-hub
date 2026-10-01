@@ -27,8 +27,12 @@ test('Cedar Rapids has its own city assessor, everywhere else is the county', ()
 // 3 of the 9 addresses that resolved only did so on the OTHER host: a Cedar Rapids postal
 // address can sit outside the city limits and belong to the county assessor.
 test('both hosts are tried, because the city line does not decide it', () => {
-  assert.match(src, /for \(const host of \[first, second\]\)/)
+  // both at once now: sequentially a miss on the first host cost a full round trip before
+  // the second started, which is where the 27s worst case came from
+  assert.match(src, /Promise\.all\(\[first, second\]\.map/)
   assert.match(src, /outside the city limits/i)
+  // the city's own assessor must still win when both answer
+  assert.match(src, /for \(const out of tried\)/)
 })
 
 test('the search page is a real page, with no query string', () => {

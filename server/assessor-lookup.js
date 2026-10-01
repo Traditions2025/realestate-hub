@@ -195,13 +195,20 @@ export async function resolveParcel(address, city) {
   const first = assessorHost(city)
   const second = first === 'cedarrapids' ? 'linn' : 'cedarrapids'
 
-  for (const host of [first, second]) {
-    let out
-    try { out = await lookupOn(host, street) } catch (e) { out = { error: e.message } }
+  // Both hosts at once. Sequentially this took up to 27s, because a miss on the first host
+  // pays for a full four-request round trip before the second even starts - and the city
+  // line is wrong often enough to matter (3 of 9). It is one lookup per lead ever, since
+  // the answer is cached, so the extra request is worth not making someone wait.
+  const tried = await Promise.all([first, second].map(async (host) => {
+    try { return { host, ...(await lookupOn(host, street)) } }
+    catch (e) { return { host, error: e.message } }
+  }))
+  // The city's own assessor wins when both answer, which is the order they were tried in.
+  for (const out of tried) {
     if (out.error || !out.url) continue
     // Never hand back a parcel that is not the address asked for.
     if (!addressesAgree(street, out.shown)) continue
-    return { url: out.url, shown: out.shown, host, fell_back: host !== first }
+    return { url: out.url, shown: out.shown, host: out.host, fell_back: out.host !== first }
   }
   return { error: 'not found on either assessor' }
 }

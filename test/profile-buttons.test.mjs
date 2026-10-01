@@ -171,17 +171,45 @@ test('the button prefers the resolved parcel over the fallback', () => {
 test('the parcel is resolved when the profile opens, not when the button is clicked', () => {
   // opening a tab after an await is what popup blockers stop, and the lookup is not instant
   assert.match(src, /\/api\/clients\/\$\{client\.id\}\/assessor/)
-  const eff = src.slice(src.indexOf('const [assessor, setAssessor]'), src.indexOf('const [assessor, setAssessor]') + 1400)
-  assert.match(eff, /useEffect\(/)
+  const at = src.indexOf('setAssessor(null)')
+  assert.ok(at > 0, 'the prefetch effect should exist')
+  const eff = src.slice(at, at + 700)
   assert.match(eff, /\[client\?\.id, client\?\.address\]/, 're-resolve if the address changes')
 })
 
 test('a lead with no address is never looked up', () => {
-  const eff = src.slice(src.indexOf('const [assessor, setAssessor]'), src.indexOf('const [assessor, setAssessor]') + 1400)
-  assert.match(eff, /if \(!String\(client\.address \|\| ''\)\.trim\(\)\) return/)
+  assert.match(src, /if \(!String\(client\.address \|\| ''\)\.trim\(\)\) return/)
 })
 
 test('the button says what it will open', () => {
   assert.match(src, /title=\{assessor\?\.parcel/)
   assert.match(src, /Looking up the parcel/)
+})
+
+// ── clicking before the lookup finishes ──────────────────────────────────────────────
+// John, 2026-10-01: clicking still landed on an empty search box. A cold lookup takes a
+// few seconds, and the href is only the fallback until it resolves.
+test('the tab is opened inside the click, not after the await', () => {
+  // window.open after an await is what popup blockers stop
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 1200)
+  const open = fn.indexOf("window.open('', '_blank'")
+  const fetchAt = fn.indexOf('authFetch(')
+  assert.ok(open > 0 && fetchAt > 0, 'both should be present')
+  assert.ok(open < fetchAt, 'the tab must be opened before the lookup starts')
+  assert.match(fn, /tab\.location\.replace/)
+})
+
+test('a resolved parcel is a plain link, with no handler in the way', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 400)
+  assert.match(fn, /if \(assessor\?\.parcel\) return/)
+})
+
+test('a failed lookup still opens something', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 1400)
+  assert.match(fn, /\.catch\(\(\) => done\(assessorUrl\(client\)\)\)/)
+  assert.match(fn, /d\.parcel \|\| d\.search/)
+})
+
+test('a second click while one is running is ignored', () => {
+  assert.match(src, /if \(assessorBusyRef\.current\) return/)
 })

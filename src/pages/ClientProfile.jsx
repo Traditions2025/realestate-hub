@@ -133,6 +133,34 @@ export default function ClientProfile() {
   // works - it just points at the search page, which is where it pointed before.
   const [assessor, setAssessor] = useState(null)
 
+  // Clicking before the lookup has finished used to land on an empty search box - the
+  // thing John asked about. A cold lookup takes a few seconds, so the tab is opened
+  // SYNCHRONOUSLY here (opening it after an await is what popup blockers stop) and pointed
+  // at the parcel the moment it resolves. Once cached this never runs: the href is already
+  // the parcel and the browser follows it normally.
+  const assessorBusyRef = useRef(false)
+  const [assessorBusy, setAssessorBusy] = useState(false)
+  const openAssessor = (e) => {
+    if (assessor?.parcel) return                       // already a real link, let it through
+    if (!client?.id) return
+    e.preventDefault()
+    if (assessorBusyRef.current) return
+    const tab = window.open('', '_blank', 'noopener')  // must happen in the click itself
+    assessorBusyRef.current = true; setAssessorBusy(true)
+    const done = (url) => {
+      assessorBusyRef.current = false; setAssessorBusy(false)
+      if (!tab || tab.closed) return
+      try { tab.location.replace(url) } catch { try { tab.close() } catch {} ; window.open(url, '_blank', 'noopener') }
+    }
+    authFetch(`/api/clients/${client.id}/assessor`)
+      .then(r => r.json())
+      .then(d => {
+        if (d && !d.error) setAssessor(d)
+        done((d && (d.parcel || d.search)) || assessorUrl(client))
+      })
+      .catch(() => done(assessorUrl(client)))
+  }
+
   // Resolved on open rather than on click: the lookup talks to the assessor's site and
   // takes a moment, and opening a tab after an await is what popup blockers stop. By the
   // time the button is pressed the real link is usually already in it, and once resolved
@@ -264,9 +292,10 @@ export default function ClientProfile() {
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
           {assessorUrl(client) && <a className="lead-action-btn" href={assessor?.parcel || assessorUrl(client)} target="_blank" rel="noopener noreferrer"
+            onClick={openAssessor}
             title={assessor?.parcel ? `Opens ${assessor.shown || 'this property'} on the ${assessor.host === 'cedarrapids' ? 'Cedar Rapids city' : 'Linn County'} assessor`
                  : assessor ? `No assessor record found (${assessor.reason || 'not matched'}) — opens the search page` : 'Looking up the parcel…'}>
-            <span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
+            <span className="lead-action-icon">🏛</span><span>{assessorBusy ? 'Opening…' : 'Assessor'}</span></a>}
           {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 14.5, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
