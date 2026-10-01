@@ -1165,6 +1165,41 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message, status: e.status || null }) }
   })
 
+  // Read-only: recent lead-ish events grouped by SOURCE. Dawn Moore's 510 Broadway
+  // inquiry came in as source "Zillow", which the Facebook watcher's gate rejects, so
+  // this measures how many leads that gate is letting past.
+  app.get('/api/fub/probe-event-sources', async (req, res) => {
+    const want = Math.min(Number(req.query.pages) || 6, 20)
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const LEAD = /registration|inquiry|lead/i
+      const bySource = {}, recent = []
+      const sinceDays = Math.min(Number(req.query.days) || 30, 365)
+      const cutoff = new Date(Date.now() - sinceDays * 864e5).toISOString()
+      let scanned = 0, oldestSeen = null
+      for (let i = 0; i < want; i++) {
+        const d = await fubGet('/events', { limit: 100, offset: i * 100, sort: '-created' })
+        const evs = d?.events || []
+        if (!evs.length) break
+        for (const e of evs) {
+          scanned++
+          oldestSeen = e.created
+          if (String(e.created || '') < cutoff) continue
+          if (!LEAD.test(String(e.type || ''))) continue
+          const src = String(e.source || '(none)')
+          bySource[src] = (bySource[src] || 0) + 1
+          if (recent.length < 40) recent.push({
+            created: e.created, type: e.type, source: src, personId: e.personId,
+            property: e.property ? `${e.property.street || ''}, ${e.property.city || ''}` : null,
+          })
+        }
+        if (String(evs[evs.length - 1]?.created || '') < cutoff) break
+        await new Promise(s2 => setTimeout(s2, 350))
+      }
+      res.json({ scanned, window_days: sinceDays, oldest_scanned: oldestSeen, by_source: bySource, recent })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
