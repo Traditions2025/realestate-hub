@@ -329,7 +329,7 @@ test('prime leads are considered for a push', () => {
 // rule was never about writing - it is about DIRECTION. Nothing is pulled FROM FUB.
 test('FUB is searched before anything is created', () => {
   const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
-  const beforeCreate = fn.slice(0, fn.indexOf("// 2. genuinely new to FUB"))
+  const beforeCreate = fn.slice(0, fn.indexOf("// 3. genuinely new to FUB"))
   assert.match(beforeCreate, /fubGet\('\/people', \{ \[field\]: value/, 'it must look first')
   assert.match(beforeCreate, /\[\['email', email\], \['phone', phone\]\]/, 'both fields, in order')
   // a CALL, not the import destructure that names the same function
@@ -394,4 +394,33 @@ test('the sweep catches every entry point rather than hooking each one', () => {
   const fn = sch.slice(sch.indexOf('async function checkFubNewLeadsTick'))
   assert.match(fn, /pushNewLeads\(\{ limit: 25 \}\)/, 'small batches: two FUB searches per lead')
   assert.ok(!/INSERT INTO clients/.test(fn))
+})
+
+// ── the duplicates I made, and the guard that stops the next one ─────────────────────
+// First live run created FUB duplicates for Virgil Webb and Drew Christensen: the Hub held
+// a second record for each with no email and a different phone, so neither the email nor
+// the phone search matched and a new FUB person was made beside the one already there.
+// Some of those existing FUB records have no email or phone at all - name is the ONLY way
+// to find them.
+test('a matching name blocks a create, even when email and phone miss', () => {
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  const beforeCreate = fn.slice(0, fn.indexOf('// 3. genuinely new to FUB'))
+  assert.match(beforeCreate, /fubGet\('\/people', \{ name, limit: 3 \}\)/)
+  assert.match(beforeCreate, /action: 'name-exists'/)
+  assert.ok(!/fubPost\(/.test(beforeCreate), 'nothing may be created before every search')
+})
+
+test('a name match is reported, never merged', () => {
+  // which of two records is real, and what happens to the other, is a human call
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  assert.match(fn, /review before creating another/)
+  // the word 'merged' appears in the comment that explains it does not merge, so look
+  // for an actual operation rather than the word
+  assert.ok(!/fubDelete\(|fubPut\([^)]*merge/i.test(fn), 'it must not resolve the duplicate itself')
+})
+
+test('the name check uses the same generous comparison as the status push', () => {
+  // a nickname or married name must not be treated as a different person here either
+  const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
+  assert.match(fn, /namesAgree\(name, p\.name \|\| ''\)/)
 })

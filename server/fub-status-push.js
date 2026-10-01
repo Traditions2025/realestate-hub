@@ -386,7 +386,30 @@ export async function linkOrCreateInFub(client, { dryRun = false } = {}) {
     await new Promise(s => setTimeout(s, 260))
   }
 
-  // 2. genuinely new to FUB
+  // 2. SAME NAME ALREADY THERE? Then this is not obviously a new person.
+  //
+  // Email and phone are not enough. Virgil Webb and Drew Christensen were both created as
+  // FUB duplicates on the first live run (2026-10-01): the Hub held a second record for
+  // each with no email and a different phone, so neither search matched and a new FUB
+  // person was made beside the one already there. Some of those existing FUB records carry
+  // no email or phone at all, so they can ONLY be found by name.
+  //
+  // Reported, not merged: which of two records is the real one, and what to do with the
+  // other, is a judgement a person has to make.
+  if (name) {
+    try {
+      const b = await fubGet('/people', { name, limit: 3 })
+      const hits = (b?.people || []).filter(p => namesAgree(name, p.name || ''))
+      if (hits.length) {
+        return { ...out, action: 'name-exists', fub_id: hits[0].id,
+                 fub_matches: hits.map(p => ({ id: p.id, name: p.name, stage: p.stage })),
+                 why: `FUB already has ${hits.length} person(s) called "${name}" with different contact details — review before creating another` }
+      }
+    } catch (e) { return { ...out, action: 'failed', error: String(e.message).slice(0, 140) } }
+    await new Promise(s => setTimeout(s, 260))
+  }
+
+  // 3. genuinely new to FUB
   const stage = stageFor(client) || 'Lead'   // an unmapped status still needs somewhere to land
   const body = {
     firstName: client.first_name || '',
@@ -420,13 +443,14 @@ export async function pushNewLeads({ dryRun = false, limit = 200, afterId = 0, s
   }
   const rows = unlinkedSince(cutoff, { limit, afterId })
   const out = { since: cutoff, dry: dryRun, considered: rows.length,
-                linked: 0, created: 0, skipped: 0, failed: 0, results: [], last_id: Number(afterId) || 0 }
+                linked: 0, created: 0, skipped: 0, name_exists: 0, failed: 0, results: [], last_id: Number(afterId) || 0 }
   for (const c of rows) {
     const r = await linkOrCreateInFub(c, { dryRun })
     out.last_id = c.id
     if (r.action === 'linked' || r.action === 'would-link') out.linked++
     else if (r.action === 'created' || r.action === 'would-create') out.created++
     else if (r.action === 'skipped') out.skipped++
+    else if (r.action === 'name-exists') out.name_exists = (out.name_exists || 0) + 1
     else out.failed++
     out.results.push(r)
     await new Promise(s => setTimeout(s, delayMs))
