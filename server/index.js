@@ -1076,6 +1076,39 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Can we actually READ the content, or only the metadata? The first email sampled came
+  // back with subject "[CONTENT HIDDEN]" and showContent false, which would make an email
+  // sync pointless. This counts it properly across a real person's history.
+  app.get('/api/fub/probe-content', async (req, res) => {
+    const pid = Number(req.query.personId) || 0
+    if (!pid) return res.status(400).json({ error: 'personId required' })
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const out = {}
+      const sample = async (label, ep, bodyField) => {
+        try {
+          const b = await fubGet(ep, { personId: pid, limit: 25 })
+          const k = Object.keys(b || {}).find(x => Array.isArray(b[x]))
+          const rows = k ? b[k] : []
+          out[label] = {
+            sampled: rows.length,
+            content_shown: rows.filter(r => r.showContent === true).length,
+            content_hidden: rows.filter(r => r.showContent === false).length,
+            has_body: rows.filter(r => r[bodyField] && !String(r[bodyField]).includes('CONTENT HIDDEN')).length,
+            subject_hidden: rows.filter(r => String(r.subject || '').includes('CONTENT HIDDEN')).length,
+            from_system: [...new Set(rows.map(r => r.systemName).filter(Boolean))],
+            external: rows.filter(r => r.isExternal === true).length,
+          }
+        } catch (e) { out[label] = { error: String(e.message).slice(0, 160) } }
+        await new Promise(s => setTimeout(s, 350))
+      }
+      await sample('notes', '/notes', 'body')
+      await sample('emails', '/emails', 'bodyExcerpt')
+      await sample('texts', '/textMessages', 'message')
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
