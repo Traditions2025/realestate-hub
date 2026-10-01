@@ -1226,6 +1226,22 @@ async function start() {
 
   // Read-only: how big is an Active-first conversation sync? Counts the leads it covers
   // and what the Hub already holds for them, before anything is fetched or written.
+  // Pull FUB conversations into the Hub timeline for a set of leads. Scoped by STATUS -
+  // started on 'active' - so a run can never wander into the whole 264k-note history.
+  // Takes {dry:true} first; resumable with afterId.
+  app.post('/api/fub/import-conversations', async (req, res) => {
+    try {
+      const { importConversations } = await import('./fub-conversation-sync.js')
+      res.json(await importConversations({
+        status: String(req.body?.status || 'active'),
+        dryRun: !!req.body?.dry,
+        limit: Math.min(Number(req.body?.limit) || 500, 2000),
+        afterId: Number(req.body?.afterId) || 0,
+        perChannel: Math.min(Number(req.body?.perChannel) || 100, 100),
+      }))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/conversation-scope', async (_req, res) => {
     try {
       const linked = "merged_into IS NULL AND fub_person_id IS NOT NULL AND fub_person_id != ''"

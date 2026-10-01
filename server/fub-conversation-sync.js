@@ -184,3 +184,122 @@ export const MIN_FREE_GB = 2.0
 export const cursorKey = (kind) => `fub_sync_${kind}_updated_through`
 export function getCursor(kind) { return db.getSetting(cursorKey(kind)) || null }
 export function setCursor(kind, v) { if (v) db.setSetting(cursorKey(kind), v) }
+
+// ─────────────────────────────────────────────────────────────────────────────────────
+// THE IMPORT, PER PERSON
+//
+// Everything is fetched by personId, including notes and calls. They can be pulled in
+// bulk, but per-person keeps this one shape for all three channels, touches only the
+// leads asked for, and cannot wander into 264k rows by accident. Bulk is the right tool
+// for a full historical backfill, not for a scoped run.
+//
+// Started on status='active' first (John, 2026-10-01): 42 leads, the ones the team is
+// actually working, so the value shows up where someone will see it.
+
+/** Leads to import for, newest-touched first, resumable by id. */
+export function importCandidates({ status = 'active', limit = 500, afterId = 0 } = {}) {
+  return db.all(
+    `SELECT id, first_name, last_name, fub_person_id
+       FROM clients
+      WHERE merged_into IS NULL
+        AND fub_person_id IS NOT NULL AND fub_person_id != ''
+        AND lower(trim(status)) = lower(trim(?))
+        AND id > ?
+      ORDER BY id LIMIT ?`, [status, Number(afterId) || 0, Number(limit)])
+}
+
+const CHANNELS = [
+  { kind: 'note', endpoint: '/notes', map: mapNote },
+  { kind: 'call', endpoint: '/calls', map: mapCall },
+  { kind: 'text', endpoint: '/textMessages', map: mapText },
+]
+
+/**
+ * Pull one lead's FUB conversation into `communications`.
+ *
+ * Rows the Hub itself wrote into FUB are skipped on the way back: FUB stamps systemName
+ * from the X-System header and fub-helper sends MattSmithTeamHub, so a two-way sync
+ * cannot ping-pong. external_id is UNIQUE, so a re-run adds nothing twice.
+ */
+export async function importOne(client, { dryRun = false, perChannel = 100, delayMs = 260 } = {}) {
+  const personId = Number(client.fub_person_id)
+  const who = { id: client.id, name: `${client.first_name || ''} ${client.last_name || ''}`.trim() }
+  const out = { client_id: client.id, fub_id: personId, name: who.name, added: 0, skipped_own: 0, by_kind: {} }
+  if (!personId) return { ...out, error: 'no fub id' }
+
+  const { fubGet } = await import('./fub-helper.js')
+  for (const ch of CHANNELS) {
+    let rows = []
+    try {
+      const b = await fubGet(ch.endpoint, { personId, limit: perChannel })
+      const key = Object.keys(b || {}).find(k => Array.isArray(b[k]))
+      rows = key ? b[key] : []
+    } catch (e) {
+      out.by_kind[ch.kind] = { error: String(e.message).slice(0, 80) }
+      await new Promise(s => setTimeout(s, delayMs))
+      continue
+    }
+    let added = 0, mine = 0
+    for (const r of rows) {
+      if (String(r.systemName || '') === HUB_SYSTEM_NAME) { mine++; continue }
+      const row = ch.map(r, who)
+      if (!row.occurred_at) continue          // undated rows would sort to the top of the timeline
+      if (!dryRun) added += storeRow(row)
+      else added++
+    }
+    out.by_kind[ch.kind] = { fetched: rows.length, added, skipped_own: mine }
+    out.added += added
+    out.skipped_own += mine
+    await new Promise(s => setTimeout(s, delayMs))   // FUB rate-limits; pace every call
+  }
+  return out
+}
+
+/**
+ * Import a batch. Paced, disk-guarded and resumable.
+ *
+ * The disk is checked as it goes, not once at the start: retained backups mean the
+ * database's growth is multiplied, and the volume filled once before (2026-09-21).
+ */
+export async function importConversations({ status = 'active', dryRun = false, limit = 500,
+                                            afterId = 0, perChannel = 100, delayMs = 260 } = {}) {
+  const rows = importCandidates({ status, limit, afterId })
+  const out = { status, dry: dryRun, considered: rows.length, added: 0, skipped_own: 0,
+                failed: 0, people: [], by_kind: {}, last_id: Number(afterId) || 0 }
+  const free0 = freeGb()
+  out.free_gb_before = free0 == null ? null : +free0.toFixed(2)
+  if (!dryRun && free0 != null && free0 < MIN_FREE_GB)
+    return { ...out, stopped: `only ${free0.toFixed(2)} GB free, below the ${MIN_FREE_GB} GB floor` }
+
+  for (const c of rows) {
+    const r = await importOne(c, { dryRun, perChannel, delayMs })
+    out.last_id = c.id
+    out.added += r.added || 0
+    out.skipped_own += r.skipped_own || 0
+    if (r.error) out.failed++
+    for (const [k, v] of Object.entries(r.by_kind || {})) {
+      out.by_kind[k] = out.by_kind[k] || { fetched: 0, added: 0, errors: 0 }
+      if (v.error) out.by_kind[k].errors++
+      else { out.by_kind[k].fetched += v.fetched || 0; out.by_kind[k].added += v.added || 0 }
+    }
+    if (r.added || r.error) out.people.push(r)
+    const free = freeGb()
+    if (!dryRun && free != null && free < MIN_FREE_GB) {
+      out.stopped = `disk fell to ${free.toFixed(2)} GB free, below the ${MIN_FREE_GB} GB floor`
+      break
+    }
+  }
+  const freeN = freeGb()
+  out.free_gb_after = freeN == null ? null : +freeN.toFixed(2)
+  out.remaining = db.get(
+    `SELECT COUNT(*) n FROM clients WHERE merged_into IS NULL
+       AND fub_person_id IS NOT NULL AND fub_person_id != ''
+       AND lower(trim(status)) = lower(trim(?)) AND id > ?`, [status, out.last_id]).n
+  out.done = out.remaining === 0
+  if (!dryRun && out.added) {
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['fub_conversations_imported', 'system', null,
+       `${out.added} rows for ${rows.length} ${status} leads`])
+  }
+  return out
+}
