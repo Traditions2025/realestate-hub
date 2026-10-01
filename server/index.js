@@ -1205,6 +1205,25 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: which lead sources the watcher currently accepts, and how a given
+  // subject would be classified. Lets the live deploy be verified rather than trusted.
+  app.get('/api/fub/watched-sources', async (req, res) => {
+    try {
+      const m = await import('./fub-leads.js')
+      const subj = String(req.query.subject || '')
+      const out = { watched: m.watchedSources(), default: m.DEFAULT_WATCH_SOURCES }
+      if (subj) {
+        const parsed = m.parseFubLeadEmail(subj, 'User provided phone number: (319) 555-0000')
+        out.test = parsed
+          ? { ingested: true, portal: parsed.portal, kind: parsed.kind,
+              name: `${parsed.first} ${parsed.last}`.trim(),
+              automated_opener: m.isFacebookPortal(parsed.portal) }
+          : { ingested: false }
+      }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
