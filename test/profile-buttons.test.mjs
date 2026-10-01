@@ -28,21 +28,25 @@ function lift(name) {
 }
 const assessorUrl = lift('assessorUrl')
 
-// ── the deep link ────────────────────────────────────────────────────────────────────
-// REVERTED 2026-10-01 at John's instruction. I had changed this to land on /search/res/
-// and copy the address; he reported that it then pre-filled the PREVIOUS search
-// (6528 Medford Ln NE showing on Adrien Voellinger) and that the original link was
-// working for him. His earlier note about mobile was that pasting there gives the
-// CORRECT address, not a complaint. Back to what shipped in 90b6d00.
-test('the street address is deep-linked into the search', () => {
+// ── the fallback link ───────────────────────────────────────────────────────
+// assessorUrl is now only the FALLBACK. The button prefers the parcel page resolved by
+// the server (/api/clients/:id/assessor), which is a real deep link to the property.
+//
+// Two URLs have already failed here, and neither may come back:
+//   results.php?ifulladdress=...  is not a page on either site - empty search, no results
+//   /search/res/results/?...      replays the session's LAST POST, so four different
+//                                 addresses once returned one parcel
+test('the fallback is a page that actually exists', () => {
   const u = assessorUrl({ address: '6528 Medford Ln NE', city: 'Cedar Rapids' })
-  assert.equal(u, 'https://cedarrapids.iowaassessors.com/search/res/results.php?ifulladdress=6528%20Medford%20Ln%20NE&process=1')
+  assert.equal(u, 'https://cedarrapids.iowaassessors.com/search/res/')
 })
 
-test('the address is encoded, so spaces and hashes survive', () => {
+test('the fallback never carries search parameters', () => {
+  // a query string here is the shape of both previous failures
   const u = assessorUrl({ address: '190 Cottage Grove Ave SE Unit #302', city: 'Cedar Rapids' })
-  assert.ok(!/ /.test(u), 'a raw space would truncate the query')
-  assert.match(u, /Unit%20%23302/)
+  assert.ok(!u.includes('?'), 'a GET query is ignored by the site and reads as a working link')
+  assert.ok(!/results\.php/.test(u), 'results.php is not a page on these sites')
+  assert.ok(!/ifulladdress/.test(u), 'the address is POSTed by the server, never put in the URL')
 })
 
 // ── which county ─────────────────────────────────────────────────────────────────────
@@ -154,4 +158,30 @@ test('the full-row rule is in a NARROW query, not a desktop one', () => {
   const deskBlock = desk.slice(0, desk.indexOf(String.fromCharCode(10) + '}'))
   assert.ok(!deskBlock.includes('flex-basis: 100%'),
     'the desktop block must not force the buttons onto their own row')
+})
+
+// ── the resolved parcel ───────────────────────────────────────────────────────────────
+// The real fix for "I don't get any result": the server resolves the address to a parcel
+// page and the button points at THAT. See server/assessor-lookup.js for why only a server
+// can do it (the disclaimer cookie is SameSite=Lax and the search is a POST).
+test('the button prefers the resolved parcel over the fallback', () => {
+  assert.match(src, /href=\{assessor\?\.parcel \|\| assessorUrl\(client\)\}/)
+})
+
+test('the parcel is resolved when the profile opens, not when the button is clicked', () => {
+  // opening a tab after an await is what popup blockers stop, and the lookup is not instant
+  assert.match(src, /\/api\/clients\/\$\{client\.id\}\/assessor/)
+  const eff = src.slice(src.indexOf('const [assessor, setAssessor]'), src.indexOf('const [assessor, setAssessor]') + 1400)
+  assert.match(eff, /useEffect\(/)
+  assert.match(eff, /\[client\?\.id, client\?\.address\]/, 're-resolve if the address changes')
+})
+
+test('a lead with no address is never looked up', () => {
+  const eff = src.slice(src.indexOf('const [assessor, setAssessor]'), src.indexOf('const [assessor, setAssessor]') + 1400)
+  assert.match(eff, /if \(!String\(client\.address \|\| ''\)\.trim\(\)\) return/)
+})
+
+test('the button says what it will open', () => {
+  assert.match(src, /title=\{assessor\?\.parcel/)
+  assert.match(src, /Looking up the parcel/)
 })

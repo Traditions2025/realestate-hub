@@ -1902,6 +1902,10 @@ export async function initDb() {
   for (const [name, type] of [
     ['last_email_opened_at', 'TEXT'], ['last_email_clicked_at', 'TEXT'],
     ['email_open_count', 'INTEGER DEFAULT 0'], ['email_click_count', 'INTEGER DEFAULT 0'],
+    // Resolved assessor parcel page. Resolving costs three requests to their site, and a
+    // parcel does not move, so the answer is kept. checked_at is set even on a miss, so a
+    // lead with no record is not looked up again on every profile open.
+    ['assessor_url', 'TEXT'], ['assessor_checked_at', 'TEXT'],
   ]) { try { db.run(`ALTER TABLE clients ADD COLUMN ${name} ${type}`) } catch {} }
   try { db.run('CREATE INDEX IF NOT EXISTS idx_clients_email_opened ON clients(last_email_opened_at)') } catch {}
 

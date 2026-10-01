@@ -1420,6 +1420,18 @@ router.get('/filter-options', (req, res) => {
   res.json({ zips, cities, sources, tags, viewed_cities, agents })
 })
 
+// The assessor parcel page for a lead.
+//
+// There is no URL that takes an address and lands on a parcel - the site gates on a
+// SameSite cookie and searches by POST, which a browser cannot carry cross-site. The
+// server can, so it resolves here and the button gets a real link. See assessor-lookup.js.
+router.get('/:id/assessor', async (req, res) => {
+  try {
+    const { assessorFor } = await import('../assessor-lookup.js')
+    res.json(await assessorFor(Number(req.params.id), { refresh: req.query.refresh === '1' }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/:id', (req, res) => {
   const id = Number(req.params.id)
   const row = db.get('SELECT * FROM clients WHERE id = ?', [id])

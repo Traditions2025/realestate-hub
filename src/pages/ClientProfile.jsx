@@ -129,6 +129,25 @@ export default function ClientProfile() {
   const [savingNote, setSavingNote] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [refreshMsg, setRefreshMsg] = useState('')
+  // The assessor PARCEL page, resolved by the server. Until it answers the button still
+  // works - it just points at the search page, which is where it pointed before.
+  const [assessor, setAssessor] = useState(null)
+
+  // Resolved on open rather than on click: the lookup talks to the assessor's site and
+  // takes a moment, and opening a tab after an await is what popup blockers stop. By the
+  // time the button is pressed the real link is usually already in it, and once resolved
+  // it is cached server-side, so every later visit is instant.
+  useEffect(() => {
+    if (!client?.id) return
+    let gone = false
+    setAssessor(null)
+    if (!String(client.address || '').trim()) return
+    authFetch(`/api/clients/${client.id}/assessor`)
+      .then(r => r.json())
+      .then(d => { if (!gone && d && !d.error) setAssessor(d) })
+      .catch(() => {})
+    return () => { gone = true }
+  }, [client?.id, client?.address])
   const [layout, setLayout] = useState(loadLayout)
   const [dragKey, setDragKey] = useState(null)
   const [dragArmed, setDragArmed] = useState(null)
@@ -244,7 +263,10 @@ export default function ClientProfile() {
           <button className="lead-action-btn" onClick={() => setNoteOpen(o => !o)}><span className="lead-action-icon">📝</span><span>Add Note</span></button>
           <button className={`lead-action-btn${taskOpen ? ' active' : ''}`} onClick={() => setTaskOpen(o => !o)}><span className="lead-action-icon">✅</span><span>Add Task</span></button>
           <button className="lead-action-btn" onClick={addTransaction}><span className="lead-action-icon">➕</span><span>Transaction</span></button>
-          {assessorUrl(client) && <a className="lead-action-btn" href={assessorUrl(client)} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
+          {assessorUrl(client) && <a className="lead-action-btn" href={assessor?.parcel || assessorUrl(client)} target="_blank" rel="noopener noreferrer"
+            title={assessor?.parcel ? `Opens ${assessor.shown || 'this property'} on the ${assessor.host === 'cedarrapids' ? 'Cedar Rapids city' : 'Linn County'} assessor`
+                 : assessor ? `No assessor record found (${assessor.reason || 'not matched'}) — opens the search page` : 'Looking up the parcel…'}>
+            <span className="lead-action-icon">🏛</span><span>Assessor</span></a>}
           {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 14.5, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
@@ -587,19 +609,20 @@ const plusBtnStyle = { border: '1px solid var(--accent-border)', background: 'no
 // county site finds nothing, and most of the file is Cedar Rapids, so the routing is not
 // an optimisation (John, 2026-09-30).
 //
-// This opens the assessor's search with the address filled in rather than the parcel page
-// itself. Both sites gate on a disclaimer cookie and search by POST, so there is no URL
-// that takes an address and lands on a parcel. A resolver that finds and stores each
-// parcel id would make this a true deep link; until then this is one click away and,
-// unlike a scraper, it does not break when they redesign the site.
-// Deep-links the lead's street address into the county assessor's Real Estate Search.
-// Cedar Rapids has its own CITY assessor; everything else in the county is Linn.
+// THE FALLBACK ONLY. The button prefers the parcel page the server resolved
+// (/api/clients/:id/assessor); this is where it points while that is still loading, or
+// when the address has no assessor record at all.
+//
+// It must not be results.php?ifulladdress=... — that is not a page on either site and
+// lands on an empty Residential Building Search, which is exactly the "no result" John
+// reported (2026-10-01). The plain search page is the honest fallback: the server could
+// not find the parcel, so this hands him the search box rather than pretending.
 export function assessorUrl(client) {
   const street = String(client?.address || '').trim()
   if (!street) return null
-  const city = String(client?.city || '').trim().toLowerCase()
+  const city = String(client?.city || '').trim().toLowerCase().replace(/\s+/g, ' ')
   const host = city === 'cedar rapids' ? 'cedarrapids' : 'linn'
-  return `https://${host}.iowaassessors.com/search/res/results.php?ifulladdress=${encodeURIComponent(street)}&process=1`
+  return `https://${host}.iowaassessors.com/search/res/`
 }
 
 function ClientDetails({ client, onSaved }) {
