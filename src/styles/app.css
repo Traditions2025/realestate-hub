@@ -2274,6 +2274,10 @@ input[type="range"] {
 .cp-sub { font-size: 14.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; color: var(--text-muted); margin: 8px 0 4px; }
 .cp-kv { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 16px; }
 @media (max-width: 620px) { .cp-kv { grid-template-columns: 1fr; } }
+/* Narrow screens only: no room beside the name, so the buttons take a full row.
+   This belongs in a max-width query - putting it under min-width: 901px is what
+   pushed them onto their own row on the desktop they were meant to sit on. */
+@media (max-width: 900px) { .cp-identity .cp-actions { margin-top: 6px; flex-basis: 100%; } }
 .cp-kv > div { display: flex; justify-content: space-between; gap: 10px; font-size: 15.5px; padding: 2px 0; border-bottom: 1px dashed var(--border); }
 .cp-kv-k { color: var(--text-muted); }
 .cp-kv-v { font-weight: 600; text-align: right; }
@@ -2295,9 +2299,7 @@ input[type="range"] {
   .cp-sticky { padding: 8px 16px 0; }
   .cp-identity { margin-top: 4px; }
   .cp-name { font-size: 22px; }
-  /* on a phone the buttons wrap under the name rather than squeezing beside it */
   .cp-actions { margin-top: 6px; padding-bottom: 8px; }
-  .cp-identity .cp-actions { margin-top: 6px; flex-basis: 100%; }
   .cp-alerts { margin-bottom: 8px; }
   .client-profile .lead-action-btn { padding: 6px 11px; }
 

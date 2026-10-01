@@ -177,7 +177,20 @@ test('the actions sit on the name line', () => {
   assert.match(css, /\.cp-identity \{ display: flex; align-items: center/, 'buttons centre, not baseline')
 })
 
-test('on a phone the buttons wrap under the name', () => {
-  const mobile = css.slice(css.indexOf('.cp-identity { margin-top: 4px; }'))
-  assert.match(mobile.slice(0, 400), /\.cp-identity \.cp-actions \{ margin-top: 6px; flex-basis: 100%/)
+// The full-row rule first went into @media (min-width: 901px) - the DESKTOP block, not a
+// phone one - which forced the buttons onto their own row at exactly the widths where they
+// were supposed to sit beside the name. Computed style gave it away: flex 1 1 100% at
+// 1500px wide.
+test('the full-row rule is in a NARROW query, not a desktop one', () => {
+  const rule = '.cp-identity .cp-actions { margin-top: 6px; flex-basis: 100%; }'
+  const at = css.indexOf(rule)
+  assert.ok(at > 0, 'the narrow-screen rule should exist')
+  const query = css.lastIndexOf('@media', at)
+  const which = css.slice(query, css.indexOf('{', query))
+  assert.match(which, /max-width/, `it sits under "${which.trim()}" - a min-width query would hit desktop`)
+  // and it must not have come back in the desktop block
+  const desk = css.slice(css.indexOf('@media (min-width: 901px)'))
+  const deskBlock = desk.slice(0, desk.indexOf(String.fromCharCode(10) + '}'))
+  assert.ok(!deskBlock.includes('flex-basis: 100%'),
+    'the desktop block must not force the buttons onto their own row')
 })
