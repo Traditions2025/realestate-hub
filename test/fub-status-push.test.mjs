@@ -379,3 +379,19 @@ test('nothing is pulled FROM FUB into the Hub', () => {
   assert.ok(!/INSERT INTO clients/i.test(src), 'this module must never create a Hub lead')
   assert.match(helper, /Nothing is pulled FROM FUB/)
 })
+
+// ── it has to run by itself ──────────────────────────────────────────────────────────
+test('the new-lead push runs hourly and ships OFF', () => {
+  const sch = fs.readFileSync(new URL('../server/scheduler.js', import.meta.url), 'utf8')
+  assert.match(sch, /async function checkFubNewLeadsTick\(\)/)
+  assert.match(sch, /setInterval\(checkFubNewLeadsTick, 60 \* 60 \* 1000\)/)
+  // every automation in this codebase ships disabled and is switched on deliberately
+  assert.match(sch, /fub_push_new_enabled', '0'\) !== '1'\) return/)
+})
+
+test('the sweep catches every entry point rather than hooking each one', () => {
+  const sch = fs.readFileSync(new URL('../server/scheduler.js', import.meta.url), 'utf8')
+  const fn = sch.slice(sch.indexOf('async function checkFubNewLeadsTick'))
+  assert.match(fn, /pushNewLeads\(\{ limit: 25 \}\)/, 'small batches: two FUB searches per lead')
+  assert.ok(!/INSERT INTO clients/.test(fn))
+})

@@ -422,6 +422,24 @@ async function checkHomeValueEnrollTick() {
 
 // Fire the Watch sweep once daily at 6 AM CT (idempotent via app_settings date key).
 const WATCH_SWEEP_HOUR = 6
+// Hourly: push Hub leads FUB does not know about (John, 2026-10-01, "when someone is
+// added in HUB make sure they are also pushed in FUB").
+//
+// Hourly rather than per-insert: leads are created from eight different places in this
+// codebase, and a sweep catches every one of them without eight hooks to keep in step.
+// Small batches, because each lead costs up to two FUB searches and the pacing is 260ms.
+// It is forward-only - pushNewLeads stamps its cutoff on the first run, so this never
+// wakes up and backfills the ~14,000 older unlinked leads.
+async function checkFubNewLeadsTick() {
+  try {
+    if (db.getSetting?.('fub_push_new_enabled', '0') !== '1') return
+    const { pushNewLeads } = await import('./fub-status-push.js')
+    const r = await pushNewLeads({ limit: 25 })
+    if (r.created || r.linked)
+      console.log(`[scheduler] FUB new leads: ${r.created} created, ${r.linked} linked, ${r.failed} failed`)
+  } catch (e) { console.error('[scheduler] FUB new-lead push error (non-fatal):', e.message) }
+}
+
 async function checkWatchSweepTick() {
   try {
     const now = chicagoNow()
@@ -883,6 +901,7 @@ export function startScheduler() {
   // Daily Watch-status sweep - check every minute, fires at 6 AM CT (idempotent).
   // Catches backdated expired/cancelled + FSBO Watch leads the incremental sync misses.
   setInterval(checkWatchSweepTick, 60 * 1000)
+  setInterval(checkFubNewLeadsTick, 60 * 60 * 1000)   // ships OFF; fub_push_new_enabled
 
   // Home Value enrollment — weekday mornings, gated by home_value_enroll_enabled.
   setInterval(checkHomeValueEnrollTick, 60 * 1000)
