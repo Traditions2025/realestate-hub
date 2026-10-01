@@ -602,8 +602,6 @@ export function assessorUrl(client) {
   return `https://${host}.iowaassessors.com/search/res/results.php?ifulladdress=${encodeURIComponent(street)}&process=1`
 }
 
-}
-
 function ClientDetails({ client, onSaved, intent = null, intentLevel = null }) {
   const cid = client.id
   const [altAdd, setAltAdd] = useState(null) // 'phones' | 'emails' | null
