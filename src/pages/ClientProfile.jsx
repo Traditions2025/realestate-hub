@@ -869,11 +869,23 @@ function Communications({ client, onOpenText, onAddNote }) {
   useEffect(() => { const h = () => load(); window.addEventListener('cp-comms-changed', h); return () => window.removeEventListener('cp-comms-changed', h) }, [load])
   // Notes live here now: the standalone Notes box merged into this tab strip.
   const noteLines = client.notes ? String(client.notes).split('\n').filter(Boolean) : []
-  const FILTERS = [['all', 'All'], ['text', 'Texts'], ['call', 'Calls'], ['email', 'Emails'], ['note', noteLines.length ? `Notes (${noteLines.length})` : 'Notes']]
+  // Counts on every tab (John, 2026-10-01): how much history a lead has is the first thing
+  // worth knowing, and only Notes carried a number before.
+  const n = (ch) => (rows || []).filter(m => m.channel === ch).length
+  const label = (t, c) => (c ? `${t} (${c})` : t)
+  const FILTERS = [
+    ['all', label('All', (rows || []).length + noteLines.length)],
+    ['text', label('Texts', n('text'))],
+    ['call', label('Calls', n('call') + n('voicemail'))],
+    ['email', label('Emails', n('email'))],
+    ['note', label('Notes', n('note') + noteLines.length)],
+  ]
   // FUB notes are real timeline rows, so they are no longer filtered out here. The old
   // exclusion predates the import, when the only 'notes' were the free-text field below
   // and nothing ever had channel='note' (John, 2026-10-01).
-  let items = (rows || []).filter(m => filter === 'all' ? true : m.channel === filter)
+  let items = (rows || []).filter(m => filter === 'all' ? true
+    : filter === 'call' ? (m.channel === 'call' || m.channel === 'voicemail')
+    : m.channel === filter)
   if (q.trim()) { const t = q.toLowerCase(); items = items.filter(m => `${m.body || ''} ${m.preview || ''} ${m.subject || ''}`.toLowerCase().includes(t)) }
   const shown = items.slice(0, limit)
   let notes = noteLines
@@ -944,8 +956,25 @@ function EmailEngagement({ eng }) {
   )
 }
 
+const CLAMP_LINES = 6
+
 function CommItem({ m }) {
   const meta = COMM_META[m.channel] || { icon: '•', label: m.channel, color: 'var(--text-muted)' }
+  const [expanded, setExpanded] = useState(false)
+  const [clamped, setClamped] = useState(false)
+  const bodyRef = useRef(null)
+  // Only offer "Show more" when the text is genuinely cut off. Measured after render
+  // rather than guessed from a character count, which is wrong at every window width.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el || expanded) return     // once expanded the clamp is gone, so the measurement
+                                    // would read "not clamped" and hide the Show less button
+    const check = () => setClamped(el.scrollHeight > el.clientHeight + 1)
+    check()
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(check) : null
+    if (ro) ro.observe(el)
+    return () => ro && ro.disconnect()
+  }, [m.id, expanded])
   const out = m.direction === 'outgoing'
   const isCallish = m.channel === 'call' || m.channel === 'voicemail'
   const rawBody = m.body || m.preview || m.subject || ''
@@ -984,7 +1013,25 @@ function CommItem({ m }) {
         <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
       </div>
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
-      {text && <div style={{ fontSize: 15.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45 }}>{text}</div>}
+      {/* Long messages are clamped to six lines so every card is the same height and the
+          list stays scannable (John, 2026-10-01). -webkit-line-clamp is what gives a clean
+          cut mid-line; a height in px would slice a line in half. Short messages are left
+          alone, and the toggle only appears when there is actually more to see. */}
+      {text && (
+        <div
+          ref={bodyRef}
+          style={{ fontSize: 15.5, color: 'var(--text-primary)', whiteSpace: 'pre-wrap', lineHeight: 1.45,
+            ...(expanded ? {} : { display: '-webkit-box', WebkitLineClamp: CLAMP_LINES, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>
+          {text}
+        </div>
+      )}
+      {text && clamped && (
+        <button onClick={() => setExpanded(v => !v)}
+          style={{ marginTop: 4, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+            color: 'var(--accent, #2563eb)', fontSize: 14.5, fontWeight: 600 }}>
+          {expanded ? 'Show less' : 'Show more'}
+        </button>
+      )}
       {isCallish && m.recording_url && <audio controls preload="none" src={recUrl(m.id)} style={{ marginTop: 6, width: 260, maxWidth: '100%', height: 32 }} />}
       {m.transcript && !m.call_summary && <div style={{ fontSize: 14.5, marginTop: 5, fontStyle: 'italic', color: 'var(--text-secondary)' }}>“{m.transcript}”</div>}
       {m.call_summary && (
