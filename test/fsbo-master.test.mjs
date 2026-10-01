@@ -1,6 +1,7 @@
 // FSBO master file: CSV parsing must survive quoted multi-line fields with embedded
 // commas and newlines (the master sheet's Notes column is a Zillow blob).
 import { test } from 'node:test'
+import fs from 'node:fs'
 import assert from 'node:assert/strict'
 import { parseCsv } from '../server/fsbo-master.js'
 
@@ -73,4 +74,37 @@ test('each ending says WHY on the record', () => {
   assert.match(JUNK_FSBO_STATUS.Pending, /under contract/i)
   assert.equal(JUNK_FSBO_LABEL.Disregard, 'Listed with an Agent')
   for (const k of Object.keys(JUNK_FSBO_STATUS)) assert.ok(JUNK_FSBO_LABEL[k], `${k} needs a label`)
+})
+
+// ── aggregating a seller's listings ──────────────────────────────────────────────────
+// The per-seller aggregate is what actually writes fsbo_status. It read
+// "Available, else Pending, else Off Market", which collapsed every other value into
+// Off Market - so Disregard and Sold reached the Hub as Off Market, stayed on the list
+// and were never junked. normStatus had them right; this line discarded the answer.
+const aggregate = (statuses) => {
+  const grp = statuses.map(s => ({ status: s }))
+  const ENDINGS = ['Pending', 'Sold', 'Disregard']
+  return grp.some(r => r.status === 'Available') ? 'Available'
+    : (ENDINGS.find(e => grp.some(r => r.status === e)) || 'Off Market')
+}
+
+test('an ending survives aggregation instead of becoming Off Market', () => {
+  assert.equal(aggregate(['Disregard']), 'Disregard')
+  assert.equal(aggregate(['Sold']), 'Sold')
+  assert.equal(aggregate(['Pending']), 'Pending')
+  assert.equal(aggregate(['Off Market']), 'Off Market')
+})
+
+test('still-for-sale beats every ending', () => {
+  // one listing sold, another still on the market -> the seller is still a live FSBO
+  assert.equal(aggregate(['Sold', 'Available']), 'Available')
+  assert.equal(aggregate(['Disregard', 'Available']), 'Available')
+  assert.equal(aggregate(['Available', 'Pending', 'Off Market']), 'Available')
+})
+
+test('the aggregate in the source matches this precedence', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-master.js', import.meta.url), 'utf8')
+  assert.match(src, /const ENDINGS = \['Pending', 'Sold', 'Disregard'\]/)
+  assert.ok(!/: grp\.some\(r => r\.status === 'Pending'\) \? 'Pending' : 'Off Market'/.test(src),
+    'the old collapse-everything-to-Off-Market line must be gone')
 })

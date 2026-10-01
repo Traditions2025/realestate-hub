@@ -238,10 +238,16 @@ export async function syncFsboMaster() {
     const key = last10(primary.phone)
     if (key) sheetPhones.add(key)
     const isNewOnFile = !!(key && prevKeys && !prevKeys.has(key))
-    // Aggregate status across a seller's listings: Available wins (still has something for
-    // sale), else Pending (under contract), else Off Market.
+    // Aggregate status across a seller's listings. Available wins: they still have
+    // something for sale. Otherwise take the ending the group actually carries.
+    //
+    // This used to read "else Pending, else Off Market", which quietly collapsed EVERY
+    // other value into Off Market - so Disregard and Sold were written to the Hub as
+    // Off Market, stayed on the list, and were never junked. normStatus recognised them
+    // perfectly; this line threw the answer away (John, 2026-10-01).
+    const ENDINGS = ['Pending', 'Sold', 'Disregard']
     const status = grp.some(r => r.status === 'Available') ? 'Available'
-      : grp.some(r => r.status === 'Pending') ? 'Pending' : 'Off Market'
+      : (ENDINGS.find(e => grp.some(r => r.status === e)) || 'Off Market')
     report.counts[status] = (report.counts[status] || 0) + 1
     const listingsJson = JSON.stringify(buildListings(grp))
     const price = groupPrice(grp, primary)
