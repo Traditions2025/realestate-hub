@@ -4743,6 +4743,9 @@ export const COMM_META = {
   call: { icon: '☎', label: 'Call', color: '#8b5cf6' },
   voicemail: { icon: '🎙', label: 'Voicemail', color: '#f59e0b' },
   email: { icon: '✉', label: 'Email', color: '#3b82f6' },
+  // Notes pulled from Follow Up Boss (2026-10-01). Internal: written ABOUT the lead,
+  // never sent to them, so the row shows no inbound/outbound direction.
+  note: { icon: '📝', label: 'Note', color: '#64748b' },
 }
 export const fmtCommWhen = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) } catch { return iso } }
 // Turn a logged email's raw HTML into a clean, readable preview (drop tracking pixels,

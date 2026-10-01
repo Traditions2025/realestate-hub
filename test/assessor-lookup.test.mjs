@@ -146,7 +146,9 @@ test('a multi-result list is only followed when there is exactly one property', 
 
 // ── caching ──────────────────────────────────────────────────────────────────────────
 test('a hit is kept, a miss is retried later', () => {
-  assert.match(src, /const MISS_RETRY_DAYS = 7/)
+  // a week was far too confident: their site is flaky, and one unlucky lookup marked a
+  // lead as having no record for seven days
+  assert.match(src, /const MISS_RETRY_HOURS = 1/)
   assert.match(src, /assessor_url/)
   assert.match(src, /assessor_checked_at/)
 })
@@ -208,4 +210,14 @@ test('a quadrant written in full is the same address, but a different one is not
   assert.ok(addressesAgree('3731 Tanager Dr NE', '3731 TANAGER DR NORTHEAST CEDAR RAPIDS, IA'))
   assert.ok(!addressesAgree('100 Oak St NE', '100 OAK STREET SE CEDAR RAPIDS, IA'))
   assert.ok(!addressesAgree('100 Oak St NE', '100 OAK STREET NW CEDAR RAPIDS, IA'))
+})
+
+// Melena Urbanowski's 3822 Banar Ave SW missed once and resolved on the next two tries,
+// seconds apart, nothing changed. A single failure is not evidence of no record.
+test('a failed sweep is retried before it counts as no record', () => {
+  assert.match(src, /for \(let attempt = 0; attempt < 2; attempt\+\+\)/)
+  assert.match(src, /const sweep = async \(\) =>/)
+  assert.match(src, /THEIR SITE IS FLAKY/)
+  // and the retry waits, rather than hammering them again instantly
+  assert.match(src, /setTimeout\(r, 1200\)/)
 })

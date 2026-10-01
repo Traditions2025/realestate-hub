@@ -191,34 +191,52 @@ test('the button says what it will open', () => {
 // few seconds, and the href is only the fallback until it resolves.
 test('the tab is opened inside the click, not after the await', () => {
   // window.open after an await is what popup blockers stop
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
   const open = fn.indexOf('window.open(')
   const fetchAt = fn.indexOf('authFetch(')
   assert.ok(open > 0 && fetchAt > 0, 'both should be present')
   assert.ok(open < fetchAt, 'the tab must be opened before the lookup starts')
-  assert.match(fn, /tab\.location\.replace/)
 })
 
-test('a resolved parcel is a plain link, with no handler in the way', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
-  assert.match(fn, /if \(assessor\?\.parcel\) return/)
+// THE BUG John hit: opening Melena Urbanowski showed "2222 1st Ave NE #508" in the
+// assessor's search box. That page replays whatever the BROWSER searched last, so it looks
+// like a filled-in address and belongs to someone else. A wrong address that looks right is
+// worse than a blank one.
+test('the waiting tab never shows the assessor own search page', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  assert.match(fn, /window\.open\(''/, 'the tab starts on our own page, not theirs')
+  assert.ok(!/window\.open\(assessorUrl\(client\)/.test(fn), 'their search page shows the PREVIOUS search')
+  assert.match(fn, /searched last|SEARCHED LAST/i, 'the reason should be written down')
 })
 
-test('a failed lookup still opens something', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
-  // the tab already sits on the search page, so a failure simply leaves it there
-  assert.match(fn, /\.catch\(\(\) => done\(assessorUrl\(client\)\)\)/)
-  assert.match(fn, /d\.parcel \|\| d\.search/)
-  assert.match(fn, /window\.open\(assessorUrl\(client\)/, 'it opens somewhere useful immediately')
+test('the waiting page names the address being looked up', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  assert.match(fn, /Looking up/)
+  assert.match(fn, /escapeHtml\(street\)/, 'and escapes it')
+})
+
+test('a miss says so, instead of dumping him on a stranger search', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  assert.match(fn, /No assessor record found for/)
+  assert.match(fn, /search box may still show someone else/i, 'warn about the stale box')
+  assert.match(fn, /href="\$\{assessorUrl\(client\)\}"/, 'but still offer the search')
+})
+
+test('the tab is only navigated to a parcel we matched', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  assert.match(fn, /if \(parcel\) \{/)
+  assert.match(fn, /tab\.location\.replace\(parcel\)/)
+  assert.match(fn, /tab\.opener = null/, 'drop the opener once we leave our own page')
+})
+
+test('noopener is NOT used, or the tab could never be steered', () => {
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  // window.open(..., 'noopener') returns null, so the jump silently never happened
+  assert.ok(!/window\.open\('', '_blank', 'noopener'\)/.test(fn))
+  assert.match(fn, /window\.open\('', '_blank'\)/)
 })
 
 test('a second click while one is running is ignored', () => {
   assert.match(src, /if \(assessorBusyRef\.current\) return/)
 })
 
-test('the waiting tab shows the assessor, never a blank page', () => {
-  // their site can take the better part of a minute; a blank tab that long reads as broken
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 2400)
-  assert.match(fn, /window\.open\(assessorUrl\(client\) \|\| 'about:blank'/)
-  assert.match(fn, /if \(!url \|\| url === assessorUrl\(client\)\) return/, 'no pointless re-navigation')
-})

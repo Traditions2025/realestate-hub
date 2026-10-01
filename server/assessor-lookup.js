@@ -240,25 +240,41 @@ export async function resolveParcel(address, city) {
   const attempts = []
   for (const host of [first, second]) for (const term of spellings) attempts.push({ host, term })
 
-  const tried = await Promise.all(attempts.map(async ({ host, term }) => {
-    try { return { host, term, ...(await lookupOn(host, term)) } }
-    catch (e) { return { host, term, error: e.message } }
-  }))
-  // Order decides the winner: the city's own assessor before the county, and the address as
-  // written before the abbreviated guess.
-  for (const out of tried) {
-    if (out.error || !out.url) continue
-    // Never hand back a parcel that is not the address asked for.
-    if (!addressesAgree(street, out.shown)) continue
-    return { url: out.url, shown: out.shown, host: out.host, fell_back: out.host !== first }
+  // THEIR SITE IS FLAKY. Melena Urbanowski's 3822 Banar Ave SW missed once and resolved on
+  // the next two tries, seconds apart, with nothing changed. A single attempt is not
+  // evidence that a property has no record, so a failure is tried again before it counts.
+  const sweep = async () => {
+    const tried = await Promise.all(attempts.map(async ({ host, term }) => {
+      try { return { host, term, ...(await lookupOn(host, term)) } }
+      catch (e) { return { host, term, error: e.message } }
+    }))
+    // Order decides the winner: the city's own assessor before the county, and the address
+    // as written before the abbreviated guess.
+    for (const out of tried) {
+      if (out.error || !out.url) continue
+      // Never hand back a parcel that is not the address asked for.
+      if (!addressesAgree(street, out.shown)) continue
+      return { url: out.url, shown: out.shown, host: out.host, fell_back: out.host !== first }
+    }
+    return null
+  }
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt) await new Promise(r => setTimeout(r, 1200))   // let their site breathe
+    const hit = await sweep()
+    if (hit) return { ...hit, attempts: attempt + 1 }
   }
   return { error: 'not found on either assessor' }
 }
 
 // ── cache ────────────────────────────────────────────────────────────────────────────
-// A parcel does not move, so a hit is kept indefinitely. A miss is retried after a week:
-// the address may be corrected, or a new build may get assessed.
-const MISS_RETRY_DAYS = 7
+// A parcel does not move, so a hit is kept indefinitely.
+//
+// A MISS is held for an hour only. It used to be a week, which was far too confident given
+// how unreliable their site turned out to be: one unlucky lookup marked a lead as having no
+// record for seven days, and the button then sent people to a bare search page. An hour is
+// enough to stop a profile hammering their site, and short enough that a blip heals itself.
+const MISS_RETRY_HOURS = 1
 
 export function cachedAssessor(clientId) {
   return db.get('SELECT assessor_url, assessor_checked_at, address, city FROM clients WHERE id = ?', [Number(clientId)])
@@ -272,7 +288,7 @@ export function storeAssessor(clientId, url) {
 const staleMiss = (checkedAt) => {
   if (!checkedAt) return true
   const t = Date.parse(String(checkedAt).replace(' ', 'T'))
-  return Number.isNaN(t) ? true : (Date.now() - t) > MISS_RETRY_DAYS * 864e5
+  return Number.isNaN(t) ? true : (Date.now() - t) > MISS_RETRY_HOURS * 3600e3
 }
 
 /**

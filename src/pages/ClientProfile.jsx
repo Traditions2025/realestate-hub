@@ -145,28 +145,68 @@ export default function ClientProfile() {
     if (!client?.id) return
     e.preventDefault()
     if (assessorBusyRef.current) return
-    // Opened in the click itself (after an await a popup blocker stops it), and sent
-    // STRAIGHT to the assessor's search page rather than left blank - their site can take
-    // the better part of a minute, and a blank tab for that long reads as broken. When the
-    // parcel lands the tab jumps to it; if it never resolves, he is already where he
-    // needs to be.
-    const tab = window.open(assessorUrl(client) || 'about:blank', '_blank', 'noopener')
+
+    // NEVER send the tab to the assessor's own search page while we wait.
+    //
+    // That page shows whatever that browser SEARCHED LAST, so it looks like a filled-in
+    // address but belongs to somebody else: John opened Melena Urbanowski and saw
+    // "2222 1st Ave NE #508" (2026-10-01). A wrong address that looks right is worse than a
+    // blank one. The tab gets a page of OUR OWN instead, naming the address we are looking
+    // for, and only ever navigates to a parcel we have actually matched.
+    //
+    // No 'noopener' here: with it, window.open returns null and the tab could never be
+    // steered at all. The opener is dropped by hand once we have navigated away.
+    const tab = window.open('', '_blank')
     assessorBusyRef.current = true; setAssessorBusy(true)
-    const done = (url) => {
+    const street = String(client.address || '').trim()
+    const where = String(client.city || '').trim().toLowerCase() === 'cedar rapids' ? 'Cedar Rapids City' : 'Linn County'
+
+    const paint = (title, body) => {
+      if (!tab || tab.closed) return
+      try {
+        tab.document.open()
+        tab.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${title}</title>
+          <meta name="viewport" content="width=device-width,initial-scale=1">
+          <style>body{font:16px/1.5 system-ui,-apple-system,Segoe UI,Arial,sans-serif;margin:0;
+            display:flex;min-height:100vh;align-items:center;justify-content:center;background:#f6f7f9;color:#1f2933}
+            .c{max-width:30rem;padding:2rem;text-align:center}
+            .a{font-size:1.25rem;font-weight:600;margin:.5rem 0 1rem}
+            .m{color:#52606d}.b{display:inline-block;margin-top:1.25rem;padding:.65rem 1.1rem;background:#B9963B;
+            color:#241a04;font-weight:700;border-radius:.5rem;text-decoration:none}
+            .s{width:1.6rem;height:1.6rem;border:3px solid #d9e2ec;border-top-color:#B9963B;border-radius:50%;
+            margin:0 auto 1rem;animation:r .9s linear infinite}@keyframes r{to{transform:rotate(360deg)}}</style>
+          </head><body><div class="c">${body}</div></body></html>`)
+        tab.document.close()
+      } catch {}
+    }
+
+    paint('Finding the parcel', `<div class="s"></div><div class="m">Looking up</div>
+      <div class="a">${escapeHtml(street)}</div>
+      <div class="m">on the ${where} Assessor. This can take up to a minute.</div>`)
+
+    const finish = (parcel, reason) => {
       assessorBusyRef.current = false; setAssessorBusy(false)
       if (!tab || tab.closed) return
-      // Nothing to jump to: leave him on the search page already open.
-      if (!url || url === assessorUrl(client)) return
-      // Writing location on a window we opened is allowed cross-origin; reading it is not.
-      try { tab.location.replace(url) } catch { window.open(url, '_blank', 'noopener') }
+      if (parcel) {
+        try { tab.location.replace(parcel); try { tab.opener = null } catch {} } catch { window.open(parcel, '_blank', 'noopener') }
+        return
+      }
+      // No record. Say so, and say whose address it was - the search box on the assessor
+      // will be holding the LAST thing searched, not this lead.
+      paint('No assessor record', `<div class="m">No assessor record found for</div>
+        <div class="a">${escapeHtml(street)}</div>
+        <div class="m">${escapeHtml(reason || 'It may be outside Linn County, or listed under a different address.')}</div>
+        <a class="b" href="${assessorUrl(client)}">Search the ${where} Assessor</a>
+        <div class="m" style="margin-top:1rem;font-size:.85rem">Its search box may still show someone else's address.</div>`)
     }
+
     authFetch(`/api/clients/${client.id}/assessor`)
       .then(r => r.json())
       .then(d => {
         if (d && !d.error) setAssessor(d)
-        done((d && (d.parcel || d.search)) || assessorUrl(client))
+        finish(d && d.parcel, d && d.reason)
       })
-      .catch(() => done(assessorUrl(client)))
+      .catch(() => finish(null, 'The lookup could not be reached.'))
   }
 
   // Resolved on open rather than on click: the lookup talks to the assessor's site and
@@ -646,6 +686,12 @@ const plusBtnStyle = { border: '1px solid var(--accent-border)', background: 'no
 // county site finds nothing, and most of the file is Cedar Rapids, so the routing is not
 // an optimisation (John, 2026-09-30).
 //
+// An address goes into the waiting tab's HTML, so it is escaped. Addresses are tame, but
+// the data comes from a CRM field a person types into.
+const escapeHtml = (v) => String(v == null ? '' : v)
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+
 // THE FALLBACK ONLY. The button prefers the parcel page the server resolved
 // (/api/clients/:id/assessor); this is where it points while that is still loading, or
 // when the address has no assessor record at all.
@@ -818,7 +864,10 @@ function Communications({ client, onOpenText, onAddNote }) {
   // Notes live here now: the standalone Notes box merged into this tab strip.
   const noteLines = client.notes ? String(client.notes).split('\n').filter(Boolean) : []
   const FILTERS = [['all', 'All'], ['text', 'Texts'], ['call', 'Calls'], ['email', 'Emails'], ['note', noteLines.length ? `Notes (${noteLines.length})` : 'Notes']]
-  let items = (rows || []).filter(m => m.channel !== 'note').filter(m => filter === 'all' ? true : m.channel === filter)
+  // FUB notes are real timeline rows, so they are no longer filtered out here. The old
+  // exclusion predates the import, when the only 'notes' were the free-text field below
+  // and nothing ever had channel='note' (John, 2026-10-01).
+  let items = (rows || []).filter(m => filter === 'all' ? true : m.channel === filter)
   if (q.trim()) { const t = q.toLowerCase(); items = items.filter(m => `${m.body || ''} ${m.preview || ''} ${m.subject || ''}`.toLowerCase().includes(t)) }
   const shown = items.slice(0, limit)
   let notes = noteLines
@@ -832,7 +881,11 @@ function Communications({ client, onOpenText, onAddNote }) {
       <input value={q} onChange={e => setQ(e.target.value)} placeholder={filter === 'note' ? 'Search notes…' : 'Search communications…'} style={{ width: '100%', padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, marginBottom: 10 }} />
       {filter === 'note' ? (
         <>
-          {!notes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No notes yet.</div>
+          {/* Imported FUB notes first - they carry a date and an author - then the
+              free-text notes typed on the profile. */}
+          {shown.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: notes.length ? 10 : 0 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
+          {items.length > shown.length && <button className="btn btn-sm" style={{ marginBottom: 10 }} onClick={() => setLimit(l => l + 25)}>Load more notes ({items.length - shown.length})</button>}
+          {!notes.length && !shown.length ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No notes yet.</div>
             : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map((ln, i) => {
               const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
               return <div key={i} style={{ fontSize: 15.5, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
@@ -914,7 +967,9 @@ function CommItem({ m }) {
     <div style={{ border: '1px solid var(--border)', borderLeft: `3px solid ${meta.color}`, borderRadius: 6, padding: '7px 10px', background: 'var(--bg-secondary)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 3 }}>
         <span style={{ color: meta.color, fontWeight: 700 }}>{meta.icon} {meta.label}</span>
-        <span>{out ? '↗ outbound' : '↙ inbound'}</span>
+        {m.direction === 'internal'
+          ? (m.agent ? <span>· by {m.agent}</span> : null)
+          : <span>{out ? '↗ outbound' : '↙ inbound'}</span>}
         {aiSent && <span style={{ color: '#7c3aed', fontWeight: 700 }}>· HUB AI</span>}
         {m.duration_sec ? <span>· {fmtDur(m.duration_sec)}</span> : null}
         {m.disposition ? <span>· {m.disposition}</span> : null}
