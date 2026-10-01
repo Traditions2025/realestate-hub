@@ -1109,6 +1109,41 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // How much disk would a full note/call import actually cost? communications is already
+  // the biggest table at 101MB for ~15k rows, and /data holds a 226MB database, so the
+  // answer decides whether a 264k-note import is even possible. Measures real bodies.
+  app.get('/api/fub/probe-size', async (_req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const out = {}
+      const measure = async (label, ep, fields) => {
+        let bytes = 0, n = 0, max = 0, bySystem = {}
+        for (const offset of [0, 500, 5000, 20000]) {       // spread the sample over history
+          try {
+            const b = await fubGet(ep, { limit: 50, offset })
+            const k = Object.keys(b || {}).find(x => Array.isArray(b[x]))
+            for (const r of (k ? b[k] : [])) {
+              const size = fields.reduce((s2, f) => s2 + Buffer.byteLength(String(r[f] ?? ''), 'utf8'), 0)
+              bytes += size; n++; if (size > max) max = size
+              const sys = r.systemName || '(human)'
+              bySystem[sys] = bySystem[sys] || { n: 0, bytes: 0 }
+              bySystem[sys].n++; bySystem[sys].bytes += size
+            }
+          } catch (e) { out[label + '_error'] = String(e.message).slice(0, 120) }
+          await new Promise(s2 => setTimeout(s2, 400))
+        }
+        out[label] = {
+          sampled: n, avg_bytes: n ? Math.round(bytes / n) : 0, max_bytes: max,
+          by_system: Object.fromEntries(Object.entries(bySystem).map(([k2, v]) =>
+            [k2, { n: v.n, avg_kb: +(v.bytes / v.n / 1024).toFixed(1) }])),
+        }
+      }
+      await measure('notes', '/notes', ['subject', 'body'])
+      await measure('calls', '/calls', ['note', 'outcome', 'phone'])
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
