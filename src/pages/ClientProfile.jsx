@@ -143,8 +143,12 @@ export default function ClientProfile() {
   const openAssessor = (e) => {
     if (assessor?.parcel) return                       // already a real link, let it through
     if (!client?.id) return
-    e.preventDefault()
-    if (assessorBusyRef.current) return
+    if (assessorBusyRef.current) { e.preventDefault(); return }
+
+    // Open the tab BEFORE preventing the default. If the browser blocks the popup,
+    // window.open returns null, and preventing the default first would have meant the
+    // click did nothing at all - no tab, no navigation, no message. Letting the link
+    // through is worse than a parcel but far better than silence.
 
     // NEVER send the tab to the assessor's own search page while we wait.
     //
@@ -157,6 +161,8 @@ export default function ClientProfile() {
     // No 'noopener' here: with it, window.open returns null and the tab could never be
     // steered at all. The opener is dropped by hand once we have navigated away.
     const tab = window.open('', '_blank')
+    if (!tab) return                                   // popup blocked: let the href go
+    e.preventDefault()
     assessorBusyRef.current = true; setAssessorBusy(true)
     const street = String(client.address || '').trim()
     const where = String(client.city || '').trim().toLowerCase() === 'cedar rapids' ? 'Cedar Rapids City' : 'Linn County'

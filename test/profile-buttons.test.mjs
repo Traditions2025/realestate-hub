@@ -191,7 +191,7 @@ test('the button says what it will open', () => {
 // few seconds, and the href is only the fallback until it resolves.
 test('the tab is opened inside the click, not after the await', () => {
   // window.open after an await is what popup blockers stop
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
   const open = fn.indexOf('window.open(')
   const fetchAt = fn.indexOf('authFetch(')
   assert.ok(open > 0 && fetchAt > 0, 'both should be present')
@@ -203,40 +203,50 @@ test('the tab is opened inside the click, not after the await', () => {
 // like a filled-in address and belongs to someone else. A wrong address that looks right is
 // worse than a blank one.
 test('the waiting tab never shows the assessor own search page', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
   assert.match(fn, /window\.open\(''/, 'the tab starts on our own page, not theirs')
   assert.ok(!/window\.open\(assessorUrl\(client\)/.test(fn), 'their search page shows the PREVIOUS search')
   assert.match(fn, /searched last|SEARCHED LAST/i, 'the reason should be written down')
 })
 
 test('the waiting page names the address being looked up', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
   assert.match(fn, /Looking up/)
   assert.match(fn, /escapeHtml\(street\)/, 'and escapes it')
 })
 
 test('a miss says so, instead of dumping him on a stranger search', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
   assert.match(fn, /No assessor record found for/)
   assert.match(fn, /search box may still show someone else/i, 'warn about the stale box')
   assert.match(fn, /href="\$\{assessorUrl\(client\)\}"/, 'but still offer the search')
 })
 
 test('the tab is only navigated to a parcel we matched', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
   assert.match(fn, /if \(parcel\) \{/)
   assert.match(fn, /tab\.location\.replace\(parcel\)/)
   assert.match(fn, /tab\.opener = null/, 'drop the opener once we leave our own page')
 })
 
 test('noopener is NOT used, or the tab could never be steered', () => {
-  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 3600)
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
   // window.open(..., 'noopener') returns null, so the jump silently never happened
   assert.ok(!/window\.open\('', '_blank', 'noopener'\)/.test(fn))
   assert.match(fn, /window\.open\('', '_blank'\)/)
 })
 
 test('a second click while one is running is ignored', () => {
-  assert.match(src, /if \(assessorBusyRef\.current\) return/)
+  assert.match(src, /if \(assessorBusyRef\.current\) \{ e\.preventDefault\(\); return \}/)
 })
 
+
+test('a blocked popup falls through to the link instead of doing nothing', () => {
+  // window.open returns null when blocked; preventing the default first meant the click
+  // produced no tab, no navigation and no message at all
+  const fn = src.slice(src.indexOf('const openAssessor = (e) =>'), src.indexOf('const openAssessor = (e) =>') + 4600)
+  const open = fn.indexOf('window.open(')
+  const prevent = fn.indexOf('e.preventDefault()', open)
+  assert.ok(open > 0 && prevent > open, 'the tab must be opened BEFORE the default is prevented')
+  assert.match(fn, /if \(!tab\) return/)
+})
