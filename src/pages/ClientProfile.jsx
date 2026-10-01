@@ -230,19 +230,13 @@ export default function ClientProfile() {
             </div>
           )}
         </div>
+        {/* Name and actions on ONE line (John, 2026-10-01). The chip row that used to sit
+            between them repeated Type, Status, Agent and Source straight from Client
+            Details; Realist Score and Intent moved onto that card, and AI Managed is in
+            the AI Intelligence panel, so nothing was lost by dropping the row. */}
         <div className="cp-identity">
           <h1 className="cp-name">{name}</h1>
-          <div className="cp-badges">
-            <TypePill client={client} onSaved={load} />
-            <StatusPill client={client} onSaved={load} />
-            <AgentPill client={client} onSaved={load} />
-            <RealistScoreBadge client={client} onSaved={load} />
-            {client.source && <span className="cp-badge cp-badge-muted">{client.source}</span>}
-            {intent != null && <span className="cp-badge" style={{ background: 'rgba(37,99,235,.12)', color: '#2563eb' }}>Intent {intent}</span>}
-            {ai?.ai_managed && <span className="cp-badge" style={{ background: 'rgba(124,58,237,.12)', color: '#7c3aed' }}>AI Managed</span>}
-          </div>
-        </div>
-        <div className="cp-actions">
+          <div className="cp-actions">
           {client.phone && !client.hub_text_opt_out && <button className="lead-action-btn" onClick={() => { setTextOpen(v => !v); setEmailOpen(false) }}><span className="lead-action-icon">💬</span><span>Text</span></button>}
           {(client.phone || client.alt_phones) && <CallActionButton client={client} name={name} />}
           {client.email && <button className="lead-action-btn" onClick={() => { setEmailOpen(v => !v); setTextOpen(false) }}><span className="lead-action-icon">✉</span><span>Email</span></button>}
@@ -254,6 +248,7 @@ export default function ClientProfile() {
           {client.fub_person_id && <a className="lead-action-btn" href={`https://mattsmithremax.followupboss.com/2/people/view/${client.fub_person_id}`} target="_blank" rel="noopener noreferrer"><span className="lead-action-icon">👤</span><span>View FUB Profile</span></a>}
           {client.sierra_lead_id && <button className="lead-action-btn lead-action-refresh" onClick={refreshSierra} disabled={refreshing}><span className="lead-action-icon">{refreshing ? '⟳' : '↻'}</span><span>{refreshing ? 'Refreshing…' : 'Refresh from Sierra'}</span></button>}
           {refreshMsg && <span style={{ fontSize: 14.5, alignSelf: 'center', color: refreshMsg.includes('✓') ? '#10b981' : '#ef4444' }}>{refreshMsg}</span>}
+          </div>
         </div>
         {apptOpen && <AppointmentModal client={client} onClose={() => setApptOpen(false)} />}
         {noteOpen && (
@@ -274,7 +269,7 @@ export default function ClientProfile() {
         )}
         {(() => {
           const renderers = {
-            details: () => <ClientDetails client={client} onSaved={load} />,
+            details: () => <ClientDetails client={client} onSaved={load} intent={intent} intentLevel={ai?.intent?.level} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             propact: () => <PropertyActivity client={client} onSaved={load} />,
@@ -645,7 +640,7 @@ export function copyAssessorAddress(client) {
   } catch {}
 }
 
-function ClientDetails({ client, onSaved }) {
+function ClientDetails({ client, onSaved, intent = null, intentLevel = null }) {
   const cid = client.id
   const [altAdd, setAltAdd] = useState(null) // 'phones' | 'emails' | null
   // MLS # / Off Market Date are prospecting-list fields — only shown for FSBO and
@@ -684,6 +679,13 @@ function ClientDetails({ client, onSaved }) {
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Type:</strong> <TypePill client={client} onSaved={onSaved} /></p>
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Status:</strong> <StatusPill client={client} onSaved={onSaved} /></p>
           <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Agent:</strong> <AgentPill client={client} onSaved={onSaved} /></p>
+          {/* Realist Score (lead_score) and Intent used to sit as chips under the name.
+              Everything else in that row - Type, Status, Agent, Source - was already on
+              this card, so the row was duplication; these two were not, so they moved
+              here and the row went (John, 2026-10-01). Still click-to-edit.
+              NOTE: this is the Realist SCORE, not the Realist property data below it. */}
+          <p style={{ display: 'flex', alignItems: 'center', gap: 6 }}><strong>Realist Score:</strong> <RealistScoreBadge client={client} onSaved={onSaved} /></p>
+          <p><strong>Intent:</strong> {intent != null ? `${intent}${intentLevel ? ' · ' + String(intentLevel).toUpperCase() : ''}` : '—'}</p>
           {(client.realist_market_value || client.realist_sell_score || client.realist_year_built) && (
             <p><strong>Realist:</strong> {[
               client.realist_market_value ? `$${Number(client.realist_market_value).toLocaleString()} est. value` : null,

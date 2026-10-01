@@ -2243,7 +2243,10 @@ input[type="range"] {
 .cp-header-row { display: flex; align-items: center; gap: 12px; }
 .cp-prevnext { margin-left: auto; display: flex; align-items: center; gap: 6px; }
 .cp-count { font-size: 14.5px; color: var(--text-muted); font-variant-numeric: tabular-nums; min-width: 64px; text-align: center; }
-.cp-identity { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+.cp-identity { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+/* The actions moved onto the name's line (John, 2026-10-01), so they no longer carry
+   the margin that separated them from the chip row that used to sit between. */
+.cp-identity .cp-actions { margin-top: 0; flex: 1 1 auto; }
 .cp-name { font-size: 24px; font-weight: 800; margin: 0; color: var(--text-primary); }
 .cp-badges { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .cp-badge { font-size: 14.5px; font-weight: 700; padding: 2px 9px; border-radius: 20px; background: var(--bg-secondary); border: 1px solid var(--border); color: var(--text-secondary); text-transform: capitalize; white-space: nowrap; }
@@ -2289,7 +2292,9 @@ input[type="range"] {
   .cp-sticky { padding: 8px 16px 0; }
   .cp-identity { margin-top: 4px; }
   .cp-name { font-size: 22px; }
+  /* on a phone the buttons wrap under the name rather than squeezing beside it */
   .cp-actions { margin-top: 6px; padding-bottom: 8px; }
+  .cp-identity .cp-actions { margin-top: 6px; flex-basis: 100%; }
   .cp-alerts { margin-bottom: 8px; }
   .client-profile .lead-action-btn { padding: 6px 11px; }
 

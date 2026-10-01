@@ -139,3 +139,45 @@ test('the warning does not drown out the address itself', () => {
   // the copied value leads; the caution follows
   assert.ok(fn.indexOf('Copied') < fn.indexOf('Clear the search box'))
 })
+
+// ── the header row (John, 2026-10-01) ────────────────────────────────────────────────
+// The chips under the name repeated Type, Status, Agent and Source straight off the
+// Client Details card. Realist Score and Intent were the only two that were NOT on it, so
+// those moved there and the row went, letting the actions sit beside the name.
+const css = fs.readFileSync(new URL('../src/styles/app.css', import.meta.url), 'utf8')
+
+test('the duplicate chip row is gone', () => {
+  assert.ok(!/<div className="cp-badges">/.test(src), 'the row duplicated Client Details')
+})
+
+test('nothing was lost: the two unique chips are on the details card', () => {
+  const crm = src.slice(src.indexOf("<div className=\"cp-sub\">CRM</div>"))
+  const card = crm.slice(0, crm.indexOf('Social'))
+  assert.match(card, /<strong>Realist Score:<\/strong>\s*<RealistScoreBadge/, 'still click-to-edit')
+  assert.match(card, /<strong>Intent:<\/strong>/)
+})
+
+test('Type, Status and Agent stay editable where they already were', () => {
+  const crm = src.slice(src.indexOf("<div className=\"cp-sub\">CRM</div>"))
+  const card = crm.slice(0, crm.indexOf('Social'))
+  for (const pill of ['TypePill', 'StatusPill', 'AgentPill'])
+    assert.match(card, new RegExp(`<${pill} client=\{client\} onSaved=\{onSaved\}`), `${pill} must remain`)
+})
+
+test('intent reaches the details card from the parent', () => {
+  assert.match(src, /function ClientDetails\(\{ client, onSaved, intent = null, intentLevel = null \}\)/)
+  assert.match(src, /<ClientDetails client=\{client\} onSaved=\{load\} intent=\{intent\} intentLevel=\{ai\?\.intent\?\.level\}/)
+})
+
+test('the actions sit on the name line', () => {
+  const id = src.slice(src.indexOf('<div className="cp-identity">'))
+  const block = id.slice(0, id.indexOf('{apptOpen &&'))
+  assert.ok(block.indexOf('cp-name') < block.indexOf('cp-actions'), 'name first, then the buttons')
+  assert.match(css, /\.cp-identity \.cp-actions \{ margin-top: 0/, 'no leftover gap above them')
+  assert.match(css, /\.cp-identity \{ display: flex; align-items: center/, 'buttons centre, not baseline')
+})
+
+test('on a phone the buttons wrap under the name', () => {
+  const mobile = css.slice(css.indexOf('.cp-identity { margin-top: 4px; }'))
+  assert.match(mobile.slice(0, 400), /\.cp-identity \.cp-actions \{ margin-top: 6px; flex-basis: 100%/)
+})
