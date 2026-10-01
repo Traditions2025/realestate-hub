@@ -1003,10 +1003,14 @@ async function start() {
           const b = await fubGet('/people', { ...params, limit: 3 })
           const rows = b?.people || []
           out[label] = { ok: true, total: b?._metadata?.total ?? null, returned: rows.length,
-                         first: rows[0] ? { id: rows[0].id, name: rows[0].name, stage: rows[0].stage } : null }
+                         people: rows.slice(0, 3).map(x => ({ id: x.id, name: x.name, stage: x.stage,
+                           source: x.source, created: x.created, emails: (x.emails || []).map(e => e.value),
+                           phones: (x.phones || []).map(e => e.value) })) }
         } catch (e) { out[label] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 140) } }
         await new Promise(s2 => setTimeout(s2, 300))
       }
+      const name = String(req.query.name || '')
+      if (name) { await t('by_name', { name }); await t('by_q_name', { q: name }) }
       if (email) { await t('by_email', { email }); await t('by_q_email', { q: email }) }
       if (phone) { await t('by_phone', { phone }); await t('by_q_phone', { q: phone }) }
       res.json(out)
