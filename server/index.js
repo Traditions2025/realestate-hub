@@ -1020,6 +1020,32 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only capability probe for designing the conversation sync: can this account read
+  // notes, calls, texts and emails, and what shape do they come back in? A FIXED whitelist,
+  // not a passthrough - nothing here takes a caller-supplied path.
+  app.get('/api/fub/probe-conversations', async (_req, res) => {
+    const PROBE = ['/notes', '/calls', '/textMessages', '/emails', '/events', '/users',
+                   '/threads', '/emailMessages', '/appointments', '/tasks']
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const out = {}
+      for (const ep of PROBE) {
+        try {
+          const b = await fubGet(ep, { limit: 2 })
+          const key = Object.keys(b || {}).find(k => Array.isArray(b[k])) || null
+          const rows = key ? b[key] : []
+          out[ep] = {
+            ok: true, total: b?._metadata?.total ?? b?._metadata?.collection ?? null,
+            collection: key, sample_fields: rows[0] ? Object.keys(rows[0]) : [],
+            sample: rows[0] || null,
+          }
+        } catch (e) { out[ep] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 160) } }
+        await new Promise(s => setTimeout(s, 350))
+      }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
