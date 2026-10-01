@@ -177,6 +177,7 @@ test('opposite directions are still different addresses', () => {
 
 // "3731 Tanager Drive North" finds nothing; "3731 Tanager Dr N" lands on the parcel.
 test('a spelled-out street is also tried abbreviated', () => {
+  assert.equal(abbreviateStreet('3731 Tanager Drive Northeast'), '3731 Tanager Dr NE')
   assert.equal(abbreviateStreet('3731 Tanager Drive North'), '3731 Tanager Dr N')
   assert.equal(abbreviateStreet('12 Sunset Boulevard'), '12 Sunset Blvd')
   assert.equal(abbreviateStreet('9 Elm Court South'), '9 Elm Ct S')
@@ -191,4 +192,20 @@ test('both spellings and both hosts go at once', () => {
   assert.match(src, /const spellings = \[street, abbreviateStreet\(street\)\]\.filter\(Boolean\)/)
   assert.match(src, /for \(const host of \[first, second\]\) for \(const term of spellings\)/)
   assert.match(src, /await Promise\.all\(attempts\.map/)
+})
+
+// Cedar Rapids addresses are mostly quadrants, and "Drive Northeast" spelled out finds
+// nothing at all on the site.
+test('compound quadrants abbreviate, and stay uppercase', () => {
+  assert.equal(abbreviateStreet('1 Elm Street Northwest'), '1 Elm St NW')
+  assert.equal(abbreviateStreet('2 Oak Lane Southeast'), '2 Oak Ln SE')
+  assert.equal(abbreviateStreet('3 Ash Road Southwest'), '3 Ash Rd SW')
+  for (const a of ['1 Elm Street Northwest', '2 Oak Lane Southeast'])
+    assert.ok(!/ N[ewsto]+$/.test(abbreviateStreet(a)), 'a directional must not be title-cased')
+})
+
+test('a quadrant written in full is the same address, but a different one is not', () => {
+  assert.ok(addressesAgree('3731 Tanager Dr NE', '3731 TANAGER DR NORTHEAST CEDAR RAPIDS, IA'))
+  assert.ok(!addressesAgree('100 Oak St NE', '100 OAK STREET SE CEDAR RAPIDS, IA'))
+  assert.ok(!addressesAgree('100 Oak St NE', '100 OAK STREET NW CEDAR RAPIDS, IA'))
 })

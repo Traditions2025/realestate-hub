@@ -67,6 +67,10 @@ const ABBREV = {
   // "7114 E Park Ct NE", and without these the guard threw away a correct parcel.
   N: 'NORTH', NORTH: 'NORTH', S: 'SOUTH', SOUTH: 'SOUTH',
   E: 'EAST', EAST: 'EAST', W: 'WEST', WEST: 'WEST',
+  // The compound quadrants are the common ones in Cedar Rapids, and "Drive Northeast"
+  // spelled out finds nothing at all.
+  NE: 'NORTHEAST', NORTHEAST: 'NORTHEAST', NW: 'NORTHWEST', NORTHWEST: 'NORTHWEST',
+  SE: 'SOUTHEAST', SOUTHEAST: 'SOUTHEAST', SW: 'SOUTHWEST', SOUTHWEST: 'SOUTHWEST',
 }
 
 // The reverse, for the SEARCH term. "3731 Tanager Drive North" finds nothing; the same
@@ -76,14 +80,23 @@ const SHORTEN = {
   BOULEVARD: 'BLVD', CIRCLE: 'CIR', PLACE: 'PL', TERRACE: 'TER', PARKWAY: 'PKWY',
   HIGHWAY: 'HWY', TRAIL: 'TRL', SQUARE: 'SQ',
   NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W',
+  NORTHEAST: 'NE', NORTHWEST: 'NW', SOUTHEAST: 'SE', SOUTHWEST: 'SW',
 }
+
+const DIRECTIONS = new Set(['N', 'S', 'E', 'W', 'NORTH', 'SOUTH', 'EAST', 'WEST',
+  'NE', 'NW', 'SE', 'SW', 'NORTHEAST', 'NORTHWEST', 'SOUTHEAST', 'SOUTHWEST'])
 
 /** The abbreviated spelling of a street, or '' when it is already abbreviated. */
 export function abbreviateStreet(street) {
   const words = String(street || '').trim().split(/\s+/)
   const out = words.map(w => {
     const key = w.toUpperCase().replace(/[^A-Z]/g, '')
-    return SHORTEN[key] ? (w === w.toUpperCase() ? SHORTEN[key] : SHORTEN[key].charAt(0) + SHORTEN[key].slice(1).toLowerCase()) : w
+    const short = SHORTEN[key]
+    if (!short) return w
+    // Directionals stay uppercase - "3731 Tanager Dr NE", never "Dr Ne". Street suffixes
+    // follow the case of the word they replace.
+    if (DIRECTIONS.has(key)) return short
+    return w === w.toUpperCase() ? short : short.charAt(0) + short.slice(1).toLowerCase()
   })
   const joined = out.join(' ')
   return joined.toUpperCase() === String(street || '').trim().toUpperCase() ? '' : joined
