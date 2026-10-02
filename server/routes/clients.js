@@ -5,6 +5,7 @@ import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '
 import { gradeFromRealistScore } from '../sierra-helper.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { phoneSearchClauses } from '../phone-search.js'
+import { ensureState } from '../ai-followup/state.js'
 
 const router = Router()
 
@@ -1460,8 +1461,29 @@ router.post('/', (req, res) => {
   logActivity('created', 'client', result.lastInsertRowid, `New ${b.type}: ${b.first_name} ${b.last_name}`)
   // A brand-new lead with a phone claims any unknown call/text history from that number.
   if (b.phone) { try { import('./inbox.js').then(m => m.claimUnknownCommsForClient(result.lastInsertRowid)).catch(() => {}) } catch {} }
-  // FRESH-LANE hook: evaluate the new lead for AI auto-enrollment (no-op unless the
-  // enrollment mode is on; the evaluator's own rules decide).
+  // A HAND-ADDED LEAD NEVER AUTO-ENROLLS IN AI (John, 2026-10-02).
+  //
+  // Holly Stock was added here and got an AI intro text 8 minutes later, while a real
+  // human message about her mother's condo went out 22 seconds after it. The status check
+  // did not save her: this route defaults a lead to 'active', but the fresh-lane hook runs
+  // the instant the row exists, and anything typed in as New - or left New for the seconds
+  // before the status is set - is eligible.
+  //
+  // So the exclusion is recorded on the record itself rather than inferred from status. It
+  // is the SAME durable flag an agent sets from the profile, which means "unless turned on"
+  // already works: POST /api/ai/lead/:id/enable does not consult it, so switching AI on by
+  // hand still does exactly what it says.
+  try {
+    ensureState(result.lastInsertRowid)
+    db.run(`UPDATE ai_lead_state SET auto_enroll_excluded=1, auto_enroll_excluded_by=?,
+            auto_enroll_excluded_at=?, auto_enroll_excluded_reason=? WHERE client_id=?`,
+      [req.user?.email || 'hub', new Date().toISOString(),
+       'added by hand in the Hub — turn AI on deliberately if this lead should have it',
+       result.lastInsertRowid])
+  } catch (e) { console.error('[clients] manual-add AI exclusion failed:', e.message) }
+
+  // The hook still runs, so the decision is EVALUATED and logged rather than skipped in
+  // silence. It will record MANUAL_EXCLUDE, which is the audit trail for why nothing fired.
   try { import('../ai-enrollment.js').then(m => m.maybeAutoEnrollFresh(result.lastInsertRowid)).catch(() => {}) } catch {}
   res.status(201).json({ id: result.lastInsertRowid })
 })
