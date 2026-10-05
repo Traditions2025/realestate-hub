@@ -173,6 +173,10 @@ test('inbound response stops the campaign immediately and creates human follow-u
   assert.equal(en.response_class, 'STILL_AVAILABLE')
   // The Tasks tab is the team's own now (John, 2026-10-05) - the reply raises a
   // notification, and a task only when automation_tasks_enabled is turned on.
+  //
+  // Set explicitly: test files share one database and other suites turn this ON for their
+  // own coverage, so inheriting whatever they left behind makes this assertion a coin toss.
+  db.setSetting('automation_tasks_enabled', '0')
   const task = db.get("SELECT * FROM tasks WHERE related_type='client' AND related_id=? AND title LIKE 'CX Response%'", [c.id])
   assert.ok(!task, 'no task while the switch is off')   // the shim returns null, not undefined
   // notify() goes through a dynamic import().then(), so it lands a tick later

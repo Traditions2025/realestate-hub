@@ -66,8 +66,16 @@ export function canSendSms(client, context = {}) {
   // Cancelled/Expired connection-campaign leads: the AI never texts them at all —
   // not responsive, not proactive, not forced. The campaign's approved templates
   // (channel 'automation'/'drip') and human 1:1 sends are the only outbound paths.
+  //
+  // FSBO sellers are the same rule and were missing from it until 2026-10-05. AI enrolment
+  // already excludes an FSBO lead, but only at the MOMENT OF ENROLMENT - a cold buyer who
+  // is later identified as a FSBO seller stays AI-managed, which is how Joseph Green
+  // (7526 Cattail Ct NE) and Jamie Northrup came to be texted by the AI. This is the last
+  // gate before anything is sent, so it is checked here on every send, not once.
   if (channel === 'ai') {
     try { if (db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [client.id])) return deny('Cancelled/Expired connection campaign — AI never texts these leads') } catch {}
+    try { if (db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [client.id])) return deny('FSBO follow-up campaign — AI never texts these sellers') } catch {}
+    if (String(client.fsbo_status || '').trim()) return deny('FSBO-tracked seller — AI never texts these sellers')
   }
   // AI-specific gates — skipped for a manual agent-triggered send (context.force),
   // which only needs the hard compliance blocks above (STOP / opt-out / status).
