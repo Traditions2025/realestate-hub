@@ -11,3 +11,6 @@ backups/
 export_*.csv
 *-realist*.csv
 data/
+
+# scratch scripts for one-off live checks; never part of the app
+tmp/
