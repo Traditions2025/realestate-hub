@@ -118,7 +118,17 @@ export const PUSH_TAG = 'Hub: status synced'
 // Stages that are merely INACTIVE are not protected and do push: Realist, FSBO, Expired,
 // Cancelled, Not in the Market, C - Cold 6+ Months, Foreclosures. None of those carry a
 // relationship a Junk flag would contradict.
-const PROTECTED_STAGE = /past client|closed|under contract|pending|nurture|high probability|platinum|vip/i
+//
+// NARROWED 2026-10-05. John: "make sure that there's nothing in Junk from HUB that is still
+// on active stage in FUB, they must be on Dead Stage". Nurture, Seller (NURTURE) and the
+// High Probability pair all read as WORKABLE in FUB - an agent opening one of those expects
+// to work it. A lead the Hub has marked Junk must not sit there, so those now demote.
+//
+// What stays protected is only what is genuinely historical or contradictory: a Past Client
+// or a Closed/Under Contract record is someone the team finished work with, and PLATINUM
+// CLIENTS is a curated group. Junk on one of those is far more likely to be a mistake in
+// the Hub than a reason to erase the history, so it is reported for a person instead.
+const PROTECTED_STAGE = /past client|closed|under contract|platinum|vip/i
 
 const nowIso = () => new Date().toISOString()
 const norm = (s) => String(s || '').trim().toLowerCase()

@@ -489,3 +489,36 @@ test('the push consults the rule and reports what it kept', () => {
 test('candidates carry mls_status, or the mapping cannot see it', () => {
   assert.match(src, /SELECT id, first_name, last_name, email, status, type, mls_status, fub_person_id/)
 })
+
+// ── Junk must not sit on a workable FUB stage (John, 2026-10-05) ─────────────────────
+// "make sure that there's nothing in Junk from HUB that is still on active stage in FUB,
+// they must be on Dead Stage". Nurture, Seller (NURTURE) and the High Probability pair all
+// read as workable - an agent opening one expects to work it - so a Junk lead must not be
+// parked there. They now demote.
+test('a Junk lead demotes off any workable-looking stage', () => {
+  const PROTECTED = /past client|closed|under contract|platinum|vip/i
+  for (const stage of ['Nurture', 'Seller (NURTURE)', 'High Probability Buyer',
+                       'High Probability Sellers', 'Lead', 'Realist', 'ACTIVE WITH AGENT',
+                       'Homeowner', 'C - Cold 6+ Months', 'Not in the Market'])
+    assert.ok(!PROTECTED.test(stage), `Junk must be allowed to clear ${stage}`)
+})
+
+// What stays protected is only what is historical or curated. Junk on one of those is far
+// more likely to be a Hub mistake than a reason to erase the history.
+test('genuinely historical stages still stop for a human', () => {
+  const PROTECTED = /past client|closed|under contract|platinum|vip/i
+  for (const stage of ['Past Client', 'PLATINUM CLIENTS', 'Under Contract', 'Closed'])
+    assert.ok(PROTECTED.test(stage), `${stage} should not be erased by a Junk flag`)
+})
+
+test('the narrowed list is the one the code uses', () => {
+  assert.match(src, /const PROTECTED_STAGE = \/past client\|closed\|under contract\|platinum\|vip\/i/)
+  // nurture and high probability were deliberately removed
+  const line = src.slice(src.indexOf('const PROTECTED_STAGE'), src.indexOf('const PROTECTED_STAGE') + 90)
+  assert.ok(!/nurture|high probability/.test(line))
+})
+
+// The protection only ever applied to demotions; parity moves are unaffected by it.
+test('the guard is still scoped to demotions only', () => {
+  assert.match(src, /const demoting = stage === 'Dead' \|\| stage === 'Do not Contact'/)
+})
