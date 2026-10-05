@@ -1050,6 +1050,46 @@ async function start() {
   // Read-only: what does a FULL FUB person record contain? The goal is a two-way sync of
   // notes, tags and custom fields, so this reports every field FUB actually exposes on a
   // person, and whether the account defines custom fields at all.
+  // Re-test whether FUB email CONTENT can be read at all (John asked twice, 2026-10-05).
+  // Earlier finding was "[CONTENT HIDDEN]" on 51 of 51. This tries every angle: extra
+  // params, the threads endpoint, a single email by id, and both directions.
+  app.get('/api/fub/probe-emails', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const pid = Number(req.query.personId) || 0
+      const out = {}
+      const t = async (label, ep, params) => {
+        try {
+          const b = await fubGet(ep, params || {})
+          const key = Object.keys(b || {}).find(k => Array.isArray(b[k]))
+          const rows = key ? b[key] : []
+          const first = rows[0] || null
+          out[label] = {
+            ok: true, total: b?._metadata?.total ?? null, returned: rows.length,
+            fields: first ? Object.keys(first) : [],
+            showContent: rows.map(r => r.showContent).slice(0, 8),
+            subjects: rows.slice(0, 4).map(r => String(r.subject || '').slice(0, 60)),
+            body_excerpt: first ? String(first.bodyExcerpt || '').slice(0, 120) : null,
+            body_clean: first ? String(first.bodyHtmlVisibleClean || '').slice(0, 120) : null,
+            first_id: first?.id || null,
+          }
+        } catch (e) { out[label] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 180) } }
+        await new Promise(s2 => setTimeout(s2, 300))
+      }
+      if (pid) {
+        await t('plain', '/emails', { personId: pid, limit: 5 })
+        await t('showContent_true', '/emails', { personId: pid, limit: 5, showContent: 'true' })
+        await t('includeContent', '/emails', { personId: pid, limit: 5, includeContent: 'true' })
+        await t('fields_body', '/emails', { personId: pid, limit: 5, fields: 'allFields' })
+        const one = out.plain?.first_id
+        if (one) await t('single_by_id', `/emails/${one}`, {})
+      }
+      await t('threads', '/threads', { limit: 2 })
+      await t('textMessages_control', '/textMessages', { personId: pid, limit: 2 })
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/probe-person-full', async (req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')
