@@ -54,7 +54,7 @@ test('a task with no title is never written', () => {
 // followup-coverage.js counts a future human task as the coverage for a parked lead. Gate
 // it and every Not in Market lead evaluates UNPROTECTED and lands in Needs Attention -
 // one kind of clutter traded for another.
-const EXEMPT = ['not-in-market.js']
+const EXEMPT = []   // none: the annual recheck moved to a smart list 2026-10-05
 
 test('EVERY automation task insert sits behind the switch, bar one named exception', () => {
   const ungated = []
@@ -76,10 +76,27 @@ test('EVERY automation task insert sits behind the switch, bar one named excepti
     `expected exactly ${EXEMPT.length} ungated insert(s), found ${ungated.length}`)
 })
 
-test('the annual recheck is kept on purpose, and says why', () => {
+// John moved it to a smart list (2026-10-05). The coverage side had to move with it: the
+// task WAS the coverage for a parked lead, so without the status being excluded they would
+// all read UNPROTECTED and fill Needs Attention.
+test('the annual recheck is a smart list now, and coverage was moved with it', () => {
   const src = read('not-in-market.js')
-  assert.match(src, /THIS ONE STAYS, deliberately/)
-  assert.match(src, /UNPROTECTED/, 'the coverage consequence is the reason it stays')
+  assert.match(src, /MOVED TO A SMART LIST/)
+  assert.match(src, /createAutomationTask\(/, 'it goes through the gate like the rest')
+  const cov = read('followup-coverage.js')
+  assert.match(cov, /EXCLUDED_STATUSES = new Set\(\[[^\]]*'not_in_market'/,
+    'a parked lead must not read UNPROTECTED now that no task covers it')
+})
+
+test('the smart list can actually express "due for a recheck"', async () => {
+  const { compileAudience } = await import('../server/smart-audience.js')
+  const q = compileAudience({ all: [
+    { field: 'status', op: 'eq', value: 'not_in_market' },
+    { field: 'not_in_market_days', op: 'gte', value: 365 },
+  ] })
+  assert.match(q.where, /c\.status = \?/)
+  assert.match(q.where, /julianday\(c\.not_in_market_at\)/, 'the parked date is what makes it due')
+  assert.deepEqual(q.params, ['not_in_market', 365])
 })
 
 test('the sources still raise their alert, so nothing is lost', () => {

@@ -74,19 +74,23 @@ export function executeNotInMarketTransition(clientId, { actor = 'system' } = {}
     const due = new Date(); due.setFullYear(due.getFullYear() + 1)
     const dueDate = due.toISOString().slice(0, 10)
     const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || `client #${cid}`
-    // THIS ONE STAYS, deliberately (John, 2026-10-05 asked for AI-added tasks to go).
+    // MOVED TO A SMART LIST (John, 2026-10-05): "you can also remove the annual follow up
+    // needed... you can put those on a smart list in clients". So this no longer writes a
+    // task by default - the Clients list "Not in Market - Due for Annual Recheck" answers
+    // who is due, from clients.not_in_market_at, and does not clutter the Tasks tab.
     //
-    // It is not machine noise like the CX/FSBO reply tasks that regenerate daily - it is a
-    // single human to-do a YEAR out, and it is load-bearing: followup-coverage.js treats a
-    // future human task as the coverage for a parked lead ("the annual recheck task IS the
-    // coverage", line ~193). Remove it and every Not in Market lead evaluates UNPROTECTED
-    // and lands in Needs Attention, trading one kind of clutter for another. notify()
-    // cannot stand in either - it fires immediately and cannot be scheduled a year ahead.
-    const r = db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id)
-                      VALUES (?,?,?,?,?,?,?,?,?)`,
-      [ANNUAL_TASK_TITLE, `${name} confirmed no current buying/selling intent. Reconnect, ask how life and the house are treating them, and re-check plans.`,
-        'low', 'todo', dueDate, c.agent_assigned || 'Matt Smith', 'follow-up', 'client', cid])
-    summary.annual_task = { id: r.lastInsertRowid, due_date: dueDate, reused: false }
+    // The coverage side had to move with it: followup-coverage.js counted this task as the
+    // coverage for a parked lead, so without it they would all evaluate UNPROTECTED and
+    // land in Needs Attention. 'not_in_market' is an EXCLUDED status there now - parked on
+    // purpose, tracked by the list.
+    const taskId = createAutomationTask({
+      title: ANNUAL_TASK_TITLE,
+      description: `${name} confirmed no current buying/selling intent. Reconnect, ask how life and the house are treating them, and re-check plans.`,
+      priority: 'low', status: 'todo', due_date: dueDate,
+      assigned_to: c.agent_assigned || 'Matt Smith',
+      category: 'follow-up', related_type: 'client', related_id: cid,
+    })
+    summary.annual_task = taskId ? { id: taskId, due_date: dueDate, reused: false } : null
   }
 
   db.run('UPDATE clients SET not_in_market_at=?, updated_at=? WHERE id=?', [now, now, cid])

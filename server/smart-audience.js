@@ -26,6 +26,9 @@ const FIELDS = {
   email_opt_out:     { sql: 'COALESCE(c.marketing_email_opt_out,0)', type: 'bool', label: 'Email opted out', group: 'Contact' },
   text_opt_out:      { sql: 'COALESCE(c.hub_text_opt_out,0)', type: 'bool', label: 'Text opted out (STOP)', group: 'Contact' },
   created_days:      { sql: "(julianday('now') - julianday(c.created_at))", type: 'num', label: 'Days since added', group: 'Timing' },
+  // Added 2026-10-05 so the annual Not in Market recheck can live on a smart list instead
+  // of a task in the Tasks tab (John). Null for anyone never parked, which `>=` excludes.
+  not_in_market_days:{ sql: "(julianday('now') - julianday(c.not_in_market_at))", type: 'num', label: 'Days since marked Not in Market', group: 'Timing' },
 
   // Behavioral / AI signals
   intent:            { sql: 'COALESCE((SELECT li.intent_score FROM lead_intelligence li WHERE li.client_id=c.id),0)', type: 'num', label: 'Intent score', group: 'AI signals' },

@@ -54,7 +54,12 @@ export function coverageConfig() {
 export const REL_LEVELS = ['never_connected', 'connected', 'qualified', 'active_opportunity', 'client']
 const relIdx = (l) => Math.max(0, REL_LEVELS.indexOf(String(l || '').toLowerCase()))
 
-const EXCLUDED_STATUSES = new Set(['junk', 'donotcontact', 'archived', 'spam'])
+// 'not_in_market' joined these 2026-10-05. It used to be covered by the annual recheck
+// TASK ("the annual recheck task IS the coverage"), but John moved that to a smart list in
+// Clients, so there is no future task to find. These leads are parked ON PURPOSE and the
+// list is how they are found again - without this they would all read UNPROTECTED and fill
+// Needs Attention.
+const EXCLUDED_STATUSES = new Set(['junk', 'donotcontact', 'archived', 'spam', 'not_in_market'])
 const OPEN_TASK_NOT = "('done','completed','cancelled','canceled')" // open = anything else
 const ACTIVE_TX = "property_status NOT IN ('Closed') AND property_status NOT LIKE 'Terminated%' AND property_status NOT LIKE 'Cancel%' AND property_status NOT LIKE 'Fell%'"
 

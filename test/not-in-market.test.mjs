@@ -1,8 +1,17 @@
 // NOT IN MARKET transition: cleanup, idempotency, annual loop, exit behavior.
-import { test, after } from 'node:test'
+import { test, after, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import db, { initDb } from '../server/database.js'
 await initDb()
+
+// The annual recheck moved to a smart list in Clients (John, 2026-10-05), so by default it
+// no longer writes a task. The switch is turned ON here so the task lifecycle - create,
+// never duplicate, close on leaving - stays covered for whenever it is switched back on.
+// Re-applied before EVERY test, not once: test files share one database, and
+// automation-tasks.test.mjs toggles this same setting, so a single set at import time gets
+// pulled out from under these tests when the two run together.
+beforeEach(() => db.setSetting('automation_tasks_enabled', '1'))
+
 const { executeNotInMarketTransition, exitNotInMarket, ANNUAL_TASK_TITLE } = await import('../server/not-in-market.js')
 
 const made = { clients: [], tasks: [], texts: [], ai: [], drips: [] }
@@ -87,13 +96,16 @@ test('S9: active transaction — flagged, sales task cleanup skipped, transactio
   db.run('DELETE FROM transactions WHERE id=?', [tx.lastInsertRowid])
 })
 
-test('coverage: Not in Market with the annual task evaluates PROTECTED by human task', async () => {
+// CHANGED 2026-10-05: the annual recheck task used to BE the coverage for a parked lead.
+// John moved it to a smart list, so 'not_in_market' is an excluded status instead -
+// otherwise every parked lead would read UNPROTECTED and fill Needs Attention.
+test('coverage: a Not in Market lead is EXCLUDED, not unprotected', async () => {
   const { evaluateFollowUpCoverage } = await import('../server/followup-coverage.js')
   const cid = mkClient({})
   db.run("UPDATE clients SET status='not_in_market' WHERE id=?", [cid])
   executeNotInMarketTransition(cid, {})
   const ev = evaluateFollowUpCoverage(cid)
-  assert.equal(ev.coverage_status, 'protected')
-  assert.equal(ev.coverage_type, 'human_task')
+  assert.equal(ev.coverage_status, 'excluded', 'parked on purpose, found again via the list')
+  assert.notEqual(ev.coverage_status, 'unprotected')
   assert.equal(ev.max_allowed_silence_days, null)  // no silence standard for this status
 })
