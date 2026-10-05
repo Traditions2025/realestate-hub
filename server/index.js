@@ -1460,9 +1460,10 @@ async function start() {
       // An AI message sent BEFORE the lead was enrolled is not a breach - the campaign did
       // not exist for them yet. Enrolment dates decide it, not the message date alone.
       const enrolledAt = (cid) => {
-        const f = db.get('SELECT created_at, updated_at FROM fsbo_followups WHERE client_id=?', [cid])
+        // fsbo_followups has no created_at; the campaign begins for them at first_text_at
+        const f = db.get('SELECT first_text_at, updated_at FROM fsbo_followups WHERE client_id=?', [cid])
         const x = db.get('SELECT enrolled_at FROM cx_campaign WHERE client_id=?', [cid])
-        return (f && (f.created_at || f.updated_at)) || (x && x.enrolled_at) || null
+        return (f && (f.first_text_at || f.updated_at)) || (x && x.enrolled_at) || null
       }
       const withBodies = rows.map(r => ({
         enrolled_at: enrolledAt(r.id),
