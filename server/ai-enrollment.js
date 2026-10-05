@@ -145,6 +145,10 @@ export function evaluateAiEnrollmentEligibility(clientId, opts = {}) {
   }
 
   // 5) Seller-prospecting identities, independent of status/source spelling.
+  // The CAMPAIGN TABLE as well as the fields: a lead can be in the FSBO follow-up sequence
+  // after fsbo_status has been cleared (an Off Market listing clears it), and the campaign
+  // still owns the conversation. Found 2026-10-05 by the parity test against forbidden.js.
+  try { if (db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [cid])) return fin(EXCLUDED('FSBO', 'FSBO follow-up campaign owns this lead')) } catch {}
   if (c.fsbo_status || (c.fsbo_listings && c.fsbo_listings !== '[]')) return fin(EXCLUDED('FSBO', 'FSBO-tracked lead'))
   if (c.mls_status) return fin(EXCLUDED('MLS_TRACKED', `MLS-tracked (${c.mls_status})`))
 

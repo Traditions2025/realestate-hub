@@ -7,6 +7,7 @@ import db from '../database.js'
 import { isStopStatus } from '../lead-sequences.js'
 import { inQuietHours } from './flags.js'
 import { isUsHoliday } from '../holidays.js'
+import { aiForbiddenReason } from './forbidden.js'
 
 const nowIso = () => new Date().toISOString()
 export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
@@ -67,16 +68,16 @@ export function canSendSms(client, context = {}) {
   // not responsive, not proactive, not forced. The campaign's approved templates
   // (channel 'automation'/'drip') and human 1:1 sends are the only outbound paths.
   //
-  // FSBO sellers are the same rule and were missing from it until 2026-10-05. AI enrolment
-  // already excludes an FSBO lead, but only at the MOMENT OF ENROLMENT - a cold buyer who
-  // is later identified as a FSBO seller stays AI-managed, which is how Joseph Green
-  // (7526 Cattail Ct NE) and Jamie Northrup came to be texted by the AI. This is the last
-  // gate before anything is sent, so it is checked here on every send, not once.
+  // EVERY campaign fence, re-asked at send time. ai-enrollment.js refuses all of these too,
+  // but only when the lead JOINS - a lead who becomes FSBO, or MLS-tracked, or is picked up
+  // by a seller campaign AFTER enrolment stays AI-managed and the fence never runs again.
+  // That is how the AI came to answer Joseph Green, a FSBO seller enrolled months earlier as
+  // a cold buyer. Shared with enrolment through forbidden.js so the two cannot drift apart.
   if (channel === 'ai') {
-    try { if (db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [client.id])) return deny('Cancelled/Expired connection campaign — AI never texts these leads') } catch {}
-    try { if (db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [client.id])) return deny('FSBO follow-up campaign — AI never texts these sellers') } catch {}
-    if (String(client.fsbo_status || '').trim()) return deny('FSBO-tracked seller — AI never texts these sellers')
+    const why = aiForbiddenReason(client)
+    if (why) return deny(why)
   }
+
   // AI-specific gates — skipped for a manual agent-triggered send (context.force),
   // which only needs the hard compliance blocks above (STOP / opt-out / status).
   if (channel === 'ai' && !context.force) {

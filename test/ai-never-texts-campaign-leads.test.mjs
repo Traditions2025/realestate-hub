@@ -55,17 +55,19 @@ test('the orchestrator refuses both campaigns, even when forced', () => {
 
 // ── layer 3: the final send gate ─────────────────────────────────────────────────────
 test('policy denies an AI send to either campaign', () => {
-  const block = policy.slice(policy.indexOf("if (channel === 'ai') {"), policy.indexOf("if (channel === 'ai') {") + 900)
-  assert.match(block, /cx_campaign/)
-  assert.match(block, /fsbo_followups/)
+  // the checks live in forbidden.js now; policy asks it, so assert on what it asks
+  const block = policy.slice(policy.indexOf("if (channel === 'ai') {"), policy.indexOf("if (channel === 'ai') {") + 400)
+  assert.match(block, /aiForbiddenReason\(client\)/)
+  assert.match(forbidden, /cx_campaign/)
+  assert.match(forbidden, /fsbo_followups/)
   // fsbo_status catches a seller the campaign table has not caught up with
-  assert.match(block, /client\.fsbo_status/)
+  assert.match(forbidden, /client\.fsbo_status/)
 })
 
 test('the FSBO deny is checked on EVERY send, not once at enrolment', () => {
   // the whole reason this was reachable: enrolment excludes FSBO, but only at that moment
   assert.match(enrol, /c\.fsbo_status \|\|/, 'enrolment still excludes FSBO')
-  assert.match(policy, /only at the MOMENT OF ENROLMENT/i,
+  assert.match(forbidden, /moment of enrolment/i,
     'the reason the send-time check is needed should be written down')
 })
 
@@ -119,4 +121,61 @@ test('an ordinary lead is NOT blocked by the new guard', () => {
   const cid = mk({})
   assert.ok(!db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [cid]))
   assert.ok(!db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [cid]))
+})
+
+// ── the real lesson: enrolment fences must also exist at SEND time ───────────────────
+// Joseph Green was enrolled as a cold buyer months before anyone knew he was selling, and
+// Holly Stock was hand-added as a seller client. Both were refused by ai-enrollment.js -
+// but only at the moment of enrolment, which had already passed. forbidden.js asks the same
+// questions again on every send.
+const forbidden = read('ai-followup/forbidden.js')
+
+test('every campaign fence in enrolment has a send-time counterpart', () => {
+  // if a fence exists only at enrolment, a lead who acquires it later keeps getting texts
+  const fences = [
+    ['cx_campaign', /cx_campaign/],
+    ['fsbo_followups', /fsbo_followups/],
+    ['fb_seller_followups', /fb_seller_followups/],
+    ['fsbo_status', /fsbo_status/],
+    ['fsbo_listings', /fsbo_listings/],
+    ['mls_status', /mls_status/],
+    ['FB Seller Ad', /FB Seller Ad/],
+  ]
+  for (const [name, re] of fences) {
+    assert.match(enrol, re, `${name} should be fenced at enrolment`)
+    assert.match(forbidden, re, `${name} is fenced at enrolment but NOT at send time`)
+  }
+})
+
+test('policy asks the shared rule rather than keeping its own copy', () => {
+  // two copies drift; that is how FSBO ended up guarded in one place and not the other
+  assert.match(policy, /import \{ aiForbiddenReason \} from '\.\/forbidden\.js'/)
+  assert.match(policy, /const why = aiForbiddenReason\(client\)/)
+})
+
+test('a deliberate human decision is NOT in the send-time rule', () => {
+  // auto_enroll_excluded stays enrolment-only on purpose: an agent switching AI on from the
+  // profile must mean exactly that
+  // mentioned in forbidden.js's comments to say WHY it is absent; what matters is that it
+  // is never used as a send-time denial
+  assert.ok(!/if \(.*auto_enroll_excluded.*\) return/.test(forbidden),
+    'turning AI on by hand must still work')
+  assert.match(enrol, /auto_enroll_excluded/, 'but it still blocks AUTO-enrolment')
+})
+
+test('the shared rule lets an ordinary lead through', async () => {
+  const { aiForbiddenReason } = await import('../server/ai-followup/forbidden.js')
+  const cid = mk({})
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  assert.equal(aiForbiddenReason(c), null, 'the guard must not switch the AI off for everyone')
+})
+
+test('the shared rule catches an identity acquired AFTER enrolment', async () => {
+  const { aiForbiddenReason } = await import('../server/ai-followup/forbidden.js')
+  const cid = mk({})
+  assert.equal(aiForbiddenReason(db.get('SELECT * FROM clients WHERE id=?', [cid])), null)
+  // ...the FSBO sheet identifies them a month later
+  db.run("UPDATE clients SET fsbo_status='Available' WHERE id=?", [cid])
+  const after = aiForbiddenReason(db.get('SELECT * FROM clients WHERE id=?', [cid]))
+  assert.match(String(after), /FSBO/, 'this is exactly the case enrolment-time checks miss')
 })

@@ -3,10 +3,16 @@
 // (Off Market / prior response / STOP / landline), deferrals (recent human), manual
 // pause/remove always wins, response stops automation first, dry run writes nothing,
 // weekend/window rolling, angle rotation.
-import { test } from 'node:test'
+import { test , beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import db, { initDb } from '../server/database.js'
 await initDb()
+
+// The Tasks tab is the team's own (John, 2026-10-05): automations only write a task when
+// automation_tasks_enabled is on. Set per test, because suites share one database and
+// others toggle this same setting.
+beforeEach(() => db.setSetting('automation_tasks_enabled', '1'))
+
 const f = await import('../server/fsbo-followup.js')
 
 const nowIso = () => new Date().toISOString()
