@@ -1519,6 +1519,25 @@ async function start() {
   // Read-only: FSBO-flagged leads whose status/type never caught up. The FSBO sync sets
   // seller+watch on leads it CREATES, but when it attaches the flag to a lead that already
   // exists it writes only the fsbo_* fields - so an existing lead stays 'new' and 'buyer'.
+  // Read-only: who is due which FSBO step. attempt_count 2 means the NEXT send is step 3,
+  // the market-analysis sequence - so this says who would receive it.
+  app.get('/api/admin/fsbo-queue', (_req, res) => {
+    try {
+      const rows = db.all(`SELECT f.client_id, f.status, f.step, f.next_send_at, f.replied,
+                                  c.first_name, c.last_name, c.address, c.fsbo_dom
+                             FROM fsbo_followups f JOIN clients c ON c.id = f.client_id
+                            WHERE c.merged_into IS NULL
+                            ORDER BY f.next_send_at`)
+      const byStep = {}, byStatus = {}
+      rows.forEach(r => { byStep['step ' + (r.step ?? '?')] = (byStep['step ' + (r.step ?? '?')] || 0) + 1
+                          byStatus[r.status] = (byStatus[r.status] || 0) + 1 })
+      const dueStep3 = rows.filter(r => r.status === 'active' && Number(r.step) === 2)
+      res.json({ total: rows.length, by_step: byStep, by_status: byStatus,
+                 due_the_analysis_texts: dueStep3.length,
+                 next: dueStep3.slice(0, 20).map(r => ({ id: r.client_id, name: `${r.first_name} ${r.last_name}`.trim(), address: r.address, next_send_at: r.next_send_at })) })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/admin/fsbo-status-drift', (_req, res) => {
     try {
       const flagged = db.all(`SELECT id, first_name, last_name, address, phone, status, type, fsbo_status, fsbo_dom
