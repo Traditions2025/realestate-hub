@@ -8,6 +8,13 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import db, { initDb } from '../server/database.js'
 await initDb()
+
+// The Tasks tab is the team's own now (John, 2026-10-05): automations only write a task
+// when automation_tasks_enabled is on. It is turned ON here so the task-building code stays
+// covered for when it is switched back on. That the DEFAULT is off, and that every insert
+// is gated, is asserted in test/automation-tasks.test.mjs.
+db.setSetting('automation_tasks_enabled', '1')
+
 const m = await import('../server/seller-campaign.js')
 m.initSellerCampaign()
 

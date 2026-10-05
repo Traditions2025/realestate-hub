@@ -14,6 +14,7 @@
 // ============================================================================
 import db from './database.js'
 import { stopSequencesForClient } from './lead-sequences.js'
+import { createAutomationTask } from './automation-tasks.js'
 
 const nowIso = () => new Date().toISOString()
 export const ANNUAL_TASK_TITLE = 'Annual Not in Market Recheck'
@@ -73,6 +74,14 @@ export function executeNotInMarketTransition(clientId, { actor = 'system' } = {}
     const due = new Date(); due.setFullYear(due.getFullYear() + 1)
     const dueDate = due.toISOString().slice(0, 10)
     const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || `client #${cid}`
+    // THIS ONE STAYS, deliberately (John, 2026-10-05 asked for AI-added tasks to go).
+    //
+    // It is not machine noise like the CX/FSBO reply tasks that regenerate daily - it is a
+    // single human to-do a YEAR out, and it is load-bearing: followup-coverage.js treats a
+    // future human task as the coverage for a parked lead ("the annual recheck task IS the
+    // coverage", line ~193). Remove it and every Not in Market lead evaluates UNPROTECTED
+    // and lands in Needs Attention, trading one kind of clutter for another. notify()
+    // cannot stand in either - it fires immediately and cannot be scheduled a year ahead.
     const r = db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id)
                       VALUES (?,?,?,?,?,?,?,?,?)`,
       [ANNUAL_TASK_TITLE, `${name} confirmed no current buying/selling intent. Reconnect, ask how life and the house are treating them, and re-check plans.`,

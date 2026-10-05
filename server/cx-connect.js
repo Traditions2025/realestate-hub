@@ -18,6 +18,7 @@
 // 9AM-4PM Central proactive window as the FSBO sequence. Master switch is OFF until
 // cx_campaign_enabled='1' (prevents an accidental mass-text on deploy).
 import db from './database.js'
+import { automationTasksEnabled } from './automation-tasks.js'
 
 const nowIso = () => new Date().toISOString()
 const HUB = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
@@ -526,10 +527,12 @@ function flagHumanReview(c, cls, detail) {
   try {
     const open = db.get("SELECT id FROM tasks WHERE related_type='client' AND related_id=? AND title LIKE 'CX Response%' AND status IN ('todo','in_progress') LIMIT 1", [c.id])
     if (!open) {
-      db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id)
-              VALUES (?,?,?,?,?,?,?,?,?)`,
-        [`CX Response: ${name}`, `Cancelled/Expired lead responded (${cls}). Review the conversation and reply personally — the automation has stopped and the AI will not respond.\nProperty: ${[c.address, c.city].filter(Boolean).join(', ')}\nMessage: ${String(detail || '').slice(0, 300)}`,
-          'high', 'todo', new Date().toISOString().slice(0, 10), c.agent_assigned || 'Matt Smith', 'follow-up', 'client', c.id])
+      if (automationTasksEnabled()) {   // Tasks tab is the team's, not the automations' (John 2026-10-05)
+        db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id)
+                VALUES (?,?,?,?,?,?,?,?,?)`,
+          [`CX Response: ${name}`, `Cancelled/Expired lead responded (${cls}). Review the conversation and reply personally — the automation has stopped and the AI will not respond.\nProperty: ${[c.address, c.city].filter(Boolean).join(', ')}\nMessage: ${String(detail || '').slice(0, 300)}`,
+            'high', 'todo', new Date().toISOString().slice(0, 10), c.agent_assigned || 'Matt Smith', 'follow-up', 'client', c.id])
+      }
     }
   } catch (e) { console.error('[cx-connect] task failed:', e.message) }
 }

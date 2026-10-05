@@ -171,8 +171,15 @@ test('inbound response stops the campaign immediately and creates human follow-u
   assert.equal(en.status, 'response_received')
   assert.equal(en.next_send_at, null, 'pending sends cancelled')
   assert.equal(en.response_class, 'STILL_AVAILABLE')
+  // The Tasks tab is the team's own now (John, 2026-10-05) - the reply raises a
+  // notification, and a task only when automation_tasks_enabled is turned on.
   const task = db.get("SELECT * FROM tasks WHERE related_type='client' AND related_id=? AND title LIKE 'CX Response%'", [c.id])
-  assert.ok(task, 'human follow-up task created')
+  assert.ok(!task, 'no task while the switch is off')   // the shim returns null, not undefined
+  // notify() goes through a dynamic import().then(), so it lands a tick later
+  await new Promise(r => setTimeout(r, 300))
+  const note = db.get("SELECT * FROM notifications WHERE client_id=? AND type='cx_response'", [c.id])
+  assert.ok(note, 'the reply must still be announced')
+  assert.match(note.title, /RESPONSE RECEIVED/)
   // A second inbound doesn't restart anything, still blocks the AI.
   assert.equal(cx.handleCxInbound(c.id, 'hello?', null), true)
   assert.equal(db.get('SELECT status FROM cx_campaign WHERE client_id=?', [c.id]).status, 'response_received')

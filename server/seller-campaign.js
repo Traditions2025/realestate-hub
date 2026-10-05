@@ -23,6 +23,7 @@
 import db from './database.js'
 import { ctParts } from './scheduling.js'
 import { usableFirstName } from './routes/email.js'
+import { automationTasksEnabled } from './automation-tasks.js'
 
 // SEND WINDOWS (John, 2026-09-19): the weekend exemption applies ONLY to the
 // FIRST reach-out. Day 0 may send any day of the week; Day 1/3/7 follow-ups are
@@ -197,7 +198,10 @@ export function handleSellerLead({ client_id, campaign_raw = '', raw_text = '', 
   const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || 'Lead'
   try {
     const taskTitle = isExisting || hot ? `Seller intent: ${name} (existing contact) — Fix It or Skip It` : `Review Fix It or Skip It seller lead — ${name}`
-    if (!db.get("SELECT id FROM tasks WHERE title = ? AND status != 'done' AND created_at >= datetime('now','-1 day')", [taskTitle])) {
+    // Tasks tab is the team's own (John, 2026-10-05). The META SELLER LEAD notification
+    // just below still fires, so the lead is still announced the moment it lands.
+    if (automationTasksEnabled()
+        && !db.get("SELECT id FROM tasks WHERE title = ? AND status != 'done' AND created_at >= datetime('now','-1 day')", [taskTitle])) {
       db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at)
               VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [taskTitle,
@@ -332,6 +336,7 @@ export function advanceSellerStep(row, c) {
     const due2 = new Date(Date.now() + weeks * 7 * DAY).toISOString().slice(0, 10)
     db.run("UPDATE fb_seller_followups SET status = 'nurture', next_step = ?, next_send_at = NULL, last_sent_at = ?, updated_at = ? WHERE client_id = ?", [nextStep, nowIso(), nowIso(), row.client_id])
     try {
+      if (automationTasksEnabled())
       db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [`Seller nurture check-in — ${`${c.first_name || ''} ${c.last_name || ''}`.trim()}`,
          `Fix It or Skip It lead, no reply to the 4-text opener sequence. Timeframe: ${tf}. Their walkthrough availability: ${c.seller_availability || 'unknown'}.`,
@@ -367,7 +372,8 @@ export async function runSellerFollowups() {
         try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['meta_seller_lead', 'client', r.client_id, 'Fix It or Skip It Automation Stopped -- Reason: Lead Replied']) } catch {}
         try {
           db.run("UPDATE tasks SET status='done', completed_at=?, updated_at=? WHERE related_id=? AND related_type='client' AND title LIKE 'Review Fix It or Skip It%' AND status != 'done'", [nowIso(), nowIso(), r.client_id])
-          if (!db.get("SELECT id FROM tasks WHERE related_id=? AND title LIKE 'Respond to Fix It or Skip It%' AND status != 'done'", [r.client_id])) {
+          if (automationTasksEnabled()
+              && !db.get("SELECT id FROM tasks WHERE related_id=? AND title LIKE 'Respond to Fix It or Skip It%' AND status != 'done'", [r.client_id])) {
             db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
               [`Respond to Fix It or Skip It seller lead — ${name}`, 'They replied to the automated opener. The conversation is yours — automation is stopped.', 'high', 'todo', nowIso().slice(0, 10), 'Matt', 'Seller Lead', 'client', r.client_id, nowIso(), nowIso()])
           }

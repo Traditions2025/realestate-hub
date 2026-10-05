@@ -3,6 +3,7 @@ import db from '../database.js'
 import { sendSequenceEmail, previewSequenceEmail, emailHardBlock } from './email.js'
 import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
 import { isStopStatus } from '../lead-sequences.js'
+import { automationTasksEnabled } from '../automation-tasks.js'
 
 const router = Router()
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d } catch { return d } }
@@ -130,9 +131,11 @@ async function advanceDrip(enr) {
       const taskTitle = `Replied during ${drip.name} — ${name}`
       try {
         if (!db.get("SELECT id FROM tasks WHERE title = ? AND status != 'done'", [taskTitle])) {
-          db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
-            [taskTitle, `They replied (${reply.channel}, ${reply.occurred_at.slice(0, 10)}): "${String(reply.preview || '').slice(0, 140)}"\nDrip paused — a person owns this conversation now.`,
-             'high', 'todo', nowIso().slice(0, 10), 'Matt', 'Seller Lead', 'client', enr.client_id, nowIso(), nowIso()])
+          if (automationTasksEnabled()) {   // Tasks tab is the team's, not the automations' (John 2026-10-05)
+            db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+              [taskTitle, `They replied (${reply.channel}, ${reply.occurred_at.slice(0, 10)}): "${String(reply.preview || '').slice(0, 140)}"\nDrip paused — a person owns this conversation now.`,
+               'high', 'todo', nowIso().slice(0, 10), 'Matt', 'Seller Lead', 'client', enr.client_id, nowIso(), nowIso()])
+          }
         }
       } catch {}
       try { const { notify } = await import('../notifications.js'); notify({ type: 'drip_reply', title: `Drip paused (replied): ${name}`, body: `${drip.name} — take over the conversation`, link: `/clients/${enr.client_id}`, client_id: enr.client_id, dedupKey: `dripreply_${enr.id}` }) } catch {}
