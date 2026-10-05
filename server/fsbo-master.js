@@ -180,6 +180,12 @@ const isJunkish = (status) => ['junk', 'donotcontact', 'archived', 'closed'].inc
 // A REAL name is never overwritten. Eight leads disagree with the sheet and most are not
 // corrections at all: a spouse ("Sara" vs "Darren Sholes"), a different owner entirely, and
 // one that would replace a person with "Renofixation LLC". Those need a human.
+// Street addresses compared loosely enough to survive "Ave" vs "Avenue" and punctuation.
+const normAddr = (v) => String(v || '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ')
+  .replace(/(AVENUE)/g, 'AVE').replace(/(STREET)/g, 'ST').replace(/(ROAD)/g, 'RD')
+  .replace(/(DRIVE)/g, 'DR').replace(/(COURT)/g, 'CT').replace(/(LANE)/g, 'LN')
+  .replace(/\s+/g, ' ').trim()
+
 const PLACEHOLDER_NAME = /^\s*(\(?\s*owner[\s-]*name\s*unknown\s*\)?|owner|unknown|fsbo|seller|homeowner|n\/?a|none|no name)\s*$/i
 export function isPlaceholderName(first, last) {
   const full = `${first || ''} ${last || ''}`.trim()
@@ -210,7 +216,7 @@ export async function syncFsboMaster() {
     return 0
   }
   const better = (c, prev) => !prev || rank(c) > rank(prev) || (rank(c) === rank(prev) && c.id < prev.id)
-  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL AND (fsbo_excluded IS NULL OR fsbo_excluded=0)")) {
+  for (const c of db.all("SELECT id, phone, tags, fsbo_status, status, first_name, last_name, address FROM clients WHERE phone IS NOT NULL AND phone != '' AND merged_into IS NULL AND (fsbo_excluded IS NULL OR fsbo_excluded=0)")) {
     const k = last10(c.phone); if (!k) continue
     if (better(c, index.get(k))) index.set(k, c)
   }
@@ -302,7 +308,17 @@ export async function syncFsboMaster() {
     // The sheet's name is used ONLY to replace a placeholder. The scraper writes
     // "(Owner - name unknown)" when the owner lookup fails and fills it in on a later run;
     // without this the Hub never saw the correction (John, 2026-10-05).
-    const sheetName = String(primary.name || '').trim()
+    // The name must come from the row for THIS PROPERTY, not just this phone. Two sheet
+    // rows can share a phone and be different people at different addresses:
+    //   (319) 246-8816  Nathan Vasquez - 1703 A Ave NW
+    //                   Tracy Nerison  - 1722 20th St NW
+    // Grouping by phone alone put Tracy's name on Nathan's house. Where the group holds
+    // more than one row, the name is only taken when a row's address matches the lead's;
+    // otherwise the placeholder stays, which is honest.
+    const hubAddr = normAddr(match.address)   // the LEAD's address, never the sheet's
+    const nameRow = grp.length === 1 ? primary
+      : (grp.find(g => normAddr(g.address) && normAddr(g.address) === hubAddr) || null)
+    const sheetName = String(nameRow?.name || '').trim()
     const canFill = sheetName && isPlaceholderName(match.first_name, match.last_name)
     const parts = canFill ? sheetName.split(/\s+/) : []
     const fillFirst = canFill ? (parts[0] || '') : ''

@@ -139,3 +139,23 @@ test('the sync fills the name only when it is a placeholder', () => {
   assert.match(src, /first_name = CASE WHEN \? != '' THEN \? ELSE first_name END/)
   assert.match(src, /const canFill = sheetName && isPlaceholderName\(match\.first_name, match\.last_name\)/)
 })
+
+// Two sheet rows can share a phone and be different people at different addresses:
+//   (319) 246-8816  Nathan Vasquez - 1703 A Ave NW
+//                   Tracy Nerison  - 1722 20th St NW
+// Grouping by phone alone put Tracy's name on Nathan's house.
+test('a shared phone takes the name from the row for THIS address', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-master.js', import.meta.url), 'utf8')
+  assert.match(src, /const hubAddr = normAddr\(match\.address\)/)
+  assert.match(src, /grp\.length === 1 \? primary/, 'a single-row group needs no address check')
+  assert.match(src, /grp\.find\(g => normAddr\(g\.address\) && normAddr\(g\.address\) === hubAddr\)/)
+  assert.match(src, /first_name, last_name, address FROM clients/, 'the index must carry the address')
+})
+
+test('no address match on a shared phone means the placeholder stays', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-master.js', import.meta.url), 'utf8')
+  const m = /const nameRow = [\s\S]{0,220}?\|\| null\)/.exec(src)
+  assert.ok(m, 'nameRow should fall back to null')
+  assert.match(src, /const sheetName = String\(nameRow\?\.name \|\| ''\)\.trim\(\)/,
+    'null nameRow yields an empty name, so nothing is written')
+})

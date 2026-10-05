@@ -22,8 +22,8 @@ const get = async (url, tries = 30) => {
 
 // wait for the build that runs the thread rescue
 for (let i = 0; i < 40; i++) {
-  const j = await get('/api/inbox/contact-emails?email=niki.morris3@gmail.com&max=60', 5)
-  if ((j.messages || []).some(m => /kept reply points at/.test(m.why || ''))) { console.error('rescue is live'); break }
+  const j = await get('/api/inbox/contact-emails?email=coylegabe@yahoo.com&max=80', 5)
+  if ((j.messages || []).some(m => /its own wording|platform sender/.test(m.why || ''))) { console.error('matrix fix is live'); break }
   await sleep(15000)
 }
 
