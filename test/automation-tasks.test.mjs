@@ -48,17 +48,38 @@ test('a task with no title is never written', () => {
 })
 
 // The whole point: no automation may write to the tab behind the switch's back.
-test('EVERY automation task insert sits behind the switch', () => {
+//
+// ONE deliberate exception, named here so a new one cannot quietly join it. The Annual Not
+// in Market Recheck is a single human to-do a YEAR out, not noise that regenerates, and
+// followup-coverage.js counts a future human task as the coverage for a parked lead. Gate
+// it and every Not in Market lead evaluates UNPROTECTED and lands in Needs Attention -
+// one kind of clutter traded for another.
+const EXEMPT = ['not-in-market.js']
+
+test('EVERY automation task insert sits behind the switch, bar one named exception', () => {
+  const ungated = []
   for (const f of SOURCES) {
-    const src = read(f)
-    const lines = src.split('\n')
+    const lines = read(f).split('\n')
     lines.forEach((line, i) => {
       if (!/INSERT INTO tasks/.test(line)) return
-      const window = lines.slice(Math.max(0, i - 9), i + 1).join('\n')
-      assert.match(window, /automationTasksEnabled\(\)|createAutomationTask\(/,
-        `${f}:${i + 1} writes a task with nothing gating it`)
+      const before = lines.slice(Math.max(0, i - 9), i + 1).join('\n')
+      // the values follow the INSERT, so the title is BELOW it
+      const window = lines.slice(Math.max(0, i - 9), i + 4).join('\n')
+      if (!/automationTasksEnabled\(\)|createAutomationTask\(/.test(before)) ungated.push({ f, line: i + 1, window })
     })
   }
+  for (const u of ungated) {
+    assert.ok(EXEMPT.some(e => u.f.endsWith(e)), `${u.f}:${u.line} writes a task with nothing gating it`)
+    assert.match(u.window, /ANNUAL_TASK_TITLE/, `${u.f}:${u.line} is not the exempt annual recheck`)
+  }
+  assert.equal(ungated.length, EXEMPT.length,
+    `expected exactly ${EXEMPT.length} ungated insert(s), found ${ungated.length}`)
+})
+
+test('the annual recheck is kept on purpose, and says why', () => {
+  const src = read('not-in-market.js')
+  assert.match(src, /THIS ONE STAYS, deliberately/)
+  assert.match(src, /UNPROTECTED/, 'the coverage consequence is the reason it stays')
 })
 
 test('the sources still raise their alert, so nothing is lost', () => {
