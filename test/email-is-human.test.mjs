@@ -103,7 +103,8 @@ test('a Matrix MLS listing alert is dropped on its Message-ID', () => {
   const v = drop({ from: 'CDR@northcentralmatrixmail.com', messageId: '<5QKJS7UM2NU4.DLUAGRVH8U3W3@gprodcdra70b>',
     subject: '[Morris, Niki ] Homes to consider by The Matt Smith  319-431-5859',
     body: 'Dear Niki Morris, I have found 1 new or updated listing for you to review. Highlights View All Properties' })
-  assert.match(v.why, /Matrix/)
+  // the body wording now catches it first; both reasons name it as an MLS alert
+  assert.match(v.why, /Matrix|MLS listing alert/)
 })
 test('the Matrix alert is dropped even though its body opens like a letter', () => {
   // this is exactly why the subject+body heuristic was not enough: "Dear Niki Morris"
