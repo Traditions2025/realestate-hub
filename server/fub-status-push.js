@@ -52,14 +52,51 @@ export const STATUS_TO_STAGE = {
 // distinction instead of flattening both into one stage.
 export const PRIME_STAGE = { buyer: 'High Probability Buyer', seller: 'High Probability Sellers' }
 
-/** The FUB stage this lead should hold, or null when the Hub status is not mapped. */
+// THE HUB KNOWS MORE THAN ITS STATUS FIELD SAYS (John, 2026-10-05).
+//
+// An expired or cancelled listing is 'watch' in the Hub, because that is the only word the
+// status vocabulary has for it. But mls_status says exactly what it is, and FUB has stages
+// for both. Sending 'Watch' would throw that away; sending 'Expired' tells FUB something it
+// would otherwise lose. This is the sync ADDING information rather than flattening it.
+export const MLS_TO_STAGE = { expired: 'Expired', cancelled: 'Cancelled', canceled: 'Cancelled' }
+
+// Stages that carry something the Hub's status cannot reconstruct. A push must never
+// replace one of these with a vaguer stage - that is the "nothing gets lost" rule.
+// PLATINUM CLIENTS is a curated group; Cancelled/Expired/Foreclosures/Probates record how
+// the lead arrived; Past Client and Under Contract are lifecycle facts.
+const SPECIFIC_FUB_STAGE = /platinum|cancelled|expired|foreclosur|probate|investor|soi|past client|under contract|active listing|high probability/i
+
+// The vague ones. Writing one of these over a specific stage is the move that loses data.
+const GENERIC_TARGET = /^(watch|lead|nurture)$/i
+
+/**
+ * The FUB stage this lead should hold, or null when nothing in the Hub maps.
+ *
+ * Order matters: what the Hub KNOWS about the listing beats the coarse status field.
+ */
 export function stageFor(client) {
+  const mls = String(client?.mls_status || '').trim().toLowerCase()
+  if (MLS_TO_STAGE[mls]) return MLS_TO_STAGE[mls]
   const st = String(client?.status || '').trim().toLowerCase()
   if (st === 'prime') {
     const t = String(client?.type || '').trim().toLowerCase()
     return PRIME_STAGE[t] || PRIME_STAGE.buyer
   }
   return STATUS_TO_STAGE[st] || null
+}
+
+/**
+ * Would this write throw information away?
+ *
+ * True when a vague stage would land on top of a specific one. 45 PLATINUM CLIENTS, 56
+ * Cancelled and 53 Expired were about to become 'Watch' - the Hub's vaguest status
+ * overwriting FUB's most precise. The lead keeps its Hub status either way; this only
+ * decides whether FUB's own field is worth preserving.
+ */
+export function wouldLoseInformation(currentStage, targetStage) {
+  if (!currentStage || !targetStage) return false
+  if (currentStage === targetStage) return false
+  return GENERIC_TARGET.test(targetStage) && SPECIFIC_FUB_STAGE.test(currentStage)
 }
 
 // The stage that has to exist in FUB before a push can use it. Everything else in the
@@ -114,7 +151,7 @@ export function namesAgree(a, b) {
 export function candidates({ limit = 1000, afterId = 0 } = {}) {
   const statuses = [...Object.keys(STATUS_TO_STAGE), 'prime']
   return db.all(
-    `SELECT id, first_name, last_name, email, status, type, fub_person_id, tags
+    `SELECT id, first_name, last_name, email, status, type, mls_status, fub_person_id, tags
        FROM clients
       WHERE merged_into IS NULL
         AND fub_person_id IS NOT NULL AND fub_person_id != ''
@@ -180,6 +217,17 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
   // point of the parity push - a Prime lead SHOULD stop reading as Seller (NURTURE) - but
   // dropping a Past Client to Dead still loses history nobody asked to lose, so Dead and
   // Do not Contact keep the protection (John, 2026-10-01).
+  // NOTHING GETS LOST (John, 2026-10-05): a vaguer stage never replaces a specific one.
+  if (!force && wouldLoseInformation(currentStage, stage)) {
+    return {
+      client_id: client.id, fub_id: personId,
+      name: `${client.first_name || ''} ${client.last_name || ''}`.trim(),
+      hub_status: client.status, from_stage: currentStage, to_stage: stage,
+      action: 'kept-specific',
+      why: `FUB's "${currentStage}" says more than "${stage}" would — left as it is`,
+    }
+  }
+
   const demoting = stage === 'Dead' || stage === 'Do not Contact'
   if (demoting && PROTECTED_STAGE.test(currentStage) && !force) {
     return {
@@ -217,13 +265,14 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
  */
 export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false, afterId = 0 } = {}) {
   const rows = candidates({ limit, afterId })
-  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0, mismatched: 0,
+  const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0, kept_specific: 0, mismatched: 0,
                 results: [], dry: dryRun, after_id: Number(afterId) || 0, last_id: Number(afterId) || 0 }
   for (const c of rows) {
     const r = await pushOne(c, { dryRun, force })
     if (r.action === 'updated' || r.action === 'would-update') out.updated++
     else if (r.action === 'already-matches') out.unchanged++
     else if (r.action === 'protected') out.protected++
+    else if (r.action === 'kept-specific') out.kept_specific = (out.kept_specific || 0) + 1
     else if (r.action === 'name-mismatch') out.mismatched++
     else if (r.error === 'not in FUB') out.missing++
     else if (r.error || r.action === 'failed') out.failed++

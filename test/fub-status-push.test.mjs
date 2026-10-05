@@ -320,8 +320,8 @@ test('the stage guard applies to demotions only', () => {
 test('prime leads are considered for a push', () => {
   // candidates() keys off the mapping, and prime is computed rather than listed in it
   assert.match(src, /\[\.\.\.Object\.keys\(STATUS_TO_STAGE\), 'prime'\]/)
-  assert.match(src, /SELECT id, first_name, last_name, email, status, type, fub_person_id/,
-    'the prime split needs the lead type')
+  assert.match(src, /SELECT id, first_name, last_name, email, status, type, mls_status, fub_person_id/,
+    'the prime split needs the type, and the MLS mapping needs mls_status')
 })
 
 // ── new Hub leads go into FUB (John, 2026-10-01) ─────────────────────────────────────
@@ -423,4 +423,69 @@ test('the name check uses the same generous comparison as the status push', () =
   // a nickname or married name must not be treated as a different person here either
   const fn = src.slice(src.indexOf('export async function linkOrCreateInFub'))
   assert.match(fn, /namesAgree\(name, p\.name \|\| ''\)/)
+})
+
+// ── nothing gets lost (John, 2026-10-05) ─────────────────────────────────────────────
+// A full dry walk of 2,935 moves found 154 that would replace a SPECIFIC FUB stage with
+// 'Watch': 45 PLATINUM CLIENTS, 56 Cancelled, 53 Expired. The Hub's vaguest status
+// overwriting FUB's most precise. John's rule: the sync may add information, never lose it.
+const { stageFor: sf, wouldLoseInformation, MLS_TO_STAGE } = await import('../server/fub-status-push.js')
+
+test('an expired or cancelled listing goes to the RIGHT FUB stage, not Watch', () => {
+  // the Hub calls these 'watch' because that is the only word its status field has, but
+  // mls_status says exactly what they are and FUB has a stage for each
+  assert.equal(sf({ status: 'watch', mls_status: 'Expired' }), 'Expired')
+  assert.equal(sf({ status: 'watch', mls_status: 'Cancelled' }), 'Cancelled')
+  assert.equal(sf({ status: 'watch', mls_status: 'canceled' }), 'Cancelled', 'one l or two')
+  assert.equal(MLS_TO_STAGE.expired, 'Expired')
+})
+
+test('what the Hub KNOWS beats its coarse status field', () => {
+  // order matters: the MLS fact is checked before STATUS_TO_STAGE
+  const src2 = fs.readFileSync(new URL('../server/fub-status-push.js', import.meta.url), 'utf8')
+  const fn = src2.slice(src2.indexOf('export function stageFor'))
+  assert.ok(fn.indexOf('MLS_TO_STAGE[mls]') < fn.indexOf('STATUS_TO_STAGE[st]'))
+})
+
+test('a plain watch lead with no MLS fact still goes to Watch', () => {
+  assert.equal(sf({ status: 'watch' }), 'Watch')
+  assert.equal(sf({ status: 'watch', mls_status: '' }), 'Watch')
+  assert.equal(sf({ status: 'watch', mls_status: 'Active' }), 'Watch', 'only expired/cancelled are mapped')
+})
+
+test('a vague stage never lands on a specific one', () => {
+  for (const cur of ['PLATINUM CLIENTS', 'Cancelled', 'Expired', 'Foreclosures', 'Probates',
+                     'Past Client', 'Under Contract', 'High Probability Sellers'])
+    assert.equal(wouldLoseInformation(cur, 'Watch'), true, `${cur} must survive a Watch push`)
+})
+
+test('the cleanup John actually wanted still runs', () => {
+  // these are the vague-to-vague moves that make the two systems agree - 268 Nurture and
+  // 231 Seller (NURTURE) were the point of the exercise
+  for (const cur of ['Nurture', 'Seller (NURTURE)', 'Lead', 'Realist', 'Homeowner', 'Trash'])
+    assert.equal(wouldLoseInformation(cur, 'Watch'), false, `${cur} -> Watch should still push`)
+})
+
+test('a specific target is always allowed to write', () => {
+  // the whole point of the MLS mapping: Watch -> Expired ADDS information
+  assert.equal(wouldLoseInformation('Watch', 'Expired'), false)
+  assert.equal(wouldLoseInformation('Lead', 'Cancelled'), false)
+  assert.equal(wouldLoseInformation('Nurture', 'Past Client'), false)
+})
+
+test('a no-op is never treated as a loss', () => {
+  assert.equal(wouldLoseInformation('Expired', 'Expired'), false)
+  assert.equal(wouldLoseInformation('', 'Watch'), false)
+  assert.equal(wouldLoseInformation('Cancelled', ''), false)
+})
+
+test('the push consults the rule and reports what it kept', () => {
+  assert.match(src, /if \(!force && wouldLoseInformation\(currentStage, stage\)\)/)
+  assert.match(src, /action: 'kept-specific'/)
+  assert.match(src, /says more than/)
+  assert.match(src, /kept_specific/)
+})
+
+test('candidates carry mls_status, or the mapping cannot see it', () => {
+  assert.match(src, /SELECT id, first_name, last_name, email, status, type, mls_status, fub_person_id/)
 })
