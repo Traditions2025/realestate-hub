@@ -88,15 +88,43 @@ export function stageFor(client) {
 /**
  * Would this write throw information away?
  *
- * True when a vague stage would land on top of a specific one. 45 PLATINUM CLIENTS, 56
- * Cancelled and 53 Expired were about to become 'Watch' - the Hub's vaguest status
- * overwriting FUB's most precise. The lead keeps its Hub status either way; this only
- * decides whether FUB's own field is worth preserving.
+ * FIRST VERSION WAS TOO NARROW and it cost real data (2026-10-05). It only blocked a
+ * VAGUE target landing on a specific stage, so a target that was merely DIFFERENT sailed
+ * through: 13 High Probability Sellers were flipped to Buyer off the Hub's `type` field,
+ * 2 PLATINUM CLIENTS and 2 Past Clients were overwritten. All reverted, but the rule was
+ * wrong, not just unlucky.
+ *
+ * The real test is not "is the target vague" but "does the Hub actually KNOW better".
+ *
+ *   authoritative  - the Hub has a hard fact FUB does not: mls_status says Expired or
+ *                    Cancelled, or the lead is Junk/DNC and must stop looking workable.
+ *                    These may overwrite anything the demotion guard allows.
+ *   derived        - everything computed from the coarse status or type field. These must
+ *                    never overwrite a SPECIFIC stage, because FUB's version is better
+ *                    sourced than a one-word Hub status.
+ *
+ * The lead keeps its Hub status either way; this only decides whether FUB's own field
+ * survives.
  */
-export function wouldLoseInformation(currentStage, targetStage) {
+export function wouldLoseInformation(currentStage, targetStage, { authoritative = false } = {}) {
   if (!currentStage || !targetStage) return false
   if (currentStage === targetStage) return false
-  return GENERIC_TARGET.test(targetStage) && SPECIFIC_FUB_STAGE.test(currentStage)
+  if (authoritative) return false
+  // a derived target may fill in a blank or replace a vague stage, nothing more
+  return SPECIFIC_FUB_STAGE.test(currentStage)
+}
+
+/**
+ * Does the Hub hold a hard fact here, or is this just its status field talking?
+ *
+ * mls_status is observed from the MLS, so Expired and Cancelled are facts. Dead and
+ * Do not Contact are decisions the Hub owns outright and John wants enforced. Everything
+ * else is a one-word summary that FUB may well describe better.
+ */
+export function isAuthoritative(client, targetStage) {
+  const mls = String(client?.mls_status || '').trim().toLowerCase()
+  if (MLS_TO_STAGE[mls] && MLS_TO_STAGE[mls] === targetStage) return true
+  return targetStage === 'Dead' || targetStage === 'Do not Contact'
 }
 
 // The stage that has to exist in FUB before a push can use it. Everything else in the
@@ -227,8 +255,9 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
   // point of the parity push - a Prime lead SHOULD stop reading as Seller (NURTURE) - but
   // dropping a Past Client to Dead still loses history nobody asked to lose, so Dead and
   // Do not Contact keep the protection (John, 2026-10-01).
-  // NOTHING GETS LOST (John, 2026-10-05): a vaguer stage never replaces a specific one.
-  if (!force && wouldLoseInformation(currentStage, stage)) {
+  // NOTHING GETS LOST (John, 2026-10-05). A stage the Hub merely DERIVED from its status
+  // or type field never replaces a specific FUB stage; only a hard fact does.
+  if (!force && wouldLoseInformation(currentStage, stage, { authoritative: isAuthoritative(client, stage) })) {
     return {
       client_id: client.id, fub_id: personId,
       name: `${client.first_name || ''} ${client.last_name || ''}`.trim(),

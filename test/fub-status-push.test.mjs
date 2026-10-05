@@ -480,7 +480,7 @@ test('a no-op is never treated as a loss', () => {
 })
 
 test('the push consults the rule and reports what it kept', () => {
-  assert.match(src, /if \(!force && wouldLoseInformation\(currentStage, stage\)\)/)
+  assert.match(src, /if \(!force && wouldLoseInformation\(currentStage, stage, \{ authoritative/)
   assert.match(src, /action: 'kept-specific'/)
   assert.match(src, /says more than/)
   assert.match(src, /kept_specific/)
@@ -521,4 +521,52 @@ test('the narrowed list is the one the code uses', () => {
 // The protection only ever applied to demotions; parity moves are unaffected by it.
 test('the guard is still scoped to demotions only', () => {
   assert.match(src, /const demoting = stage === 'Dead' \|\| stage === 'Do not Contact'/)
+})
+
+// ── the 17 writes that got through, and must not again ──────────────────────────────
+// 2026-10-05: the first "nothing gets lost" rule only blocked a VAGUE target. A target
+// that was merely DIFFERENT sailed through, and 17 records lost information in a live run:
+// 13 High Probability Sellers flipped to Buyer off the Hub's `type` field, 2 PLATINUM
+// CLIENTS and 2 Past Clients overwritten. All reverted. The rule now turns on whether the
+// Hub holds a HARD FACT, not on how vague the target reads.
+const { isAuthoritative } = await import('../server/fub-status-push.js')
+const blocked = (cur, tgt, c) =>
+  wouldLoseInformation(cur, tgt, { authoritative: isAuthoritative(c || {}, tgt) })
+
+test('a stage derived from type never flips a seller to a buyer', () => {
+  assert.equal(blocked('High Probability Sellers', 'High Probability Buyer',
+    { status: 'prime', type: 'buyer' }), true)
+})
+
+test('a derived stage never overwrites PLATINUM CLIENTS or a Past Client', () => {
+  assert.equal(blocked('PLATINUM CLIENTS', 'High Probability Buyer', { status: 'prime', type: 'buyer' }), true)
+  assert.equal(blocked('Past Client', 'ACTIVE WITH AGENT', { status: 'active' }), true)
+  assert.equal(blocked('Under Contract', 'ACTIVE WITH AGENT', { status: 'active' }), true)
+})
+
+// The Hub DOES know better in exactly two cases, and both must still write.
+test('a hard fact still writes: mls_status and the Junk decision', () => {
+  assert.equal(blocked('Lead', 'Expired', { status: 'watch', mls_status: 'Expired' }), false)
+  assert.equal(blocked('Nurture', 'Cancelled', { status: 'watch', mls_status: 'Cancelled' }), false)
+  // John: nothing in Junk may sit on a workable stage
+  assert.equal(blocked('High Probability Sellers', 'Dead', { status: 'junk' }), false)
+  assert.equal(blocked('Seller (NURTURE)', 'Dead', { status: 'junk' }), false)
+  assert.equal(blocked('Lead', 'Do not Contact', { status: 'donotcontact' }), false)
+})
+
+test('vague-to-vague and filling a blank still write', () => {
+  assert.equal(blocked('Nurture', 'Watch', { status: 'watch' }), false)
+  assert.equal(blocked('Lead', 'Watch', { status: 'watch' }), false)
+  assert.equal(blocked('', 'Watch', { status: 'watch' }), false)
+})
+
+test('isAuthoritative only trusts an MLS fact for the stage it actually implies', () => {
+  assert.equal(isAuthoritative({ mls_status: 'Expired' }, 'Expired'), true)
+  assert.equal(isAuthoritative({ mls_status: 'Expired' }, 'Watch'), false, 'the fact does not license an unrelated stage')
+  assert.equal(isAuthoritative({ mls_status: 'Active' }, 'ACTIVE WITH AGENT'), false, 'Active is not mapped')
+  assert.equal(isAuthoritative({}, 'Dead'), true)
+})
+
+test('the push passes authority into the rule', () => {
+  assert.match(src, /wouldLoseInformation\(currentStage, stage, \{ authoritative: isAuthoritative\(client, stage\) \}\)/)
 })
