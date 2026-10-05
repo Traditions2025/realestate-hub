@@ -171,6 +171,22 @@ function sameName(sheetName, c) {
 const isJunkish = (status) => ['junk', 'donotcontact', 'archived', 'closed'].includes(String(status || '').toLowerCase())
 
 // Sync the sheet onto clients. Returns a reconciliation report.
+// A name the sheet can legitimately replace: blank, or the placeholder the FSBO scraper
+// writes when the owner lookup fails ("(Owner - name unknown)" from fsbo-write-names.js),
+// or a generic stand-in. John, 2026-10-05: the scraper missed the names on the first run
+// and got them on the second, and the Hub never received them - because first_name /
+// last_name were only ever written on INSERT, never on a matched lead.
+//
+// A REAL name is never overwritten. Eight leads disagree with the sheet and most are not
+// corrections at all: a spouse ("Sara" vs "Darren Sholes"), a different owner entirely, and
+// one that would replace a person with "Renofixation LLC". Those need a human.
+const PLACEHOLDER_NAME = /^\s*(\(?\s*owner[\s-]*name\s*unknown\s*\)?|owner|unknown|fsbo|seller|homeowner|n\/?a|none|no name)\s*$/i
+export function isPlaceholderName(first, last) {
+  const full = `${first || ''} ${last || ''}`.trim()
+  if (!full) return true
+  return PLACEHOLDER_NAME.test(full)
+}
+
 export async function syncFsboMaster() {
   const rows = await fetchFsboMasterRows()
   const report = { sheet_rows: rows.length, matched: 0, updated: 0, created: 0, collisions: 0, pruned: 0, in_list_now: 0, unmatched: [], counts: { Available: 0, 'Off Market': 0 } }
@@ -283,6 +299,15 @@ export async function syncFsboMaster() {
     // Main address MUST equal the FSBO listing address — it's what {{address}} uses in texts/
     // emails, so a stale address would reference the wrong (maybe-not-listed) house. COALESCE
     // keeps the existing value only if the listing address is blank.
+    // The sheet's name is used ONLY to replace a placeholder. The scraper writes
+    // "(Owner - name unknown)" when the owner lookup fails and fills it in on a later run;
+    // without this the Hub never saw the correction (John, 2026-10-05).
+    const sheetName = String(primary.name || '').trim()
+    const canFill = sheetName && isPlaceholderName(match.first_name, match.last_name)
+    const parts = canFill ? sheetName.split(/\s+/) : []
+    const fillFirst = canFill ? (parts[0] || '') : ''
+    const fillLast = canFill ? (parts.slice(1).join(' ') || '') : ''
+
     // TYPE AND STATUS TOO (John, 2026-10-05). A lead this sync CREATES gets seller+watch
     // (see ~line 220), but a lead it merely MATCHED kept whatever it already had - so 54 FSBO
     // sellers sat in the database typed 'buyer'. That is not cosmetic: it is how Joseph Green
@@ -295,11 +320,16 @@ export async function syncFsboMaster() {
         fsbo_notes=?, fsbo_link=?, fsbo_listings=?,
         type = CASE WHEN ? IS NOT NULL AND ? != '' THEN 'seller' ELSE type END,
         status = CASE WHEN lower(COALESCE(status,'')) = 'new' THEN 'watch' ELSE status END,
+        first_name = CASE WHEN ? != '' THEN ? ELSE first_name END,
+        last_name  = CASE WHEN ? != '' THEN ? ELSE last_name  END,
         address=COALESCE(?,address), city=COALESCE(?,city), state=COALESCE(?,state), zip=COALESCE(?,zip),
         updated_at=? WHERE id=?`,
       [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null,
        primary.notes || null, primary.link || null, listingsJson,
        status, status,
+       // Names: only when the Hub is holding a placeholder and the sheet has something real.
+       // A real name is never overwritten - see isPlaceholderName.
+       fillFirst, fillFirst, fillLast, fillLast,
        primary.address || null, primary.city || null, primary.state || null, primary.zip || null,
        now, match.id])
     match.fsbo_status = status

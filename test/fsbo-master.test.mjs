@@ -108,3 +108,34 @@ test('the aggregate in the source matches this precedence', () => {
   assert.ok(!/: grp\.some\(r => r\.status === 'Pending'\) \? 'Pending' : 'Off Market'/.test(src),
     'the old collapse-everything-to-Off-Market line must be gone')
 })
+
+// ── names from the master sheet ──────────────────────────────────────────────────────
+// John, 2026-10-05: the scraper could not get the owner names on the first run and got them
+// on the second, but the Hub never received them - first_name/last_name were only ever
+// written on INSERT, never on a matched lead.
+const { isPlaceholderName } = await import('../server/fsbo-master.js')
+
+test('a placeholder name may be replaced from the sheet', () => {
+  // "(Owner - name unknown)" is what fsbo-write-names.js writes when the lookup fails
+  assert.ok(isPlaceholderName('(Owner', '- name unknown)'))
+  assert.ok(isPlaceholderName('', ''))
+  assert.ok(isPlaceholderName(null, null))
+  assert.ok(isPlaceholderName('Owner', ''))
+  assert.ok(isPlaceholderName('Unknown', ''))
+  assert.ok(isPlaceholderName('FSBO', ''))
+})
+
+test('a REAL name is never overwritten by the sheet', () => {
+  // 8 Hub names disagree with the sheet and most are not corrections: a spouse
+  // ("Sara" vs "Darren Sholes"), a different owner entirely, and one that would replace a
+  // person with "Renofixation LLC". Those need a human, not a sync.
+  for (const [f, l] of [['Kenneth', 'Leahy'], ['Tammy', 'Facion'], ['Renofixation', 'LLC'],
+                        ['Sara', 'Sholes'], ['Laurel and Paul', 'Langholz']])
+    assert.ok(!isPlaceholderName(f, l), `${f} ${l} must be kept`)
+})
+
+test('the sync fills the name only when it is a placeholder', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-master.js', import.meta.url), 'utf8')
+  assert.match(src, /first_name = CASE WHEN \? != '' THEN \? ELSE first_name END/)
+  assert.match(src, /const canFill = sheetName && isPlaceholderName\(match\.first_name, match\.last_name\)/)
+})
