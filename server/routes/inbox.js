@@ -343,7 +343,11 @@ router.get('/stream', (req, res) => {
 router.get('/contact-emails', async (req, res) => {
   const email = String(req.query.email || '').trim()
   if (!email) return res.status(400).json({ error: 'email is required' })
-  try { const { searchMailboxesForContact } = await import('../gmail-inbox.js'); res.json(await searchMailboxesForContact(email, { max: Number(req.query.max) || 600 })) }
+  try {
+    const { searchMailboxesForContact } = await import('../gmail-inbox.js')
+    const out = await searchMailboxesForContact(email, { max: Number(req.query.max) || 600, keepHeaders: req.query.headers === '1' })
+    res.json(out)
+  }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 // Search the team mailboxes by subject. Read-only, nothing imported.

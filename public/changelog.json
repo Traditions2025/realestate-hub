@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-05T20:54:02.576Z",
+  "generated_at": "2026-10-05T21:09:58.618Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4c0e48d",
+      "date": "2026-10-05T15:54:28-05:00",
+      "subject": "Gmail history import keeps real emails, drops automated listing alerts",
+      "title": "Gmail history import keeps real emails, drops automated listing alerts",
+      "body": "John, 2026-10-05: \"we don't need to get automated listing alerts emails only\nthose actual emails coming from lead or a reply\".\n\nThe mattsmithremax@gmail.com pull is the route that works - FUB withholds email\ncontent, Gmail does not - but a lead's mailbox history is mostly Ylopo listing\nalerts, not conversation. server/email-is-human.js judges each message and the\nreason travels with it, so a sample can be reviewed before anything is imported.\n\nSignals, strongest first:\n  In-Reply-To / References  -> KEEP, a reply is a conversation by definition\n  List-Unsubscribe, List-Id, Auto-Submitted, SendGrid/SES ids -> bulk\n  Precedence: bulk/list/junk\n  machine local part (no-reply@, alerts@, bounces@)\n  platform domains (ylopo, sierrainteractive, kvcore, homebot, fello, ...)\n  alert-shaped subject -> only decides when the body ALSO has 4+ links and no\n                          greeting; subject alone is never enough\n\nWHEN IN DOUBT, KEEP. A marketing email wrongly kept is clutter; a real\nconversation wrongly dropped is history nobody can get back, and having it is\nthe whole point of the import.\n\nTwo traps hit while writing it:\n  - the sender pattern matched \"updates@\" anywhere in a local part, which dropped\n    donna.updates@gmail.com, a person. Now anchored on the WHOLE local part, with\n    hyphen-joined suffixes (listing-alerts@) still treated as machines and\n    dot-separated ones left alone. support@/team@/mail@ are shared mailboxes a\n    person writes from, so they are kept.\n  - a test sliced importContactHistory with indexOf('return {') and caught the\n    early `return { error: 'client not found' }`, so it passed on 200 characters\n    of function. Slices now run to the next export - the same bug that once let a\n    broken assessor URL stay green.\n\nimportContactHistory skips what the classifier rejected and reports\nskipped_automated, so a surprising count is visible rather than silent.\ninclude_automated: true on the route overrides it deliberately. 36 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a67d1b0",
       "date": "2026-10-05T15:41:17-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "AI text: strict no-em-dash rule + sandbox strips dashes to match production",
       "title": "AI text: strict no-em-dash rule + sandbox strips dashes to match production",
       "body": "- STYLE prompt rule made strict/explicit: never use em/en dash punctuation (a known\n  AI tell); hyphens inside words are fine. Version -> hubai-2026.08.25-5.\n- Sandbox output now runs the same dash strip the live orchestrator applies, so the\n  preview matches what actually sends.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bfe65e6",
-      "date": "2026-08-25T18:25:47-05:00",
-      "subject": "AI Sandbox: click any AI reply to refine it in real time",
-      "title": "AI Sandbox: click any AI reply to refine it in real time",
-      "body": "Each AI response is clickable -> a refine panel opens with quick suggestions\n(shorter, warmer, don't use their name, add website, one clear question, less salesy)\nplus a free-text instruction. Submitting re-runs the same turn through /api/ai/sandbox\nwith a REVISION REQUEST (prior draft + instruction, all rules kept) and replaces the\nreply in place. Stored per-turn request payload enables the regenerate.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

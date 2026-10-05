@@ -329,7 +329,7 @@ export async function testMailbox(id) {
 // searching Gmail's "All Mail" (which contains BOTH sent and received), so we can
 // reconstruct a complete two-way thread even for mail that predates the inbox poll
 // (the poller only stores incoming mail after it was connected). Read-only.
-export async function searchMailboxesForContact(email, { max = 600 } = {}) {
+export async function searchMailboxesForContact(email, { max = 600, keepHeaders = false } = {}) {
   const target = String(email || '').trim().toLowerCase()
   if (!target) return { email: target, messages: [], mailboxes: [] }
   const boxes = getMailboxes().filter(m => m.enabled !== false && m.app_password)
@@ -368,6 +368,8 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
             from: p.from?.text || '', to: p.to?.text || '', subject: p.subject || '(no subject)',
             messageId: p.messageId || `${m.user}_${msg.uid}`,
             human: verdict.human, why: verdict.why,
+            // only for inspecting WHY a message was judged the way it was; never stored
+            headers: keepHeaders ? Object.fromEntries(p.headers || []) : undefined,
             body: body.slice(0, 6000),
           })
           found++
