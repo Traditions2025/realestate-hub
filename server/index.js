@@ -1457,7 +1457,15 @@ async function start() {
          GROUP BY c.id
          ORDER BY last_ai_at DESC`)
       // the campaign's OWN opener (fsbo_ai / cx) is expected; only sent_by_type='ai' is the AI
+      // An AI message sent BEFORE the lead was enrolled is not a breach - the campaign did
+      // not exist for them yet. Enrolment dates decide it, not the message date alone.
+      const enrolledAt = (cid) => {
+        const f = db.get('SELECT created_at, updated_at FROM fsbo_followups WHERE client_id=?', [cid])
+        const x = db.get('SELECT enrolled_at FROM cx_campaign WHERE client_id=?', [cid])
+        return (f && (f.created_at || f.updated_at)) || (x && x.enrolled_at) || null
+      }
       const withBodies = rows.map(r => ({
+        enrolled_at: enrolledAt(r.id),
         ...r,
         messages: db.all(`SELECT occurred_at, body FROM communications
                            WHERE client_id=? AND direction='outgoing' AND lower(COALESCE(sent_by_type,''))='ai'
