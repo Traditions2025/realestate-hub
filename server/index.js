@@ -1476,6 +1476,39 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: FSBO-flagged leads whose status/type never caught up. The FSBO sync sets
+  // seller+watch on leads it CREATES, but when it attaches the flag to a lead that already
+  // exists it writes only the fsbo_* fields - so an existing lead stays 'new' and 'buyer'.
+  app.get('/api/admin/fsbo-status-drift', (_req, res) => {
+    try {
+      const flagged = db.all(`SELECT id, first_name, last_name, address, phone, status, type, fsbo_status, fsbo_dom
+                                FROM clients
+                               WHERE merged_into IS NULL AND fsbo_status IS NOT NULL AND fsbo_status != ''`)
+      const byStatus = {}, byType = {}
+      flagged.forEach(c => { byStatus[c.status] = (byStatus[c.status] || 0) + 1; byType[c.type] = (byType[c.type] || 0) + 1 })
+      // duplicates: another live lead on the same phone or address WITHOUT the flag
+      const shadows = []
+      for (const c of flagged) {
+        const d10 = String(c.phone || '').replace(/\D/g, '').slice(-10)
+        const dupes = db.all(`SELECT id, first_name, last_name, status, type, address FROM clients
+                               WHERE merged_into IS NULL AND id != ?
+                                 AND (fsbo_status IS NULL OR fsbo_status = '')
+                                 AND ((? != '' AND replace(replace(replace(replace(COALESCE(phone,''),'(',''),')',''),'-',''),' ','') LIKE ?)
+                                      OR (COALESCE(address,'') != '' AND lower(trim(address)) = lower(trim(?))))`,
+          [c.id, d10, '%' + d10, c.address || ''])
+        if (dupes.length) shadows.push({ flagged: { id: c.id, name: `${c.first_name} ${c.last_name}`.trim(), address: c.address, status: c.status, type: c.type }, unflagged: dupes })
+      }
+      res.json({
+        flagged_total: flagged.length,
+        by_status: byStatus, by_type: byType,
+        still_new: flagged.filter(c => c.status === 'new').map(c => ({ id: c.id, name: `${c.first_name} ${c.last_name}`.trim(), address: c.address, type: c.type, fsbo_status: c.fsbo_status })),
+        typed_buyer: flagged.filter(c => c.type === 'buyer').length,
+        shadow_duplicates: shadows.length,
+        shadows: shadows.slice(0, 15),
+      })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
