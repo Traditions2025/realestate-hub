@@ -101,7 +101,10 @@ export const SECOND = {
 export const ANGLES = {
   DID_IT_SELL: { buckets: ['recent', 'mid', 'old', 'ancient'], text: (s) => `Hello, John with Matt Smith Team. I wasn't sure where things ended up with ${A(s)}. Did the property ever get sold?` },
   PLANS_CHANGED: { buckets: ['recent', 'mid', 'old', 'ancient'], text: (s) => `Hi, just checking back regarding ${A(s)}. Did plans for the property change, or is a move still something being considered?` },
-  CURRENT_PLANS: { buckets: ['mid', 'old', 'ancient'], text: (s) => `Hi, just checking back regarding ${A(s)}. What are the plans for the property these days?` },
+  // CURRENT_PLANS removed 2026-10-05 (John): "Hi, just checking back regarding <address>.
+  // What are the plans for the property these days?" - too direct and out of touch. Asking
+  // an owner whose listing just expired what their plans are, offering nothing and
+  // acknowledging nothing, reads as a demand rather than a check-in.
   HAS_ANYTHING_CHANGED: {
     buckets: ['recent', 'mid', 'old', 'ancient'],
     text: (s, b) => (b === 'old' || b === 'ancient')
@@ -125,7 +128,7 @@ export const ANGLES = {
 }
 // Rotation order (from the approved 13-week example). Selection walks this list,
 // skips angles used in the last 3 sends and angles wrong for the age bucket.
-const ROTATION = ['DID_IT_SELL', 'PLANS_CHANGED', 'CURRENT_PLANS', 'HAS_ANYTHING_CHANGED', 'FUTURE_POSSIBILITY', 'HOLD_VS_MOVE', 'SIMPLE_CHECK_IN', 'RIGHT_OFFER', 'PROPERTY_DECISION', 'FUTURE_TIMING', 'OPEN_DOOR', 'BACK_TO_MARKET', 'LONG_TERM_REACTIVATION', 'MAKING_A_MOVE', 'GET_IT_SOLD', 'MARKET_RETURN', 'RIGHT_SITUATION', 'OLD_LISTING']
+export const ROTATION = ['DID_IT_SELL', 'PLANS_CHANGED', 'HAS_ANYTHING_CHANGED', 'FUTURE_POSSIBILITY', 'HOLD_VS_MOVE', 'SIMPLE_CHECK_IN', 'RIGHT_OFFER', 'PROPERTY_DECISION', 'FUTURE_TIMING', 'OPEN_DOOR', 'BACK_TO_MARKET', 'LONG_TERM_REACTIVATION', 'MAKING_A_MOVE', 'GET_IT_SOLD', 'MARKET_RETURN', 'RIGHT_SITUATION', 'OLD_LISTING']
 
 function streetOf(client) {
   const a = String(client.address || '').trim()

@@ -396,3 +396,34 @@ test('a missing primary number says WHERE the number actually is', async () => {
   assert.equal(r.ok, false)
   assert.match(r.reason, /Additional phones/)
 })
+
+// ── retired wording ───────────────────────────────────────────────────────────────────
+// John, 2026-10-05: "Hi, just checking back regarding <address>. What are the plans for
+// the property these days?" - too direct and out of touch. Asking an owner whose listing
+// just expired what their plans are, offering nothing and acknowledging nothing, reads as
+// a demand rather than a check-in.
+test('the retired CURRENT_PLANS wording can never be sent again', () => {
+  assert.ok(!('CURRENT_PLANS' in cx.ANGLES), 'the angle itself is gone')
+  for (const [key, a] of Object.entries(cx.ANGLES))
+    for (const b of a.buckets)
+      assert.ok(!/What are the plans for the property these days/i.test(a.text('1 Elm St', b)),
+        `${key} still carries the retired line`)
+})
+
+// A key listed in ROTATION but missing from ANGLES throws at ANGLES[angle].text() - during
+// a live send, to a real lead. Removing an angle is exactly when that can happen.
+test('every rotation entry is a real angle, and every angle is reachable', () => {
+  const rotation = cx.ROTATION || null
+  assert.ok(Array.isArray(rotation), 'ROTATION should be exported so this can be checked')
+  for (const key of rotation) assert.ok(cx.ANGLES[key], `ROTATION lists ${key}, which no longer exists`)
+  for (const key of Object.keys(cx.ANGLES))
+    assert.ok(rotation.includes(key), `${key} is defined but never rotated into`)
+})
+
+test('every age bucket still has angles to choose from', () => {
+  // removing an angle must not leave a bucket with nothing to say
+  for (const b of ['recent', 'mid', 'old', 'ancient']) {
+    const n = Object.values(cx.ANGLES).filter(a => a.buckets.includes(b)).length
+    assert.ok(n >= 4, `only ${n} angles left for ${b}; the no-repeat window needs more than 3`)
+  }
+})
