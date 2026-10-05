@@ -96,6 +96,57 @@ test('a greeting rescues even a link-heavy alert subject', () => {
     body: 'Hi Matt - https://a https://b https://c https://d did these all drop?' })
 })
 
+// ── which system generated the Message-ID: the strongest signal there is ─────────────
+// Every id below was read off a real message in mattsmithremax@gmail.com. Subject-line
+// reading got the Matrix alerts wrong six times out of six; these ids get them right.
+test('a Matrix MLS listing alert is dropped on its Message-ID', () => {
+  const v = drop({ from: 'CDR@northcentralmatrixmail.com', messageId: '<5QKJS7UM2NU4.DLUAGRVH8U3W3@gprodcdra70b>',
+    subject: '[Morris, Niki ] Homes to consider by The Matt Smith  319-431-5859',
+    body: 'Dear Niki Morris, I have found 1 new or updated listing for you to review. Highlights View All Properties' })
+  assert.match(v.why, /Matrix/)
+})
+test('the Matrix alert is dropped even though its body opens like a letter', () => {
+  // this is exactly why the subject+body heuristic was not enough: "Dear Niki Morris"
+  // reads as a greeting, and the alert carries only ONE link
+  drop({ from: 'CDR@northcentralmatrixmail.com', messageId: '<x@gprodcdra70b>',
+    subject: 'Homes to consider', body: 'Dear Niki Morris, I have found 1 new listing. https://one.link' })
+})
+test('a Sierra drip campaign is dropped even with no links at all', () => {
+  const v = drop({ from: 'mattsmithremax@gmail.com', messageId: '<1.c5d77d0a58d3eef6d443@sierra-vm-srvc3>',
+    subject: 'BREAKING: Home Mortgage Rates hit 5.5%',
+    body: 'Please watch the video above. Hi Niki Meant to get this information to you yesterday' })
+  assert.match(v.why, /Sierra/)
+})
+test('a FUB template blast is dropped on its link apparatus', () => {
+  const v = drop({ from: 'matt@mattsmithteam.com', messageId: '<2924494-eb016ec4180750c0d14e32a83bb7e0d@followupboss.com>',
+    subject: 'Good Evening. I saw you viewed some properties!',
+    body: 'Hi Niki, I saw you viewed a few listings today. ' + 'https://fub.direct/1/x '.repeat(28) })
+  assert.match(v.why, /FUB.*mass template/)
+})
+test('a short one-to-one email typed inside FUB is KEPT', () => {
+  // FUB is also where an agent types a real reply. Dropping those would lose email
+  // content nothing else has, because FUB withholds it from its own API.
+  const v = keep({ from: 'matt@mattsmithteam.com', messageId: '<2924494-abc@followupboss.com>',
+    subject: 'Tomorrow at 2', body: 'Niki - 2pm works. I will meet you at the house. Matt' })
+  assert.match(v.why, /one-to-one/)
+})
+test('an unsubscribe footer is enough to call it a blast', () => {
+  drop({ from: 'matt@mattsmithteam.com', messageId: '<9@followupboss.com>',
+    subject: 'Market news', body: 'Hi Niki, some news. Unsubscribe' })
+})
+test('a hand-typed Gmail message is kept, links and all', () => {
+  // "Warranty info" carries 12 links - every one of them an image in Matt's signature
+  keep({ from: 'mattsmithremax@gmail.com', messageId: '<CAH6J5O2QoKKXp9E@mail.gmail.com>',
+    subject: 'Warranty info', body: '[image: x] ' + 'https://www.mattsmithteam.com/sell '.repeat(12) })
+})
+test('Sample Purchase Agreement, the real thing, survives every rule', () => {
+  keep({ from: 'mattsmithremax@gmail.com', messageId: '<CAH6J5O1H1Toxd@mail.gmail.com>',
+    subject: 'Sample Purchase Agreement', body: 'Happy Easter Niki! Please find attached Purchase agreement.' })
+})
+test('the Message-ID is read from headers when not passed directly', () => {
+  drop({ from: 'x@y.com', subject: 'Homes', body: 'x', headers: new Map([['message-id', '<a@gprodcdra70b>']]) })
+})
+
 // ── the governing bias, stated as a test ─────────────────────────────────────────────
 test('an unrecognised email is kept, not dropped', () => {
   const v = keep({ from: 'someone@somewhere.org', subject: '', body: '' })
@@ -133,7 +184,7 @@ test('the mailbox search judges each message and carries the reason', () => {
   assert.match(fn, /classifyEmail\(\{/)
   assert.match(fn, /human: verdict\.human, why: verdict\.why/)
   // the classifier's strongest signals must actually be passed in
-  for (const field of ['headers:', 'inReplyTo:', 'references:']) assert.ok(fn.includes(field), 'must pass ' + field)
+  for (const field of ['headers:', 'inReplyTo:', 'references:', 'messageId:']) assert.ok(fn.includes(field), 'must pass ' + field)
 })
 
 test('the response reports the split so a sample can be reviewed before importing', () => {

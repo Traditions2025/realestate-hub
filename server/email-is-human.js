@@ -42,6 +42,32 @@ function isRobotAddress(addr) {
 // one of these is a system message even when the display name says "Matt Smith".
 const ROBOT_DOMAIN = /@([a-z0-9-]+\.)?(ylopo|sierrainteractive|listingsproject|kvcore|boomtown|realscout|homebot|fello|smartalto|followupboss)\./i
 
+// The system that generated the Message-ID, read off the real messages in
+// mattsmithremax@gmail.com. This is the strongest signal available and it beats reading
+// subject lines, which was wrong six times out of six on Niki Morris's history:
+//
+//   mail.gmail.com          Matt or John typed it in Gmail          -> a person
+//   gprodcdra*              Matrix MLS listing alert                -> a machine
+//   followupboss.com        FUB action-plan send (16-38 links)      -> a template
+//   sierra-vm-*             Sierra drip campaign                    -> a campaign
+//
+// A lead's own reply always arrives with a real mail-client Message-ID, so the reply rule
+// above catches it before any of this runs.
+const SENDING_PLATFORM = [
+  [/@gprod[a-z0-9]*|@.*matrixmail\./i, 'Matrix MLS listing alert', true],
+  [/@(.*\.)?sierra-vm|@.*sierrainteractive/i, 'Sierra drip campaign', true],
+  [/@(.*\.)?followupboss\.com/i, 'FUB template send', false],
+  [/@(.*\.)?(sendgrid|mailgun|mandrillapp|amazonses|sparkpostmail)\./i, 'bulk mail service', false],
+]
+
+// A mass template carries its apparatus with it: property cards, tracking links, an
+// unsubscribe footer. A typed one-to-one email does not.
+function looksMassTemplate(body) {
+  const text = String(body || '')
+  if (/unsubscribe|opt[- ]out|manage (your )?(email )?preferences/i.test(text)) return true
+  return (text.match(/https?:\/\//g) || []).length >= 8
+}
+
 // Subject shapes used by listing alerts and reports. Only consulted as a WEAK signal -
 // never enough on its own, because a person can legitimately write "Homes to consider".
 const ALERT_SUBJECT = /\b(homes? to consider|new listings?|just listed|price (change|drop|reduced)|open house(s)? (this|near)|your saved search|market (report|update|snapshot)|listing alert|new match(es)?|properties? (you|matching))\b/i
@@ -65,7 +91,7 @@ const headerGet = (headers, name) => {
  * Returns { human: boolean, why: string }. `why` is kept so a sample can be reviewed
  * before anything is imported, rather than trusting the classifier blind.
  */
-export function classifyEmail({ headers, from = '', subject = '', body = '', inReplyTo = '', references = '' } = {}) {
+export function classifyEmail({ headers, from = '', subject = '', body = '', inReplyTo = '', references = '', messageId = '' } = {}) {
   const fromAddr = String(from || '').toLowerCase()
 
   // A reply is a conversation by definition, whatever else it looks like.
@@ -79,6 +105,16 @@ export function classifyEmail({ headers, from = '', subject = '', body = '', inR
 
   if (isRobotAddress(fromAddr)) return { human: false, why: `machine sender ${fromAddr}` }
   if (ROBOT_DOMAIN.test(fromAddr)) return { human: false, why: `platform sender ${fromAddr}` }
+
+  // Which system sent it. An alert engine is never a conversation; a one-to-one tool is,
+  // unless the message carries a mass template with it.
+  const mid = String(messageId || headerGet(headers, 'message-id') || '')
+  for (const [re, label, alwaysMachine] of SENDING_PLATFORM) {
+    if (!re.test(mid)) continue
+    if (alwaysMachine) return { human: false, why: label }
+    if (looksMassTemplate(body)) return { human: false, why: `${label}, mass template body` }
+    return { human: true, why: `sent through ${label} but reads as a one-to-one email` }
+  }
 
   // Subject alone is never enough. It only decides when the body also looks like a
   // template - no greeting, and a stack of listing links.

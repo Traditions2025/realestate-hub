@@ -361,6 +361,7 @@ export async function searchMailboxesForContact(email, { max = 600, keepHeaders 
             headers: p.headers, from: p.from?.value?.[0]?.address || '',
             subject: p.subject || '', body,
             inReplyTo: p.inReplyTo || '', references: Array.isArray(p.references) ? p.references.join(' ') : (p.references || ''),
+            messageId: p.messageId || '',
           })
           out.push({
             mailbox: m.user, direction: dir,
