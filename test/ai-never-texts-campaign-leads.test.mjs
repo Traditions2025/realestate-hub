@@ -77,3 +77,46 @@ test('the campaign openers are NOT what is blocked', () => {
   assert.match(block, /^\s*if \(channel === 'ai'\)/m, 'the deny is scoped to the AI channel')
   assert.match(policy, /channel 'automation'\/'drip'/, 'the campaigns keep their own path')
 })
+
+// ── behaviour, not just source ───────────────────────────────────────────────────────
+// The path that actually sends is handleInboundText. /ai/suggest is the advisory panel a
+// human reads and composes nothing to send, so asserting on that would prove nothing.
+import db, { initDb } from '../server/database.js'
+await initDb()
+
+const mk = (over = {}) => {
+  const now = new Date().toISOString()
+  return db.run(`INSERT INTO clients (first_name, last_name, phone, email, type, status, fsbo_status, created_at, updated_at)
+                 VALUES (?,?,?,?,?,?,?,?,?)`,
+    ['Guard', 'T' + Math.random().toString(36).slice(2, 8),
+     '(319) ' + (200 + Math.floor(Math.random() * 700)) + '-' + String(Math.floor(Math.random() * 10000)).padStart(4, '0'),
+     `g${Date.now()}${Math.random()}@x.com`, over.type || 'buyer', over.status || 'new',
+     over.fsbo_status ?? null, now, now]).lastInsertRowid
+}
+
+test('the orchestrator refuses an FSBO campaign lead, even forced', async () => {
+  const { handleInboundText } = await import('../server/ai-followup/orchestrator.js')
+  const cid = mk({})
+  db.run("INSERT OR REPLACE INTO fsbo_followups (client_id, status, updated_at) VALUES (?,?,?)",
+    [cid, 'active', new Date().toISOString()])
+  const r = await handleInboundText(cid, 'Yes, it is available.', { force: true })
+  assert.equal(r.ok, false, 'it must not compose a reply for a FSBO seller')
+  assert.match(String(r.reason), /FSBO/i)
+})
+
+test('the orchestrator still refuses a Cancelled/Expired lead', async () => {
+  const { handleInboundText } = await import('../server/ai-followup/orchestrator.js')
+  const cid = mk({})
+  db.run("INSERT OR REPLACE INTO cx_campaign (client_id, status, enrolled_at, updated_at) VALUES (?,?,?,?)",
+    [cid, 'active', new Date().toISOString(), new Date().toISOString()])
+  const r = await handleInboundText(cid, 'who is this?', { force: true })
+  assert.equal(r.ok, false)
+  assert.match(String(r.reason), /Cancelled\/Expired/i)
+})
+
+test('an ordinary lead is NOT blocked by the new guard', () => {
+  // the guards must not quietly switch the AI off for everyone else
+  const cid = mk({})
+  assert.ok(!db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [cid]))
+  assert.ok(!db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [cid]))
+})
