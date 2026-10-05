@@ -19,12 +19,33 @@
 // from the profile must mean exactly that.
 import db from '../database.js'
 
+// Statuses that mean "this is not a prospect any more", checked on every AI send.
+//
+// Enrolment only ever takes status='new', but nothing looked at the status again afterwards
+// - so a lead enrolled while New and later moved to Closed kept its AI. John, 2026-10-05:
+// "that was hunter's past client so I just moved it to closed, not supposed to get any AI
+// enrollment."
+//
+// junk and donotcontact are already denied upstream by isStopStatus, and not_in_market by
+// its own proactive rule; these are the ones nothing was catching.
+//
+// NOT 'active': routes/clients.js defaults a hand-added lead to 'active', so denying it
+// would silently switch the AI off for a large and ordinary part of the base.
+// The Past Client Nurture DRIP is unaffected - this is scoped to the AI channel only.
+const NOT_A_PROSPECT = new Set(['closed', 'pending', 'archived'])
+
 /**
  * Why the AI may not text this lead, or null if it may.
  * `client` is a clients row; only the id is strictly required.
  */
 export function aiForbiddenReason(client) {
   if (!client) return null
+  const status = String(client.status || '').trim().toLowerCase()
+  if (NOT_A_PROSPECT.has(status)) {
+    return status === 'closed' ? 'past client (status Closed) — AI never prospects a client'
+      : status === 'pending' ? 'under contract (status Pending) — AI never prospects a client'
+      : 'archived lead — AI never texts these'
+  }
   const cid = Number(client.id)
   if (!cid) return null
   const has = (sql) => { try { return !!db.get(sql, [cid]) } catch { return false } }

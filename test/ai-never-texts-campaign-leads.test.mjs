@@ -129,6 +129,7 @@ test('an ordinary lead is NOT blocked by the new guard', () => {
 // but only at the moment of enrolment, which had already passed. forbidden.js asks the same
 // questions again on every send.
 const forbidden = read('ai-followup/forbidden.js')
+const { aiForbiddenReason: aiForbiddenReasonSync } = await import('../server/ai-followup/forbidden.js')
 
 test('every campaign fence in enrolment has a send-time counterpart', () => {
   // if a fence exists only at enrolment, a lead who acquires it later keeps getting texts
@@ -178,4 +179,36 @@ test('the shared rule catches an identity acquired AFTER enrolment', async () =>
   db.run("UPDATE clients SET fsbo_status='Available' WHERE id=?", [cid])
   const after = aiForbiddenReason(db.get('SELECT * FROM clients WHERE id=?', [cid]))
   assert.match(String(after), /FSBO/, 'this is exactly the case enrolment-time checks miss')
+})
+
+// ── status is the OTHER axis of the same bug ─────────────────────────────────────────
+// John, 2026-10-05: "that was hunter's past client so I just moved it to closed, not
+// supposed to get any AI enrollment." Enrolment only ever takes status='new', but nothing
+// re-read the status afterwards - so a lead enrolled while New and later moved to Closed
+// kept its AI. Exactly the shape of the FSBO bug, on a different field.
+test('a past client is refused at send time, not just at enrolment', async () => {
+  const { aiForbiddenReason } = await import('../server/ai-followup/forbidden.js')
+  const cid = mk({})
+  assert.equal(aiForbiddenReason(db.get('SELECT * FROM clients WHERE id=?', [cid])), null)
+  db.run("UPDATE clients SET status='closed' WHERE id=?", [cid])   // ...moved to Closed later
+  assert.match(String(aiForbiddenReason(db.get('SELECT * FROM clients WHERE id=?', [cid]))), /past client/i)
+})
+
+test('under contract and archived are refused too', () => {
+  for (const [status, re] of [['pending', /under contract/i], ['archived', /archived/i]])
+    assert.match(String(aiForbiddenReasonSync({ id: 1, status })), re)
+})
+
+// 'active' must NOT be blocked: routes/clients.js defaults a hand-added lead to 'active',
+// so denying it would switch the AI off for a large and ordinary part of the base.
+test('the working statuses are left alone', () => {
+  for (const status of ['new', 'watch', 'prime', 'qualify', 'active'])
+    assert.equal(aiForbiddenReasonSync({ id: 1, status }), null, `${status} must still be workable`)
+})
+
+test('the Past Client drip is not caught by this', () => {
+  // scoped to the AI channel, so Lifelong Friends keeps running for Closed leads
+  const block = policy.slice(policy.indexOf("if (channel === 'ai') {"), policy.indexOf("if (channel === 'ai') {") + 400)
+  assert.match(block, /channel === 'ai'/)
+  assert.ok(!/channel === 'drip'/.test(block), 'drips must not be gated by the AI rule')
 })
