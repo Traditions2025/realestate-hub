@@ -7,6 +7,7 @@ import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import db, { getSetting, setSetting } from './database.js'
 import { sendViaSendGrid } from './routes/email.js'
+import { classifyEmail } from './email-is-human.js'
 
 const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
 
@@ -353,11 +354,20 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
           const from = (p.from?.value?.[0]?.address || '').toLowerCase()
           const dir = from === target ? 'incoming' : 'outgoing'
           const body = String(p.text || (p.html ? p.html.replace(/<[^>]+>/g, ' ') : '')).replace(/ /g, ' ').replace(/[ \t]+/g, ' ').replace(/\n{3,}/g, '\n\n').trim()
+          // Automated listing alerts are not conversation history (John, 2026-10-05).
+          // The verdict and its reason travel WITH the message so a sample can be
+          // reviewed before anything is imported.
+          const verdict = classifyEmail({
+            headers: p.headers, from: p.from?.value?.[0]?.address || '',
+            subject: p.subject || '', body,
+            inReplyTo: p.inReplyTo || '', references: Array.isArray(p.references) ? p.references.join(' ') : (p.references || ''),
+          })
           out.push({
             mailbox: m.user, direction: dir,
             date: (msg.internalDate || p.date || new Date()).toISOString(),
             from: p.from?.text || '', to: p.to?.text || '', subject: p.subject || '(no subject)',
             messageId: p.messageId || `${m.user}_${msg.uid}`,
+            human: verdict.human, why: verdict.why,
             body: body.slice(0, 6000),
           })
           found++
@@ -371,7 +381,9 @@ export async function searchMailboxesForContact(email, { max = 600 } = {}) {
   const seen = new Set(); const dedup = []
   for (const x of out) { if (seen.has(x.messageId)) continue; seen.add(x.messageId); dedup.push(x) }
   dedup.sort((a, b) => new Date(a.date) - new Date(b.date))
-  return { email: target, count: dedup.length, mailboxes: boxInfo, messages: dedup }
+  const human = dedup.filter(x => x.human)
+  return { email: target, count: dedup.length, human_count: human.length,
+           automated_count: dedup.length - human.length, mailboxes: boxInfo, messages: dedup }
 }
 
 // Search the team mailboxes by SUBJECT, read-only.
@@ -484,16 +496,19 @@ export function cleanupImportDuplicates(clientId) {
   return removed
 }
 
-export async function importContactHistory(clientId) {
+export async function importContactHistory(clientId, { includeAutomated = false } = {}) {
   const c = db.get('SELECT id, first_name, last_name, email FROM clients WHERE id=?', [Number(clientId)])
   if (!c) return { error: 'client not found' }
   if (!c.email) return { error: 'client has no email on file' }
   const cleaned = cleanupImportDuplicates(c.id)
   const res = await searchMailboxesForContact(c.email)
   const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
-  let imported = 0, skipped = 0
+  let imported = 0, skipped = 0, automated = 0
   const norm = (s) => String(s || '').replace(/^\s*((re|fwd?)\s*:\s*)+/i, '').trim().toLowerCase()
   for (const msg of res.messages || []) {
+    // Listing alerts and marketing blasts are not conversation history (John, 2026-10-05).
+    // searchMailboxesForContact already judged each message and carried the reason along.
+    if (!includeAutomated && msg.human === false) { automated++; continue }
     const extId = 'gmail_' + msg.messageId
     if (db.get('SELECT id FROM communications WHERE external_id = ?', [extId])) { skipped++; continue }
     const near = db.all(`SELECT id, subject, body FROM communications WHERE client_id=? AND channel='email' AND direction=?
@@ -518,7 +533,7 @@ export async function importContactHistory(clientId) {
     imported++
   }
   if (imported) { try { import('./followup-coverage.js').then(x => x.recalcCoverage(c.id, { actorType: 'system' })).catch(() => {}) } catch {} }
-  return { client_id: c.id, email: c.email, found_in_gmail: res.count, imported, skipped_duplicates: skipped, removed_prior_duplicates: cleaned }
+  return { client_id: c.id, email: c.email, found_in_gmail: res.count, imported, skipped_duplicates: skipped, skipped_automated: automated, removed_prior_duplicates: cleaned }
 }
 
 // legacy status helper (kept so any old caller keeps working)

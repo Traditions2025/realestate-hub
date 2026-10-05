@@ -368,7 +368,7 @@ router.post('/sent-backfill', async (req, res) => {
 })
 // Import a contact's full Gmail history into their profile feed (deduped; explicit).
 router.post('/contact-emails/import', async (req, res) => {
-  try { const { importContactHistory } = await import('../gmail-inbox.js'); res.json(await importContactHistory(Number(req.body?.client_id))) }
+  try { const { importContactHistory } = await import('../gmail-inbox.js'); res.json(await importContactHistory(Number(req.body?.client_id), { includeAutomated: req.body?.include_automated === true })) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 

@@ -1,7 +1,655 @@
 {
-  "generated_at": "2026-09-30T23:14:51.398Z",
+  "generated_at": "2026-10-05T20:54:02.576Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a67d1b0",
+      "date": "2026-10-05T15:41:17-05:00",
+      "subject": "FSBO sync sets type and status on a matched lead, not only on create",
+      "title": "FSBO sync sets type and status on a matched lead, not only on create",
+      "body": "Root cause of both things John hit. A lead this sync CREATES gets seller+watch; a\nlead it merely MATCHED kept whatever it already had - so 54 FSBO sellers sat typed\n'buyer', which is how Joseph Green was reachable by the cold-BUYER AI drip, and\nhow a record could look untouched by the status rule.\n\n  type   -> 'seller' whenever the lead is genuinely FSBO-flagged\n  status -> 'watch' ONLY from 'new'; junk/closed/pending and the rest are\n            deliberate human calls and are never overwritten, the same rule the\n            MLS tag already follows\n\nAlso removed from the FSBO campaign, per John: the Text 3 opening credibility\npitch (homes-sold count, years of experience, which weeks on market matter).\nNobody was due to receive it - 0 active leads sit at that step. It was never\nremoved before despite the memory of it; git shows it was only ever REWORDED\n(bf27950). The two remaining texts still send.\n\nThe first remaining text still opens \"At this point,\" which referred to the\ndeleted message. Left exactly as approved rather than quietly rewritten - this is\nthe approved library - and flagged for John to reword or drop.\n\nPOST /api/admin/fix-seller-types backfills the existing 54. Dry by default, and\nREAL means genuinely flagged (fsbo_status / FSBO listing / live FSBO campaign row /\nmls_status / Cancelled-Expired campaign), never a guess from a tag or source.\nOnly `type` is touched; status stays a human decision.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f813000",
+      "date": "2026-10-05T15:37:43-05:00",
+      "subject": "Read-only: who is due which FSBO step",
+      "title": "Read-only: who is due which FSBO step",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4689645",
+      "date": "2026-10-05T15:20:05-05:00",
+      "subject": "Re-test whether FUB email content is readable at all",
+      "title": "Re-test whether FUB email content is readable at all",
+      "body": "John asked twice. The earlier finding was \"[CONTENT HIDDEN]\" on 51 of 51 sampled,\nbut that was one shape of request. This tries extra params, the threads endpoint,\na single email fetched by id, and keeps textMessages alongside as a control that\ncontent CAN come through.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c4d632f",
+      "date": "2026-10-05T13:06:08-05:00",
+      "subject": "AI stops when a lead stops being a prospect, not just when it joins",
+      "title": "AI stops when a lead stops being a prospect, not just when it joins",
+      "body": "Answering John's question honestly: the earlier fix covered the CAMPAIGN fences.\nStatus was the same bug on a different field and was NOT covered.\n\n\"that was hunter's past client so I just moved it to closed, not supposed to get\nany AI enrollment.\" Enrolment only ever takes status='new', but nothing re-read\nthe status afterwards - so a lead enrolled while New and later moved to Closed\nkept its AI. Identical shape to the FSBO case.\n\nforbidden.js now also refuses closed, pending and archived, so it is checked on\nevery send. junk and donotcontact were already denied upstream by isStopStatus,\nand not_in_market by its own proactive rule; these three were catching nothing.\n\n'active' is deliberately NOT included: routes/clients.js defaults a hand-added\nlead to 'active', so denying it would quietly switch the AI off for a large and\nordinary part of the base. Asserted.\n\nScoped to the AI channel, so the Past Client Nurture drip still runs for Closed\nleads - also asserted, since silencing that would be a worse bug than the one\nbeing fixed.\n\nLive exposure was one lead, Leo Solamo, already in HUMAN_TAKEOVER with nothing\nqueued. The 41 junk and 5 not_in_market AI-managed leads carry pending actions but\nthose were already being denied at send time.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "210d241",
+      "date": "2026-10-05T13:02:11-05:00",
+      "subject": "Audit: AI-managed leads whose status says they should not be prospected",
+      "title": "Audit: AI-managed leads whose status says they should not be prospected",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f10e6d0",
+      "date": "2026-10-05T12:38:00-05:00",
+      "subject": "One rule for who the AI may never text, asked again on every send",
+      "title": "One rule for who the AI may never text, asked again on every send",
+      "body": "John: \"make sure that nothing of this happens again, also the same problem we had\nlast time when AI automatically kicked in for a lead that was added manually\nwhich is actually our seller client.\"\n\nThe hand-added case was already fixed on 2026-10-02 (Holly Stock): routes/clients.js\nstamps auto_enroll_excluded on the record itself, and enrolment honours it. That\nguard is intact and left alone - it stays enrolment-only on purpose, so an agent\nswitching AI on from the profile still means exactly that.\n\nWhat was NOT fixed is the shape both incidents share: a fence that only runs when\na lead JOINS. Joseph Green was enrolled as a cold buyer months before anyone knew\nhe was selling, so the FSBO exclusion never ran again for him.\n\nai-followup/forbidden.js now holds the campaign-ownership rule in one place -\ncx_campaign, fsbo_followups, fb_seller_followups, fsbo_status, fsbo_listings,\nmls_status, the FB Seller Ad tag - and policy.js asks it on EVERY send rather than\nkeeping its own copy. Two copies drift; that is exactly how FSBO came to be\nguarded in one place and not the other.\n\nA parity test holds enrolment and send-time together, and it immediately found a\nreal gap: enrolment fenced on the fsbo_* FIELDS but never on the fsbo_followups\nTABLE, so a lead in the FSBO sequence whose fsbo_status had been cleared (an Off\nMarket listing clears it) could still auto-enrol. Closed.\n\nAn ordinary lead is unaffected - asserted, because a guard that quietly switches\nthe AI off for everyone would be its own outage.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3d1daf7",
+      "date": "2026-10-05T12:18:33-05:00",
+      "subject": "Audit: FSBO-flagged leads whose status and type never caught up",
+      "title": "Audit: FSBO-flagged leads whose status and type never caught up",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "099d00f",
+      "date": "2026-10-05T12:07:43-05:00",
+      "subject": "Prove the FSBO guard by behaviour, not by reading the source",
+      "title": "Prove the FSBO guard by behaviour, not by reading the source",
+      "body": "handleInboundText is the path that actually sends; /ai/suggest is the advisory\npanel a human reads and composes nothing, so asserting on that would have proved\nnothing. The new tests create a real FSBO row and a real cx_campaign row and call\nthe orchestrator with force:true - both refuse, with their own reason, and an\nordinary lead is untouched.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a95c83c",
+      "date": "2026-10-05T12:06:50-05:00",
+      "subject": "Close the FSBO hole at the send gate too, and cover all three layers",
+      "title": "Close the FSBO hole at the send gate too, and cover all three layers",
+      "body": "policy.js is the last gate before anything goes out. It denied Cancelled/Expired\nand had nothing for FSBO, so that is where an AI text to a FSBO seller would still\nhave slipped through even with the two inbound guards.\n\nIt now denies on fsbo_followups AND on client.fsbo_status, the second catching a\nseller the campaign table has not caught up with. Scoped to channel 'ai', so the\ncampaigns' own approved templates ('automation'/'drip') are untouched - blocking\ntoo broadly would have silenced the FSBO campaign itself.\n\nWhy a send-time check is needed at all: AI enrolment already excludes an FSBO\nlead, but only AT THE MOMENT OF ENROLMENT. A cold buyer later identified as a FSBO\nseller stays AI-managed and the exclusion never fires again. That is how Joseph\nGreen and Jamie Northrup were reachable - both are typed 'buyer'.\n\nAudited: 2 breaches, both FSBO. Leeann Jones also had an AI text but it predates\nher Cancelled/Expired enrolment by two weeks, so that guard has never failed.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "92738a4",
+      "date": "2026-10-05T12:01:59-05:00",
+      "subject": "Audit: fsbo_followups has no created_at; the campaign starts at first_text_at",
+      "title": "Audit: fsbo_followups has no created_at; the campaign starts at first_text_at",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "241fa79",
+      "date": "2026-10-05T11:46:29-05:00",
+      "subject": "Audit: report when the lead was enrolled, so pre-enrolment AI messages are not counted as breaches",
+      "title": "Audit: report when the lead was enrolled, so pre-enrolment AI messages are not counted as breaches",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "41f6fd1",
+      "date": "2026-10-05T11:44:57-05:00",
+      "subject": "AI must never reply to an FSBO seller either",
+      "title": "AI must never reply to an FSBO seller either",
+      "body": "John: \"we have a very strict rule that AI should not be engaged to any FSBO Leads\nand Cancelled/Expired\". On 2026-10-05 the AI answered Joseph Green about\n7526 Cattail Ct NE - he replied \"Yes, it is available.\" at 16:10 and the AI came\nback with \"How's it going so far with the sale?\" one minute later.\n\nThe campaign opener at 15:28 was correct; the auto-REPLY is what the rule forbids.\n\nFSBO had NO guard at either layer:\n\n  routes/inbox.js awaited handleCxInbound and used its answer to block the AI, but\n  called handleFsboReply fire-and-forget and threw the answer away - so an FSBO\n  reply reached the AI hand-off with nothing stopping it. It is awaited now and\n  gates the same way.\n\n  ai-followup/orchestrator.js refuses cx_campaign leads and calls itself \"defense\n  in depth for every other caller\" - but only ever covered Cancelled/Expired. It\n  refuses fsbo_followups leads now too, so a manual force cannot get through\n  either.\n\nGET /api/admin/ai-campaign-breaches lists every campaign lead the AI has actually\nreplied to, so the damage can be seen rather than guessed at.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5d36de6",
+      "date": "2026-10-05T11:33:05-05:00",
+      "subject": "Read-only: what a full FUB person record actually contains",
+      "title": "Read-only: what a full FUB person record actually contains",
+      "body": "The stated goal is a two-way sync of notes, tags and custom fields. This reports\nevery field FUB exposes on a person, and whether the account defines custom\nfields at all, so the gap between the goal and what is built can be measured\nrather than assumed.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "66f77c7",
+      "date": "2026-10-05T11:24:59-05:00",
+      "subject": "Annual Not in Market recheck: a smart list, not a task",
+      "title": "Annual Not in Market recheck: a smart list, not a task",
+      "body": "John: \"you can also remove the annual follow up needed, or annual not in market\ncheck you can put those on a smart list in clients.\"\n\nThe recheck now goes through the same gate as every other automation, so by default\nit writes no task. Clients answers who is due instead, from clients.not_in_market_at.\n\nTwo pieces had to move with it:\n\n  smart-audience gains not_in_market_days (\"Days since marked Not in Market\"), or\n  a list could not express \"parked a year ago\" at all. Null for anyone never\n  parked, which >= excludes.\n\n  followup-coverage counted that task as the coverage for a parked lead - \"the\n  annual recheck task IS the coverage\". With no task they would every one read\n  UNPROTECTED and fill Needs Attention, which is the same clutter in a different\n  tab. 'not_in_market' is an excluded status there now: parked on purpose, found\n  again through the list.\n\nThe gate test's named exception is gone again - every automation task insert is\nbehind the switch, with none exempt.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3edb5fc",
+      "date": "2026-10-05T11:12:24-05:00",
+      "subject": "Name the one task insert that is allowed to stay ungated",
+      "title": "Name the one task insert that is allowed to stay ungated",
+      "body": "The gate test caught the restored Annual Not in Market Recheck, which is exactly\nits job. Rather than loosening the rule, the exception is named: not-in-market.js,\nand only where the insert is ANNUAL_TASK_TITLE. Anything else ungated still fails,\nso a second exception cannot quietly join it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d390fc6",
+      "date": "2026-10-05T11:11:19-05:00",
+      "subject": "Tasks tab: stop the automations writing to it",
+      "title": "Tasks tab: stop the automations writing to it",
+      "body": "John: keep the Tasks tab for our own manual work, remove what AI added. 71 of 239\ntasks had been written by automations - 42 CX Response, 17 FSBO Response, 11\nAnnual Not in Market Recheck, 1 Fix It or Skip It. Those 71 are deleted (a copy of\nevery one was taken first).\n\nDeleting alone would have fixed nothing: a CX Response task is written every time a\ncancelled/expired lead replies, so the tab refills within days. Creation is now\ngated behind automation_tasks_enabled, default OFF - a setting rather than deleted\ncode, so it can be turned back on without a release.\n\nNothing is lost by it. Every gated path already raises a notification at the\nmoment it matters (\"RESPONSE RECEIVED - <name>\"), and the conversation is in the\nInbox either way. The task was a second copy of a signal that already existed.\n\nTHE ANNUAL NOT IN MARKET RECHECK IS THE EXCEPTION, and is restored, both the code\nand the 11 rows. It is not noise that regenerates - it is one human to-do a YEAR\nout, and it is load-bearing: followup-coverage.js counts a future human task as\nthe coverage for a parked lead (\"the annual recheck task IS the coverage\"). Remove\nit and every Not in Market lead evaluates UNPROTECTED and lands in Needs\nAttention, trading one kind of clutter for another. notify() cannot stand in: it\nfires immediately and cannot be scheduled a year ahead.\n\nMatching for the purge was by the exact title templates in the code, never by\ncategory: 'follow-up' is also a category a person can pick, and 10 client-linked\ntasks are plainly hand-written (\"Let's do a follow up for Rose...\", bare names).\nDeleting by category would have taken those too.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a7fc493",
+      "date": "2026-10-05T09:57:39-05:00",
+      "subject": "The never-lose rule turned on vagueness; it should turn on authority",
+      "title": "The never-lose rule turned on vagueness; it should turn on authority",
+      "body": "A live run wrote 130 updates and 17 of them lost information, all reverted:\n\n  13  High Probability Sellers -> High Probability Buyer   (from the Hub's `type`)\n   2  PLATINUM CLIENTS         -> High Probability Buyer\n   2  Past Client              -> ACTIVE WITH AGENT\n\nThe rule only blocked a VAGUE target landing on a specific stage. A target that\nwas merely DIFFERENT went straight through, so a one-word Hub status was allowed\nto overwrite a better-sourced FUB stage. I had flagged the seller-to-buyer risk\non 10-01 and then ran the push without resolving it, which is how it reached\nproduction.\n\nThe test is no longer \"is the target vague\" but \"does the Hub actually KNOW\nbetter\":\n\n  authoritative - mls_status says Expired or Cancelled, or the lead is Junk/DNC\n                  and must stop looking workable. These may still overwrite.\n  derived       - anything computed from the coarse status or type field. These\n                  never overwrite a specific stage.\n\nSo junk still clears High Probability Sellers, which John asked for, and\nmls_status still upgrades a Watch into Expired, which adds information. What can\nno longer happen is `type` flipping a seller to a buyer, or an active status\nerasing a past client.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c33bd5f",
+      "date": "2026-10-05T09:52:40-05:00",
+      "subject": "Junk must not sit on a workable FUB stage",
+      "title": "Junk must not sit on a workable FUB stage",
+      "body": "John, 2026-10-05: \"make sure that there's nothing in Junk from HUB that is still\non active stage in FUB, they must be on Dead Stage\".\n\nNurture, Seller (NURTURE) and the High Probability pair all read as WORKABLE in\nFUB - an agent opening one of those expects to work it - so the demotion guard\nwas too broad in holding them back. A lead the Hub has marked Junk now clears\nthem.\n\nWhat stays protected is only what is genuinely historical or curated: Past\nClient, Closed, Under Contract and PLATINUM CLIENTS. Junk on one of those is far\nmore likely to be a mistake in the Hub than a reason to erase the history, so it\nis still reported for a person rather than written.\n\nThe guard remains scoped to demotions, so parity moves are untouched by it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0ead32c",
+      "date": "2026-10-05T09:39:46-05:00",
+      "subject": "FUB sync adds information, never loses it",
+      "title": "FUB sync adds information, never loses it",
+      "body": "John, 2026-10-05: leave a lead's stage alone where the push would flatten it, and\nsend the Hub's expired/cancelled listings to FUB's own Expired and Cancelled\nstages instead of the generic Watch.\n\nA full dry walk of 2,935 moves found 154 that would have replaced a SPECIFIC FUB\nstage with 'Watch': 45 PLATINUM CLIENTS, 56 Cancelled, 53 Expired. The Hub's\nvaguest status overwriting FUB's most precise.\n\nTwo changes:\n\n1. stageFor() now reads what the Hub KNOWS before its coarse status field. An\n   expired listing is 'watch' in the Hub because that is the only word the status\n   vocabulary has, but mls_status says exactly what it is and FUB has a stage for\n   it. Watch -> Expired ADDS information; Watch -> Watch would have thrown it\n   away. Only expired and cancelled are mapped; Active and Pending are left\n   rather than guessed.\n\n2. wouldLoseInformation() refuses any write that puts a vague stage on top of a\n   specific one, and reports it as 'kept-specific' with the reason. That covers\n   PLATINUM CLIENTS, Cancelled, Expired, Foreclosures, Probates, Past Client,\n   Under Contract and the High Probability pair - anything the Hub's status\n   cannot reconstruct.\n\nThe cleanup that was the point of the exercise still runs: 268 Nurture and 231\nSeller (NURTURE) still become Watch, because vague-to-vague loses nothing.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6f011d9",
+      "date": "2026-10-05T09:26:52-05:00",
+      "subject": "Cancelled/Expired: retire the CURRENT_PLANS message",
+      "title": "Cancelled/Expired: retire the CURRENT_PLANS message",
+      "body": "John: \"Hi, just checking back regarding <address>. What are the plans for the\nproperty these days?\" - too direct and a bit out of touch. Asking an owner whose\nlisting just expired what their plans are, offering nothing and acknowledging\nnothing, reads as a demand rather than a check-in.\n\nRemoved from ANGLES and from ROTATION. The body is composed at send time rather\nthan queued ahead, so nothing was sitting in a queue carrying this wording and\nthere was nothing to pause - it simply cannot be chosen again. 17 angles remain\nand every age bucket still has well above the 3-send no-repeat window.\n\nROTATION is now exported so a test can hold the invariant that bit here: a key\nlisted in ROTATION but missing from ANGLES throws at ANGLES[angle].text(), during\na live send, to a real lead. Removing an angle is exactly when that happens.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4c0b0bd",
+      "date": "2026-10-02T10:57:54-05:00",
+      "subject": "A lead added by hand never auto-enrolls in AI, unless it is turned on",
+      "title": "A lead added by hand never auto-enrolls in AI, unless it is turned on",
+      "body": "Holly Stock was added in the Hub at 15:38 and got an AI intro text at 15:46, 22\nseconds before a real human group message to her and Matt about her mother's\ncondo. She read as a generic prospect and a known seller inside half a minute.\n\nThe status check did not save her. This route defaults a lead to 'active', but\nthe fresh-lane hook runs the instant the row exists, so a lead typed in as New,\nor left New for the seconds before the status is set, is eligible.\n\nSo the exclusion is recorded on the record at creation rather than inferred from\nstatus, using the SAME durable flag an agent sets from the profile. That is what\nmakes \"unless turned on\" work already: POST /api/ai/lead/:id/enable does not\nconsult the flag, so switching AI on by hand still does exactly what it says.\n\nThe enrolment hook still runs, so the decision is evaluated and logged rather\nthan skipped in silence - the decision log is the record of why nothing fired.\nMarking the exclusion is best-effort and wrapped, because failing to set a guard\nmust never stop a lead being created.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "01ff9c5",
+      "date": "2026-10-01T18:15:35-05:00",
+      "subject": "Check the NAME before creating a person in FUB",
+      "title": "Check the NAME before creating a person in FUB",
+      "body": "The first live run created two FUB duplicates: Virgil Webb (85145 beside 81279)\nand Drew Christensen (85147 beside 47439 and 43171). The Hub held a second record\nfor each with no email and a different phone, so neither the email search nor the\nphone search matched and a new FUB person was made next to the one already there.\nTwo of those existing FUB records carry no email or phone at all, so name is the\nONLY way to find them.\n\nlinkOrCreateInFub now searches by name as well, using the same generous\nnamesAgree comparison as the status push so a nickname or married name is not\nread as a different person. A match returns 'name-exists' with the FUB ids, and\ncreates nothing.\n\nReported, not merged: which of two records is the real one, and what happens to\nthe other, is a judgement a person has to make.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3148920",
+      "date": "2026-10-01T17:48:28-05:00",
+      "subject": "Sierra probe: run pass 2 as well, the one that catches new registrations",
+      "title": "Sierra probe: run pass 2 as well, the one that catches new registrations",
+      "body": "The sync makes two passes - by updateDate and by creationDate - and the second\nis the one meant to catch a brand-new lead. When a registration is missing from\nthe Hub, that is the pass to inspect, so the probe now runs it the same way,\nincluding the MM/dd/yyyy format it requires.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "eef7c44",
+      "date": "2026-10-01T17:46:49-05:00",
+      "subject": "Sierra probe: drop the milliseconds, like the real sync does",
+      "title": "Sierra probe: drop the milliseconds, like the real sync does",
+      "body": "toSierraDate strips them before calling; keeping them produced the same 400 the\nscheduler comment already warned about.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c640be7",
+      "date": "2026-10-01T17:46:25-05:00",
+      "subject": "Sierra probe: keep the timezone designator",
+      "title": "Sierra probe: keep the timezone designator",
+      "body": "Slicing the ISO string dropped the Z and Sierra answered 400 - it requires a\ntimezone designator on leadUpdateDateFrom.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fb85336",
+      "date": "2026-10-01T17:44:42-05:00",
+      "subject": "Sierra probe: use /leads/find, the call the sync actually makes",
+      "title": "Sierra probe: use /leads/find, the call the sync actually makes",
+      "body": "A guess at /leads returns 405 Method Not Allowed. The incremental sync uses\n/leads/find with leadUpdateDateFrom, so the probe now does the same and reports\nwhat Sierra has seen recently.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fc84f4f",
+      "date": "2026-10-01T17:42:57-05:00",
+      "subject": "Read-only: does Sierra have a given lead yet?",
+      "title": "Read-only: does Sierra have a given lead yet?",
+      "body": "When a website registration is missing from the Hub, this distinguishes never",
+      "category": "other"
+    },
+    {
+      "hash": "d8b2f5b",
+      "date": "2026-10-01T17:40:35-05:00",
+      "subject": "Probe: search FUB by name too, and return source/created",
+      "title": "Probe: search FUB by name too, and return source/created",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "62d03d5",
+      "date": "2026-10-01T16:42:40-05:00",
+      "subject": "Run the new-lead push hourly, shipped OFF",
+      "title": "Run the new-lead push hourly, shipped OFF",
+      "body": "\"Moving forward\" means it has to run by itself, so an hourly tick sweeps the Hub\nleads FUB does not know about.\n\nA sweep rather than a hook on each insert: leads are created from eight different\nplaces in this codebase, and one sweep catches all of them without eight hooks to\nkeep in step. Batches of 25, because each lead costs up to two FUB searches at\n260ms pacing.\n\nForward-only by construction - pushNewLeads stamps its cutoff on the first run,\nso the tick can never wake up and backfill the ~14,000 older unlinked leads.\n\nGated behind fub_push_new_enabled, default '0', like every other automation here.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "559d3ef",
+      "date": "2026-10-01T16:39:59-05:00",
+      "subject": "New Hub leads are pushed into FUB",
+      "title": "New Hub leads are pushed into FUB",
+      "body": "John, 2026-10-01: \"when someone is added in HUB make sure they are also pushed in\nFUB\".\n\nSEARCH BEFORE CREATE. FUB can be searched by email and by phone, and both return\nthe exact person - verified against a lead known to be in both systems. So a lead\nFUB already has is LINKED (its fub_person_id written back), and only someone FUB\ngenuinely does not know is created. That is safer than trusting FUB's own dedupe\nsemantics, which we have not verified.\n\nA lead with neither an email nor a phone is SKIPPED, not created: that is the one\ncase that could genuinely duplicate in FUB, and the record would be useless there\nanyway.\n\n\"Moving forward\" is taken literally. The cutoff is stamped on the first run and\nstored, so this never backfills the ~14,000 older unlinked leads by surprise.\n\nNew records are created with the parity stage from stageFor(), falling back to\n'Lead' when the status is unmapped - 'new' is deliberately absent from the\nmapping, but a brand-new FUB record still needs somewhere to land.\n\nfubPost no longer refuses /people. That guard was mine, written hours earlier,\nand it stood for the wrong invariant: the rule has always been about DIRECTION.\nNothing is pulled FROM FUB into the Hub, because that is what makes Hub\nduplicates. Pushing a Hub lead INTO FUB is the opposite, and the Hub is master.\n\nPaced and resumable like every other push. Nothing is scheduled yet.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "79e585a",
+      "date": "2026-10-01T16:34:43-05:00",
+      "subject": "Read-only: can FUB be searched by email or phone?",
+      "title": "Read-only: can FUB be searched by email or phone?",
+      "body": "Decides whether new Hub leads can be pushed into FUB without creating duplicates\nthere - looking before creating is safer than relying on FUB's own dedupe\nsemantics, which we have not verified.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d3392e4",
+      "date": "2026-10-01T16:11:35-05:00",
+      "subject": "Skip creating a Hub lead when our own screen already rejected it",
+      "title": "Skip creating a Hub lead when our own screen already rejected it",
+      "body": "expired-master.js's auto-create path only ever checked for a company\nname before creating a Hub-native lead from an unmatched sheet row. A\nshort-lived listing, an agent-owned one, or anything else our own\ndaily screen marks \"Skipped, ...\" still carries Cancelled/Expired in\nthe status column and a real name+address, so it got created anyway -\nbypassing both the screen and the Forewarn phone lookup.\n\nKnown gap since 2026-09-08 (Maurice Burt, Bernard Hughes), never\nfixed. Recurred 2026-10-01 (Joseph Saidi, Jaymee Glenn-Burns, both\nshort-lived/quick-pend) - junked both leads by hand after this fix.\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f15ca7b",
+      "date": "2026-10-01T15:05:43-05:00",
+      "subject": "HUB -> FUB status parity, so the two systems read the same",
+      "title": "HUB -> FUB status parity, so the two systems read the same",
+      "body": "John found Mark McDermott showing Prime in the Hub and Seller (NURTURE) in FUB,\nand asked for them to match (2026-10-01).\n\nThe mapping is not guesswork. I sampled where these people already sit in FUB\nbefore writing any of it:\n\n  closed        -> Past Client        11 of 12 already there\n  pending       -> Under Contract     1 of 1\n  active        -> ACTIVE WITH AGENT  5 of 10, FUB's own word for a working lead\n  not_in_market -> Not in the Market\n  watch         -> Watch              CREATED; FUB had no equivalent and those\n                                      leads were spread across Nurture, Seller\n                                      (NURTURE), Cancelled and six more\n  prime         -> High Probability Buyer | Sellers, by the lead's type, because\n                                      FUB already splits that one by who they are\n\n'new' is deliberately NOT pushed. It is 28,676 people, about half of them staged\n'Realist' in FUB, which records where the lead came from. The Hub's 'new' does\nnot carry that, so pushing would flatten ~20,000 records and lose the source for\ngood. John's call. 'qualify' and 'archived' are a couple of people each with no\nclean equivalent, so they are left rather than misfiled.\n\nThe protected-stage guard now applies to DEMOTIONS only. Overwriting a meaningful\nstage is the point of parity; dropping a Past Client to Dead is not, so Dead and\nDo not Contact keep the protection.\n\nfubPost exists now, for stages only - it refuses /people outright, because\npulling leads out of FUB is what would create duplicates.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "443c721",
+      "date": "2026-10-01T14:51:21-05:00",
+      "subject": "Read-only: what FUB stage does each Hub status actually sit in today?",
+      "title": "Read-only: what FUB stage does each Hub status actually sit in today?",
+      "body": "Sizes a status-parity push before anything is written. Some mappings are\nambiguous (Hub 'active' is a live lead, FUB 'Active Listing' is a property) and\none is enormous (20,922 people sit in FUB's 'Realist' stage), so the blast radius\nneeds measuring rather than assuming.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4406734",
+      "date": "2026-10-01T14:49:23-05:00",
+      "subject": "FUB stages: ask for all of them, not the default first ten",
+      "title": "FUB stages: ask for all of them, not the default first ten",
+      "body": "The account has more than ten stages and the list silently stopped at the page\ndefault, so anything built from it would be missing most of the vocabulary.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "55a19e6",
+      "date": "2026-10-01T14:48:46-05:00",
+      "subject": "Profile: one activity box, Sierra notes with the other notes, no empty timeline",
+      "title": "Profile: one activity box, Sierra notes with the other notes, no empty timeline",
+      "body": "John, 2026-10-01.\n\nProperty Activity, Listing Interest, Website Activity and Follow Up Boss Activity\nwere four separate cards all answering \"what has this person been doing\". They\nare now one box called Website Activity. Section gained a `sub` mode that renders\na heading inside an existing card instead of a card of its own, so the four\nbodies merged without rewriting any of them.\n\nSierra notes had a box to themselves while every other note lived in\nCommunications > Notes. They now appear in that tab and count on it. They come\nfrom Sierra's API rather than `communications`, so they are fetched in the\nCommunications component and merged for display only - nothing is written to the\nHub's tables.\n\nThe Activity timeline box is removed: it was nearly always empty. SierraActivity\nand the ContactTimeline import went with their boxes rather than lingering as\ndead code.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "420df0f",
+      "date": "2026-10-01T14:46:45-05:00",
+      "subject": "Communications: counts on every tab, and a uniform card height",
+      "title": "Communications: counts on every tab, and a uniform card height",
+      "body": "John, 2026-10-01.\n\nCounts: only Notes carried a number. All, Texts, Calls, Emails and Notes now show\none, because how much history a lead has is the first thing worth knowing. The\nCalls tab includes voicemails, which count as callish everywhere else in this\nfile but were excluded from its own filter.\n\nHeight: a long email made its card tower over the rest and pushed everything\nbelow it off screen. Bodies clamp to six lines with Show more / Show less, so\nevery card is the same size and the list stays scannable. Clamped with\n-webkit-line-clamp rather than a pixel height, which would slice a line in half.\n\nThe toggle only appears when the text is genuinely cut off, measured after render\nrather than guessed from a character count, which is wrong at every window width.\nThe measurement is skipped while expanded - with the clamp removed it would read\n\"not clamped\" and hide the Show less button.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6181197",
+      "date": "2026-10-01T14:45:12-05:00",
+      "subject": "Bulk backfill path for notes and calls (not run yet)",
+      "title": "Bulk backfill path for notes and calls (not run yet)",
+      "body": "Per-person is right for a scoped run and wrong for a full one: three calls per\nlead at 260ms is about six hours for the 28,676 'new' leads alone. Notes and\ncalls page in bulk instead - 264k notes in ~2,600 calls, roughly eleven minutes -\nand notes were 263 of 343 rows in a sample, so this covers the large majority of\nthe value in minutes. Texts stay per-person; FUB requires a personId for those.\n\nRows for people the Hub does not know are DROPPED, never inserted as orphans and\nnever used to create a lead - pulling leads out of FUB is what would make\nduplicates. Paged, resumable by offset, disk-watched, and nothing calls it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "46de75c",
+      "date": "2026-10-01T14:05:59-05:00",
+      "subject": "Assessor tooltip: read the county off the parcel url",
+      "title": "Assessor tooltip: read the county off the parcel url",
+      "body": "Clicking through for Rasheedah Washington landed correctly on the Cedar Rapids\nparcel, but the tooltip said \"Linn County\". A cached reply carries only the url,\nso `host` was undefined and every parcel read as the county. Taken from the url\ninstead, which is always there.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1d788c7",
+      "date": "2026-10-01T14:04:46-05:00",
+      "subject": "Assessor: a blocked popup must not swallow the click",
+      "title": "Assessor: a blocked popup must not swallow the click",
+      "body": "window.open returns null when the browser blocks the popup, and the default was\nbeing prevented BEFORE that was known - so the click produced no tab, no\nnavigation and no message at all. The tab is opened first now, and when it cannot\nbe, the link is left to do its job.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0c81584",
+      "date": "2026-10-01T13:58:10-05:00",
+      "subject": "Note rows: do not repeat the source when the system is the author",
+      "title": "Note rows: do not repeat the source when the system is the author",
+      "body": "Rendered as \"Note . by Follow Up Boss . Follow Up Boss\": for a note the\ndisposition carries the source system, which duplicates the author whenever the\nsystem wrote it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "295c39f",
+      "date": "2026-10-01T13:55:38-05:00",
+      "subject": "Show the imported FUB notes on the profile",
+      "title": "Show the imported FUB notes on the profile",
+      "body": "The import was landing 1,001 notes that nothing rendered. The Communications\nlist explicitly filtered channel='note' OUT, and the Notes tab showed the\nfree-text client.notes field instead, so every imported note was invisible. That\nexclusion predates the import, when nothing ever had channel='note'.\n\n  - notes appear in the timeline and under the Notes filter\n  - the Notes tab shows the imported rows AND the typed note lines\n  - COMM_META gains a note entry, so it is not a bullet and the raw word \"note\"\n  - an internal note shows its author instead of a direction: a note is written\n    ABOUT the lead, never sent to them, so \"inbound\" was wrong\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6ee2027",
+      "date": "2026-10-01T13:55:20-05:00",
+      "subject": "Assessor: never show another lead's address while looking one up",
+      "title": "Assessor: never show another lead's address while looking one up",
+      "body": "John opened Melena Urbanowski and the assessor showed \"2222 1st Ave NE #508\".\nThat is not her address and nothing prefilled it - the assessor's search page\nreplays whatever that browser SEARCHED LAST, so it looks like a filled-in form\nbelonging to the lead. I caused this by sending the waiting tab there in the last\nchange. A wrong address that looks right is worse than a blank one.\n\nThe tab now gets a page of OUR OWN naming the address being looked up, and only\never navigates to a parcel we actually matched. When there is no record it says\nso, repeats whose address it was, and warns that the assessor's own search box may\nstill hold someone else's before offering the link.\n\nTwo more faults this turned up:\n\n  'noopener' made window.open return null, so the tab could never be steered and\n  the jump silently never happened at all. Dropped; the opener is nulled by hand\n  once we have navigated away.\n\n  THEIR SITE IS FLAKY. 3822 Banar Ave SW missed once then resolved twice, seconds\n  apart, nothing changed. A single failure was being treated as proof of no record\n  AND cached for a week, so one blip hid a property for seven days. A failed sweep\n  is now retried, and a miss is held for an hour rather than a week.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "665957d",
+      "date": "2026-10-01T13:50:53-05:00",
+      "subject": "FUB conversations: import for Active leads first",
+      "title": "FUB conversations: import for Active leads first",
+      "body": "Starts where it is most useful and least risky: status='active' is 42 linked\nleads, the ones the team is actually working (John, 2026-10-01). A scoped run\ncannot wander into the 264k-note history.\n\nEverything is fetched per personId, including notes and calls, which can be\npulled in bulk. One shape for all three channels, and it only ever touches the\nleads asked for. Bulk is the right tool for a full historical backfill, not a\nscoped run.\n\n  - lands in `communications`, which already feeds the Inbox and the profile\n  - external_id is namespaced per channel (fub_note_/fub_call_/fub_text_) and\n    UNIQUE, so a re-run adds nothing twice\n  - rows the Hub itself wrote into FUB are skipped on the way back, via the\n    systemName the X-System header stamps, so a two-way sync cannot ping-pong\n  - note bodies are stripped to text and capped; 2.4 KB of Sierra email HTML\n    becomes a readable line, which is what makes the import affordable when ten\n    retained backups multiply every megabyte\n  - undated rows are dropped rather than sorting to the top of a timeline\n  - paced at 260ms on every call including the error path, because FUB rate-limits\n  - the disk is re-checked DURING the run, not once at the start, and the run\n    stops itself below the floor\n  - resumable by afterId\n\nPOST /api/fub/import-conversations takes {dry:true} first. Nothing is scheduled.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9356964",
+      "date": "2026-10-01T13:46:56-05:00",
+      "subject": "Read-only: size an Active-first FUB conversation sync before running it",
+      "title": "Read-only: size an Active-first FUB conversation sync before running it",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "846c0ac",
+      "date": "2026-10-01T13:26:30-05:00",
+      "subject": "FSBO: stop collapsing Disregard and Sold into Off Market",
+      "title": "FSBO: stop collapsing Disregard and Sold into Off Market",
+      "body": "Recognising the statuses was not enough. The per-seller aggregate - the line that\nactually writes fsbo_status - read:\n\n  Available ? 'Available' : Pending ? 'Pending' : 'Off Market'\n\nso every value that was not Available or Pending became Off Market. normStatus\nhad Disregard and Sold right; this line threw the answer away, which is why they\nreached the Hub as Off Market, stayed on the list, and were never junked.\n\nFound by measuring rather than reasoning: a read-only diagnostic inside the\ndeployed process showed the sheet parsed as Disregard=7, Sold=3 while the sync\nreported Off Market=35 (25+7+3). Same process, same URL, so the loss had to be\nbetween the two.\n\nAvailable still wins - a seller with one listing sold and another still for sale\nis a live FSBO. Otherwise the group's own ending survives.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e8a42a2",
+      "date": "2026-10-01T13:24:18-05:00",
+      "subject": "Read-only diagnostic for the FSBO sheet the deployed process actually sees",
+      "title": "Read-only diagnostic for the FSBO sheet the deployed process actually sees",
+      "body": "The sync reports Off Market=35 while the identical code against the identical\nURL gives Off Market=25, Disregard=7, Sold=3 locally. This reports the resolved\nURL and the raw-to-normalised mapping from inside the running process, instead of\nreasoning about it from outside.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "80d2b21",
+      "date": "2026-10-01T13:19:41-05:00",
+      "subject": "Assessor: wait on the assessor's own page, not a blank tab",
+      "title": "Assessor: wait on the assessor's own page, not a blank tab",
+      "body": "Their site can take the better part of a minute on a cold lookup, and the tab was\nopening blank for that whole time, which reads as broken.\n\nThe tab now opens straight onto the assessor's search page and jumps to the parcel\nthe moment it resolves. If it never resolves, he is already where he needs to be\ninstead of being bounced back - which is what John asked for in the first place.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e7f3f21",
+      "date": "2026-10-01T13:17:16-05:00",
+      "subject": "Assessor: abbreviate the compound quadrants too",
+      "title": "Assessor: abbreviate the compound quadrants too",
+      "body": "\"3731 Tanager Drive Northeast\" still found nothing - only the four cardinals were\nabbreviated, and Cedar Rapids addresses are mostly NE/NW/SE/SW. Spelled out, the\nsite matches nothing at all.\n\nDirectionals also stay uppercase now: \"Dr NE\", not \"Dr Ne\".\n\nNE against SE and NE against NW are still refused, so widening the spellings has\nnot loosened the guard.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c681830",
+      "date": "2026-10-01T13:14:55-05:00",
+      "subject": "Assessor: expand directionals, and try the abbreviated spelling too",
+      "title": "Assessor: expand directionals, and try the abbreviated spelling too",
+      "body": "Two leads came back \"not found on either assessor\". Both were wrong.\n\n  7114 E Park Ct NE   resolved fine - MY GUARD threw the correct parcel away. The\n    site prints \"7114 EAST PARK CT NE\" and only street suffixes were expanded, so\n    E vs EAST read as a different property. Directionals are expanded now.\n\n  3731 Tanager Drive North   finds nothing spelled out, but \"3731 Tanager Dr N\"\n    lands straight on the parcel. The abbreviated spelling is now tried as well.\n\nBoth spellings and both hosts go in one parallel batch, so the extra attempt costs\nno extra waiting, and order still decides the winner: the city's own assessor\nbefore the county, the address as written before the abbreviated guess.\n\nThe guard is unchanged where it matters - a different number, a different street,\nand N against S are all still refused.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3e506a1",
+      "date": "2026-10-01T13:09:44-05:00",
+      "subject": "Assessor: never land on an empty search box",
+      "title": "Assessor: never land on an empty search box",
+      "body": "John: clicking still left him typing the address in himself.\n\nTwo gaps, both about timing rather than correctness - the parcel does resolve, it\njust was not ready yet:\n\n1. A cold lookup took up to 27s because the two hosts were tried one after the\n   other, and a miss on the first paid a full four-request round trip before the\n   second started. The city line is wrong often enough to matter (3 of 9 live on\n   the other host), so that was the common case, not the rare one. Both hosts now\n   go at once and the city's own assessor still wins when both answer. One lookup\n   per lead ever, since the answer is cached.\n\n2. Clicking before it resolved followed the fallback href to a blank search page.\n   The tab is now opened SYNCHRONOUSLY inside the click - opening it after an\n   await is what popup blockers stop - and pointed at the parcel the moment it\n   lands. A resolved parcel stays an ordinary link with no handler in the way, so\n   the cached case is unchanged.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d51d506",
+      "date": "2026-10-01T13:07:29-05:00",
+      "subject": "FSBO: Sold and Disregard end the lead, same as Pending",
+      "title": "FSBO: Sold and Disregard end the lead, same as Pending",
+      "body": "The master file carries five FSBO Status values, not three. Sold and Disregard\nfell through normStatus to null, and a null status makes the sync SKIP the row -\nwhich is not the same as removing it. The skipped rows kept whatever status the\nHub had last written, so four of the seven Disregard sellers were still live on\nthe FSBO list, frozen at the \"Off Market\" they held before the sheet changed.\n\nDisregard means they listed with an agent (John, 2026-10-01). Sold means it sold.\nBoth are finished, so both now junk like Pending, stop every sequence, and keep\nfsbo_status as the record of WHICH ending it was. The profile log names the\nreason rather than the lead just going quiet.\n\nOff Market still does NOT junk. Those sellers tried and failed to sell alone,\nwhich makes them a better prospect, not a worse one.\n\nAlso fixed in the multi-listing aggregation: with no Available listing it fell\nback to 'Off Market', which could relabel a seller who had sold, or listed with\nan agent, and leave them on the list. It now prefers an ending the group actually\ncarries.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "51a699a",
+      "date": "2026-10-01T12:42:34-05:00",
+      "subject": "Assessor button: resolve the parcel on the server, and link to it",
+      "title": "Assessor button: resolve the parcel on the server, and link to it",
+      "body": "John: the button \"doesn't get any result\". It didn't, and nor did the version\nbefore it. Both tried to do this with a URL, and there is no URL that takes an\naddress and lands on a parcel:\n\n  results.php?ifulladdress=...&process=1  is not a page on either site. It lands\n    on an empty Residential Building Search. That is what shipped until now.\n  /search/res/results/?ifulladdress=...   replays whatever the session last\n    POSTed - four different addresses once returned the same parcel.\n  /search/res/                            shows the PREVIOUS search, which is how\n    6528 Medford Ln NE appeared on Adrien Voellinger's profile.\n\nA browser cannot do it because the disclaimer cookie VCSID is SameSite=Lax, so it\nis not sent on a cross-site POST, and the search is a POST. A server has no such\nrule. server/assessor-lookup.js does the whole flow with a cookie jar: collect the\ncookie, accept the disclaimer (search_disclaimer=1 + i_agree), then replay the\nsearch form WITH ITS OWN HIDDEN FIELDS - sending ifulladdress alone bounces\nstraight back - and follow the 303 to /parcel/<hash>.\n\nBoth hosts are tried. A Cedar Rapids postal address can sit outside the city\nlimits and belong to the county assessor: 3 of the 9 that resolved only did so\nafter that fallback.\n\nA parcel is only accepted when its own Property Address matches the one searched,\nthe same safety rule as the Forewarn lookup - linking a stranger's property is\nworse than linking nothing. The site writes \"ST\" out as \"STREET\", so both sides\nare expanded before comparing.\n\nVerified against 10 real client addresses: 9 resolved, every one showing the\naddress asked for, 9 distinct parcels. The 10th is in Anamosa, which is Jones\nCounty and genuinely not on either site.\n\nThe result is cached on the client (a parcel does not move); a miss is retried\nafter a week. The button resolves when the profile opens, so the real link is\nalready in it by the time it is clicked, and assessorUrl is now only the fallback\nfor an address with no record.\n\nTwo bugs the new tests caught before this shipped: the <select> default picked the\nfirst option whenever `selected` came after `value`, and streetOnly left \"Unit\"\nbehind on \"190 Cottage Grove Ave SE Unit #302\".\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c127d78",
+      "date": "2026-10-01T12:19:50-05:00",
+      "subject": "Client details: drop the repeated Intent and Sell Score",
+      "title": "Client details: drop the repeated Intent and Sell Score",
+      "body": "Both said what was already on the screen (John, 2026-10-01):\n\n  Realist Score: 902 A+     <- the badge, from lead_score + lead_grade\n  Intent: 0 . LOW           <- the AI Intelligence panel says exactly this\n  Realist: Sell Score 902   <- realist_sell_score, the same 902\n\nIntent goes, and so do the props that fed it rather than lingering unused. Sell\nScore comes out of the composite Realist line, which keeps est. value, year built\nand owner-occupied. It also comes out of that line's visibility test, or a lead\ncarrying only a sell score would render an empty \"Realist:\" row.\n\nThe Realist Score badge stays, grade and all, and is still click-to-edit.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "81eb226",
+      "date": "2026-10-01T12:04:27-05:00",
+      "subject": "Fix the stray brace that broke the build",
+      "title": "the stray brace that broke the build",
+      "body": "My revert sliced out copyAssessorAddress and left its closing brace behind, so\nthe previous commit did not compile. Caught because the build output was a stack\ntrace rather than \"built in\", which I should have read before pushing.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "54a8b58",
+      "date": "2026-10-01T12:03:55-05:00",
+      "subject": "Revert the assessor button to the original deep link",
+      "title": "Revert the assessor button to the original deep link",
+      "body": "John's instruction. After my change the button landed on /search/res/ and copied\nthe address, and he found it then showed the PREVIOUS search - 6528 Medford Ln NE\nappearing on Adrien Voellinger's profile - while the original link had been\nworking for him.\n\nI had also misread his earlier message: his point about mobile was that pasting\nthere gives the CORRECT address, not that mobile was broken.\n\nBack to exactly what shipped in 90b6d00:\nresults.php?ifulladdress=<street>&process=1, no clipboard, no onClick.\n\nThe test keeps the one improvement worth keeping - it lifts the real function out\nof the .jsx rather than holding a copy, so the URL cannot drift unnoticed again -\nbut asserts the original URL.\n\nThe header changes from 202a1c1 are untouched.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "194e76e",
+      "date": "2026-10-01T11:58:39-05:00",
+      "subject": "Put the full-row button rule in a narrow query, not the desktop one",
+      "title": "Put the full-row button rule in a narrow query, not the desktop one",
+      "body": "The rule that makes the actions take their own row went into\n@media (min-width: 901px) - the DESKTOP block - so it forced them off the name's\nline at exactly the widths where they were meant to sit beside it. The computed\nstyle gave it away: flex 1 1 100% and margin-top 6px at 1500px wide, while the\nrule meant for that width said 1 1 320px. My comment called it \"on a phone\",\nwhich it never was.\n\nIt now sits in @media (max-width: 900px), where there genuinely is no room\nbeside the name. The test checks which KIND of query the rule lives under rather\nthan just that it exists, since that was the whole fault.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7b99bd5",
+      "date": "2026-10-01T11:54:56-05:00",
+      "subject": "Let the action buttons share the name's line",
+      "title": "Let the action buttons share the name's line",
+      "body": "flex-basis auto made the whole button group one unbreakable item, so it\noverflowed the space beside the name and dropped to its own row. A 320px basis\nlets it start on the name's line and wrap its own buttons.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "202a1c1",
+      "date": "2026-10-01T11:51:57-05:00",
+      "subject": "Client profile: drop the duplicate chip row, actions beside the name",
+      "title": "Client profile: drop the duplicate chip row, actions beside the name",
+      "body": "The chips under the name repeated what the Client Details card already shows -\nType, Status, Agent and Source are all on that card, and editable there. Realist\nScore and Intent were the only two that were NOT, so they moved onto the card\n(Realist Score still click-to-edit) and the row went. AI Managed is already in\nthe AI Intelligence panel.\n\nWith the row gone the action buttons move up onto the name's line, which is what\nthe row was pushing them off (John, 2026-10-01).\n\ncp-identity now centres rather than aligns to baseline, which is right for\nbuttons and was only ever right for text chips, and the actions lose the top\nmargin that separated them from the row that is no longer there. On a phone they\ntake a full basis and wrap underneath instead of squeezing beside the name.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a21697d",
+      "date": "2026-10-01T11:19:35-05:00",
+      "subject": "Assessor: warn that the search box holds the last address",
+      "title": "Assessor: warn that the search box holds the last address",
+      "body": "John noticed the desktop flow needs no paste, only enter, while mobile needs\npaste then enter. That difference is not a convenience - it is a trap.\n\nThe assessor's search box comes back PRE-FILLED with whatever was searched last.\nVerified against the live site: search 6528 Medford Ln NE, return to\n/search/res/, and the field still contains it. So pressing enter on desktop\nwithout replacing the value silently re-runs the PREVIOUS client's property, and\nit only looks correct when the same person is checked twice. The mobile flow,\nwhere the address is pasted, is the one that was right.\n\nNothing can clear that field from our side, so the button now says so: the toast\nleads with the copied address and then tells you to clear the box first, and the\nhover text carries the same caution.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "53254f8",
+      "date": "2026-10-01T10:52:53-05:00",
+      "subject": "Assessor button: point at a page that exists",
+      "title": "Assessor button: point at a page that exists",
+      "body": "The link pointed at /search/res/results.php?ifulladdress=…&process=1, which is\nnot a page on these sites. It landed on an empty Residential Building Search and\n\"View Results\" returned nothing at all (John, 2026-10-01).\n\nThe working page is /search/res/, confirmed HTTP 200 on both\ncedarrapids.iowaassessors.com and linn.iowaassessors.com.\n\nIt cannot be pre-filled from a URL. Every parameter form is ignored, because the\nsearch form sits behind a disclaimer the site makes you accept first - checked\nagainst both live hosts. So the button opens the right page and copies the street\naddress, which makes it a single paste. John's example, \"6528 Medford Ln NE\",\nis exactly what finds the property, so the copied term is the street alone with\nno city, state or zip appended.\n\nThe tests held their own COPY of assessorUrl, which is why they stayed green\nwhile the real button was broken - a copied implementation cannot catch a wrong\nURL. They now lift the real function out of the .jsx and exercise it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "73f44f5",
+      "date": "2026-10-01T09:48:18-05:00",
+      "subject": "Hub phone: retry setup instead of giving up after one try",
+      "title": "Hub phone: retry setup instead of giving up after one try",
+      "body": "John hit \"The Hub phone is not connected yet\". The server was fine - I checked\n/api/voice/token while the toast was showing and it returned a valid JWT,\nidentity hub, incoming allowed, outgoing app SID, an hour of life left. The CDN\nand Twilio were reachable too.\n\nThe fault was that setup ran exactly once. init() was called bare in the effect\nwith nothing watching for failure, so any single hiccup left deviceRef null and\nthe phone dead until someone reloaded the page by hand. The likeliest hiccup is a\ndeploy, which is what happened repeatedly today: Render restarts, the token\nendpoint answers with an HTML error page, r.json() throws, and the phone never\ncomes back even though the server is healthy seconds later. Same root cause as\nthe hard-refresh problem in this file's header.\n\n  - ensureDevice() runs one attempt at a time and shares it with every caller\n  - failures back off 2s, 4s, 8s, 15s then every 30s, and keep trying\n  - returning to the tab or regaining the network retries at once and resets the\n    backoff\n  - a Device that fails to register is destroyed and nulled, so a half-built one\n    is never mistaken for a working phone\n  - pressing Call now connects on demand and only falls back to the toast, which\n    says it is retrying and why\n  - the reason comes from a ref; the effect runs once with [], so a captured\n    regErr would have stayed empty forever\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8b05ac3",
+      "date": "2026-10-01T09:38:39-05:00",
+      "subject": "Expose the watched source list so the live deploy can be verified",
+      "title": "Expose the watched source list so the live deploy can be verified",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "52253f0",
+      "date": "2026-10-01T09:37:51-05:00",
+      "subject": "Watch Zillow, Realtor.com and Homes.com, not just Facebook",
+      "title": "Watch Zillow, Realtor.com and Homes.com, not just Facebook",
+      "body": "Dawn Moore's 510 Broadway inquiry came in as source \"Zillow\" and was dropped,\nbecause both gates accepted Facebook only (John, 2026-10-01).\n\nThe watched list is now a setting, lead_watch_sources, defaulting to\nfacebook, instagram lead, zillow, realtor, homes.com - so another portal can be\nadded without a deploy. Names are matched as case-insensitive substrings, which\ncovers the real spellings in the Hub's own source list: \"Zillow\" and\n\"FSBO Zillow\", \"Realtor\" and \"Realtor.com\", \"Homes.com\". \"Boost By\nHomespotter.com\" and \"The Land.com Network\" deliberately do not match.\n\nmattsmithteam.com and Sierra Interactive are deliberately NOT watched. Those\nleads already reach the Hub through the Sierra sync, so watching them here would\nmean a second notification and duplicate outreach to people the team is working.\n\nA portal lead is NOT dressed up as a Facebook ad fill:\n\n  - the tag, source and note name the real portal (\"Zillow Lead\", \"Zillow\n    inquiry\"), so the record is not misattributed\n  - NO automated opener, and no 30-day Facebook listing campaign. John's bank in\n    fb-ad-templates.js is written for Facebook ads and references the ad itself,\n    which would read wrong to someone who enquired on Zillow. There is no\n    approved portal copy yet, so the lead gets the record, tag, note,\n    notification and alert email, and a person decides.\n  - the Fix It or Skip It family is a Meta campaign, so it stays Facebook-only; a\n    portal seller inquiry is still typed seller and tagged.\n\nThe portal defaults to Facebook, so every existing caller is unaffected.\n\nOne existing assertion was inverted on purpose: fub-lead-email asserted a Zillow\nemail is ignored, which is the behaviour that caused the miss.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "ed62054",
+      "date": "2026-10-01T09:21:35-05:00",
+      "subject": "Probe: page event sources by offset, and census every source name seen",
+      "title": "Probe: page event sources by offset, and census every source name seen",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4f035bd",
+      "date": "2026-10-01T09:02:42-05:00",
+      "subject": "Probe recent FUB lead events grouped by source",
+      "title": "Probe recent FUB lead events grouped by source",
+      "body": "Dawn Moore's 510 Broadway inquiry arrived as source \"Zillow\", which the\nFacebook-only gate in fub-leads.js rejects. This measures how many leads that\ngate is currently letting past.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b8aa3ed",
+      "date": "2026-10-01T09:00:30-05:00",
+      "subject": "Read-only probe for one person's raw FUB events",
+      "title": "Read-only probe for one person's raw FUB events",
+      "body": "/activity/live maps events into fub_activity and drops source, but source and\ntype are exactly what the Facebook ad watcher gates on, so answering why a lead\nwas or was not picked up needs the raw rows.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d9545e1",
+      "date": "2026-09-30T19:35:30-05:00",
+      "subject": "Groundwork for the FUB conversation sync (not yet wired up)",
+      "title": "Groundwork for the FUB conversation sync (not yet wired up)",
+      "body": "Mappers and helpers only - nothing calls this module yet, so the deploy is inert\nand tomorrow starts from a known place.\n\nWhat the probes established against the live FUB account:\n\n  notes    264,069  full body        bulk + incremental via updatedAfter\n  calls     38,280  outcome/duration bulk + incremental\n  texts    per person, full message  NO bulk, personId is required\n  emails   per person, CONTENT HIDDEN\n\nEmails cannot be synced. FUB returns \"[CONTENT HIDDEN]\" for every subject and\nbody - 51 of 51 sampled across three people. Metadata only, and not a permission\nwe can change from our side.\n\nNote bodies are stripped to text. Measured 2.4 KB of HTML each, almost all Sierra\nInteractive email copies, so 609 MB across 264k rows. The volume is 9.8 GB with\n7.4 GB free, which would fit, except 10 backup copies of the database are retained\nand that multiplies every megabyte of growth by ten - the same shape as the\n2026-09-21 disk-full incident. Stripping keeps every note and every word at\nroughly 0.5 KB.\n\nThe loop breaker is already in place: FUB stamps systemName from the X-System\nheader and fub-helper sends MattSmithTeamHub, so a two-way sync skips the Hub's\nown writes rather than ping-ponging.\n\nEverything lands in `communications`, which already feeds both the Inbox and the\nprofile timeline, and whose external_id is UNIQUE so a re-run is harmless.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "83ad3cd",
+      "date": "2026-09-30T19:30:38-05:00",
+      "subject": "Measure what a full FUB note/call import would cost on disk",
+      "title": "Measure what a full FUB note/call import would cost on disk",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "de5cef1",
+      "date": "2026-09-30T19:24:21-05:00",
+      "subject": "Probe whether FUB exposes note/email/text CONTENT or only metadata",
+      "title": "Probe whether FUB exposes note/email/text CONTENT or only metadata",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0718d25",
+      "date": "2026-09-30T19:21:02-05:00",
+      "subject": "Probe FUB webhooks, incremental filters and per-person conversation reads",
+      "title": "Probe FUB webhooks, incremental filters and per-person conversation reads",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5900df5",
+      "date": "2026-09-30T19:19:10-05:00",
+      "subject": "Read-only probe of FUB's conversation endpoints",
+      "title": "Read-only probe of FUB's conversation endpoints",
+      "body": "Groundwork for syncing notes and communication both ways: before designing it,\nfind out what this account can actually read and in what shape. A fixed whitelist\nof endpoints, not a passthrough - nothing here takes a caller-supplied path.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e3f0cce",
+      "date": "2026-09-30T18:59:35-05:00",
+      "subject": "Test fixtures: pick a phone nobody is using",
+      "title": "Test fixtures: pick a phone nobody is using",
+      "body": "Two suites built their phone from four timestamp digits - '(319) 555-' + last\nfour. That is a 10,000-value space, and the local dev database already holds\n12,460 leads on a (319) 555-xxxx number, so a collision was certain. ingestFbLead\ndedupes on phone, so the seller test was handed an existing BUYER instead of\ncreating its seller and failed for reasons unrelated to the code under test.\n\nfreshPhone() varies the exchange as well and checks the number is unused before\nreturning it. fub-lead-email goes 4/5 -> 5/5 and seller-campaign 15/17 -> 16/17\nagainst the accumulated database.\n\nThis surfaced while confirming the FUB work caused no regression: the same tests\npassed against a fresh database at 74ed42d and at HEAD, which placed the fault in\nthe fixtures rather than the change.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2303f0c",
+      "date": "2026-09-30T18:46:55-05:00",
+      "subject": "Add a narrow revert for the three wrong-link pushes",
+      "title": "a narrow revert for the three wrong-link pushes",
+      "body": "The audit against FUB found 3 of the 228 had a wrong fub_person_id, and all three\nwere written to by the run that happened before the name guard existed:\n\n  Hub 22177 \"Fidel Taylor\"    -> FUB 14739 \"Ghyslaine June\"  Lead -> Do not Contact\n  Hub 45648 \"Chase Stevenson\" -> FUB 33781 \"Emil French\"     Dead -> Dead\n  Hub 45700 \"Alex Mussman\"    -> FUB 29084 \"Owner\"           Dead -> Dead\n\nOnly the first changed a stage; the other two were already Dead and only picked up\nour tag. The remaining 207 read back from FUB correctly.\n\nrevertPush takes an explicit FUB id and the stage to restore, drops PUSH_TAG so\nthe record stops claiming the Hub agreed with it, and touches nothing else. There\nis no blanket undo, because what stage a wrongly-touched record should hold is a\ndecision rather than a rollback.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "41d28a7",
+      "date": "2026-09-30T18:42:47-05:00",
+      "subject": "Check the name mismatch before already-matches",
+      "title": "Check the name mismatch before already-matches",
+      "body": "Order mattered more than it looked. The guard sat after the already-matches\nreturn, so a lead the earlier run had already pushed to a WRONG FUB record would\nreport as 'matching' and the damage would never surface.\n\nThe mismatch is now checked first, and the result carries already_pushed so a\nrecord the previous run wrote to in error can be found and put back.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6a8daa7",
+      "date": "2026-09-30T18:42:23-05:00",
+      "subject": "Refuse to push when the Hub and FUB names are different people",
+      "title": "Refuse to push when the Hub and FUB names are different people",
+      "body": "duplicateLinks turned up 411 FUB people claimed by 844 Hub leads, and some of\nthose groups hold unrelated names: FUB 484 is claimed by Alexandria Schmidt,\nAbagail Wells and Latonya Chalmers. Where a link is wrong like that, pushing a\nstatus stamps Dead onto a stranger's FUB record.\n\npushOne now compares the Hub name against the FUB name and returns\n'name-mismatch' instead of writing. namesAgree() is deliberately generous - a\nshared surname, a nickname, a married name or a reordering all still count as one\nperson, and a missing name never blocks - because a false mismatch would stop a\nlegitimate push. It only catches clear-cut disagreements.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3ad341d",
+      "date": "2026-09-30T18:40:14-05:00",
+      "subject": "Report FUB people that more than one Hub lead claims",
+      "title": "Report FUB people that more than one Hub lead claims",
+      "body": "Found while reviewing the 15 held-back leads: Hub 11 and Hub 31649 both carry\nfub_person_id 6456. When two Hub leads map to one FUB person, whichever pushes\nlast wins and the other silently disagrees with FUB from then on.\n\nGET /api/fub/duplicate-links reports them. Read-only - it does not merge\nanything, because which of the two leads is the real one is a human call.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f117164",
+      "date": "2026-09-30T18:26:20-05:00",
+      "subject": "Make the FUB push resumable with an id cursor",
+      "title": "Make the FUB push resumable with an id cursor",
+      "body": "The first live run sent all 228 in one request. It got 21 leads through in ten\nseconds, then the request died returning Render's HTML error page, and there was\nno record of where it had stopped - the run-summary row only writes on a clean\nfinish.\n\ncandidates() now takes afterId and the response carries last_id, remaining and\ndone. last_id advances inside the loop, so a request that dies still tells the\ncaller where to resume. The cursor is clients.id, which is unique, so resuming\nneither skips nor repeats - the same class of bug as the unstable\nsierra_update_date paging in /api/clients.\n\nCallers drive it in short chunks instead of one long request.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e57c3a5",
+      "date": "2026-09-30T18:24:20-05:00",
+      "subject": "Protect PLATINUM CLIENTS too",
+      "title": "Protect PLATINUM CLIENTS too",
+      "body": "The second dry run, with the rate limit cleared, listed every stage the 213\npushes would leave. One was PLATINUM CLIENTS (Bill McCullough) - a VIP stage a\nJunk flag should not quietly erase, same argument as Past Client.\n\nStages that are merely inactive still push: Realist, FSBO, Expired, Cancelled,\nNot in the Market, C - Cold 6+ Months, Foreclosures.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8c784aa",
+      "date": "2026-09-30T18:21:33-05:00",
+      "subject": "Protect meaningful FUB stages, and pace the dry run's reads",
+      "title": "Protect meaningful FUB stages, and pace the dry run's reads",
+      "body": "The first dry run over the 228 Junk/DNC leads surfaced two problems.\n\n1. 103 of 228 failed with a FUB 429. The pacing sat inside `if (!dryRun)`, but a\n   dry run still reads every person to see their current stage, so the reads ran\n   flat out. Every pass is paced now, and the interval went 220ms -> 260ms.\n\n2. Six leads would have been demoted out of a stage that carries history:\n   a Past Client, a High Probability Seller, three Seller (NURTURE) and a\n   Nurture. John's ask was that Junk leads stop showing as ACTIVE or NEW in FUB.\n   A past client is neither, and demoting one to Dead loses history nobody asked\n   to lose. These are now reported as 'protected' for a person to look at rather\n   than pushed; `force: true` overrides it deliberately.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "90b6d00",
+      "date": "2026-09-30T18:16:44-05:00",
+      "subject": "Client profile: assessor and FUB buttons, and push Hub status to FUB",
+      "title": "Client profile: assessor and FUB buttons, and push Hub status to FUB",
+      "body": "THREE THINGS.\n\n1. Assessor button. Cedar Rapids has its OWN city assessor; Linn County covers everywhere\n   else - Marion, Hiawatha, Robins, Ely. Sending a Cedar Rapids address to the county site\n   finds nothing, and most of the file is Cedar Rapids, so routing by city is not an\n   optimisation. It opens the assessor's SEARCH with the address filled in, not the parcel\n   page: both sites gate on a disclaimer cookie and search by POST, so no URL takes an\n   address and lands on a parcel. A resolver that stores each parcel id would make this a\n   true deep link; until then this is one click away and does not break when they redesign.\n\n2. View FUB Profile button, for the 31,868 leads that have a fub_person_id. Hidden for the\n   rest rather than linking somewhere that 404s.\n\n3. Hub status pushed to FUB, ONE DIRECTION. A lead marked Junk here should not sit in FUB\n   as New where an agent works someone already disqualified.\n\n     Hub Junk          ->  FUB \"Dead\"            (15,919 already there)\n     Hub DoNotContact  ->  FUB \"Do not Contact\"  (285)\n\n   Both stages already existed, so nothing new is invented. The other Hub statuses are\n   deliberately unmapped: New, Prime, Watch and the rest have no FUB equivalent and\n   guessing at one would mean guessing how the team uses their pipeline.\n\n   Nothing is ever pulled FROM FUB - that is what would create duplicates. The only FUB\n   data entering the Hub stays the Facebook ad-lead emails, which already dedupe on phone\n   then email before inserting.\n\n   The write path is deliberately narrow: update one person by id. No bulk, no create, no\n   delete. A person missing from FUB is reported, never created. Tags are MERGED, because\n   FUB replaces the tag array on a PUT and sending only the new tag would wipe the rest.\n   Paced at 220ms because this is a live CRM.\n\nPOST /api/fub/push-statuses takes {dry:true}. Nothing has been pushed yet.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a7ad903",
       "date": "2026-09-30T18:12:24-05:00",
@@ -3352,654 +4000,6 @@
       "subject": "AI Sandbox: click any AI reply to refine it in real time",
       "title": "AI Sandbox: click any AI reply to refine it in real time",
       "body": "Each AI response is clickable -> a refine panel opens with quick suggestions\n(shorter, warmer, don't use their name, add website, one clear question, less salesy)\nplus a free-text instruction. Submitting re-runs the same turn through /api/ai/sandbox\nwith a REVISION REQUEST (prior draft + instruction, all rules kept) and replaces the\nreply in place. Stored per-turn request payload enables the regenerate.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "aad58ff",
-      "date": "2026-08-25T17:57:44-05:00",
-      "subject": "FSBO sync: fix phone-collision mis-attach + prune stragglers",
-      "title": "FSBO sync: fix phone-collision mis-attach + prune stragglers",
-      "body": "- On a phone match to a DEAD lead (junk/archived) whose name clearly differs from the\n  sheet FSBO, treat as a collision: clear the wrongly-stamped fsbo_status and create the\n  FSBO its own record (fixes 'Renofixation LLC' being glued onto junk 'Mark Facion').\n  Same-name matches and live leads still attach normally.\n- Prune: clear fsbo_status for any client whose phone is no longer in the sheet (removes\n  stragglers like Logan Timm from the list; lead status left untouched).\n- Report adds collisions + pruned counts.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "81f50fa",
-      "date": "2026-08-25T16:03:13-05:00",
-      "subject": "FSBO list: sortable DOM column + click-to-filter FSBO Status (Available/Off Market)",
-      "title": "FSBO list: sortable DOM column + click-to-filter FSBO Status (Available/Off Market)",
-      "body": "- Backend fsbo_dom_high/low sorts (CAST fsbo_dom AS INTEGER).\n- DOM header is now a sort toggle; FSBO Status header is a filter dropdown\n  (All / Available / Off Market) via the existing fsbo_statuses_include filter.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bcd1d24",
-      "date": "2026-08-25T15:56:40-05:00",
-      "subject": "Clients list: drag column headers left/right to reorder (persists per user)",
-      "title": "Clients list: drag column headers left/right to reorder (persists per user)",
-      "body": "Each table header is now draggable; drop it on another to reposition. Reuses the\nexisting reorderColumn + localStorage persistence, with a drop-indicator and dragged\nopacity. Works across all column types (sortable, filter-dropdown, and the FSBO\nList/DOM/Status overrides). The columns picker's drag-to-reorder still works too.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "06c41ea",
-      "date": "2026-08-25T15:41:52-05:00",
-      "subject": "FSBO follow-up greeting: no 'evening' (we never text then); 'Hello' at 4PM; window 9AM-4:59PM",
-      "title": "FSBO follow-up greeting: no 'evening' (we never text then); 'Hello' at 4PM; window 9AM-4:59PM",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4187c25",
-      "date": "2026-08-25T15:30:46-05:00",
-      "subject": "Templates: custom/merge field picker to insert fields into text (and email) template bodies",
-      "title": "Templates: custom/merge field picker to insert fields into text (and email) template bodies",
-      "body": "Adds a '+ Custom field' dropdown and quick-insert buttons (First name, Last name,\nAddress, City, ...) that insert {{merge}} tokens at the cursor in the text template\nbody and the email HTML editor.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "21deed0",
-      "date": "2026-08-25T15:29:22-05:00",
-      "subject": "FSBO follow-up: OFF by default (explicit enable required to prevent accidental mass-text)",
-      "title": "FSBO follow-up: OFF by default (explicit enable required to prevent accidental mass-text)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b99a016",
-      "date": "2026-08-25T15:28:35-05:00",
-      "subject": "FSBO: daily 9:30 off-market->Junk + AI smart follow-up sequence",
-      "title": "FSBO: daily 9:30 off-market->Junk + AI smart follow-up sequence",
-      "body": "- fsbo_followups table + server/fsbo-followup.js: DOM-keyed scripted sequence.\n  Step 1 at DOM>=15 (availability check), on reply a canned response (positive vs\n  buyer-question) then a ~7-min-later best-email ask, Step 2 (+7d) the 35-years/\n  first-14-days message, Step 3 (+7d) still-available check. Proactive sends only\n  weekdays 9AM-4PM Central; replies answered any time; compliance/opt-out gated.\n- Daily 9:30 AM CT maintenance: refresh master file, then move Off Market FSBOs\n  (pending/listed/sold) to Junk in Hub + Sierra. FSBO list now excludes junk.\n- Scheduler ticks (15-min follow-up run + 9:30 daily), inbox reply hook, and\n  control endpoints (/api/lists/fsbo/followup[/run|/toggle], /fsbo/junk-off-market).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "02c293d",
-      "date": "2026-08-25T14:41:07-05:00",
-      "subject": "FSBO->Sierra: retry with placeholder email when the real email already exists in Sierra",
-      "title": "FSBO->Sierra: retry with placeholder email when the real email already exists in Sierra",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3990486",
-      "date": "2026-08-25T14:29:34-05:00",
-      "subject": "Sierra notes: correct shape is POST /leads/{id}/note with {message}",
-      "title": "Sierra notes: correct shape is POST /leads/{id}/note with {message}",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bcb0738",
-      "date": "2026-08-25T14:27:42-05:00",
-      "subject": "Sierra notes: multi-shape note pusher + add-fsbo-note test endpoint; strip FSBO Master from Hub tags on push",
-      "title": "Sierra notes: multi-shape note pusher + add-fsbo-note test endpoint; strip FSBO Master from Hub tags on push",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0758230",
-      "date": "2026-08-25T14:23:05-05:00",
-      "subject": "FSBO->Sierra: fix phone field (phone not cellPhone), attach note, drop 'FSBO Master' tag",
-      "title": "FSBO->Sierra: fix phone field (phone not cellPhone), attach note, drop 'FSBO Master' tag",
-      "body": "- Create payload uses 'phone' (Sierra's field) + a follow-up PUT to guarantee it saves.\n- Attaches an FSBO note (address, status, list date, DOM, Zillow link, master Notes) after\n  create via Sierra's note endpoint (tries known shapes).\n- 'FSBO Master' internal marker filtered from the Sierra tags and no longer added to Hub\n  records. Master-file Notes + Custom Link now captured (fsbo_notes, fsbo_link).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "37a60bd",
-      "date": "2026-08-25T14:14:50-05:00",
-      "subject": "Sierra create-lead: synthesize noemail-*@notvalidemail.com placeholder when FSBO has no email",
-      "title": "Sierra create-lead: synthesize noemail-*@notvalidemail.com placeholder when FSBO has no email",
-      "body": "Sierra requires an email on create; FSBOs often lack one. Use the team's existing\nnon-routable placeholder convention so nothing is ever emailed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cad6a46",
-      "date": "2026-08-25T14:12:33-05:00",
-      "subject": "Sierra create-lead: use POST /leads with required password field (email only if real)",
-      "title": "Sierra create-lead: use POST /leads with required password field (email only if real)",
-      "body": "Sierra's create endpoint is POST /leads and requires a password (portal account);\ngenerate a strong random one. Keep email optional to avoid welcome emails to placeholders.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e2f439a",
-      "date": "2026-08-25T14:09:49-05:00",
-      "subject": "Sierra: create-lead endpoint to push a Hub-native FSBO into Sierra and link it back",
-      "title": "Sierra: create-lead endpoint to push a Hub-native FSBO into Sierra and link it back",
-      "body": "POST /api/sierra/create-lead {client_id, dryRun?}: builds a Sierra create-lead payload\nfrom the Hub record (name, cellPhone, email, address, leadStatus, source, tags), tries\n/leads/create (+ fallbacks), and on success stores the returned sierra_lead_id on the Hub\nclient so the two are linked (no duplicate on next sync). dryRun returns the payload only.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "95ab77d",
-      "date": "2026-08-25T14:03:55-05:00",
-      "subject": "FSBO list: show master-file List Date (as Registered) and DOM (as Type)",
-      "title": "FSBO list: show master-file List Date (as Registered) and DOM (as Type)",
-      "body": "- clients.fsbo_list_date + fsbo_dom columns, populated from the master sheet's\n  'List Date' and 'DOM' columns on sync (match-update and create).\n- In the FSBO list only, the Registered column shows List Date and the Type column\n  shows DOM (days on market); headers relabeled accordingly. Other lists unchanged.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5e59e94",
-      "date": "2026-08-25T13:52:43-05:00",
-      "subject": "First texts also end with warm 'happy to help, just shoot me a text' close (all openers + first reply)",
-      "title": "First texts also end with warm 'happy to help, just shoot me a text' close (all openers + first reply)",
-      "body": "Still introduce + website + now the warm close on every first message, on top of the\nactivity-matched body. Version -> hubai-2026.08.25-4.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2ad44e2",
-      "date": "2026-08-25T13:49:49-05:00",
-      "subject": "Every first text must introduce (John w/ Matt Smith Team) + include MattSmithTeam.com",
-      "title": "Every first text must introduce (John w/ Matt Smith Team) + include MattSmithTeam.com",
-      "body": "Property-specific and first-reply openers were skipping the intro/website. Now all\nfirst messages require greeting + first name, 'I'm John with Matt Smith Team at RE/MAX',\nand MattSmithTeam.com before the activity-specific body. Version -> hubai-2026.08.25-3.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8570c7e",
-      "date": "2026-08-25T13:30:52-05:00",
-      "subject": "AI first-touch: full behavior-keyed opener playbook (25 templates) + 'local listings' + first-reply split",
-      "title": "AI first-touch: full behavior-keyed opener playbook (25 templates) + 'local listings' + first-reply split",
-      "body": "- PROACTIVE_OPENERS bank: the team's opener templates keyed to online activity (new\n  registration, viewed/requested-info/showing/favorited/saved-search/returned/inactive/\n  repeat-view/multiple/area/price/new-listing/price-drop/back-on-market/open-house/\n  availability/mortgage-calc/high-activity/high-intent/no-response/re-engagement). AI picks\n  the matching template and fills real values, never literal brackets, never view counts.\n- First message now splits: proactive opener bank when the lead hasn't texted; a light\n  FIRST_REPLY (greet + intro + answer) when they messaged first.\n- Fallback opener always says 'local listings in [city]'. Greeting rule: Hi/Hello/Good\n  morning-afternoon-evening + name, never Hey. Prompt version -> hubai-2026.08.25-2.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "49748c5",
-      "date": "2026-08-25T12:59:13-05:00",
-      "subject": "First message: property-first opener when a specific home is known; reference saved searches",
-      "title": "First message: property-first opener when a specific home is known; reference saved searches",
-      "body": "- When last_viewed_property is set, open direct and property-first: greeting + name,\n  'saw you were interested in [property]. What would you like to know about it? Happy to\n  get you the details, just reply to this text.' No long site intro, no view counts.\n- General/new-registration/saved-search first touch keeps 'thanks for stopping by... local\n  listings in [city]... anything in particular?'; saved searches referenced by criteria.\n- STYLE surveillance rule relaxed: referencing the one property/search they engaged with is\n  OK; view counts / 'I noticed you browsing' still banned.\n- Buyer/seller question banks (DISCOVERY) + objection responses (OBJECTIONS) remain in the\n  prompt and are what the AI draws from.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "913b46c",
-      "date": "2026-08-25T12:48:52-05:00",
-      "subject": "Fix city mixing: metro geography note + sandbox uses one consistent city",
-      "title": "city mixing: metro geography note + sandbox uses one consistent city",
-      "body": "- New GEO prompt section: Cedar Rapids/Marion/Hiawatha/etc are SEPARATE neighboring\n  cities, never nested; use the searched area as area-of-interest; don't assume the\n  profile city is where they live or say they're 'based in' a city; ask area openly.\n- Sandbox online-activity presets now set the lead city to the activity's search_city\n  so the profile city and searched city can't conflict.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "ba17303",
-      "date": "2026-08-25T12:18:58-05:00",
-      "subject": "First text: keep the warm 'just shoot me a text, happy to help :)' close alongside the open question",
-      "title": "First text: keep the warm 'just shoot me a text, happy to help :)' close alongside the open question",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "517e4a6",
-      "date": "2026-08-25T12:09:40-05:00",
-      "subject": "First-message tweaks: 'local listings in [city]' + open first question ('Anything in particular you're looking for?')",
-      "title": "First-message tweaks: 'local listings in [city]' + open first question ('Anything in particular you're looking for?')",
-      "body": "New-lead opener now says 'check out local listings in [city]' and ends with one\nwide-open question instead of a narrow town either/or. Property-viewed case keeps\nits natural 'anything you'd like to know about it?' close.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "edd02ee",
-      "date": "2026-08-25T11:55:13-05:00",
-      "subject": "AI prompt: persistent discovery ladder + objection handling; stop repeating the lead's name",
-      "title": "AI prompt: persistent discovery ladder + objection handling; stop repeating the lead's name",
-      "body": "- Name used only in the first text; never repeated afterward (was reading robotic).\n- 'Just looking' no longer backs off — probes 'just for fun or thinking about a move?'\n  then follows a discovery ladder (timeline -> area -> price -> motivation -> must-haves\n  -> financing -> need-to-sell -> agent), one gentle question at a time.\n- New DISCOVERY section with the team's buyer + seller question banks, and OBJECTIONS\n  section with the team's pushback responses (acknowledge + one gentle question, respect\n  STOP). REASONING now says keep advancing discovery (not a rigid checklist).\n- Prompt version -> hubai-2026.08.25-1.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "da6c315",
-      "date": "2026-08-25T11:30:59-05:00",
-      "subject": "AI Sandbox: add proactive 'online activity → AI reaches out first' mode",
-      "title": "AI Sandbox: add proactive 'online activity → AI reaches out first' mode",
-      "body": "POST /api/ai/sandbox now supports mode:'proactive' — the lead is browsing (no\ninbound message) and the AI writes a contextual first-touch opener (first-message\nrules + search_city/last_viewed_property facts, never 'I saw you browsing'). UI\nsplits starters into '🌐 Online activity — AI reaches out first' (viewed a listing\n4x, saved a search, browsed N in a town, favorited, returned after 2 weeks, new\nregistration, home-value tool) and '💬 Lead sends a message — AI replies'. Activity\nmarker bubble shown before the opener; conversation continues responsively.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bd84c6c",
-      "date": "2026-08-25T11:21:49-05:00",
-      "subject": "AI Sandbox: chat with the real AI, watch it work, drive it with lead activities",
-      "title": "AI Sandbox: chat with the real AI, watch it work, drive it with lead activities",
-      "body": "POST /api/ai/sandbox runs the actual AI brain (same prompts/model) against a\nsimulated lead + conversation — pure model call, never sends a text or touches a\nreal lead. Returns the full decision: drafted reply, action, intent delta+signals,\nextracted memory, rolling summary, next state, handoff.\n\nNew AI Sandbox page: play the lead, watch a per-turn 'AI work' panel (intent\nbefore->after, signals, what it learned, action, handoff), live intent meter, and\n10 canned lead activities (tour request, home value, repeat viewer, financing,\nshort timeframe, browsing, area question, FSBO, opt-out, price objection) that\nseed the conversation. Nav under PIPELINE.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b3e36f5",
-      "date": "2026-08-25T11:10:00-05:00",
-      "subject": "Dedupe UI: merge only records matching the primary's last name/address (mixed-line safety)",
-      "title": "Dedupe UI: merge only records matching the primary's last name/address (mixed-line safety)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "70ee27a",
-      "date": "2026-08-25T11:08:22-05:00",
-      "subject": "Dedupe: only surface groups that share a last name or address (never shared lines)",
-      "title": "Dedupe: only surface groups that share a last name or address (never shared lines)",
-      "body": "A shared phone with all-different names is a household/brokerage/shared line, not a\nduplicate. Require >=2 members share a normalized last name OR street address before\noffering a merge.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "032b299",
-      "date": "2026-08-25T11:06:28-05:00",
-      "subject": "Fix P2-5: search transactions column (property_status); dedupe excludes shared/placeholder phone lines",
-      "title": "P2-5: search transactions column (property_status); dedupe excludes shared/placeholder phone lines",
-      "body": "- Universal search used transactions.status (doesn't exist) -> property_status.\n- Duplicate finder now caps group size at 4 and rejects placeholder/shared numbers\n  (555-5555, all-same-digit) so brokerage/placeholder lines are never offered to merge,\n  per the contact-cleanup rule.\n- Roadmap: P0-1, P1-3, P1-6, and all of P2 marked done.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "fb3abd3",
-      "date": "2026-08-25T11:03:22-05:00",
-      "subject": "P2-6 system-health dashboard + P2-7 data export",
-      "title": "P2-6 system-health dashboard + P2-7 data export",
-      "body": "- GET /api/admin/integrations: every integration (Sierra/Twilio/SendGrid/Anthropic/\n  GDrive/web-push) with status, sync queue depths, last sync error. Rendered as\n  Integrations + Queues panels in Admin > System Health.\n- GET /api/admin/export/:table: owner CSV export of whitelisted data tables\n  (clients/transactions/tasks/notes/communications). Secrets/auth/push tables can\n  never be exported; audited. Data Export buttons in System Health.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "91994ee",
-      "date": "2026-08-25T11:01:05-05:00",
-      "subject": "P2-1: conversion attribution + AI ROI funnel",
-      "title": "P2-1: conversion attribution + AI ROI funnel",
-      "body": "GET /api/reporting/attribution: lead funnel (all -> engaged -> handoff -> closed),\nby-source leads/closed/conversion, AI-managed vs human breakdown + AI/human text\ncounts. New Attribution tab in Reporting with funnel bars, AI stat tiles, and a\nby-source table. Correlation-not-causation framing surfaced.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "81aac7e",
-      "date": "2026-08-25T10:59:29-05:00",
-      "subject": "P2-4 notification center + P2-3 web push",
-      "title": "P2-4 notification center + P2-3 web push",
-      "body": "- notifications table + server/notifications.js (notify/list/unread/markRead);\n  routes /api/notifications (+read, read-all). Emitters: AI handoff, inbound text.\n- Bell in the top bar: unread badge, dropdown, mark-all-read; polls every 30s.\n- P2-3 web push: push_subscriptions table, server/web-push.js (VAPID via web-push\n  package, self-generating keys, prunes dead subs; no-op if package/keys absent),\n  subscribe/unsubscribe + vapid-public-key routes, service-worker push +\n  notificationclick handlers, 'Enable push' opt-in in the bell. web-push dep added.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cc1a222",
-      "date": "2026-08-25T10:55:39-05:00",
-      "subject": "P2-5: universal search + safe dedupe/merge",
-      "title": "P2-5: universal search + safe dedupe/merge",
-      "body": "- GET /api/search: cross-entity search (clients, transactions, tasks, notes)\n  with a global search bar at the top of every page (keyboard nav, deep links).\n- GET /api/clients/duplicates: groups live contacts by normalized phone (last 10).\n- POST /api/clients/merge: reassigns ALL child records (comms, notes, tasks, AI\n  actions, handoffs, showings, transactions, activity, behavioral events) to the\n  primary, fills its blank fields from the dupes, archives each dupe with a\n  merged_into pointer + audit snapshot. Never hard-deletes. Merged records hidden\n  from lists (merged_into IS NULL default).\n- New Duplicates page under SYSTEM.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5a258f3",
-      "date": "2026-08-25T10:51:26-05:00",
-      "subject": "P2-2: unified contact timeline",
-      "title": "P2-2: unified contact timeline",
-      "body": "GET /api/clients/:id/timeline merges communications, notes, tasks, AI actions,\nhandoffs, showings, behavioral events, transaction milestones, and audit into\none time-sorted stream. Collapsible, filterable Timeline section on the lead\nprofile (All / Comms / AI / Notes / Tasks / Activity).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6a7a3f1",
-      "date": "2026-08-25T10:49:45-05:00",
-      "subject": "P1-3: normalized weighted behavioral_events feeding intent",
-      "title": "P1-3: normalized weighted behavioral_events feeding intent",
-      "body": "- behavioral_events table (typed, weighted, deduped) + index.\n- server/ai-followup/behavioral.js: EVENT_WEIGHTS catalog, recordBehavioralEvent\n  (idempotent via dedup_key), behavioralScore (recency half-life 21d, bounded cap).\n- computeIntent now adds a bounded behavioral contribution + reason; getIntent\n  returns current/peak/previous/delta.\n- Events recorded from web activity (tracking flush) and inbound texts (webhook).\n- 5 tests: weighting, dedup, recency decay, cap, intent lift. 147 total.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2c32d3d",
-      "date": "2026-08-25T10:46:32-05:00",
-      "subject": "Scheduler: daily Watch-status sweep (fixes backdated expired/cancelled drift)",
-      "title": "Scheduler: daily Watch-status sweep (fixes backdated expired/cancelled drift)",
-      "body": "Pages all Watch leads from Sierra once a day at 6 AM CT and upserts them, so\nleads added with a backdated Sierra date (MLS expiration) that the hourly\nincremental sync misses still land in the Hub. Idempotent via app_settings\ndate key; manual trigger at POST /api/sierra/watch-sweep.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d5549c0",
-      "date": "2026-08-25T10:12:22-05:00",
-      "subject": "Lead profile: show + change status inline (writes Hub and pushes to Sierra)",
-      "title": "Lead profile: show + change status inline (writes Hub and pushes to Sierra)",
-      "body": "Adds an InlineStatus editor to the client profile Contact Info: a colored\nstatus badge plus a dropdown. Changing it PUTs the Hub status immediately and\npushes the mapped status to Sierra via /api/sierra/update-lead-status so the\nnext sync won't revert it (junk/DoNotContact also drop the lead from drips\nserver-side). Shows a Hub+Sierra confirmation.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3f25bba",
-      "date": "2026-08-24T17:50:34-05:00",
-      "subject": "Clients bulk actions: Export to CSV (always CSV)",
-      "title": "Clients bulk actions: Export to CSV (always CSV)",
-      "body": "New POST /api/clients/export returns a CSV of the selected leads (by id, chunked\nunder the SQLite param limit) or the current filter. Bulk Actions menu gets an\n'Export to CSV' item that downloads the full selection (not just the loaded page).\nTags flatten to a readable list; standard CRM columns incl. FSBO Status.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1c8a60b",
-      "date": "2026-08-24T16:44:13-05:00",
-      "subject": "FSBO master: create Hub records for master FSBOs not yet in the Hub",
-      "title": "FSBO master: create Hub records for master FSBOs not yet in the Hub",
-      "body": "The FSBO master file is the source of truth. On no phone match, insert a Hub\nclient from the sheet (name split, seller/watch, FSBO tags + 'FSBO Master'\nmarker, address/city/state/zip, fsbo_status) so every FSBO — Available AND\nOff Market — lands on the list. Duplicate-phone sheet rows update the same\nnew record. Report now includes 'created'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6904093",
-      "date": "2026-08-24T12:26:30-05:00",
-      "subject": "FSBO sync: match phones via normalized last-10 index (DB stores formatted phones)",
-      "title": "FSBO sync: match phones via normalized last-10 index (DB stores formatted phones)",
-      "body": "Fixes 0/61 match: clients store phones like '(319) 531-0905', so a raw\ndigit-string LIKE never matched. Build a last-10 -> client index in JS once,\npreferring an FSBO-tagged client on shared numbers.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "328c153",
-      "date": "2026-08-24T12:24:19-05:00",
-      "subject": "FSBO list: sync master file (Available/Off Market) + show FSBO Status column",
-      "title": "FSBO list: sync master file (Available/Off Market) + show FSBO Status column",
-      "body": "- clients.fsbo_status / fsbo_status_at columns.\n- server/fsbo-master.js: reads the FSBO master Google Sheet (CSV), matches\n  each row to a Hub client by phone (last 10), writes Available/Off Market.\n  RFC-4180 CSV parser handles the quoted multi-line Zillow Notes blob.\n  ensureFsboListIncludesMaster() points the saved FSBO list at the master file\n  (has_fsbo_status) so every Available/Off Market FSBO is guaranteed in the list;\n  prior tag+status criteria preserved under _legacy for revert.\n- POST /api/lists/fsbo/sync (reconcile + report), GET /api/lists/fsbo/status.\n  Scheduler refreshes hourly, fully isolated from the Sierra sync.\n- has_fsbo_status / fsbo_statuses_include filters in clients + lists routes;\n  fsbo_available_first / fsbo_offmarket_first sorts; fsbo_status smart-audience field.\n- Clients UI: in the FSBO list, the Visits column becomes 'FSBO Status'\n  (Available green / Off Market red badge), sortable.\n- CSV parser tests (142 total).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fd847be",
-      "date": "2026-08-24T11:07:13-05:00",
-      "subject": "P1-1: model-scored AI regression suite (framework + seed)",
-      "title": "P1-1: model-scored AI regression suite (framework + seed)",
-      "body": "- server/ai-eval/score.js: pure 0/1/2 rubric scorer with hard auto-fails\n  (ignored STOP, hallucinated price/valuation, steering, fair-housing) plus\n  global guardrail bans applied to every scenario. Fully unit-tested offline.\n- server/ai-eval/scenarios.js: seed suite (12 buyer + 12 seller) exercising\n  every auto-fail path and rubric dimension (handoff timing, defer-to-lender,\n  no-valuation, stay-on-topic, honest self-ID, FSBO/other-agent respect).\n  Extensible toward the 50+50 target — runner/scorer scale automatically.\n- server/ai-eval/run.js: live-model runner reusing the production prompt\n  builders, batched (concurrency 4), persists runs + per-scenario results\n  with prompt/model version for diffing.\n- Endpoints GET /api/ai/eval/scenarios|runs|runs/:id + POST /api/ai/eval/run.\n- Settings -> AI: 'AI Regression Eval' panel (run buyer/seller/full, saved-run\n  history with pass-rate + auto-fail count, per-scenario drilldown).\n- 10 new offline scorer tests (140 total). Gate before broad Autopilot.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "152dc22",
-      "date": "2026-08-24T10:59:26-05:00",
-      "subject": "P1-5: Smart Audiences behavioral segmentation engine",
-      "title": "P1-5: Smart Audiences behavioral segmentation engine",
-      "body": "- server/smart-audience.js: recursive AND/OR condition tree -> safe\n  parameterized SQL over clients. Whitelisted field registry + operators\n  (no injection possible; values always bound). Behavioral fields resolved via\n  correlated subqueries: intent, peak_intent, conversation_type, ai_managed,\n  handoff_pending, overdue_next_action, last_human_contact_days (human = no\n  ai_action_id), repeat_views_14d, realist_sell_score.\n- GET /api/lists/smart/fields + POST /api/lists/smart/preview (count + sample).\n  Dynamic lists now accept a v2 tree in filter_criteria, back-compatible with\n  legacy flat filters (resolveDynamic).\n- New Smart Audiences page: visual builder, ALL/ANY match, live debounced\n  count + sample chips, save-as-dynamic-list. Nav under Marketing.\n- 6 engine tests incl. SQL-injection safety. 131 total.\n\nSEGMENTATION ONLY — never sends.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4c2bc30",
-      "date": "2026-08-24T10:54:16-05:00",
-      "subject": "P1-2: conversation classifier + structured memory provenance",
-      "title": "P1-2: conversation classifier + structured memory provenance",
-      "body": "- conversation_type (buyer/seller/both/investor/renter/past_client/unknown)\n  rides on the existing single AI call — new output-JSON key + a\n  lead_intelligence.conversation_type column, no extra round-trip.\n- lead_memory_fields table: per-field source/confidence/timestamp trail.\n  applyMemory is now confidence-gated so a weak AI guess never overwrites a\n  stronger human/import fact; supports a per-field confidence map.\n- Exposed via /api/ai/lead/:id (conversation_type + memory_fields) and shown\n  on the client profile (type badge + 'What HUB AI has learned' list) and in\n  the AI Opportunities queue label. 4 new tests (125 total).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "940ee52",
-      "date": "2026-08-24T10:47:13-05:00",
-      "subject": "P1-4: AI Opportunities 2.0 — Today's Intelligence + priority action queue",
-      "title": "P1-4: AI Opportunities 2.0 — Today's Intelligence + priority action queue",
-      "body": "Adds GET /api/ai/intelligence: morning summary (high-intent, need-a-reply,\nAI handoffs, re-engaged, repeat viewers, seller opps) plus a prioritized\naction queue of the top 50 leads by decayed intent, each with a recommended\naction, reasons, and reply-needed detection. Surfaces above the handoff\ncards on the AI Opportunities page with call + deep-link-to-profile actions.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c9b609e",
-      "date": "2026-08-24T10:39:37-05:00",
-      "subject": "P1-6: lead routing engine + Admin UI (built INERT, off by default)",
-      "title": "P1-6: lead routing engine + Admin UI (built INERT, off by default)",
-      "body": "- routing_rules + routing_history tables; server/routing.js engine: rules evaluated by\n  priority, first match wins; round-robin / weighted / specific agent selection; manual\n  assignment is sticky (never auto-reassigned). Gated behind routing_enabled (default off);\n  NO auto-trigger wired, so nothing routes until an owner configures rules + turns it on.\n- routes/routing.js: rules CRUD, settings on/off, history, and a manual 'run on unassigned'\n  (preview / apply). Owner/admin only, audited.\n- Admin → Lead Routing tab: master toggle, rule editor (conditions: source/city/zip/type/\n  status/tags/price; targets with weights), preview/apply, and routing history.\n\n6 new tests; 121 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c732c64",
-      "date": "2026-08-24T10:32:10-05:00",
-      "subject": "P1-3: intent decay + historical peak",
-      "title": "P1-3: intent decay + historical peak",
-      "body": "- lead_intelligence +peak_intent (ALTER placed after the table's CREATE).\n- intent.applyDecay(): exponential decay, intent halves per 30 days of inactivity,\n  applied at read time in getIntent so a once-hot lead that went quiet reads honestly.\n  A fresh recompute (on engagement) resets the clock, so active leads never decay.\n- saveIntent tracks the historical peak; getIntent returns { score(decayed), raw, peak }.\n\n2 new tests; 115 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fe0516c",
-      "date": "2026-08-24T10:28:00-05:00",
-      "subject": "Landline-skip: mark undeliverable numbers, skip them on automated sends",
-      "title": "Landline-skip: mark undeliverable numbers, skip them on automated sends",
-      "body": "- clients +sms_undeliverable(+reason,+at). When a send hard-fails with 30006 (landline/\n  unreachable carrier) or 30005 (unknown handset), the delivery-status webhook flags the\n  contact. Auto-cleared when they ever text us (proves the number receives SMS).\n- canSendSms skips flagged numbers for non-manual channels (so AI/drip/automation/bulk\n  all skip them via the collision guard); scheduled 1:1 texts skip too. Manual still allowed.\n- Stops repeatedly texting landlines (the 30006 waste seen in the Twilio reputation check).\n\n1 new test; 113 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f3ffd02",
-      "date": "2026-08-24T10:01:21-05:00",
-      "subject": "Gdrive backup: self-service OAuth client setup in Admin (no Render-env editing)",
-      "title": "Gdrive backup: self-service OAuth client setup in Admin (no Render-env editing)",
-      "body": "POST /api/gdrive/config stores the Google OAuth client id/secret in settings; Admin\nSystem Health shows a guided setup (enable Drive API, create Web OAuth client, redirect\nURI, test user) with paste-in fields, then Connect. Build clean.",
-      "category": "other"
-    },
-    {
-      "hash": "8322a77",
-      "date": "2026-08-24T09:59:34-05:00",
-      "subject": "Off-site backups to Google Drive + self-text guard (owner=admin already)",
-      "title": "Off-site backups to Google Drive + self-text guard (owner=admin already)",
-      "body": "- gdrive-backup.js: OAuth (drive.file) refresh-token flow; ensures 'Matt Smith Team\n  Hub / Render' folders; gzips + resumable-uploads the DB; prunes to newest 30.\n  Inert until connected. Wired as backup layer 3 in runDailyBackup (records a failure\n  if it errors while connected).\n- routes/gdrive.js: public /connect + /callback (one-click OAuth), admin /status +\n  /backup-now. Admin System Health gains a Google Drive card (Connect / Back up now /\n  last off-site backup). requireAuth exempts the two OAuth browser redirects.\n- Group texting drops our own Hub number automatically (fixes the John-Solamo\n  self-text: a directory entry pointing at the Hub line can't text itself).\n- Owner and Admin already share the full permission set (confirmed, no change).\n\nNeeds a one-time Google OAuth client (env) + an owner clicking Connect. 112 tests pass.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ca47520",
-      "date": "2026-08-24T09:46:34-05:00",
-      "subject": "Auth: show-password toggle everywhere + forgot-password email reset flow",
-      "title": "Auth: show-password toggle everywhere + forgot-password email reset flow",
-      "body": "- PasswordField component (eye toggle) used on login, the reset page, the Admin\n  add-user form, and a new Admin set-password modal (replaces the plain prompt).\n- Forgot password: login screen -> email -> POST /api/auth/forgot-password sends a\n  1-hour reset link to the matching account (always returns success; no email\n  enumeration). Public /reset-password page (ResetPassword) completes it via\n  POST /api/auth/reset-password, then revokes that user's sessions.\n- SECURITY: reset tokens use a distinct 'reset' type; principalFor() now only accepts\n  'team'/'user' tokens, so a reset token can never authenticate a session.\n\n112 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "478e01f",
-      "date": "2026-08-21T17:26:23-05:00",
-      "subject": "Group texting: send group MMS from composer + grouped thread in Inbox",
-      "title": "Group texting: send group MMS from composer + grouped thread in Inbox",
-      "body": "- Composer: 2+ recipients (no photo) now sends ONE true group MMS via Twilio\n  Conversations instead of separate individual texts.\n- Inbox: group threads render as a single 'Group: names' conversation; new GroupPane\n  shows the send + all replies and lets you reply back into the group\n  (POST /api/inbox/group-reply). List groups by conversation_sid.\n- Backend: sendConversationMessage() + group-reply route.\n\n112 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "51bbeae",
-      "date": "2026-08-21T17:20:18-05:00",
-      "subject": "Group texting backend: Twilio Conversations (true group MMS) + capability check",
-      "title": "Group texting backend: Twilio Conversations (true group MMS) + capability check",
-      "body": "- server/twilio-conversations.js: ensureConversationsService/Webhook, conversationsStatus\n  (readiness incl. MMS capability), createGroupText (one conversation, all recipients\n  bound to our number, message fans out), conversationParticipants.\n- inbox routes: GET /group-status, POST /group-setup, POST /group-text (compliance-checked,\n  logs one grouped outbound row with conversation_sid), POST /conversations-webhook\n  (public; stores inbound group replies under the same conversation_sid).\n- communications: +conversation_sid +group_meta (+index) so a group + its replies share one thread.\n\nBackend + capability check only; compose wiring + Inbox grouping UI come next once the\naccount/number is confirmed group-MMS capable.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a0283fc",
-      "date": "2026-08-21T17:06:10-05:00",
-      "subject": "P0-4: DB health diagnostics + Postgres migration plan (P0 band complete)",
-      "title": "P0-4: DB health diagnostics + Postgres migration plan (P0 band complete)",
-      "body": "- getDbHealth() + GET /api/admin/db-health: size, PRAGMA quick_check integrity,\n  journal mode, page/freelist counts, table + migration counts, client count, and\n  recent (24h) scheduler sync errors. Surfaced as the Database card in Admin System Health.\n- POSTGRES-MIGRATION-PLAN.md authored (planning only; no migration executed).\n\nCompletes the P0 security/data-integrity band. 1 new test; 112 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d0bbc85",
-      "date": "2026-08-21T17:01:04-05:00",
-      "subject": "P0-3: failure visibility log + backup verification + admin System Health",
-      "title": "P0-3: failure visibility log + backup verification + admin System Health",
-      "body": "- failed_jobs table + server/failures.js (recordFailure dedups by kind+ref & bumps\n  retry_count; list/counts/resolve). Wired into the previously-silent bulk-text and\n  scheduled-text failure paths + the daily backup.\n- backup.js: verifyBackupFile() opens each backup read-only, runs PRAGMA\n  integrity_check and confirms data is queryable; getBackupHealth() reports\n  newest/age/verified/stale; a failed/unverified backup is recorded as a failure.\n- routes/admin.js (owner/admin): /api/admin/health + /failures (+resolve).\n- Admin tab: new 'System Health' section (backup status + open failures).\n\nVisibility-first (no auto-retry of SMS to avoid double-texting). 7 new tests;\n111 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fdca95f",
-      "date": "2026-08-21T16:55:09-05:00",
-      "subject": "P0-2: unified automated-communication collision guard",
-      "title": "P0-2: unified automated-communication collision guard",
-      "body": "policy.canAutomatedSend() — the single gate every automated text path consults so\nAI, automations, and bulk can never talk over the AI, over a human, or stack a\nduplicate. Blocks: hard compliance (STOP/DNT/DNC), human takeover/handoff, active\nAI conversation or pending AI action (unless source is the AI), active human 1:1,\nrecent-duplicate window, and quiet hours.\n\nWired into: automation send_text action, bulk-text (per-recipient; surfaced as\nexcluded.active_conversation), and a light variant in scheduled 1:1 texts. Drips\nare email-only so not a texting-collision path.\n\n8 new tests (test/collision-guard.test.mjs); 104 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b9ad421",
-      "date": "2026-08-21T16:47:17-05:00",
-      "subject": "Add logout + Dashboard greeting + editable name/email in Admin",
-      "title": "logout + Dashboard greeting + editable name/email in Admin",
-      "body": "- Log Out button in the sidebar footer (revokes the session, clears token, returns\n  to sign-in); shows 'Signed in as <name>' for per-user logins.\n- Dashboard header greets 'Welcome, <FirstName>!' from /api/auth/me (falls back to\n  'Welcome!' for the shared team login).\n- Admin Users: inline Edit for name & email (backend PUT now validates + de-dupes email).\n\n96 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "6fa6d9f",
-      "date": "2026-08-21T16:39:28-05:00",
-      "subject": "Use email for login (drop username from UI)",
-      "title": "Use email for login (drop username from UI)",
-      "body": "Login screen and Admin user management are email-only again. The inert username\ncolumn stays in the schema (harmless, unused) but is no longer surfaced. Login\nresolves accounts by email.\n\n96 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "34459bc",
-      "date": "2026-08-21T16:29:24-05:00",
-      "subject": "Add username: set + log in with username or email",
-      "title": "username: set + log in with username or email",
-      "body": "- users.username column (idempotent ALTER + unique index; NULLs allowed).\n- Login accepts { username | email, password }; resolves by username OR email.\n- User create/update accept + validate username (3-30, unique).\n- Admin UI: username in add form, table column, and edit action.\n- Login screen: username-or-email + password (shared password still works when\n  the identifier is left blank).\n96 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "0b712dd",
-      "date": "2026-08-21T16:19:49-05:00",
-      "subject": "Admin tab: users & access, roles/permissions matrix, team directory, email inboxes, audit log",
-      "title": "Admin tab: users & access, roles/permissions matrix, team directory, email inboxes, audit log",
-      "body": "New /admin page (owner/admin) with five sections:\n- Users & Access: add users (name/email/phone/role/password), inline role change,\n  enable/disable, reset password, revoke sessions.\n- Roles & Permissions: live role->permission matrix (from /api/users/roles).\n- Team Directory: manage team_agents (loop-in/assignment contacts).\n- Email Inboxes: connect/test/disconnect Gmail app-password mailboxes.\n- Audit Log: recent system events.\nNav item added under SYSTEM; /api/users/roles now returns the permission matrix.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1d3f2d3",
-      "date": "2026-08-21T16:08:00-05:00",
-      "subject": "fix: mount /api/users after requireAuth so req.user is set (RBAC guard)",
-      "title": "fix: mount /api/users after requireAuth so req.user is set (RBAC guard)",
-      "body": "usersRouter was registered before app.use(requireAuth), so req.user was undefined\nand requirePermission denied everything. Moved it below requireAuth.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "523b714",
-      "date": "2026-08-21T16:05:25-05:00",
-      "subject": "Roadmap audit + P0-1: individual accounts, RBAC & audit log (backwards compatible)",
-      "title": "Roadmap audit + P0-1: individual accounts, RBAC & audit log (backwards compatible)",
-      "body": "Docs: HUB-ROADMAP-AUDIT.md (all 20 phases classified) + HUB-IMPLEMENTATION-ROADMAP.md\n(P0-P4). Updated HUB-SYSTEM-OVERVIEW.md auth section.\n\nP0-1 increment 1 (foundation, non-breaking):\n- New tables: users, user_sessions, audit_log (additive, idempotent).\n- server/auth/passwords.js (scrypt hash/verify, no deps), rbac.js (roles+can()),\n  audit.js (logAudit/recentAudit).\n- auth.js: per-user email+password login COEXISTS with the legacy shared password\n  (which still issues an owner token); tokens carry uid+role+jti with revocable\n  sessions; requireAuth attaches req.user; /me, /logout; requirePermission() guard.\n- routes/users.js: owner/admin user management + /roles + /audit; ensureOwnerSeed on boot.\n- Existing routes are NOT newly gated (zero regression); enforcement rolls out next.\n\n11 new tests (password/rbac/seed/audit/schema); 95 total pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cb47200",
-      "date": "2026-08-21T15:36:07-05:00",
-      "subject": "Searchable template picker for all texting composers",
-      "title": "Searchable template picker for all texting composers",
-      "body": "New reusable TemplatePicker (search by name + body) replaces the plain\n'Insert template' <select> in: lead-profile text composer, bulk-text modal,\ninbox reply, and the shared composer. Also fixes BulkTextModal loading email\ntemplates instead of text templates.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ac02c90",
-      "date": "2026-08-21T14:31:23-05:00",
-      "subject": "comms: add Twilio text-reputation endpoint (brand trust score + delivery/error rates)",
-      "title": "comms: add Twilio text-reputation endpoint (brand trust score + delivery/error rates)",
-      "body": "GET /api/comms/twilio-reputation returns A2P brand trust score, campaign status, and\nthe delivery/error breakdown of recent outbound messages (spam-filter rate via error\n30007, undelivered rate, etc.). Read-only.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "20291b6",
-      "date": "2026-08-21T14:25:59-05:00",
-      "subject": "AI: disable same-day no-reply second text by default (ai_first_followup_enabled=0)",
-      "title": "AI: disable same-day no-reply second text by default (ai_first_followup_enabled=0)",
-      "body": "A second automated text to a lead who hasn't replied is a carrier spam trigger, so\nthe no-reply nudge is now OFF by default and gated behind ai_first_followup_enabled.\nThe opener still sends; inbound replies are still answered by the responsive flow.\nCan be re-enabled per preference later.\n\n84 tests pass.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f92017a",
-      "date": "2026-08-21T14:11:47-05:00",
-      "subject": "AI follow-up delay 10->30 min; Inbox auto-opens most recent conversation",
-      "title": "AI follow-up delay 10->30 min; Inbox auto-opens most recent conversation",
-      "body": "- No-reply follow-up now waits 30 minutes (was 10) to avoid the rapid double-text\n  pattern carriers flag as spam. Default + live setting updated.\n- Inbox auto-opens the most recent conversation on load so the blue/white chat shows\n  without a click (once per mount; a manual Close still sticks).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9e9b972",
-      "date": "2026-08-21T14:03:38-05:00",
-      "subject": "AI follow-up: no-reply nudge continues the opener (no re-greet, no surveillance)",
-      "title": "AI follow-up: no-reply nudge continues the opener (no re-greet, no surveillance)",
-      "body": "The 10-min no-reply follow-up went through handleFollowup, whose instruction told it\nto open with Hi/Hello and ask a brand-new question — so it re-greeted ('Hi Robert!'),\njumped topics, and leaked surveillance framing ('I noticed you've been looking').\n\nNow handleFollowup branches: if the lead has NEVER replied, it sends a same-thread\ncontinuation of the opener (no greeting, no re-intro, no new subject, one light\nquestion, never implies watching activity). If they have replied, it's a normal\nfollow-up that also no longer re-greets. runOutbound gains stripGreeting to remove\nany leading 'Hi <name>' as a belt-and-suspenders.\n\n84 tests pass.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f08a203",
-      "date": "2026-08-21T12:50:46-05:00",
-      "subject": "inbox: pull a contact's full email history from mailboxes (All Mail, both directions)",
-      "title": "inbox: pull a contact's full email history from mailboxes (All Mail, both directions)",
-      "body": "Adds searchMailboxesForContact() + GET /api/inbox/contact-emails?email=. Uses the\nstored Gmail app passwords to search All Mail across configured mailboxes and return\nthe complete two-way thread with a contact, including mail that predates the inbox\npoller (which only stores incoming mail after connection). Read-only.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "15c55ad",
-      "date": "2026-08-21T12:26:30-05:00",
-      "subject": "AI training book: reference doc, prompt reinforcement, regression suite",
-      "title": "AI training book: reference doc, prompt reinforcement, regression suite",
-      "body": "From the team's HUB AI Conversation Training Book:\n\n1) Canonical reference saved at docs/HUB-AI-TRAINING-BOOK.md (marks the truncation\n   point in Part XXII + an implementation-status changelog).\n\n2) prompts.js strengthened (version -> hubai-2026.08.21-1):\n   - REASONING: respond-to-conversation-first, don't-mirror, stay-on-property,\n     never re-ask known info, no fixed checklist.\n   - SITUATIONS: objection/topic playbooks (commission, Zillow/pricing, as-is,\n     repairs, disclosures, FSBO/expired, payments/rates, 'what will they take').\n   - ACCURACY: VERIFIED/INFERRED/UNKNOWN framing, 'I don't want to guess'.\n\n3) Natural-language opt-out (book §83): policy.isNaturalOptOut() catches\n   'stop texting me' / 'take me off your list' etc. (conservative — 'stop by the\n   house' does NOT match), wired into the inbound webhook. Closes a real gap where\n   only single-word STOP was honored.\n\n4) HIGH_INTENT_RE broadened to catch 'show us this house', 'see it Saturday',\n   'what is my house worth', 'selling my house' (existing matches preserved).\n\n5) Regression suite test/hubai-scenarios.test.mjs (57 tests): intent detection,\n   literal + natural-language opt-out, exclusions, and that the training reached\n   the system prompt. Total suite now 84 tests, all passing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2461fa4",
-      "date": "2026-08-21T11:47:58-05:00",
-      "subject": "Clients bulk actions: Send AI (bulk first-text / follow-up)",
-      "title": "Clients bulk actions: Send AI (bulk first-text / follow-up)",
-      "body": "Adds a bulk 'Send AI' action to the Clients bulk-actions menu. New endpoint\nPOST /api/ai/bulk-send-now routes each selected lead through the same per-lead\nlogic as /send-now (opener / reply / next qualifying follow-up), enrolls them as\nAI-managed, and honors quiet hours + STOP/opt-out compliance server-side.\n\nSafety: bulk SKIPS autopilot-excluded prospecting leads (FSBO / MLS Expired /\nMLS Cancelled / configured exclusions) so a bulk send can never accidentally blast\na walled-off list; those can still be enabled one-by-one from a profile. Returns a\nsent / skipped / blocked summary shown to the agent.\n\n27 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "99084b5",
-      "date": "2026-08-21T11:02:47-05:00",
-      "subject": "AI text suggestion: on-demand + context; record all calls; comm history on profile",
-      "title": "AI text suggestion: on-demand + context; record all calls; comm history on profile",
-      "body": "AI text suggestion (Clients text composer):\n- No longer auto-generates; shows a 'View suggested reply' button, drafts only on click.\n- Adds an agent context input that improves/steers the draft (previewMessage now\n  accepts { context } and folds it in, mirroring the email refine flow).\n\nCall recording:\n- twilio_record_calls now defaults ON; inbound + forward-to-mobile Dials record too\n  (outbound already did). Recordings attach to the timeline via /api/voice/recording.\n\nCommunication history on the client profile:\n- New 'Communication History' section lists every text, call, voicemail and logged\n  email (newest first) from /api/inbox/thread/:id, with duration, disposition,\n  transcript, and an inline recording player (proxied via /api/inbox/recording/:id).\n\n27 tests pass; build clean.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9425e6a",
-      "date": "2026-08-21T10:44:38-05:00",
-      "subject": "Clients: AI text suggestion in the text composer",
-      "title": "Clients: AI text suggestion in the text composer",
-      "body": "Surfaces an SMS-native AI draft inside InlineTextComposer, mirroring the\nemail Suggested Follow-Up but appropriate for texting. Auto-drafts on open\n(first text / reply / follow-up aware), with Use this / Regenerate / Copy.\nUses the existing POST /api/ai/lead/:id/preview (strict-Central greeting,\ncompliance-aware). Shows a soft note when AI auto-send is blocked; manual\nsend still allowed.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4eb8611",
-      "date": "2026-08-21T10:30:18-05:00",
-      "subject": "Team agent directory: team_agents table (seeded Matt/Hunter/John) + /api/agents CRUD; loop a teammate into a client text (inline composer 'Loop in a teammate' + raw-phone send path); Settings 'Team Agents' management; assignment list uses the directory",
-      "title": "Team agent directory: team_agents table (seeded Matt/Hunter/John) + /api/agents CRUD; loop a teammate into a client text (inline composer 'Loop in a teammate' + raw-phone send path); Settings 'Team Agents' management; assignment list uses the directory",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8b32507",
-      "date": "2026-08-21T10:03:38-05:00",
-      "subject": "Clients: 'Dialer' button — dial-pad to call ANY number (not just DB contacts) via the Hub softphone; shows a match if the number is a known contact",
-      "title": "Clients: 'Dialer' button — dial-pad to call ANY number (not just DB contacts) via the Hub softphone; shows a match if the number is a known contact",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "03b5b45",
-      "date": "2026-08-21T09:57:10-05:00",
-      "subject": "Inbox: 'View profile' button in the thread header jumps to the lead's full profile in Clients (/clients?open=<id> deep-link)",
-      "title": "Inbox: 'View profile' button in the thread header jumps to the lead's full profile in Clients (/clients?open=<id> deep-link)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "435b8e3",
-      "date": "2026-08-21T09:45:20-05:00",
-      "subject": "AI: correct/strip time-of-day greeting on EVERY message (not just first) — model never overrides Central time; follow-ups open with Hi/Hello, no time greeting",
-      "title": "AI: correct/strip time-of-day greeting on EVERY message (not just first) — model never overrides Central time; follow-ups open with Hi/Hello, no time greeting",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7363a04",
-      "date": "2026-08-21T09:36:47-05:00",
-      "subject": "AI: greeting strictly Central (America/Chicago), model-proof — server forces the correct time-of-day greeting on the first text; +test",
-      "title": "AI: greeting strictly Central (America/Chicago), model-proof — server forces the correct time-of-day greeting on the first text; +test",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6f2bc7e",
-      "date": "2026-08-21T09:28:36-05:00",
-      "subject": "AI text refinements: warm time-of-day greeting on first text, no 'saw you browsing' (thanks for stopping by), no city after RE/MAX intro, reference search city + viewed property; 10-min no-reply follow-up; FUB link now backfills web activity",
-      "title": "AI text refinements: warm time-of-day greeting on first text, no 'saw you browsing' (thanks for stopping by), no city after RE/MAX intro, reference search city + viewed property; 10-min no-reply follow-up; FUB link now backfills web activity",
-      "body": "- prompts: first-message rewrite (time greeting, thank for visiting, MattSmithTeam.com + search_city + last_viewed_property, no surveillance phrasing); STYLE bans 'I saw you browsing'\n- context: adds time_greeting, search_city, last_viewed_property, recent_properties_viewed (from fub_activity)\n- opener schedules ONE AI_FOLLOWUP at +10min (ai_first_followup_minutes); scheduler drains it; handleFollowup needs only master+enrollment (no sub-flag); reply cancels it\n- /api/fub/link backfills the lead's FUB property views into fub_activity\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "eca20ed",
-      "date": "2026-08-21T09:01:24-05:00",
-      "subject": "AI: quiet hours apply to ALL AI sends including manual Send-AI-now (revert force bypass); card surfaces 'quiet hours' when blocked; +boundary tests",
-      "title": "AI: quiet hours apply to ALL AI sends including manual Send-AI-now (revert force bypass); card surfaces 'quiet hours' when blocked; +boundary tests",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e00cd22",
-      "date": "2026-08-21T08:58:23-05:00",
-      "subject": "AI: manual Send-AI-now bypasses quiet hours too (agent override); autonomous still respects them",
-      "title": "AI: manual Send-AI-now bypasses quiet hours too (agent override); autonomous still respects them",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "92299e9",
-      "date": "2026-08-21T08:49:26-05:00",
-      "subject": "FUB: POST /api/fub/link/:clientId — match a Hub lead to its FUB profile by email/phone (sets fub_person_id so web activity flows in)",
-      "title": "FUB: POST /api/fub/link/:clientId — match a Hub lead to its FUB profile by email/phone (sets fub_person_id so web activity flows in)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5d8fa46",
-      "date": "2026-08-20T17:41:34-05:00",
-      "subject": "templates: handle unclosed FUB tokens (%greeting_time) + 'Good %greeting_time'; re-import refreshes existing imported:fub templates",
-      "title": "templates: handle unclosed FUB tokens (%greeting_time) + 'Good %greeting_time'; re-import refreshes existing imported:fub templates",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
