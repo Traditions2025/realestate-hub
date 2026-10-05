@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-05T21:13:32.395Z",
+  "generated_at": "2026-10-05T21:17:12.033Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "4d53fb1",
+      "date": "2026-10-05T16:13:45-05:00",
+      "subject": "Judge an email by the system that generated its Message-ID",
+      "title": "Judge an email by the system that generated its Message-ID",
+      "body": "The live split on Niki Morris's 31 messages failed the real test: 30 kept, 1\ndropped, and the six Matrix MLS listing alerts - the exact mail John said to\nexclude - were among the kept. Reading subject lines got them wrong six times out\nof six, because the alert opens \"Dear Niki Morris,\" and carries a single link, so\nevery body heuristic read it as a person writing.\n\nReading the actual headers gave a hard signal instead. From the real mailbox:\n\n  mail.gmail.com     Matt or John typed it in Gmail      a person\n  gprodcdra70b       Matrix MLS listing alert            a machine\n  followupboss.com   FUB send, X-Mailer PHPMailer        16-38 links, a template\n  sierra-vm-srvc3    Sierra drip campaign                a campaign\n\nMatrix and Sierra are alert and campaign engines, so they are never conversation.\nFUB is also where an agent types a real reply, so a followupboss.com id drops\nonly when the body carries a mass template with it - 8+ links or an unsubscribe\nfooter. A short typed one is kept, because FUB withholds email content from its\nown API and Gmail is the only place that copy exists.\n\nA lead's own reply always arrives with a real mail-client Message-ID, so the\nreply rule catches it before any of this runs.\n\n9 new tests, each built on a Message-ID read off a real message, including the\ntwo that must survive every rule: \"Sample Purchase Agreement\" and \"Warranty info\"\n(12 links, all of them images in Matt's signature). 45 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0fd91f3",
       "date": "2026-10-05T16:10:00-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Templates: 'Match custom fields' converts pasted foreign merge fields to Hub fields",
       "title": "Templates: 'Match custom fields' converts pasted foreign merge fields to Hub fields",
       "body": "Detects merge tokens in any common format ([First Name], {{firstName}}, %FIRST_NAME%,\n<<AgentName>>, Mailchimp *|FNAME|*, contact.first_name, etc.), maps them to the Hub's\ncanonical {{field}} via an alias table, and rewrites the body. Valid Hub tokens are left\nuntouched; anything it can't match is reported for manual mapping. One click in the text\ntemplate toolbar.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a2fa666",
-      "date": "2026-08-26T10:26:39-05:00",
-      "subject": "Templates: add {{time_of_day}} merge field + expand the custom-field picker",
-      "title": "Templates: add {{time_of_day}} merge field + expand the custom-field picker",
-      "body": "- fillTemplate now supports {{time_of_day}} (morning/afternoon/evening) so a template can\n  write 'Good {{time_of_day}}'. Filled on every text + email send path.\n- Templates picker expanded to the real supported fields: time_of_day, greeting,\n  city_of_interest, price_range, state, zip, etc. Quick-insert buttons now include time-of-day.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

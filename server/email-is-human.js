@@ -129,6 +129,41 @@ export function classifyEmail({ headers, from = '', subject = '', body = '', inR
   return { human: true, why: 'no automation markers' }
 }
 
+/**
+ * A thread whose opening message is missing is not history.
+ *
+ * Niki Morris replied twice to "Market changes for your home on 7009 Springwood Pl Nw".
+ * Her replies are kept, but the message she was replying to is a FUB template and was
+ * dropped - leaving an answer with no question. So after the batch is judged, any dropped
+ * message that a KEPT one actually points at is brought back. It runs until nothing more
+ * changes, because the rescued parent may itself be a reply to something earlier.
+ *
+ * This only ever keeps more, never less, and it needs real In-Reply-To / References
+ * linkage: a template nobody replied to stays dropped.
+ */
+export function rescueThreadParents(messages = []) {
+  const idOf = (m) => String(m.messageId || '').trim()
+  const byId = new Map()
+  for (const m of messages) if (idOf(m)) byId.set(idOf(m), m)
+
+  for (let pass = 0; pass < 10; pass++) {
+    let changed = 0
+    for (const m of messages) {
+      if (m.human === false) continue
+      const refs = `${m.inReplyTo || ''} ${m.references || ''}`.match(/<[^<>\s]+>/g) || []
+      for (const ref of refs) {
+        const parent = byId.get(ref)
+        if (!parent || parent.human !== false) continue
+        parent.human = true
+        parent.why = 'a kept reply points at this message (' + (parent.why || 'automated') + ')'
+        changed++
+      }
+    }
+    if (!changed) break
+  }
+  return messages
+}
+
 /** Convenience for filtering a batch, keeping the reason on each message. */
 export function splitHumanEmails(messages = []) {
   const kept = [], dropped = []

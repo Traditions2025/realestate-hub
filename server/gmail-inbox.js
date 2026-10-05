@@ -7,7 +7,7 @@ import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import db, { getSetting, setSetting } from './database.js'
 import { sendViaSendGrid } from './routes/email.js'
-import { classifyEmail } from './email-is-human.js'
+import { classifyEmail, rescueThreadParents } from './email-is-human.js'
 
 const esc = (s) => String(s == null ? '' : s).replace(/[<>&]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]))
 
@@ -369,6 +369,8 @@ export async function searchMailboxesForContact(email, { max = 600, keepHeaders 
             from: p.from?.text || '', to: p.to?.text || '', subject: p.subject || '(no subject)',
             messageId: p.messageId || `${m.user}_${msg.uid}`,
             human: verdict.human, why: verdict.why,
+            inReplyTo: p.inReplyTo || '',
+            references: Array.isArray(p.references) ? p.references.join(' ') : (p.references || ''),
             // only for inspecting WHY a message was judged the way it was; never stored
             headers: keepHeaders ? Object.fromEntries(p.headers || []) : undefined,
             body: body.slice(0, 6000),
@@ -384,6 +386,10 @@ export async function searchMailboxesForContact(email, { max = 600, keepHeaders 
   const seen = new Set(); const dedup = []
   for (const x of out) { if (seen.has(x.messageId)) continue; seen.add(x.messageId); dedup.push(x) }
   dedup.sort((a, b) => new Date(a.date) - new Date(b.date))
+  // bring back any dropped message a KEPT reply actually points at, so a thread never
+  // arrives as an answer with no question
+  rescueThreadParents(dedup)
+  for (const m of dedup) { delete m.inReplyTo; delete m.references }
   const human = dedup.filter(x => x.human)
   return { email: target, count: dedup.length, human_count: human.length,
            automated_count: dedup.length - human.length, mailboxes: boxInfo, messages: dedup }

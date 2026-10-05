@@ -147,6 +147,71 @@ test('the Message-ID is read from headers when not passed directly', () => {
   drop({ from: 'x@y.com', subject: 'Homes', body: 'x', headers: new Map([['message-id', '<a@gprodcdra70b>']]) })
 })
 
+// ── a thread never arrives as an answer with no question ────────────────────────────
+test('a dropped message a kept reply points at is brought back', async () => {
+  const { rescueThreadParents } = await import('../server/email-is-human.js')
+  // the real shape: Niki replied to a FUB template, so her reply is kept and the
+  // template is not. Keeping only her side would leave an answer with no question.
+  const batch = [
+    { messageId: '<parent@followupboss.com>', subject: 'Market changes for your home on 7009 Springwood Pl Nw',
+      human: false, why: 'FUB template send, mass template body' },
+    { messageId: '<reply@mail.gmail.com>', subject: 'Re: Market changes', human: true,
+      why: 'part of a thread', inReplyTo: '<parent@followupboss.com>' },
+  ]
+  rescueThreadParents(batch)
+  assert.equal(batch[0].human, true)
+  assert.match(batch[0].why, /a kept reply points at this message/)
+  assert.match(batch[0].why, /FUB template send/, 'the original reason is kept, not erased')
+})
+
+test('the rescue walks back up a chain', async () => {
+  const { rescueThreadParents } = await import('../server/email-is-human.js')
+  const batch = [
+    { messageId: '<a@sierra-vm-srvc3>', human: false, why: 'Sierra drip campaign' },
+    { messageId: '<b@followupboss.com>', human: false, why: 'FUB template send, mass template body',
+      inReplyTo: '<a@sierra-vm-srvc3>' },
+    { messageId: '<c@mail.gmail.com>', human: true, why: 'part of a thread', references: '<b@followupboss.com>' },
+  ]
+  rescueThreadParents(batch)
+  assert.equal(batch[1].human, true, 'the direct parent comes back')
+  assert.equal(batch[0].human, true, 'and so does its own parent')
+})
+
+test('a template nobody replied to stays dropped', async () => {
+  const { rescueThreadParents } = await import('../server/email-is-human.js')
+  const batch = [
+    { messageId: '<alert@gprodcdra70b>', human: false, why: 'Matrix MLS listing alert' },
+    { messageId: '<x@mail.gmail.com>', human: true, why: 'no automation markers' },
+  ]
+  rescueThreadParents(batch)
+  assert.equal(batch[0].human, false, 'the rescue needs real thread linkage, not proximity')
+})
+
+test('the rescue only ever keeps more, never less', async () => {
+  const { rescueThreadParents } = await import('../server/email-is-human.js')
+  const batch = [{ messageId: '<a@x>', human: true, why: 'ok' }, { messageId: '<b@x>', human: false, why: 'bulk' }]
+  rescueThreadParents(batch)
+  assert.equal(batch[0].human, true)
+})
+
+test('a reference cycle cannot hang the rescue', async () => {
+  const { rescueThreadParents } = await import('../server/email-is-human.js')
+  const batch = [
+    { messageId: '<a@x>', human: true, why: 'ok', inReplyTo: '<b@x>' },
+    { messageId: '<b@x>', human: false, why: 'bulk', inReplyTo: '<a@x>' },
+  ]
+  rescueThreadParents(batch)   // must simply return
+  assert.equal(batch[1].human, true)
+})
+
+test('the search runs the rescue and does not leak the linkage fields', () => {
+  const fn = fnSource(gmail, 'export async function searchMailboxesForContact')
+  assert.match(fn, /rescueThreadParents\(dedup\)/)
+  assert.ok(fn.indexOf('rescueThreadParents(dedup)') < fn.indexOf('const human = dedup.filter'),
+    'the rescue must run BEFORE the counts are taken')
+  assert.match(fn, /delete m\.inReplyTo; delete m\.references/)
+})
+
 // ── the governing bias, stated as a test ─────────────────────────────────────────────
 test('an unrecognised email is kept, not dropped', () => {
   const v = keep({ from: 'someone@somewhere.org', subject: '', body: '' })
@@ -179,7 +244,7 @@ const fnSource = (src, decl) => {
 const gmail = fs.readFileSync(new URL('../server/gmail-inbox.js', import.meta.url), 'utf8')
 
 test('the mailbox search judges each message and carries the reason', () => {
-  assert.match(gmail, /import \{ classifyEmail \} from '\.\/email-is-human\.js'/)
+  assert.match(gmail, /import \{ classifyEmail, rescueThreadParents \} from '\.\/email-is-human\.js'/)
   const fn = gmail.slice(gmail.indexOf('export async function searchMailboxesForContact'))
   assert.match(fn, /classifyEmail\(\{/)
   assert.match(fn, /human: verdict\.human, why: verdict\.why/)
