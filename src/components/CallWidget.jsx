@@ -85,7 +85,14 @@ export default function CallWidget() {
     }
     // Throws on a failure worth retrying; resolves once the Device is registered.
     const init = async () => {
-      if (!(await waitForSdk())) { setReg('error'); setRegErr('Phone SDK failed to load'); throw new Error('sdk') }
+      if (!(await waitForSdk())) {
+        // The script is served from the Hub's own origin, so reaching this means
+        // something in the browser is blocking it, not that the network is down -
+        // an extension, or a VPN exit that is filtering the request.
+        setReg('error')
+        setRegErr('Phone SDK did not load. An ad blocker or VPN is usually what blocks it — reload, and if it persists try without the VPN.')
+        throw new Error('sdk')
+      }
       const Twilio = window.Twilio
       let tok
       // A restarting server answers with HTML, so r.json() throws here. That is a blip,

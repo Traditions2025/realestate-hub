@@ -29,8 +29,18 @@
     } catch (e) { document.documentElement.setAttribute('data-accent', 'gold') }
   </script>
   <!-- Twilio Voice SDK (browser softphone). Loads a global window.Twilio.Device.
-       `defer` keeps it off the critical path but still runs before the app module. -->
-  <script defer src="https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.3/dist/twilio.min.js"></script>
+       `defer` keeps it off the critical path but still runs before the app module.
+
+       Served from the Hub's OWN origin. It used to come straight from jsdelivr, which
+       made a third-party CDN a single point of failure for the phone: if a VPN exit, a
+       corporate filter or a privacy extension would not fetch it, window.Twilio.Device
+       never appeared and the only symptom was "Phone SDK failed to load". Same origin as
+       the app means anyone who can open the Hub at all can load the phone.
+
+       jsdelivr stays as a fallback for the one case the local copy cannot cover: a
+       deploy that shipped without the vendor file. -->
+  <script defer src="/vendor/twilio-voice-2.18.3.min.js"
+          onerror="(function(el){el.remove();var s=document.createElement('script');s.defer=true;s.src='https://cdn.jsdelivr.net/npm/@twilio/voice-sdk@2.18.3/dist/twilio.min.js';document.head.appendChild(s)})(this)"></script>
 </head>
 <body>
   <div id="root"></div>
