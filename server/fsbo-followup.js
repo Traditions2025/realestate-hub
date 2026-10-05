@@ -91,9 +91,18 @@ export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
 // (the still-available Text 2 copy is the one historical exception, kept as approved).
 function street(c) { return c.address || 'the property' }
 function msgStep1(c) { return `${greeting()}, I'm John with Matt Smith Team at RE/MAX. Our team noticed your place on ${street(c)} for sale, beautiful home. Just want to make sure it's still available? MattSmithTeam.com` }
-// The market-analysis message (sent as Text 3) is broken into 3 shorter texts (no wall of text).
+// The market-analysis message (sent as Text 3), now 2 texts.
+//
+// REMOVED 2026-10-05 (John): the opening credibility pitch - the homes-sold count, the
+// years-of-experience line, and the claim about which weeks on market matter most. Never
+// removed before despite the memory of it; git shows it was only ever REWORDED (bf27950).
+// The exact wording is deliberately NOT quoted here, so a test can assert the phrases
+// appear nowhere in this file.
+//
+// NOTE: the first remaining text still opens "At this point," which referred to the weeks
+// described in the deleted message. Left exactly as approved rather than rewritten, because
+// this is the approved library - flagged to John to reword or drop.
 const MSG_ANALYSIS = [
-  "Hi, it's John again with Matt Smith Team at RE/MAX. A little about us, we've sold over 2,000 homes throughout Cedar Rapids and the surrounding areas over the past 35+ years. One thing we've learned is that the first 2 weeks on the market are usually the most critical, and that's when most of the activity tends to happen. By the third week, activity can start to slow down.",
   "At this point, you might be thinking about adjusting the price. Before making a price reduction, though, it can be worth looking at whether price is actually the issue or if there are a few things that could be adjusted with the marketing or positioning first.",
   "Our team would be happy to put together an analysis of your home and give you our perspective if that would be helpful.",
 ]

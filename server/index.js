@@ -1521,6 +1521,49 @@ async function start() {
   // exists it writes only the fsbo_* fields - so an existing lead stays 'new' and 'buyer'.
   // Read-only: who is due which FSBO step. attempt_count 2 means the NEXT send is step 3,
   // the market-analysis sequence - so this says who would receive it.
+  // One-time backfill: FSBO and Cancelled/Expired leads typed 'buyer' though they are
+  // selling (John, 2026-10-05: "yes to that buyer type too as long as it's a real FSBO
+  // Cancelled/Expired"). REAL means genuinely flagged - fsbo_status / an FSBO listing / a
+  // live FSBO campaign row, or mls_status / the Cancelled/Expired campaign. Never a guess
+  // from a tag or a source string.
+  //
+  // Only `type` is touched. Status is left exactly as it is: those are human decisions.
+  app.post('/api/admin/fix-seller-types', (req, res) => {
+    const dry = req.body?.dry !== false
+    try {
+      const rows = db.all(`
+        SELECT c.id, c.first_name, c.last_name, c.address, c.type, c.status,
+               c.fsbo_status, c.mls_status,
+               CASE WHEN c.fsbo_status IS NOT NULL AND c.fsbo_status != '' THEN 'fsbo_status'
+                    WHEN f.client_id IS NOT NULL THEN 'fsbo campaign'
+                    WHEN c.fsbo_listings IS NOT NULL AND c.fsbo_listings != '[]' THEN 'fsbo listing'
+                    WHEN c.mls_status IS NOT NULL AND c.mls_status != '' THEN 'mls_status'
+                    ELSE 'cancelled/expired campaign' END AS evidence
+          FROM clients c
+          LEFT JOIN fsbo_followups f ON f.client_id = c.id
+          LEFT JOIN cx_campaign    x ON x.client_id = c.id
+         WHERE c.merged_into IS NULL
+           AND lower(COALESCE(c.type,'')) = 'buyer'
+           AND ( (c.fsbo_status IS NOT NULL AND c.fsbo_status != '')
+              OR (c.fsbo_listings IS NOT NULL AND c.fsbo_listings != '[]')
+              OR f.client_id IS NOT NULL
+              OR (c.mls_status IS NOT NULL AND c.mls_status != '')
+              OR x.client_id IS NOT NULL )
+         ORDER BY evidence, c.id`)
+      const by = {}
+      rows.forEach(r => { by[r.evidence] = (by[r.evidence] || 0) + 1 })
+      if (!dry) {
+        const now = new Date().toISOString()
+        for (const r of rows) {
+          db.run("UPDATE clients SET type='seller', updated_at=? WHERE id=?", [now, r.id])
+          db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+            ['type_corrected', 'client', r.id, `type buyer -> seller (${r.evidence}) — they are selling, not buying`])
+        }
+      }
+      res.json({ dry, count: rows.length, by_evidence: by, leads: rows.slice(0, 60) })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/admin/fsbo-queue', (_req, res) => {
     try {
       const rows = db.all(`SELECT f.client_id, f.status, f.step, f.next_send_at, f.replied,

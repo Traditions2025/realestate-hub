@@ -283,12 +283,23 @@ export async function syncFsboMaster() {
     // Main address MUST equal the FSBO listing address — it's what {{address}} uses in texts/
     // emails, so a stale address would reference the wrong (maybe-not-listed) house. COALESCE
     // keeps the existing value only if the listing address is blank.
+    // TYPE AND STATUS TOO (John, 2026-10-05). A lead this sync CREATES gets seller+watch
+    // (see ~line 220), but a lead it merely MATCHED kept whatever it already had - so 54 FSBO
+    // sellers sat in the database typed 'buyer'. That is not cosmetic: it is how Joseph Green
+    // (7526 Cattail Ct NE) was reachable by the cold-BUYER AI drip.
+    //
+    //   type   -> 'seller' whenever this lead is genuinely FSBO-flagged
+    //   status -> 'watch' ONLY from 'new'. junk/closed/pending and the rest are deliberate
+    //             human calls and are never overwritten, the same rule the MLS tag follows.
     db.run(`UPDATE clients SET fsbo_status=?, fsbo_status_at=?, fsbo_list_date=?, fsbo_dom=?, fsbo_price=?,
         fsbo_notes=?, fsbo_link=?, fsbo_listings=?,
+        type = CASE WHEN ? IS NOT NULL AND ? != '' THEN 'seller' ELSE type END,
+        status = CASE WHEN lower(COALESCE(status,'')) = 'new' THEN 'watch' ELSE status END,
         address=COALESCE(?,address), city=COALESCE(?,city), state=COALESCE(?,state), zip=COALESCE(?,zip),
         updated_at=? WHERE id=?`,
       [status, now, primary.list_date || null, computeDom(primary.list_date, primary.dom), price || null,
        primary.notes || null, primary.link || null, listingsJson,
+       status, status,
        primary.address || null, primary.city || null, primary.state || null, primary.zip || null,
        now, match.id])
     match.fsbo_status = status

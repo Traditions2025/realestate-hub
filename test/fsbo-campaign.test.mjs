@@ -5,6 +5,7 @@
 // weekend/window rolling, angle rotation.
 import { test , beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import db, { initDb } from '../server/database.js'
 await initDb()
 
@@ -274,4 +275,24 @@ test('S19: the sweep auto-enrolls once; a second run never duplicates', async ()
 test('master switch OFF = sweep is a no-op', async () => {
   db.setSetting('fsbo_followup_enabled', '0')
   assert.equal((await f.runFsboFollowups()).skipped, 'disabled')
+})
+
+// ── retired copy ─────────────────────────────────────────────────────────────────────
+// John, 2026-10-05: remove the "we've sold over 2,000 homes... 35+ years... the first 2
+// weeks on the market are usually the most critical" credibility pitch from Text 3. Git
+// shows it was never removed before, only reworded (bf27950, "14 days" -> "2 weeks").
+test('the 2,000-homes credibility pitch can never be sent again', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-followup.js', import.meta.url), 'utf8')
+  assert.ok(!/sold over 2,000 homes/.test(src), 'the retired line is gone')
+  assert.ok(!/first 2 weeks on the market/.test(src))
+  assert.ok(!/35\+ years/.test(src), 'no reworded survivor either')
+})
+
+test('Text 3 still sends something, and step 3 is still wired', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-followup.js', import.meta.url), 'utf8')
+  const block = /const MSG_ANALYSIS = \[([\s\S]*?)\]/.exec(src)
+  assert.ok(block, 'MSG_ANALYSIS should still exist')
+  const texts = block[1].split('\n').filter(l => l.trim().startsWith('"'))
+  assert.equal(texts.length, 2, 'two texts remain after the removal')
+  assert.match(src, /attempt === 3\) \{ multi = MSG_ANALYSIS/, 'step 3 still sends them')
 })
