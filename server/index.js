@@ -1047,6 +1047,32 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: what does a FULL FUB person record contain? The goal is a two-way sync of
+  // notes, tags and custom fields, so this reports every field FUB actually exposes on a
+  // person, and whether the account defines custom fields at all.
+  app.get('/api/fub/probe-person-full', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const pid = Number(req.query.personId) || 0
+      const out = {}
+      if (pid) {
+        const p = await fubGet(`/people/${pid}`)
+        out.person_fields = Object.keys(p || {})
+        out.custom_keys = Object.keys(p || {}).filter(k => /^custom/i.test(k))
+        out.tags = p?.tags || []
+        out.sample = { stage: p?.stage, source: p?.source, assignedTo: p?.assignedTo }
+        for (const k of out.custom_keys) out[`cf_${k}`] = p[k]
+      }
+      try {
+        const cf = await fubGet('/customFields', { limit: 100 })
+        const rows = cf?.customfields || cf?.customFields || []
+        out.custom_fields_defined = rows.length
+        out.custom_field_names = rows.slice(0, 40).map(x => `${x.name} (${x.type})`)
+      } catch (e) { out.custom_fields_error = String(e.message).slice(0, 160) }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/probe-search', async (req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')
