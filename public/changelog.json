@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-10-05T21:17:12.033Z",
+  "generated_at": "2026-10-05T21:24:46.632Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a946f10",
+      "date": "2026-10-05T16:23:37-05:00",
+      "subject": "FSBO sync fills in a name the scraper missed",
+      "title": "FSBO sync fills in a name the scraper missed",
+      "body": "John: the FSBO scraper could not get the owner names on the first run and got them\non the second, but the Hub never saw the correction. Same asymmetry as type and\nstatus: first_name/last_name were only ever written on INSERT, never on a lead the\nsync merely MATCHED.\n\nThe sheet's name is now used, but ONLY to replace a placeholder - blank, or the\n\"(Owner - name unknown)\" that fsbo-write-names.js writes when the owner lookup\nfails, or a generic stand-in.\n\nA REAL name is never overwritten, because most disagreements are not corrections.\nOf the 8 that differ from the sheet: a spouse (Sara vs Darren Sholes), a spelling\nvariant, two different owners entirely, and one that would replace a person with\n\"Renofixation LLC\". Those need a person, not a sync.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f2be183",
+      "date": "2026-10-05T16:17:21-05:00",
+      "subject": "Bring back a dropped message that a kept reply points at",
+      "title": "Bring back a dropped message that a kept reply points at",
+      "body": "The Niki Morris split came out 9 kept / 22 dropped, which is the right shape, but\nit left an answer with no question: she replied twice to \"Market changes for your\nhome on 7009 Springwood Pl Nw\", her replies were kept, and the message she was\nreplying to is a FUB template and was dropped.\n\nrescueThreadParents runs over the judged batch and brings back any dropped\nmessage a KEPT one actually points at through In-Reply-To or References. It\nrepeats until nothing changes, because a rescued parent may itself be a reply to\nsomething earlier, and it keeps the original reason inside the new one so why it\nwas ever dropped is still readable.\n\nIt only ever keeps more, never less, and it needs real header linkage - a Matrix\nalert nobody replied to stays dropped. 6 new tests, including a reference cycle,\nwhich would otherwise spin. 51 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4d53fb1",
       "date": "2026-10-05T16:13:45-05:00",
@@ -3984,22 +4000,6 @@
       "subject": "Lead text composer: WYSIWYG merge fields, template replaces (no append), no separate preview",
       "title": "Lead text composer: WYSIWYG merge fields, template replaces (no append), no separate preview",
       "body": "- Applying a template renders its merge fields for the lead and REPLACES the box (picking\n  another template swaps it instead of appending).\n- Merge-field dropdown inserts the filled value for the lead.\n- Removed the separate preview panel; the box itself shows the final text.\n- Uses POST /api/templates/render.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a0c8e00",
-      "date": "2026-08-26T10:39:36-05:00",
-      "subject": "Lead text composer: live merge-field preview (shows filled text for this lead)",
-      "title": "Lead text composer: live merge-field preview (shows filled text for this lead)",
-      "body": "Merge fields fill on send (server-side), but the composer showed raw {{tokens}} which\nread as 'not working'. Added POST /api/templates/render and a live 'Preview for [name]'\nunder the text box that renders {{time_of_day}}, {{address}}, etc. with the lead's actual\ndata, updating as you type/insert.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f871f47",
-      "date": "2026-08-26T10:29:36-05:00",
-      "subject": "Templates: 'Match custom fields' converts pasted foreign merge fields to Hub fields",
-      "title": "Templates: 'Match custom fields' converts pasted foreign merge fields to Hub fields",
-      "body": "Detects merge tokens in any common format ([First Name], {{firstName}}, %FIRST_NAME%,\n<<AgentName>>, Mailchimp *|FNAME|*, contact.first_name, etc.), maps them to the Hub's\ncanonical {{field}} via an alias table, and rewrites the body. Valid Hub tokens are left\nuntouched; anything it can't match is reported for manual mapping. One click in the text\ntemplate toolbar.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

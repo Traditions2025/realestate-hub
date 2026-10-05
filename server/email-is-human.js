@@ -40,7 +40,7 @@ function isRobotAddress(addr) {
 
 // The platforms that send this team's listing alerts and market reports. A message FROM
 // one of these is a system message even when the display name says "Matt Smith".
-const ROBOT_DOMAIN = /@([a-z0-9-]+\.)?(ylopo|sierrainteractive|listingsproject|kvcore|boomtown|realscout|homebot|fello|smartalto|followupboss)\./i
+const ROBOT_DOMAIN = /@([a-z0-9-]+\.)?(ylopo|sierrainteractive|listingsproject|kvcore|boomtown|realscout|homebot|fello|smartalto|followupboss|[a-z]*matrixmail|mlsmatrix|flexmls|paragonrels)\./i
 
 // The system that generated the Message-ID, read off the real messages in
 // mattsmithremax@gmail.com. This is the strongest signal available and it beats reading
@@ -54,11 +54,16 @@ const ROBOT_DOMAIN = /@([a-z0-9-]+\.)?(ylopo|sierrainteractive|listingsproject|k
 // A lead's own reply always arrives with a real mail-client Message-ID, so the reply rule
 // above catches it before any of this runs.
 const SENDING_PLATFORM = [
-  [/@gprod[a-z0-9]*|@.*matrixmail\./i, 'Matrix MLS listing alert', true],
+  [/@[a-z]prodcdra[a-z0-9]*|@.*matrixmail\./i, 'Matrix MLS listing alert', true],
   [/@(.*\.)?sierra-vm|@.*sierrainteractive/i, 'Sierra drip campaign', true],
   [/@(.*\.)?followupboss\.com/i, 'FUB template send', false],
   [/@(.*\.)?(sendgrid|mailgun|mandrillapp|amazonses|sparkpostmail)\./i, 'bulk mail service', false],
 ]
+
+// Matrix writes the same sentence into every listing alert it sends, whichever of its
+// hosts sent it (gprodcdra70b for Niki Morris, bprodcdra24d for the Coyles). The sentence
+// is the most stable signal of the three.
+const MLS_ALERT_BODY = /I.{0,3}ve found \d+ new or updated listings? for you to review/i
 
 // A mass template carries its apparatus with it: property cards, tracking links, an
 // unsubscribe footer. A typed one-to-one email does not.
@@ -103,6 +108,7 @@ export function classifyEmail({ headers, from = '', subject = '', body = '', inR
   const prec = headerGet(headers, 'precedence').trim()
   if (prec && BULK_PRECEDENCE.test(prec)) return { human: false, why: `Precedence: ${prec}` }
 
+  if (MLS_ALERT_BODY.test(String(body || ''))) return { human: false, why: 'MLS listing alert (its own wording)' }
   if (isRobotAddress(fromAddr)) return { human: false, why: `machine sender ${fromAddr}` }
   if (ROBOT_DOMAIN.test(fromAddr)) return { human: false, why: `platform sender ${fromAddr}` }
 

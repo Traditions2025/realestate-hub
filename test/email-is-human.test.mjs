@@ -147,6 +147,34 @@ test('the Message-ID is read from headers when not passed directly', () => {
   drop({ from: 'x@y.com', subject: 'Homes', body: 'x', headers: new Map([['message-id', '<a@gprodcdra70b>']]) })
 })
 
+// ── a Matrix alert is caught three independent ways ─────────────────────────────────
+// Gabe Coyle's history had 24 of these KEPT, because Matrix sent his from bprodcdra24d
+// while Niki's came from gprodcdra70b, and only the second host was in the pattern. One
+// host string was never going to be enough.
+test('the Coyle alert, sent from a different Matrix host, is dropped', () => {
+  drop({ from: 'CDR@northcentralmatrixmail.com', messageId: '<7YBYWIP50OU4.XBS5QO91ULM71@bprodcdra24d>',
+    subject: '[Coyle, Gabe and Hannah] Homes per Matt Smith Remax 319-431-5859',
+    body: 'Hi Gabe and Hannah, I’ve found 1 new or updated listing for you to review. Highlights View All Properties' })
+})
+test('the sender domain alone is enough', () => {
+  const v = drop({ from: 'CDR@northcentralmatrixmail.com', subject: 'Homes', body: 'nothing recognisable here' })
+  assert.match(v.why, /platform sender/)
+})
+test("Matrix's own wording is enough, with no id and no known sender", () => {
+  const v = drop({ from: 'someone@somewhere.com', subject: 'Homes',
+    body: 'Hi, I have found 3 new or updated listings for you to review.' })
+  assert.match(v.why, /its own wording/)
+})
+test('a real email from the lender in the same thread is kept', () => {
+  keep({ from: 'kjahlas@ohnwardbank.com', messageId: '<SA1PR20MB994@namprd20.prod.outlook.com>',
+    subject: 'Appraisal is in!', body: 'Jacob and Gabe, Your appraisal came in great - $10,000 more than your purchase price' })
+})
+test("John's closing congratulations is kept", () => {
+  keep({ from: 'johnwithmattsmithteam@gmail.com', messageId: '<CAK0jXBNDkxzt@mail.gmail.com>',
+    subject: 'Congratulations Gabe & Jacob! Next Steps for 2609 1st Ave SW',
+    body: 'Hello Gabe and Jacob, Congratulations on the purchase of your new home' })
+})
+
 // ── a thread never arrives as an answer with no question ────────────────────────────
 test('a dropped message a kept reply points at is brought back', async () => {
   const { rescueThreadParents } = await import('../server/email-is-human.js')
