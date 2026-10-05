@@ -1509,6 +1509,28 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: AI-managed leads whose STATUS says they should not be prospected any more.
+  // Enrolment only ever takes status='new', but nothing re-checks the status afterwards, so
+  // a lead enrolled while New and later moved to Closed/Pending keeps its AI.
+  app.get('/api/admin/ai-status-drift', (_req, res) => {
+    try {
+      const rows = db.all(`
+        SELECT c.id, c.first_name, c.last_name, c.status, c.type, c.agent_assigned,
+               s.ai_state, s.ai_managed,
+               (SELECT COUNT(*) FROM ai_scheduled_actions a
+                 WHERE a.client_id=c.id AND a.state='pending') AS pending_actions
+          FROM clients c JOIN ai_lead_state s ON s.client_id = c.id
+         WHERE c.merged_into IS NULL AND s.ai_managed = 1
+           AND lower(COALESCE(c.status,'')) NOT IN ('new','watch','prime','qualify','active')
+         ORDER BY pending_actions DESC, c.status`)
+      const by = {}
+      rows.forEach(r => { by[r.status] = (by[r.status] || 0) + 1 })
+      res.json({ count: rows.length, by_status: by,
+                 with_pending_sends: rows.filter(r => r.pending_actions > 0).length,
+                 leads: rows.slice(0, 40) })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')
