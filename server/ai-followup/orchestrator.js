@@ -77,6 +77,11 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   try {
     const cx = db.get('SELECT client_id FROM cx_campaign WHERE client_id=?', [cid])
     if (cx) return { ok: false, reason: 'Cancelled/Expired connection campaign — AI never replies to these leads; respond personally' }
+    // FSBO sellers are the same rule, and had NO guard at all until 2026-10-05 - which is
+    // how the AI answered Joseph Green about 7526 Cattail Ct NE. The claim above that this
+    // was "defense in depth for every other caller" only ever covered Cancelled/Expired.
+    const fsbo = db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [cid])
+    if (fsbo) return { ok: false, reason: 'FSBO follow-up campaign — AI never replies to these sellers; respond personally' }
   } catch {}
   ensureState(cid)
   if (!force) { markInbound(cid); cancelPendingScheduled(cid, 'lead replied') }   // never talk over a live reply

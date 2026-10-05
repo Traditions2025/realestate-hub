@@ -1435,6 +1435,38 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: every campaign lead the AI has actually replied to. The AI must never
+  // answer an FSBO seller or a Cancelled/Expired lead - a person does. FSBO had no guard
+  // at all until 2026-10-05, so this is how we find out who was reached.
+  app.get('/api/admin/ai-campaign-breaches', (_req, res) => {
+    try {
+      const rows = db.all(`
+        SELECT c.id, c.first_name, c.last_name, c.address, c.phone,
+               CASE WHEN f.client_id IS NOT NULL AND x.client_id IS NOT NULL THEN 'fsbo+cx'
+                    WHEN f.client_id IS NOT NULL THEN 'fsbo' ELSE 'cancelled/expired' END AS campaign,
+               COUNT(m.id) AS ai_messages,
+               MIN(m.occurred_at) AS first_ai_at,
+               MAX(m.occurred_at) AS last_ai_at
+          FROM clients c
+          LEFT JOIN fsbo_followups f ON f.client_id = c.id
+          LEFT JOIN cx_campaign    x ON x.client_id = c.id
+          JOIN communications m ON m.client_id = c.id
+           AND m.direction = 'outgoing' AND m.channel = 'text'
+           AND lower(COALESCE(m.sent_by_type,'')) = 'ai'
+         WHERE f.client_id IS NOT NULL OR x.client_id IS NOT NULL
+         GROUP BY c.id
+         ORDER BY last_ai_at DESC`)
+      // the campaign's OWN opener (fsbo_ai / cx) is expected; only sent_by_type='ai' is the AI
+      const withBodies = rows.map(r => ({
+        ...r,
+        messages: db.all(`SELECT occurred_at, body FROM communications
+                           WHERE client_id=? AND direction='outgoing' AND lower(COALESCE(sent_by_type,''))='ai'
+                           ORDER BY occurred_at`, [r.id]).map(m => ({ at: m.occurred_at, text: String(m.body || '').slice(0, 160) })),
+      }))
+      res.json({ count: withBodies.length, leads: withBodies })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/duplicate-links', async (req, res) => {
     try {
       const { duplicateLinks } = await import('./fub-status-push.js')

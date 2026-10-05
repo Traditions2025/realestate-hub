@@ -746,7 +746,14 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         let cxLead = false
         try { const cx = await import('../cx-connect.js'); const lastComm = db.get('SELECT id FROM communications WHERE external_id=?', [externalId]); cxLead = cx.handleCxInbound(client.id, body, lastComm?.id || null) } catch (e) { console.error('[cx-connect]', e.message) }
         // FSBO smart follow-up: if this lead is in the FSBO sequence, run the scripted reply.
-        try { import('../fsbo-followup.js').then(m => m.handleFsboReply(client.id, body)).catch(() => {}) } catch {}
+        //
+        // AWAITED, and its answer gates the AI below. It used to be fired and forgotten,
+        // so an FSBO seller's reply reached the AI hand-off with nothing stopping it: on
+        // 2026-10-05 Joseph Green answered "Yes, it is available." about 7526 Cattail Ct NE
+        // and the AI replied "How's it going so far with the sale?" - exactly what the
+        // campaign forbids. Same rule as Cancelled/Expired: a human always answers.
+        let fsboLead = false
+        try { const f = await import('../fsbo-followup.js'); fsboLead = await f.handleFsboReply(client.id, body) } catch (e) { console.error('[fsbo-followup]', e.message) }
         // Automation triggers: incoming text (always) + text reply (if we've texted them before)
         import('./automations.js').then(m => {
           m.emitAutomationEvent('new_message_received', client.id, { body }, 'msg_' + externalId)
@@ -754,8 +761,9 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
           if (priorOut) m.emitAutomationEvent('text_replied', client.id, { body }, 'reply_' + externalId)
         }).catch(() => {})
         // HUB AI responsive follow-up — fully gated + fail-safe; never blocks the webhook.
-        // Skipped entirely for Cancelled/Expired connection-campaign leads (cxLead).
-        if (body && !kw && !cxLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
+        // Skipped entirely for Cancelled/Expired (cxLead) AND FSBO (fsboLead) campaign
+        // leads: the AI never replies to either, a person does.
+        if (body && !kw && !cxLead && !fsboLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
       } else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }
