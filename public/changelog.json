@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T17:37:38.331Z",
+  "generated_at": "2026-10-06T17:45:11.718Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "bdafdac",
+      "date": "2026-10-06T12:37:48-05:00",
+      "subject": "Record which number the Hub sent an outgoing text from",
+      "title": "Record which number the Hub sent an outgoing text from",
+      "body": "Checking the new from/to line against the real Misener thread showed every\noutgoing message as \"? -> (319) 521-6995\". from_addr was being stored as '' on\nevery send, so half of \"what number\" was missing on our side of every thread the\nHub has ever sent.\n\nsendSms now returns the sending number and the seven 1-to-1 send sites record it.\nTwilio's own answer is used first and the configured number is only a fallback,\nbecause with a Messaging Service Twilio picks which number goes out.\n\nGroup sends go through a Conversation rather than a plain message, so they keep\nno from number; the copy-fallback beside them does, and it reads r2 - the result\nits OWN send returned. A blind replace had put r.from there, which would have\nbeen a ReferenceError or, worse, picked up some unrelated r. A test now checks\nthat each site reads the result its own send returned, looking at the statement\nrather than the line, since the insert wraps.\n\nOnly new texts carry it. Nothing invents a number for messages already sent.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "328b115",
       "date": "2026-10-06T12:35:56-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Revive openers: introduce as John with Matt Smith Team at RE/MAX",
       "title": "Revive openers: introduce as John with Matt Smith Team at RE/MAX",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "73b7ca3",
-      "date": "2026-08-26T13:22:10-05:00",
-      "subject": "AI: rotating 20-opener revive bank for old buyer leads with no recent activity",
-      "title": "AI: rotating 20-opener revive bank for old buyer leads with no recent activity",
-      "body": "- Add REVIVE_OPENERS (20 approved re-engagement texts) + REVIVE_OPENER_BLOCK that\n  enforces the format: Hi/Hello or Good morning/afternoon (never Hey/evening), John intro,\n  and MattSmithTeam.com at the end.\n- Rotate through all 20 via a persistent counter (nextReviveOpener) so every send uses a\n  different one; wired into the re-engagement path (handleNurture reengage) for buyers.\n- Sandbox: new 'Revive an old buyer lead' test that cycles the bank and shows which of 20.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

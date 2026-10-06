@@ -30,19 +30,24 @@ export function knownNumbers(client) {
 }
 
 export default function Endpoints({ m, client, align = 'left' }) {
-  const from = fmtEndpoint(m?.from_addr), to = fmtEndpoint(m?.to_addr)
-  if (!from && !to) return null
-  const out = m.direction === 'outgoing'
-  // the lead's side of the conversation — the one worth checking against the file
-  const theirs = last10(out ? m.to_addr : m.from_addr)
+  // John, 2026-10-06: "no need the to: just need from so I know which is it coming from
+  // specially on if there's 2 numbers on a lead".
+  //
+  // So: the sender, and only on messages coming IN. On one going out the sender is our
+  // own line, the same number on every bubble, which is noise rather than information -
+  // and on anything sent before the Hub started recording it, it is not even known.
+  if (m?.direction === 'outgoing') return null
+  const from = fmtEndpoint(m?.from_addr)
+  if (!from) return null
+  const d = last10(m.from_addr)
   const known = knownNumbers(client)
   // With nothing on file to compare against, say nothing. Flagging every message as
   // "not on file" because the caller passed no client would be worse than silence.
-  const unknown = known.size > 0 && theirs.length === 10 && !known.has(theirs)
+  const unknown = known.size > 0 && d.length === 10 && !known.has(d)
   return (
-    <div style={{ fontSize: 13.5, color: 'var(--text-muted)', textAlign: align,
+    <div style={{ fontSize: 13.5, color: 'var(--text-muted)', textAlign: align, margin: '0 4px 3px',
       fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-word' }}>
-      {from || '?'} → {to || '?'}
+      from {from}
       {unknown && (
         <span style={{ color: '#b45309', fontWeight: 600 }}
           title="This number is not saved on this lead — it may be someone else using it">

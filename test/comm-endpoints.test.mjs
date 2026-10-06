@@ -79,13 +79,21 @@ test('the "not on file" flag is held back when nothing is on file', () => {
   const i = comp.indexOf('const unknown =')
   const line = comp.slice(i, comp.indexOf('\n', i))
   assert.match(line, /known\.size > 0/, 'an empty set must not mean "unknown"')
-  assert.match(line, /theirs\.length === 10/, 'a partial number must not be flagged')
+  assert.match(line, /d\.length === 10/, 'a partial number must not be flagged')
 })
 
-test('the flag checks the LEAD\'s side, not ours', () => {
-  // on an outgoing message the lead is the `to`; on an incoming one they are the `from`
-  const i = comp.indexOf('const theirs =')
-  assert.match(comp.slice(i, comp.indexOf('\n', i)), /out \? m\.to_addr : m\.from_addr/)
+test('only the sender is shown, and only on messages coming in', () => {
+  // John, 2026-10-06: "no need the to: just need from". On an outgoing message the
+  // sender is our own line — the same number on every bubble, and unknown on anything
+  // sent before the Hub started recording it.
+  assert.match(comp, /if \(m\?\.direction === 'outgoing'\) return null/)
+  assert.ok(!comp.includes('→'), 'the "from -> to" arrow is gone')
+  assert.ok(!comp.includes('m.to_addr'), 'the destination is not read at all any more')
+})
+
+test('a message with no sender renders nothing rather than a question mark', () => {
+  assert.match(comp, /if \(!from\) return null/)
+  assert.ok(!/\{from \|\| '\?'\}/.test(comp), 'no "?" placeholder')
 })
 
 // ── wired into every place a message is rendered ─────────────────────────────────────
