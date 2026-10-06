@@ -5,8 +5,48 @@ import * as fsSync from 'fs'
 import db from '../database.js'
 import { requirePermission } from './auth.js'
 import { listFailures, failureCounts, resolveFailure, resolveAll } from '../failures.js'
+import { splitNotes } from '../client-notes.js'
 
 const router = Router()
+
+// ── Profile notes: how many predate the rule that every note carries a date ──────────
+// Read-only. A note written before 2026-10-05 may have no stamp, and there is no honest
+// way to recover a date after the fact, so this counts them and shows a sample rather
+// than quietly filling them in with today (John, 2026-10-05).
+router.get('/notes-audit', requirePermission('settings.view'), (req, res) => {
+  const rows = db.all("SELECT id, first_name, last_name, notes, created_at FROM clients WHERE notes IS NOT NULL AND trim(notes) <> ''")
+  let dated = 0, undated = 0, clientsWithUndated = 0
+  const byStampShape = {}
+  const sample = []
+  for (const c of rows) {
+    const items = splitNotes(c.notes)
+    let mine = 0
+    for (const n of items) {
+      if (n.stamp) {
+        dated++
+        // which of the four historical formats wrote it
+        const shape = /^\d{4}-\d{2}-\d{2}/.test(n.stamp) ? 'lead intake (2026-10-05)'
+          : /^\d{1,2}\/\d{1,2}\/\d{4}/.test(n.stamp) ? 'master file (10/5/2026)'
+          : /automation/i.test(n.stamp) ? 'automation'
+          : /\d:\d{2}/.test(n.stamp) ? 'profile (Oct 5, 2026, 3:04 PM)'
+          : 'other'
+        byStampShape[shape] = (byStampShape[shape] || 0) + 1
+      } else {
+        undated++; mine++
+        if (sample.length < 25) sample.push({
+          client_id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+          created_at: c.created_at, line: n.index, text: n.text.slice(0, 160),
+        })
+      }
+    }
+    if (mine) clientsWithUndated++
+  }
+  res.json({
+    clients_with_notes: rows.length, total_notes: dated + undated,
+    dated, undated, clients_with_undated: clientsWithUndated,
+    by_stamp_shape: byStampShape, sample,
+  })
+})
 
 // P2-6: one-glance system health — every integration, the sync queue, and recent errors.
 router.get('/integrations', requirePermission('settings.view'), (_req, res) => {

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import db from '../database.js'
+import { prependNote } from '../client-notes.js'
 import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
 import { sendViaSendGrid, buildPropertyCardsLive, logSentToInbox, emailHardBlock } from './email.js'
@@ -192,9 +193,9 @@ async function runAction(node, client, ctx) {
       return `removed ${cfg.tag}`
     }
     case 'add_note': {
-      const stamp = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-      const note = `[${stamp} · automation] ${fillMerge(cfg.text, client)}`
-      db.run('UPDATE clients SET notes = ? WHERE id = ?', [client.notes ? `${note}\n${client.notes}` : note, client.id])
+      // Same stamp as every other writer, and it still says an automation wrote it.
+      const notes = prependNote(client.notes, fillMerge(cfg.text, client), { by: 'automation' })
+      db.run('UPDATE clients SET notes = ? WHERE id = ?', [notes, client.id])
       return 'note added'
     }
     case 'change_status': case 'change_stage': {

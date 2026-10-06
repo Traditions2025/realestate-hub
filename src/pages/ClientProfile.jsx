@@ -286,10 +286,12 @@ export default function ClientProfile() {
     if (!noteText.trim() || !client) return
     setSavingNote(true)
     try {
-      const stamp = new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
-      const combined = client.notes ? `[${stamp}] ${noteText.trim()}\n${client.notes}` : `[${stamp}] ${noteText.trim()}`
-      await authFetch('/api/clients/' + cid, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ notes: combined }) })
-      setClient(c => ({ ...c, notes: combined })); setNoteText(''); setNoteOpen(false)
+      // The server stamps it, in Central, and records who added it. Stamping here meant
+      // the date came from the browser's clock and no other writer matched the format.
+      const r = await authFetch(`/api/clients/${cid}/notes`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: noteText.trim() }) })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || 'could not save')
+      setClient(c => ({ ...c, notes: d.notes })); setNoteText(''); setNoteOpen(false)
     } catch (e) { notify('Failed to save note: ' + e.message) } finally { setSavingNote(false) }
   }
   const refreshSierra = async () => {
@@ -388,7 +390,7 @@ export default function ClientProfile() {
           const renderers = {
             details: () => <ClientDetails client={client} onSaved={load} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
-            comms: () => <Communications client={client} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
+            comms: () => <Communications client={client} onNotesChanged={notes => setClient(c => ({ ...c, notes }))} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             // Four boxes became one (John, 2026-10-01): Property Activity, Listing
             // Interest, Website Activity and Follow Up Boss Activity were all answering
             // "what has this person been doing", each in its own card.
@@ -877,8 +879,84 @@ function BuyerSellerProfile({ client, ai }) {
   )
 }
 
+// ── Profile notes ────────────────────────────────────────────────────────
+// clients.notes is one text field, newest first, one note per line, each line stamped
+// "[Oct 5, 2026, 3:04 PM] text". Four different code paths write into it, so the stamp
+// format varies; anything in leading brackets counts as the date (John, 2026-10-05).
+const NOTE_STAMP = /^\[([^\]\n]{1,80})\]\s*/
+
+// Keeps each note's index in the RAW field so an edit targets the right line no matter
+// how the list is filtered, searched or paged.
+function parseNotes(notes) {
+  const lines = String(notes || '').split('\n')
+  const out = []
+  for (let i = 0; i < lines.length; i++) {
+    const raw = lines[i]
+    if (!raw.trim()) continue
+    const m = raw.match(NOTE_STAMP)
+    out.push({ index: i, raw, stamp: m ? m[1] : '', text: m ? raw.slice(m[0].length) : raw })
+  }
+  return out
+}
+
+function NoteRow({ note, clientId, onChanged }) {
+  const [editing, setEditing] = useState(false)
+  const [text, setText] = useState(note.text)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  useEffect(() => { setText(note.text) }, [note.raw])
+
+  // `expect` is the line we believed we were editing. If anything else changed the
+  // notes since this page loaded, the server refuses rather than overwriting it.
+  const send = async (method, body) => {
+    setBusy(true); setErr('')
+    try {
+      const r = await authFetch(`/api/clients/${clientId}/notes/${note.index}`, {
+        method, headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...body, expect: note.raw }),
+      })
+      const d = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(d.error || 'could not save')
+      onChanged?.(d.notes)
+      setEditing(false)
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  const box = { fontSize: 15.5, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }
+  if (editing) {
+    return (
+      <div style={box}>
+        <textarea value={text} autoFocus rows={3} onChange={e => setText(e.target.value)}
+          style={{ width: '100%', padding: '6px 8px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, resize: 'vertical' }} />
+        {err && <div style={{ color: 'var(--danger, #dc2626)', fontSize: 14.5, marginTop: 4 }}>{err}</div>}
+        <div style={{ display: 'flex', gap: 6, marginTop: 6, alignItems: 'center' }}>
+          <button className="btn btn-primary btn-sm" disabled={busy || !text.trim() || text.trim() === note.text}
+            onClick={() => send('PUT', { text })}>{busy ? 'Saving…' : 'Save'}</button>
+          <button className="btn btn-sm" disabled={busy} onClick={() => { setText(note.text); setErr(''); setEditing(false) }}>Cancel</button>
+          <button className="btn btn-sm" style={{ marginLeft: 'auto', color: 'var(--danger, #dc2626)' }} disabled={busy}
+            onClick={() => { if (window.confirm('Delete this note? The text is kept in the activity log.')) send('DELETE', {}) }}>Delete</button>
+        </div>
+      </div>
+    )
+  }
+  return (
+    <div style={box}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+        {/* A note with no stamp predates the rule that every note carries one. Saying so
+            is honest; inventing a date would not be. */}
+        <div style={{ fontSize: 14.5, color: 'var(--text-muted)', fontStyle: note.stamp ? 'normal' : 'italic' }}>
+          {note.stamp || 'date not recorded'}
+        </div>
+        <button className="btn btn-sm" style={{ marginLeft: 'auto', padding: '1px 8px', fontSize: 14 }}
+          onClick={() => setEditing(true)} title="Edit this note">Edit</button>
+      </div>
+      <div style={{ whiteSpace: 'pre-wrap' }}>{note.text}</div>
+    </div>
+  )
+}
+
 // ── Communications (major inline section) ────────────────────────────────
-function Communications({ client, onOpenText, onAddNote }) {
+function Communications({ client, onOpenText, onAddNote, onNotesChanged }) {
   const cid = client.id
   const [rows, setRows] = useState(null)
   const [filter, setFilter] = useState('all')
@@ -898,7 +976,10 @@ function Communications({ client, onOpenText, onAddNote }) {
   }, [client.sierra_lead_id])
   useEffect(() => { const h = () => load(); window.addEventListener('cp-comms-changed', h); return () => window.removeEventListener('cp-comms-changed', h) }, [load])
   // Notes live here now: the standalone Notes box merged into this tab strip.
-  const noteLines = client.notes ? String(client.notes).split('\n').filter(Boolean) : []
+  // Each note keeps the index of its line in the RAW field. Editing note 3 of a search
+  // result must rewrite note 3 of the file, not the third line of what is on screen,
+  // so the index travels with the note and never comes from the rendered position.
+  const noteLines = parseNotes(client.notes)
   // Counts on every tab (John, 2026-10-01): how much history a lead has is the first thing
   // worth knowing, and only Notes carried a number before.
   const n = (ch) => (rows || []).filter(m => m.channel === ch).length
@@ -919,7 +1000,7 @@ function Communications({ client, onOpenText, onAddNote }) {
   if (q.trim()) { const t = q.toLowerCase(); items = items.filter(m => `${m.body || ''} ${m.preview || ''} ${m.subject || ''}`.toLowerCase().includes(t)) }
   const shown = items.slice(0, limit)
   let notes = noteLines
-  if (q.trim()) { const t = q.toLowerCase(); notes = notes.filter(ln => ln.toLowerCase().includes(t)) }
+  if (q.trim()) { const t = q.toLowerCase(); notes = notes.filter(n2 => n2.raw.toLowerCase().includes(t)) }
   const shownNotes = notes.slice(0, limit)
   return (
     <Section title="Communications" id="comms"
@@ -950,10 +1031,9 @@ function Communications({ client, onOpenText, onAddNote }) {
             </div>
           )}
           {!notes.length && !shown.length && !sierraNotes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No notes yet.</div>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map((ln, i) => {
-              const m = ln.match(/^\[([^\]]+)\]\s*(.*)$/)
-              return <div key={i} style={{ fontSize: 15.5, borderLeft: '3px solid #f59e0b', background: 'rgba(245,158,11,0.05)', padding: '5px 8px', borderRadius: '0 6px 6px 0' }}>{m && <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{m[1]}</div>}<div style={{ whiteSpace: 'pre-wrap' }}>{m ? m[2] : ln}</div></div>
-            })}</div>}
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map(nt => (
+              <NoteRow key={nt.index} note={nt} clientId={cid} onChanged={onNotesChanged} />
+            ))}</div>}
           {notes.length > shownNotes.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({notes.length - shownNotes.length})</button>}
         </>
       ) : (

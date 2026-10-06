@@ -3,6 +3,7 @@
 // removed from the file) is recorded in master_file_updates (dashboard feed) AND
 // written as a dated note on the lead profile so the WHY is visible right there.
 import db from './database.js'
+import { prependNote } from './client-notes.js'
 
 export function logMasterUpdate(clientId, list, change, detail, extra = {}) {
   try {
@@ -10,11 +11,10 @@ export function logMasterUpdate(clientId, list, change, detail, extra = {}) {
     const name = c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : `#${clientId}`
     db.run('INSERT INTO master_file_updates (client_id, client_name, list, change, detail, label, address, dom, url, sub, created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       [Number(clientId), name, list, change, detail, extra.label || null, extra.address || null, extra.dom != null ? String(extra.dom) : null, extra.url || null, extra.sub || null, new Date().toISOString()])
-    // Profile note, newest first, in the "[M/D/YYYY] text" format NotesSection renders.
-    const stamp = new Date().toLocaleDateString('en-US', { timeZone: 'America/Chicago' })
-    const line = `[${stamp}] ${detail}`
+    // Profile note, newest first. The stamp format lives in client-notes.js so every
+    // writer produces the same thing (John, 2026-10-05).
     if (c && !String(c.notes || '').includes(detail)) {
-      db.run('UPDATE clients SET notes=? WHERE id=?', [c.notes ? `${line}\n${c.notes}` : line, Number(clientId)])
+      db.run('UPDATE clients SET notes=? WHERE id=?', [prependNote(c.notes, detail, { by: 'master file' }), Number(clientId)])
     }
   } catch (e) { console.error('[master-file-log]', e.message) }
 }

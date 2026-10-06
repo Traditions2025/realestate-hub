@@ -4,6 +4,7 @@
 // answer, notify the team, claim any unknown call/text history, and hand the
 // lead to the AI fresh lane for the ~5-minute first text.
 import db from './database.js'
+import { prependNote as prependClientNote } from './client-notes.js'
 
 const nowIso = () => new Date().toISOString()
 function logActivity(action, entityType, entityId, details) {
@@ -85,11 +86,16 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
     cid = existing.id
     let tags = []; try { tags = JSON.parse(existing.tags || '[]') } catch {}
     if (!tags.includes(tag)) tags.push(tag)
+    // This used to APPEND, so an intake note landed at the bottom of a profile while
+    // every other writer prepends — a brand new lead's note read as the oldest thing on
+    // the file. Same helper as the rest now, newest first (John, 2026-10-05).
+    const priorNotes = db.get('SELECT notes FROM clients WHERE id=?', [cid])?.notes || ''
     db.run(`UPDATE clients SET tags=?, email=COALESCE(email, ?), phone=COALESCE(NULLIF(phone,''), ?),
             agent_assigned=COALESCE(NULLIF(agent_assigned,''), 'Matt Smith'),
             register_date=COALESCE(NULLIF(register_date,''), ?),
-            notes=COALESCE(notes,'') || ?, updated_at=? WHERE id=?`,
-      [JSON.stringify(tags), cleanEmail, phoneFmt, now.slice(0, 10), `\n[${now.slice(0, 10)}] ${noteLine}`, now, cid])
+            notes=?, updated_at=? WHERE id=?`,
+      [JSON.stringify(tags), cleanEmail, phoneFmt, now.slice(0, 10),
+       prependClientNote(priorNotes, noteLine, { by: portalName || 'intake' }), now, cid])
     logActivity('updated', 'client', cid, noteLine + ' (matched existing lead)')
   } else {
     const r = db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status, source, agent_assigned, register_date, tags, notes, created_at, updated_at)

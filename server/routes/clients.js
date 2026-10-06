@@ -6,6 +6,7 @@ import { gradeFromRealistScore } from '../sierra-helper.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { phoneSearchClauses } from '../phone-search.js'
 import { ensureState } from '../ai-followup/state.js'
+import { ensureStamped, prependNote, replaceNote, removeNote, splitNotes } from '../client-notes.js'
 
 const router = Router()
 
@@ -1530,6 +1531,10 @@ router.put('/:id', async (req, res) => {
       for (const k of ['city', 'state', 'zip']) if (parsed[k] && !(k in fields)) fields[k] = parsed[k]
     }
   }
+  // Every note carries a date, whoever wrote it. The UI stamps what it adds, but it is
+  // not the only writer, and a note that arrives undated here would be undated forever -
+  // there is no way to recover a date after the fact (John, 2026-10-05).
+  if (typeof fields.notes === 'string') fields.notes = ensureStamped(fields.notes)
   // State typed directly always stores ALL CAPS (ia/Ia -> IA).
   if (typeof fields.state === 'string' && /^[A-Za-z]{2}$/.test(fields.state.trim())) fields.state = fields.state.trim().toUpperCase()
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
@@ -1622,6 +1627,68 @@ router.put('/:id', async (req, res) => {
     import('../followup-coverage.js').then(m => m.recalcCoverage(Number(req.params.id), { actorType: 'client_update' })).catch(() => {})
   }
   res.json({ success: true, ...(nimSummary ? { not_in_market: nimSummary } : {}) })
+})
+
+// ── Profile notes ────────────────────────────────────────────────────────────────────
+// clients.notes is one text field, newest first, one note per line. These routes are the
+// only ones that should edit a note in place: the index is the line's position in the RAW
+// field, and `expect` is the line the caller believed it was editing. Without that check,
+// editing note 3 of a filtered list would rewrite note 3 of the file, and two people
+// editing at once would silently clobber each other (John, 2026-10-05).
+
+const noteGuard = (req, res) => {
+  const c = db.get('SELECT id, notes FROM clients WHERE id = ?', [Number(req.params.id)])
+  if (!c) { res.status(404).json({ error: 'client not found' }); return null }
+  return c
+}
+
+router.get('/:id/notes', (req, res) => {
+  const c = noteGuard(req, res); if (!c) return
+  res.json(splitNotes(c.notes))
+})
+
+router.post('/:id/notes', (req, res) => {
+  const c = noteGuard(req, res); if (!c) return
+  const text = String(req.body?.text || '').trim()
+  if (!text) return res.status(400).json({ error: 'a note needs text' })
+  const notes = prependNote(c.notes, text, { by: req.user?.name || req.user?.email || '' })
+  db.run('UPDATE clients SET notes = ?, updated_at = ? WHERE id = ?', [notes, new Date().toISOString(), c.id])
+  logActivity('updated', 'client', c.id, 'Note added')
+  res.json({ success: true, notes, items: splitNotes(notes) })
+})
+
+router.put('/:id/notes/:index', (req, res) => {
+  const c = noteGuard(req, res); if (!c) return
+  const i = Number(req.params.index)
+  const lines = String(c.notes || '').split(String.fromCharCode(10))
+  if (!Number.isInteger(i) || i < 0 || i >= lines.length) return res.status(404).json({ error: 'note not found' })
+  // the caller must have been looking at the line it is replacing
+  if (typeof req.body?.expect === 'string' && req.body.expect !== lines[i]) {
+    return res.status(409).json({ error: 'this note changed since you opened it — reload and try again', current: lines[i] })
+  }
+  try {
+    const notes = replaceNote(c.notes, i, req.body?.text, { by: req.user?.name || req.user?.email || '' })
+    db.run('UPDATE clients SET notes = ?, updated_at = ? WHERE id = ?', [notes, new Date().toISOString(), c.id])
+    logActivity('updated', 'client', c.id, 'Note edited')
+    res.json({ success: true, notes, items: splitNotes(notes) })
+  } catch (e) { res.status(400).json({ error: e.message }) }
+})
+
+router.delete('/:id/notes/:index', (req, res) => {
+  const c = noteGuard(req, res); if (!c) return
+  const i = Number(req.params.index)
+  const lines = String(c.notes || '').split(String.fromCharCode(10))
+  if (!Number.isInteger(i) || i < 0 || i >= lines.length) return res.status(404).json({ error: 'note not found' })
+  if (typeof req.body?.expect === 'string' && req.body.expect !== lines[i]) {
+    return res.status(409).json({ error: 'this note changed since you opened it — reload and try again', current: lines[i] })
+  }
+  try {
+    const notes = removeNote(c.notes, i)
+    db.run('UPDATE clients SET notes = ?, updated_at = ? WHERE id = ?', [notes, new Date().toISOString(), c.id])
+    // the text goes into the activity log, so a deleted note is still recoverable
+    logActivity('updated', 'client', c.id, 'Note deleted: ' + lines[i].slice(0, 300))
+    res.json({ success: true, notes, items: splitNotes(notes) })
+  } catch (e) { res.status(400).json({ error: e.message }) }
 })
 
 // Active plans (drips + automations) currently running for this lead — powers
