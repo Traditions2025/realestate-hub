@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T14:37:23.836Z",
+  "generated_at": "2026-10-06T14:40:30.538Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "82f91e4",
+      "date": "2026-10-06T09:37:34-05:00",
+      "subject": "A pasted block is one note, not one note plus orphans",
+      "title": "A pasted block is one note, not one note plus orphans",
+      "body": "The audit on the live data said 312 notes across 151 leads, 85 of them undated\nacross 28 leads. The sample showed what they actually are:\n\n  [10/5/2026] 8/17/2026  Price change\n  $339,999\n  -2.9%\n  $106/sqft\n  Source: Owner\n\nOne pasted Zillow price history. The old save stamped the first line and left the\nrest adrift, so the tail counted as separate undated notes. Stamping those 85\nfragments would have put today's date on five-year-old price history and turned\none note into five.\n\nAn unstamped line after a note is now the rest of that note. They inherit the real\ndate of the note they belong to, and the undated count drops to whatever genuinely\nstarts undated - no invented dates, nothing to backfill.\n\nensureStamped only stamps a note that STARTS undated, never a continuation.\nreplaceNote and removeNote act on the note's whole span, so editing a pasted block\nreplaces all of it instead of orphaning its tail below the new text. The routes\nresolve a note through splitNotes and compare `expect` against the whole note;\ncomparing a single line would let an edit through whenever only the tail changed.\n\nThe profile parses identically. If the two disagreed, an edit would target a\ndifferent line than the one on screen - which is the whole reason the index comes\nfrom the parse and not from the rendered position. A test pins them together,\nincluding that the stamp is checked before the blank-line skip. 37 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "644896c",
       "date": "2026-10-06T09:33:12-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Bulk text: multi-part sends (ordered texts per recipient) + FSBO Step 2 one-click",
       "title": "Bulk text: multi-part sends (ordered texts per recipient) + FSBO Step 2 one-click",
       "body": "- /api/inbox/bulk-text accepts an ordered bodies[] and sends each part to every\n  recipient in sequence (~5s apart), so a 3-part FSBO step can be bulk-applied in one action.\n- BulkTextModal: add/remove message parts, active-part merge/template insertion,\n  and a 'FSBO Step 2 (3 texts)' button that loads 2a/2b/2c from saved templates.\n- Added the 8 FSBO sequence steps as saved text templates (category FSBO Sequence).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3cfc3d5",
-      "date": "2026-08-26T11:49:01-05:00",
-      "subject": "FSBO Step 2: break the +1-week message into 3 sequential texts (no wall of text)",
-      "title": "FSBO Step 2: break the +1-week message into 3 sequential texts (no wall of text)",
-      "body": "Sends the credibility/curiosity message as 3 shorter texts ~8s apart, same day:\nintro+2000 homes+first-14-days, then price/marketing framing, then the CMA offer.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

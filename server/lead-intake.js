@@ -100,7 +100,10 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
   } else {
     const r = db.run(`INSERT INTO clients (first_name, last_name, email, phone, type, status, source, agent_assigned, register_date, tags, notes, created_at, updated_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [first || 'Unknown', last || '', cleanEmail, phoneFmt, isSellerCampaign ? 'seller' : 'buyer', 'new', source, 'Matt Smith', now.slice(0, 10), JSON.stringify([tag]), noteLine, now, now])
+      [first || 'Unknown', last || '', cleanEmail, phoneFmt, isSellerCampaign ? 'seller' : 'buyer', 'new', source, 'Matt Smith', now.slice(0, 10), JSON.stringify([tag]),
+       // A new lead's intake note was going in unstamped: 23 of the 23 remaining undated
+       // notes in the Hub came from this one line (John, 2026-10-05).
+       prependClientNote('', noteLine, { by: portalName || 'intake' }), now, now])
     cid = r.lastInsertRowid
     logActivity('created', 'client', cid, noteLine)
   }

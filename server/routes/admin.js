@@ -5,7 +5,7 @@ import * as fsSync from 'fs'
 import db from '../database.js'
 import { requirePermission } from './auth.js'
 import { listFailures, failureCounts, resolveFailure, resolveAll } from '../failures.js'
-import { splitNotes } from '../client-notes.js'
+import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
@@ -46,6 +46,40 @@ router.get('/notes-audit', requirePermission('settings.view'), (req, res) => {
     dated, undated, clients_with_undated: clientsWithUndated,
     by_stamp_shape: byStampShape, sample,
   })
+})
+
+// Give the remaining undated notes a date we actually know.
+//
+// After continuation lines were folded into their notes, 23 undated notes were left and
+// nearly all came from one line: lead-intake's INSERT wrote a brand new lead's intake note
+// without a stamp. For those the date is not a guess - the note WAS the lead's creation,
+// so created_at is exactly when it was written.
+//
+// A note that is not intake-shaped was typed later by a person, and created_at is only a
+// lower bound, so it is labelled as such rather than dated precisely. Dry by default.
+const INTAKE_NOTE = /^(facebook (listing|seller) ad lead|[a-z.]+ inquiry|answered form|zillow|realtor|homes\.com)/i
+
+router.post('/notes-backfill', requirePermission('settings.edit'), (req, res) => {
+  const dry = req.body?.dry !== false
+  const rows = db.all("SELECT id, first_name, last_name, notes, created_at FROM clients WHERE notes IS NOT NULL AND trim(notes) <> ''")
+  const changes = []
+  for (const c of rows) {
+    const items = splitNotes(c.notes)
+    const undated = items.filter(n => !n.stamp)
+    if (!undated.length) continue
+    const lines = String(c.notes).split('\n')
+    for (const n of undated) {
+      const exact = INTAKE_NOTE.test(n.text.trim())
+      const stamp = exact ? stampFor(c.created_at) : `added some time after ${stampFor(c.created_at)}`
+      lines[n.index] = `[${stamp}] ${lines[n.index]}`
+      changes.push({ client_id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
+        exact, stamp, text: n.text.split('\n')[0].slice(0, 90) })
+    }
+    if (!dry) db.run('UPDATE clients SET notes = ? WHERE id = ?', [lines.join('\n'), c.id])
+  }
+  res.json({ dry, would_stamp: changes.length,
+    exact: changes.filter(c => c.exact).length,
+    approximate: changes.filter(c => !c.exact).length, changes })
 })
 
 // P2-6: one-glance system health — every integration, the sync queue, and recent errors.

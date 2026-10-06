@@ -1564,6 +1564,26 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only: everything about why the AI acted on ONE lead. Added chasing Megan Walt
+  // (hand-added 2026-10-06 14:20, AI texted her 14:27) - the auto-enrolment log said
+  // "excluded", so something else switched the AI on and the existing endpoints did not say
+  // what.
+  app.get('/api/admin/ai-why/:id', (req, res) => {
+    const cid = Number(req.params.id)
+    try {
+      const safe = (fn, d = null) => { try { return fn() } catch { return d } }
+      res.json({
+        client: db.get('SELECT id, first_name, last_name, status, type, source, created_at, updated_at FROM clients WHERE id=?', [cid]),
+        state: db.get('SELECT * FROM ai_lead_state WHERE client_id=?', [cid]),
+        scheduled: safe(() => db.all('SELECT id, action_type, state, scheduled_for, created_at, reason, error FROM ai_scheduled_actions WHERE client_id=? ORDER BY id', [cid]), []),
+        actions: safe(() => db.all('SELECT * FROM ai_actions WHERE client_id=? ORDER BY id DESC LIMIT 20', [cid]), []),
+        enrollment_decisions: safe(() => db.all('SELECT * FROM ai_enrollment_log WHERE client_id=? ORDER BY id DESC LIMIT 10', [cid]), []),
+        ai_texts: safe(() => db.all("SELECT occurred_at, sent_by_type, agent, body FROM communications WHERE client_id=? AND direction='outgoing' ORDER BY occurred_at", [cid]), []),
+        activity: safe(() => db.all("SELECT created_at, action, details FROM activity_log WHERE entity_type='client' AND entity_id=? ORDER BY id", [cid]), []),
+      })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/admin/fsbo-queue', (_req, res) => {
     try {
       const rows = db.all(`SELECT f.client_id, f.status, f.step, f.next_send_at, f.replied,
