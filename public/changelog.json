@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T14:42:46.402Z",
+  "generated_at": "2026-10-06T14:45:38.435Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "1500c6f",
+      "date": "2026-10-06T09:42:47-05:00",
+      "subject": "Do not claim an exact date for a note that is not an intake line",
+      "title": "Do not claim an exact date for a note that is not an intake line",
+      "body": "The backfill dry run classified Lucas Pietan's note, whose whole text is\n\"Realtor\", as an intake note and would have stamped it with the lead's created_at\nas if that were definitely when it was written. The pattern matched a bare portal\nname. It now matches only the shapes lead-intake and the form handlers actually\nwrite, so somebody's own one-word note is labelled \"added some time after\" like\nany other note whose date nobody recorded.\n\nDry run before: 19 exact / 4 approximate. After: 18 / 5.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a46b071",
       "date": "2026-10-06T09:40:36-05:00",
@@ -3993,14 +4001,6 @@
       "title": "FSBO audit endpoint: find duplicate/orphan fsbo_status records vs master",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "e21bd52",
-      "date": "2026-08-26T12:23:49-05:00",
-      "subject": "Fix call logging + clean email previews on lead profile",
-      "title": "call logging + clean email previews on lead profile",
-      "body": "Calls:\n- upsertCall/missedCallTextBack matched phones with a last-7 LIKE, which misses\n  formatted numbers like (319) 929-9923 (the dash splits the digits) — so every call\n  logged with client_id NULL and never showed on the profile. Match on last-4 + exact last-10.\n- Callee-leg outcome (no-answer/busy/failed/completed) is now reconciled onto the\n  timeline row via /api/voice/child-status, so unconnected calls are logged clearly\n  instead of stuck on 'initiated'.\n- Add POST /api/voice/backfill-call-clients to relink past orphaned call rows.\n\nEmail:\n- Communication History rendered raw email HTML. Add commToText() to strip tags,\n  tracking pixels, style/script and decode entities; show a clean subject + body.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

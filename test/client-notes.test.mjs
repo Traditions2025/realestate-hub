@@ -161,6 +161,35 @@ test('editing twice does not stack "(edited)" forever', () => {
   assert.match(out, /v3$/)
 })
 
+test('an edited note still reads as dated', () => {
+  // the live round-trip caught this: the stamp cap was 80 and
+  // "[Oct 6, 2026, 9:44 AM · Hub Automation (edited Oct 6, 2026, 9:44 AM by Hub Automation)]"
+  // is 86, so the edited note lost its date and would have been stamped AGAIN on the
+  // next save, burying the real one inside the body
+  const first = formatNote('round-trip check', { by: 'Hub Automation' })
+  const edited = replaceNote(first, 0, 'round-trip check, edited', { by: 'Hub Automation' })
+  const [n] = splitNotes(edited)
+  assert.ok(n.stamp, 'the edited note must still have a stamp')
+  assert.match(n.stamp, /^Oct|^[A-Z][a-z]{2} /, 'and it must start with the original date')
+  assert.equal(n.text, 'round-trip check, edited')
+  assert.equal(undatedCount(edited), 0)
+  assert.equal(ensureStamped(edited), edited, 'and it must not be stamped a second time')
+})
+
+test('the editor is not named twice when they wrote it', () => {
+  const first = formatNote('x', { by: 'John' })
+  const edited = replaceNote(first, 0, 'y', { by: 'John' })
+  assert.equal((edited.match(/John/g) || []).length, 1)
+  assert.match(edited, /\(edited /)
+})
+
+test('a different editor IS named', () => {
+  const first = formatNote('x', { by: 'Matt' })
+  const edited = replaceNote(first, 0, 'y', { by: 'John' })
+  assert.match(edited, /by John\)/)
+  assert.match(edited, /· Matt/)
+})
+
 test('an edit records who made it', () => {
   const out = replaceNote('[Mar 2, 2024] x', 0, 'y', { by: 'John' })
   assert.match(out, /by John\)/)

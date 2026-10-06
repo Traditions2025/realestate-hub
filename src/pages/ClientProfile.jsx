@@ -883,7 +883,9 @@ function BuyerSellerProfile({ client, ai }) {
 // clients.notes is one text field, newest first, one note per line, each line stamped
 // "[Oct 5, 2026, 3:04 PM] text". Four different code paths write into it, so the stamp
 // format varies; anything in leading brackets counts as the date (John, 2026-10-05).
-const NOTE_STAMP = /^\[([^\]\n]{1,80})\]\s*/
+// Same cap as server/client-notes.js. At 80 an edited stamp carrying both names
+// overshot and the note lost its date on screen.
+const NOTE_STAMP = /^\[([^\]\n]{1,200})\]\s*/
 
 // Keeps each note's index in the RAW field so an edit targets the right line no matter
 // how the list is filtered, searched or paged.

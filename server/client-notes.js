@@ -23,7 +23,12 @@ const TZ = 'America/Chicago'
 
 // Any of the four historical stamps, so an old note is still read correctly.
 // Deliberately broad: anything in leading brackets counts as this line's stamp.
-export const STAMP = /^\[([^\]\n]{1,80})\]\s*/
+// The cap stops a "[something]" inside a note's body being read as its date. It was 80,
+// which an EDITED stamp overshoots once both names are in it -
+// "[Oct 6, 2026, 9:44 AM · Hub Automation (edited Oct 6, 2026, 9:44 AM by Hub Automation)]"
+// is 86 - so an edited note lost its date and would have been stamped again on the next
+// save. 200 is past any real stamp and still far short of a sentence.
+export const STAMP = /^\[([^\]\n]{1,200})\]\s*/
 
 /** "Oct 5, 2026, 3:04 PM" in Central, whatever zone the server runs in. */
 export function stampFor(when = new Date()) {
@@ -123,7 +128,11 @@ export function replaceNote(notes, index, newText, { when = new Date(), by = '' 
   // recorded beside it. A note edited twice says so once, with the latest date.
   const original = m ? m[1].replace(/\s*\(edited[^)]*\)\s*$/, '') : stampFor(when)
   const who = String(by || '').trim()
-  lines.splice(i, end - i + 1, `[${original} (edited ${stampFor(when)}${who ? ` by ${who}` : ''})] ${body}`)
+  // No need to name the editor when they wrote it in the first place - it only made the
+  // stamp longer and read as though two people had been involved.
+  const sameHand = who && original.includes(`· ${who}`)
+  const mark = `(edited ${stampFor(when)}${who && !sameHand ? ` by ${who}` : ''})`
+  lines.splice(i, end - i + 1, `[${original} ${mark}] ${body}`)
   return lines.join('\n')
 }
 
