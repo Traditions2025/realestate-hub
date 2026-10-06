@@ -1377,6 +1377,34 @@ router.get('/group-receipts/:convSid', async (req, res) => {
 // Read-only: who is ACTUALLY in a group conversation right now vs who the Hub thinks is.
 // Matt reported not receiving the 2026-10-06 Deutsch group text; the Hub's snapshot listed
 // him but Twilio's live roster is the only thing that governs who a send reaches.
+// Read-only audit of EVERY group conversation the Hub has sent into: which ones Twilio can
+// still reach, and which have quietly emptied out. Answers "did that group text actually
+// land?" for past sends, which nothing could answer before 2026-10-06.
+router.get('/group-audit', async (_req, res) => {
+  try {
+    const { conversationRoster } = await import('../twilio-conversations.js')
+    const rows = db.all(`SELECT conversation_sid sid, COUNT(*) sends, MAX(occurred_at) last_sent,
+                                MAX(contact_name) label
+                         FROM communications
+                         WHERE conversation_sid IS NOT NULL AND direction='outgoing'
+                         GROUP BY conversation_sid ORDER BY last_sent DESC`)
+    const out = []
+    for (const r of rows) {
+      try {
+        const k = await conversationRoster(r.sid)
+        const live = (k.live_participants || []).length
+        const snap = (k.hub_snapshot || []).length
+        out.push({
+          conversation_sid: r.sid, label: r.label, sends: r.sends, last_sent: r.last_sent,
+          live, snapshot: snap,
+          verdict: live === 0 ? 'reaches nobody' : (snap && live < snap ? `missing ${snap - live}` : 'ok'),
+          not_reached: k.missing_from_twilio || [],
+        })
+      } catch (e) { out.push({ conversation_sid: r.sid, label: r.label, sends: r.sends, last_sent: r.last_sent, error: e.message }) }
+    }
+    res.json({ conversations: out.length, broken: out.filter(x => x.verdict && x.verdict !== 'ok').length, rows: out })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/group-roster/:convSid', async (req, res) => {
   try { const { conversationRoster } = await import('../twilio-conversations.js'); res.json(await conversationRoster(String(req.params.convSid))) }
   catch (e) { res.status(500).json({ error: e.message }) }
