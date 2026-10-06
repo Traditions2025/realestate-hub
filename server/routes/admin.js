@@ -57,7 +57,10 @@ router.get('/notes-audit', requirePermission('settings.view'), (req, res) => {
 //
 // A note that is not intake-shaped was typed later by a person, and created_at is only a
 // lower bound, so it is labelled as such rather than dated precisely. Dry by default.
-const INTAKE_NOTE = /^(facebook (listing|seller) ad lead|[a-z.]+ inquiry|answered form|zillow|realtor|homes\.com)/i
+// Only the note shapes lead-intake and the form handlers actually write. A bare portal
+// name ("Realtor") is somebody's own note, not an intake line, and claiming an exact date
+// for it would be asserting something we do not know.
+const INTAKE_NOTE = /^(facebook (listing|seller) ad lead|[a-z.]+ inquiry|answered form )/i
 
 router.post('/notes-backfill', requirePermission('settings.edit'), (req, res) => {
   const dry = req.body?.dry !== false

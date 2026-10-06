@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T14:40:30.538Z",
+  "generated_at": "2026-10-06T14:42:46.402Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a46b071",
+      "date": "2026-10-06T09:40:36-05:00",
+      "subject": "Read-only: why the AI acted on one lead",
+      "title": "Read-only: why the AI acted on one lead",
+      "body": "Chasing Megan Walt - hand-added 14:20, AI texted her 14:27, while the enrolment\nlog said excluded. Something else switched the AI on and no existing endpoint\nsaid what.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "82f91e4",
       "date": "2026-10-06T09:37:34-05:00",
@@ -3993,14 +4001,6 @@
       "title": "call logging + clean email previews on lead profile",
       "body": "Calls:\n- upsertCall/missedCallTextBack matched phones with a last-7 LIKE, which misses\n  formatted numbers like (319) 929-9923 (the dash splits the digits) — so every call\n  logged with client_id NULL and never showed on the profile. Match on last-4 + exact last-10.\n- Callee-leg outcome (no-answer/busy/failed/completed) is now reconciled onto the\n  timeline row via /api/voice/child-status, so unconnected calls are logged clearly\n  instead of stuck on 'initiated'.\n- Add POST /api/voice/backfill-call-clients to relink past orphaned call rows.\n\nEmail:\n- Communication History rendered raw email HTML. Add commToText() to strip tags,\n  tracking pixels, style/script and decode entities; show a clean subject + body.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "cb9bce8",
-      "date": "2026-08-26T12:01:46-05:00",
-      "subject": "Bulk text: multi-part sends (ordered texts per recipient) + FSBO Step 2 one-click",
-      "title": "Bulk text: multi-part sends (ordered texts per recipient) + FSBO Step 2 one-click",
-      "body": "- /api/inbox/bulk-text accepts an ordered bodies[] and sends each part to every\n  recipient in sequence (~5s apart), so a 3-part FSBO step can be bulk-applied in one action.\n- BulkTextModal: add/remove message parts, active-part merge/template insertion,\n  and a 'FSBO Step 2 (3 texts)' button that loads 2a/2b/2c from saved templates.\n- Added the 8 FSBO sequence steps as saved text templates (category FSBO Sequence).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }
