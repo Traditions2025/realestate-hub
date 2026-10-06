@@ -38,6 +38,13 @@ const ALLOWED_EMAIL_STATUS = new Set(['validaddress', 'twowayemailing', 'unknown
 // outage does not spend a step of the ramp. Nobody has to remember to raise the number.
 const RAMP_STEPS = [50, 50, 50, 50, 50, 100, 100, 100, 100, 100]
 
+// Past the fixed steps the ramp used to hand straight over to the ceiling. That was fine
+// while the ceiling was 200 — a step from 100. John raised it to 300 on 2026-10-06, and
+// the same code would have gone 100 -> 300 overnight, which is exactly the shape of spike
+// the ramp exists to avoid. It now keeps climbing a step at a time instead, never more
+// than +100 in a day, until it reaches whatever the ceiling is.
+const RAMP_INCREMENT = 100
+
 export function rampDayIndex(dripId) {
   if (!dripId) return 0
   return db.get(
@@ -50,7 +57,21 @@ export function rampDayIndex(dripId) {
 export function effectiveDailyLimit(cfg, dripId) {
   if (!cfg.ramp) return cfg.daily_limit
   const i = rampDayIndex(dripId)
-  return i < RAMP_STEPS.length ? Math.min(RAMP_STEPS[i], cfg.daily_limit) : cfg.daily_limit
+  if (i < RAMP_STEPS.length) return Math.min(RAMP_STEPS[i], cfg.daily_limit)
+  const beyond = i - RAMP_STEPS.length + 1
+  const last = RAMP_STEPS[RAMP_STEPS.length - 1]
+  return Math.min(last + beyond * RAMP_INCREMENT, cfg.daily_limit)
+}
+
+/** What the ramp will allow on each of the next few enrolling days. */
+export function rampSchedule(cfg, dripId, days = 8) {
+  const i0 = rampDayIndex(dripId)
+  const at = (i) => {
+    if (!cfg.ramp) return cfg.daily_limit
+    if (i < RAMP_STEPS.length) return Math.min(RAMP_STEPS[i], cfg.daily_limit)
+    return Math.min(RAMP_STEPS[RAMP_STEPS.length - 1] + (i - RAMP_STEPS.length + 1) * RAMP_INCREMENT, cfg.daily_limit)
+  }
+  return Array.from({ length: days }, (_, k) => ({ enrolling_day: i0 + k, limit: at(i0 + k) }))
 }
 
 export function homeValueConfig() {

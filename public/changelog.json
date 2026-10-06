@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-10-06T18:22:58.714Z",
+  "generated_at": "2026-10-06T18:57:11.550Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "76c6724",
+      "date": "2026-10-06T13:46:23-05:00",
+      "subject": "The 5-minute new-lead sweep skips hand-added leads too",
+      "title": "The 5-minute new-lead sweep skips hand-added leads too",
+      "body": "Confirming the guarantee for John, I found newLeadSweep() checked\nisExcludedFromAutopilot but not auto_enroll_excluded. The send gate refuses these\nleads anyway, so nothing could have gone out - but it would have scheduled a first\ntouch that can never fire, leaving phantom pending rows on a lead the team is\nalready working themselves.\n\nVerified across every status: a hand-added lead is refused on the AI channel at\nnew, watch, active, prime and qualify, normally AND forced.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "20eb6c9",
+      "date": "2026-10-06T13:23:00-05:00",
+      "subject": "Read-only: how a drip campaign is actually performing",
+      "title": "Read-only: how a drip campaign is actually performing",
+      "body": "John asks for the Home Value numbers regularly and the Hub could only answer half\nof it: dripStats counts enrollments and successful step executions, but nothing\ntied a campaign's sends to their opens.\n\nsendSequenceEmail already stamps email_log.template as `drip_<id>`, and the\nSendGrid Event Webhook attaches opens and clicks to those same rows, so\nGET /api/drips/:id/performance can count them without guessing from subject lines.\n\nOpen rate is of DELIVERED, not of sent - an email that bounced was never a chance\nto open, and dividing by sent quietly understates every campaign. Both the\nper-email and per-person rates are returned, since one person opening six times\nis not six people.\n\nThe response says plainly that opens are a floor: a mail client that blocks the\ntracking pixel reads the email and never reports it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ab31150",
       "date": "2026-10-06T12:57:47-05:00",
@@ -3984,22 +4000,6 @@
       "subject": "AI dormancy: base opener-vs-revive purely on real activity, not Hub created_at",
       "title": "AI dormancy: base opener-vs-revive purely on real activity, not Hub created_at",
       "body": "Sierra-synced old leads get a fresh created_at at import, which made months-old leads\nlook brand new and wrongly get the 'thanks for checking out homes' welcome. Dormant now\nmeans simply: no FUB view or behavioral event within the window -> REVIVE opener.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "70e15a0",
-      "date": "2026-08-26T14:10:11-05:00",
-      "subject": "AI preview: dormant buyers preview the revive opener too (matches what sends)",
-      "title": "AI preview: dormant buyers preview the revive opener too (matches what sends)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "03048a7",
-      "date": "2026-08-26T14:09:12-05:00",
-      "subject": "AI: dormant leads (no recent activity) get the REVIVE opener, never 'saw you browsing'",
-      "title": "AI: dormant leads (no recent activity) get the REVIVE opener, never 'saw you browsing'",
-      "body": "Root cause: manual Send AI on a never-texted lead always used the activity opener, and the\ncontext surfaced the most recent FUB view regardless of age — so a months-old view got\nreferenced as if current ('Saw you checking out 237 29th Ave SW').\n\nFix (two layers):\n- Routing: isDormantLead() (no activity in N days AND not a brand-new registration) now\n  routes send-now + bulk-send-now to the REVIVE re-engage bank instead of handleProactive.\n- Context: only FUB views within the dormant window (default 21 days, ai_dormant_days)\n  populate last_viewed_property, so no opener can ever cite a stale property as current.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

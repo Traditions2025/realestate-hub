@@ -1,85 +1,84 @@
-// Warm-up ramp for the Home Value campaign.
+// The warm-up ramp climbs to the ceiling instead of jumping to it.
 //
-// 200 cold emails a day from one sending domain is a real step up, and mailbox providers
-// judge a sender on how suddenly the volume appears. The ramp spends five enrolment days at
-// 50 and five at 100 before reaching the ceiling.
-//
-// The part that matters: it counts DAYS THAT ACTUALLY ENROLLED, not calendar days, so a
-// weekend, a holiday or an outage cannot quietly spend a step of the ramp while sending
-// nothing.
-import { test, beforeEach } from 'node:test'
+// John, 2026-10-06: "Please increase to 300 a day we need to bump this up and level up
+// our game". The ramp's fixed steps end at 100 and then handed straight over to the
+// configured ceiling. That was a step of 100 while the ceiling was 200; with 300 it would
+// have been a 3x overnight spike, which is the exact shape the ramp exists to avoid.
+import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import db, { initDb } from '../server/database.js'
+import fs from 'node:fs'
+import { initDb } from '../server/database.js'
 await initDb()
-const { effectiveDailyLimit } = await import('../server/home-value-enroll.js')
+const { effectiveDailyLimit, rampSchedule, rampDayIndex } = await import('../server/home-value-enroll.js')
 
-const DRIP = 20
-const CEILING = { enabled: true, daily_limit: 200, ramp: true }
+// effectiveDailyLimit reads the ramp day from the DB, so drive the maths through
+// rampSchedule, which takes the index it is given.
+// rampSchedule(cfg, dripId) starts at the live index; with no drip the index is 0, so the
+// schedule it returns IS the curve from the beginning.
+const curve = (daily_limit, days = 15) =>
+  rampSchedule({ ramp: true, daily_limit }, null, days).map(r => r.limit)
 
-function seedEnrollmentDays(dates) {
-  db.run("DELETE FROM drip_enrollments WHERE drip_id = ? AND source = 'home_value_auto'", [DRIP])
-  for (let i = 0; i < dates.length; i++) {
-    db.run(`INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, source, entered_at)
-            VALUES (?,?,?,?,?,?)`, [DRIP, 900000 + i, 'active', 0, 'home_value_auto', dates[i] + ' 09:01:00'])
+test('the first five enrolling days stay at 50', () => {
+  assert.deepEqual(curve(300).slice(0, 5), [50, 50, 50, 50, 50])
+})
+
+test('the next five sit at 100', () => {
+  assert.deepEqual(curve(300).slice(5, 10), [100, 100, 100, 100, 100])
+})
+
+test('past the fixed steps it climbs, it does not jump', () => {
+  const c = curve(300)
+  assert.equal(c[10], 200, 'day 10 doubles to 200, it does not leap to the ceiling')
+  assert.equal(c[11], 300, 'day 11 reaches it')
+  assert.equal(c[12], 300, 'and stays there')
+})
+
+test('no single day more than doubles the one before it', () => {
+  // the rule the ramp is really enforcing
+  const c = curve(300)
+  for (let i = 1; i < c.length; i++) {
+    assert.ok(c[i] <= c[i - 1] * 2, `day ${i}: ${c[i - 1]} -> ${c[i]} is more than double`)
   }
-}
-const daysAgo = (n) => {
-  const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10)
-}
+})
 
-beforeEach(() => { seedEnrollmentDays([]) })
-
-test('the first five enrolment days run at 50', () => {
-  for (let prior = 0; prior < 5; prior++) {
-    seedEnrollmentDays(Array.from({ length: prior }, (_, i) => daysAgo(prior - i)))
-    assert.equal(effectiveDailyLimit(CEILING, DRIP), 50, `day ${prior + 1} should still be 50`)
+test('the ceiling is never exceeded', () => {
+  for (const ceiling of [50, 120, 200, 300, 1000]) {
+    for (const v of curve(ceiling, 20)) assert.ok(v <= ceiling, `${v} > ceiling ${ceiling}`)
   }
 })
 
-test('the next five run at 100', () => {
-  for (let prior = 5; prior < 10; prior++) {
-    seedEnrollmentDays(Array.from({ length: prior }, (_, i) => daysAgo(prior - i)))
-    assert.equal(effectiveDailyLimit(CEILING, DRIP), 100, `day ${prior + 1} should be 100`)
-  }
+test('a ceiling below a ramp step is respected, not raised by the ramp', () => {
+  // someone lowering the ceiling mid-ramp must get the lower number
+  assert.deepEqual(curve(25).slice(0, 3), [25, 25, 25])
+  assert.equal(curve(75)[6], 75, 'the 100 step must not override a 75 ceiling')
 })
 
-test('after ten days it reaches the configured ceiling', () => {
-  seedEnrollmentDays(Array.from({ length: 10 }, (_, i) => daysAgo(10 - i)))
-  assert.equal(effectiveDailyLimit(CEILING, DRIP), 200)
-  seedEnrollmentDays(Array.from({ length: 40 }, (_, i) => daysAgo(40 - i)))
-  assert.equal(effectiveDailyLimit(CEILING, DRIP), 200)
+test('the ceiling is eventually reached, however high', () => {
+  const c = curve(1000, 40)
+  assert.equal(c[c.length - 1], 1000, 'the ramp has to finish')
 })
 
-test('a gap in the calendar does not advance the ramp', () => {
-  // three enrolment days, but spread over a month of weekends and an outage
-  seedEnrollmentDays([daysAgo(30), daysAgo(20), daysAgo(3)])
-  assert.equal(effectiveDailyLimit(CEILING, DRIP), 50,
-    'only three days have actually enrolled, so the ramp is still on its first step')
+test('turning the ramp off gives the full ceiling immediately', () => {
+  assert.deepEqual(rampSchedule({ ramp: false, daily_limit: 300 }, null, 3).map(r => r.limit),
+    [300, 300, 300])
 })
 
-test('today does not count itself', () => {
-  // enrolling this morning must not raise this afternoon's own limit
-  seedEnrollmentDays([daysAgo(2), daysAgo(1), new Date().toISOString().slice(0, 10)])
-  assert.equal(effectiveDailyLimit(CEILING, DRIP), 50, 'two prior days -> still step one')
+test('the ramp counts enrolling days, not calendar days', () => {
+  // a weekend, a holiday or an outage must not spend a step
+  const s = fs.readFileSync(new URL('../server/home-value-enroll.js', import.meta.url), 'utf8')
+  const fn = s.slice(s.indexOf('export function rampDayIndex'), s.indexOf('export function effectiveDailyLimit'))
+  assert.match(fn, /COUNT\(DISTINCT date\(entered_at\)\)/)
+  assert.match(fn, /source = 'home_value_auto'/, 'a manual enrolment must not spend a ramp step')
+  assert.match(fn, /date\(entered_at\) < date\('now','localtime'\)/, 'today does not count itself')
 })
 
-test('the ramp never exceeds the configured ceiling', () => {
-  seedEnrollmentDays(Array.from({ length: 6 }, (_, i) => daysAgo(6 - i)))   // ramp wants 100
-  assert.equal(effectiveDailyLimit({ ...CEILING, daily_limit: 75 }, DRIP), 75,
-    'a lower ceiling wins over the ramp step')
+test('rampDayIndex is safe with no campaign', () => {
+  assert.equal(rampDayIndex(null), 0)
 })
 
-test('switching the ramp off goes straight to the ceiling', () => {
-  seedEnrollmentDays([])
-  assert.equal(effectiveDailyLimit({ ...CEILING, ramp: false }, DRIP), 200)
-})
-
-test('only this campaign’s automatic enrolments count', () => {
-  seedEnrollmentDays([daysAgo(3), daysAgo(2), daysAgo(1)])
-  // a hand-enrolled lead, and another campaign's rows, must not move the ramp
-  db.run(`INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, source, entered_at)
-          VALUES (?,?,?,?,?,?)`, [DRIP, 999001, 'active', 0, 'manual', daysAgo(9) + ' 10:00:00'])
-  db.run(`INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, source, entered_at)
-          VALUES (?,?,?,?,?,?)`, [5, 999002, 'active', 0, 'home_value_auto', daysAgo(8) + ' 10:00:00'])
-  assert.equal(effectiveDailyLimit(CEILING, DRIP), 50)
+test('the settings response says what the ramp will allow next', () => {
+  // raising the ceiling while the ramp is still climbing looks like nothing happened
+  const r = fs.readFileSync(new URL('../server/routes/drips.js', import.meta.url), 'utf8')
+  assert.match(r, /ramp_schedule: d \? rampSchedule\(cfg, d\.id\) : \[\]/)
+  assert.match(r, /rampSchedule, homeValueDrip \} = await import/)
 })

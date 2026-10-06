@@ -306,7 +306,7 @@ router.post('/home-value/settings', async (req, res) => {
   if (b.ramp !== undefined) db.setSetting('home_value_enroll_ramp', b.ramp ? '1' : '0')
   // The saved exclusion list is echoed back. It was write-only, so the one setting that
   // protects named people could not be read to confirm it had saved.
-  const { homeValueConfig, effectiveDailyLimit, rampDayIndex, homeValueDrip } = await import('../home-value-enroll.js')
+  const { homeValueConfig, effectiveDailyLimit, rampDayIndex, rampSchedule, homeValueDrip } = await import('../home-value-enroll.js')
   const cfg = homeValueConfig()
   const d = homeValueDrip()
   res.json({
@@ -314,6 +314,9 @@ router.post('/home-value/settings', async (req, res) => {
     excluded_ids: String(db.getSetting('home_value_excluded_ids', '') || ''),
     ramp_day: d ? rampDayIndex(d.id) : 0,
     todays_limit: d ? effectiveDailyLimit(cfg, d.id) : cfg.daily_limit,
+    // what the ramp will allow next, so raising the ceiling does not look like nothing
+    // happened while the ramp is still climbing to it
+    ramp_schedule: d ? rampSchedule(cfg, d.id) : [],
   })
 })
 // Run a batch now. `force` runs it even while enrollment is switched off, for a
