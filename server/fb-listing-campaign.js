@@ -204,7 +204,7 @@ async function sendCampaignSms(client, body) {
     const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
     const ins = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      ['text', 'outgoing', client.id, name, '', client.phone, out.replace(/\s+/g, ' ').slice(0, 160), out, 'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'FB Listing AI', 'fb_listing_ai', nowIso()])
+      ['text', 'outgoing', client.id, name, r.from || '', client.phone, out.replace(/\s+/g, ' ').slice(0, 160), out, 'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'FB Listing AI', 'fb_listing_ai', nowIso()])
     return { ok: true, comm_id: ins.lastInsertRowid }
   } catch (e) { return { ok: false, reason: e.message } }
 }

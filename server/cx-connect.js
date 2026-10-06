@@ -478,7 +478,7 @@ async function sendNextForEnrollment(en) {
   const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
   const ins = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    ['text', 'outgoing', c.id, name, '', c.phone, body.replace(/\s+/g, ' ').slice(0, 160), body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', 'CX Connect', 'cx_connect', nowIso()])
+    ['text', 'outgoing', c.id, name, r.from || '', c.phone, body.replace(/\s+/g, ' ').slice(0, 160), body, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', 'CX Connect', 'cx_connect', nowIso()])
   const next = scheduleNext(attempt).toISOString()
   db.run('UPDATE cx_campaign SET attempt_count=?, last_sent_at=?, last_angle=?, next_send_at=?, updated_at=? WHERE client_id=?',
     [attempt, nowIso(), angle, next, nowIso(), en.client_id])

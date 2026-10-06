@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T17:35:12.190Z",
+  "generated_at": "2026-10-06T17:37:38.331Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "328b115",
+      "date": "2026-10-06T12:35:56-05:00",
+      "subject": "Every message shows which number it came from and which it went to",
+      "title": "Every message shows which number it came from and which it went to",
+      "body": "John, 2026-10-06, looking at the Jacob Misener thread: \"on each text or message\ninclude where the text came from and what number so I know which one texted\".\n\nThat thread is the case for it. His WIFE replied from his number:\n\n  Jacob Misener · Oct 6, 11:20 AM\n  \"Hi this is Emily Misener - property owner of 1332 Truman Court NE, the number\n   you were texting is my husband so he passed your message onto me.\"\n\nand two messages later gave her own, 507-251-4908. Every message in it was headed\n\"Jacob Misener\", and the only place a number ever appeared was on a group text, so\nnothing on screen said two people and two numbers were involved.\n\nsrc/components/Endpoints.jsx renders \"from -> to\" under every text, call,\nvoicemail and email, in the profile and in all three Inbox panes. One\nimplementation: the Inbox was formatting a number inline and the profile had its\nown copy that only ran when conversation_sid was set.\n\nIt also flags a number that is NOT saved on the lead, which is exactly the Emily\ncase - but only where that can be known. The profile has the full record, so it\npasses the client and the flag works. The Inbox does not carry a lead's alt_phones,\nso it passes no client and the flag stays off; saying \"not on file\" about every\nmessage because the caller had nothing to compare would be worse than silence.\n\nA note has no two ends, so it gets nothing.\n\n14 tests, and the helpers are lifted out of the component rather than copied, so\nthey cannot drift the way a duplicated assessorUrl once did.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "61be3a3",
       "date": "2026-10-06T09:55:38-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "AI: rotating 20-opener revive bank for old buyer leads with no recent activity",
       "title": "AI: rotating 20-opener revive bank for old buyer leads with no recent activity",
       "body": "- Add REVIVE_OPENERS (20 approved re-engagement texts) + REVIVE_OPENER_BLOCK that\n  enforces the format: Hi/Hello or Good morning/afternoon (never Hey/evening), John intro,\n  and MattSmithTeam.com at the end.\n- Rotate through all 20 via a persistent counter (nextReviveOpener) so every send uses a\n  different one; wired into the re-engagement path (handleNurture reengage) for buyers.\n- Sandbox: new 'Revive an old buyer lead' test that cycles the bank and shows which of 20.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e2ed2b9",
-      "date": "2026-08-26T12:56:08-05:00",
-      "subject": "FSBO: push-sierra-watch endpoint to un-junk restored Off Market leads in Sierra",
-      "title": "FSBO: push-sierra-watch endpoint to un-junk restored Off Market leads in Sierra",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

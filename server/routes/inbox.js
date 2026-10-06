@@ -931,7 +931,7 @@ router.post('/bulk-text', async (req, res) => {
           const r = await sendSms(c.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status' })
           db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, campaign_id, occurred_at)
                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-            ['text', 'outgoing', c.id, name2, '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
+            ['text', 'outgoing', c.id, name2, r.from || '', c.phone, outText.replace(/\s+/g, ' ').slice(0, 160), outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', r.status || 'queued', campaignId, nowIso()])
           anySent = true
           // ~5s between parts to the same person so they arrive in order; then the per-person pace.
           await new Promise(rs => setTimeout(rs, pi < parts.length - 1 ? 5000 : personPaceMs))
@@ -1081,7 +1081,7 @@ router.post('/send', async (req, res) => {
         const preview = (String(outText).replace(/\s+/g, ' ').trim() || (media.length ? `[${media.length} photo${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, sent_by_type, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', c.id, name, '', dest, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
+          ['text', 'outgoing', c.id, name, r.from || '', dest, null, preview, outText, 'twilio_' + r.sid, `c${c.id}_text`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
         // A human texting an AI-managed lead → AI backs off (only if AI already touched this lead).
         if (db.get('SELECT client_id FROM ai_lead_state WHERE client_id=?', [c.id])) { try { const { humanTakeover } = await import('../ai-followup/state.js'); humanTakeover(c.id, 'agent sent a text') } catch {} }
         results.push({ client_id: cid, ok: true })
@@ -1096,7 +1096,7 @@ router.post('/send', async (req, res) => {
         const p10 = String(rp.phone).replace(/\D/g, '').slice(-10)
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, sent_by_type, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', null, rp.name || fmtPhone(rp.phone), '', rp.phone, (outText || `[${media.length} photo]`).slice(0, 160), outText, 'twilio_' + r.sid, `u_${p10}`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
+          ['text', 'outgoing', null, rp.name || fmtPhone(rp.phone), r.from || '', rp.phone, (outText || `[${media.length} photo]`).slice(0, 160), outText, 'twilio_' + r.sid, `u_${p10}`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
         results.push({ phone: rp.phone, ok: true })
       } catch (e) { results.push({ phone: rp.phone, ok: false, error: e.message }) }
     }
@@ -1448,7 +1448,7 @@ router.post('/group-text', async (req, res) => {
         const d10c = String(s.phone || '').replace(/\D/g, '').slice(-10)
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', s.client_id || null, s.name || s.phone, '', s.phone, copyBody.replace(/\s+/g, ' ').slice(0, 160), copyBody,
+          ['text', 'outgoing', s.client_id || null, s.name || s.phone, r2.from || '', s.phone, copyBody.replace(/\s+/g, ' ').slice(0, 160), copyBody,
             'twilio_' + r2.sid, s.client_id ? `c${s.client_id}_text` : `u_${d10c}`, 'read', 'human', nowIso()])
         copies.push({ phone: s.phone, name: s.name || s.phone })
       } catch (e) { console.error('[group-text] copy fallback failed for', s.phone, e.message) }

@@ -107,7 +107,10 @@ export async function sendSms(toPhone, body, opts = {}) {
     const hint = data.code === 20003 ? ' (auth failed — check the Auth Token, or the account may be suspended/unfunded)' : ''
     throw new Error((data.message || `Twilio error ${resp.status}`) + hint)
   }
-  return { sid: data.sid, status: data.status, to }
+  // The number it actually went out from. With a Messaging Service Twilio picks the
+  // number, so its answer is the only reliable source - and the Hub now records it on
+  // every outgoing text so a thread shows both ends (John, 2026-10-06).
+  return { sid: data.sid, status: data.status, to, from: data.from || c.from || '' }
 }
 
 // Modify a call in progress (used for voicemail drop): replace the leg's TwiML

@@ -115,6 +115,45 @@ test('all three Inbox panes show it', () => {
   assert.equal((p.match(/<Endpoints /g) || []).length, 3, 'main thread, group and unknown')
 })
 
+// ── the Hub records its OWN number too ───────────────────────────────────────────────
+// The live Misener thread showed every outgoing text as "? -> (319) 521-6995": from_addr
+// was stored as '' on every send, so half of "what number" was missing.
+test('sendSms reports the number it sent from', () => {
+  const t = src('../server/twilio.js')
+  assert.match(t, /return \{ sid: data\.sid, status: data\.status, to, from: data\.from \|\| c\.from \|\| '' \}/)
+  // Twilio's own answer first: with a Messaging Service IT picks the number, so the
+  // configured one is only a fallback
+  assert.ok(t.indexOf('data.from') < t.indexOf("c.from || ''"), "Twilio's answer wins over the setting")
+})
+
+test('every outgoing text records the sending number', () => {
+  for (const f of ['../server/routes/inbox.js', '../server/cx-connect.js',
+                   '../server/fb-listing-campaign.js', '../server/fsbo-followup.js']) {
+    const s = src(f)
+    for (const line of s.split('\n')) {
+      if (!line.includes("['text', 'outgoing'")) continue
+      if (line.includes('grp_')) continue        // group sends go through a Conversation
+      assert.match(line, /r2?\.from \|\| ''/, `${f}: an outgoing text with no sending number`)
+    }
+  }
+})
+
+test('the sending number comes from the right variable', () => {
+  // the group copy-fallback uses r2, not r; r.from there would have been a silent
+  // ReferenceError or, worse, picked up some other r
+  const s = src('../server/routes/inbox.js')
+  // the insert statement wraps, so look at the statement rather than the line
+  const re = /(r2?)\.from \|\| ''/g
+  let m, checked = 0
+  while ((m = re.exec(s))) {
+    const stmt = s.slice(m.index, m.index + 320)
+    assert.ok(stmt.includes(`${m[1]}.sid`) || stmt.includes(`${m[1]}.status`),
+      `the number must come from the same result the send returned, near: ${stmt.slice(0, 60)}`)
+    checked++
+  }
+  assert.ok(checked >= 4, 'every send site should have been checked')
+})
+
 test('one implementation, not three copies', () => {
   // the Inbox used to format a number inline, and the profile had its own copy that only
   // ran on group texts
