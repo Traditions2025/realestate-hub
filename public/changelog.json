@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T17:45:11.718Z",
+  "generated_at": "2026-10-06T17:57:45.875Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "7cb8b07",
+      "date": "2026-10-06T12:45:24-05:00",
+      "subject": "Show only the number a message came from",
+      "title": "Show only the number a message came from",
+      "body": "John, 2026-10-06: \"no need the to: just need from so I know which is it coming\nfrom specially on if there's 2 numbers on a lead\".\n\nSo the line is now \"from (507) 251-4908\", and only on messages coming IN. On one\ngoing out the sender is our own line - the same number on every bubble, which is\nnoise rather than information, and not even known on anything sent before\nyesterday's change started recording it. That also retires the \"?\" that stood in\nfor it.\n\nThe flag stays, because it is exactly the two-numbers case: a sender that is not\nsaved on the lead reads \"· not on file\". It still holds back when the caller has\nno numbers to compare against, which is the Inbox.\n\nThe component owns its own spacing now, so an outgoing message renders nothing at\nall rather than an empty div with a margin under every bubble.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "bdafdac",
       "date": "2026-10-06T12:37:48-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Filters: add Sources (Exclude) option",
       "title": "Filters: add Sources (Exclude) option",
       "body": "Frontend advFilters.sources_exclude wired to the existing backend sources_exclude\nsupport (clients.js); also add it to the saved-list filter builder for parity.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "820dfe8",
-      "date": "2026-08-26T13:27:44-05:00",
-      "subject": "Revive openers: introduce as John with Matt Smith Team at RE/MAX",
-      "title": "Revive openers: introduce as John with Matt Smith Team at RE/MAX",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

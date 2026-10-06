@@ -29,7 +29,7 @@ export function knownNumbers(client) {
   return out
 }
 
-export default function Endpoints({ m, client, align = 'left' }) {
+export default function Endpoints({ m, client }) {
   // John, 2026-10-06: "no need the to: just need from so I know which is it coming from
   // specially on if there's 2 numbers on a lead".
   //
@@ -44,16 +44,18 @@ export default function Endpoints({ m, client, align = 'left' }) {
   // With nothing on file to compare against, say nothing. Flagging every message as
   // "not on file" because the caller passed no client would be worse than silence.
   const unknown = known.size > 0 && d.length === 10 && !known.has(d)
+  // Inline, so it sits on the header line beside the name and the time rather than on a
+  // row of its own (John, 2026-10-06): "Text · Jacob Misener · 11:20 AM  from (507) 251-4908".
   return (
-    <div style={{ fontSize: 13.5, color: 'var(--text-muted)', textAlign: align, margin: '0 4px 3px',
-      fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', wordBreak: 'break-word' }}>
-      from {from}
+    <span style={{ whiteSpace: 'nowrap' }}>
+      {' '}
+      <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace' }}>from {from}</span>
       {unknown && (
         <span style={{ color: '#b45309', fontWeight: 600 }}
           title="This number is not saved on this lead — it may be someone else using it">
           {' '}· not on file
         </span>
       )}
-    </div>
+    </span>
   )
 }

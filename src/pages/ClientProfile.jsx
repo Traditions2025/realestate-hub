@@ -1128,9 +1128,9 @@ function CommItem({ m, client }) {
           <div style={{ fontSize: 14.5, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
             {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')}
             {' · '}{fmtCommWhen(m.occurred_at)}
+            {/* Which number it came from, right beside the name and the time. */}
+            <Endpoints m={m} client={client} />
           </div>
-          {/* Which number it came from, on every incoming text. */}
-          <Endpoints m={m} client={client} align={out ? 'right' : 'left'} />
           <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 15.5, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
             {text || '📎 attachment'}
           </div>
@@ -1150,13 +1150,13 @@ function CommItem({ m, client }) {
         {/* For a note the disposition holds the source system, which duplicates the
             author when the system IS the author ("by Follow Up Boss · Follow Up Boss"). */}
         {m.disposition && m.disposition !== m.agent ? <span>· {m.disposition}</span> : null}
-        <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
+        <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>
+          {fmtCommWhen(m.occurred_at)}
+          {/* Which number called, or which address the email came from. A note has no
+              two ends, so it gets nothing. */}
+          {m.channel !== 'note' && m.direction !== 'internal' && <Endpoints m={m} client={client} />}
+        </span>
       </div>
-      {/* Which number called, or which address the email came from. A note has no two
-          ends, so it gets nothing. */}
-      {m.channel !== 'note' && m.direction !== 'internal' && (
-        <Endpoints m={m} client={client} />
-      )}
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
       {/* Long messages are clamped to six lines so every card is the same height and the
           list stays scannable (John, 2026-10-01). -webkit-line-clamp is what gives a clean

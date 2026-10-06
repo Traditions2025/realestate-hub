@@ -91,6 +91,35 @@ test('only the sender is shown, and only on messages coming in', () => {
   assert.ok(!comp.includes('m.to_addr'), 'the destination is not read at all any more')
 })
 
+test('it renders inline, so it sits on the header line', () => {
+  // John, 2026-10-06: "can you put that beside ... so it reads like
+  // Text · Jacob Misener · 11:20 AM  from (507) 251-4908"
+  const ret = comp.slice(comp.indexOf('return (', comp.indexOf('export default')))
+  assert.match(ret, /<span style=\{\{ whiteSpace: 'nowrap' \}\}>/, 'a span, not a block')
+  assert.ok(!/^\s*<div/m.test(ret), 'a div would push it onto its own row')
+})
+
+test('every call site puts it inside the header, not after it', () => {
+  for (const [f, n] of [['../src/pages/ClientProfile.jsx', 2], ['../src/pages/Inbox.jsx', 3]]) {
+    const s2 = src(f)
+    assert.equal((s2.match(/<Endpoints /g) || []).length, n, f)
+    // the old layout rendered it as a sibling of the header div
+    // the old layout rendered it as a sibling, right after the header's closing tag
+    for (const chunk of s2.split('<Endpoints ').slice(0, -1)) {
+      const before = chunk.slice(-160).replace(/\s+/g, ' ')
+      assert.ok(!/<\/div> (\{[^}]*&& )?$/.test(before),
+        f + ': it must sit inside the header line, not under it — saw "' + before.slice(-60) + '"')
+    }
+  }
+})
+
+test('the alignment prop is gone with the block layout', () => {
+  assert.ok(!comp.includes('align'), 'inline text follows the alignment of its header')
+  for (const f of ['../src/pages/ClientProfile.jsx', '../src/pages/Inbox.jsx']) {
+    assert.ok(!/<Endpoints[^>]*align=/.test(src(f)), f + ' still passes align')
+  }
+})
+
 test('a message with no sender renders nothing rather than a question mark', () => {
   assert.match(comp, /if \(!from\) return null/)
   assert.ok(!/\{from \|\| '\?'\}/.test(comp), 'no "?" placeholder')
