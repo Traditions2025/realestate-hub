@@ -96,3 +96,14 @@ test('nothing else quietly clears it', () => {
     'clearManualExclusion is called from ' + callers.length + ' places: '
     + callers.map(x => 'line ' + (x.i + 1)).join(', '))
 })
+
+// newLeadSweep runs every 5 minutes and schedules a first touch. The send gate refuses a
+// hand-added lead anyway, but scheduling an action that can never fire leaves phantom
+// pending rows on a lead the team is already working.
+test('the 5-minute new-lead sweep skips hand-added leads', () => {
+  const src = fs.readFileSync(new URL('../server/ai-followup/scheduler.js', import.meta.url), 'utf8')
+  const fn = src.slice(src.indexOf('export function newLeadSweep'), src.indexOf('export function newLeadSweep') + 3000)
+  assert.match(fn, /auto_enroll_excluded=1/)
+  assert.ok(fn.indexOf('auto_enroll_excluded') < fn.indexOf('scheduleAiAction'),
+    'skip before anything is scheduled')
+})

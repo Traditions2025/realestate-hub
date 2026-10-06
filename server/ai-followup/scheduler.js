@@ -138,6 +138,10 @@ export function newLeadSweep() {
   for (const c of rows) {
     // NEVER auto first-touch imported prospecting lists (expired/cancelled/FSBO, etc.)
     if (isExcludedFromAutopilot(c)) continue
+    // ...nor a lead somebody added BY HAND. The send gate refuses these anyway
+    // (forbidden.js), but scheduling an action that can never fire just leaves phantom
+    // pending rows on a lead the team is already working themselves.
+    try { if (db.get('SELECT client_id FROM ai_lead_state WHERE client_id=? AND auto_enroll_excluded=1', [c.id])) continue } catch {}
     // only for eligible, textable, never-contacted leads
     const contacted = db.get("SELECT id FROM communications WHERE client_id=? LIMIT 1", [c.id])
     if (!contacted && c.phone && !c.hub_text_opt_out) {
