@@ -4899,8 +4899,19 @@ export function AiIsaCard({ clientId }) {
     if (!await confirmDialog(enableFirst ? 'Enable AI for this lead and send a message now?' : 'Have HUB AI send a message to this contact now? It still follows all rules (STOP, opt-outs, quiet hours).')) return
     setBusy(true)
     try {
-      const r = await authFetch('/api/ai/lead/' + clientId + '/send-now', { method: 'POST' })
-      const d = await r.json()
+      let r = await authFetch('/api/ai/lead/' + clientId + '/send-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      let d = await r.json()
+      // Hand-added leads are deliberately kept out of the AI. Say so plainly and make the
+      // override a separate decision rather than something this button does quietly.
+      if (d.needs_override) {
+        const ok = await confirmDialog(
+          ['This lead was added by hand and deliberately excluded from AI.', '',
+           d.reason || '', '',
+           'Send anyway? That also turns AI ON for this lead from now on.'].join('\n'))
+        if (!ok) { notify('Left alone — AI is still off for this lead.'); return }
+        r = await authFetch('/api/ai/lead/' + clientId + '/send-now', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ override: true }) })
+        d = await r.json()
+      }
       if (d.sent) notify('AI message sent.')
       else if (/quiet/i.test(d.reason || '')) notify('Not sent — quiet hours are on. It will send after quiet hours end (8 AM). You can change quiet hours in Settings.')
       else notify('Not sent: ' + (d.reason || d.error || 'the AI chose not to send right now'))

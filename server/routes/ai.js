@@ -344,9 +344,41 @@ router.post('/lead-states', (req, res) => {
   res.json({ total: out.length, ai_on_count: aiOn.length, ai_on: aiOn })
 })
 
+// A lead that was HAND-ADDED and deliberately excluded must not be swept into the AI by a
+// convenience button. John, 2026-10-06: he added Megan Walt by hand at 14:20 and an AI
+// opener went out at 14:27.
+//
+// The 2026-10-02 exclusion worked exactly as designed - auto_enroll_excluded was set, and
+// the auto-enrolment hook refused her. What got past it was "Send AI now", which force-sends
+// AND calls setManaged(true), so one click both sends and ENROLS the lead for good. The
+// confirm dialog mentioned neither.
+//
+// So the flag is honoured here too, and overriding it has to be explicit. Clicking through
+// then clears the flag and records who did it, because at that point a person really has
+// said so - which is all John asked for.
+function manualExclusion(cid) {
+  try { return db.get('SELECT auto_enroll_excluded, auto_enroll_excluded_reason FROM ai_lead_state WHERE client_id=? AND auto_enroll_excluded=1', [Number(cid)]) || null }
+  catch { return null }
+}
+function clearManualExclusion(cid, who) {
+  try {
+    db.run(`UPDATE ai_lead_state SET auto_enroll_excluded=0, auto_enroll_excluded_by=?,
+            auto_enroll_excluded_at=?, auto_enroll_excluded_reason=? WHERE client_id=?`,
+      [who || 'hub', nowIso(), 'AI turned on deliberately from Send AI now', Number(cid)])
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['ai_manual_override', 'client', Number(cid), `hand-added exclusion overridden by ${who || 'hub'} — AI enabled from Send AI now`])
+  } catch {}
+}
+
 router.post('/lead/:id/send-now', async (req, res) => {
   try {
     const cid = Number(req.params.id)
+    const excl = manualExclusion(cid)
+    if (excl && req.body?.override !== true) {
+      return res.json({ sent: false, needs_override: true,
+        reason: excl.auto_enroll_excluded_reason || 'this lead was added by hand and deliberately excluded from AI' })
+    }
+    if (excl) clearManualExclusion(cid, req.user?.email)
     setManaged(cid, true)   // a manual "Send AI now" enrolls the lead
     const m = await import('../ai-followup/orchestrator.js')
     const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
@@ -396,6 +428,14 @@ router.post('/bulk-send-now', async (req, res) => {
       if (!includeExcluded && isExcludedFromAutopilot(client)) {
         out.skipped++; out.results.push({ client_id: cid, name: nm, ok: false, skipped: true, reason: 'excluded prospecting lead (FSBO/expired/cancelled or matched an exclusion)' }); continue
       }
+      const excl = manualExclusion(cid)
+      if (excl && req.body?.override !== true) {
+        out.skipped++
+        out.results.push({ client_id: cid, name: nm, ok: false, skipped: true, needs_override: true,
+          reason: 'added by hand and deliberately excluded from AI — tick "include hand-excluded" to override' })
+        continue
+      }
+      if (excl) clearManualExclusion(cid, req.user?.email)
       setManaged(cid, true)   // a manual Send AI enrolls the lead, same as per-lead
       const lastText = db.get("SELECT direction FROM communications WHERE client_id=? AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
       const lastIn = db.get("SELECT body FROM communications WHERE client_id=? AND direction='incoming' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
