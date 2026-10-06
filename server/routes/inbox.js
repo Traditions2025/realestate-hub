@@ -1374,6 +1374,13 @@ router.get('/group-receipts/:convSid', async (req, res) => {
   try { const { groupDeliveryReceipts } = await import('../twilio-conversations.js'); res.json(await groupDeliveryReceipts(String(req.params.convSid))) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Read-only: who is ACTUALLY in a group conversation right now vs who the Hub thinks is.
+// Matt reported not receiving the 2026-10-06 Deutsch group text; the Hub's snapshot listed
+// him but Twilio's live roster is the only thing that governs who a send reaches.
+router.get('/group-roster/:convSid', async (req, res) => {
+  try { const { conversationRoster } = await import('../twilio-conversations.js'); res.json(await conversationRoster(String(req.params.convSid))) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/group-status', async (_req, res) => {
   try { const { conversationsStatus } = await import('../twilio-conversations.js'); res.json(await conversationsStatus()) }
   catch (e) { res.status(500).json({ error: e.message }) }

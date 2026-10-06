@@ -160,3 +160,42 @@ export async function conversationParticipants(serviceSid, convSid) {
     return (j.participants || []).map(p => p.messaging_binding?.address).filter(Boolean)
   } catch { return [] }
 }
+
+// Read-only diagnostic: who is ACTUALLY in a conversation right now, with their SMS
+// binding. The Hub's group_meta is a snapshot taken when the group was created; Twilio's
+// live roster can differ, because createGroupText MOVES a participant out of an older
+// conversation when their phone + our proxy is already bound elsewhere. A person missing
+// here, or present with no messaging_binding.address, is in the thread's history but
+// receives nothing. Never sends; GETs only.
+export async function conversationRoster(convSid) {
+  const sid = await ensureConversationsService()
+  const conv = await tw('GET', `/Services/${sid}/Conversations/${convSid}`)
+  const j = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Participants?PageSize=50`)
+  const live = (j.participants || []).map(p => ({
+    participant_sid: p.sid,
+    address: p.messaging_binding?.address || null,
+    proxy_address: p.messaging_binding?.proxy_address || null,
+    type: p.messaging_binding?.type || null,
+    identity: p.identity || null,
+    date_created: p.date_created,
+  }))
+  // What the Hub believed the group was, for comparison.
+  let snapshot = []
+  try {
+    const row = db.get('SELECT group_meta FROM communications WHERE conversation_sid=? AND group_meta IS NOT NULL ORDER BY id DESC LIMIT 1', [convSid])
+    if (row?.group_meta) snapshot = (JSON.parse(row.group_meta).participants || [])
+  } catch {}
+  const key = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+  const liveKeys = new Set(live.map(p => key(p.address)).filter(Boolean))
+  return {
+    conversation: convSid,
+    state: conv.state || null,
+    friendly_name: conv.friendly_name || null,
+    live_participants: live,
+    hub_snapshot: snapshot,
+    // Anyone the Hub thinks is in the group who is not actually bound in Twilio: the
+    // thread shows them, but a send to this conversation never reaches their phone.
+    missing_from_twilio: snapshot.filter(s => !liveKeys.has(key(s.phone))),
+    no_binding: live.filter(p => !p.address),
+  }
+}
