@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-10-06T14:45:38.435Z",
+  "generated_at": "2026-10-06T17:35:12.190Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "61be3a3",
+      "date": "2026-10-06T09:55:38-05:00",
+      "subject": "Hand-added leads: the exclusion now blocks SENDING, not just enrolment",
+      "title": "Hand-added leads: the exclusion now blocks SENDING, not just enrolment",
+      "body": "John, after the fourth incident here: \"I still don't know why you can't simply make\nthe manual import as exclusion to AI enrollment?\"\n\nIt WAS one, since 2026-10-02, and that part worked - auto-enrolment refused Megan\nWalt and logged it. The hole is that \"Send AI now\" never asks the enrolment\nquestion: it force-sends. An enrolment-level exclusion is not in its path at all,\nwhich is why guarding enrolment, then campaigns, then status, then two endpoints\neach fixed a door and left the room open.\n\nSo the flag moved to where messages actually leave. forbidden.js is consulted by\ncanSendSms on EVERY AI send - scheduled, responsive, forced, bulk, and anything\nwritten later - and it now refuses a lead carrying auto_enroll_excluded.\n\nSaying yes still works and is the only way through: POST /lead/:id/enable clears\nthe flag (before enabling, or the gate would keep refusing), as does the\nSend-AI-now override, both recording who did it.\n\nProved by unit tests against the real canSendSms, including force:true - the exact\npath that texted Megan. Nothing live is called; see the standing rule about never\nexercising a send endpoint while investigating.\n\nBlast radius checked first: only 2 leads carry the flag and neither had pending\nsends, so nobody's working AI is silently switched off.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b76e0df",
+      "date": "2026-10-06T09:50:59-05:00",
+      "subject": "Audit: leads carrying the hand-added exclusion, before moving it to the send gate",
+      "title": "Audit: leads carrying the hand-added exclusion, before moving it to the send gate",
+      "body": "Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6384054",
+      "date": "2026-10-06T09:46:12-05:00",
+      "subject": "A hand-added lead stays out of the AI until someone says otherwise",
+      "title": "A hand-added lead stays out of the AI until someone says otherwise",
+      "body": "John added Megan Walt by hand at 14:20 and an AI opener went out at 14:27.\n\nThe 2026-10-02 guard was NOT at fault and is still working. Her record carried\nauto_enroll_excluded=1, stamped by her creator with the right reason, and the\nauto-enrolment hook refused her - logged as \"status is 'active', only New-status\nleads auto-enroll\". She had no scheduled AI actions at all.\n\nWhat got past it was \"Send AI now\". That endpoint force-sends AND calls\nsetManaged(true), so one click both sends a message and enrols the lead for good,\nwhile its confirm dialog mentioned neither the exclusion nor the enrolment.\n\nsend-now and bulk-send-now now honour the flag: they refuse with needs_override,\nBEFORE enrolling or sending. The UI asks a second, explicit question naming the\nexclusion and saying plainly that continuing turns AI on for the lead. Clicking\nthrough clears the flag and logs who did it - at that point a person really has\nsaid so, which is all that was asked.\n\nPOST /lead/:id/enable is untouched and still does not consult the flag: that\nbutton IS the way to say yes.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5e03e81",
+      "date": "2026-10-06T09:45:40-05:00",
+      "subject": "An edited note kept its date; the stamp cap was too short",
+      "title": "An edited note kept its date; the stamp cap was too short",
+      "body": "Caught by running the real thing against the live Hub rather than trusting the\ntests. Add, the 409 on a stale edit, and delete all behaved, and the 28-line\npasted Zillow block read as one dated note - but the edited note came back with\nan EMPTY stamp:\n\n  [] [Oct 6, 2026, 9:44 AM · Hub Automation (edited Oct 6, 2026, 9:44 AM by Hub\n  Automation)] round-trip check, edited\n\nThe stamp pattern capped at 80 characters, to stop a \"[something]\" in a note's\nbody being read as its date. An edited stamp carrying both names is 86. So the\nnote stopped being recognised as dated, lost its date on screen, and would have\nbeen stamped AGAIN on the next save, burying the real date inside the body - the\nexact failure this whole change exists to prevent.\n\nCap is now 200, past any real stamp and far short of a sentence, in both the\nserver and the profile parser. The editor is also no longer named when they wrote\nthe note in the first place, which was most of the extra length and read as\nthough two people had been involved.\n\nEvery test passed while this was broken, because they built stamps shorter than\nthe cap. The new ones use the exact string the live run produced. 40 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1500c6f",
       "date": "2026-10-06T09:42:47-05:00",
@@ -3967,38 +3999,6 @@
       "date": "2026-08-26T12:56:08-05:00",
       "subject": "FSBO: push-sierra-watch endpoint to un-junk restored Off Market leads in Sierra",
       "title": "FSBO: push-sierra-watch endpoint to un-junk restored Off Market leads in Sierra",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "23800c8",
-      "date": "2026-08-26T12:53:20-05:00",
-      "subject": "FSBO list mirrors master 1:1 — keep Off Market on the list",
-      "title": "FSBO list mirrors master 1:1 — keep Off Market on the list",
-      "body": "- List criteria is now has_fsbo_status only (no lead-status exclusion), so Available AND\n  Off Market both show; the FSBO Status column distinguishes them.\n- Daily maintenance no longer junks Off Market (only stops their text enrollment); they\n  stay on the list. The text sequence still targets Available only, so Off Market is\n  never messaged.\n- Add POST /api/lists/fsbo/restore-offmarket to un-junk Off Market records the old rule junked.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e7d3c8a",
-      "date": "2026-08-26T12:40:56-05:00",
-      "subject": "FSBO: manual-merge endpoint to junk push-created duplicate profiles",
-      "title": "FSBO: manual-merge endpoint to junk push-created duplicate profiles",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "62461eb",
-      "date": "2026-08-26T12:37:47-05:00",
-      "subject": "FSBO sync: stop creating duplicate records + add dedupe",
-      "title": "FSBO sync: stop creating duplicate records + add dedupe",
-      "body": "- Matcher now prefers the record already carrying fsbo_status (not just an fsbo tag),\n  so a created FSBO record no longer loses to an older junk lead sharing the phone and\n  the hourly sync stops making a new duplicate every run.\n- POST /api/lists/fsbo/dedupe merges Hub-native duplicate groups into the oldest record\n  and flags Sierra-linked groups for manual review.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7a42ec2",
-      "date": "2026-08-26T12:32:31-05:00",
-      "subject": "FSBO audit endpoint: find duplicate/orphan fsbo_status records vs master",
-      "title": "FSBO audit endpoint: find duplicate/orphan fsbo_status records vs master",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

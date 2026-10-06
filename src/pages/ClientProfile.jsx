@@ -1,4 +1,5 @@
 import { notify, confirmDialog } from '../notify'
+import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
@@ -1024,7 +1025,7 @@ function Communications({ client, onOpenText, onAddNote, onNotesChanged }) {
         <>
           {/* Imported FUB notes first - they carry a date and an author - then the
               free-text notes typed on the profile. */}
-          {shown.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: notes.length ? 10 : 0 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
+          {shown.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: notes.length ? 10 : 0 }}>{shown.map(m => <CommItem key={m.id} m={m} client={client} />)}</div>}
           {items.length > shown.length && <button className="btn btn-sm" style={{ marginBottom: 10 }} onClick={() => setLimit(l => l + 25)}>Load more notes ({items.length - shown.length})</button>}
           {sierraNotes.length > 0 && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
@@ -1052,7 +1053,7 @@ function Communications({ client, onOpenText, onAddNote, onNotesChanged }) {
         <>
           {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Loading…</div>
             : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Nothing here yet.</div>
-              : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} />)}</div>}
+              : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} client={client} />)}</div>}
           {items.length > shown.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({items.length - shown.length})</button>}
         </>
       )}
@@ -1096,7 +1097,7 @@ function EmailEngagement({ eng }) {
 
 const CLAMP_LINES = 6
 
-function CommItem({ m }) {
+function CommItem({ m, client }) {
   const meta = COMM_META[m.channel] || { icon: '•', label: m.channel, color: 'var(--text-muted)' }
   const [expanded, setExpanded] = useState(false)
   const [clamped, setClamped] = useState(false)
@@ -1126,8 +1127,11 @@ function CommItem({ m }) {
         <div style={{ maxWidth: '78%', minWidth: 110 }}>
           <div style={{ fontSize: 14.5, color: 'var(--text-muted)', textAlign: out ? 'right' : 'left', margin: '0 4px 2px' }}>
             {out ? (aiSent ? '🤖 HUB AI' : 'You') : (m.contact_name || 'Them')}
-            {!out && m.conversation_sid && m.from_addr ? ` · ${(() => { const d = String(m.from_addr).replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : m.from_addr })()}` : ''}
             {' · '}{fmtCommWhen(m.occurred_at)}
+          </div>
+          {/* The numbers, on every text rather than only on a group thread. */}
+          <div style={{ textAlign: out ? 'right' : 'left', margin: '0 4px 3px' }}>
+            <Endpoints m={m} client={client} align={out ? "right" : "left"} />
           </div>
           <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 15.5, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
             {text || '📎 attachment'}
@@ -1150,6 +1154,11 @@ function CommItem({ m }) {
         {m.disposition && m.disposition !== m.agent ? <span>· {m.disposition}</span> : null}
         <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap' }}>{fmtCommWhen(m.occurred_at)}</span>
       </div>
+      {/* Which number called, or which address the email came from. A note has no two
+          ends, so it gets nothing. */}
+      {m.channel !== 'note' && m.direction !== 'internal' && (
+        <div style={{ marginBottom: 3 }}><Endpoints m={m} client={client} /></div>
+      )}
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
       {/* Long messages are clamped to six lines so every card is the same height and the
           list stays scannable (John, 2026-10-01). -webkit-line-clamp is what gives a clean

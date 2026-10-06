@@ -1,4 +1,5 @@
 import { notify, confirmDialog, LoadErrorBanner } from '../notify'
+import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
@@ -668,6 +669,8 @@ export default function Inbox() {
                         {m.sent_by_type === 'ai' && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: '#fff', background: '#2563eb', padding: '1px 5px', borderRadius: 3, letterSpacing: '.03em' }}>AI</span>}
                         {m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
                       </div>
+                      {/* which number it came from and which it went to */}
+                      <div style={{ marginBottom: 3 }}><Endpoints m={m} align={out ? 'right' : 'left'} /></div>
                       <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
                         {isCall || isVoicemail
                           ? <div style={{ fontSize: 15.5, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
@@ -956,6 +959,7 @@ function GroupPane({ sel, onClose }) {
           return (
             <div key={m.id} style={{ alignSelf: out ? 'flex-end' : 'flex-start', maxWidth: '82%' }}>
               <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>{out ? (m.sent_by_type === 'ai' ? 'HUB AI' : 'You') : senderLine(m)} · {fmtDate(m.occurred_at)}</div>
+              <div style={{ marginBottom: 3 }}><Endpoints m={m} align={out ? 'right' : 'left'} /></div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)' }}>
                 <div style={{ fontSize: 15.5, whiteSpace: 'pre-wrap' }}>{m.body || m.preview}</div>
               </div>
@@ -1019,6 +1023,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
               <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 3, textAlign: out ? 'right' : 'left' }}>
                 <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {meta.label.replace(/s$/, '')} · {out ? 'You' : (m.contact_name || 'Them')} · {fmtDate(m.occurred_at)}{m.duration_sec ? ` · ${fmtDur(m.duration_sec)}` : ''}
               </div>
+              <div style={{ marginBottom: 3 }}><Endpoints m={m} align={out ? 'right' : 'left'} /></div>
               <div style={{ padding: '10px 13px', borderRadius: 12, background: missed ? 'rgba(239,68,68,.12)' : out ? '#2563eb' : 'var(--bg-secondary)', color: out && !missed ? '#fff' : 'var(--text-primary)', border: (out && !missed) ? 'none' : '1px solid var(--border)' }}>
                 {isCall || isVoicemail
                   ? <div style={{ fontSize: 15.5, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
