@@ -1657,14 +1657,19 @@ router.post('/:id/notes', (req, res) => {
   res.json({ success: true, notes, items: splitNotes(notes) })
 })
 
+// A note can span several lines, so both routes resolve it through splitNotes and compare
+// `expect` against the WHOLE note. Comparing one line would let an edit through whenever
+// only a pasted block's tail had changed.
+const findNote = (notes, index) => splitNotes(notes).find(n => n.index === Number(index)) || null
+
 router.put('/:id/notes/:index', (req, res) => {
   const c = noteGuard(req, res); if (!c) return
   const i = Number(req.params.index)
-  const lines = String(c.notes || '').split(String.fromCharCode(10))
-  if (!Number.isInteger(i) || i < 0 || i >= lines.length) return res.status(404).json({ error: 'note not found' })
-  // the caller must have been looking at the line it is replacing
-  if (typeof req.body?.expect === 'string' && req.body.expect !== lines[i]) {
-    return res.status(409).json({ error: 'this note changed since you opened it — reload and try again', current: lines[i] })
+  const note = findNote(c.notes, i)
+  if (!note) return res.status(404).json({ error: 'note not found' })
+  // the caller must have been looking at the note it is replacing
+  if (typeof req.body?.expect === 'string' && req.body.expect !== note.raw) {
+    return res.status(409).json({ error: 'this note changed since you opened it — reload and try again', current: note.raw })
   }
   try {
     const notes = replaceNote(c.notes, i, req.body?.text, { by: req.user?.name || req.user?.email || '' })
@@ -1677,16 +1682,16 @@ router.put('/:id/notes/:index', (req, res) => {
 router.delete('/:id/notes/:index', (req, res) => {
   const c = noteGuard(req, res); if (!c) return
   const i = Number(req.params.index)
-  const lines = String(c.notes || '').split(String.fromCharCode(10))
-  if (!Number.isInteger(i) || i < 0 || i >= lines.length) return res.status(404).json({ error: 'note not found' })
-  if (typeof req.body?.expect === 'string' && req.body.expect !== lines[i]) {
-    return res.status(409).json({ error: 'this note changed since you opened it — reload and try again', current: lines[i] })
+  const note = findNote(c.notes, i)
+  if (!note) return res.status(404).json({ error: 'note not found' })
+  if (typeof req.body?.expect === 'string' && req.body.expect !== note.raw) {
+    return res.status(409).json({ error: 'this note changed since you opened it — reload and try again', current: note.raw })
   }
   try {
     const notes = removeNote(c.notes, i)
     db.run('UPDATE clients SET notes = ?, updated_at = ? WHERE id = ?', [notes, new Date().toISOString(), c.id])
     // the text goes into the activity log, so a deleted note is still recoverable
-    logActivity('updated', 'client', c.id, 'Note deleted: ' + lines[i].slice(0, 300))
+    logActivity('updated', 'client', c.id, 'Note deleted: ' + note.raw.slice(0, 300))
     res.json({ success: true, notes, items: splitNotes(notes) })
   } catch (e) { res.status(400).json({ error: e.message }) }
 })

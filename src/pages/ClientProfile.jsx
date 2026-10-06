@@ -887,14 +887,24 @@ const NOTE_STAMP = /^\[([^\]\n]{1,80})\]\s*/
 
 // Keeps each note's index in the RAW field so an edit targets the right line no matter
 // how the list is filtered, searched or paged.
+// Must group exactly as server/client-notes.js does: an unstamped line after a note is
+// the rest of that note (a pasted price history, say), not a new undated one. If the two
+// disagreed, an edit would target a different line than the one on screen.
 function parseNotes(notes) {
   const lines = String(notes || '').split('\n')
   const out = []
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
-    if (!raw.trim()) continue
     const m = raw.match(NOTE_STAMP)
-    out.push({ index: i, raw, stamp: m ? m[1] : '', text: m ? raw.slice(m[0].length) : raw })
+    if (m) { out.push({ index: i, raw, stamp: m[1], text: raw.slice(m[0].length) }); continue }
+    if (!raw.trim()) continue
+    if (out.length) {
+      const prev = out[out.length - 1]
+      prev.raw += '\n' + raw
+      prev.text += '\n' + raw
+      continue
+    }
+    out.push({ index: i, raw, stamp: '', text: raw })
   }
   return out
 }

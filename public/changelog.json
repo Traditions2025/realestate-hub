@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T14:32:58.437Z",
+  "generated_at": "2026-10-06T14:37:23.836Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "644896c",
+      "date": "2026-10-06T09:33:12-05:00",
+      "subject": "Notes get an edit button, and every note carries a date",
+      "title": "Notes get an edit button, and every note carries a date",
+      "body": "John, 2026-10-05: \"notes in clients profile should have an edit button also make\nsure all notes logged in HUB have a date log and moving forward\".\n\nclients.notes is one text field, newest first, one note per line. Four code paths\nwere writing into it and each invented its own stamp:\n\n  ClientProfile.jsx   [Oct 5, 2026, 3:04 PM]       browser local time\n  master-file-log.js  [10/5/2026]                   Central, no time\n  automations.js      [Oct 5, 2026 - automation]    no time\n  lead-intake.js      [2026-10-05]                  and APPENDED, so a brand new\n                                                    lead's note read as the oldest\n                                                    thing on the file\n\nSo whether a note had a date depended on which path wrote it, and the profile\nshowed one only when the line happened to match its single pattern.\n\nserver/client-notes.js now owns the format and all four use it. Times are Central:\na server in UTC stamping a note typed at 8:30pm on Oct 5 would print Oct 6, wrong\non the only thing the stamp is for. The clients PUT route runs ensureStamped over\nanything handed to it, so a note cannot land undated whoever writes it - the UI is\nnot the only writer and a date cannot be recovered after the fact.\n\nAn existing stamp is never rewritten. Re-stamping would replace a real date with\ntoday's, which is worse than no date at all.\n\nEDITING. Each note carries the index of its line in the RAW field, so editing the\nsecond search hit rewrites the second match and not the second line on screen -\nand blank lines no longer shift what an edit lands on. The request sends back the\nline it believed it was editing; if anything changed meanwhile the server answers\n409 instead of overwriting it. An edit keeps the original date and records that it\nwas edited, by whom, once - history is not silently rewritten. Delete is there too,\nand the text goes to the activity log so it is recoverable.\n\nNotes with no date at all render \"date not recorded\" rather than a date nobody\nrecorded. GET /api/admin/notes-audit counts them and shows a sample; the backfill\ndecision is John's once the numbers are in. 31 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fe61d76",
       "date": "2026-10-05T17:40:56-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO Step 2: break the +1-week message into 3 sequential texts (no wall of text)",
       "title": "FSBO Step 2: break the +1-week message into 3 sequential texts (no wall of text)",
       "body": "Sends the credibility/curiosity message as 3 shorter texts ~8s apart, same day:\nintro+2000 homes+first-14-days, then price/marketing framing, then the CMA offer.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "df4a216",
-      "date": "2026-08-26T11:36:03-05:00",
-      "subject": "FSBO seed: match phones by normalized last-10 (stored phones are formatted)",
-      "title": "FSBO seed: match phones by normalized last-10 (stored phones are formatted)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

@@ -40,9 +40,24 @@ export function splitNotes(notes) {
   const out = []
   for (let i = 0; i < lines.length; i++) {
     const raw = lines[i]
-    if (!raw.trim()) continue
     const m = raw.match(STAMP)
-    out.push({ index: i, raw, stamp: m ? m[1] : '', text: m ? raw.slice(m[0].length) : raw })
+    if (m) { out.push({ index: i, endIndex: i, raw, stamp: m[1], text: raw.slice(m[0].length) }); continue }
+    if (!raw.trim()) continue
+    // An unstamped line AFTER a note is the rest of that note, not a new one.
+    //
+    // Someone pasting a multi-line block into the note box produced one stamped line
+    // and N orphans: the live audit counted 85 "undated notes" across 28 leads, and
+    // nearly all of them were the tail of a pasted Zillow price history. Treating them
+    // as continuations gives them the REAL date of the note they belong to, instead of
+    // stamping 85 fragments with a date nobody recorded (John, 2026-10-05).
+    if (out.length) {
+      const prev = out[out.length - 1]
+      prev.raw += '\n' + raw
+      prev.text += '\n' + raw
+      prev.endIndex = i
+      continue
+    }
+    out.push({ index: i, endIndex: i, raw, stamp: '', text: raw })
   }
   return out
 }
@@ -65,9 +80,16 @@ export function formatNote(text, { when = new Date(), by = '' } = {}) {
 export function ensureStamped(notes, { when = new Date(), by = '' } = {}) {
   const text = String(notes ?? '')
   if (!text.trim()) return text
-  return text.split('\n').map(line => {
+  const lines = text.split('\n')
+  let seenNote = false
+  return lines.map(line => {
     if (!line.trim()) return line
-    if (STAMP.test(line)) return line
+    if (STAMP.test(line)) { seenNote = true; return line }
+    // Only a note that starts undated gets a stamp. A line after one is the rest of
+    // that note and already carries its date; stamping it would split one note into
+    // two and put today's date on half of it.
+    if (seenNote) return line
+    seenNote = true
     return formatNote(line, { when, by })
   }).join('\n')
 }
@@ -90,14 +112,18 @@ export function replaceNote(notes, index, newText, { when = new Date(), by = '' 
   const lines = String(notes ?? '').split('\n')
   const i = Number(index)
   if (!Number.isInteger(i) || i < 0 || i >= lines.length) throw new Error('note not found')
-  const body = String(newText || '').replace(/\r/g, '').replace(/\n+/g, ' ').trim()
+  const body = String(newText || '').replace(/\r/g, '').trim()
   if (!body) throw new Error('a note cannot be emptied; delete it instead')
+  // A note can span several lines, so the edit replaces all of them. Editing the first
+  // line of a pasted block and leaving its tail behind would orphan the rest.
+  const note = splitNotes(notes).find(n => n.index === i)
+  const end = note ? note.endIndex : i
   const m = lines[i].match(STAMP)
   // An edit never silently rewrites history: the original stamp stays and the edit is
   // recorded beside it. A note edited twice says so once, with the latest date.
   const original = m ? m[1].replace(/\s*\(edited[^)]*\)\s*$/, '') : stampFor(when)
   const who = String(by || '').trim()
-  lines[i] = `[${original} (edited ${stampFor(when)}${who ? ` by ${who}` : ''})] ${body}`
+  lines.splice(i, end - i + 1, `[${original} (edited ${stampFor(when)}${who ? ` by ${who}` : ''})] ${body}`)
   return lines.join('\n')
 }
 
@@ -106,7 +132,9 @@ export function removeNote(notes, index) {
   const lines = String(notes ?? '').split('\n')
   const i = Number(index)
   if (!Number.isInteger(i) || i < 0 || i >= lines.length) throw new Error('note not found')
-  lines.splice(i, 1)
+  // the whole note, including any continuation lines
+  const note = splitNotes(notes).find(n => n.index === i)
+  lines.splice(i, (note ? note.endIndex : i) - i + 1)
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim()
 }
 

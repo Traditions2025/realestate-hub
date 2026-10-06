@@ -52,12 +52,40 @@ test('all four historical stamp formats are recognised as dated', () => {
   assert.equal(ensureStamped(field), field, 'and none of them should be rewritten')
 })
 
-test('a mixed field gets only the undated lines stamped', () => {
-  const field = '[10/5/2026] has one\nhas none\n[2026-10-05] has one'
+// ── a pasted block is ONE note, not one note plus orphans ───────────────────────────
+// The live audit found 85 "undated notes" across 28 leads. Nearly all were the tail of a
+// pasted Zillow price history: the old save stamped the first line and left the rest
+// adrift. They belong to the note above them and already have its real date.
+test('an unstamped line after a note is part of that note', () => {
+  const field = '[10/5/2026] 8/17/2026 Price change\n$339,999\n-2.9%\n$106/sqft'
+  const notes = splitNotes(field)
+  assert.equal(notes.length, 1, 'a pasted block is one note')
+  assert.equal(notes[0].stamp, '10/5/2026')
+  assert.match(notes[0].text, /\$106\/sqft$/, 'the whole block is its text')
+  assert.equal(undatedCount(field), 0, 'nothing in it is undated')
+})
+
+test('a continuation line is never stamped', () => {
+  // stamping it would split one note in two and put today's date on half of it
+  const field = '[10/5/2026] Price change\n$339,999\n[2026-10-05] a later note'
+  assert.equal(ensureStamped(field), field)
+})
+
+test('a note that STARTS undated is stamped, but only its first line', () => {
+  const field = 'pasted with no stamp\n$339,999\n-2.9%'
   const out = ensureStamped(field).split('\n')
-  assert.equal(out[0], '[10/5/2026] has one')
-  assert.match(out[1], STAMP)
-  assert.equal(out[2], '[2026-10-05] has one')
+  assert.match(out[0], STAMP)
+  assert.equal(out[1], '$339,999', 'the rest of the block is left as its continuation')
+  assert.equal(out[2], '-2.9%')
+  assert.equal(splitNotes(out.join('\n')).length, 1, 'and it is still one note')
+})
+
+test('the continuation rule does not swallow the next dated note', () => {
+  const field = '[a] one\nits tail\n[b] two'
+  const notes = splitNotes(field)
+  assert.equal(notes.length, 2)
+  assert.equal(notes[0].text, 'one\nits tail')
+  assert.equal(notes[1].text, 'two')
 })
 
 test('blank lines are left alone rather than stamped into notes', () => {
@@ -150,11 +178,30 @@ test('a note cannot be turned into an empty line', () => {
   assert.throws(() => replaceNote('[a] x', 0, '   '), /cannot be emptied/)
 })
 
-test('a multi-line edit cannot split one note into two', () => {
-  // one note is one line; a pasted newline would turn the tail into an undated note
+test('a multi-line note round-trips as one note', () => {
   const out = replaceNote('[a] x', 0, 'line one\nline two')
-  assert.equal(out.split('\n').length, 1)
-  assert.match(out, /line one line two$/)
+  const notes = splitNotes(out)
+  assert.equal(notes.length, 1, 'the tail must not become a second, undated note')
+  assert.equal(notes[0].text, 'line one\nline two')
+  assert.equal(undatedCount(out), 0)
+})
+
+test('editing a pasted block replaces the whole block', () => {
+  // editing just the stamped line would leave its tail orphaned below the new text
+  const field = '[10/5/2026] Price change\n$339,999\n-2.9%\n[b] a later note'
+  const out = replaceNote(field, 0, 'price corrected to $339,999')
+  const notes = splitNotes(out)
+  assert.equal(notes.length, 2)
+  assert.equal(notes[0].text, 'price corrected to $339,999')
+  assert.equal(notes[1].text, 'a later note', 'the note below is untouched')
+  assert.ok(!out.includes('-2.9%'), 'no fragment of the old block is left behind')
+})
+
+test('deleting a pasted block removes all of it', () => {
+  const field = '[10/5/2026] Price change\n$339,999\n-2.9%\n[b] a later note'
+  const out = removeNote(field, 0)
+  assert.deepEqual(splitNotes(out).map(n => n.text), ['a later note'])
+  assert.ok(!out.includes('$339,999'))
 })
 
 test('editing a line that does not exist is refused', () => {
@@ -210,13 +257,25 @@ test('the profile sends note text and lets the server stamp it', () => {
   assert.ok(!s.includes('const combined = client.notes ?'), 'the browser must not build the stamp')
 })
 
-test('an edit is sent with the line it believed it was editing', () => {
+test('an edit is sent with the note it believed it was editing', () => {
   // without `expect`, two people editing at once silently clobber each other
   const s = read('../src/pages/ClientProfile.jsx')
   assert.match(s, /expect: note\.raw/)
   const route = read('../server/routes/clients.js')
-  assert.match(route, /req\.body\.expect !== lines\[i\]/)
+  // and the comparison is against the WHOLE note, since one note can span lines
+  assert.match(route, /req\.body\.expect !== note\.raw/)
   assert.match(route, /409/)
+})
+
+test('the profile groups continuation lines exactly as the server does', () => {
+  // if the two disagreed, an edit would target a different line than the one on screen
+  const s = read('../src/pages/ClientProfile.jsx')
+  const fn = s.slice(s.indexOf('function parseNotes'), s.indexOf('function NoteRow'))
+  assert.match(fn, /if \(out\.length\) \{/, 'must fold an unstamped line into the note above')
+  assert.match(fn, /prev\.text \+= /)
+  // the stamp is checked BEFORE the blank-line skip, as on the server
+  assert.ok(fn.indexOf('raw.match(NOTE_STAMP)') < fn.indexOf('if (!raw.trim()) continue'),
+    'checking the stamp after the skip would renumber notes around blank lines')
 })
 
 test('the profile renders an honest label when a note has no date', () => {
@@ -226,5 +285,5 @@ test('the profile renders an honest label when a note has no date', () => {
 
 test('a deleted note is recoverable from the activity log', () => {
   const s = read('../server/routes/clients.js')
-  assert.match(s, /'Note deleted: ' \+ lines\[i\]/)
+  assert.match(s, /'Note deleted: ' \+ note\.raw/)
 })
