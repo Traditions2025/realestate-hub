@@ -1568,6 +1568,29 @@ async function start() {
   // (hand-added 2026-10-06 14:20, AI texted her 14:27) - the auto-enrolment log said
   // "excluded", so something else switched the AI on and the existing endpoints did not say
   // what.
+  // Read-only: leads carrying the hand-added exclusion, and whether the AI is on for them
+  // anyway. Needed before moving that flag into the send-time gate - anyone legitimately
+  // switched on afterwards must have the flag cleared, or their AI would stop silently.
+  app.get('/api/admin/manual-excluded', (_req, res) => {
+    try {
+      const rows = db.all(`SELECT c.id, c.first_name, c.last_name, c.status, c.created_at,
+                                  s.ai_enabled, s.ai_managed, s.ai_state,
+                                  s.auto_enroll_excluded_by, s.auto_enroll_excluded_at,
+                                  (SELECT COUNT(*) FROM ai_scheduled_actions a WHERE a.client_id=c.id AND a.state='pending') pending,
+                                  (SELECT COUNT(*) FROM communications m WHERE m.client_id=c.id AND m.direction='outgoing' AND lower(COALESCE(m.sent_by_type,''))='ai') ai_sent
+                             FROM ai_lead_state s JOIN clients c ON c.id = s.client_id
+                            WHERE s.auto_enroll_excluded = 1 AND c.merged_into IS NULL
+                            ORDER BY s.ai_managed DESC, s.ai_enabled DESC, c.id DESC`)
+      res.json({
+        total: rows.length,
+        ai_on_anyway: rows.filter(r => r.ai_managed === 1 || r.ai_enabled === 1).length,
+        with_pending: rows.filter(r => r.pending > 0).length,
+        have_been_texted: rows.filter(r => r.ai_sent > 0).length,
+        leads: rows.slice(0, 60),
+      })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/admin/ai-why/:id', (req, res) => {
     const cid = Number(req.params.id)
     try {
