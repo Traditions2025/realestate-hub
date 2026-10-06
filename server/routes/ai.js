@@ -154,7 +154,16 @@ router.post('/lead/:id/preview', async (req, res) => {
 })
 
 // ---- per-lead controls ----
-router.post('/lead/:id/enable', (req, res) => { setEnabled(Number(req.params.id), true); setManaged(Number(req.params.id), true); transitionAiState(Number(req.params.id), 'AI_ELIGIBLE', 'enabled by agent'); res.json({ success: true }) })
+// Turning AI on by hand is the deliberate yes, so it CLEARS the hand-added exclusion -
+// otherwise the send-time rule in forbidden.js would keep refusing a lead an agent has
+// explicitly switched on.
+router.post('/lead/:id/enable', (req, res) => {
+  const cid = Number(req.params.id)
+  clearManualExclusion(cid, req.user?.email)
+  setEnabled(cid, true); setManaged(cid, true)
+  transitionAiState(cid, 'AI_ELIGIBLE', 'enabled by agent')
+  res.json({ success: true })
+})
 // Manually put ONE lead through the Facebook-ad campaign flow (approved template
 // text now, no-reply inquiry email 10 min later). For existing leads the team
 // explicitly chooses to work — the automatic pipeline never does this on its own.

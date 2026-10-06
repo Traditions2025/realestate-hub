@@ -50,6 +50,22 @@ export function aiForbiddenReason(client) {
   if (!cid) return null
   const has = (sql) => { try { return !!db.get(sql, [cid]) } catch { return false } }
 
+  // HAND-ADDED LEADS (John, 2026-10-06, after the fourth incident in this area).
+  //
+  // This used to be an enrolment-only filter, and it kept being enough right up until it
+  // wasn't: auto-enrolment honoured it, then "Send AI now" force-sent straight past it and
+  // enrolled the lead on the way. Guarding one endpoint at a time is how Megan Walt got two
+  // texts she should never have had.
+  //
+  // So it is asked HERE, where messages actually leave, and every path - scheduled,
+  // responsive, forced, bulk, and anything written later - has to pass it.
+  //
+  // Saying yes still works and is the ONLY way through: POST /api/ai/lead/:id/enable and the
+  // Send-AI-now override both CLEAR this flag, deliberately and with a record of who did it.
+  // A lead that still carries it is one nobody has said yes to.
+  if (has('SELECT client_id FROM ai_lead_state WHERE client_id=? AND auto_enroll_excluded=1'))
+    return 'added by hand and not switched on — turn AI on for this lead deliberately first'
+
   // Campaigns that own the conversation outright, and answer with their own approved
   // templates. A person replies to these leads, never the AI.
   if (has('SELECT client_id FROM cx_campaign WHERE client_id=?'))
