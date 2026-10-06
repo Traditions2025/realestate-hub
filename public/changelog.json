@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-06T17:57:45.875Z",
+  "generated_at": "2026-10-06T18:22:58.714Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ab31150",
+      "date": "2026-10-06T12:57:47-05:00",
+      "subject": "Put the sender's number on the header line, not under it",
+      "title": "Put the sender's number on the header line, not under it",
+      "body": "John, 2026-10-06: \"can you put that beside ... so it reads like\nText · Jacob Misener · 11:20 AM  from (507) 251-4908\".\n\nEndpoints renders an inline span now instead of a block, and all five call sites\nmoved it inside the header rather than leaving it as a sibling underneath. An en\nspace separates it from the time so it reads as its own fact rather than another\ndot-separated field, and the number keeps the monospace face so two numbers on\none lead line up when you scan the thread.\n\nThe align prop went with the block layout - inline text follows the alignment of\nthe header it now sits in, which is already right for an outgoing bubble and left\nfor an incoming one.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "7cb8b07",
       "date": "2026-10-06T12:45:24-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "AI: dormant leads (no recent activity) get the REVIVE opener, never 'saw you browsing'",
       "title": "AI: dormant leads (no recent activity) get the REVIVE opener, never 'saw you browsing'",
       "body": "Root cause: manual Send AI on a never-texted lead always used the activity opener, and the\ncontext surfaced the most recent FUB view regardless of age — so a months-old view got\nreferenced as if current ('Saw you checking out 237 29th Ave SW').\n\nFix (two layers):\n- Routing: isDormantLead() (no activity in N days AND not a brand-new registration) now\n  routes send-now + bulk-send-now to the REVIVE re-engage bank instead of handleProactive.\n- Context: only FUB views within the dormant window (default 21 days, ai_dormant_days)\n  populate last_viewed_property, so no opener can ever cite a stale property as current.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8670fc9",
-      "date": "2026-08-26T13:39:33-05:00",
-      "subject": "Filters: add Sources (Exclude) option",
-      "title": "Filters: add Sources (Exclude) option",
-      "body": "Frontend advFilters.sources_exclude wired to the existing backend sources_exclude\nsupport (clients.js); also add it to the saved-list filter builder for parity.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

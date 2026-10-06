@@ -409,6 +409,50 @@ router.post('/:id/test-send', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// How a campaign is actually doing. Read-only.
+//
+// sendSequenceEmail stamps email_log.template as `drip_<id>`, so a campaign's sends can be
+// counted without guessing from subject lines, and the SendGrid Event Webhook attaches
+// opens and clicks to the same rows. Opens are a floor, never a ceiling: a client that
+// blocks the tracking pixel reads the email and never reports it.
+router.get('/:id/performance', (req, res) => {
+  const id = Number(req.params.id)
+  const d = db.get('SELECT id, name FROM drip_campaigns WHERE id=?', [id])
+  if (!d) return res.status(404).json({ error: 'Drip not found' })
+  const tag = `drip_${id}`
+  const g = (sql, p = []) => { try { return db.get(sql, p) || {} } catch { return {} } }
+  const n = (sql, p = [tag]) => g(sql, p).c || 0
+
+  const sent = n('SELECT COUNT(*) c FROM email_log WHERE template = ?')
+  const delivered = n('SELECT COUNT(*) c FROM email_log WHERE template = ? AND delivered_at IS NOT NULL')
+  const opened = n('SELECT COUNT(*) c FROM email_log WHERE template = ? AND open_count > 0')
+  const clicked = n('SELECT COUNT(*) c FROM email_log WHERE template = ? AND click_count > 0')
+  const bounced = n("SELECT COUNT(*) c FROM email_log WHERE template = ? AND delivery_status IN ('bounce','dropped')")
+  const spam = n("SELECT COUNT(*) c FROM email_log WHERE template = ? AND delivery_status = 'spamreport'")
+  const people = n('SELECT COUNT(DISTINCT client_id) c FROM email_log WHERE template = ?')
+  const peopleOpened = n('SELECT COUNT(DISTINCT client_id) c FROM email_log WHERE template = ? AND open_count > 0')
+
+  const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0)
+  res.json({
+    drip_id: id, name: d.name,
+    enrollments: g('SELECT COUNT(*) c FROM drip_enrollments WHERE drip_id=?', [id]).c || 0,
+    sent, delivered, opened, clicked, bounced, spam,
+    people_emailed: people, people_who_opened: peopleOpened,
+    // open rate is of DELIVERED, not of sent: an email that bounced was never a chance to open
+    open_rate_pct: pct(opened, delivered || sent),
+    click_rate_pct: pct(clicked, delivered || sent),
+    bounce_rate_pct: pct(bounced, sent),
+    person_open_rate_pct: pct(peopleOpened, people),
+    by_step: db.all(`SELECT step_index, COUNT(*) n, SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) ok
+                     FROM drip_executions WHERE drip_id=? GROUP BY step_index ORDER BY step_index`, [id]),
+    top_links: db.all(`SELECT e.url, COUNT(*) n FROM email_events e
+                       JOIN email_log l ON l.id = e.email_id
+                       WHERE l.template = ? AND e.event_type='click' AND e.url IS NOT NULL
+                       GROUP BY e.url ORDER BY n DESC LIMIT 8`, [tag]),
+    note: 'Opens are a floor: a mail client that blocks the tracking pixel never reports one.',
+  })
+})
+
 router.get('/:id/activity', (req, res) => {
   const rows = db.all(`SELECT e.*, c.first_name, c.last_name, c.email
     FROM drip_enrollments e LEFT JOIN clients c ON c.id = e.client_id
