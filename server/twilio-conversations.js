@@ -118,8 +118,27 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
 // Send a message INTO an existing group conversation (agent replying to the group).
 export async function sendConversationMessage(convSid, body, author = 'Matt Smith Team') {
   const sid = await ensureConversationsService()
+  // Twilio accepts a message into a conversation that has no participants left: it stores
+  // it, returns a message SID, and delivers it to nobody. Every caller treated that SID as
+  // proof the group got the text.
+  //
+  // Conversations DO empty out on their own. Twilio allows one binding per phone + proxy
+  // pair, so adding a phone to a NEWER group unbinds it from the older one (see
+  // createGroupText's migration). A group that worked last month can be empty today while
+  // the Hub's group_meta still lists everyone.
+  //
+  // 2026-10-06: the Deutsch congratulations text was posted into exactly such a conversation
+  // - three names in the snapshot, zero participants in Twilio - and reached nobody. Matt
+  // noticing he had no text is the only reason anyone found out.
+  const p = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Participants?PageSize=50`)
+  const reachable = (p.participants || []).map(x => x.messaging_binding?.address).filter(Boolean)
+  if (!reachable.length) {
+    const e = new Error('This group conversation has no participants left in Twilio, so the message would have reached nobody. Send it as a new group text to rebuild the group.')
+    e.code = 'CONVERSATION_EMPTY'
+    throw e
+  }
   const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: author, Body: body })
-  return { messageSid: msg.sid }
+  return { messageSid: msg.sid, deliveredTo: reachable }
 }
 
 // Per-recipient delivery receipts for a group conversation's recent outbound

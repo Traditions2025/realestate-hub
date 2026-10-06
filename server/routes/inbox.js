@@ -1428,7 +1428,24 @@ router.post('/group-text', async (req, res) => {
         } catch {}
       }
     }
-    const { createGroupText, sendConversationMessage } = await import('../twilio-conversations.js')
+    const { createGroupText, sendConversationMessage, conversationRoster } = await import('../twilio-conversations.js')
+    // The match above came from group_meta, which is a SNAPSHOT written when the group was
+    // created and never re-read. Twilio's live roster is what decides who a send reaches,
+    // and it drifts: adding one of these phones to a newer group unbinds it from this
+    // conversation. So confirm everyone is still really in there before reusing it; if not,
+    // fall through and build the group fresh (createGroupText pulls each person back in).
+    if (reuseSid) {
+      let liveKeys = new Set()
+      try {
+        const roster = await conversationRoster(reuseSid)
+        liveKeys = new Set((roster.live_participants || []).map(p => phoneKey(p.address)).filter(Boolean))
+      } catch (e) { console.error('[group-text] roster check failed for', reuseSid, e.message) }
+      const intact = liveKeys.size === wantKeys.size && [...wantKeys].every(k => liveKeys.has(k))
+      if (!intact) {
+        console.log(`[group-text] not reusing ${reuseSid}: Twilio has ${liveKeys.size} of ${wantKeys.size} participants — rebuilding the group`)
+        reuseSid = null
+      }
+    }
     if (reuseSid) {
       const out = await sendConversationMessage(reuseSid, body)
       db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, occurred_at)
