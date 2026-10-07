@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T17:05:43.695Z",
+  "generated_at": "2026-10-07T17:13:19.677Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "22f495b",
+      "date": "2026-10-07T12:05:45-05:00",
+      "subject": "probe-texts: report who the FUB API key actually is",
+      "title": "probe-texts: report who the FUB API key actually is",
+      "body": "The first pass answered the big question — all 17,204 imported texts across 1,003\nleads are hidden, none have ever been readable, and showContent / includeContent\nchange nothing — but it counted rows in /me and /users instead of returning them,\nso the most likely cause went unread.\n\n/identity, /me and /users now come back raw. Whether a body is withheld usually\nturns on which user the API key belongs to and what that user may see, and that\nis the difference between a setting someone can change and a dead end.\n\nStill GET only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8423286",
       "date": "2026-10-07T12:03:35-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO list: Zillow listing link — 'View Listing' column + clickable link on lead profile",
       "title": "FSBO list: Zillow listing link — 'View Listing' column + clickable link on lead profile",
       "body": "The master file's Custom Link is stored in fsbo_link. In the FSBO list the Source column\nbecomes 'Listing' with a clickable 'View Listing ↗' Zillow link per row; the lead profile\nshows 'Listing: View on Zillow ↗'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0079d7f",
-      "date": "2026-08-27T09:19:28-05:00",
-      "subject": "FSBO: make the sync self-healing so the list can never drift",
-      "title": "FSBO: make the sync self-healing so the list can never drift",
-      "body": "- Every syncFsboMaster run now collapses accidental duplicate FSBO records sharing a phone\n  (keep lowest id, merge Hub-native extras; Sierra-linked profiles like a real 2nd listing\n  are preserved). So even if a dup ever slips through, the next sync (incl the 9:30 AM daily\n  after the master updates) removes it automatically — the count always converges to the sheet.\n- Report exposes on_list / unique_sheet_phones / deduped; daily maintenance Slack-alerts if\n  the list drifts above the sheet's unique phones by more than a small margin.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

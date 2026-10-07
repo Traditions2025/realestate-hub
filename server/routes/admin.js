@@ -9,6 +9,37 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Do any FUB NOTES carry text-message content? ─────────────────────────────────────
+// John, 2026-10-07: the texts came over "from FUB as notes", converted to show as texts.
+// The /textMessages endpoint withholds bodies, but /notes does not — so if an integration
+// logged a conversation INTO a note, the words are already in the Hub under channel
+// 'note'. This looks for that rather than assuming it either way. Read-only.
+router.get('/fub-notes-with-text', requirePermission('settings.view'), (req, res) => {
+  const base = "FROM communications WHERE channel='note' AND external_id LIKE 'fub_note_%'"
+  const g = (sql, p = []) => { try { return (db.get(sql, p) || {}).c || 0 } catch { return 0 } }
+  const total = g(`SELECT COUNT(*) c ${base}`)
+  // phrases an integration uses when it writes a conversation into a note
+  const PATTERNS = [
+    ['sent a text', "body LIKE '%sent a text%'"],
+    ['text message', "body LIKE '%text message%'"],
+    ['texted', "body LIKE '%texted%'"],
+    ['sms', "body LIKE '%SMS%'"],
+    ['incoming/outgoing text', "body LIKE '%ncoming text%' OR body LIKE '%utgoing text%'"],
+    ['reply from lead', "body LIKE '%replied%'"],
+  ]
+  const hits = {}
+  for (const [label, where] of PATTERNS) hits[label] = g(`SELECT COUNT(*) c ${base} AND (${where})`)
+  res.json({
+    total_fub_notes: total,
+    matches: hits,
+    // which systems write FUB notes at all — the likely source of any transcript
+    by_source: db.all(`SELECT COALESCE(disposition,'(none)') source, COUNT(*) n ${base} GROUP BY source ORDER BY n DESC`),
+    samples: db.all(`SELECT client_id, occurred_at, COALESCE(disposition,'') source, substr(body,1,220) body
+      ${base} AND (body LIKE '%sent a text%' OR body LIKE '%text message%' OR body LIKE '%texted%')
+      ORDER BY occurred_at DESC LIMIT 12`),
+  })
+})
+
 // ── Imported FUB texts: how many arrived with their body withheld ────────────────────
 // John, 2026-10-07: "it actually worked before". This answers that from the data rather
 // than from memory — if readable rows and hidden rows were imported on the same days, it
