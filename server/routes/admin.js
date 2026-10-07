@@ -9,6 +9,37 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Imported FUB texts: how many arrived with their body withheld ────────────────────
+// John, 2026-10-07: "it actually worked before". This answers that from the data rather
+// than from memory — if readable rows and hidden rows were imported on the same days, it
+// never worked for these leads and nothing changed. Read-only.
+router.get('/fub-text-privacy', requirePermission('settings.view'), (_req, res) => {
+  const H = "body LIKE '%hidden for privacy%'"
+  const g = (sql, p = []) => { try { return (db.get(sql, p) || {}).c || 0 } catch { return 0 } }
+  const base = "FROM communications WHERE channel='text' AND external_id LIKE 'fub_%'"
+  const total = g(`SELECT COUNT(*) c ${base}`)
+  const hidden = g(`SELECT COUNT(*) c ${base} AND ${H}`)
+  const rows = db.all(`SELECT substr(occurred_at,1,7) ym,
+      SUM(CASE WHEN ${H} THEN 1 ELSE 0 END) hidden, COUNT(*) total
+    ${base} GROUP BY ym ORDER BY ym`)
+  // whether a lead is all-hidden or mixed says whether this is per-lead or per-message
+  const perLead = db.all(`SELECT client_id,
+      SUM(CASE WHEN ${H} THEN 1 ELSE 0 END) hidden, COUNT(*) total
+    ${base} AND client_id IS NOT NULL GROUP BY client_id`)
+  const allHidden = perLead.filter(r => r.hidden === r.total).length
+  const noneHidden = perLead.filter(r => r.hidden === 0).length
+  res.json({
+    total_fub_texts: total, hidden, readable: total - hidden,
+    leads_with_fub_texts: perLead.length,
+    leads_all_hidden: allHidden, leads_none_hidden: noneHidden,
+    leads_mixed: perLead.length - allHidden - noneHidden,
+    by_message_month: rows,
+    // the import date matters more than the message date for "did it change"
+    imported_readable_sample: db.all(`SELECT client_id, occurred_at, substr(body,1,50) body
+      ${base} AND NOT ${H} ORDER BY occurred_at DESC LIMIT 8`),
+  })
+})
+
 // ── Profile notes: how many predate the rule that every note carries a date ──────────
 // Read-only. A note written before 2026-10-05 may have no stamp, and there is no honest
 // way to recover a date after the fact, so this counts them and shows a sample rather

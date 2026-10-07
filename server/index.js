@@ -1053,6 +1053,49 @@ async function start() {
   // Re-test whether FUB email CONTENT can be read at all (John asked twice, 2026-10-05).
   // Earlier finding was "[CONTENT HIDDEN]" on 51 of 51. This tries every angle: extra
   // params, the threads endpoint, a single email by id, and both directions.
+  // Read-only. John, 2026-10-07: some imported texts read "* Body is hidden for privacy
+  // reasons *" though the sync worked before. The mapper copies t.message verbatim, so
+  // that string comes FROM FUB — this asks FUB the same question several ways to find out
+  // whether anything makes it hand the text over. GET only; nothing is written or sent.
+  app.get('/api/fub/probe-texts', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const pid = Number(req.query.personId) || 0
+      if (!pid) return res.status(400).json({ error: 'personId is required' })
+      const HIDDEN = /hidden for privacy/i
+      const out = {}
+      const t = async (label, ep, params) => {
+        try {
+          const b = await fubGet(ep, params || {})
+          const key = Object.keys(b || {}).find(k => Array.isArray(b[k]))
+          const rows = key ? b[key] : (b && b.id ? [b] : [])
+          out[label] = {
+            ok: true, total: b?._metadata?.total ?? null, returned: rows.length,
+            fields: rows[0] ? Object.keys(rows[0]) : [],
+            hidden: rows.filter(r => HIDDEN.test(String(r.message || ''))).length,
+            readable: rows.filter(r => r.message && !HIDDEN.test(String(r.message))).length,
+            sample: rows.slice(0, 3).map(r => ({
+              id: r.id, created: r.created, incoming: r.isIncoming,
+              message: String(r.message || '').slice(0, 70),
+              // whatever FUB chooses to say about why
+              status: r.status ?? null, userId: r.userId ?? null, createdById: r.createdById ?? null,
+            })),
+          }
+        } catch (e) { out[label] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 180) } }
+        await new Promise(s2 => setTimeout(s2, 300))
+      }
+      await t('plain', '/textMessages', { personId: pid, limit: 5 })
+      await t('fields_allFields', '/textMessages', { personId: pid, limit: 5, fields: 'allFields' })
+      await t('showContent', '/textMessages', { personId: pid, limit: 5, showContent: 'true' })
+      await t('includeContent', '/textMessages', { personId: pid, limit: 5, includeContent: 'true' })
+      const one = out.plain?.sample?.[0]?.id
+      if (one) await t('single_by_id', `/textMessages/${one}`, {})
+      await t('person', `/people/${pid}`, { fields: 'allFields' })
+      await t('me', '/me', {})
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/probe-emails', async (req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')

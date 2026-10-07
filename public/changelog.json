@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T14:36:23.894Z",
+  "generated_at": "2026-10-07T17:03:33.325Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "fcde637",
+      "date": "2026-10-07T09:36:26-05:00",
+      "subject": "performance-all selected a column that does not exist",
+      "title": "performance-all selected a column that does not exist",
+      "body": "The endpoint 500'd on its first real call: \"no such column: active\". I selected\n`active` from drip_campaigns, but the table has no on/off flag at all — a campaign\nruns because something enrolls into it, not because of a flag on the row. I had\nassumed the column from a \"status=inactive\" I saw earlier, which turned out to be\nmy own throwaway script printing its fallback, not data from the Hub.\n\nEvery test passed while this was broken, because they all READ the source. A query\nbeing written is not a query that runs. The new test extracts each SELECT from the\nendpoint and executes it against the real schema, and it is verified both ways:\nputting `active` back makes it fail with that exact message, taking it out makes\nit pass.\n\nIts own extraction bug is worth noting too — the first regex ran past a template\nliteral's closing backtick into the next query and tested SQL nobody had written.\nIt now stops at the matching delimiter.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "db04b87",
       "date": "2026-10-07T09:28:33-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO sync: fix duplicate loop — live FSBO record beats a junk lead with a legacy FSBO tag",
       "title": "FSBO sync: fix duplicate loop — live FSBO record beats a junk lead with a legacy FSBO tag",
       "body": "Root cause of the runaway FSBO count: some phones have an old JUNK lead carrying a legacy\n'FSBO' tag. The index preferred it (tag = isFsbo, lower id), so the collision branch fired\nevery sync and created a new duplicate. Replace the isFsbo preference with a rank() where a\nlive non-junk record with an fsbo_status always wins; also exclude merged_into records from\nthe index.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5a37e42",
-      "date": "2026-08-26T17:52:35-05:00",
-      "subject": "Tasks: show linked lead name, add /reassign, time picker on profile task",
-      "title": "Tasks: show linked lead name, add /reassign, time picker on profile task",
-      "body": "- tasks GET attaches related_name (linked lead) so a task added from a profile shows who\n  it's about; Tasks table renders it under the title + includes it in search.\n- POST /api/tasks/reassign {from,to} to move all of one assignee's tasks to another.\n- Profile Add Task box: add a due-time picker (due_time).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
