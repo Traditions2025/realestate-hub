@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T14:28:31.069Z",
+  "generated_at": "2026-10-07T14:36:23.894Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "db04b87",
+      "date": "2026-10-07T09:28:33-05:00",
+      "subject": "Register /performance-all before the /:id that was swallowing it",
+      "title": "Register /performance-all before the /:id that was swallowing it",
+      "body": "I added the route after router.get('/:id'), so Express matched /performance-all\nas id = \"performance-all\", Number() made it NaN and the lookup 404'd. The symptom\ngave nothing away: a poll loop simply never saw the response it was waiting for,\nand I spent ten minutes watching an empty file before reading the route order.\n\nMoved above '/:id'. A test now checks the general rule rather than this one case:\nno single-segment literal GET route may be registered after a parameter route that\nwould shadow it, so the next one added is caught too.\n\nTwo more tests pin what the endpoint is for: it returns the enrolment and rate\nfields, and `since` windows only the email counts. \"On a drip right now\" is not a\nwindowed question, and applying the window to both would give a number that means\nneither.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b1612ad",
       "date": "2026-10-07T09:17:16-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Tasks: show linked lead name, add /reassign, time picker on profile task",
       "title": "Tasks: show linked lead name, add /reassign, time picker on profile task",
       "body": "- tasks GET attaches related_name (linked lead) so a task added from a profile shows who\n  it's about; Tasks table renders it under the title + includes it in search.\n- POST /api/tasks/reassign {from,to} to move all of one assignee's tasks to another.\n- Profile Add Task box: add a due-time picker (due_time).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bd32e89",
-      "date": "2026-08-26T17:45:06-05:00",
-      "subject": "Move Add Task to the lead action bar (button opens an inline box)",
-      "title": "Move Add Task to the lead action bar (button opens an inline box)",
-      "body": "'Add Task' now sits next to Add Note / Add Transaction; clicking it toggles an inline\ntext + due date + assignee box that files the task to the Tasks tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

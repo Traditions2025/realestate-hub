@@ -226,7 +226,9 @@ router.get('/performance-all', (req, res) => {
   const since = /^\d{4}-\d{2}-\d{2}/.test(String(req.query.since || ''))
     ? String(req.query.since).slice(0, 10) + 'T00:00:00' : null
   const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0)
-  const rows = db.all('SELECT id, name, active FROM drip_campaigns ORDER BY name')
+  // drip_campaigns has no on/off column: a campaign runs because something enrolls into
+  // it, not because of a flag on the row. Selecting one 500'd the whole endpoint.
+  const rows = db.all('SELECT id, name FROM drip_campaigns ORDER BY name')
   const out = rows.map(d => {
     const tag = `drip_${d.id}`
     const w = since ? ' AND sent_at >= ?' : ''
@@ -242,7 +244,7 @@ router.get('/performance-all', (req, res) => {
         SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) completed,
         COUNT(*) total FROM drip_enrollments WHERE drip_id=?`, [d.id]) || {}
     return {
-      drip_id: d.id, name: d.name, campaign_active: !!d.active,
+      drip_id: d.id, name: d.name,
       on_drip_now: e.active || 0, completed: e.completed || 0, ever_enrolled: e.total || 0,
       sent, delivered, opened, clicked, bounced,
       open_rate_pct: pct(opened, delivered || sent), click_rate_pct: pct(clicked, delivered || sent),

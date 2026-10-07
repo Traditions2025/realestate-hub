@@ -34,6 +34,28 @@ test('no single-segment literal GET route is shadowed by a parameter route', () 
   }
 })
 
+// ── the SQL has to actually run ──────────────────────────────────────────────────────
+// Reading the source only proves a query was WRITTEN. The first version of this endpoint
+// selected `active` from drip_campaigns, a column that does not exist - the table has no
+// on/off flag, a campaign runs because something enrolls into it. Every source-reading
+// test passed and the endpoint 500'd on the first real call.
+test('every SELECT in performance-all runs against the real schema', async () => {
+  const { default: db, initDb } = await import('../server/database.js')
+  await initDb()
+  const i = src.indexOf("router.get('/performance-all'")
+  const fn = src.slice(i, src.indexOf("router.get('/:id'", i))
+  // each query is a whole string literal: stop at its own closing delimiter, or the match
+  // runs on into the next one and produces SQL nobody wrote
+  const queries = [...fn.matchAll(/(['`])(SELECT[\s\S]*?)\1/g)].map(m => m[2].trim())
+  assert.ok(queries.length >= 2, 'expected to find the endpoint queries, found ' + queries.length)
+  for (const q of queries) {
+    // the templated ones carry ${w} and placeholders; strip the template hole, keep the ?s
+    const sql = q.replace(/\$\{w\}/g, '').replace(/\$\{[^}]*\}/g, '')
+    const params = (sql.match(/\?/g) || []).map(() => 1)
+    assert.doesNotThrow(() => db.all(sql, params), 'this query does not run: ' + sql.slice(0, 90))
+  }
+})
+
 test('the route still returns the totals it is for', () => {
   const i = src.indexOf("router.get('/performance-all'")
   const fn = src.slice(i, src.indexOf("router.get('/:id'", i))
