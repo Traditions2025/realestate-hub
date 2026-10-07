@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T13:59:55.713Z",
+  "generated_at": "2026-10-07T14:17:14.561Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "d5a13aa",
+      "date": "2026-10-07T09:00:44-05:00",
+      "subject": "Group reply box shows the whole message before it sends",
+      "title": "Group reply box shows the whole message before it sends",
+      "body": "John, 2026-10-07: \"the group text in Inbox see the message box it does not expand\nlike the normal text box in 1 on 1 message therefore I can't view the message in\nfull to review it can you fix the height of that\".\n\nThe group pane's reply was a single-line <input> while the 1-to-1 pane used a\n3-row textarea. A long message - an under-contract note, an inspection window -\nscrolled out of sight and could not be read back. A group text goes to several\npeople at once, which is the worst place to send something unreviewed.\n\nIt is a textarea now, opening at the same 3 rows as the 1-to-1 box and growing\nwith the message up to 40% of the window, then scrolling rather than clipping.\nThe height resets to auto before each measurement, or the box could only ever get\ntaller and never shrink back when text is deleted.\n\nEnter still sends, so the shortcut already in people's fingers keeps working, and\nShift+Enter is a new line - the placeholder says so. preventDefault matters there:\nwithout it Enter would send AND leave a newline in the next draft.\n\nresize is off deliberately. The box sizes itself, so a manual drag would be undone\nby the next keystroke, which is worse than not offering the handle.\n\nTwo details the tests pin: the bar bottom-aligns so the Send button stays beside\nthe last line instead of towering next to a grown box, and the textarea inherits\nthe app font so the draft looks like the message that actually goes out.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "9a8ed95",
       "date": "2026-10-06T14:59:33-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Lead profile: quick Add Task (text + due date + assignee) -> Tasks tab",
       "title": "Lead profile: quick Add Task (text + due date + assignee) -> Tasks tab",
       "body": "Adds a task linked to the lead (related_type=client) via POST /api/tasks so it appears\non the Tasks tab; assignee list from /api/inbox/agents.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bb652c5",
-      "date": "2026-08-26T17:27:03-05:00",
-      "subject": "Revive bank: add 4 buyer reactivation openers (now 24), fill [area]/[price] from context",
-      "title": "Revive bank: add 4 buyer reactivation openers (now 24), fill [area]/[price] from context",
-      "body": "New warm reconnect lines (dropped-the-ball, no-rush 6-12mo, just-came-up-in-area,\nright-home question) added to the rotation; formatter still enforces Hi/Hello or\ntime-of-day greeting (never Hey), John/RE/MAX intro, MattSmithTeam.com at the end, and\nnow replaces [area]/[price] with the lead's real value (never a raw bracket).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

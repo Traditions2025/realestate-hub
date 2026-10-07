@@ -412,6 +412,54 @@ router.post('/:id/test-send', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Every campaign at once: who is on it and how its email is doing. Read-only.
+//
+// "How many do we have on drip and which plans" took a call per campaign before, and the
+// per-campaign numbers never added up to a total anyone could quote (John, 2026-10-07).
+// `since` restricts the email counts to a window; the enrolment counts are live totals,
+// because "on a drip right now" is not a windowed question.
+router.get('/performance-all', (req, res) => {
+  const since = /^\d{4}-\d{2}-\d{2}/.test(String(req.query.since || ''))
+    ? String(req.query.since).slice(0, 10) + 'T00:00:00' : null
+  const pct = (a, b) => (b ? Math.round((a / b) * 1000) / 10 : 0)
+  const rows = db.all('SELECT id, name, active FROM drip_campaigns ORDER BY name')
+  const out = rows.map(d => {
+    const tag = `drip_${d.id}`
+    const w = since ? ' AND sent_at >= ?' : ''
+    const p = since ? [tag, since] : [tag]
+    const n = (sql) => { try { return (db.get(sql, p) || {}).c || 0 } catch { return 0 } }
+    const sent = n(`SELECT COUNT(*) c FROM email_log WHERE template = ?${w}`)
+    const delivered = n(`SELECT COUNT(*) c FROM email_log WHERE template = ?${w} AND delivered_at IS NOT NULL`)
+    const opened = n(`SELECT COUNT(*) c FROM email_log WHERE template = ?${w} AND open_count > 0`)
+    const clicked = n(`SELECT COUNT(*) c FROM email_log WHERE template = ?${w} AND click_count > 0`)
+    const bounced = n(`SELECT COUNT(*) c FROM email_log WHERE template = ?${w} AND delivery_status IN ('bounce','dropped')`)
+    const e = db.get(`SELECT
+        SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) active,
+        SUM(CASE WHEN status='completed' THEN 1 ELSE 0 END) completed,
+        COUNT(*) total FROM drip_enrollments WHERE drip_id=?`, [d.id]) || {}
+    return {
+      drip_id: d.id, name: d.name, campaign_active: !!d.active,
+      on_drip_now: e.active || 0, completed: e.completed || 0, ever_enrolled: e.total || 0,
+      sent, delivered, opened, clicked, bounced,
+      open_rate_pct: pct(opened, delivered || sent), click_rate_pct: pct(clicked, delivered || sent),
+    }
+  })
+  const sum = (k) => out.reduce((a, b) => a + b[k], 0)
+  res.json({
+    since, campaigns: out,
+    totals: {
+      campaigns: out.length,
+      campaigns_with_people: out.filter(c => c.on_drip_now > 0).length,
+      on_drip_now: sum('on_drip_now'), ever_enrolled: sum('ever_enrolled'),
+      sent: sum('sent'), delivered: sum('delivered'), opened: sum('opened'),
+      clicked: sum('clicked'), bounced: sum('bounced'),
+      open_rate_pct: pct(sum('opened'), sum('delivered') || sum('sent')),
+      click_rate_pct: pct(sum('clicked'), sum('delivered') || sum('sent')),
+    },
+    note: 'Enrolment counts are live totals; the email counts respect `since`. Opens are a floor.',
+  })
+})
+
 // How a campaign is actually doing. Read-only.
 //
 // sendSequenceEmail stamps email_log.template as `drip_<id>`, so a campaign's sends can be

@@ -1793,7 +1793,12 @@ router.get('/engagement/:emailId/events', (req, res) => {
 // Tracked engagement aggregates (Reporting).
 router.get('/engagement-summary', (req, res) => {
   const days = Math.max(1, Math.min(365, Number(req.query.days) || 30))
-  const since = new Date(Date.now() - days * 86400000).toISOString()
+  // An explicit `since` answers a calendar question ("this October") rather than a
+  // rolling one — "last 7 days" and "since the 1st" are different numbers and it is not
+  // worth guessing which was meant.
+  const since = /^\d{4}-\d{2}-\d{2}/.test(String(req.query.since || ''))
+    ? new Date(String(req.query.since).slice(0, 10) + 'T00:00:00').toISOString()
+    : new Date(Date.now() - days * 86400000).toISOString()
   const g = (sql, p = []) => { try { return db.get(sql, p) } catch { return {} } }
   const sent = g('SELECT COUNT(*) c FROM email_log WHERE sent_at >= ?', [since]).c || 0
   const delivered = g("SELECT COUNT(*) c FROM email_log WHERE sent_at >= ? AND delivered_at IS NOT NULL", [since]).c || 0
@@ -1804,7 +1809,7 @@ router.get('/engagement-summary', (req, res) => {
   const topLinks = db.all(`SELECT url, COUNT(*) n FROM email_events WHERE event_type='click' AND occurred_at >= ? AND url IS NOT NULL GROUP BY url ORDER BY n DESC LIMIT 10`, [since])
   const engagedLeads = db.all(`SELECT c.id, c.first_name, c.last_name, c.agent_assigned, c.last_email_opened_at, c.last_email_clicked_at, c.email_open_count, c.email_click_count
     FROM clients c WHERE c.last_email_opened_at >= ? AND c.merged_into IS NULL ORDER BY c.last_email_opened_at DESC LIMIT 20`, [since])
-  res.json({ days, sent, delivered, opened, clicked, bounced, spam, top_links: topLinks, engaged_leads: engagedLeads })
+  res.json({ days, since, sent, delivered, opened, clicked, bounced, spam, top_links: topLinks, engaged_leads: engagedLeads })
 })
 
 export default router
