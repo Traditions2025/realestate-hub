@@ -37,6 +37,13 @@ router.get('/fub-notes-with-text', requirePermission('settings.view'), (req, res
     samples: db.all(`SELECT client_id, occurred_at, COALESCE(disposition,'') source, substr(body,1,220) body
       ${base} AND (body LIKE '%sent a text%' OR body LIKE '%text message%' OR body LIKE '%texted%')
       ORDER BY occurred_at DESC LIMIT 12`),
+    // ?source= reads one system's notes directly. Structurely and CallAction are SMS
+    // assistants, so their notes are the likeliest place a real conversation was written.
+    from_source: req.query.source
+      ? db.all(`SELECT client_id, occurred_at, substr(body,1,700) body ${base} AND disposition = ?
+                ORDER BY occurred_at DESC LIMIT ?`,
+          [String(req.query.source), Math.min(Number(req.query.limit) || 8, 40)])
+      : undefined,
   })
 })
 

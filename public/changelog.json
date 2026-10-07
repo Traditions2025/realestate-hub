@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T17:13:19.677Z",
+  "generated_at": "2026-10-07T17:15:29.493Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "0992387",
+      "date": "2026-10-07T12:13:21-05:00",
+      "subject": "Read-only: do FUB notes carry text-message content?",
+      "title": "Read-only: do FUB notes carry text-message content?",
+      "body": "John, 2026-10-07: the texts came over \"from FUB as notes\", converted to show as\ntexts in the Hub.\n\nWorth testing rather than assuming either way. /textMessages withholds bodies but\n/notes does not, so if an integration wrote a conversation INTO a note, the words\nare already in the Hub under channel 'note' and no new pull is needed — only a\nreclassification.\n\nGET /api/admin/fub-notes-with-text counts the imported FUB notes matching the\nphrases an integration uses when it logs a conversation, lists which systems write\nnotes at all, and returns samples to read.\n\nMike McMurrin's own 17 notes are Ylopo alerts, Sierra email copies, an Agent\nLegend email and two FUB lead-source notes — none of them a text transcript. This\nasks the same question of all 1,003 leads.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "22f495b",
       "date": "2026-10-07T12:05:45-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO sync: key listings by phone+address so multi-listing sellers show every listing",
       "title": "FSBO sync: key listings by phone+address so multi-listing sellers show every listing",
       "body": "A seller/builder with multiple listings on one phone (e.g. Built By Beals Too LLC, 2\nproperties) was collapsing to one record while Natalie Nelson's 2 (distinct Sierra leads)\nstayed — so on-list was 69 vs the sheet's 70. Now each sheet listing (phone+address) gets\nits own record: multi-listing phones match by phone+address, single-listing phones still\nattach to the existing lead by phone. Self-heal now merges only TRUE dups (same phone AND\naddress); prune drops removed listings for Hub-native records. New invariant: on-list == sheet rows.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ed190c4",
-      "date": "2026-08-27T09:30:53-05:00",
-      "subject": "FSBO list: Zillow listing link — 'View Listing' column + clickable link on lead profile",
-      "title": "FSBO list: Zillow listing link — 'View Listing' column + clickable link on lead profile",
-      "body": "The master file's Custom Link is stored in fsbo_link. In the FSBO list the Source column\nbecomes 'Listing' with a clickable 'View Listing ↗' Zillow link per row; the lead profile\nshows 'Listing: View on Zillow ↗'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
