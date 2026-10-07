@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T14:17:14.561Z",
+  "generated_at": "2026-10-07T14:28:31.069Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "b1612ad",
+      "date": "2026-10-07T09:17:16-05:00",
+      "subject": "Read-only: every campaign's people and email in one call",
+      "title": "Read-only: every campaign's people and email in one call",
+      "body": "\"How many do we have on drip and which plans\" needed a call per campaign, and the\nper-campaign numbers never rolled up into a total anyone could quote.\n\nGET /api/drips/performance-all returns each campaign with who is on it now and how\nits email is doing, plus the totals. `since` windows the email counts; the\nenrolment counts stay live totals, because \"on a drip right now\" is not a windowed\nquestion and mixing the two would produce a number that means neither.\n\n/api/email/engagement-summary now also takes `since`. It only did rolling days, so\na calendar question like \"this October\" could only be approximated by a day count,\nand \"the last 7 days\" and \"since the 1st\" are different numbers. It echoes the\nwindow it actually used.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d5a13aa",
       "date": "2026-10-07T09:00:44-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Move Add Task to the lead action bar (button opens an inline box)",
       "title": "Move Add Task to the lead action bar (button opens an inline box)",
       "body": "'Add Task' now sits next to Add Note / Add Transaction; clicking it toggles an inline\ntext + due date + assignee box that files the task to the Tasks tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e5dfa04",
-      "date": "2026-08-26T17:40:23-05:00",
-      "subject": "Lead profile: quick Add Task (text + due date + assignee) -> Tasks tab",
-      "title": "Lead profile: quick Add Task (text + due date + assignee) -> Tasks tab",
-      "body": "Adds a task linked to the lead (related_type=client) via POST /api/tasks so it appears\non the Tasks tab; assignee list from /api/inbox/agents.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
