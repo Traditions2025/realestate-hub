@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T17:03:33.325Z",
+  "generated_at": "2026-10-07T17:05:43.695Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8423286",
+      "date": "2026-10-07T12:03:35-05:00",
+      "subject": "Read-only probes: why an imported FUB text says the body is hidden",
+      "title": "Read-only probes: why an imported FUB text says the body is hidden",
+      "body": "John, 2026-10-07: some texts synced from FUB read \"* Body is hidden for privacy\nreasons *\", and he remembers it working before. Mike McMurrin (#46, FUB 39165)\nhas 57 texts on file and all 57 are hidden — timestamps, direction and both\nnumbers came through, only the words are missing.\n\nmapText copies t.message verbatim, so that sentence is FUB's, not the Hub's. Two\nread-only diagnostics to find out what it depends on:\n\n  GET /api/fub/probe-texts?personId=  asks FUB the same question several ways\n      (plain, allFields, showContent, includeContent, single-by-id) and reports\n      how many rows came back readable each time, plus /me and the person record\n      in case it turns on who owns the lead.\n\n  GET /api/admin/fub-text-privacy     counts hidden vs readable across every\n      imported FUB text, by message month, and says whether leads are all-hidden\n      or mixed — which separates \"this changed recently\" from \"it was never\n      readable for these leads and memory is wrong\".\n\nBoth are GET only. Nothing is written, nothing is sent.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fcde637",
       "date": "2026-10-07T09:36:26-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO: make the sync self-healing so the list can never drift",
       "title": "FSBO: make the sync self-healing so the list can never drift",
       "body": "- Every syncFsboMaster run now collapses accidental duplicate FSBO records sharing a phone\n  (keep lowest id, merge Hub-native extras; Sierra-linked profiles like a real 2nd listing\n  are preserved). So even if a dup ever slips through, the next sync (incl the 9:30 AM daily\n  after the master updates) removes it automatically — the count always converges to the sheet.\n- Report exposes on_list / unique_sheet_phones / deduped; daily maintenance Slack-alerts if\n  the list drifts above the sheet's unique phones by more than a small margin.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3077f6a",
-      "date": "2026-08-27T09:13:40-05:00",
-      "subject": "FSBO sync: fix duplicate loop — live FSBO record beats a junk lead with a legacy FSBO tag",
-      "title": "FSBO sync: fix duplicate loop — live FSBO record beats a junk lead with a legacy FSBO tag",
-      "body": "Root cause of the runaway FSBO count: some phones have an old JUNK lead carrying a legacy\n'FSBO' tag. The index preferred it (tag = isFsbo, lower id), so the collision branch fired\nevery sync and created a new duplicate. Replace the isFsbo preference with a rank() where a\nlive non-junk record with an fsbo_status always wins; also exclude merged_into records from\nthe index.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

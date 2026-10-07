@@ -1091,7 +1091,16 @@ async function start() {
       const one = out.plain?.sample?.[0]?.id
       if (one) await t('single_by_id', `/textMessages/${one}`, {})
       await t('person', `/people/${pid}`, { fields: 'allFields' })
-      await t('me', '/me', {})
+      // Who the API key is, and what FUB thinks that user may see. This is the usual
+      // reason a body comes back withheld, so return the objects rather than row counts.
+      const raw = async (label, ep) => {
+        try { out[label] = await fubGet(ep, {}) }
+        catch (e) { out[label] = { ok: false, status: e.status || null, error: String(e.message).slice(0, 180) } }
+        await new Promise(s2 => setTimeout(s2, 300))
+      }
+      await raw('identity', '/identity')
+      await raw('me', '/me')
+      await raw('users', '/users')
       res.json(out)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
