@@ -37,6 +37,24 @@ router.get('/fub-notes-with-text', requirePermission('settings.view'), (req, res
     samples: db.all(`SELECT client_id, occurred_at, COALESCE(disposition,'') source, substr(body,1,220) body
       ${base} AND (body LIKE '%sent a text%' OR body LIKE '%text message%' OR body LIKE '%texted%')
       ORDER BY occurred_at DESC LIMIT 12`),
+    // How much of the hidden-text problem these notes could actually close. The SMS
+    // assistants wrote their messages into notes; everything else is alerts and email
+    // copies, so only these are convertible.
+    recoverable: (() => {
+      const SMS_SOURCES = "disposition IN ('Structurely','CallAction.co')"
+      const notes = g(`SELECT COUNT(*) c ${base} AND ${SMS_SOURCES}`)
+      const leads = g(`SELECT COUNT(DISTINCT client_id) c ${base} AND ${SMS_SOURCES} AND client_id IS NOT NULL`)
+      // a note is only worth converting if it is the message itself, not a status line
+      const real = g(`SELECT COUNT(*) c ${base} AND disposition='Structurely'
+                      AND body NOT LIKE '%View & Respond%' AND length(body) > 25`)
+      const leadsWithHidden = g(`SELECT COUNT(DISTINCT n.client_id) c
+        FROM communications n WHERE n.channel='note' AND n.external_id LIKE 'fub_note_%'
+          AND ${SMS_SOURCES} AND n.client_id IS NOT NULL
+          AND EXISTS (SELECT 1 FROM communications t WHERE t.client_id = n.client_id
+                      AND t.channel='text' AND t.body LIKE '%hidden for privacy%')`)
+      return { sms_assistant_notes: notes, leads, structurely_real_messages: real,
+               leads_that_also_have_hidden_texts: leadsWithHidden }
+    })(),
     // ?source= reads one system's notes directly. Structurely and CallAction are SMS
     // assistants, so their notes are the likeliest place a real conversation was written.
     from_source: req.query.source

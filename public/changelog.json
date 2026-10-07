@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T17:15:29.493Z",
+  "generated_at": "2026-10-07T17:17:42.919Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "92647a3",
+      "date": "2026-10-07T12:15:31-05:00",
+      "subject": "fub-notes-with-text: read one system's notes directly",
+      "title": "fub-notes-with-text: read one system's notes directly",
+      "body": "The phrase scan found no transcripts in 28,492 imported FUB notes — the matches\nare all Sierra opt-out and contact-preference notices, not conversations.\n\nBut two of the nine systems writing notes are SMS assistants: Structurely (202\nnotes) and CallAction.co (54). If a conversation was ever written into a note,\nthose are where it would be, and a generic phrase search was never going to prove\nit either way.\n\n?source=Structurely&limit=N returns that system's notes with enough body to read.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "0992387",
       "date": "2026-10-07T12:13:21-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO: one profile per name+phone; all listings on the lead (fsbo_listings)",
       "title": "FSBO: one profile per name+phone; all listings on the lead (fsbo_listings)",
       "body": "Same name + same number with multiple listings is now ONE lead (Beals, Natalie collapse to\none each). Sync groups sheet rows by name+phone, aggregates status (Available if any listing\nis), and stores every listing (address/link/list-date/DOM/status) in fsbo_listings. Self-heal\nmerges same-name+phone records (even across Sierra profiles), combining listings. Lead profile\nlists all FSBO listing addresses with clickable Zillow links; FSBO list 'View Listing' shows\nthe primary link + (+N) for extra listings. Invariant: on-list == profile count (name+phone).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "97a9417",
-      "date": "2026-08-27T09:44:22-05:00",
-      "subject": "FSBO sync: key listings by phone+address so multi-listing sellers show every listing",
-      "title": "FSBO sync: key listings by phone+address so multi-listing sellers show every listing",
-      "body": "A seller/builder with multiple listings on one phone (e.g. Built By Beals Too LLC, 2\nproperties) was collapsing to one record while Natalie Nelson's 2 (distinct Sierra leads)\nstayed — so on-list was 69 vs the sheet's 70. Now each sheet listing (phone+address) gets\nits own record: multi-listing phones match by phone+address, single-listing phones still\nattach to the existing lead by phone. Self-heal now merges only TRUE dups (same phone AND\naddress); prune drops removed listings for Hub-native records. New invariant: on-list == sheet rows.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
