@@ -967,8 +967,24 @@ function GroupPane({ sel, onClose }) {
         })}
         {rows.length === 0 && <div style={{ color: 'var(--text-muted)', margin: 'auto' }}>No messages yet.</div>}
       </div>
-      <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', display: 'flex', gap: 8 }}>
-        <input value={reply} onChange={e => setReply(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') send() }} placeholder="Reply to the group…" style={{ flex: 1, padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5 }} />
+      {/* A group reply used to be a single-line <input>, so a long message scrolled out of
+          sight and could not be read back before sending (John, 2026-10-07). It is a
+          textarea now, like the 1-to-1 pane, and it grows with the message up to 40% of
+          the window before it starts scrolling. Enter still sends, so the shortcut people
+          already use keeps working; Shift+Enter is a new line. */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+        <textarea
+          value={reply}
+          rows={3}
+          onChange={e => setReply(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
+          ref={el => { if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, window.innerHeight * 0.4) + 'px' }}
+          placeholder="Reply to the group…  (Enter sends, Shift+Enter for a new line)"
+          // resize is off because the box sizes itself: a manual drag would be undone by
+          // the next keystroke, which is worse than not offering the handle at all
+          style={{ flex: 1, padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8,
+            background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5,
+            lineHeight: 1.5, resize: 'none', overflowY: 'auto', fontFamily: 'inherit' }} />
         <button className="btn btn-primary" onClick={send} disabled={sending || !reply.trim()}>{sending ? '…' : 'Send'}</button>
       </div>
     </>

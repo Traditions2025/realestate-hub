@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-10-06T18:57:11.550Z",
+  "generated_at": "2026-10-07T13:59:55.713Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9a8ed95",
+      "date": "2026-10-06T14:59:33-05:00",
+      "subject": "Read-only audit of every group conversation: which ones Twilio can still reach",
+      "title": "Read-only audit of every group conversation: which ones Twilio can still reach",
+      "body": "Answers \"did that group text actually land?\" for past sends. Nothing could answer it\nbefore today, which is why the Deutsch congratulations text reaching nobody went\nunnoticed until Matt said he had no text.\n\nGET /api/inbox/group-audit. GETs only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9e82cd8",
+      "date": "2026-10-06T14:53:36-05:00",
+      "subject": "A group text can no longer report success when it reached nobody",
+      "title": "A group text can no longer report success when it reached nobody",
+      "body": "Matt did not receive the 2026-10-06 congratulations text to Dave and Liz Deutsch. The\nlive Twilio roster for that conversation held ZERO participants: the message reached\nnone of the three, the clients included, and the Hub recorded it as sent.\n\nTwo things combined.\n\ngroup_meta - the participant list /group-text matches against when deciding to reuse an\nexisting conversation - is a snapshot written when the group was created and never\nre-read. Twilio allows one binding per phone + proxy pair, so adding any of those phones\nto a newer group unbinds it from the older conversation. The snapshot still named all\nthree; Twilio reached none. Twilio then accepted the message into the empty conversation\nand returned a real message SID, which the Hub treated as proof of delivery.\n\nFixes:\n- sendConversationMessage reads the participant list first and throws CONVERSATION_EMPTY\n  rather than posting into a conversation that reaches nobody. It returns deliveredTo so\n  a caller can no longer mistake a message SID for delivery. This is the single place\n  both the group-text reuse path and group-reply go through.\n- /group-text confirms the LIVE roster still holds every intended recipient before\n  reusing a conversation, and rebuilds the group when it does not. A partial roster\n  counts as drifted, since that is the case where one person goes missing unnoticed.\n\ntest/group-text-reaches-people.test.mjs covers both halves.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c34e408",
+      "date": "2026-10-06T14:50:19-05:00",
+      "subject": "Read-only group roster diagnostic: live Twilio participants vs the Hub's snapshot",
+      "title": "Read-only group roster diagnostic: live Twilio participants vs the Hub's snapshot",
+      "body": "Matt did not receive the 2026-10-06 group text to Dave and Liz Deutsch. The Hub's\ngroup_meta for that conversation lists three participants, but group_meta is a\nSNAPSHOT written when the group was created - it is not re-read, and Twilio's live\nroster is the only thing that decides who a send actually reaches.\n\nThe two can drift by design: createGroupText removes a participant from an older\nconversation when their phone + our proxy is already bound elsewhere, because Twilio\nallows one binding per phone+proxy pair. So a later group text that included Matt\nwould have pulled his binding OUT of this conversation, leaving his name in the\nthread's history and in group_meta while sends no longer reach him.\n\nGET /api/inbox/group-roster/:convSid reports the live roster, the Hub's snapshot,\nand the difference. GETs only - it cannot send anything.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "2c53fdc",
+      "date": "2026-10-06T13:57:13-05:00",
+      "subject": "Ramp climbs to the ceiling instead of jumping to it",
+      "title": "Ramp climbs to the ceiling instead of jumping to it",
+      "body": "John, 2026-10-06: \"Please increase to 300 a day we need to bump this up and level\nup our game\".\n\nThe warm-up ramp spends five enrolling days at 50 and five at 100, then handed\nstraight over to the configured ceiling. That was a step of 100 while the ceiling\nwas 200. With 300 the same code would have gone 100 -> 300 overnight, which is\nprecisely the shape of volume spike the ramp exists to prevent - and the campaign\nhas 0 bounces across 311 sends and a 47% open rate, which is worth protecting.\n\nIt now keeps climbing a step at a time, never more than +100 in a day, until it\nreaches whatever the ceiling is. At 300 that reads 100, 200, 300 rather than\n100, 300. A test states the underlying rule: no day more than doubles the one\nbefore it.\n\nThe settings response also returns the next few days' limits, because raising the\nceiling while the ramp is still climbing otherwise looks like nothing happened.\n\n11 tests, including that the ramp still counts enrolling days rather than calendar\ndays, so a weekend or an outage does not spend a step.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "76c6724",
       "date": "2026-10-06T13:46:23-05:00",
@@ -3968,38 +4000,6 @@
       "subject": "Revive bank: add 4 buyer reactivation openers (now 24), fill [area]/[price] from context",
       "title": "Revive bank: add 4 buyer reactivation openers (now 24), fill [area]/[price] from context",
       "body": "New warm reconnect lines (dropped-the-ball, no-rush 6-12mo, just-came-up-in-area,\nright-home question) added to the rotation; formatter still enforces Hi/Hello or\ntime-of-day greeting (never Hey), John/RE/MAX intro, MattSmithTeam.com at the end, and\nnow replaces [area]/[price] with the lead's real value (never a raw bracket).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "856224e",
-      "date": "2026-08-26T15:48:40-05:00",
-      "subject": "Filters: last email/text sent (more/less than N days) + AI Applied yes/no",
-      "title": "Filters: last email/text sent (more/less than N days) + AI Applied yes/no",
-      "body": "- buildClientFilter: recency via EXISTS on outgoing comms (less = within N days, more =\n  not in the last N days); ai_applied via ai_lead_state.ai_managed or an AI-sent text.\n- Client filter panel: Last Email Sent, Last Text Sent (op + days), AI Applied dropdown.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "07a800e",
-      "date": "2026-08-26T15:06:54-05:00",
-      "subject": "Bulk actions: Merge, Assign Agent, Add/Remove Tags",
-      "title": "Bulk actions: Merge, Assign Agent, Add/Remove Tags",
-      "body": "- Merge Selected -> BulkMergeModal (pick survivor, keep all emails/phones, combines all\n  history/comms/notes via /api/clients/merge).\n- Assign Agent -> /api/clients/bulk-assign-agent (agents from /api/inbox/agents).\n- Add/Remove Tags -> /api/clients/bulk-tags (case-insensitive, no dupes, quick-pick chips).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c135f71",
-      "date": "2026-08-26T15:01:55-05:00",
-      "subject": "Lead profile: Merge with existing lead (search, pick survivor, keep both contacts)",
-      "title": "Lead profile: Merge with existing lead (search, pick survivor, keep both contacts)",
-      "body": "- Add 'Merge with existing lead' button on every lead profile -> MergeLeadModal: search\n  by name/email/phone, pick which record to keep, and a 'keep both emails & phone numbers'\n  option (extras saved as alt_emails/alt_phones secondary contacts, shown on the profile).\n- /api/clients/merge already reassigns all communications, notes, tasks, AI history to the\n  survivor (nothing lost, reversible); extend it with keep_both to preserve the other\n  lead's distinct email/phone instead of only filling blanks.\n- Add alt_emails/alt_phones columns to clients.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1c1b965",
-      "date": "2026-08-26T14:16:39-05:00",
-      "subject": "AI dormancy: base opener-vs-revive purely on real activity, not Hub created_at",
-      "title": "AI dormancy: base opener-vs-revive purely on real activity, not Hub created_at",
-      "body": "Sierra-synced old leads get a fresh created_at at import, which made months-old leads\nlook brand new and wrongly get the 'thanks for checking out homes' welcome. Dormant now\nmeans simply: no FUB view or behavioral event within the window -> REVIVE opener.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
