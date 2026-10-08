@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:30:21.082Z",
+  "generated_at": "2026-10-08T21:33:24.364Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "90e57b7",
+      "date": "2026-10-08T16:30:33-05:00",
+      "subject": "Condo identification stops guessing: import the MLS export",
+      "title": "Condo identification stops guessing: import the MLS export",
+      "body": "John supplied an Agent Single Line export — 1,396 Marion condos, every row\nSubType CON/ZER/CO-OP, 1,380 sold / 10 pending / 7 active, MLS# and address on\nevery one.\n\nThis is the only authoritative statement of what IS a condo anywhere in the\nsystem. FUB's property object HAS a `type` field and it comes through empty on\nthis account, along with bedrooms, bathrooms and area; listings.property_type is\nunpopulated too. Until now the Marion list rested entirely on the word \"condo\"\nappearing in listing text, which is why it showed no condo views after Oct 2025\nwhile Marion itself had 354 views this year.\n\ncondo_properties is keyed on MLS#, which joins straight to fub_activity.prop_mls,\nand on a normalised address so an OWNER can be matched as well as a viewer.\nRe-importing refreshes rather than duplicating.\n\nThe MLS match is now the first signal checked, and it names the MLS number and\nsubtype in the result. The text signals stay as fallbacks for properties the\nexport does not cover, and each still says which one fired — a guess must never\nread like a fact.\n\nAlso added the pattern this feed actually uses for units: a BARE TRAILING LETTER,\n\"3900 Deer Valley Drive B\". 18 of 687 Marion addresses are written that way and\nthe Unit/Apt/# patterns matched none of them.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c36d92c",
       "date": "2026-10-08T16:16:10-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Cold-buyer drip: no re-greeting on continuation follow-ups",
       "title": "Cold-buyer drip: no re-greeting on continuation follow-ups",
       "body": "Text 2+ should read as a continuation of the same thread, so the stage\ninstruction now forbids opening with Hi/Hello/Good morning-afternoon-evening\n(production already stripped these on non-first sends; this stops the model\nwasting the opener on a greeting).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d0d56e7",
-      "date": "2026-08-27T17:23:40-05:00",
-      "subject": "AI: staged cold-buyer SMS drip (Day 1/4/9/17/30/50 + long-term nurture)",
-      "title": "AI: staged cold-buyer SMS drip (Day 1/4/9/17/30/50 + long-term nurture)",
-      "body": "Turns the one-and-done revive into a full staged re-engagement drip for old/\ncold buyer leads (no recent activity), extending the existing engine so all\ncompliance, reply-pauses-drip, website-activity override, and opt-out handling\ncarry over unchanged. Gated behind autopilot + ai_nurture_enabled (dormant\nuntil turned on).\n\n- prompts.js: COLD_BUYER_STAGES (Text 1 reuses REVIVE_OPENERS; Text 2-6 + LTN\n  1-4 approved rotations + a perpetual rotate-the-purpose loop stage) and\n  COLD_STAGE_BLOCK (per-stage goal; continuation rules: no re-intro/website\n  after Text 1, one question, no duplicates, personalize, NO_ACTION when the\n  stage no longer fits the conversation).\n- orchestrator.js: handleColdBuyerStage(cid, stageIndex) — Text 1 via\n  REVIVE_OPENER_BLOCK (greeting+intro+website), stages 1+ via COLD_STAGE_BLOCK,\n  each rotating its approved bank so leads don't get identical sequences.\n- scheduler.js: cadence [1,4,9,17,30,50,80,120,165,210]d then ~52d loop;\n  nextBusinessSlot() sends weekdays only in the daytime window (Sat/Sun roll to\n  Mon); AI_COLD_BUYER drain advances the cadence (a skipped stage still moves\n  forward); re-engagement sweep enrolls dormant BUYERS at Text 1, sellers keep\n  the generic reconnect.\n- ai.js: Send-AI routes dormant buyers into the drip (Text 1 + enroll); added a\n  cold_stage sandbox mode to preview every stage.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

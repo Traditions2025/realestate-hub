@@ -99,6 +99,18 @@ function propertyInterestHandler(req, res) {
       listings_types: db.all(`SELECT property_type, COUNT(*) n FROM listings
         WHERE COALESCE(property_type,'') <> '' GROUP BY property_type ORDER BY n DESC LIMIT 12`),
       lead_activity_rows: (db.get('SELECT COUNT(*) c FROM lead_activity') || {}).c || 0,
+      condo_table: (db.get('SELECT COUNT(*) c FROM condo_properties') || {}).c || 0,
+      condo_mls_samples: db.all('SELECT mls_number, address, status FROM condo_properties LIMIT 5'),
+      view_mls_samples: db.all("SELECT DISTINCT prop_mls FROM fub_activity WHERE lower(prop_city)='marion' AND COALESCE(prop_mls,'') <> '' LIMIT 8").map(r => r.prop_mls),
+      // the actual question: do any Marion view MLS numbers exist in the export?
+      mls_overlap: (db.get(`SELECT COUNT(DISTINCT a.prop_mls) c FROM fub_activity a
+        JOIN condo_properties cp ON cp.mls_number = a.prop_mls
+        WHERE lower(a.prop_city) = 'marion'`) || {}).c || 0,
+      marion_view_mls_count: (db.get("SELECT COUNT(DISTINCT prop_mls) c FROM fub_activity WHERE lower(prop_city)='marion' AND COALESCE(prop_mls,'') <> ''") || {}).c || 0,
+      // and by address, which may match where MLS does not
+      addr_overlap: (db.get(`SELECT COUNT(DISTINCT a.prop_street) c FROM fub_activity a
+        JOIN condo_properties cp ON lower(trim(cp.address)) = lower(trim(a.prop_street))
+        WHERE lower(a.prop_city) = 'marion'`) || {}).c || 0,
       sample: db.all(`SELECT prop_street, prop_city, prop_price, prop_mls, substr(page_title,1,70) page_title, occurred_at
         FROM fub_activity WHERE COALESCE(prop_city,'') <> '' ORDER BY occurred_at DESC LIMIT 6`),
     })
