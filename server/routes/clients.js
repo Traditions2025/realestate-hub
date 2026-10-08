@@ -7,6 +7,7 @@ import { fubGet, fubConfigured } from '../fub-helper.js'
 import { phoneSearchClauses } from '../phone-search.js'
 import { ensureState } from '../ai-followup/state.js'
 import { ensureStamped, prependNote, replaceNote, removeNote, splitNotes } from '../client-notes.js'
+import { addressKey as addressKeyOf } from './admin.js'
 
 const router = Router()
 
@@ -681,7 +682,38 @@ export function buildClientFilter(q) {
 const PAST_CLIENT_SQL = "(lower(coalesce(clients.status,''))='closed' OR (lower(coalesce(clients.tags,'')) LIKE '%past client%' AND lower(coalesce(clients.tags,'')) NOT LIKE '%unsubscribed%'))"
 
 // Each smart list is a correlated predicate against clients.id (matches buildClientFilter's style).
+// Dead / DNC / archived / STOP never belong in a prospecting smart list.
+const WORKABLE = `(lower(COALESCE(clients.status,'')) NOT IN ('junk','donotcontact','archived')
+  AND COALESCE(clients.hub_text_opt_out,0) = 0)`
+
+// Marion condos, from the MLS export John supplied (condo_properties). It is the only
+// authoritative statement of what IS a condo: FUB's property.type comes through empty on
+// this account and listings.property_type is unpopulated (John, 2026-10-08).
+//
+// prop_price is free text like "265000" or "$265,000", so the digits are what compare.
+const CONDO_PRICE = `CAST(REPLACE(REPLACE(REPLACE(fa.prop_price,'$',''),',',''),' ','') AS REAL)`
+
 export const SMART_LIST_SQL = {
+  // Viewed a Marion condo between $150k and $300k, ever. A single view counts.
+  marion_condo_viewers:
+    `(${WORKABLE} AND EXISTS (
+        SELECT 1 FROM fub_activity fa
+        JOIN condo_properties cp
+          ON (cp.mls_number = fa.prop_mls AND COALESCE(fa.prop_mls,'') <> '')
+          OR (lower(trim(cp.address)) = lower(trim(fa.prop_street)) AND COALESCE(fa.prop_street,'') <> '')
+        WHERE fa.client_id = clients.id
+          AND lower(COALESCE(cp.city,'')) = 'marion'
+          AND ${CONDO_PRICE} BETWEEN 150000 AND 300000))`,
+
+  // Lives at an address that IS a Marion condo in the export - a potential SELLER.
+  // Matched on the stored address_key, which strips street types and directionals, so
+  // "3900 Deer Valley Dr" still matches "3900 Deer Valley Drive B".
+  marion_condo_owners:
+    `(${WORKABLE} AND COALESCE(clients.address,'') <> '' AND EXISTS (
+        SELECT 1 FROM condo_properties cp
+        WHERE lower(COALESCE(cp.city,'')) = 'marion'
+          AND cp.address_key = clients.address_key))`,
+
   // Past client who came back to the website in the last 30 days after being away 180+ days
   // (a recent FUB visit with NO prior visit in the 180 days before it).
   returned_past_client:
@@ -1535,6 +1567,11 @@ router.put('/:id', async (req, res) => {
   // not the only writer, and a note that arrives undated here would be undated forever -
   // there is no way to recover a date after the fact (John, 2026-10-05).
   if (typeof fields.notes === 'string') fields.notes = ensureStamped(fields.notes)
+  // Keep the normalised address key in step, or the condo-owner smart list goes stale
+  // the moment someone corrects an address.
+  if (typeof fields.address === 'string') {
+    try { fields.address_key = addressKeyOf(fields.address) } catch {}
+  }
   // State typed directly always stores ALL CAPS (ia/Ia -> IA).
   if (typeof fields.state === 'string' && /^[A-Za-z]{2}$/.test(fields.state.trim())) fields.state = fields.state.trim().toUpperCase()
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not

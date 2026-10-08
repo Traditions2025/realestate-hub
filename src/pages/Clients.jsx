@@ -171,6 +171,8 @@ function fsboDomLive(listDate, stored) {
 // Smart lists = server-computed segments (see GET /api/clients/smart-lists + ?smart= on the
 // list route). Each key maps to custom SQL on the backend.
 const SMART_LISTS = [
+  { key: 'marion_condo_viewers', label: 'Marion Condo · Viewers', desc: 'Viewed a Marion condo $150k-$300k, ever — confirmed against the MLS condo export' },
+  { key: 'marion_condo_owners', label: 'Marion Condo · Owners', desc: 'Lives at an address that is a Marion condo in the MLS export — potential sellers' },
   { key: 'returned_past_client', label: 'Past Client Returned (180d+)', desc: 'Past clients who came back to the website after 180+ days away' },
   { key: 'past_client_no_email', label: 'Past Client · No Email 90d', desc: "Past clients we haven't emailed in the last 90 days" },
   { key: 'most_active', label: 'Most Active (20+ / 30d)', desc: 'Leads who viewed 20+ listings in the last 30 days' },

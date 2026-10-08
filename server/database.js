@@ -1748,6 +1748,10 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_condo_addr ON condo_properties(address_key)') } catch {}
+  // The same normalised key on the client, so "lives at a condo" is an exact join rather
+  // than a pile of REPLACE() calls in SQL that drift from the JS version.
+  try { db.run('ALTER TABLE clients ADD COLUMN address_key TEXT') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_clients_address_key ON clients(address_key)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_condo_city ON condo_properties(city)') } catch {}
 
   db.run(`

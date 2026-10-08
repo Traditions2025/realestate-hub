@@ -112,6 +112,23 @@ function condoOwnersHandler(req, res) {
 
 router.get('/condo-owners', requirePermission('settings.view'), condoOwnersHandler)
 
+// Recompute clients.address_key so the marion_condo_owners SMART list is an exact join.
+// Uses the same addressKey() the condo import uses — one normalisation, not two.
+router.post('/refresh-address-keys', requirePermission('settings.edit'), (req, res) => {
+  const rows = db.all("SELECT id, address FROM clients WHERE COALESCE(address,'') <> ''")
+  let updated = 0
+  for (const r of rows) {
+    const k = addressKey(r.address)
+    if (!k) continue
+    db.run("UPDATE clients SET address_key = ? WHERE id = ? AND COALESCE(address_key,'') <> ?", [k, r.id, k])
+    updated++
+  }
+  res.json({ scanned: rows.length, updated,
+    matching_marion_condos: (db.get(`SELECT COUNT(*) c FROM clients cl
+      JOIN condo_properties cp ON cp.address_key = cl.address_key
+      WHERE lower(COALESCE(cp.city,'')) = 'marion' AND cl.merged_into IS NULL`) || {}).c || 0 })
+})
+
 // Save the owners as a named client list. Same shape as the viewer list: ids for
 // immediate use, criteria so it can be rebuilt, and the same name refreshes in place
 // rather than leaving a stale duplicate for someone to work by mistake.

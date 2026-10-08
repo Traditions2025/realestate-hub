@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:43:19.169Z",
+  "generated_at": "2026-10-08T21:50:45.326Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "93ad320",
+      "date": "2026-10-08T16:43:29-05:00",
+      "subject": "Save the condo owners as a named list too",
+      "title": "Save the condo owners as a named list too",
+      "body": "John, 2026-10-08: \"just add it as well on the smart list\".\n\nPOST /api/admin/condo-owners/save-list, same shape as the viewer list: the\nmatching client_ids for immediate use, the criteria so it can be rebuilt, and\nre-posting the same name refreshes in place rather than leaving a stale duplicate\nfor someone to work by mistake.\n\nThe owners search is a function now, called by both the route and the save, so\nthe saved list can never drift from what the endpoint reports.\n\nEvery edit verified individually this time, not inferred from a script exiting\ncleanly — that is what hid the missing MLS join for three rebuilds.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "22a8728",
       "date": "2026-10-08T16:38:54-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Clients list: lead name is a real link (open profile in new tab)",
       "title": "Clients list: lead name is a real link (open profile in new tab)",
       "body": "The row had an onClick but no href, so right-click offered nothing. The name is\nnow an <a href=\"/clients/:id\">: plain click still opens the full-screen profile\nvia the row handler; right-click / middle-click / Cmd-click open it in a new tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "87f0c55",
-      "date": "2026-08-28T09:20:03-05:00",
-      "subject": "Cold-buyer drip: bulk cohort enroll + global search opens full profile",
-      "title": "Cold-buyer drip: bulk cohort enroll + global search opens full profile",
-      "body": "- POST /api/ai/cold-buyer/enroll-cohort: enroll everyone who got an AI/revive\n  Text 1 in a window and did NOT reply (buyers only; skips opt-outs, DNC,\n  excluded lists, no-phone), continuing each at Text 2. dry_run returns the list.\n- Global top-search now opens client results in the FULL-SCREEN profile\n  (/clients/:id) instead of the modal (?open=).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
