@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T19:16:09.167Z",
+  "generated_at": "2026-10-08T20:16:51.426Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "150486d",
+      "date": "2026-10-08T14:16:10-05:00",
+      "subject": "Raise the per-lead bound to 150s; 90s was cutting off slow-but-finishing leads",
+      "title": "Raise the per-lead bound to 150s; 90s was cutting off slow-but-finishing leads",
+      "body": "Six leads errored in the first 25 batches. Timing one without the bound showed\nwhat they are: travis.suhr@gmail.com took 97 seconds and found 81 messages, of\nwhich 71 were already in the Hub and 10 were listing alerts — 0 new.\n\nSo they are not huge mailboxes. The IMAP search across the team mailboxes is just\nslow regardless of how much it finds, and 90s sat right on top of that. 150s\nclears it while still bounding the batch.\n\nThe timeout message now prints the actual bound instead of a hardcoded \"90s\" that\nwould have quietly lied the moment the value changed — which it just did.\n\nThe driver's own request timeout goes to 360s to stay above two leads at the new\nbound; a client timeout firing before the server's defeats the whole point of\nmoving the bound server-side.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d581c6e",
       "date": "2026-10-08T13:48:17-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Bulk text: add recipient Preview (renders custom/merge fields exactly like the send)",
       "body": "BulkTextModal now has a 👁 Preview showing the exact text a real recipient gets — each part\nrendered via /api/templates/render (same fill+strip as the send), with Prev/Next recipient\ncycling and a warning if a merge field didn't fill. Bulk email already had this.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "51ff4e9",
-      "date": "2026-08-27T13:22:14-05:00",
-      "subject": "Fix remaining q reference in nav useEffect dependency array (was crashing the Clients page)",
-      "title": "remaining q reference in nav useEffect dependency array (was crashing the Clients page)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

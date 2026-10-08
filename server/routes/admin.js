@@ -9,6 +9,108 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Who looked at what: property-interest search ─────────────────────────────────────
+// John, 2026-10-08: "who looked at condos in Marion in the $150k-$300k price range in
+// the last few years, even if it's just 1 view".
+//
+// Read-only. The view history lives in fub_activity (city, price, street, MLS, title) and
+// lead_activity (Sierra page views). Neither records a property TYPE, so "condo" has to be
+// inferred — and the endpoint says which signal matched on every row rather than quietly
+// deciding. `debug=1` returns the shape of the data instead of results, because guessing
+// at the distribution is how you build a filter that silently matches nothing.
+router.get('/property-interest', requirePermission('settings.view'), (req, res) => {
+  const city = String(req.query.city || '').trim()
+  const minP = Number(req.query.min) || 0
+  const maxP = Number(req.query.max) || 99999999
+  const since = /^\d{4}-\d{2}-\d{2}/.test(String(req.query.since || '')) ? String(req.query.since).slice(0, 10) : null
+  const wantType = String(req.query.type || '').trim().toLowerCase()
+
+  if (req.query.debug === '1') {
+    return res.json({
+      fub_activity_rows: (db.get('SELECT COUNT(*) c FROM fub_activity') || {}).c || 0,
+      with_city: (db.get("SELECT COUNT(*) c FROM fub_activity WHERE COALESCE(prop_city,'') <> ''") || {}).c || 0,
+      with_price: (db.get("SELECT COUNT(*) c FROM fub_activity WHERE COALESCE(prop_price,'') <> ''") || {}).c || 0,
+      top_cities: db.all(`SELECT prop_city, COUNT(*) n FROM fub_activity
+        WHERE COALESCE(prop_city,'') <> '' GROUP BY prop_city ORDER BY n DESC LIMIT 12`),
+      price_samples: db.all(`SELECT DISTINCT prop_price FROM fub_activity
+        WHERE COALESCE(prop_price,'') <> '' LIMIT 10`).map(r => r.prop_price),
+      types: db.all(`SELECT type, COUNT(*) n FROM fub_activity GROUP BY type ORDER BY n DESC LIMIT 10`),
+      listings_types: db.all(`SELECT property_type, COUNT(*) n FROM listings
+        WHERE COALESCE(property_type,'') <> '' GROUP BY property_type ORDER BY n DESC LIMIT 12`),
+      lead_activity_rows: (db.get('SELECT COUNT(*) c FROM lead_activity') || {}).c || 0,
+      sample: db.all(`SELECT prop_street, prop_city, prop_price, prop_mls, substr(page_title,1,70) page_title, occurred_at
+        FROM fub_activity WHERE COALESCE(prop_city,'') <> '' ORDER BY occurred_at DESC LIMIT 6`),
+    })
+  }
+
+  // prop_price is free text ("$225,000", "225000", "$1.2M"), so the digits are what count.
+  const rows = db.all(`SELECT a.client_id, a.prop_street, a.prop_city, a.prop_price, a.prop_mls,
+      a.page_title, a.page_url, a.occurred_at,
+      c.first_name, c.last_name, c.email, c.phone, c.status, c.type AS lead_type, c.agent_assigned,
+      l.property_type AS listing_type, r.building_type AS realist_type
+    FROM fub_activity a
+    JOIN clients c ON c.id = a.client_id AND c.merged_into IS NULL
+    LEFT JOIN listings l ON l.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> ''
+    LEFT JOIN realist_properties r ON r.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> ''
+    WHERE (? = '' OR lower(COALESCE(a.prop_city,'')) = lower(?)
+           OR lower(COALESCE(a.page_title,'')) LIKE lower(?))
+      ${since ? 'AND a.occurred_at >= ?' : ''}`,
+    since ? [city, city, `%${city}%`, since] : [city, city, `%${city}%`])
+
+  const priceOf = (s) => {
+    const t = String(s || '').replace(/[, $]/g, '')
+    const m = t.match(/(\d+(?:\.\d+)?)\s*([mk])?/i)
+    if (!m) return null
+    let v = parseFloat(m[1])
+    if (/m/i.test(m[2] || '')) v *= 1000000
+    else if (/k/i.test(m[2] || '')) v *= 1000
+    return v > 0 ? v : null
+  }
+  // No table records "condo", so three signals, strongest first. Each row says which
+  // one fired, so a judgement call stays visible instead of hiding in a total.
+  const condoSignal = (r) => {
+    const lt = `${r.listing_type || ''} ${r.realist_type || ''}`.toLowerCase()
+    if (/condo|townh|attached/.test(lt)) return 'listing type: ' + (r.listing_type || r.realist_type)
+    const txt = `${r.prop_street || ''} ${r.page_title || ''} ${r.page_url || ''}`.toLowerCase()
+    if (/\bcondo/.test(txt)) return 'the word condo in the listing'
+    if (/\bunit\b|\bapt\b|\b#\s*\d|\bste\b/.test(txt)) return 'unit number in the address'
+    return null
+  }
+
+  const byClient = new Map()
+  let priced = 0, inRange = 0
+  for (const r of rows) {
+    const p = priceOf(r.prop_price)
+    if (p == null) continue
+    priced++
+    if (p < minP || p > maxP) continue
+    inRange++
+    const sig = wantType === 'condo' ? condoSignal(r) : 'n/a'
+    if (wantType === 'condo' && !sig) continue
+    const k = r.client_id
+    if (!byClient.has(k)) {
+      byClient.set(k, { client_id: k, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+        email: r.email, phone: r.phone, status: r.status, lead_type: r.lead_type,
+        agent: r.agent_assigned, views: 0, first_seen: r.occurred_at, last_seen: r.occurred_at, properties: [] })
+    }
+    const e = byClient.get(k)
+    e.views++
+    if (r.occurred_at < e.first_seen) e.first_seen = r.occurred_at
+    if (r.occurred_at > e.last_seen) e.last_seen = r.occurred_at
+    if (e.properties.length < 8) e.properties.push({
+      address: r.prop_street, price: r.prop_price, mls: r.prop_mls,
+      when: String(r.occurred_at || '').slice(0, 10), why_condo: sig })
+  }
+  const leads = [...byClient.values()].sort((a, b) => b.views - a.views)
+  res.json({
+    filter: { city: city || '(any)', min: minP, max: maxP, since: since || '(all time)', type: wantType || '(any)' },
+    rows_considered: rows.length, rows_with_a_price: priced, rows_in_price_range: inRange,
+    leads: leads.length, total_views: leads.reduce((a, b) => a + b.views, 0),
+    results: leads,
+    note: 'No table records property type, so condo is inferred; every property says which signal matched.',
+  })
+})
+
 // ── Remove the FUB text rows that never had a body ───────────────────────────────────
 // John, 2026-10-08: "you can remove those text that you tried to import from FUB to HUB
 // since nothing exist anyways just make sure you don't remove any actual text".
