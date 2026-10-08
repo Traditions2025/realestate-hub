@@ -54,6 +54,54 @@ router.post('/condo-import', requirePermission('settings.edit'), (req, res) => {
     by_status: db.all('SELECT status, COUNT(*) n FROM condo_properties GROUP BY status ORDER BY n DESC') })
 })
 
+// ── Who OWNS a Marion condo ──────────────────────────────────────────────────────────
+// John, 2026-10-08: "also this would be a good data for those that owns a condo in
+// Marion". A lead whose own address is a condo in the export is a potential SELLER, which
+// is a different and often better list than the people browsing them.
+//
+// Matched on a normalised address — street type and directionals stripped — because the
+// Hub writes "3900 Deer Valley Dr" where the MLS writes "3900 Deer Valley Drive B".
+// Read-only. Dead / DNC / archived / STOP are excluded, same as every prospecting list.
+router.get('/condo-owners', requirePermission('settings.view'), (req, res) => {
+  const city = String(req.query.city || 'Marion').trim()
+  // The address_key normalisation lives in JS (addressKey), so the match is done here
+  // rather than reimplementing the same rules in SQL and letting the two drift.
+  const condos = db.all("SELECT * FROM condo_properties WHERE (? = '' OR lower(city) = lower(?))", [city, city])
+  const byKey = new Map()
+  for (const cp of condos) if (cp.address_key) byKey.set(cp.address_key, cp)
+
+  const clients = db.all(`SELECT id, first_name, last_name, email, phone, address, city, state,
+      status, type AS lead_type, agent_assigned, lead_score
+    FROM clients
+    WHERE merged_into IS NULL
+      AND COALESCE(address,'') <> ''
+      AND (? = '' OR lower(COALESCE(city,'')) = lower(?))
+      AND lower(COALESCE(status,'')) NOT IN ('junk','donotcontact','archived')
+      AND COALESCE(hub_text_opt_out,0) = 0`, [city, city])
+
+  const out = []
+  for (const cl of clients) {
+    const hit = byKey.get(addressKey(cl.address))
+    if (!hit) continue
+    out.push({
+      client_id: cl.id, name: `${cl.first_name || ''} ${cl.last_name || ''}`.trim(),
+      email: cl.email, phone: cl.phone, address: cl.address, city: cl.city,
+      status: cl.status, lead_type: cl.lead_type, agent: cl.agent_assigned, lead_score: cl.lead_score,
+      condo: { mls: hit.mls_number, mls_address: hit.address, sub_type: hit.sub_type,
+        mls_status: hit.mls_status, last_sold_for: hit.close_price, last_sold: hit.close_date,
+        year_built: hit.year_built, beds: hit.beds, baths: hit.baths },
+    })
+  }
+  out.sort((a, b) => Number(b.lead_score || 0) - Number(a.lead_score || 0))
+  res.json({
+    city: city || '(any)', condos_in_export: condos.length, clients_with_an_address: clients.length,
+    owners: out.length,
+    by_status: out.reduce((m, o) => { const k = o.status || '(none)'; m[k] = (m[k] || 0) + 1; return m }, {}),
+    results: out,
+    note: 'Matched on a normalised address, so a unit letter or a Dr/Drive difference does not break it. A match means the lead lives at a known condo address; confirm before treating it as ownership.',
+  })
+})
+
 // ── Who looked at what: property-interest search ─────────────────────────────────────
 // John, 2026-10-08: "who looked at condos in Marion in the $150k-$300k price range in
 // the last few years, even if it's just 1 view".

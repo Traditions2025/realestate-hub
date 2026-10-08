@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:36:20.251Z",
+  "generated_at": "2026-10-08T21:38:52.627Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8fef1f6",
+      "date": "2026-10-08T16:36:21-05:00",
+      "subject": "The MLS condo join was never actually in the file",
+      "title": "The MLS condo join was never actually in the file",
+      "body": "The rebuilt list grew 147 -> 183 but reported ZERO matches from the MLS export,\nwhile a direct check showed 215 overlapping MLS numbers. The join worked; it just\nwas not there.\n\nThe script that was meant to add the join, the condo_mls select and the MLS\nsignal asserted on its LAST edit and aborted — so it wrote none of the three. I\nadded the fourth edit separately, saw it land, and took that as the whole change\nhaving applied. Every subsequent result was produced by text patterns alone and\nlooked plausible enough not to question.\n\nAll three are in now, verified by grepping for each one individually rather than\ntrusting the script's exit, and the query is executed against the real schema.\n\nThe join also matches on address as well as MLS#, since 209 Marion views match\nthe export by address — a view that arrived without an MLS number is still a\ncondo.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e04b357",
       "date": "2026-10-08T16:33:26-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Cold-buyer drip: explicit enrollment that pre-schedules the whole sequence",
       "title": "Cold-buyer drip: explicit enrollment that pre-schedules the whole sequence",
       "body": "- enrollColdBuyerSequence() pre-schedules stages fromStage..9 (Text 2..LTN4) as\n  dated AI_COLD_BUYER actions from the lead's Text 1 anchor (weekday/daytime), so\n  the full remaining plan is visible on the account at once. Not gated by\n  autopilot; nothing sends until ai_followup+ai_nurture are on and each date hits.\n- Drain now only chains the perpetual loop (stages pre-scheduled); scheduleColdBuyer\n  is loop-only. Re-engagement sweep enrolls dormant buyers via the full sequence.\n- New routes: POST /api/ai/cold-buyer/enroll {client_ids, from_stage?} (auto-starts\n  at Text 2 for leads that already got Text 1); GET /api/ai/lead/:id/cold-buyer\n  lists a lead's pending drip schedule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3e2078b",
-      "date": "2026-08-27T17:38:18-05:00",
-      "subject": "Cold-buyer drip: seasonal accuracy + website on every follow-up",
-      "title": "Cold-buyer drip: seasonal accuracy + website on every follow-up",
-      "body": "- Website: follow-up texts (2-6, LTN, loop) now end with MattSmithTeam.com as an\n  easy tap-through, not just Text 1. Instruction requires it as a short varied\n  link tag (not a re-introduction); runOutbound's requireWebsite appends it as a\n  safety net when the model omits it.\n- Seasonal accuracy: inject the real current season/month (Central time) into the\n  AI context (centralSeason). The long-term loop may only use a seasonal/timing\n  reference if it matches the current season; otherwise it must drop the seasonal\n  angle and pick a non-seasonal reason. Prevents \"fall inventory\" in summer, etc.\n- Sandbox facts carry current_season too so previews honor the same rule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
