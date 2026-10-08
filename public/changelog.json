@@ -1,7 +1,23 @@
 {
-  "generated_at": "2026-10-08T15:50:14.255Z",
+  "generated_at": "2026-10-08T17:06:37.460Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "6875830",
+      "date": "2026-10-08T10:59:40-05:00",
+      "subject": "Check one number before it becomes a lead: GET /api/inbox/check-number",
+      "title": "Check one number before it becomes a lead: GET /api/inbox/check-number",
+      "body": "Answers \"is this a valid number?\" - NANP structure, Twilio line type and carrier, and\nwhether the number is already on a client in the Hub - without touching any record.\n\nCost discipline: results are cached in a new phone_lookups table, so asking about the\nsame number twice is free, and lookupLineType still honours the kill-switch and the\ndaily cap that were added after the 2026-08-28 incident ($100.51 in one run).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c9f2f89",
+      "date": "2026-10-08T10:50:15-05:00",
+      "subject": "The Hub's own send now refuses a number the carrier has refused",
+      "title": "The Hub's own send now refuses a number the carrier has refused",
+      "body": "John, 2026-10-08: \"all those bad numbers are flagged correct? so we don't use them\never again or send a text\".\n\nFlagged: yes, now. 551 leads had a number-side bounce, 28 of them were never\nmarked, and the existing backfill closed that — 0 unflagged.\n\nBut flagging only mattered where something read it. The AI, CX Connect, FSBO and\nthe mass-text campaign all honour it (the campaign through canAutomatedSend, whose\n'automation' channel is what makes the check apply). The Hub's own 1-to-1/bulk\nsend and the scheduled-text route checked the STOP opt-out and nothing else, so a\nperson could keep paying to text a landline. Both now refuse, and say which number\nand why, and that calling still works — a landline is still a phone.\n\nNumber-side only: unreachable, unknown, landline, not-a-mobile. Spam-filtering\n(30007) and A2P (30034) are deliberately excluded, because those fail a perfectly\ngood number and blocking on them would throw away reachable leads.\n\nThe flag is not a life sentence. Editing the phone clears it, because the verdict\nbelonged to the old number, and an inbound text from that number clears it too.\n\n9 tests. One of them caught a real hole in my own first attempt: there are THREE\n`for (const cid of client_ids)` loops in this file and indexOf only ever finds the\nfirst, so the test now walks all of them and asserts that any loop reaching sendSms\nis guarded. Verified by deleting the guard and watching it fail.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "dc62b76",
       "date": "2026-10-08T10:46:07-05:00",
@@ -3984,22 +4000,6 @@
       "subject": "Client Profile: one-page command center + row-click opens full screen + tags/email/txn/prev-next",
       "title": "Client Profile: one-page command center + row-click opens full screen + tags/email/txn/prev-next",
       "body": "- Row-click on a lead now opens the full-screen /clients/:id workspace (not the modal); modal\n  kept as fallback with its '⤢ Full screen' button.\n- Rebuild ClientProfile as ONE page (no primary tabs): sticky header + actions, two-column\n  command center — left: Client Details (contact+CRM+tag chips), Buyer/Seller profile,\n  Communications (All/Texts/Calls/Emails + search + Load More + composer), Property Activity,\n  Activity (ContactTimeline), Notes, Research; right sidebar: AI Intelligence + Next Best Action\n  (+ Open Full AI = AiIsaCard), Tasks (overdue/upcoming + add), Transactions (+ add). Alerts row.\n- Add/remove TAGS via chips (reuses /api/clients/bulk-tags); Email composer (/api/email/send +\n  templates); Add Transaction (/api/transactions); collapsible sections persist open/closed.\n- Prev/Next now walks the FULL matched set via /api/clients/ids with the list's filters.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "8b21e2b",
-      "date": "2026-08-27T11:52:05-05:00",
-      "subject": "Client Profile: full-screen routed workspace at /clients/:id (additive, modal kept)",
-      "title": "Client Profile: full-screen routed workspace at /clients/:id (additive, modal kept)",
-      "body": "Foundation for migrating the oversized client modal into a dedicated CRM workspace:\n- New route /clients/:id (ClientProfile.jsx): real URL, direct access, back/forward, bookmarkable.\n- Sticky header (name, type, status, source, agent, intent, AI-managed) + Back to Clients +\n  Prev/Next (X of Y) through the matched result set.\n- Tabs reuse existing components/APIs (no duplicated backends): Overview, Communications\n  (All/Texts/Calls/Emails/Notes + search + composer), Activity (ContactTimeline), Transactions,\n  Tasks (QuickAddTask), AI (AiIsaCard). Exported the reusable profile sub-components from Clients.jsx.\n- src/lib/clientsNav.js snapshots list state (matched ids + activeListId/search/filters + scroll)\n  so Back-to-Clients restores the exact view; column widths/visibility/order stay owned by the table.\n- SAFE migration: row-click still opens the classic modal; modal gains a '⤢ Full screen' button.\n  Email/Add-Transaction composers remain in the modal until ported. Updated HUB-SYSTEM-OVERVIEW.md.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3304e78",
-      "date": "2026-08-27T11:33:23-05:00",
-      "subject": "Scheduled texts: add Preview (full text) + Send now",
-      "title": "Scheduled texts: add Preview (full text) + Send now",
-      "body": "- Refactor scheduled-texts.js into sendScheduledRow(); add sendScheduledNow(id) + route\n  POST /api/inbox/scheduled/:id/send-now (compliance re-checked at send).\n- Composer scheduled list: 👁 Preview expands the full scheduled text; ▶ Send now sends it\n  immediately and refreshes the thread.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

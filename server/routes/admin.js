@@ -9,6 +9,63 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Remove the FUB text rows that never had a body ───────────────────────────────────
+// John, 2026-10-08: "you can remove those text that you tried to import from FUB to HUB
+// since nothing exist anyways just make sure you don't remove any actual text".
+//
+// Every condition below has to hold at once, and the body test is the real guard: a row
+// is only removed because it SAYS it has no content, never because of where it came from.
+// If FUB ever starts returning bodies, those rows stop matching and survive.
+//
+// Dry by default. `confirm` must be the exact count a dry run reported, so a number that
+// moved between looking and deleting stops the run instead of taking a different set.
+router.post('/purge-hidden-fub-texts', requirePermission('settings.edit'), (req, res) => {
+  const WHERE = `channel = 'text'
+      AND external_id LIKE 'fub_text_%'
+      AND body LIKE '%hidden for privacy%'`
+  const g = (sql, p = []) => { try { return (db.get(sql, p) || {}).c || 0 } catch { return 0 } }
+
+  const target = g(`SELECT COUNT(*) c FROM communications WHERE ${WHERE}`)
+  // everything we must NOT touch, counted before and after so the claim is checked
+  const before = {
+    all_texts: g("SELECT COUNT(*) c FROM communications WHERE channel='text'"),
+    twilio_texts: g("SELECT COUNT(*) c FROM communications WHERE channel='text' AND external_id LIKE 'twilio_%'"),
+    readable_fub_texts: g(`SELECT COUNT(*) c FROM communications WHERE channel='text'
+      AND external_id LIKE 'fub_text_%' AND body NOT LIKE '%hidden for privacy%'`),
+    notes: g("SELECT COUNT(*) c FROM communications WHERE channel='note'"),
+    calls: g("SELECT COUNT(*) c FROM communications WHERE channel IN ('call','voicemail')"),
+    emails: g("SELECT COUNT(*) c FROM communications WHERE channel='email'"),
+  }
+  const dry = req.body?.dry !== false
+  if (dry) {
+    return res.json({ dry: true, would_delete: target, protected: before,
+      sample: db.all(`SELECT client_id, occurred_at, external_id, substr(body,1,60) body
+                      FROM communications WHERE ${WHERE} ORDER BY occurred_at DESC LIMIT 5`),
+      note: 'Pass {dry:false, confirm:<would_delete>} to run it.' })
+  }
+  if (Number(req.body?.confirm) !== target) {
+    return res.status(409).json({ error: `confirm must equal the current count (${target}); it was ${req.body?.confirm}` })
+  }
+  db.run(`DELETE FROM communications WHERE ${WHERE}`)
+  const after = {
+    all_texts: g("SELECT COUNT(*) c FROM communications WHERE channel='text'"),
+    twilio_texts: g("SELECT COUNT(*) c FROM communications WHERE channel='text' AND external_id LIKE 'twilio_%'"),
+    readable_fub_texts: g(`SELECT COUNT(*) c FROM communications WHERE channel='text'
+      AND external_id LIKE 'fub_text_%' AND body NOT LIKE '%hidden for privacy%'`),
+    notes: g("SELECT COUNT(*) c FROM communications WHERE channel='note'"),
+    calls: g("SELECT COUNT(*) c FROM communications WHERE channel IN ('call','voicemail')"),
+    emails: g("SELECT COUNT(*) c FROM communications WHERE channel='email'"),
+  }
+  res.json({
+    dry: false, deleted: target, before, after,
+    // the only acceptable outcome: texts down by exactly the target, nothing else moved
+    intact: before.twilio_texts === after.twilio_texts && before.notes === after.notes
+      && before.calls === after.calls && before.emails === after.emails
+      && before.readable_fub_texts === after.readable_fub_texts
+      && (before.all_texts - after.all_texts) === target,
+  })
+})
+
 // ── Is every bad number actually flagged? ────────────────────────────────────────────
 // John, 2026-10-08: "all those bad numbers are flagged correct? so we don't use them ever
 // again". Flagging only happens on the Twilio callback, and only for number-side codes,
