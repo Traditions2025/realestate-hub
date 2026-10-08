@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-07T17:17:42.919Z",
+  "generated_at": "2026-10-08T15:07:29.626Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "f607214",
+      "date": "2026-10-07T12:17:45-05:00",
+      "subject": "Measure how much of the hidden-text problem notes can actually close",
+      "title": "Measure how much of the hidden-text problem notes can actually close",
+      "body": "Structurely's notes DO carry the message text verbatim — \"Hey Mike! What is the\nprice range you're currently considering... STOP me if you don't want further\ncontact. -Jennifer w Matt Smith Team\" — so John is right that the words can come\nout of FUB notes rather than /textMessages.\n\nThe question is how far it reaches. Of the nine systems writing FUB notes, only\nStructurely and CallAction.co are SMS assistants; Ylopo, Sierra, Agent Legend and\nthe rest write alerts and email copies. CallAction's are status lines (\"Contact\nArchived\"), not messages.\n\nThe response now reports the convertible count, how many leads it covers, and how\nmany of those leads actually have hidden texts — the difference between fixing the\nproblem and fixing a corner of it. Measuring before converting, because 202 notes\nagainst 17,204 hidden texts is a very different proposition from a fix.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "92647a3",
       "date": "2026-10-07T12:15:31-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Table sizing: reusable content-behavior categories (compact/normal/flex/wide) + docs",
       "title": "Table sizing: reusable content-behavior categories (compact/normal/flex/wide) + docs",
       "body": "Replace per-field width rules with a generic sizing system based on how a column's content\nbehaves, not its name:\n- Clients grid: LIST_COLUMNS gains size (compact/normal/flex/wide) + optional align; the grid\n  template is built from COLUMN_SIZES via colTrack() (minmax + fit-content; compact carries no\n  fr so it never absorbs slack, flex/wide absorb extra width). Header respects align.\n- .client-list scrolls horizontally when minimums exceed the viewport (readability over squeeze).\n- Shared CSS utilities for <table> lists: .col-compact/.col-normal/.col-flex/.col-wide,\n  .cell-center/.cell-num/.cell-truncate, .table-scroll. Applied to Tasks as a demo.\n- docs/TABLE-SIZING.md documents the convention so new columns need no new width rule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ebb35ae",
-      "date": "2026-08-27T09:56:25-05:00",
-      "subject": "FSBO: one profile per name+phone; all listings on the lead (fsbo_listings)",
-      "title": "FSBO: one profile per name+phone; all listings on the lead (fsbo_listings)",
-      "body": "Same name + same number with multiple listings is now ONE lead (Beals, Natalie collapse to\none each). Sync groups sheet rows by name+phone, aggregates status (Available if any listing\nis), and stores every listing (address/link/list-date/DOM/status) in fsbo_listings. Self-heal\nmerges same-name+phone records (even across Sierra profiles), combining listings. Lead profile\nlists all FSBO listing addresses with clickable Zillow links; FSBO list 'View Listing' shows\nthe primary link + (+N) for extra listings. Invariant: on-list == profile count (name+phone).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

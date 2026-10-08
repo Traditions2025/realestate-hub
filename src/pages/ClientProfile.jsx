@@ -1,4 +1,5 @@
 import { notify, confirmDialog } from '../notify'
+import DeliveryStatus from '../components/DeliveryStatus.jsx'
 import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
@@ -1130,6 +1131,8 @@ function CommItem({ m, client }) {
             {' · '}{fmtCommWhen(m.occurred_at)}
             {/* Which number it came from, right beside the name and the time. */}
             <Endpoints m={m} client={client} />
+            {/* and whether it actually arrived */}
+            <DeliveryStatus m={m} />
           </div>
           <div style={{ padding: '8px 12px', borderRadius: 12, background: out ? '#2563eb' : 'var(--bg-secondary)', color: out ? '#fff' : 'var(--text-primary)', border: out ? 'none' : '1px solid var(--border)', fontSize: 15.5, whiteSpace: 'pre-wrap', lineHeight: 1.45, wordBreak: 'break-word' }}>
             {text || '📎 attachment'}
@@ -1155,6 +1158,7 @@ function CommItem({ m, client }) {
           {/* Which number called, or which address the email came from. A note has no
               two ends, so it gets nothing. */}
           {m.channel !== 'note' && m.direction !== 'internal' && <Endpoints m={m} client={client} />}
+          <DeliveryStatus m={m} />
         </span>
       </div>
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
