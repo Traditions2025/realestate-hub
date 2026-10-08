@@ -1072,6 +1072,33 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // Read-only. John, 2026-10-08: does FUB's raw view data say whether a property is a
+  // condo or a single-family home? We only store street/city/price/mls, so the question
+  // is what the EVENT payload actually carries. GET only.
+  app.get('/api/fub/probe-events', async (req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const out = {}
+      const list = await fubGet('/events', { limit: 15, type: req.query.type || 'Viewed Property' })
+      const rows = list?.events || []
+      out.returned = rows.length
+      out.event_fields = rows[0] ? Object.keys(rows[0]) : []
+      // the nested property object is where a type would live, if anywhere
+      const withProp = rows.find(r => r.property)
+      out.property_fields = withProp ? Object.keys(withProp.property) : []
+      out.property_samples = rows.filter(r => r.property).slice(0, 5).map(r => r.property)
+      // a single event fetched by id often carries more than the list row
+      if (rows[0]?.id) {
+        try {
+          const one = await fubGet(`/events/${rows[0].id}`, {})
+          out.single_event_fields = Object.keys(one || {})
+          out.single_property = one?.property || null
+        } catch (e) { out.single_error = String(e.message).slice(0, 120) }
+      }
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/probe-texts', async (req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')

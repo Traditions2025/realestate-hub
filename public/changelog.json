@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T20:50:51.629Z",
+  "generated_at": "2026-10-08T21:16:09.037Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8251c3a",
+      "date": "2026-10-08T15:51:09-05:00",
+      "subject": "property-interest joined a column realist_properties does not have",
+      "title": "property-interest joined a column realist_properties does not have",
+      "body": "The endpoint 500'd on its first real call: \"no such column: r.mls_number\".\nrealist_properties is keyed on the ADDRESS, not an MLS number — I assumed the\ncolumn and never ran the query.\n\nThis is the same mistake as `active` on drip_campaigns, two days of work apart,\nand I had already written the test that catches it. I just did not point it at\nthis file. Now I have: the property-interest SELECT is extracted and EXECUTED\nagainst the real schema, and a second test asserts realist is joined on the\naddress — and fails loudly if realist ever gains an MLS column, so the join gets\nrevisited rather than silently staying second-best.\n\nReading a query proves it was written. Running it proves it works.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "282dfae",
       "date": "2026-10-08T15:41:05-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "AI tester: add 'nurture' sandbox mode to preview no-reply follow-up touches",
       "title": "AI tester: add 'nurture' sandbox mode to preview no-reply follow-up touches",
       "body": "The AI tester could preview openers (proactive) and revive openers, but not\nthe no-reply nurture-cadence follow-ups. Added mode:'nurture' (+attempt, +prior\nmessage history) that runs the exact production nurture instruction, so the full\nno-response sequence can be previewed step by step.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cc2d266",
-      "date": "2026-08-27T14:57:00-05:00",
-      "subject": "Inbox: make \"View profile\" a real link (open full profile in new tab)",
-      "title": "Inbox: make \"View profile\" a real link (open full profile in new tab)",
-      "body": "The View profile control was a <button>, so the browser had no URL to offer\non right-click / middle-click, and it opened the modal (?open=) rather than\nthe full-screen profile. It's now an <a href=\"/clients/:id\">: normal click\nstill does in-app navigation to the full-screen profile, while right-click,\nmiddle-click, and Ctrl/Cmd-click open it in a new tab natively.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
