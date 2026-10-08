@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T15:46:01.763Z",
+  "generated_at": "2026-10-08T15:50:14.255Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "dc62b76",
+      "date": "2026-10-08T10:46:07-05:00",
+      "subject": "Read-only: which bad numbers are NOT flagged yet",
+      "title": "Read-only: which bad numbers are NOT flagged yet",
+      "body": "John, 2026-10-08: \"all those bad numbers are flagged correct? so we don't use them\never again or send a text\".\n\nFlagging happens only on the Twilio callback, only for number-side codes, and only\nfor sends made since that callback existed — so the honest answer needs the gap\nmeasured rather than assumed.\n\nGET /api/admin/undeliverable-audit counts the leads whose number actually bounced\nagainst the leads carrying sms_undeliverable, and lists the ones in between: the\nleads an automation would text again tomorrow.\n\nNumber-side means the number itself cannot receive our text — unreachable,\nunknown, landline, not-a-mobile. Spam-filtering and A2P failures are excluded on\npurpose, because those fail a perfectly good number for reasons that have nothing\nto do with the number, and blocking them would be throwing away reachable leads.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "fad5f24",
       "date": "2026-10-08T10:12:54-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Scheduled texts: add Preview (full text) + Send now",
       "title": "Scheduled texts: add Preview (full text) + Send now",
       "body": "- Refactor scheduled-texts.js into sendScheduledRow(); add sendScheduledNow(id) + route\n  POST /api/inbox/scheduled/:id/send-now (compliance re-checked at send).\n- Composer scheduled list: 👁 Preview expands the full scheduled text; ▶ Send now sends it\n  immediately and refreshes the thread.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ce920b6",
-      "date": "2026-08-27T10:28:24-05:00",
-      "subject": "List: align body cells to their header (center/right per column align)",
-      "title": "List: align body cells to their header (center/right per column align)",
-      "body": "DOM values were left-aligned under a centered header. Apply each column's align to its body\ncells too via cloneElement, so aligned columns (DOM, Status, Score, Visits) line up.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

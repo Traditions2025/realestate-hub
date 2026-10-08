@@ -980,10 +980,12 @@ router.post('/schedule-text', (req, res) => {
   const when = new Date(send_at)
   if (!send_at || isNaN(when.getTime())) return res.status(400).json({ error: 'A valid send time is required.' })
   if (when.getTime() < Date.now() + 30000) return res.status(400).json({ error: 'Pick a time at least a minute in the future.' })
-  const c = cid ? db.get('SELECT id, phone, hub_text_opt_out, status FROM clients WHERE id=?', [cid]) : null
+  const c = cid ? db.get('SELECT id, phone, hub_text_opt_out, sms_undeliverable, sms_undeliverable_reason, status FROM clients WHERE id=?', [cid]) : null
   if (cid && !c) return res.status(404).json({ error: 'client not found' })
   if (c && !c.phone) return res.status(400).json({ error: 'no phone on file for this contact' })
   if (c && c.hub_text_opt_out) return res.status(400).json({ error: 'this contact replied STOP to our number — texting is blocked' })
+  // no point scheduling a text to a number the carrier has already refused
+  if (c && c.sms_undeliverable) return res.status(400).json({ error: `this number can't receive texts — ${c.sms_undeliverable_reason || 'carrier reported it undeliverable'} (you can still call)` })
   const r = db.run('INSERT INTO scheduled_texts (client_id, phone, body, media_url, send_at, timezone, created_by) VALUES (?,?,?,?,?,?,?)',
     [cid, c ? c.phone : (req.body?.phone || null), body || '', mediaArr.length ? JSON.stringify(mediaArr.map(u => ({ url: u, type: 'image' }))) : null, when.toISOString(), timezone || null, created_by || null])
   res.json({ success: true, id: r.lastInsertRowid, send_at: when.toISOString() })
@@ -1062,6 +1064,15 @@ router.post('/send', async (req, res) => {
       const savedNums = c ? [c.phone, ...String(c.alt_phones || '').split(',')].map(p => String(p || '').trim()).filter(Boolean) : []
       if (!c || !savedNums.length) { results.push({ client_id: cid, ok: false, error: 'no phone on file' }); continue }
       if (c.hub_text_opt_out) { results.push({ client_id: cid, ok: false, error: 'replied STOP to our number — texting blocked (you can still call)' }); continue }
+      // The number itself cannot receive a text - a landline, or one the carrier says
+      // does not exist. Automations already skip these; the Hub's own send did not, so a
+      // person could keep paying to text a landline (John, 2026-10-08). Editing the phone
+      // clears the flag, because the verdict belonged to the old number.
+      if (c.sms_undeliverable) {
+        results.push({ client_id: cid, ok: false,
+          error: `this number can't receive texts — ${c.sms_undeliverable_reason || 'carrier reported it undeliverable'} (you can still call)` })
+        continue
+      }
       // Optional per-send number pick (single recipient only): must be one of the
       // lead's saved numbers — primary or alt — never an arbitrary number.
       let dest = savedNums[0]
