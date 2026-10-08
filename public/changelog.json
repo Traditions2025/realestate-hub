@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:38:52.627Z",
+  "generated_at": "2026-10-08T21:43:19.169Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "22a8728",
+      "date": "2026-10-08T16:38:54-05:00",
+      "subject": "Who OWNS a Marion condo, from the same MLS export",
+      "title": "Who OWNS a Marion condo, from the same MLS export",
+      "body": "John, 2026-10-08: \"also this would be a good data for those that owns a condo in\nMarion\". A lead whose own address is a condo in the export is a potential SELLER\n— a different list from the people browsing them, and often a better one.\n\nGET /api/admin/condo-owners?city=Marion matches a client's address against the\n1,396 condos, normalising street type and directionals first, because the Hub\nwrites \"3900 Deer Valley Dr\" where the MLS writes \"3900 Deer Valley Drive B\".\nThe match reuses addressKey rather than reimplementing the same rules in SQL and\nletting the two drift apart.\n\nEach result carries the MLS record — subtype, last sale price and date, year\nbuilt, beds and baths — so the lead can be approached with something real.\n\nDead, DNC, archived and STOP excluded, like every prospecting list here. The\nresponse says plainly that a match means the lead LIVES at a known condo\naddress, which is evidence of ownership and not proof of it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8fef1f6",
       "date": "2026-10-08T16:36:21-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Cold-buyer drip: bulk cohort enroll + global search opens full profile",
       "title": "Cold-buyer drip: bulk cohort enroll + global search opens full profile",
       "body": "- POST /api/ai/cold-buyer/enroll-cohort: enroll everyone who got an AI/revive\n  Text 1 in a window and did NOT reply (buyers only; skips opt-outs, DNC,\n  excluded lists, no-phone), continuing each at Text 2. dry_run returns the list.\n- Global top-search now opens client results in the FULL-SCREEN profile\n  (/clients/:id) instead of the modal (?open=).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7a5a1ce",
-      "date": "2026-08-28T09:06:02-05:00",
-      "subject": "Cold-buyer drip: explicit enrollment that pre-schedules the whole sequence",
-      "title": "Cold-buyer drip: explicit enrollment that pre-schedules the whole sequence",
-      "body": "- enrollColdBuyerSequence() pre-schedules stages fromStage..9 (Text 2..LTN4) as\n  dated AI_COLD_BUYER actions from the lead's Text 1 anchor (weekday/daytime), so\n  the full remaining plan is visible on the account at once. Not gated by\n  autopilot; nothing sends until ai_followup+ai_nurture are on and each date hits.\n- Drain now only chains the perpetual loop (stages pre-scheduled); scheduleColdBuyer\n  is loop-only. Re-engagement sweep enrolls dormant buyers via the full sequence.\n- New routes: POST /api/ai/cold-buyer/enroll {client_ids, from_stage?} (auto-starts\n  at Text 2 for leads that already got Text 1); GET /api/ai/lead/:id/cold-buyer\n  lists a lead's pending drip schedule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

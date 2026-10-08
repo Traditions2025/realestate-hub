@@ -62,7 +62,15 @@ router.post('/condo-import', requirePermission('settings.edit'), (req, res) => {
 // Matched on a normalised address — street type and directionals stripped — because the
 // Hub writes "3900 Deer Valley Dr" where the MLS writes "3900 Deer Valley Drive B".
 // Read-only. Dead / DNC / archived / STOP are excluded, same as every prospecting list.
-router.get('/condo-owners', requirePermission('settings.view'), (req, res) => {
+// As a function, so saving the result as a list reuses the search rather than
+// reimplementing it and drifting from it.
+function runCondoOwners(q) {
+  const res = { _j: null, json(v) { this._j = v; return v }, status() { return this } }
+  condoOwnersHandler({ query: q || {} }, res)
+  return res._j
+}
+
+function condoOwnersHandler(req, res) {
   const city = String(req.query.city || 'Marion').trim()
   // The address_key normalisation lives in JS (addressKey), so the match is done here
   // rather than reimplementing the same rules in SQL and letting the two drift.
@@ -100,6 +108,34 @@ router.get('/condo-owners', requirePermission('settings.view'), (req, res) => {
     results: out,
     note: 'Matched on a normalised address, so a unit letter or a Dr/Drive difference does not break it. A match means the lead lives at a known condo address; confirm before treating it as ownership.',
   })
+}
+
+router.get('/condo-owners', requirePermission('settings.view'), condoOwnersHandler)
+
+// Save the owners as a named client list. Same shape as the viewer list: ids for
+// immediate use, criteria so it can be rebuilt, and the same name refreshes in place
+// rather than leaving a stale duplicate for someone to work by mistake.
+router.post('/condo-owners/save-list', requirePermission('settings.edit'), (req, res) => {
+  const name = String(req.body?.name || '').trim()
+  if (!name) return res.status(400).json({ error: 'name is required' })
+  const city = String(req.body?.city || 'Marion').trim()
+  const found = runCondoOwners({ city })
+  if (!found || !Array.isArray(found.results)) return res.status(500).json({ error: 'search failed' })
+  const ids = found.results.map(r => r.client_id)
+  const criteria = { source: 'condo-owners', city }
+  const existing = db.get('SELECT id FROM client_lists WHERE lower(name) = lower(?)', [name])
+  if (existing) {
+    db.run(`UPDATE client_lists SET description = ?, filter_criteria = ?, client_ids = ?,
+            is_dynamic = 0, updated_at = datetime('now') WHERE id = ?`,
+      [req.body?.description || null, JSON.stringify(criteria), JSON.stringify(ids), existing.id])
+    return res.json({ list_id: existing.id, name, refreshed: true, members: ids.length,
+      criteria, by_status: found.by_status })
+  }
+  const r = db.run(`INSERT INTO client_lists (name, description, filter_criteria, is_dynamic, client_ids)
+                    VALUES (?,?,?,?,?)`,
+    [name, req.body?.description || null, JSON.stringify(criteria), 0, JSON.stringify(ids)])
+  res.status(201).json({ list_id: r.lastInsertRowid, name, created: true, members: ids.length,
+    criteria, by_status: found.by_status })
 })
 
 // ── Who looked at what: property-interest search ─────────────────────────────────────
