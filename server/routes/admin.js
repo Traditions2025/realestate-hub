@@ -23,7 +23,10 @@ router.get('/text-delivery', requirePermission('settings.view'), (req, res) => {
   const total = g(`SELECT COUNT(*) c ${base}`)
   res.json({
     since, total_sent: total,
-    by_status: db.all(`SELECT COALESCE(NULLIF(delivery_status,''),'(no receipt)') status, COUNT(*) n ${base} GROUP BY status ORDER BY n DESC`, p),
+    // NOT aliased `status`: communications HAS a status column (read/unread), and SQLite
+    // binds GROUP BY to the real column before the output alias — which silently grouped
+    // every text into two buckets, both labelled "delivered".
+    by_status: db.all(`SELECT COALESCE(NULLIF(delivery_status,''),'(no receipt)') delivery, COUNT(*) n ${base} GROUP BY delivery ORDER BY n DESC`, p),
     failures_by_reason: db.all(`SELECT COALESCE(error_message,'(no reason given)') reason, COUNT(*) n
       ${base} AND delivery_status IN ('failed','undelivered') GROUP BY reason ORDER BY n DESC`, p),
     spam_or_blocked: g(`SELECT COUNT(*) c ${base} AND (error_message LIKE '%spam%' OR error_message LIKE '%blocked%')`),
@@ -59,7 +62,7 @@ router.get('/fub-notes-with-text', requirePermission('settings.view'), (req, res
     total_fub_notes: total,
     matches: hits,
     // which systems write FUB notes at all — the likely source of any transcript
-    by_source: db.all(`SELECT COALESCE(disposition,'(none)') source, COUNT(*) n ${base} GROUP BY source ORDER BY n DESC`),
+    by_source: db.all(`SELECT COALESCE(disposition,'(none)') note_source, COUNT(*) n ${base} GROUP BY note_source ORDER BY n DESC`),
     samples: db.all(`SELECT client_id, occurred_at, COALESCE(disposition,'') source, substr(body,1,220) body
       ${base} AND (body LIKE '%sent a text%' OR body LIKE '%text message%' OR body LIKE '%texted%')
       ORDER BY occurred_at DESC LIMIT 12`),
