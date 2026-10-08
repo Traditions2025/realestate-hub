@@ -9,6 +9,51 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Import condo properties from an MLS export ───────────────────────────────────────
+// John supplied an "Agent Single Line" export of active/pending/sold condos. This is the
+// only authoritative statement in the system of what IS a condo: FUB's property.type is
+// empty on this account and listings.property_type is unpopulated.
+//
+// Keyed on MLS#, which joins straight to fub_activity.prop_mls, and on a normalised
+// address so an owner can be matched too. Re-importing refreshes rather than duplicating.
+export function addressKey(a) {
+  return String(a || '').toLowerCase()
+    .replace(/[.,#]/g, ' ')
+    .replace(/(street|st|avenue|ave|road|rd|drive|dr|court|ct|lane|ln|circle|cir|boulevard|blvd|place|pl|trail|trl|way|alley|aly|terrace|ter)/g, '')
+    .replace(/(north|south|east|west|ne|nw|se|sw|n|s|e|w)/g, '')
+    .replace(/\s+/g, ' ').trim()
+}
+
+router.post('/condo-import', requirePermission('settings.edit'), (req, res) => {
+  const rows = Array.isArray(req.body?.rows) ? req.body.rows : null
+  if (!rows) return res.status(400).json({ error: 'rows[] is required' })
+  const money = (v) => { const n = Number(String(v || '').replace(/[^0-9.]/g, '')); return n > 0 ? n : null }
+  let imported = 0, skipped = 0
+  for (const r of rows) {
+    const mls = String(r['MLS#'] || r.mls || '').trim()
+    const addr = String(r.Address || r.address || '').trim()
+    if (!mls || !addr) { skipped++; continue }
+    db.run(`INSERT INTO condo_properties
+      (mls_number, address, address_key, city, sub_type, style, status, current_price, close_price, close_date, beds, baths, year_built, imported_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
+      ON CONFLICT(mls_number) DO UPDATE SET
+        address=excluded.address, address_key=excluded.address_key, city=excluded.city,
+        sub_type=excluded.sub_type, style=excluded.style, status=excluded.status,
+        current_price=excluded.current_price, close_price=excluded.close_price,
+        close_date=excluded.close_date, imported_at=datetime('now')`,
+      [mls, addr, addressKey(addr), String(r.City || '').trim(), String(r.SubType || '').trim(),
+       String(r.Style || '').trim(), String(r.Status || '').trim(),
+       money(r['Current Price']), money(r['Close Price']), String(r['Close Date'] || '').trim(),
+       String(r['Beds Total'] || '').trim(), String(r['Baths Total'] || '').trim(),
+       String(r['Year Built'] || '').trim()])
+    imported++
+  }
+  res.json({ imported, skipped,
+    total_in_table: (db.get('SELECT COUNT(*) c FROM condo_properties') || {}).c || 0,
+    by_city: db.all('SELECT city, COUNT(*) n FROM condo_properties GROUP BY city ORDER BY n DESC LIMIT 5'),
+    by_status: db.all('SELECT status, COUNT(*) n FROM condo_properties GROUP BY status ORDER BY n DESC') })
+})
+
 // ── Who looked at what: property-interest search ─────────────────────────────────────
 // John, 2026-10-08: "who looked at condos in Marion in the $150k-$300k price range in
 // the last few years, even if it's just 1 view".
@@ -97,6 +142,10 @@ function propertyInterestHandler(req, res) {
     const txt = `${r.prop_street || ''} ${r.page_title || ''} ${r.page_url || ''}`.toLowerCase()
     if (/\bcondo/.test(txt)) return 'the word condo in the listing'
     if (/\bunit\b|\bapt\b|\b#\s*\d|\bste\b/.test(txt)) return 'unit number in the address'
+    // This feed writes a unit as a BARE TRAILING LETTER — "3900 Deer Valley Drive B" —
+    // and never as Unit/Apt/#. 18 of 687 Marion addresses look like this, and none of
+    // the patterns above matched a single one of them.
+    if (/\s[a-z]$/i.test(String(r.prop_street || '').trim())) return 'trailing unit letter in the address'
     return null
   }
 

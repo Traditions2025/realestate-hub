@@ -1723,6 +1723,33 @@ export async function initDb() {
   // =============================================
   // CLIENT LISTS (saved filtered groups)
   // =============================================
+  // Condo / zero-lot / co-op properties from an MLS export (John, 2026-10-08).
+  // FUB's property.type comes through EMPTY on this account and listings.property_type is
+  // unpopulated, so nothing in the Hub could say whether a property is a condo - the
+  // Marion list was guessing from the word "condo" in listing text. This is the
+  // authoritative answer: MLS# joins straight to fub_activity.prop_mls, and the address
+  // identifies owners.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS condo_properties (
+      mls_number TEXT PRIMARY KEY,
+      address TEXT,
+      address_key TEXT,
+      city TEXT,
+      sub_type TEXT,
+      style TEXT,
+      status TEXT,
+      current_price REAL,
+      close_price REAL,
+      close_date TEXT,
+      beds TEXT,
+      baths TEXT,
+      year_built TEXT,
+      imported_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_condo_addr ON condo_properties(address_key)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_condo_city ON condo_properties(city)') } catch {}
+
   db.run(`
     CREATE TABLE IF NOT EXISTS client_lists (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

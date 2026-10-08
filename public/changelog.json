@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:16:09.037Z",
+  "generated_at": "2026-10-08T21:30:21.082Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c36d92c",
+      "date": "2026-10-08T16:16:10-05:00",
+      "subject": "Read-only probe: does a FUB view event carry a property TYPE?",
+      "title": "Read-only probe: does a FUB view event carry a property TYPE?",
+      "body": "John, 2026-10-08: \"From FUB you can see raw data of views correct you can see the\naddress, can you see the type? if it's condo/single home\".\n\nWorth answering from the payload rather than from what we happen to store. The\nHub keeps street, city, price and MLS from each Viewed Property event; whether\nFUB also sends a property type decides whether the Marion condo list can stop\nguessing from text.\n\nGET /api/fub/probe-events returns the event's field names, the nested property\nobject's field names, a few real property samples, and the same for a single\nevent fetched by id — list rows are often slimmer than the full record.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8251c3a",
       "date": "2026-10-08T15:51:09-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "AI: staged cold-buyer SMS drip (Day 1/4/9/17/30/50 + long-term nurture)",
       "title": "AI: staged cold-buyer SMS drip (Day 1/4/9/17/30/50 + long-term nurture)",
       "body": "Turns the one-and-done revive into a full staged re-engagement drip for old/\ncold buyer leads (no recent activity), extending the existing engine so all\ncompliance, reply-pauses-drip, website-activity override, and opt-out handling\ncarry over unchanged. Gated behind autopilot + ai_nurture_enabled (dormant\nuntil turned on).\n\n- prompts.js: COLD_BUYER_STAGES (Text 1 reuses REVIVE_OPENERS; Text 2-6 + LTN\n  1-4 approved rotations + a perpetual rotate-the-purpose loop stage) and\n  COLD_STAGE_BLOCK (per-stage goal; continuation rules: no re-intro/website\n  after Text 1, one question, no duplicates, personalize, NO_ACTION when the\n  stage no longer fits the conversation).\n- orchestrator.js: handleColdBuyerStage(cid, stageIndex) — Text 1 via\n  REVIVE_OPENER_BLOCK (greeting+intro+website), stages 1+ via COLD_STAGE_BLOCK,\n  each rotating its approved bank so leads don't get identical sequences.\n- scheduler.js: cadence [1,4,9,17,30,50,80,120,165,210]d then ~52d loop;\n  nextBusinessSlot() sends weekdays only in the daytime window (Sat/Sun roll to\n  Mon); AI_COLD_BUYER drain advances the cadence (a skipped stage still moves\n  forward); re-engagement sweep enrolls dormant BUYERS at Text 1, sellers keep\n  the generic reconnect.\n- ai.js: Send-AI routes dormant buyers into the drip (Text 1 + enroll); added a\n  cold_stage sandbox mode to preview every stage.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "02645d5",
-      "date": "2026-08-27T16:49:21-05:00",
-      "subject": "AI tester: add 'nurture' sandbox mode to preview no-reply follow-up touches",
-      "title": "AI tester: add 'nurture' sandbox mode to preview no-reply follow-up touches",
-      "body": "The AI tester could preview openers (proactive) and revive openers, but not\nthe no-reply nurture-cadence follow-ups. Added mode:'nurture' (+attempt, +prior\nmessage history) that runs the exact production nurture instruction, so the full\nno-response sequence can be previewed step by step.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
