@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T18:48:16.372Z",
+  "generated_at": "2026-10-08T19:16:09.167Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "d581c6e",
+      "date": "2026-10-08T13:48:17-05:00",
+      "subject": "Bound each lead inside the sweep, so one big mailbox cannot stall it",
+      "title": "Bound each lead inside the sweep, so one big mailbox cannot stall it",
+      "body": "A lead out-ran the client's 240s timeout. When the request dies the caller gets\nnothing back — not even how far it got — so the cursor cannot advance and the\nsame lead is retried forever. The client-side \"step past a stuck lead\" guard only\nadvances the cursor by one id, which does not reliably clear a slow lead when ids\nare sparse: it could take hours of 8-minute double-timeouts to get past one\nperson.\n\nThe fix belongs on the server. Each lead now runs under a 90s race, so the batch\nalways returns, last_id moves past the slow lead, and that lead is reported as an\nerror instead of stalling the sweep.\n\n3 tests, including that last_id is set BEFORE the lead is attempted — otherwise a\nfailure would leave the cursor behind and reintroduce the same loop.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "ad56c6d",
       "date": "2026-10-08T13:28:41-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Fix remaining q reference in nav useEffect dependency array (was crashing the Clients page)",
       "title": "remaining q reference in nav useEffect dependency array (was crashing the Clients page)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "6833607",
-      "date": "2026-08-27T13:17:38-05:00",
-      "subject": "Fix ReferenceError: q is not defined — Clients search state is 'search', not 'q'",
-      "title": "ReferenceError: q is not defined — Clients search state is 'search', not 'q'",
-      "body": "The nav-context code used 'q' (a different component's state) which threw: the useEffect crashed\nthe Clients page, and the click-time capture silently failed so Prev/Next never got ids. Use the\nreal 'search'/'setSearch' state.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
     }
   ]

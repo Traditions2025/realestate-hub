@@ -568,7 +568,7 @@ export function gmailStatus() {
 //     already reports what it skipped
 export async function importEmailHistoryBulk({
   limit = 25, afterId = 0, dryRun = false, includeAutomated = false, minFreeGb = 2.0,
-  statuses = null, perLeadMs = 90000,
+  statuses = null, perLeadMs = 150000,
 } = {}) {
   // 45,000 leads at roughly six seconds each is about 75 hours, and the first run showed
   // why that order is wrong: the oldest ids are long-standing clients whose mail the
@@ -609,7 +609,7 @@ export async function importEmailHistoryBulk({
         // is reported as an error instead of stalling the sweep (John, 2026-10-08).
         const r = await Promise.race([
           importContactHistory(c.id, { includeAutomated }),
-          new Promise((_, rej) => setTimeout(() => rej(new Error('lead timed out after 90s')), perLeadMs)),
+          new Promise((_, rej) => setTimeout(() => rej(new Error(`lead timed out after ${Math.round(perLeadMs/1000)}s`)), perLeadMs)),
         ])
         if (r.error) { out.errors++; out.leads.push({ id: c.id, email: c.email, error: r.error }); continue }
         out.imported += r.imported || 0

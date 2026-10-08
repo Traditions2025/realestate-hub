@@ -314,7 +314,8 @@ test('an unjudged message is kept, so a path that skips the classifier cannot dr
 test('each lead is time-bounded inside the bulk sweep', () => {
   const fn = gmail.slice(gmail.indexOf('export async function importEmailHistoryBulk'))
   assert.match(fn, /Promise\.race\(\[/)
-  assert.match(fn, /lead timed out after 90s/)
+  assert.match(fn, /lead timed out after \$\{Math\.round\(perLeadMs\/1000\)\}s/,
+    'the message must state the ACTUAL bound, not a hardcoded 90s that drifts when it changes')
   assert.match(fn, /perLeadMs/)
 })
 
