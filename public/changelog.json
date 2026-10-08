@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:33:24.364Z",
+  "generated_at": "2026-10-08T21:36:20.251Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e04b357",
+      "date": "2026-10-08T16:33:26-05:00",
+      "subject": "Diagnose why the condo MLS join matches nothing",
+      "title": "Diagnose why the condo MLS join matches nothing",
+      "body": "The rebuilt Marion list grew 147 -> 183, but every match came from a text\npattern and NONE from the MLS export that was supposed to settle it. Either the\nnumbers do not overlap or they are not comparable, and guessing which would be\nhow this stays broken.\n\ndebug=1 now reports the MLS overlap count, the address overlap count, and\nsamples of both sides, so the answer comes from the data.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "90e57b7",
       "date": "2026-10-08T16:30:33-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Cold-buyer drip: seasonal accuracy + website on every follow-up",
       "title": "Cold-buyer drip: seasonal accuracy + website on every follow-up",
       "body": "- Website: follow-up texts (2-6, LTN, loop) now end with MattSmithTeam.com as an\n  easy tap-through, not just Text 1. Instruction requires it as a short varied\n  link tag (not a re-introduction); runOutbound's requireWebsite appends it as a\n  safety net when the model omits it.\n- Seasonal accuracy: inject the real current season/month (Central time) into the\n  AI context (centralSeason). The long-term loop may only use a seasonal/timing\n  reference if it matches the current season; otherwise it must drop the seasonal\n  angle and pick a non-seasonal reason. Prevents \"fall inventory\" in summer, etc.\n- Sandbox facts carry current_season too so previews honor the same rule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bad6bcd",
-      "date": "2026-08-27T17:27:32-05:00",
-      "subject": "Cold-buyer drip: no re-greeting on continuation follow-ups",
-      "title": "Cold-buyer drip: no re-greeting on continuation follow-ups",
-      "body": "Text 2+ should read as a continuation of the same thread, so the stage\ninstruction now forbids opening with Hi/Hello/Good morning-afternoon-evening\n(production already stripped these on non-first sends; this stops the model\nwasting the opener on a greeting).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

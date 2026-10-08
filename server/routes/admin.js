@@ -120,7 +120,8 @@ function propertyInterestHandler(req, res) {
   const rows = db.all(`SELECT a.client_id, a.prop_street, a.prop_city, a.prop_price, a.prop_mls,
       a.page_title, a.page_url, a.occurred_at,
       c.first_name, c.last_name, c.email, c.phone, c.status, c.type AS lead_type, c.agent_assigned,
-      l.property_type AS listing_type, r.building_type AS realist_type
+      l.property_type AS listing_type, r.building_type AS realist_type,
+      cp.mls_number AS condo_mls, cp.sub_type AS condo_sub_type, cp.status AS condo_status
     FROM fub_activity a
     JOIN clients c ON c.id = a.client_id AND c.merged_into IS NULL
     LEFT JOIN listings l ON l.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> ''
@@ -128,6 +129,12 @@ function propertyInterestHandler(req, res) {
     -- column that does not exist 500'd the whole endpoint.
     LEFT JOIN realist_properties r ON lower(r.property_address) = lower(a.prop_street)
       AND COALESCE(a.prop_street,'') <> ''
+    -- The MLS condo export: the only authoritative statement of what IS a condo, since
+    -- FUB's property.type is empty on this account. MLS# is exact; the normalised
+    -- address catches views that arrived without one.
+    LEFT JOIN condo_properties cp
+      ON (cp.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> '')
+      OR (lower(trim(cp.address)) = lower(trim(a.prop_street)) AND COALESCE(a.prop_street,'') <> '')
     WHERE (? = '' OR lower(COALESCE(a.prop_city,'')) = lower(?)
            OR lower(COALESCE(a.page_title,'')) LIKE lower(?))
       AND lower(COALESCE(c.status,'')) NOT IN (${NEVER.map(() => '?').join(',')})
@@ -149,6 +156,9 @@ function propertyInterestHandler(req, res) {
   // No table records "condo", so three signals, strongest first. Each row says which
   // one fired, so a judgement call stays visible instead of hiding in a total.
   const condoSignal = (r) => {
+    // The MLS export settles it. Everything below is a fallback for properties the
+    // export does not cover, and each names itself, so a guess never reads like a fact.
+    if (r.condo_mls) return `MLS ${r.condo_mls}: ${r.condo_sub_type || 'condo'}`
     const lt = `${r.listing_type || ''} ${r.realist_type || ''}`.toLowerCase()
     if (/condo|townh|attached/.test(lt)) return 'listing type: ' + (r.listing_type || r.realist_type)
     const txt = `${r.prop_street || ''} ${r.page_title || ''} ${r.page_url || ''}`.toLowerCase()
