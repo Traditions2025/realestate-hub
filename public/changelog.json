@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T23:30:45.506Z",
+  "generated_at": "2026-10-08T23:33:18.783Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "560e3ad",
+      "date": "2026-10-08T18:30:48-05:00",
+      "subject": "The Marion smart lists made every Clients page load take 9.4s",
+      "title": "The Marion smart lists made every Clients page load take 9.4s",
+      "body": "John asked why the Hub felt slow today. It was me. /api/clients/smart-lists —\nwhich the Clients page calls on every load — went to 9.4 seconds, while the API\nitself was still answering in 0.3s. Measuring the endpoints one by one is what\nfound it; \"the Hub is slow\" would have been guesswork.\n\nTwo causes, both in the smart lists I added today:\n\nThe viewer query joined fub_activity to condo_properties on `mls_number = prop_mls\nOR address = prop_street`. An OR across two different columns cannot use either\nindex, so it full-scanned 38,195 view rows for each of 46,000 clients. It is two\nseparate EXISTS now, each able to use an index.\n\nAnd there were no indexes to use anyway: fub_activity had one on client_id and\nnothing on prop_mls or prop_street. Both added.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "b26b427",
       "date": "2026-10-08T16:50:58-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: text threads show full conversation; persist filter settings",
       "title": "Inbox: text threads show full conversation; persist filter settings",
       "body": "- Text/call/voicemail messages now render fully expanded by default (chat-style),\n  no click-to-expand each. Emails keep Gmail-style collapse (they can be long).\n- Channel filter, folder, unread-only, and assignment filter persist to\n  localStorage, so \"Texts only\" stays set when you leave and come back.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c460228",
-      "date": "2026-08-28T09:36:21-05:00",
-      "subject": "Global search: results are real links (open in new tab)",
-      "title": "Global search: results are real links (open in new tab)",
-      "body": "Each top-search result is now an <a href> (client -> /clients/:id, others ->\nr.href), so right-click / middle-click / Cmd-click open it in a new tab; a plain\nclick still navigates in-app via go().\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

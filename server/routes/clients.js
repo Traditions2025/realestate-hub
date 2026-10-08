@@ -27,13 +27,20 @@ router.get('/status-counts', (req, res) => {
 })
 
 // Counts for the Clients page "Smart Lists" tabs (server-computed segments).
-router.get('/smart-lists', (_req, res) => {
+router.get('/smart-lists', (req, res) => {
   const out = {}
+  // ?timing=1 reports how long each count takes. "The page is slow" is not a diagnosis;
+  // this says WHICH list is slow, which is the only way to fix the right one.
+  const timing = req.query.timing === '1' ? {} : null
   for (const key of Object.keys(SMART_LIST_SQL)) {
+    const t0 = Date.now()
     try { out[key] = db.get(`SELECT COUNT(*) n FROM clients WHERE merged_into IS NULL AND ${SMART_LIST_SQL[key]}`).n }
     catch (e) { out[key] = 0 }
+    if (timing) timing[key] = Date.now() - t0
   }
-  res.json(out)
+  res.json(timing ? { counts: out, ms: timing,
+    total_ms: Object.values(timing).reduce((a, b) => a + b, 0),
+    slowest: Object.entries(timing).sort((a, b) => b[1] - a[1]).slice(0, 6) } : out)
 })
 
 // Diagnostic: sample FUB texts/emails account-wide and report which are content-hidden,
