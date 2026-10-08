@@ -705,19 +705,13 @@ export const SMART_LIST_SQL = {
   // Two separate EXISTS rather than one join with an OR: an OR across two different
   // columns cannot use either index, which is what made this a full scan of 38k view
   // rows for every one of 46k clients.
+  // Reads a precomputed flag. Deciding this live was 6.99s of an 8.0s page load.
+  // POST /api/admin/refresh-condo-band recomputes it; the hourly FUB activity sync
+  // flags new rows as they arrive.
   marion_condo_viewers:
-    `(${WORKABLE} AND (
-        EXISTS (
-          SELECT 1 FROM fub_activity fa JOIN condo_properties cp ON cp.mls_number = fa.prop_mls
-          WHERE fa.client_id = clients.id AND COALESCE(fa.prop_mls,'') <> ''
-            AND lower(COALESCE(cp.city,'')) = 'marion'
-            AND ${CONDO_PRICE} BETWEEN 150000 AND 300000)
-        OR EXISTS (
-          SELECT 1 FROM fub_activity fa JOIN condo_properties cp
-            ON lower(trim(cp.address)) = lower(trim(fa.prop_street))
-          WHERE fa.client_id = clients.id AND COALESCE(fa.prop_street,'') <> ''
-            AND lower(COALESCE(cp.city,'')) = 'marion'
-            AND ${CONDO_PRICE} BETWEEN 150000 AND 300000)))`,
+    `(${WORKABLE} AND EXISTS (
+        SELECT 1 FROM fub_activity fa
+        WHERE fa.client_id = clients.id AND fa.marion_condo_band = 1))`,
 
   // Lives at an address that IS a Marion condo in the export - a potential SELLER.
   // Matched on the stored address_key, which strips street types and directionals, so

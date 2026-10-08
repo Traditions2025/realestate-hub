@@ -1632,6 +1632,12 @@ export async function initDb() {
   // without these the count runs a full scan of 38k rows PER CLIENT - /api/clients/
   // smart-lists took 9.4s, on every Clients page load (John, 2026-10-08).
   try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_mls ON fub_activity(prop_mls)') } catch {}
+  // Precomputed: is this view a Marion condo in the $150-300k band? Deciding it live cost
+  // 6.99 SECONDS on every Clients page load, because the price CAST, lower(city) and
+  // lower(trim(address)) can none of them use an index however the joins are arranged.
+  // Computed once per row, read instantly thereafter (John, 2026-10-08).
+  try { db.run('ALTER TABLE fub_activity ADD COLUMN marion_condo_band INTEGER') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_band ON fub_activity(client_id, marion_condo_band)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_street ON fub_activity(prop_street)') } catch {}
   try { db.run('ALTER TABLE fub_activity ADD COLUMN prop_zip TEXT') } catch {}
 

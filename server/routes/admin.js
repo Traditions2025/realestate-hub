@@ -112,6 +112,27 @@ function condoOwnersHandler(req, res) {
 
 router.get('/condo-owners', requirePermission('settings.view'), condoOwnersHandler)
 
+// Recompute fub_activity.marion_condo_band — the flag the viewers smart list reads.
+// Doing this work live cost 6.99s per Clients page load; doing it once costs nothing to
+// read. Re-run after a condo import or a big activity sync.
+router.post('/refresh-condo-band', requirePermission('settings.edit'), (_req, res) => {
+  const t0 = Date.now()
+  db.run('UPDATE fub_activity SET marion_condo_band = 0 WHERE marion_condo_band IS NOT 0')
+  const r = db.run(`UPDATE fub_activity SET marion_condo_band = 1
+    WHERE id IN (
+      SELECT fa.id FROM fub_activity fa
+      JOIN condo_properties cp
+        ON (cp.mls_number = fa.prop_mls AND COALESCE(fa.prop_mls,'') <> '')
+        OR (lower(trim(cp.address)) = lower(trim(fa.prop_street)) AND COALESCE(fa.prop_street,'') <> '')
+      WHERE lower(COALESCE(cp.city,'')) = 'marion'
+        AND CAST(REPLACE(REPLACE(REPLACE(fa.prop_price,'$',''),',',''),' ','') AS REAL)
+            BETWEEN 150000 AND 300000)`)
+  const flagged = (db.get('SELECT COUNT(*) c FROM fub_activity WHERE marion_condo_band = 1') || {}).c || 0
+  res.json({ flagged, took_ms: Date.now() - t0,
+    distinct_leads: (db.get(`SELECT COUNT(DISTINCT client_id) c FROM fub_activity
+      WHERE marion_condo_band = 1 AND client_id IS NOT NULL`) || {}).c || 0 })
+})
+
 // Recompute clients.address_key so the marion_condo_owners SMART list is an exact join.
 // Uses the same addressKey() the condo import uses — one normalisation, not two.
 router.post('/refresh-address-keys', requirePermission('settings.edit'), (req, res) => {

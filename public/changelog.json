@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T23:33:18.783Z",
+  "generated_at": "2026-10-08T23:35:20.485Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "c41eccb",
+      "date": "2026-10-08T18:33:20-05:00",
+      "subject": "smart-lists: report how long each count takes",
+      "title": "smart-lists: report how long each count takes",
+      "body": "My index + query fix moved 9.4s to 8.2s, which means the Marion lists were not\nthe main cost and I had assumed rather than measured. ?timing=1 returns the\nmilliseconds per list and the six slowest, so the next step fixes whichever one\nis actually responsible.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "560e3ad",
       "date": "2026-10-08T18:30:48-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Clients: read-only audit for New leads that match a Past Client",
       "title": "Clients: read-only audit for New leads that match a Past Client",
       "body": "GET /api/clients/audit/new-vs-past flags 'new' leads that match a Closed/past-\nclient lead by phone, email, address, or name (strong = any non-name match).\nReports counts + samples only; changes nothing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "26c219d",
-      "date": "2026-08-28T10:38:52-05:00",
-      "subject": "Inbox: text threads show full conversation; persist filter settings",
-      "title": "Inbox: text threads show full conversation; persist filter settings",
-      "body": "- Text/call/voicemail messages now render fully expanded by default (chat-style),\n  no click-to-expand each. Emails keep Gmail-style collapse (they can be long).\n- Channel filter, folder, unread-only, and assignment filter persist to\n  localStorage, so \"Texts only\" stays set when you leave and come back.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
