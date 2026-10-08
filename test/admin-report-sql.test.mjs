@@ -63,3 +63,27 @@ test('the buckets add up to the total', async () => {
   const labels = rows.map(r => r.delivery)
   assert.equal(new Set(labels).size, labels.length, 'two buckets with the same label means the grouping is wrong')
 })
+
+// ── the property-interest search must run, not just parse ────────────────────────────
+// It shipped joining realist_properties on r.mls_number — a column that does not exist;
+// that table is keyed on the ADDRESS. Every source-reading check passed and the endpoint
+// 500'd on its first real call. Same lesson as `active` on drip_campaigns, in a new file.
+test('the property-interest query runs against the real schema', async () => {
+  const { default: db, initDb } = await import('../server/database.js')
+  await initDb()
+  const i = src.indexOf('const rows = db.all(`')
+  assert.ok(i > -1, 'property-interest query not found')
+  const open = 'const rows = db.all(`'
+  let q = src.slice(i + open.length, src.indexOf('`,', i)).replace(/\$\{[^}]*\}/g, '')
+  const n = (q.match(/\?/g) || []).length
+  assert.doesNotThrow(() => db.all(q, Array(n).fill('')),
+    'the search query does not execute: ' + q.slice(0, 120))
+})
+
+test('it joins realist on the address, not on an MLS column it lacks', async () => {
+  const { default: db, initDb } = await import('../server/database.js')
+  await initDb()
+  const cols = new Set(db.all('PRAGMA table_info(realist_properties)').map(r => String(r.name)))
+  assert.ok(!cols.has('mls_number'), 'if realist gains an MLS column, revisit this join')
+  assert.match(src, /lower\(r\.property_address\) = lower\(a\.prop_street\)/)
+})

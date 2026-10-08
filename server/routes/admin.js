@@ -67,7 +67,10 @@ function propertyInterestHandler(req, res) {
     FROM fub_activity a
     JOIN clients c ON c.id = a.client_id AND c.merged_into IS NULL
     LEFT JOIN listings l ON l.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> ''
-    LEFT JOIN realist_properties r ON r.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> ''
+    -- realist_properties has no MLS number; it is keyed on the ADDRESS. Joining on a
+    -- column that does not exist 500'd the whole endpoint.
+    LEFT JOIN realist_properties r ON lower(r.property_address) = lower(a.prop_street)
+      AND COALESCE(a.prop_street,'') <> ''
     WHERE (? = '' OR lower(COALESCE(a.prop_city,'')) = lower(?)
            OR lower(COALESCE(a.page_title,'')) LIKE lower(?))
       AND lower(COALESCE(c.status,'')) NOT IN (${NEVER.map(() => '?').join(',')})

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T20:40:54.212Z",
+  "generated_at": "2026-10-08T20:50:51.629Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "282dfae",
+      "date": "2026-10-08T15:41:05-05:00",
+      "subject": "Save a property-interest search as a named client list",
+      "title": "Save a property-interest search as a named client list",
+      "body": "John, 2026-10-08: \"then make that as a smart list Marion Condo Campaign\".\n\nPOST /api/admin/property-interest/save-list stores BOTH the matching client_ids\nand the criteria that produced them. The ids make the list usable immediately;\nthe criteria let it be rebuilt, which matters because a snapshot is wrong the\nmoment someone views another condo.\n\nRe-posting the same name refreshes that list instead of creating a second one\nwith the same name — a duplicate \"Marion Condo Campaign\" is worse than no list,\nbecause someone will work the stale one.\n\nThe search handler is now a function the route and the save endpoint both call,\nrather than the save endpoint reimplementing the query and drifting from it.\n\nDead, DNC, archived and anyone who replied STOP stay excluded, so the saved list\ncannot contain someone we may not contact.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "3be1a8d",
       "date": "2026-10-08T15:29:20-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: make \"View profile\" a real link (open full profile in new tab)",
       "title": "Inbox: make \"View profile\" a real link (open full profile in new tab)",
       "body": "The View profile control was a <button>, so the browser had no URL to offer\non right-click / middle-click, and it opened the modal (?open=) rather than\nthe full-screen profile. It's now an <a href=\"/clients/:id\">: normal click\nstill does in-app navigation to the full-screen profile, while right-click,\nmiddle-click, and Ctrl/Cmd-click open it in a new tab natively.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0340c4f",
-      "date": "2026-08-27T14:01:01-05:00",
-      "subject": "Inbox: show group texts on each participant's lead profile",
-      "title": "Inbox: show group texts on each participant's lead profile",
-      "body": "Group texts are stored once with client_id NULL + a conversation_sid, so they\nbelonged to no single profile and never appeared on a participant's page (only\nin the Inbox group thread). GET /thread/:clientId now also pulls every group\nconversation the lead is part of, matched by the group's participant list\n(group_meta) or by phone on any row, and merges them in occurred_at order.\nGroup sends now also record each participant's client_id in group_meta for\nexact future matching.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
