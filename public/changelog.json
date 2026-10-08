@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T15:07:29.626Z",
+  "generated_at": "2026-10-08T15:09:03.456Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "bc4deb4",
+      "date": "2026-10-08T10:08:25-05:00",
+      "subject": "Show whether a text actually arrived",
+      "title": "Show whether a text actually arrived",
+      "body": "John, 2026-10-08: \"we need to have a status to show on each text we sent to know\nwhere it's delivered or failed or what so we know it went out also I think we\nwould know if text is detected as SPAM or blocked?\"\n\nNothing new is collected. The Twilio status callback has been writing\ncommunications.delivery_status and error_message all along, and the carrier codes\nfor spam (30007) and blocking (30004) were already translated into words. None of\nit was ever on screen.\n\nDeliveryStatus renders beside the time on every outgoing text and email, in the\nprofile and all three Inbox panes.\n\nTwo distinctions it is careful about:\n\n  Twilio's `sent` means the CARRIER took it, not that a handset did. It reads\n  \"Sent\", muted — calling it Delivered would tell John a message arrived when\n  nobody has said so. Only delivered/read/received are green.\n\n  A failure shows its reason, because \"blocked by the carrier\" and \"filtered as\n  spam\" need completely different responses from a person, and a spam or block\n  gets an extra mark so it is not lost among ordinary failures.\n\nA row with no status predates the callback, so it says \"no receipt\" rather than\nrendering nothing and reading as though the message never went.\n\nConfirmed on the message John asked about: Marvin Hoyt #56, to Donna at\n(319) 721-1788, Oct 8 9:59 AM Central, twilio_SMbc7344b7b4b7bfea6870a50306e49850,\ndelivered, no error. 13 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "f607214",
       "date": "2026-10-07T12:17:45-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Tables: replace auto-flex sizing with manual drag-to-resize columns (persistent)",
       "title": "Tables: replace auto-flex sizing with manual drag-to-resize columns (persistent)",
       "body": "- Remove the auto-flex category sizing (Clients grid) and Tasks demo classes; columns now use\n  fixed baseline pixel widths (from a size category) and the user drags the header edge to resize.\n- New reusable engine src/lib/columnResize.jsx: useColumnWidths(tableId) (localStorage now,\n  swap for server later), ResizeHandle (subtle 8px edge target; live drag, persist on release,\n  double-click auto-fit), keyed by stable column key so widths survive reorder/hide/show.\n- Clients: fixed-px grid template + resize handles; resize never triggers sort or column-reorder;\n  horizontal scroll when widths exceed viewport. Columns menu gains Reset Column Widths +\n  Auto-Fit Visible Columns (widths separate from visibility).\n- docs/TABLE-SIZING.md rewritten for the manual-resize convention.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f4c7234",
-      "date": "2026-08-27T10:04:50-05:00",
-      "subject": "Table sizing: reusable content-behavior categories (compact/normal/flex/wide) + docs",
-      "title": "Table sizing: reusable content-behavior categories (compact/normal/flex/wide) + docs",
-      "body": "Replace per-field width rules with a generic sizing system based on how a column's content\nbehaves, not its name:\n- Clients grid: LIST_COLUMNS gains size (compact/normal/flex/wide) + optional align; the grid\n  template is built from COLUMN_SIZES via colTrack() (minmax + fit-content; compact carries no\n  fr so it never absorbs slack, flex/wide absorb extra width). Header respects align.\n- .client-list scrolls horizontally when minimums exceed the viewport (readability over squeeze).\n- Shared CSS utilities for <table> lists: .col-compact/.col-normal/.col-flex/.col-wide,\n  .cell-center/.cell-num/.cell-truncate, .table-scroll. Applied to Tasks as a demo.\n- docs/TABLE-SIZING.md documents the convention so new columns need no new width rule.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

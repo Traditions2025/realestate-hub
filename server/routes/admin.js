@@ -9,6 +9,32 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Text delivery across everything the Hub has sent ─────────────────────────────────
+// John, 2026-10-08: would we know if a text is filtered as spam or blocked? Yes — Twilio
+// reports 30007 and 30004 and the callback already stores the reason. This counts them,
+// so "would we know" has a number rather than a yes. Read-only.
+router.get('/text-delivery', requirePermission('settings.view'), (req, res) => {
+  const since = /^\d{4}-\d{2}-\d{2}/.test(String(req.query.since || ''))
+    ? String(req.query.since).slice(0, 10) + 'T00:00:00' : null
+  const w = since ? ' AND occurred_at >= ?' : ''
+  const p = since ? [since] : []
+  const base = `FROM communications WHERE channel='text' AND direction='outgoing' AND external_id LIKE 'twilio_%'${w}`
+  const g = (sql, extra = []) => { try { return (db.get(sql, [...p, ...extra]) || {}).c || 0 } catch { return 0 } }
+  const total = g(`SELECT COUNT(*) c ${base}`)
+  res.json({
+    since, total_sent: total,
+    by_status: db.all(`SELECT COALESCE(NULLIF(delivery_status,''),'(no receipt)') status, COUNT(*) n ${base} GROUP BY status ORDER BY n DESC`, p),
+    failures_by_reason: db.all(`SELECT COALESCE(error_message,'(no reason given)') reason, COUNT(*) n
+      ${base} AND delivery_status IN ('failed','undelivered') GROUP BY reason ORDER BY n DESC`, p),
+    spam_or_blocked: g(`SELECT COUNT(*) c ${base} AND (error_message LIKE '%spam%' OR error_message LIKE '%blocked%')`),
+    recent_failures: db.all(`SELECT c.first_name, c.last_name, m.to_addr, m.occurred_at, m.delivery_status, m.error_message
+      FROM communications m LEFT JOIN clients c ON c.id = m.client_id
+      WHERE m.channel='text' AND m.direction='outgoing' AND m.delivery_status IN ('failed','undelivered')${w ? ' AND m.occurred_at >= ?' : ''}
+      ORDER BY m.occurred_at DESC LIMIT 15`, p),
+    note: 'A carrier can also accept a message and silently drop it; that still reports as delivered. 30007/30004 are the cases a carrier admits to.',
+  })
+})
+
 // ── Do any FUB NOTES carry text-message content? ─────────────────────────────────────
 // John, 2026-10-07: the texts came over "from FUB as notes", converted to show as texts.
 // The /textMessages endpoint withholds bodies, but /notes does not — so if an integration
