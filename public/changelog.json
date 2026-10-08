@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T18:09:13.810Z",
+  "generated_at": "2026-10-08T18:28:24.344Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "228e4ef",
+      "date": "2026-10-08T13:09:15-05:00",
+      "subject": "Sweep the leads whose email history is actually worth recovering first",
+      "title": "Sweep the leads whose email history is actually worth recovering first",
+      "body": "The first real run made the ordering problem obvious. 45,000 leads at roughly six\nseconds each is about 75 hours, and by client id the oldest records come first —\nlong-standing clients whose mail the inbox poller already has. Lead 4 is the shape\nof it: 52 messages found, 29 dropped as listing alerts, 23 kept, and all 23\nalready in the Hub. Correct behaviour, hours of work, nothing gained.\n\n`statuses` narrows the sweep, so closed / pending / active can run first — a few\nthousand leads rather than forty-five thousand — and the remaining count respects\nthe same filter instead of reporting the whole table.\n\nPOST /api/inbox/email-history/bulk {statuses: [\"closed\",\"pending\",\"active\"]}\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a94fbad",
       "date": "2026-10-08T12:21:34-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Prev/Next: keep the Clients nav context (matched ids) continuously in sync with the loaded list",
       "body": "The click-time capture could miss, leaving no ids for Prev/Next. Now a useEffect saves the\ncontext (ids + list + filters) whenever the list loads, so Prev/Next is always populated.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "64c2979",
-      "date": "2026-08-27T13:06:04-05:00",
-      "subject": "App: auto-reload on stale-chunk import failure (deploy while tab open no longer breaks navigation)",
-      "title": "App: auto-reload on stale-chunk import failure (deploy while tab open no longer breaks navigation)",
-      "body": "Wrap lazy page imports in lazyWithReload — a failed dynamic import (old chunk hash gone after\na deploy) triggers one guarded page reload to fetch the fresh build, so clicking a lead can't\nsilently fail to open after a deploy.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

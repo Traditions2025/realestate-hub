@@ -19,8 +19,9 @@ const sync = src('../server/fub-conversation-sync.js')
 test('only Hub-originated rows are eligible', () => {
   // anything imported FROM FUB keeps its fub_ id, and must never be pushed back
   const fn = push.slice(push.indexOf('export function candidates'))
-  assert.match(fn, /external_id LIKE 'twilio_%' OR m\.external_id LIKE 'hub_%' OR m\.external_id LIKE 'gmail_%'/)
+  assert.match(fn, /external_id LIKE 'twilio_%' OR m\.external_id LIKE 'hub_%'/)
   assert.ok(!/external_id LIKE 'fub_/.test(fn), 'a fub_ row must not be selectable')
+  assert.ok(!/gmail_/.test(fn), 'nor an imported gmail_ row')
 })
 
 test('a pushed row is recorded so a re-run cannot double-post', () => {
@@ -160,4 +161,22 @@ test('the no-body skip applies to texts only', () => {
   const i = sync.indexOf("hidden for privacy")
   const line = sync.slice(sync.lastIndexOf('\n', i) + 1, sync.indexOf('\n', i))
   assert.match(line, /ch\.kind === 'text'/)
+})
+
+// ── imported mail is not ours to push back ───────────────────────────────────────────
+test('a gmail_ row is NOT pushed to FUB', () => {
+  // gmail_ rows are email the Hub IMPORTED from the team mailboxes. Pushing them sends
+  // mail back toward the system it came from, and the Gmail sweep creates more of them
+  // continuously — so the job would chase a target that keeps growing. Caught live: the
+  // remaining count went 1397 -> 1429 -> 1409 while 20 a batch were being written.
+  const fn = push.slice(push.indexOf('export function candidates'))
+  assert.ok(!/gmail_/.test(fn), 'gmail_ must not be selectable')
+  assert.match(fn, /external_id LIKE 'twilio_%' OR m\.external_id LIKE 'hub_%'/)
+})
+
+test('the remaining count honours `since` like the batch does', () => {
+  // it did not, so the driver could never see done and the number only ever rose
+  const tail = push.slice(push.indexOf('const left ='))
+  assert.match(tail, /\$\{since \? ' AND m\.occurred_at >= \?' : ''\}/)
+  assert.match(tail, /since \? \[out\.last_id, since\] : \[out\.last_id\]/)
 })

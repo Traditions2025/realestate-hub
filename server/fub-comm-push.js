@@ -17,7 +17,10 @@
 // Three independent guards, because a sync that feeds itself is the one failure that
 // grows without limit:
 //   1. only rows the HUB originated are eligible - external_id twilio_* or hub_*, never
-//      anything whose id starts fub_
+//      anything whose id starts fub_ OR gmail_. A gmail_ row is email the Hub IMPORTED
+//      out of the team mailboxes, not something it sent; pushing it to FUB would send
+//      mail back to the system it came from, and the Gmail sweep creates more of them
+//      continuously, so the push would chase a target that keeps growing.
 //   2. every push is recorded in fub_comm_pushed, keyed on the communication id, so a
 //      re-run is a no-op
 //   3. the note body carries a marker, and the importer skips notes carrying it
@@ -97,7 +100,7 @@ export function candidates({ afterId = 0, limit = 50, since = null, channels = n
       AND m.id > ?
       -- Hub-originated only. Anything imported FROM FUB keeps its fub_ id and is
       -- excluded here, which is the first and most important loop guard.
-      AND (m.external_id LIKE 'twilio_%' OR m.external_id LIKE 'hub_%' OR m.external_id LIKE 'gmail_%')
+      AND (m.external_id LIKE 'twilio_%' OR m.external_id LIKE 'hub_%')
       AND m.id NOT IN (SELECT communication_id FROM fub_comm_pushed)`
   params.push(Number(afterId) || 0)
   if (since) { sql += ' AND m.occurred_at >= ?'; params.push(since) }
@@ -143,8 +146,9 @@ export async function pushCommunications({
       AND c.merged_into IS NULL AND m.id > ?
       AND lower(COALESCE(c.email,'')) NOT LIKE '%@mattsmithteam.com'
       AND lower(COALESCE(c.email,'')) NOT IN ('mattsmithremax@gmail.com','johnwithmattsmithteam@gmail.com')
-      AND (m.external_id LIKE 'twilio_%' OR m.external_id LIKE 'hub_%' OR m.external_id LIKE 'gmail_%')
-      AND m.id NOT IN (SELECT communication_id FROM fub_comm_pushed)`, [out.last_id])?.c || 0
+      AND (m.external_id LIKE 'twilio_%' OR m.external_id LIKE 'hub_%')
+      AND m.id NOT IN (SELECT communication_id FROM fub_comm_pushed)${since ? ' AND m.occurred_at >= ?' : ''}`,
+    since ? [out.last_id, since] : [out.last_id])?.c || 0
   out.remaining = left
   out.done = left === 0
   return out
