@@ -3,6 +3,7 @@
 // mailboxes (e.g. mattsmithremax@gmail.com + matt@mattsmithteam.com), each read
 // directly so neither inbox has to forward the other's promo/spam. Cursor-based
 // per mailbox so old mail is never re-read. Inert until a mailbox is added.
+import { statfsSync } from 'fs'
 import { ImapFlow } from 'imapflow'
 import { simpleParser } from 'mailparser'
 import db, { getSetting, setSetting } from './database.js'
@@ -549,4 +550,73 @@ export async function importContactHistory(clientId, { includeAutomated = false 
 export function gmailStatus() {
   const boxes = mailboxesPublic()
   return { configured: boxes.length > 0, mailboxes: boxes }
+}
+
+// ── Bulk: pull every lead's real email history out of the team mailboxes ─────────────
+// John, 2026-10-08: "we need to start getting those emails from mattsmithremax to be
+// recorded in HUB".
+//
+// FUB has never exposed email content and never will, so Gmail is the only route. Each
+// lead costs a full IMAP search of \All across every mailbox, which is slow and not free,
+// so this is a resumable sweep rather than one long request:
+//
+//   - ordered by client id, resumable with afterId, so a Render timeout loses nothing
+//   - only leads with a real email, skipping the placeholder addresses the Hub generates
+//   - the disk is re-checked DURING the run, not once at the start, because ten retained
+//     backups multiply every megabyte that lands here
+//   - automated listing alerts are dropped by the classifier; importContactHistory
+//     already reports what it skipped
+export async function importEmailHistoryBulk({
+  limit = 25, afterId = 0, dryRun = false, includeAutomated = false, minFreeGb = 2.0,
+} = {}) {
+  const rows = db.all(`SELECT id, first_name, last_name, email FROM clients
+     WHERE id > ? AND merged_into IS NULL
+       AND email IS NOT NULL AND trim(email) <> ''
+       AND email LIKE '%@%'
+       AND email NOT LIKE 'noemail-%'
+       AND email NOT LIKE '%@notvalidemail.com'
+     ORDER BY id ASC LIMIT ?`, [Number(afterId) || 0, Math.max(1, Math.min(Number(limit) || 25, 100))])
+
+  const out = { scanned: 0, imported: 0, skipped_duplicates: 0, skipped_automated: 0,
+                with_mail: 0, errors: 0, last_id: Number(afterId) || 0, stopped: null, leads: [] }
+  const remaining = db.get(`SELECT COUNT(*) c FROM clients
+     WHERE id > ? AND merged_into IS NULL AND email IS NOT NULL AND trim(email) <> ''
+       AND email LIKE '%@%' AND email NOT LIKE 'noemail-%' AND email NOT LIKE '%@notvalidemail.com'`,
+    [Number(afterId) || 0])?.c || 0
+
+  for (const c of rows) {
+    // re-checked every lead: a long sweep can fill a disk that was fine when it started
+    const free = freeGbLocal()
+    if (free != null && free < minFreeGb) { out.stopped = `disk below ${minFreeGb} GB free`; break }
+    out.scanned++
+    out.last_id = c.id
+    try {
+      if (dryRun) {
+        const r = await searchMailboxesForContact(c.email, { max: 200 })
+        if (r.count) out.with_mail++
+        out.leads.push({ id: c.id, email: c.email, found: r.count, human: r.human_count, automated: r.automated_count })
+      } else {
+        const r = await importContactHistory(c.id, { includeAutomated })
+        if (r.error) { out.errors++; out.leads.push({ id: c.id, email: c.email, error: r.error }); continue }
+        out.imported += r.imported || 0
+        out.skipped_duplicates += r.skipped_duplicates || 0
+        out.skipped_automated += r.skipped_automated || 0
+        if (r.found_in_gmail) out.with_mail++
+        if (r.imported) out.leads.push({ id: c.id, email: c.email, imported: r.imported })
+      }
+    } catch (e) { out.errors++; out.leads.push({ id: c.id, email: c.email, error: String(e.message).slice(0, 140) }) }
+  }
+  out.remaining_after = Math.max(0, remaining - out.scanned)
+  out.done = out.remaining_after === 0 && !out.stopped
+  return out
+}
+
+// `require` does not exist in an ES module, so statfsSync is imported at the top. The
+// first version called require() here and would have thrown on the first lead, inside a
+// try that returns null - a silently disabled disk guard, which is the worst kind.
+function freeGbLocal() {
+  try {
+    const st = statfsSync(process.env.DB_DIR || '.')
+    return (st.bavail * st.bsize) / 1073741824
+  } catch { return null }
 }

@@ -376,6 +376,20 @@ router.post('/contact-emails/import', async (req, res) => {
   catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Bulk Gmail email history. Resumable by afterId; dry by default so a first look costs
+// nothing but time. See importEmailHistoryBulk for why it is a sweep and not one request.
+router.post('/email-history/bulk', async (req, res) => {
+  try {
+    const { importEmailHistoryBulk } = await import('../gmail-inbox.js')
+    res.json(await importEmailHistoryBulk({
+      limit: Number(req.body?.limit) || 25,
+      afterId: Number(req.body?.after_id) || 0,
+      dryRun: req.body?.dry !== false,
+      includeAutomated: req.body?.include_automated === true,
+    }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ---- one contact's full thread ----
 // Call intelligence: manually queue (or retry) transcription for one call row,
 // e.g. to backfill an old recorded call. The 2-min poller completes it.
