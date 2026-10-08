@@ -695,15 +695,22 @@ const CONDO_PRICE = `CAST(REPLACE(REPLACE(REPLACE(fa.prop_price,'$',''),',',''),
 
 export const SMART_LIST_SQL = {
   // Viewed a Marion condo between $150k and $300k, ever. A single view counts.
+  // Two separate EXISTS rather than one join with an OR: an OR across two different
+  // columns cannot use either index, which is what made this a full scan of 38k view
+  // rows for every one of 46k clients.
   marion_condo_viewers:
-    `(${WORKABLE} AND EXISTS (
-        SELECT 1 FROM fub_activity fa
-        JOIN condo_properties cp
-          ON (cp.mls_number = fa.prop_mls AND COALESCE(fa.prop_mls,'') <> '')
-          OR (lower(trim(cp.address)) = lower(trim(fa.prop_street)) AND COALESCE(fa.prop_street,'') <> '')
-        WHERE fa.client_id = clients.id
-          AND lower(COALESCE(cp.city,'')) = 'marion'
-          AND ${CONDO_PRICE} BETWEEN 150000 AND 300000))`,
+    `(${WORKABLE} AND (
+        EXISTS (
+          SELECT 1 FROM fub_activity fa JOIN condo_properties cp ON cp.mls_number = fa.prop_mls
+          WHERE fa.client_id = clients.id AND COALESCE(fa.prop_mls,'') <> ''
+            AND lower(COALESCE(cp.city,'')) = 'marion'
+            AND ${CONDO_PRICE} BETWEEN 150000 AND 300000)
+        OR EXISTS (
+          SELECT 1 FROM fub_activity fa JOIN condo_properties cp
+            ON lower(trim(cp.address)) = lower(trim(fa.prop_street))
+          WHERE fa.client_id = clients.id AND COALESCE(fa.prop_street,'') <> ''
+            AND lower(COALESCE(cp.city,'')) = 'marion'
+            AND ${CONDO_PRICE} BETWEEN 150000 AND 300000)))`,
 
   // Lives at an address that IS a Marion condo in the export - a potential SELLER.
   // Matched on the stored address_key, which strips street types and directionals, so

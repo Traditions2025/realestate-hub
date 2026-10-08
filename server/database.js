@@ -1628,6 +1628,11 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_client ON fub_activity(client_id, occurred_at DESC)') } catch {}
+  // The Marion condo smart lists join views to condo_properties on MLS# or address, and
+  // without these the count runs a full scan of 38k rows PER CLIENT - /api/clients/
+  // smart-lists took 9.4s, on every Clients page load (John, 2026-10-08).
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_mls ON fub_activity(prop_mls)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fub_activity_street ON fub_activity(prop_street)') } catch {}
   try { db.run('ALTER TABLE fub_activity ADD COLUMN prop_zip TEXT') } catch {}
 
   // =============================================

@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T21:50:45.326Z",
+  "generated_at": "2026-10-08T23:30:45.506Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "b26b427",
+      "date": "2026-10-08T16:50:58-05:00",
+      "subject": "Marion condos as SMART lists, not saved lists",
+      "title": "Marion condos as SMART lists, not saved lists",
+      "body": "John, 2026-10-08: \"it should be on smart list not saved list\".\n\nHe is right, and the difference matters: a saved list is a frozen set of ids that\nis wrong the next time someone views a condo or an address is corrected. A smart\nlist is live SQL, so it is always current.\n\n  marion_condo_viewers  viewed a Marion condo $150k-$300k, ever, confirmed\n                        against the MLS export by MLS# or address\n  marion_condo_owners   lives at an address that IS a Marion condo — sellers\n\nBoth exclude dead, DNC, archived and STOP, like every prospecting list here.\n\nThe owner match needed a decision. Replicating the JS address normalisation in\nraw SQL would have meant a pile of REPLACE() calls that silently drift from the\nreal one, so clients.address_key stores the SAME addressKey() output the condo\nimport uses, and the smart list is an exact join on it. The clients PUT keeps it\nin step when an address is edited, and POST /api/admin/refresh-address-keys\nbackfills, since 45,000 rows predate the column.\n\nprop_price is free text, so the price band compares digits rather than a string.\n\nBoth queries were EXECUTED against the real schema before committing, not just\nread — the habit that was missing when the MLS join silently never landed.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "93ad320",
       "date": "2026-10-08T16:43:29-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Global search: results are real links (open in new tab)",
       "title": "Global search: results are real links (open in new tab)",
       "body": "Each top-search result is now an <a href> (client -> /clients/:id, others ->\nr.href), so right-click / middle-click / Cmd-click open it in a new tab; a plain\nclick still navigates in-app via go().\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f6a2efb",
-      "date": "2026-08-28T09:35:13-05:00",
-      "subject": "Clients list: lead name is a real link (open profile in new tab)",
-      "title": "Clients list: lead name is a real link (open profile in new tab)",
-      "body": "The row had an onClick but no href, so right-click offered nothing. The name is\nnow an <a href=\"/clients/:id\">: plain click still opens the full-screen profile\nvia the row handler; right-click / middle-click / Cmd-click open it in a new tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
