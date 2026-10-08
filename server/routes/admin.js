@@ -18,7 +18,17 @@ const router = Router()
 // inferred — and the endpoint says which signal matched on every row rather than quietly
 // deciding. `debug=1` returns the shape of the data instead of results, because guessing
 // at the distribution is how you build a filter that silently matches nothing.
-router.get('/property-interest', requirePermission('settings.view'), (req, res) => {
+// The search itself, as a function, so a saved list can be REBUILT from the same
+// criteria later instead of being a snapshot that rots the day someone views another
+// condo. The route is a thin wrapper over it.
+function runPropertyInterest(q) {
+  const req = { query: q || {} }
+  const res = { _j: null, json(v) { this._j = v; return v }, status() { return this } }
+  propertyInterestHandler(req, res)
+  return res._j
+}
+
+function propertyInterestHandler(req, res) {
   const city = String(req.query.city || '').trim()
   const minP = Number(req.query.min) || 0
   const maxP = Number(req.query.max) || 99999999
@@ -122,6 +132,44 @@ router.get('/property-interest', requirePermission('settings.view'), (req, res) 
     results: leads,
     note: 'No table records property type, so condo is inferred; every property says which signal matched.',
   })
+}
+
+router.get('/property-interest', requirePermission('settings.view'), propertyInterestHandler)
+
+// Save a property-interest search as a named client list.
+// John, 2026-10-08: "then make that as a smart list Marion Condo Campaign".
+//
+// It stores BOTH the matching client_ids and the criteria that produced them. The ids
+// make it usable immediately; the criteria let it be rebuilt, which matters because a
+// snapshot is wrong the moment someone views another condo. Re-posting the same name
+// refreshes that list rather than making a second one with the same name.
+router.post('/property-interest/save-list', requirePermission('settings.edit'), (req, res) => {
+  const name = String(req.body?.name || '').trim()
+  if (!name) return res.status(400).json({ error: 'name is required' })
+  const criteria = {
+    source: 'property-interest',
+    city: req.body?.city || '', min: Number(req.body?.min) || 0, max: Number(req.body?.max) || 0,
+    since: req.body?.since || null, type: req.body?.type || '', status: req.body?.status || '',
+  }
+  const found = runPropertyInterest({
+    city: criteria.city, min: criteria.min, max: criteria.max,
+    since: criteria.since, type: criteria.type, status: criteria.status,
+  })
+  if (!found || !Array.isArray(found.results)) return res.status(500).json({ error: 'search failed' })
+  const ids = found.results.map(r => r.client_id)
+  const existing = db.get('SELECT id FROM client_lists WHERE lower(name) = lower(?)', [name])
+  if (existing) {
+    db.run(`UPDATE client_lists SET description = ?, filter_criteria = ?, client_ids = ?,
+            is_dynamic = 0, updated_at = datetime('now') WHERE id = ?`,
+      [req.body?.description || null, JSON.stringify(criteria), JSON.stringify(ids), existing.id])
+    return res.json({ list_id: existing.id, name, refreshed: true, members: ids.length, criteria,
+      by_status: found.by_status, total_views: found.total_views })
+  }
+  const r = db.run(`INSERT INTO client_lists (name, description, filter_criteria, is_dynamic, client_ids)
+                    VALUES (?,?,?,?,?)`,
+    [name, req.body?.description || null, JSON.stringify(criteria), 0, JSON.stringify(ids)])
+  res.status(201).json({ list_id: r.lastInsertRowid, name, created: true, members: ids.length, criteria,
+    by_status: found.by_status, total_views: found.total_views })
 })
 
 // ── Remove the FUB text rows that never had a body ───────────────────────────────────

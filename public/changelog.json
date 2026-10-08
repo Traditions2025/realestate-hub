@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T20:28:49.821Z",
+  "generated_at": "2026-10-08T20:40:54.212Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "3be1a8d",
+      "date": "2026-10-08T15:29:20-05:00",
+      "subject": "Prospecting results never include dead, DNC or a STOP",
+      "title": "Prospecting results never include dead, DNC or a STOP",
+      "body": "John, 2026-10-08: \"all active status only correct no dead or dnc\".\n\njunk, donotcontact and archived are excluded ALWAYS, not on request, along with\nanyone who replied STOP. A lead-mining list that quietly includes people we may\nnot contact is a trap — the whole point of the list is that someone will act on\nit. `status=` narrows to exactly one status when that is wanted, and the response\nreports the status breakdown so the mix is visible rather than assumed.\n\nAlso fixed a test of my own making: it located the text-delivery breakdown with a\nbare indexOf('by_status:'), and this endpoint now has a by_status key earlier in\nthe file, so it was checking the wrong query. It scopes to the route first. That\nis the third time an unanchored indexOf has pointed a test at the wrong thing in\nthis file.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cd73b0d",
       "date": "2026-10-08T15:16:54-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: show group texts on each participant's lead profile",
       "title": "Inbox: show group texts on each participant's lead profile",
       "body": "Group texts are stored once with client_id NULL + a conversation_sid, so they\nbelonged to no single profile and never appeared on a participant's page (only\nin the Inbox group thread). GET /thread/:clientId now also pulls every group\nconversation the lead is part of, matched by the group's participant list\n(group_meta) or by phone on any row, and merges them in occurred_at order.\nGroup sends now also record each participant's client_id in group_meta for\nexact future matching.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "01f3f12",
-      "date": "2026-08-27T13:54:26-05:00",
-      "subject": "Inbox: unify split conversations + make suggested TEXT replies work",
-      "title": "Inbox: unify split conversations + make suggested TEXT replies work",
-      "body": "Inbound-reply routing (systemic fix for Elias Abodeely split thread):\n- matchClient() no longer returns the first phone/email match (arbitrary id\n  order, often an old junk duplicate). It now ranks duplicate leads and picks\n  the record holding the ACTIVE conversation: most recent outgoing message >\n  non-junk > most recent activity > newest record. So a reply lands on the\n  same lead we texted, not a stale duplicate.\n\nSuggested reply (was email-only):\n- The suggestion keyed off latestIncomingEmail, so TEXT conversations never\n  got a suggestion. Now latestIncoming() covers text OR email, generateReply()\n  drafts an SMS-appropriate reply (short, no subject) for text threads via a\n  new REPLY_SYSTEM_TEXT prompt, and the routes report the channel. Frontend\n  already renders \"Suggested Text\" + a text send button off the thread channel.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
