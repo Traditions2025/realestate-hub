@@ -24,6 +24,12 @@ router.get('/property-interest', requirePermission('settings.view'), (req, res) 
   const maxP = Number(req.query.max) || 99999999
   const since = /^\d{4}-\d{2}-\d{2}/.test(String(req.query.since || '')) ? String(req.query.since).slice(0, 10) : null
   const wantType = String(req.query.type || '').trim().toLowerCase()
+  // John, 2026-10-08: "all active status only... no dead or dnc". Dead and Do Not Contact
+  // are never worth surfacing in a prospecting list, so they are excluded ALWAYS, not on
+  // request - a lead-mining result that includes them is a trap. `status=` narrows
+  // further to exactly one status when that is what is wanted.
+  const NEVER = ['junk', 'donotcontact', 'archived']
+  const onlyStatus = String(req.query.status || '').trim().toLowerCase()
 
   if (req.query.debug === '1') {
     return res.json({
@@ -54,8 +60,12 @@ router.get('/property-interest', requirePermission('settings.view'), (req, res) 
     LEFT JOIN realist_properties r ON r.mls_number = a.prop_mls AND COALESCE(a.prop_mls,'') <> ''
     WHERE (? = '' OR lower(COALESCE(a.prop_city,'')) = lower(?)
            OR lower(COALESCE(a.page_title,'')) LIKE lower(?))
+      AND lower(COALESCE(c.status,'')) NOT IN (${NEVER.map(() => '?').join(',')})
+      AND COALESCE(c.hub_text_opt_out,0) = 0
+      ${onlyStatus ? "AND lower(COALESCE(c.status,'')) = ?" : ''}
       ${since ? 'AND a.occurred_at >= ?' : ''}`,
-    since ? [city, city, `%${city}%`, since] : [city, city, `%${city}%`])
+    [city, city, `%${city}%`, ...NEVER,
+     ...(onlyStatus ? [onlyStatus] : []), ...(since ? [since] : [])])
 
   const priceOf = (s) => {
     const t = String(s || '').replace(/[, $]/g, '')
@@ -103,9 +113,12 @@ router.get('/property-interest', requirePermission('settings.view'), (req, res) 
   }
   const leads = [...byClient.values()].sort((a, b) => b.views - a.views)
   res.json({
-    filter: { city: city || '(any)', min: minP, max: maxP, since: since || '(all time)', type: wantType || '(any)' },
+    filter: { city: city || '(any)', min: minP, max: maxP, since: since || '(all time)',
+      type: wantType || '(any)', status: onlyStatus || '(any workable)',
+      always_excluded: NEVER.concat('anyone who replied STOP') },
     rows_considered: rows.length, rows_with_a_price: priced, rows_in_price_range: inRange,
     leads: leads.length, total_views: leads.reduce((a, b) => a + b.views, 0),
+    by_status: leads.reduce((m, l) => { const k = l.status || '(none)'; m[k] = (m[k] || 0) + 1; return m }, {}),
     results: leads,
     note: 'No table records property type, so condo is inferred; every property says which signal matched.',
   })

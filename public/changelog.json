@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T20:16:51.426Z",
+  "generated_at": "2026-10-08T20:28:49.821Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "cd73b0d",
+      "date": "2026-10-08T15:16:54-05:00",
+      "subject": "Read-only: who looked at what, by city, price and type",
+      "title": "Read-only: who looked at what, by city, price and type",
+      "body": "John, 2026-10-08: \"who looked at condos in Marion in the $150k-$300k price range\nin the last few years, even if it's just 1 view\".\n\nGET /api/admin/property-interest?city=&min=&max=&since=&type=condo groups\nfub_activity by lead and reports the views behind each one.\n\nTwo things it is careful about:\n\nprop_price is free text — \"$225,000\", \"225000\", \"$1.2M\" — so it parses digits and\nhonours a k/M suffix rather than trusting a string compare.\n\nNO TABLE RECORDS A PROPERTY TYPE, so \"condo\" is inferred, and the endpoint says\nwhich signal matched on every property: the listing's own property_type or\nRealist building_type where the MLS number joins, the word condo in the listing,\nor a unit number in the address. A judgement call stays visible on each row\ninstead of disappearing into a total.\n\ndebug=1 returns the shape of the data — row counts, top cities, price samples,\nthe property types that actually exist — because guessing at the distribution is\nhow you build a filter that silently matches nothing and call it an answer.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "150486d",
       "date": "2026-10-08T14:16:10-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: unify split conversations + make suggested TEXT replies work",
       "title": "Inbox: unify split conversations + make suggested TEXT replies work",
       "body": "Inbound-reply routing (systemic fix for Elias Abodeely split thread):\n- matchClient() no longer returns the first phone/email match (arbitrary id\n  order, often an old junk duplicate). It now ranks duplicate leads and picks\n  the record holding the ACTIVE conversation: most recent outgoing message >\n  non-junk > most recent activity > newest record. So a reply lands on the\n  same lead we texted, not a stale duplicate.\n\nSuggested reply (was email-only):\n- The suggestion keyed off latestIncomingEmail, so TEXT conversations never\n  got a suggestion. Now latestIncoming() covers text OR email, generateReply()\n  drafts an SMS-appropriate reply (short, no subject) for text threads via a\n  new REPLY_SYSTEM_TEXT prompt, and the routes report the channel. Frontend\n  already renders \"Suggested Text\" + a text send button off the thread channel.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a9e3072",
-      "date": "2026-08-27T13:43:46-05:00",
-      "subject": "Bulk text: add recipient Preview (renders custom/merge fields exactly like the send)",
-      "title": "Bulk text: add recipient Preview (renders custom/merge fields exactly like the send)",
-      "body": "BulkTextModal now has a 👁 Preview showing the exact text a real recipient gets — each part\nrendered via /api/templates/render (same fill+strip as the send), with Prev/Next recipient\ncycling and a warning if a merge field didn't fill. Bulk email already had this.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

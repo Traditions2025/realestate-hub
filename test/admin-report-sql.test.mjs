@@ -39,7 +39,11 @@ test('no GROUP BY in admin reports uses an alias that is also a column', async (
 
 test('the text-delivery breakdown groups by its own alias', async () => {
   const comm = await columnsOf('communications')
-  const i = src.indexOf('by_status:')
+  // scope to the text-delivery route first: another endpoint now also has a by_status
+  // key, and a bare indexOf finds whichever appears first in the file
+  const route = src.indexOf("router.get('/text-delivery'")
+  assert.ok(route > -1, 'text-delivery route not found')
+  const i = src.indexOf('by_status:', route)
   const q = src.slice(i, src.indexOf('\n', i + 200))
   const alias = (q.match(/\)\s*([a-z_]+), COUNT/) || [])[1]
   assert.ok(alias, 'could not find the alias')
