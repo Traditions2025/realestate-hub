@@ -2182,6 +2182,20 @@ export async function initDb() {
   // Cancelled/Expired Connection Campaign (cx-connect.js): one enrollment row per
   // lead + a full decision/audit log (every send, suppression, stop, and response).
   try {
+    // One row per number we have ever asked Twilio about, so the same number is never
+    // paid for twice. Twilio Lookup is ~$0.005 a call and the 2026-08-28 incident billed
+    // $100.51 in one run, so every lookup path reads this first.
+    db.run(`
+      CREATE TABLE IF NOT EXISTS phone_lookups (
+        phone_key TEXT PRIMARY KEY,
+        e164 TEXT,
+        valid INTEGER,
+        line_type TEXT,
+        carrier_name TEXT,
+        textable INTEGER,
+        checked_at TEXT
+      )
+    `)
     db.run(`
       CREATE TABLE IF NOT EXISTS cx_campaign (
         client_id INTEGER PRIMARY KEY,

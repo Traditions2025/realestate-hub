@@ -1268,6 +1268,48 @@ router.get('/twilio-usage', async (_req, res) => {
   })
 })
 
+// Check ONE number before it becomes a lead: is it a real, textable number, and is it
+// already in the Hub? Answers "is this a valid number?" without touching any client record.
+//
+// Cost discipline: the answer is cached in phone_lookups, so asking twice about the same
+// number is free, and lookupLineType still honours the kill-switch and the daily cap.
+router.get('/check-number', async (req, res) => {
+  const raw = String(req.query.phone || '').trim()
+  const digits = raw.replace(/\D/g, '')
+  const d10 = digits.length === 11 && digits.startsWith('1') ? digits.slice(1) : digits
+  if (d10.length !== 10) return res.json({ phone: raw, format_ok: false, why: 'a US number needs 10 digits' })
+  const [npa, nxx] = [d10.slice(0, 3), d10.slice(3, 6)]
+  // NANP structure: area code and exchange both start 2-9, and N11 codes are reserved.
+  const structural = !(npa[0] < '2' || nxx[0] < '2' || /^[0-9]11$/.test(npa) || /^[0-9]11$/.test(nxx) || npa === '555' || nxx === '555')
+  const e164 = '+1' + d10
+  // Already ours?
+  const known = db.all(`SELECT id, first_name, last_name, phone, type, status, source, hub_text_opt_out
+                        FROM clients WHERE merged_into IS NULL
+                          AND replace(replace(replace(replace(phone,'(',''),')',''),'-',''),' ','') LIKE ?`, ['%' + d10])
+  let lookup = db.get('SELECT * FROM phone_lookups WHERE phone_key=?', [d10])
+  let cached = !!lookup
+  if (!lookup && structural) {
+    const { lookupLineType } = await import('../twilio.js')
+    const lt = await lookupLineType(e164)
+    if (!lt.error) {
+      db.run(`INSERT OR REPLACE INTO phone_lookups (phone_key, e164, valid, line_type, carrier_name, textable, checked_at)
+              VALUES (?,?,?,?,?,?,?)`,
+        [d10, e164, lt.valid ? 1 : 0, lt.line_type || null, lt.carrier_name || null, lt.textable ? 1 : 0, nowIso()])
+      lookup = db.get('SELECT * FROM phone_lookups WHERE phone_key=?', [d10])
+    } else lookup = { error: lt.error }
+  }
+  res.json({
+    phone: raw, e164, format_ok: structural,
+    area_code: npa,
+    twilio: lookup ? {
+      cached, valid: lookup.valid === 1 ? true : (lookup.valid === 0 ? false : null),
+      line_type: lookup.line_type || null, carrier: lookup.carrier_name || null,
+      textable: lookup.textable === 1 ? true : (lookup.textable === 0 ? false : null),
+      checked_at: lookup.checked_at || null, error: lookup.error || null,
+    } : null,
+    in_hub: known.map(c => ({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), phone: c.phone, type: c.type, status: c.status, source: c.source, opted_out: !!c.hub_text_opt_out })),
+  })
+})
 // What line-type data we actually RETAINED from the lookups (read-only, no Twilio cost).
 router.get('/line-type-stats', (_req, res) => {
   const checked = db.get("SELECT COUNT(*) n FROM clients WHERE sms_line_checked_at IS NOT NULL")?.n || 0
