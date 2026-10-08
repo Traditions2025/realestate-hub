@@ -568,7 +568,7 @@ export function gmailStatus() {
 //     already reports what it skipped
 export async function importEmailHistoryBulk({
   limit = 25, afterId = 0, dryRun = false, includeAutomated = false, minFreeGb = 2.0,
-  statuses = null,
+  statuses = null, perLeadMs = 90000,
 } = {}) {
   // 45,000 leads at roughly six seconds each is about 75 hours, and the first run showed
   // why that order is wrong: the oldest ids are long-standing clients whose mail the
@@ -602,7 +602,15 @@ export async function importEmailHistoryBulk({
         if (r.count) out.with_mail++
         out.leads.push({ id: c.id, email: c.email, found: r.count, human: r.human_count, automated: r.automated_count })
       } else {
-        const r = await importContactHistory(c.id, { includeAutomated })
+        // One lead with a huge mailbox can out-run any client-side timeout, and when the
+        // request dies the caller gets nothing back - not even how far it got - so the
+        // cursor cannot advance and the same lead is retried forever. Bounding it HERE
+        // means the batch always returns, last_id moves past the slow lead, and the lead
+        // is reported as an error instead of stalling the sweep (John, 2026-10-08).
+        const r = await Promise.race([
+          importContactHistory(c.id, { includeAutomated }),
+          new Promise((_, rej) => setTimeout(() => rej(new Error('lead timed out after 90s')), perLeadMs)),
+        ])
         if (r.error) { out.errors++; out.leads.push({ id: c.id, email: c.email, error: r.error }); continue }
         out.imported += r.imported || 0
         out.skipped_duplicates += r.skipped_duplicates || 0

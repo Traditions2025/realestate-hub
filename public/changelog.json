@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T18:28:24.344Z",
+  "generated_at": "2026-10-08T18:48:16.372Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "ad56c6d",
+      "date": "2026-10-08T13:28:41-05:00",
+      "subject": "The push was chasing a target the Gmail import kept growing",
+      "title": "The push was chasing a target the Gmail import kept growing",
+      "body": "Caught by watching the live run rather than the log's success lines: `remaining`\nwent 1397 -> 1429 -> 1409 -> 1396 while 20 rows a batch were being written. A\nfinite job does not behave like that.\n\nTwo faults, both mine.\n\ngmail_ ROWS WERE TREATED AS HUB-ORIGINATED. They are not — a gmail_ row is email\nthe Hub IMPORTED out of the team mailboxes. Pushing it to FUB sends mail back\ntoward the system it came from, as a note, and the Gmail sweep running alongside\ncreates more of them continuously. So the push had no end: every email imported\nbecame another row to push. Only twilio_ and hub_ are eligible now, which is what\n\"Hub-originated\" was supposed to mean all along.\n\nTHE REMAINING COUNT IGNORED `since`. The batch query filtered on occurred_at and\nthe count did not, so the driver could never see `done` and the number reported\nwork that would never be done. It takes the same filter now.\n\n580 notes were written before I stopped it. They are real Hub texts and calls from\nOctober — the `since` filter kept the historical Gmail imports out of the batch\neven while they inflated the count — so nothing wrong landed in FUB, and\nfub_comm_pushed means a re-run will not duplicate them.\n\n23 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "228e4ef",
       "date": "2026-10-08T13:09:15-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Fix ReferenceError: q is not defined — Clients search state is 'search', not 'q'",
       "title": "ReferenceError: q is not defined — Clients search state is 'search', not 'q'",
       "body": "The nav-context code used 'q' (a different component's state) which threw: the useEffect crashed\nthe Clients page, and the click-time capture silently failed so Prev/Next never got ids. Use the\nreal 'search'/'setSearch' state.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "beab902",
-      "date": "2026-08-27T13:14:29-05:00",
-      "subject": "Fix Prev/Next: keep the Clients nav context (matched ids) continuously in sync with the loaded list",
-      "title": "Prev/Next: keep the Clients nav context (matched ids) continuously in sync with the loaded list",
-      "body": "The click-time capture could miss, leaving no ids for Prev/Next. Now a useEffect saves the\ncontext (ids + list + filters) whenever the list loads, so Prev/Next is always populated.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
     }
   ]

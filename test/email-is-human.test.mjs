@@ -305,3 +305,27 @@ test('an unjudged message is kept, so a path that skips the classifier cannot dr
   const fn = fnSource(gmail, 'export async function importContactHistory')
   assert.ok(fn.includes('msg.human === false'), 'must test for an explicit false, never falsy')
 })
+
+// ── one slow mailbox must not stall the sweep ────────────────────────────────────────
+// A lead with a very large mailbox out-ran the client's 240s timeout. When the request
+// dies the caller gets nothing back — not even how far it got — so the cursor cannot
+// advance and the same lead is retried forever. Bounding each lead server-side means the
+// batch always returns and last_id moves past it.
+test('each lead is time-bounded inside the bulk sweep', () => {
+  const fn = gmail.slice(gmail.indexOf('export async function importEmailHistoryBulk'))
+  assert.match(fn, /Promise\.race\(\[/)
+  assert.match(fn, /lead timed out after 90s/)
+  assert.match(fn, /perLeadMs/)
+})
+
+test('a timed-out lead is counted as an error, not silently dropped', () => {
+  const fn = gmail.slice(gmail.indexOf('export async function importEmailHistoryBulk'))
+  // the surrounding catch records it against the lead
+  assert.match(fn, /catch \(e\) \{ out\.errors\+\+; out\.leads\.push\(\{ id: c\.id/)
+})
+
+test('the cursor advances before the work, so a failure cannot rewind it', () => {
+  const fn = gmail.slice(gmail.indexOf('export async function importEmailHistoryBulk'))
+  assert.ok(fn.indexOf('out.last_id = c.id') < fn.indexOf('Promise.race'),
+    'last_id must be set before the lead is attempted')
+})
