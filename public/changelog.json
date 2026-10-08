@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T15:12:51.306Z",
+  "generated_at": "2026-10-08T15:46:01.763Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "fad5f24",
+      "date": "2026-10-08T10:12:54-05:00",
+      "subject": "A GROUP BY alias collided with a real column and gave a wrong answer",
+      "title": "A GROUP BY alias collided with a real column and gave a wrong answer",
+      "body": "/api/admin/text-delivery reported every outgoing text in two buckets, both\nlabelled \"delivered\" — 3,583 and 141. The SELECT aliased the delivery state as\n`status`, and communications HAS a `status` column (unread | read | closed).\nSQLite binds GROUP BY to the real column before the output alias, so it grouped\nby read/unread and labelled each group with whatever the first row's COALESCE\nhappened to be.\n\nIt did not error. It produced a plausible, wrong answer, which is worse — I would\nhave told John 141 texts failed when the failure breakdown in the same response\nsummed to 645.\n\nAliased to `delivery`. The notes report's `source` alias is renamed too; it was\nonly safe because communications has no such column.\n\nThe test checks the rule rather than this one query: no GROUP BY in these reports\nmay use an alias that shadows a real column on communications or clients, the\nbuckets must sum to the total, and no two buckets may share a label. Verified both\nways — putting `status` back fails two of the three.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cfb0d6e",
       "date": "2026-10-08T10:09:05-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "List: align body cells to their header (center/right per column align)",
       "title": "List: align body cells to their header (center/right per column align)",
       "body": "DOM values were left-aligned under a centered header. Apply each column's align to its body\ncells too via cloneElement, so aligned columns (DOM, Status, Score, Visits) line up.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7514b2c",
-      "date": "2026-08-27T10:22:09-05:00",
-      "subject": "Status column: shorten Do Not Contact -> DNC, make column compact + centered",
-      "title": "Status column: shorten Do Not Contact -> DNC, make column compact + centered",
-      "body": "The status <select> auto-sized to its widest option (Do Not Contact), forcing the column\nwide. Relabel donotcontact as DNC everywhere in the list so the widest option is now\nArchived; set the Status column to a compact ~104px default, centered.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

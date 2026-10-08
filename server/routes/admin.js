@@ -9,6 +9,46 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// ── Is every bad number actually flagged? ────────────────────────────────────────────
+// John, 2026-10-08: "all those bad numbers are flagged correct? so we don't use them ever
+// again". Flagging only happens on the Twilio callback, and only for number-side codes,
+// and only for sends made since that callback existed — so the honest answer needs the
+// gap measured, not assumed. Read-only.
+//
+// Number-side = the number itself cannot receive our text: unreachable, unknown, landline,
+// not-a-mobile. Deliberately NOT spam-filtering or A2P problems, which fail a perfectly
+// good number for reasons that have nothing to do with the number.
+router.get('/undeliverable-audit', requirePermission('settings.view'), (_req, res) => {
+  const NUMBER_SIDE = `(error_message LIKE '%unreachable%' OR error_message LIKE '%non-existent%'
+     OR error_message LIKE '%Landline%' OR error_message LIKE '%not a valid mobile%')`
+  const g = (sql, p = []) => { try { return (db.get(sql, p) || {}).c || 0 } catch { return 0 } }
+  const failBase = `FROM communications WHERE channel='text' AND direction='outgoing'
+    AND delivery_status IN ('failed','undelivered') AND client_id IS NOT NULL`
+
+  const leadsWithNumberSideFail = g(`SELECT COUNT(DISTINCT client_id) c ${failBase} AND ${NUMBER_SIDE}`)
+  const flagged = g('SELECT COUNT(*) c FROM clients WHERE COALESCE(sms_undeliverable,0)=1')
+  // the gap that matters: a lead whose number bounced but who is NOT flagged, so the
+  // next automation will text them again
+  const missed = db.all(`SELECT c.id, c.first_name, c.last_name, c.phone, c.status,
+      MAX(m.occurred_at) last_fail, MAX(m.error_message) reason, COUNT(*) fails
+    FROM communications m JOIN clients c ON c.id = m.client_id
+    WHERE m.channel='text' AND m.direction='outgoing'
+      AND m.delivery_status IN ('failed','undelivered') AND ${NUMBER_SIDE}
+      AND COALESCE(c.sms_undeliverable,0)=0 AND c.merged_into IS NULL
+    GROUP BY c.id ORDER BY fails DESC, last_fail DESC`)
+
+  res.json({
+    leads_with_number_side_failure: leadsWithNumberSideFail,
+    leads_flagged_undeliverable: flagged,
+    not_flagged: missed.length,
+    // these are the ones an automation would text again tomorrow
+    sample: missed.slice(0, 20),
+    by_reason: db.all(`SELECT error_message reason, COUNT(DISTINCT client_id) leads
+      ${failBase} AND ${NUMBER_SIDE} GROUP BY reason ORDER BY leads DESC`),
+    note: 'Spam-filtered and A2P failures are excluded on purpose: those fail a good number.',
+  })
+})
+
 // ── Text delivery across everything the Hub has sent ─────────────────────────────────
 // John, 2026-10-08: would we know if a text is filtered as spam or blocked? Yes — Twilio
 // reports 30007 and 30004 and the callback already stores the reason. This counts them,
