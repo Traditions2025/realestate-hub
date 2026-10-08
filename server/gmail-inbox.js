@@ -568,21 +568,27 @@ export function gmailStatus() {
 //     already reports what it skipped
 export async function importEmailHistoryBulk({
   limit = 25, afterId = 0, dryRun = false, includeAutomated = false, minFreeGb = 2.0,
+  statuses = null,
 } = {}) {
+  // 45,000 leads at roughly six seconds each is about 75 hours, and the first run showed
+  // why that order is wrong: the oldest ids are long-standing clients whose mail the
+  // inbox poller already has, so every message found was a duplicate. `statuses` sweeps
+  // the people whose history is actually worth recovering first - closed, pending,
+  // active - which is a few thousand rather than forty-five (John, 2026-10-08).
+  const st = Array.isArray(statuses) && statuses.length ? statuses.map(x => String(x).toLowerCase()) : null
+  const stWhere = st ? ` AND lower(COALESCE(status,'')) IN (${st.map(() => '?').join(',')})` : ''
+  const EMAIL_OK = `email IS NOT NULL AND trim(email) <> '' AND email LIKE '%@%'
+       AND email NOT LIKE 'noemail-%' AND email NOT LIKE '%@notvalidemail.com'`
   const rows = db.all(`SELECT id, first_name, last_name, email FROM clients
-     WHERE id > ? AND merged_into IS NULL
-       AND email IS NOT NULL AND trim(email) <> ''
-       AND email LIKE '%@%'
-       AND email NOT LIKE 'noemail-%'
-       AND email NOT LIKE '%@notvalidemail.com'
-     ORDER BY id ASC LIMIT ?`, [Number(afterId) || 0, Math.max(1, Math.min(Number(limit) || 25, 100))])
+     WHERE id > ? AND merged_into IS NULL AND ${EMAIL_OK}${stWhere}
+     ORDER BY id ASC LIMIT ?`,
+    [Number(afterId) || 0, ...(st || []), Math.max(1, Math.min(Number(limit) || 25, 100))])
 
   const out = { scanned: 0, imported: 0, skipped_duplicates: 0, skipped_automated: 0,
                 with_mail: 0, errors: 0, last_id: Number(afterId) || 0, stopped: null, leads: [] }
   const remaining = db.get(`SELECT COUNT(*) c FROM clients
-     WHERE id > ? AND merged_into IS NULL AND email IS NOT NULL AND trim(email) <> ''
-       AND email LIKE '%@%' AND email NOT LIKE 'noemail-%' AND email NOT LIKE '%@notvalidemail.com'`,
-    [Number(afterId) || 0])?.c || 0
+     WHERE id > ? AND merged_into IS NULL AND ${EMAIL_OK}${stWhere}`,
+    [Number(afterId) || 0, ...(st || [])])?.c || 0
 
   for (const c of rows) {
     // re-checked every lead: a long sweep can fill a disk that was fine when it started

@@ -386,6 +386,7 @@ router.post('/email-history/bulk', async (req, res) => {
       afterId: Number(req.body?.after_id) || 0,
       dryRun: req.body?.dry !== false,
       includeAutomated: req.body?.include_automated === true,
+      statuses: Array.isArray(req.body?.statuses) ? req.body.statuses : null,
     }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })

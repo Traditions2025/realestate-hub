@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T17:21:32.485Z",
+  "generated_at": "2026-10-08T18:09:13.810Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a94fbad",
+      "date": "2026-10-08T12:21:34-05:00",
+      "subject": "The importer no longer re-adds the texts we just deleted",
+      "title": "The importer no longer re-adds the texts we just deleted",
+      "body": "Caught by an import dry run while verifying the push: it reported it would add 7\ntexts for a lead, which means the very next conversation import brings all 17,204\nbodyless rows straight back and silently undoes the cleanup John asked for.\n\nA text FUB will not give us the words for is not worth a row, so the importer now\ndrops it on the way in and reports skipped_no_body. The deletion and the import\nrule now agree, which is the only way a purge stays purged.\n\nTexts only. A NOTE containing that phrase is still a real note worth keeping, and\na test pins that distinction.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "d413487",
       "date": "2026-10-08T12:15:47-05:00",
@@ -3993,14 +4001,6 @@
       "title": "App: auto-reload on stale-chunk import failure (deploy while tab open no longer breaks navigation)",
       "body": "Wrap lazy page imports in lazyWithReload — a failed dynamic import (old chunk hash gone after\na deploy) triggers one guarded page reload to fetch the fresh build, so clicking a lead can't\nsilently fail to open after a deploy.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "ac8d32d",
-      "date": "2026-08-27T13:03:07-05:00",
-      "subject": "Fix: clicking a lead reliably opens the profile (guard savedLists, always navigate even if capture throws)",
-      "title": "Fix: clicking a lead reliably opens the profile (guard savedLists, always navigate even if capture throws)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }
