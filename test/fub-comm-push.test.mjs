@@ -86,6 +86,37 @@ test('a bodyless row still produces a readable note', () => {
   assert.match(b, /^\[Hub\] Call from lead/)
 })
 
+// ── the two things the first dry run exposed ─────────────────────────────────────────
+test('an HTML email body is stripped to text', () => {
+  // raw, a FUB note was a wall of <div style=...> with the sentence buried in it
+  const b = noteBody({ channel: 'email', direction: 'outgoing', subject: 'TC Morning Update',
+    body: '<!DOCTYPE html><html><body><div style="font-family:Arial">Hello Matt, 1 active transaction today.</div></body></html>' })
+  assert.ok(!b.includes('<div'), 'HTML must not reach FUB')
+  assert.ok(!b.includes('DOCTYPE'))
+  assert.match(b, /Hello Matt, 1 active transaction today\./)
+})
+
+test('a plain-text body is left exactly as it is', () => {
+  // the stripper only runs when the body actually looks like HTML
+  const text = 'Good morning Tracey, it\'s John with Matt Smith Team. Did you get a chance to look?'
+  assert.match(noteBody({ channel: 'text', direction: 'outgoing', body: text }), new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')))
+})
+
+test('the team\'s own client records are excluded', () => {
+  // TC morning updates and "X emailed you" notifications land on Matt's own client row;
+  // pushing them would fill a FUB record with the Hub talking to itself
+  const fn = push.slice(push.indexOf('export function candidates'))
+  assert.match(fn, /NOT LIKE '%@mattsmithteam\.com'/)
+  assert.match(fn, /mattsmithremax@gmail\.com/)
+})
+
+test('the remaining count uses the same scope as the batch', () => {
+  // a different scope there would report work that will never be done
+  const tail = push.slice(push.indexOf('const left ='))
+  assert.match(tail, /NOT LIKE '%@mattsmithteam\.com'/)
+  assert.match(tail, /mattsmithremax@gmail\.com/)
+})
+
 // ── the query runs, and is scoped ────────────────────────────────────────────────────
 test('candidates runs against the real schema', () => {
   ensurePushTable()

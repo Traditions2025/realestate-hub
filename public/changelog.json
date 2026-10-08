@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T17:11:34.379Z",
+  "generated_at": "2026-10-08T17:15:45.743Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "a99775e",
+      "date": "2026-10-08T12:11:47-05:00",
+      "subject": "HUB communications push to FUB, as notes",
+      "title": "HUB communications push to FUB, as notes",
+      "body": "John, 2026-10-08: \"make sure HUB communication records are push to FUB\".\n\nThe conversation sync brought FUB's history into the Hub and nothing went back,\nso a text the Hub sent, a call it logged or an email it delivered was invisible\nto anyone working in FUB.\n\nIt writes NOTES, not texts, because FUB's API has no endpoint for recording a\nmessage another system sent — /textMessages is read-only and there is no \"log\nthis\" write. A note is the one place FUB accepts arbitrary content, which is also\nwhy FUB's own integrations (Structurely, Agent Legend) put their conversations\nthere. Each note names the channel, direction and number, carries the subject,\nduration, delivery status and any carrier error, and truncates a long email at\n4 KB rather than filling a FUB record.\n\nTHREE INDEPENDENT LOOP GUARDS, because a sync that re-imports its own writes is\nthe one failure that grows without limit:\n\n  1. only Hub-originated rows are selectable — twilio_/hub_/gmail_ ids. Anything\n     imported from FUB keeps its fub_ id and cannot be picked up.\n  2. every push is recorded in fub_comm_pushed, keyed on the communication id, so\n     a re-run is a no-op.\n  3. the note body carries a [Hub] marker and the importer skips notes containing\n     it — so even if the X-System header were lost, nothing would round-trip.\n\nDry by default, resumable by after_id, paced at 260ms including the error path,\nand `since` keeps it forward-only: the Hub holds years of history and pushing all\nof it would bury a FUB record under thousands of notes.\n\n15 tests, including that the pace sits outside the try/catch so a failure waits\ntoo, and that times are Central rather than UTC.\n\nPOST /api/fub/push-communications {dry, limit, after_id, since, channels}\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "89f66cc",
       "date": "2026-10-08T12:09:47-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Client Profile: add social enrichment + bulletproof Prev/Next",
       "title": "Client Profile: add social enrichment + bulletproof Prev/Next",
       "body": "- Reuse the modal's SocialProfiles (avatar, LinkedIn/Facebook save/edit, free Auto-check,\n  prefilled search links) as the Social & Research section — was missing on the full screen.\n- Nav capture now saves the loaded ids SYNCHRONOUSLY on click (then upgrades to the full matched\n  set in the background), so Prev/Next is reliably populated for every lead opened from the list.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "c1206b2",
-      "date": "2026-08-27T12:41:49-05:00",
-      "subject": "Client Profile: add Sierra notes, FUB activity, Website activity, Listing interest + robust Prev/Next",
-      "title": "Client Profile: add Sierra notes, FUB activity, Website activity, Listing interest + robust Prev/Next",
-      "body": "- Carry over all modal feeds the full screen was missing: Sierra Activity (lead-notes),\n  Follow Up Boss Activity (fub/activity/live), Website Activity (track/activity summary+events),\n  Listing Interest (sierra/lead-listings saved searches/properties/listing activity). Added as\n  draggable sections; layout bumped to v2 to place them sensibly.\n- Prev/Next now shows whenever the matched set has >1 lead (handles idx not found gracefully).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

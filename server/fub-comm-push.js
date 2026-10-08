@@ -23,6 +23,7 @@
 //   3. the note body carries a marker, and the importer skips notes carrying it
 import db from './database.js'
 import { fubPost } from './fub-helper.js'
+import { htmlToText } from './fub-conversation-sync.js'
 
 // Stamped on every note this writes. The FUB->HUB importer skips notes containing it, so
 // a message cannot come back as a second copy of itself.
@@ -61,7 +62,11 @@ export function noteBody(m) {
   if (m.duration_sec) bits.push(`Duration: ${Math.round(m.duration_sec / 60)}m ${m.duration_sec % 60}s`)
   if (m.delivery_status && m.direction === 'outgoing') bits.push(`Status: ${m.delivery_status}`)
   if (m.error_message) bits.push(`Error: ${m.error_message}`)
-  const body = String(m.body || m.preview || '').trim()
+  // Hub email bodies are HTML. Pushed raw, a FUB note became a wall of <div style=...>
+  // with the actual sentence buried in it — the first dry run made that obvious. Same
+  // stripper the import side already uses, so both directions read the same.
+  const raw = String(m.body || m.preview || '').trim()
+  const body = /<[a-z!][^>]*>/i.test(raw) ? htmlToText(raw) : raw
   // A long email would otherwise push a FUB note to many KB; the Hub keeps the full copy.
   const text = body.length > 4000 ? body.slice(0, 4000) + '\n…(truncated; full copy in the Hub)' : body
   return [head, bits.join(' · '), '', text].filter(Boolean).join('\n')
@@ -83,6 +88,12 @@ export function candidates({ afterId = 0, limit = 50, since = null, channels = n
     WHERE m.channel IN (${ph})
       AND c.fub_person_id IS NOT NULL
       AND c.merged_into IS NULL
+      -- The team's own client records exist so internal mail has somewhere to land:
+      -- TC morning updates, "X emailed you" notifications, home-value alerts. They are
+      -- not conversations with a lead, and pushing them would fill a FUB record with the
+      -- Hub talking to itself (caught in the first dry run).
+      AND lower(COALESCE(c.email,'')) NOT LIKE '%@mattsmithteam.com'
+      AND lower(COALESCE(c.email,'')) NOT IN ('mattsmithremax@gmail.com','johnwithmattsmithteam@gmail.com')
       AND m.id > ?
       -- Hub-originated only. Anything imported FROM FUB keeps its fub_ id and is
       -- excluded here, which is the first and most important loop guard.
@@ -130,6 +141,8 @@ export async function pushCommunications({
   const left = db.get(`SELECT COUNT(*) c FROM communications m JOIN clients c ON c.id = m.client_id
     WHERE m.channel IN ('text','call','voicemail','email') AND c.fub_person_id IS NOT NULL
       AND c.merged_into IS NULL AND m.id > ?
+      AND lower(COALESCE(c.email,'')) NOT LIKE '%@mattsmithteam.com'
+      AND lower(COALESCE(c.email,'')) NOT IN ('mattsmithremax@gmail.com','johnwithmattsmithteam@gmail.com')
       AND (m.external_id LIKE 'twilio_%' OR m.external_id LIKE 'hub_%' OR m.external_id LIKE 'gmail_%')
       AND m.id NOT IN (SELECT communication_id FROM fub_comm_pushed)`, [out.last_id])?.c || 0
   out.remaining = left
