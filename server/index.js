@@ -1057,6 +1057,21 @@ async function start() {
   // reasons *" though the sync worked before. The mapper copies t.message verbatim, so
   // that string comes FROM FUB — this asks FUB the same question several ways to find out
   // whether anything makes it hand the text over. GET only; nothing is written or sent.
+  // HUB communications -> FUB, as notes. Dry by default, resumable by after_id.
+  // Forward-only in practice: pass `since` or the Hub's whole history lands on FUB.
+  app.post('/api/fub/push-communications', async (req, res) => {
+    try {
+      const { pushCommunications } = await import('./fub-comm-push.js')
+      res.json(await pushCommunications({
+        dryRun: req.body?.dry !== false,
+        limit: Number(req.body?.limit) || 50,
+        afterId: Number(req.body?.after_id) || 0,
+        since: req.body?.since || null,
+        channels: Array.isArray(req.body?.channels) ? req.body.channels : null,
+      }))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/fub/probe-texts', async (req, res) => {
     try {
       const { fubGet } = await import('./fub-helper.js')

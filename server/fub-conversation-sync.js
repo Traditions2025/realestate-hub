@@ -22,6 +22,7 @@
 // every megabyte of growth costs ten. Stripping the markup keeps every note and every word
 // while cutting roughly 2.4 KB to 0.5 KB. The Hub's timeline renders text, not email HTML.
 import db from './database.js'
+import { PUSH_MARKER } from './fub-comm-push.js'
 import { statfsSync } from 'fs'
 
 export const SOURCES = { note: 'fub_note', call: 'fub_call', text: 'fub_text' }
@@ -242,6 +243,10 @@ export async function importOne(client, { dryRun = false, perChannel = 100, dela
     let added = 0, mine = 0
     for (const r of rows) {
       if (String(r.systemName || '') === HUB_SYSTEM_NAME) { mine++; continue }
+      // Belt and braces on the loop guard. systemName is FUB's word for who wrote the
+      // row and it is the primary defence, but a note the Hub pushed also carries its
+      // own marker in the body, so losing the header would not start a feedback loop.
+      if (ch.kind === 'note' && String(r.body || '').includes(PUSH_MARKER)) { mine++; continue }
       const row = ch.map(r, who)
       if (!row.occurred_at) continue          // undated rows would sort to the top of the timeline
       if (!dryRun) added += storeRow(row)

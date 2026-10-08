@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T17:09:36.010Z",
+  "generated_at": "2026-10-08T17:11:34.379Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "89f66cc",
+      "date": "2026-10-08T12:09:47-05:00",
+      "subject": "Bulk Gmail email history: resumable sweep over every lead with an email",
+      "title": "Bulk Gmail email history: resumable sweep over every lead with an email",
+      "body": "John, 2026-10-08: \"we need to start getting those emails from mattsmithremax to\nbe recorded in HUB\".\n\nFUB has never exposed email content and never will, so the team mailboxes are the\nonly route. importContactHistory already does one lead with the automated-alert\nfilter in front of it; this is the sweep.\n\nEach lead costs a full IMAP search of \\All across every mailbox, so it is built as\na resumable sweep rather than one long request: ordered by client id with afterId,\ndry by default, and the disk re-checked BEFORE EVERY LEAD rather than once at the\nstart, because ten retained backups multiply every megabyte that lands here.\n\nLeads with a placeholder address (noemail-*, @notvalidemail.com) are skipped\nrather than searched for mail that cannot exist.\n\nOne bug caught before it shipped: freeGbLocal called require('fs'), which does not\nexist in an ES module. It would have thrown on the first lead inside a try that\nreturns null — a silently disabled disk guard, the worst kind of failure. statfsSync\nis imported at the top now and the guard was checked to return a real number.\n\nPOST /api/inbox/email-history/bulk {dry, limit, after_id}\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "4f75858",
       "date": "2026-10-08T12:06:40-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Client Profile: add Sierra notes, FUB activity, Website activity, Listing interest + robust Prev/Next",
       "title": "Client Profile: add Sierra notes, FUB activity, Website activity, Listing interest + robust Prev/Next",
       "body": "- Carry over all modal feeds the full screen was missing: Sierra Activity (lead-notes),\n  Follow Up Boss Activity (fub/activity/live), Website Activity (track/activity summary+events),\n  Listing Interest (sierra/lead-listings saved searches/properties/listing activity). Added as\n  draggable sections; layout bumped to v2 to place them sensibly.\n- Prev/Next now shows whenever the matched set has >1 lead (handles idx not found gracefully).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4a6d9cc",
-      "date": "2026-08-27T12:27:47-05:00",
-      "subject": "Client Profile: rearrangeable boxes (persisted), editable State/Zip/Type, single clickable Status/Agent, action plans",
-      "title": "Client Profile: rearrangeable boxes (persisted), editable State/Zip/Type, single clickable Status/Agent, action plans",
-      "body": "- Rearrange sections by dragging the ⋮⋮ grip; order persists globally (localStorage cp_layout_v1)\n  so every lead opens in the same arrangement. New sections auto-append to defaults.\n- Client Details: City/State/Zip now inline-editable (added State + Zip); Type editable.\n- Status is a single clickable pill (Hub + Sierra) in the header and CRM — no redundant copies;\n  Assigned Agent is a clickable dropdown too.\n- New Action Plans box: shows current drip/automation enrollments and enrolls the lead into a\n  drip, automation, or action plan (reuses /api/{drips,automations}/:id/enroll + sequences).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
