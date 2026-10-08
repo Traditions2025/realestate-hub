@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T17:15:45.743Z",
+  "generated_at": "2026-10-08T17:21:32.485Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "d413487",
+      "date": "2026-10-08T12:15:47-05:00",
+      "subject": "Two things the first dry run exposed before anything was written",
+      "title": "Two things the first dry run exposed before anything was written",
+      "body": "Dry-running the push against live data, rather than trusting the tests, showed\nwhat would actually have landed in FUB.\n\nRAW HTML. Hub email bodies are HTML, so the note read\n\"[Hub] Email ... | <div style=\"font-family:Arial,He\" with the real sentence\nburied somewhere inside. It now goes through the same htmlToText the import side\nalready uses, so both directions read the same. Plain text is left untouched; the\nstripper only runs when the body actually looks like HTML.\n\nTHE HUB TALKING TO ITSELF. The first three eligible rows were internal mail on\nMatt's own client record — a TC Morning Update, a home-value request alert, a\n\"Krisstie Speth emailed you\" notification — all addressed to FUB person 6456.\nThose records exist so internal mail has somewhere to land; they are not\nconversations with a lead. Team addresses are excluded now, in the batch query\nand in the remaining count, which otherwise would have reported work that would\nnever be done.\n\n4 more tests. 19 total.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "a99775e",
       "date": "2026-10-08T12:11:47-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Fix: clicking a lead reliably opens the profile (guard savedLists, always navigate even if capture throws)",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "fa20a13",
-      "date": "2026-08-27T12:54:30-05:00",
-      "subject": "Client Profile: add social enrichment + bulletproof Prev/Next",
-      "title": "Client Profile: add social enrichment + bulletproof Prev/Next",
-      "body": "- Reuse the modal's SocialProfiles (avatar, LinkedIn/Facebook save/edit, free Auto-check,\n  prefilled search links) as the Social & Research section — was missing on the full screen.\n- Nav capture now saves the loaded ids SYNCHRONOUSLY on click (then upgrades to the full matched\n  set in the background), so Prev/Next is reliably populated for every lead opened from the list.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }

@@ -240,7 +240,7 @@ export async function importOne(client, { dryRun = false, perChannel = 100, dela
       await new Promise(s => setTimeout(s, delayMs))
       continue
     }
-    let added = 0, mine = 0
+    let added = 0, mine = 0, hidden = 0
     for (const r of rows) {
       if (String(r.systemName || '') === HUB_SYSTEM_NAME) { mine++; continue }
       // Belt and braces on the loop guard. systemName is FUB's word for who wrote the
@@ -249,10 +249,14 @@ export async function importOne(client, { dryRun = false, perChannel = 100, dela
       if (ch.kind === 'note' && String(r.body || '').includes(PUSH_MARKER)) { mine++; continue }
       const row = ch.map(r, who)
       if (!row.occurred_at) continue          // undated rows would sort to the top of the timeline
+      // A text FUB will not give us the words for is not worth a row. 17,204 of these
+      // were imported and then deleted on 2026-10-08; without this the very next import
+      // brings every one of them straight back (John: "nothing exist anyways").
+      if (ch.kind === 'text' && /hidden for privacy/i.test(String(row.body || ''))) { hidden++; continue }
       if (!dryRun) added += storeRow(row)
       else added++
     }
-    out.by_kind[ch.kind] = { fetched: rows.length, added, skipped_own: mine }
+    out.by_kind[ch.kind] = { fetched: rows.length, added, skipped_own: mine, skipped_no_body: hidden }
     out.added += added
     out.skipped_own += mine
     await new Promise(s => setTimeout(s, delayMs))   // FUB rate-limits; pace every call

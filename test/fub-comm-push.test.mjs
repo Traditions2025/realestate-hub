@@ -146,3 +146,18 @@ test('it is dry by default', () => {
   const route = src('../server/index.js')
   assert.match(route, /dryRun: req\.body\?\.dry !== false/)
 })
+
+// ── the purge must stay purged ───────────────────────────────────────────────────────
+test('the importer will not re-add a text FUB gives no body for', () => {
+  // 17,204 bodyless rows were deleted on 2026-10-08. Without this the next import
+  // brings every one of them back, and the cleanup silently undoes itself.
+  assert.match(sync, /ch\.kind === 'text' && \/hidden for privacy\/i\.test\(String\(row\.body \|\| ''\)\)/)
+  assert.match(sync, /skipped_no_body: hidden/, 'and it reports how many it dropped')
+})
+
+test('the no-body skip applies to texts only', () => {
+  // a NOTE containing that phrase is still a real note worth keeping
+  const i = sync.indexOf("hidden for privacy")
+  const line = sync.slice(sync.lastIndexOf('\n', i) + 1, sync.indexOf('\n', i))
+  assert.match(line, /ch\.kind === 'text'/)
+})
