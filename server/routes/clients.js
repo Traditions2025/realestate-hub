@@ -705,6 +705,15 @@ export const SMART_LIST_SQL = {
   // Two separate EXISTS rather than one join with an OR: an OR across two different
   // columns cannot use either index, which is what made this a full scan of 38k view
   // rows for every one of 46k clients.
+  // The Oct 2026 past-client blast list. Tag-driven rather than a frozen set of ids, so
+  // adding or removing someone is just a tag edit and the list follows (John, 2026-10-09).
+  // Source: past-clients-sierra-blast-ready-2026-10-09.csv, the 66 rows marked READY,
+  // minus 10 carrying a NO_MARKETING tag, which are a human decision and not mine.
+  past_client_blast_ready:
+    `(${WORKABLE} AND clients.tags LIKE '%Blast Ready 2026-10-09%'
+      AND COALESCE(clients.email,'') <> ''
+      AND COALESCE(clients.tags,'') NOT LIKE '%NO_MARKETING%')`,
+
   // Reads a precomputed flag. Deciding this live was 6.99s of an 8.0s page load.
   // POST /api/admin/refresh-condo-band recomputes it; the hourly FUB activity sync
   // flags new rows as they arrive.

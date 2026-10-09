@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-08T23:35:20.485Z",
+  "generated_at": "2026-10-09T18:44:50.586Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "5f28302",
+      "date": "2026-10-08T18:35:22-05:00",
+      "subject": "Precompute the condo-band flag: 6.99s per page load was the viewers list",
+      "title": "Precompute the condo-band flag: 6.99s per page load was the viewers list",
+      "body": "With per-list timing in place the answer was unambiguous: marion_condo_viewers\ntook 6.99s of an 8.0s /api/clients/smart-lists, which the Clients page calls on\nevery load. My earlier index-and-split-the-OR fix moved it 9.4s -> 8.2s, because\nthe real costs were the price CAST, lower(city) and lower(trim(address)) — none\nof which can use an index however the joins are arranged.\n\nSo it is computed once and read instantly: fub_activity.marion_condo_band, with\nan index on (client_id, marion_condo_band). The smart list is now a single\nindexed EXISTS.\n\nPOST /api/admin/refresh-condo-band recomputes it after a condo import or a large\nactivity sync.\n\nThe lesson is the measurement, not the fix: I assumed my lists were the cause,\n\"fixed\" them, saw 8.2s and only then added timing. Adding the timing first would\nhave cost one deploy instead of three.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "c41eccb",
       "date": "2026-10-08T18:33:20-05:00",
@@ -3993,14 +4001,6 @@
       "title": "audit endpoint: clients has no address_normalized column; use address",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "fix"
-    },
-    {
-      "hash": "0d2913e",
-      "date": "2026-08-28T11:05:07-05:00",
-      "subject": "Clients: read-only audit for New leads that match a Past Client",
-      "title": "Clients: read-only audit for New leads that match a Past Client",
-      "body": "GET /api/clients/audit/new-vs-past flags 'new' leads that match a Closed/past-\nclient lead by phone, email, address, or name (strong = any non-name match).\nReports counts + samples only; changes nothing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
     }
   ]
 }
