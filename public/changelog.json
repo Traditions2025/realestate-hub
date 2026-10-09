@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-09T18:44:50.586Z",
+  "generated_at": "2026-10-09T19:08:55.792Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "612e40f",
+      "date": "2026-10-09T13:45:07-05:00",
+      "subject": "Past-client blast list as a tag-driven smart list",
+      "title": "Past-client blast list as a tag-driven smart list",
+      "body": "John, 2026-10-09: put the weekly email in templates with a first-name merge field,\nand make the READY rows of past-clients-sierra-blast-ready-2026-10-09.csv a list.\n\nOf 66 READY rows, all 66 matched a Hub client by email. 56 are clean. 10 carry a\nNO_MARKETING tag and are EXCLUDED: the CSV's own notes call that tag a bulk-import\nartifact, which may well be true, but overriding an opt-out marker is a human\ndecision and not mine to make quietly. They are named in the reply so John can\ndecide.\n\nTag-driven rather than a frozen set of ids, so adding or removing someone is a tag\nedit and the list follows. The query also re-checks NO_MARKETING at read time, so\nif that tag is ever applied to someone on the list they drop out without anyone\nhaving to remember to update it.\n\nTagging was read-modify-write: tags is a JSON array and writing it blind would\nhave wiped every other tag on 56 past-client records.\n\nTemplate 384 carries the HTML with \"Hi friends,\" replaced by \"Hi {{first_name}},\".\nThat merge field falls back to \"there\", so a blank name reads \"Hi there,\" rather\nthan \"Hi ,\".\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "5f28302",
       "date": "2026-10-08T18:35:22-05:00",
@@ -3993,14 +4001,6 @@
       "title": "Audit: score match fields per past record; split tagged-in-new / high-confidence / weak",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
-    },
-    {
-      "hash": "888ef57",
-      "date": "2026-08-28T11:12:42-05:00",
-      "subject": "Fix audit endpoint: clients has no address_normalized column; use address",
-      "title": "audit endpoint: clients has no address_normalized column; use address",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
     }
   ]
 }

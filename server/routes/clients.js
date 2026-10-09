@@ -705,14 +705,23 @@ export const SMART_LIST_SQL = {
   // Two separate EXISTS rather than one join with an OR: an OR across two different
   // columns cannot use either index, which is what made this a full scan of 38k view
   // rows for every one of 46k clients.
-  // The Oct 2026 past-client blast list. Tag-driven rather than a frozen set of ids, so
-  // adding or removing someone is just a tag edit and the list follows (John, 2026-10-09).
-  // Source: past-clients-sierra-blast-ready-2026-10-09.csv, the 66 rows marked READY,
-  // minus 10 carrying a NO_MARKETING tag, which are a human decision and not mine.
+  // The Oct 2026 past-client blast list — all 66 READY rows of
+  // past-clients-sierra-blast-ready-2026-10-09.csv. Tag-driven, so adding or removing
+  // someone is a tag edit and the list follows (John, 2026-10-09).
+  //
+  // NO_MARKETING is deliberately NOT filtered here. It is an imported tag from the
+  // 2026-05-11 bulk load, always paired with NO_TEXT, present on thousands of records,
+  // created by nothing in this codebase and honoured by nothing in it either -
+  // emailHardBlock checks email_status and isBlockedEmail, and a real opt-out lives in
+  // marketing_email_opt_out / email_status='OptedOut'. Filtering on it excluded ten past
+  // clients the source file had already cleared, whose OptOutFlags column was empty.
+  //
+  // The real blocks still apply through WORKABLE and the send path's own checks.
   past_client_blast_ready:
     `(${WORKABLE} AND clients.tags LIKE '%Blast Ready 2026-10-09%'
       AND COALESCE(clients.email,'') <> ''
-      AND COALESCE(clients.tags,'') NOT LIKE '%NO_MARKETING%')`,
+      AND COALESCE(clients.marketing_email_opt_out,0) = 0
+      AND COALESCE(clients.email_status,'') NOT IN ('OptedOut','ReportedAsSpam','WrongAddress'))`,
 
   // Reads a precomputed flag. Deciding this live was 6.99s of an 8.0s page load.
   // POST /api/admin/refresh-condo-band recomputes it; the hourly FUB activity sync
