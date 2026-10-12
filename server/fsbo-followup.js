@@ -140,6 +140,25 @@ const fresh = (id) => db.get('SELECT * FROM clients WHERE id=?', [id])
 const fu = (id) => db.get('SELECT * FROM fsbo_followups WHERE client_id=?', [id])
 
 // ---------------------------------------------------------------------------
+// A MANUAL DECISION IS FINAL (John, 2026-10-12: "make sure nothing gets them
+// enrolled again unless done manually").
+//
+// 'removed' = excluded, 'paused' = held. Both are an agent's explicit choice and
+// only an agent action (Resume / Allow back in) clears them. Asked here, as its own
+// function, so every automatic path consults the same rule instead of each one
+// re-deriving it in SQL: the sweep's candidate query, the sweep's upsert, the
+// history-seed endpoint and the merge all call this. Checking it in one place is the
+// difference between an exclusion that holds and one that holds until somebody edits
+// a WHERE clause.
+// ---------------------------------------------------------------------------
+export function fsboManualDecision(clientId) {
+  try {
+    return db.get(`SELECT client_id, status, enrolled_at, removed_at, removed_by, paused_at, paused_by, stop_reason
+                   FROM fsbo_followups WHERE client_id=? AND status IN ('removed','paused')`, [Number(clientId)]) || null
+  } catch { return null }
+}
+
+// ---------------------------------------------------------------------------
 // THE ONE AUTHORITATIVE EVALUATOR — used by auto-enroll, every send, the profile
 // card, the Settings preview, and the Smart-List semantics. Answers: should this
 // FSBO be enrolled / keep receiving campaign texts?
@@ -334,15 +353,24 @@ export async function runFsboFollowups() {
       WHERE c.fsbo_status='Available' AND c.merged_into IS NULL
         AND (f.client_id IS NULL OR (f.status='stopped' AND f.stop_reason LIKE 'FSBO_OFF_MARKET%'))`)
     for (const cand of candidates) {
+      // Guard 2 of 3. The candidate query above already skips a manual decision; this
+      // asks again by id so a future edit to that JOIN cannot quietly re-open the door.
+      if (fsboManualDecision(cand.id)) continue
       const ev = await evaluateFsboCampaignEligibility(cand.id)
       if (ev.decision !== 'eligible') continue   // waiting/excluded/deferred: no row, no noise
       const c = fresh(cand.id)
       const firstAt = nextValidSlot().toISOString()
+      // Guard 3 of 3, in the write itself. Without the WHERE, this upsert would flip a
+      // 'removed' row straight back to 'active' — the one statement in the system that
+      // could undo an exclusion. An OFF_MARKET 'stopped' row is still allowed to revive,
+      // which is the intended re-entry path when a listing comes back on the market.
       db.run(`INSERT INTO fsbo_followups (client_id, status, enrolled_at, started_dom, attempt_count, next_send_at, listing_address, updated_at)
               VALUES (?,?,?,?,?,?,?,?)
               ON CONFLICT (client_id) DO UPDATE SET status='active', enrolled_at=excluded.enrolled_at, started_dom=excluded.started_dom,
-                next_send_at=excluded.next_send_at, listing_address=excluded.listing_address, stop_reason=NULL, updated_at=excluded.updated_at`,
+                next_send_at=excluded.next_send_at, listing_address=excluded.listing_address, stop_reason=NULL, updated_at=excluded.updated_at
+              WHERE fsbo_followups.status NOT IN ('removed','paused')`,
         [cand.id, 'active', nowIso(), ev.dom, 0, firstAt, c.address || null, nowIso()])
+      if (!fu(cand.id) || fu(cand.id).status !== 'active') continue   // refused by the guard above
       logFsbo(cand.id, 'enrolled', { reason: ev.reason_code, dom: ev.dom, listing_status: ev.listing_status, next_send_at: firstAt })
       out.enrolled++
     }
@@ -527,6 +555,27 @@ export function removeFromFsboCampaign(clientId, by = 'agent', reason = '') {
   })
   logFsbo(clientId, 'removed', { reason: (reason || 'by ' + by) + (pre ? ' (before enrolment)' : '') })
   return { ok: true, pre_enrollment: pre }
+}
+
+// A merge must not lose an exclusion. doMerge copies fsbo_status onto the survivor when
+// the survivor has none, so folding an excluded FSBO record into a plain lead moved the
+// FSBO identity to a record with no decision row — and the sweep would enroll it. The
+// decision belongs to the PERSON, not the row, so it travels to the survivor.
+//
+// An exclusion wins over the survivor's active campaign: an agent saying "do not text this
+// seller" should stop the texting, and it is one click to undo. It does NOT override a
+// manual decision the survivor already carries, and it never clears attempt history or
+// enrolled_at, so "Allow back in" still routes to Resume for a lead who really enrolled.
+export function carryFsboDecisionToSurvivor(primaryId, dupId, by = 'merge') {
+  const dupDecision = fsboManualDecision(dupId)
+  if (!dupDecision) return null
+  if (fsboManualDecision(primaryId)) return null        // survivor already decided — leave it
+  const note = `${dupDecision.status === 'removed' ? 'MANUAL_REMOVAL' : 'MANUAL_PAUSE'}: carried from merged record ${dupId}`
+  upsertDecision(primaryId, dupDecision.status, dupDecision.status === 'removed'
+    ? { removed_at: dupDecision.removed_at || nowIso(), removed_by: dupDecision.removed_by || by, stop_reason: note }
+    : { paused_at: dupDecision.paused_at || nowIso(), paused_by: dupDecision.paused_by || by, stop_reason: note })
+  logFsbo(primaryId, dupDecision.status === 'removed' ? 'removed' : 'paused', { reason: note })
+  return { carried: dupDecision.status, from: dupId, to: primaryId }
 }
 
 // Undo a pause/removal. A row that never enrolled is DELETED rather than reactivated:

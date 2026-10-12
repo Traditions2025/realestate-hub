@@ -403,7 +403,7 @@ router.post('/fsbo/followup/run', async (_req, res) => {
 })
 // Mark FSBOs as already-contacted (e.g. texted manually in Sierra), so the sequence skips
 // the opener and continues at the +1-week message. Accepts phones and/or client_ids.
-router.post('/fsbo/followup/seed', (req, res) => {
+router.post('/fsbo/followup/seed', async (req, res) => {
   const b = req.body || {}
   const daysAgo = Number(b.days_ago) || 7
   const firstTextAt = new Date(Date.now() - daysAgo * 86400000).toISOString()
@@ -416,15 +416,21 @@ router.post('/fsbo/followup/seed', (req, res) => {
       const k = last10(c.phone); if (k && wanted.has(k)) ids.add(c.id)
     }
   }
-  const seeded = []
+  // A lead an agent excluded or held must not be seeded back into an active campaign —
+  // this endpoint inserts status='active' outright, so it is the one other place that
+  // could resurrect one (John, 2026-10-12).
+  const { fsboManualDecision } = await import('../fsbo-followup.js')
+  const seeded = [], skipped = []
   for (const id of ids) {
+    const decision = fsboManualDecision(id)
+    if (decision) { skipped.push({ client_id: id, reason: decision.status === 'removed' ? 'excluded from the campaign by an agent' : 'held by an agent' }); continue }
     db.run(`INSERT INTO fsbo_followups (client_id, step, first_text_at, replied, status)
             VALUES (?,1,?,1,'active')
             ON CONFLICT(client_id) DO UPDATE SET step=MAX(step,1), first_text_at=COALESCE(first_text_at,excluded.first_text_at), replied=1`,
       [id, firstTextAt])
     seeded.push(id)
   }
-  res.json({ seeded: seeded.length, client_ids: seeded, first_text_at: firstTextAt })
+  res.json({ seeded: seeded.length, client_ids: seeded, skipped_manual_decision: skipped.length, skipped, first_text_at: firstTextAt })
 })
 router.post('/fsbo/junk-off-market', async (_req, res) => {
   try { const m = await import('../fsbo-followup.js'); res.json(await m.fsboDailyMaintenance()) } catch (e) { res.status(500).json({ error: e.message }) }

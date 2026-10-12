@@ -157,3 +157,136 @@ test('the decision is written to the audit log either way', async () => {
   assert.match(String(rm.reason), /seller said no/)
   assert.match(String(rm.reason), /before enrolment/, 'the log says it happened pre-enrolment')
 })
+
+// ---------------------------------------------------------------------------
+// "make sure nothing gets them enrolled again unless done manually" (John, 2026-10-12).
+// One test per path that can write an fsbo_followups row. Every one of these executes
+// the real statement; none of them read source.
+// ---------------------------------------------------------------------------
+
+test('the sweep upsert itself refuses to reactivate a removed row, even if it is handed one', async () => {
+  const c = mkFsbo({ fsbo_dom: '40' })
+  f.removeFromFsboCampaign(c.id, 'john@test')
+  // Run the sweep's exact INSERT..ON CONFLICT against this lead, bypassing the candidate
+  // query entirely — this is the statement that used to be the single point of failure.
+  db.run(`INSERT INTO fsbo_followups (client_id, status, enrolled_at, started_dom, attempt_count, next_send_at, listing_address, updated_at)
+          VALUES (?,?,?,?,?,?,?,?)
+          ON CONFLICT (client_id) DO UPDATE SET status='active', enrolled_at=excluded.enrolled_at, started_dom=excluded.started_dom,
+            next_send_at=excluded.next_send_at, listing_address=excluded.listing_address, stop_reason=NULL, updated_at=excluded.updated_at
+          WHERE fsbo_followups.status NOT IN ('removed','paused')`,
+    [c.id, 'active', new Date().toISOString(), 40, 0, new Date().toISOString(), '1 Test St', new Date().toISOString()])
+  assert.equal(row(c.id).status, 'removed', 'the upsert must not flip a removal to active')
+  assert.equal(row(c.id).next_send_at, null, 'and must not schedule a send')
+})
+
+test('the same upsert still revives an OFF_MARKET stop — the intended re-entry path', () => {
+  const c = mkFsbo({ fsbo_dom: '40' })
+  db.run(`INSERT INTO fsbo_followups (client_id, status, stop_reason, updated_at) VALUES (?,?,?,?)`,
+    [c.id, 'stopped', 'FSBO_OFF_MARKET: listing is Sold', new Date().toISOString()])
+  db.run(`INSERT INTO fsbo_followups (client_id, status, enrolled_at, started_dom, attempt_count, next_send_at, listing_address, updated_at)
+          VALUES (?,?,?,?,?,?,?,?)
+          ON CONFLICT (client_id) DO UPDATE SET status='active', enrolled_at=excluded.enrolled_at, started_dom=excluded.started_dom,
+            next_send_at=excluded.next_send_at, listing_address=excluded.listing_address, stop_reason=NULL, updated_at=excluded.updated_at
+          WHERE fsbo_followups.status NOT IN ('removed','paused')`,
+    [c.id, 'active', new Date().toISOString(), 40, 0, new Date().toISOString(), '1 Test St', new Date().toISOString()])
+  assert.equal(row(c.id).status, 'active', 'a relisted FSBO must still be able to come back')
+})
+
+test('fsboManualDecision is the single rule, and reports which decision is on file', () => {
+  const a = mkFsbo(); const b = mkFsbo(); const none = mkFsbo()
+  f.removeFromFsboCampaign(a.id, 'john@test')
+  f.pauseFsboCampaign(b.id, 'john@test')
+  assert.equal(f.fsboManualDecision(a.id).status, 'removed')
+  assert.equal(f.fsboManualDecision(b.id).status, 'paused')
+  assert.equal(f.fsboManualDecision(none.id), null)
+  // an active or stopped row is NOT a manual decision — those stay automatic
+  db.run("INSERT INTO fsbo_followups (client_id, status, updated_at) VALUES (?,'active',?)", [none.id, new Date().toISOString()])
+  assert.equal(f.fsboManualDecision(none.id), null)
+})
+
+test('a blanket done-row reactivation cannot pick up a removed lead', () => {
+  const c = mkFsbo({ fsbo_dom: '40' })
+  f.removeFromFsboCampaign(c.id, 'john@test')
+  // the real statement from the migration path
+  db.run("UPDATE fsbo_followups SET status='active', next_send_at=? WHERE status='done' AND replied=0", [new Date().toISOString()])
+  assert.equal(row(c.id).status, 'removed')
+})
+
+test('MERGE carries an exclusion onto the surviving record', () => {
+  const dup = mkFsbo({ fsbo_dom: '40' })                      // the excluded FSBO record
+  const survivor = mkFsbo({ fsbo_status: null, fsbo_dom: null })  // plain lead, no FSBO identity
+  f.removeFromFsboCampaign(dup.id, 'john@test', 'seller asked us not to')
+  const carried = f.carryFsboDecisionToSurvivor(survivor.id, dup.id, 'merge')
+  assert.ok(carried, 'the decision must travel')
+  assert.equal(carried.carried, 'removed')
+  assert.equal(row(survivor.id).status, 'removed')
+  assert.match(row(survivor.id).stop_reason, new RegExp(`carried from merged record ${dup.id}`))
+  assert.ok(f.fsboManualDecision(survivor.id), 'the survivor is now excluded too')
+})
+
+test('MERGE does not overwrite a decision the survivor already made', () => {
+  const dup = mkFsbo(); const survivor = mkFsbo()
+  f.removeFromFsboCampaign(dup.id, 'someone@test')
+  f.pauseFsboCampaign(survivor.id, 'john@test')               // survivor is only HELD
+  const carried = f.carryFsboDecisionToSurvivor(survivor.id, dup.id, 'merge')
+  assert.equal(carried, null, 'leave the survivor decision alone')
+  assert.equal(row(survivor.id).status, 'paused')
+  assert.equal(row(survivor.id).paused_by, 'john@test')
+})
+
+test('MERGE keeps the survivor attempt history while applying the carried exclusion', () => {
+  const dup = mkFsbo(); const survivor = mkFsbo({ fsbo_dom: '40' })
+  db.run(`INSERT INTO fsbo_followups (client_id, status, enrolled_at, attempt_count, last_angle, updated_at)
+          VALUES (?,?,?,?,?,?)`, [survivor.id, 'active', new Date().toISOString(), 2, 'PRICE_CHECK', new Date().toISOString()])
+  f.removeFromFsboCampaign(dup.id, 'john@test')
+  f.carryFsboDecisionToSurvivor(survivor.id, dup.id, 'merge')
+  const r = row(survivor.id)
+  assert.equal(r.status, 'removed', 'an exclusion stops an active campaign on the same person')
+  assert.equal(r.attempt_count, 2, 'history survives')
+  assert.equal(r.last_angle, 'PRICE_CHECK')
+  assert.ok(r.enrolled_at, 'enrolled_at survives, so Allow-back-in routes to Resume not delete')
+})
+
+test('MERGE with nothing to carry is a no-op', () => {
+  const dup = mkFsbo(); const survivor = mkFsbo()
+  assert.equal(f.carryFsboDecisionToSurvivor(survivor.id, dup.id, 'merge'), null)
+  assert.ok(!row(survivor.id))
+})
+
+test('only a manual action clears the decision: removed survives every automatic write', async () => {
+  const c = mkFsbo({ fsbo_dom: '40' })
+  f.removeFromFsboCampaign(c.id, 'john@test')
+  // every automatic statement that touches this table, fired in sequence
+  db.run("UPDATE fsbo_followups SET status='responded', responded_at=COALESCE(responded_at, updated_at) WHERE replied=1 AND status IN ('active','done')")
+  db.run("UPDATE fsbo_followups SET status='active', next_send_at=? WHERE status='done' AND replied=0", [new Date().toISOString()])
+  assert.equal(row(c.id).status, 'removed')
+  assert.equal((await f.evaluateFsboCampaignEligibility(c.id)).decision, 'excluded')
+  // and the manual action DOES clear it
+  await f.resumeFsboCampaign(c.id, 'john@test')
+  assert.ok(!row(c.id))
+})
+
+test('the dry-run preview never lists an excluded lead as would-enroll', async () => {
+  const c = mkFsbo({ fsbo_dom: '40' })
+  let p = await f.previewFsboCampaign()
+  const before = p.table.find(t => t.client_id === c.id)
+  assert.equal(before.decision, 'eligible', 'baseline: a DOM-40 FSBO is eligible')
+
+  f.removeFromFsboCampaign(c.id, 'john@test')
+  p = await f.previewFsboCampaign()
+  const after = p.table.find(t => t.client_id === c.id)
+  assert.equal(after.decision, 'excluded')
+  assert.equal(after.reason, 'MANUAL_REMOVAL')
+  assert.equal(after.campaign_state, 'removed')
+  assert.equal(after.next_proposed_send, null, 'no send is ever proposed for them')
+})
+
+test('a held (paused) pre-enrolment lead is also never proposed for a send', async () => {
+  const c = mkFsbo({ fsbo_dom: '40' })
+  f.pauseFsboCampaign(c.id, 'john@test')
+  const p = await f.previewFsboCampaign()
+  const t = p.table.find(x => x.client_id === c.id)
+  assert.equal(t.decision, 'excluded')
+  assert.equal(t.reason, 'MANUAL_PAUSE')
+  assert.equal(t.next_proposed_send, null)
+})

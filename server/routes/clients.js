@@ -8,6 +8,7 @@ import { phoneSearchClauses } from '../phone-search.js'
 import { ensureState } from '../ai-followup/state.js'
 import { ensureStamped, prependNote, replaceNote, removeNote, splitNotes } from '../client-notes.js'
 import { addressKey as addressKeyOf } from './admin.js'
+import { carryFsboDecisionToSurvivor } from '../fsbo-followup.js'
 
 const router = Router()
 
@@ -1166,6 +1167,10 @@ function doMerge(primaryId, dupIds, keepBoth = true) {
     for (const t of parseTags(dup.tags)) tagSet.add(t)   // union tags onto survivor
     // Cancel any pending AI drip actions on the record being archived (never text a merged-away lead).
     try { db.run("UPDATE ai_scheduled_actions SET state='canceled', error='merged into ' || ?, updated_at=datetime('now') WHERE client_id=? AND state='pending'", [primaryId, dupId]) } catch {}
+    // An FSBO campaign exclusion follows the person onto the survivor. fsbo_status is in
+    // `fillable` above, so without this the FSBO identity moves across while the decision
+    // stays on the archived row and the sweep enrolls the survivor.
+    try { carryFsboDecisionToSurvivor(primaryId, dupId, 'merge') } catch {}
     db.run("UPDATE clients SET status='archived', merged_into=?, updated_at=datetime('now') WHERE id=?", [primaryId, dupId])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['merged', 'client', dupId, `Merged into ${primaryId}. Snapshot: ${JSON.stringify({ id: dup.id, first_name: dup.first_name, last_name: dup.last_name, phone: dup.phone, email: dup.email, address: dup.address, status: dup.status, source: dup.source }).slice(0, 900)}`])
