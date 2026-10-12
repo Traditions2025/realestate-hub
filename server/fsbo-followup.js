@@ -478,14 +478,32 @@ function flagFsboResponse(c, cls, detail) {
 }
 
 // ---- manual controls (always win over sweeps) ----
+// Pause / remove must work BEFORE a lead is ever enrolled. A FSBO at DOM 3 has no
+// fsbo_followups row yet, so the old UPDATE-only version changed nothing and still
+// reported ok — the lead then auto-enrolled the moment they hit DOM 14 (John, 2026-10-12,
+// Deborah Emrich at DOM 3). These upsert a decision row instead: the evaluator already
+// treats status 'removed' / 'paused' as excluded, and the auto-enroll sweep only picks up
+// leads with NO row (or an OFF_MARKET stop), so the decision holds at DOM 14 and after.
+// enrolled_at stays NULL on a pre-enrolment row, which is how undoRow() tells the two apart.
+function upsertDecision(clientId, status, fields = {}) {
+  const cols = { status, updated_at: nowIso(), next_send_at: null, ...fields }
+  const keys = Object.keys(cols)
+  db.run(`INSERT INTO fsbo_followups (client_id, ${keys.join(', ')}) VALUES (?${keys.map(() => ', ?').join('')})
+          ON CONFLICT (client_id) DO UPDATE SET ${keys.map(k => `${k}=excluded.${k}`).join(', ')}`,
+    [clientId, ...keys.map(k => cols[k])])
+}
 export function pauseFsboCampaign(clientId, by = 'agent') {
-  db.run("UPDATE fsbo_followups SET status='paused', paused_at=?, paused_by=?, next_send_at=NULL, updated_at=? WHERE client_id=?", [nowIso(), by, nowIso(), clientId])
-  logFsbo(clientId, 'paused', { reason: 'by ' + by })
-  return { ok: true }
+  const pre = !fu(clientId)
+  upsertDecision(clientId, 'paused', { paused_at: nowIso(), paused_by: by })
+  logFsbo(clientId, 'paused', { reason: 'by ' + by + (pre ? ' (before enrolment)' : '') })
+  return { ok: true, pre_enrollment: pre }
 }
 export async function resumeFsboCampaign(clientId, by = 'agent') {
   const row = fu(clientId)
   if (!row) return { ok: false, reason: 'not enrolled' }
+  // A decision made before the lead ever enrolled is lifted, not resumed — see
+  // allowBackIntoFsboCampaign. One button in the UI then covers both cases.
+  if (!row.enrolled_at) return allowBackIntoFsboCampaign(clientId, by)
   // Re-evaluate BEFORE reactivating — resume never bypasses eligibility. A paused
   // row blocks itself in the evaluator, so lift the pause for the check.
   db.run("UPDATE fsbo_followups SET status='resuming' WHERE client_id=?", [clientId])
@@ -502,10 +520,26 @@ export async function resumeFsboCampaign(clientId, by = 'agent') {
   return { ok: true, next_send_at: next }
 }
 export function removeFromFsboCampaign(clientId, by = 'agent', reason = '') {
-  db.run("UPDATE fsbo_followups SET status='removed', removed_at=?, removed_by=?, stop_reason=?, next_send_at=NULL, updated_at=? WHERE client_id=?",
-    [nowIso(), by, reason ? 'MANUAL_REMOVAL: ' + reason : 'MANUAL_REMOVAL', nowIso(), clientId])
-  logFsbo(clientId, 'removed', { reason: (reason || 'by ' + by) })
-  return { ok: true }
+  const pre = !fu(clientId)
+  upsertDecision(clientId, 'removed', {
+    removed_at: nowIso(), removed_by: by,
+    stop_reason: reason ? 'MANUAL_REMOVAL: ' + reason : 'MANUAL_REMOVAL',
+  })
+  logFsbo(clientId, 'removed', { reason: (reason || 'by ' + by) + (pre ? ' (before enrolment)' : '') })
+  return { ok: true, pre_enrollment: pre }
+}
+
+// Undo a pause/removal. A row that never enrolled is DELETED rather than reactivated:
+// resumeFsboCampaign demands current eligibility, and a DOM-3 lead is 'waiting', not
+// eligible, so re-activating would refuse. Deleting returns them to a clean un-decided
+// state, which is exactly what the auto-enroll sweep looks for at DOM 14.
+export function allowBackIntoFsboCampaign(clientId, by = 'agent') {
+  const row = fu(clientId)
+  if (!row) return { ok: false, reason: 'no campaign decision on file' }
+  if (row.enrolled_at) return { ok: false, reason: 'already enrolled once — use Resume', needs_resume: true }
+  db.run('DELETE FROM fsbo_followups WHERE client_id=? AND enrolled_at IS NULL', [clientId])
+  logFsbo(clientId, 'resumed', { reason: 'exclusion lifted before enrolment by ' + by })
+  return { ok: true, pre_enrollment: true }
 }
 
 // ---- state / stats / dry-run preview (ZERO writes) ----

@@ -504,19 +504,40 @@ function FsboCampaignCard({ cid, client }) {
             : ev.decision === 'eligible'
               ? <div><strong style={{ color: '#15803d' }}>ELIGIBLE</strong> — DOM {ev.dom}; the next sweep will auto-enroll (master switch permitting).</div>
               : <div style={{ color: 'var(--text-muted)' }}>Not in the campaign — {ev.reason_code}: {ev.reason}</div>}
+          {/* Exclude BEFORE enrolment. A lead waiting on DOM would otherwise auto-enroll
+              the day they cross the threshold with no way to stop it from here. */}
+          {['waiting', 'eligible'].includes(ev.decision) && (
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              <button className="btn btn-sm" disabled={busy} style={{ color: '#ef4444' }}
+                onClick={async () => { if (await confirmDialog('Exclude this lead from the FSBO campaign?\n\nThey are not enrolled yet. This stops them enrolling when they reach the DOM threshold, and no sweep will pull them in later.')) act('remove') }}>
+                Exclude from campaign
+              </button>
+              <button className="btn btn-sm" disabled={busy}
+                title="Hold them out for now. You can allow them back at any time."
+                onClick={() => act('pause')}>⏸ Hold</button>
+            </div>
+          )}
         </div>
       ) : (
         <div style={{ fontSize: 15.5, lineHeight: 1.7 }}>
           <div style={{ fontWeight: 800, color: meta.color, marginBottom: 4 }}>{meta.label}</div>
           {en.status === 'responded' && <div style={{ fontSize: 14.5, marginBottom: 4 }}>{en.response_class ? <>Classified: <strong>{en.response_class}</strong> — </> : null}the campaign has stopped; reply personally.</div>}
           {en.status === 'stopped' && en.stop_reason && <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 4 }}>Reason: {en.stop_reason}</div>}
+          {/* A decision taken before the lead ever enrolled: no texts were ever sent, so say so
+              rather than showing "Attempts 0" and letting it read like a stalled campaign. */}
+          {!en.enrolled_at && <div style={{ fontSize: 14.5, marginBottom: 4 }}>Excluded before enrolment{en.removed_by ? ' by ' + en.removed_by : ''} — never texted by the campaign{ev.dom != null ? `, DOM ${ev.dom} at the time` : ''}.</div>}
           <div><strong>Property:</strong> {en.listing_address || client.address || '—'} · DOM {ev.dom ?? client.fsbo_dom ?? '?'} · {client.fsbo_status || 'off list'}</div>
           <div><strong>Attempts:</strong> {en.attempt_count || 0}{en.last_angle ? ` · last angle ${en.last_angle}` : ''}{en.started_dom != null ? ` · started at DOM ${en.started_dom}` : ''}</div>
           {en.status === 'active' && <div><strong>Next send:</strong> {en.next_send_at ? fmtD(en.next_send_at) : '—'} (weekday 9–4 window)</div>}
           {en.last_sent_at && <div><strong>Last sent:</strong> {fmtD(en.last_sent_at)}</div>}
           <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
             {en.status === 'active' && <button className="btn btn-sm" disabled={busy} onClick={() => act('pause')}>⏸ Pause</button>}
-            {['paused', 'stopped'].includes(en.status) && <button className="btn btn-sm" disabled={busy} onClick={() => act('resume')}>▶ Resume</button>}
+            {['paused', 'stopped', 'removed'].includes(en.status) && (
+              <button className="btn btn-sm" disabled={busy} onClick={() => act('resume')}
+                title={en.enrolled_at ? 'Re-checks eligibility before restarting' : 'Lifts the exclusion; they enroll normally once they reach the DOM threshold'}>
+                ▶ {en.enrolled_at ? 'Resume' : 'Allow back in'}
+              </button>
+            )}
             {en.status !== 'removed' && <button className="btn btn-sm" disabled={busy} onClick={ async () => { if (await confirmDialog('Remove this lead from the FSBO campaign? Sweeps will never re-enroll them.')) act('remove') }} style={{ color: '#ef4444' }}>Remove</button>}
             {en.status === 'active' && <button className="btn btn-sm" onClick={previewNext}>👁 Preview next</button>}
             {(st.log || []).length > 0 && <button className="btn btn-sm" onClick={() => setShowLog(v => !v)}>{showLog ? 'Hide log' : `Log (${st.log.length})`}</button>}
