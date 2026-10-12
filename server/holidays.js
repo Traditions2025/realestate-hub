@@ -32,7 +32,11 @@ function holidaysForYear(y) {
   addFixed(s, y, 6, 19)                      // Juneteenth
   addFixed(s, y, 7, 4)                       // Independence Day
   s.add(fmt(y, 9, nthWeekday(y, 9, 1, 1)))   // Labor Day — 1st Mon Sep
-  s.add(fmt(y, 10, nthWeekday(y, 10, 1, 2))) // Columbus Day — 2nd Mon Oct
+  // Columbus Day (2nd Mon Oct) is deliberately NOT here. It is a federal holiday but a
+  // normal working day for most of the people we text and email, so pausing on it just
+  // cost us a day of touches for no benefit (John, 2026-10-12: "Columbus Day is not widely
+  // celebrated as in no texting day so we can turn texting and email on today").
+  // This list is "days our audience is not at work", not "days federal offices are shut".
   addFixed(s, y, 11, 11)                     // Veterans Day
   s.add(fmt(y, 11, nthWeekday(y, 11, 4, 4))) // Thanksgiving — 4th Thu Nov
   addFixed(s, y, 12, 25)                     // Christmas Day
