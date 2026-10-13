@@ -96,6 +96,14 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   //
   // A manual send-now (force) still works, so an agent can deliberately have the AI draft
   // something for a paused lead.
+  //
+  // DECIDED AND DELIBERATELY NOT BUILT (John, 2026-10-13). The wrong-person apology in
+  // NOT_INTERESTED_DOCTRINE is the one reply that arguably should still go out automatically
+  // while everything else pauses — someone who says "you have the wrong person" currently
+  // gets silence until a human sees it. John's call: no carve-out for now, the pause applies
+  // to EVERY reply including that one, and the doctrine takes effect when the AI is switched
+  // back on. If that changes, the exception belongs right here, before the return, gated on
+  // its own setting rather than widening this one.
   if (!force && String(db.getSetting?.('ai_auto_pause_on_reply', '1')) === '1') {
     try {
       const { transitionAiState } = await import('./state.js')
