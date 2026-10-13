@@ -894,6 +894,14 @@ export async function sendViaSendGrid(to, toName, subject, body, replyTo, ccList
   const _isHtml = looksLikeHtml(body)
   let _html = _isHtml ? body : plainToHtml(body)
   _html = autoEmbedYoutubeLinks(_html)
+  // Every other link gets an Open Graph preview card, so the lead receives the image rather
+  // than a bare URL (John, 2026-10-13). YouTube stays on the line above because its thumbnail
+  // needs no network call. A failure here must never stop a send: expandLinksInHtml resolves
+  // to the original html if a site is slow, down, or has no preview data.
+  try {
+    const { expandLinksInHtml } = await import('../link-preview.js')
+    _html = await expandLinksInHtml(_html)
+  } catch (e) { console.error('[email] link preview skipped:', e.message) }
   const _plain = _isHtml ? htmlToPlain(body) : body
   const _logo = inlineLogo(_html)
   _html = _logo.html
@@ -1029,13 +1037,22 @@ router.post('/send', async (req, res) => {
 
 // Live preview for the composer: renders merge fields + the signature exactly as /send
 // would, for THIS lead, so the agent sees the final email (signature included) before sending.
-router.post('/preview', (req, res) => {
+router.post('/preview', async (req, res) => {
   const { client_id, subject, body } = req.body || {}
   const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
   let outBody = String(body || '')
   // Same rule as /send, so the preview is the email and not a near-miss of it.
   if (!alreadySigned(outBody)) outBody += '<br><br>{{signature}}'
-  const html = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
+  let html = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
+  // The rest of the send pipeline, in the same order sendViaSendGrid applies it, so what is
+  // previewed is what is received. Previously this route did none of it and a second, dead
+  // /preview route further down claimed to.
+  if (!looksLikeHtml(body)) html = plainToHtml(html)
+  html = autoEmbedYoutubeLinks(html)
+  try {
+    const { expandLinksInHtml } = await import('../link-preview.js')
+    html = await expandLinksInHtml(html)
+  } catch { /* a preview must still render if a linked site is down */ }
   const subj = client ? fillTemplate(String(subject || ''), client) : String(subject || '')
   res.json({ subject: subj, html })
 })
@@ -1264,21 +1281,10 @@ router.get('/tc-digest/log', (req, res) => {
   res.json(rows)
 })
 
-// Render preview — returns the exact HTML the recipient will receive.
-// Applies the same pipeline as sendViaSendGrid: plain→HTML, YouTube auto-embed.
-router.post('/preview', (req, res) => {
-  const { body, subject } = req.body || {}
-  if (!body) return res.status(400).json({ error: 'body required' })
-  const isHtml = looksLikeHtml(body)
-  let html = isHtml ? body : plainToHtml(body)
-  html = autoEmbedYoutubeLinks(html)
-  res.json({
-    subject: subject || '',
-    html,
-    from_email: FROM_EMAIL,
-    from_name: FROM_NAME,
-  })
-})
+// (A second `router.post('/preview')` used to live here. Express matches the FIRST route, so
+// it was dead code from the day it was added — which is why the preview endpoint never applied
+// the YouTube embed despite a comment saying it did. Its behaviour has been folded into the
+// real /preview above. Do not re-add a duplicate path here.)
 
 // =========================================================
 // TRANSACTION & PRE-LISTING TEMPLATES + SEND

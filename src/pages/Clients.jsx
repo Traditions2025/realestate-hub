@@ -1189,6 +1189,10 @@ export default function Clients() {
     </select>
   )
   const [singleEmailPreviewOpen, setSingleEmailPreviewOpen] = useState(false)
+  // Server-rendered preview. Open Graph cards need a fetch of the linked page, which the
+  // browser cannot do (CORS), so the composer asks the server for the same HTML the
+  // recipient will receive instead of approximating it client-side.
+  const [serverPreview, setServerPreview] = useState(null)   // { html } | { error } | null = loading
   const [emailTemplates, setEmailTemplates] = useState([])
   const [sending, setSending] = useState(false)
   // Detail-panel UI state (collapsible sections, transaction menu, quick note)
@@ -4113,7 +4117,22 @@ export default function Clients() {
             <div style={{display: 'flex', gap: 6}}>
               <button type="button" className={`btn btn-sm ${composerView === 'wysiwyg' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('wysiwyg')}>✎ Edit</button>
               <button type="button" className={`btn btn-sm ${composerView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('html')}>{'</>'} HTML</button>
-              <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={() => setSingleEmailPreviewOpen(true)}>👁 Preview</button>
+              <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={async () => {
+                setServerPreview(null)
+                setSingleEmailPreviewOpen(true)
+                // Ask the server for the real thing: it applies plain-to-HTML, the YouTube
+                // embed and the Open Graph link cards, in the same order the send path does.
+                try {
+                  const r = await authFetch('/api/email/preview', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    // `detail` is the open client record — the same one the preview renders
+                    // against below. There is no `emailClient` in this component.
+                    body: JSON.stringify({ client_id: detail?.id, subject: emailForm.subject, body: emailForm.body }),
+                  })
+                  const d = await r.json()
+                  setServerPreview(d.error ? { error: d.error } : { html: d.html })
+                } catch (e) { setServerPreview({ error: e.message }) }
+              }}>👁 Preview</button>
               <label className="btn btn-sm btn-secondary" style={{cursor: 'pointer', margin: 0, position: 'relative', overflow: 'hidden'}}>
                 📁 Load HTML
                 <input type="file" accept=".html,.htm,text/html"
@@ -4207,9 +4226,18 @@ export default function Clients() {
               </div>
               <iframe
                 title="Email preview"
-                srcDoc={autoEmbedYoutubeLinks(embedPropertyLinks(fill(emailForm.body)))}
+                srcDoc={serverPreview?.html
+                  // Fall back to the local render if the server preview is still loading or
+                  // failed. Links then show as links rather than cards, which is a worse
+                  // preview but never a blank one.
+                  ?? autoEmbedYoutubeLinks(embedPropertyLinks(fill(emailForm.body)))}
                 style={{width: '100%', height: '60vh', border: '1px solid var(--border)', borderRadius: 4, background: 'white'}}
               />
+              <div className="note" style={{fontSize: 13, color: 'var(--text-muted)', marginTop: 6}}>
+                {serverPreview === null ? 'Building link previews…'
+                  : serverPreview.error ? `Showing a local preview — link cards unavailable (${serverPreview.error})`
+                  : 'This is exactly what the recipient receives, link previews included.'}
+              </div>
               <div className="form-actions">
                 <button type="button" className="btn btn-secondary" onClick={() => setSingleEmailPreviewOpen(false)}>Close</button>
               </div>
