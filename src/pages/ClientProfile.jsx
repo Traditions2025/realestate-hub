@@ -4,6 +4,7 @@ import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
+import { centralKey, stampKey, newestFirst } from '../lib/timeline-order.js'
 import TemplatePicker from '../components/TemplatePicker'
 import {
   InlineName, InlineField, QuickAddTask, AiIsaCard,
@@ -1033,64 +1034,54 @@ function Communications({ client, onOpenText, onAddNote, onNotesChanged }) {
     : filter === 'call' ? (m.channel === 'call' || m.channel === 'voicemail')
     : m.channel === filter)
   if (q.trim()) { const t = q.toLowerCase(); items = items.filter(m => `${m.body || ''} ${m.preview || ''} ${m.subject || ''}`.toLowerCase().includes(t)) }
-  const shown = items.slice(0, limit)
   let notes = noteLines
   if (q.trim()) { const t = q.toLowerCase(); notes = notes.filter(n2 => n2.raw.toLowerCase().includes(t)) }
-  const shownNotes = notes.slice(0, limit)
-  // The All tab COUNTS notes in its badge, so it has to show them too. It did not: notes
-  // rendered only under the Notes filter, so a note added from the All tab disappeared from
-  // view and looked like it had never saved (John, 2026-10-13, on Patricia Stuckenschneider —
-  // he added the same note twice; both were in the field the whole time). Not on the Texts,
-  // Calls or Emails tabs, where a note genuinely does not belong.
-  const notesHere = filter === 'all' ? shownNotes : []
+  let sierra = sierraNotes
+  if (q.trim()) { const t = q.toLowerCase(); sierra = sierra.filter(a2 => String(a2.contents || '').toLowerCase().includes(t)) }
+
+  // ONE timeline, newest at the top (John, 2026-10-13: "notes should show from top to
+  // bottom newest to oldest"). Everything used to be grouped by SOURCE — imported FUB
+  // notes, then Sierra's, then the profile's own — so a note from years ago sat above one
+  // typed minutes ago, and on the All tab a new note landed underneath every email. The
+  // source a note arrived through is not what anyone is reading the list for; when it
+  // happened is.
+  //
+  // The All tab carries the profile's notes; Texts, Calls and Emails deliberately do not,
+  // because a note is not a text or a call.
+  const entries = [
+    ...items.map(m => ({ kind: 'comm', key: centralKey(m.occurred_at), id: 'c' + m.id, m })),
+    ...((filter === 'all' || filter === 'note')
+      ? notes.map(nt => ({ kind: 'note', key: stampKey(nt.stamp), id: 'n' + nt.index, nt }))
+      : []),
+    ...(filter === 'note'
+      ? sierra.map((a2, i) => ({ kind: 'sierra', key: centralKey(a2.date), id: 's' + (a2.id || i), a2 }))
+      : []),
+  ]
+  const timeline = newestFirst(entries)
+  const shownTimeline = timeline.slice(0, limit)
   return (
     <Section title="Communications" id="comms"
       right={<div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{FILTERS.map(([k, l]) => <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setFilter(k); setLimit(15) }}>{l}</button>)}{filter === 'note'
         ? <button className="btn btn-sm btn-primary" onClick={onAddNote}>+ Add Note</button>
         : <button className="btn btn-sm btn-primary" onClick={onOpenText}>+ New</button>}</div>}>
       <input value={q} onChange={e => setQ(e.target.value)} placeholder={filter === 'note' ? 'Search notes…' : 'Search communications…'} style={{ width: '100%', padding: '6px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5, marginBottom: 10 }} />
-      {filter === 'note' ? (
-        <>
-          {/* Imported FUB notes first - they carry a date and an author - then the
-              free-text notes typed on the profile. */}
-          {shown.length > 0 && <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: notes.length ? 10 : 0 }}>{shown.map(m => <CommItem key={m.id} m={m} client={client} />)}</div>}
-          {items.length > shown.length && <button className="btn btn-sm" style={{ marginBottom: 10 }} onClick={() => setLimit(l => l + 25)}>Load more notes ({items.length - shown.length})</button>}
-          {sierraNotes.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 10 }}>
-              {sierraNotes
-                .slice().sort((x, y) => new Date(y.date || 0) - new Date(x.date || 0))
-                .filter(a2 => !q.trim() || String(a2.contents || '').toLowerCase().includes(q.toLowerCase()))
-                .slice(0, limit).map((a2, i) => (
-                <div key={a2.id || 'sn' + i} style={{ fontSize: 15.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 14.5 }}>
-                    <span>📝 Sierra · {a2.author || 'Sierra System'}</span>
-                    <span>{a2.date ? new Date(a2.date).toLocaleDateString() : ''}</span>
+      {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Loading…</div>
+        : shownTimeline.length === 0
+          ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>{filter === 'note' ? 'No notes yet.' : 'Nothing here yet.'}</div>
+          : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {shownTimeline.map(e => e.kind === 'comm' ? <CommItem key={e.id} m={e.m} client={client} />
+              : e.kind === 'note' ? <NoteRow key={e.id} note={e.nt} clientId={cid} onChanged={onNotesChanged} />
+                : (
+                  <div key={e.id} style={{ fontSize: 15.5, borderLeft: '3px solid var(--border)', paddingLeft: 8 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--text-muted)', fontSize: 14.5 }}>
+                      <span>📝 Sierra · {e.a2.author || 'Sierra System'}</span>
+                      <span>{e.a2.date ? new Date(e.a2.date).toLocaleDateString() : ''}</span>
+                    </div>
+                    <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{e.a2.contents}</div>
                   </div>
-                  <div style={{ whiteSpace: 'pre-wrap', color: 'var(--text-primary)' }}>{a2.contents}</div>
-                </div>
-              ))}
-            </div>
-          )}
-          {!notes.length && !shown.length && !sierraNotes.length ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>No notes yet.</div>
-            : <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>{shownNotes.map(nt => (
-              <NoteRow key={nt.index} note={nt} clientId={cid} onChanged={onNotesChanged} />
-            ))}</div>}
-          {notes.length > shownNotes.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({notes.length - shownNotes.length})</button>}
-        </>
-      ) : (
-        <>
-          {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Loading…</div>
-            : (shown.length === 0 && notesHere.length === 0) ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Nothing here yet.</div>
-              : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} client={client} />)}</div>}
-          {items.length > shown.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({items.length - shown.length})</button>}
-          {notesHere.length > 0 && (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: shown.length ? 10 : 0 }}>
-              {notesHere.map(nt => <NoteRow key={nt.index} note={nt} clientId={cid} onChanged={onNotesChanged} />)}
-            </div>
-          )}
-          {notesHere.length > 0 && notes.length > notesHere.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more notes ({notes.length - notesHere.length})</button>}
-        </>
-      )}
+                ))}
+          </div>}
+      {timeline.length > shownTimeline.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({timeline.length - shownTimeline.length})</button>}
     </Section>
   )
 }

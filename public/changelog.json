@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-13T18:27:51.633Z",
+  "generated_at": "2026-10-13T18:45:34.583Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "1b99062",
+      "date": "2026-10-13T13:28:04-05:00",
+      "subject": "Show notes on the All tab, which already counted them",
+      "title": "Show notes on the All tab, which already counted them",
+      "body": "John, 2026-10-13: \"notes that we adding are not saving on leads profile... I've tried to\nadd note on her twice and it's not adding.\"\n\nNothing failed to save. Patricia Stuckenschneider (#1055) had BOTH notes in the field,\nstamped 1:22 PM and 1:23 PM Central with his name, and the profile endpoint returned\nthem. The All tab included notes in its badge count and then rendered only the\ncommunications rows, so a note typed from the tab the Add Note button sits on was\ninvisible. She has 3 communications rows, so the tab did not even look empty - the note\nappeared to vanish into a list of emails, which is why he typed it twice.\n\nThe All tab now renders the notes it counts, through the same NoteRow and the same\nonChanged handler so they stay editable and keep their raw line index. Texts, Calls and\nEmails are unchanged: a note is not a text or a call. The empty state now accounts for\nnotes, so \"Nothing here yet.\" can no longer sit under a badge reading (2).\n\ntest/profile-notes-visible.test.mjs guards the shape: a count that includes something\nthe view does not render.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8b9ada3",
       "date": "2026-10-13T12:43:48-05:00",
@@ -3991,14 +3999,6 @@
       "date": "2026-08-28T13:14:19-05:00",
       "subject": "AI walkthrough rule: keep it general (upgrades/condition/layout), don't parrot specific features",
       "title": "AI walkthrough rule: keep it general (upgrades/condition/layout), don't parrot specific features",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "11103ce",
-      "date": "2026-08-28T13:02:17-05:00",
-      "subject": "AI walkthrough rule: lead with the recommendation, don't open by downplaying it",
-      "title": "AI walkthrough rule: lead with the recommendation, don't open by downplaying it",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
