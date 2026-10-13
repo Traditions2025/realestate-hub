@@ -1,6 +1,8 @@
 import express, { Router } from 'express'
 import Anthropic from '@anthropic-ai/sdk'
 import db from '../database.js'
+import { CHANNELS, LEGACY_ASSET_TO_CHANNEL } from '../editorial/rules.js'
+import { startRun, applyVersion, recordHumanEdits } from '../editorial/service.js'
 
 const router = Router()
 const n = (v) => v === undefined ? null : v
@@ -10,18 +12,12 @@ router.use(express.json({ limit: '25mb' }))
 
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
 let _client = null
-function getClient() {
+export function getClient() {
   if (_client) return _client
   if (!process.env.ANTHROPIC_API_KEY) return null
   _client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
   return _client
 }
-
-const TEAM_SIGNATURE = `Matt Smith Team — RE/MAX Concepts
-(319) 431-5859 | matt@mattsmithteam.com | https://www.mattsmithteam.com
-5235 Buffalo Rdg Dr NE, Cedar Rapids, IA 52411`
-
-const TEAM_VOICE = `You are writing for the Matt Smith Team — a Cedar Rapids / Marion, Iowa real estate team at RE/MAX Concepts. Matt has 35+ years of experience and 2,000+ homes sold. Voice is local, warm, knowledgeable, never salesy or generic. Always reference Cedar Rapids / Linn County context where natural. Never invent features or numbers — only use what's provided.`
 
 function logActivity(action, entityId, details) {
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)', [action, 'listing', entityId, details])
@@ -104,6 +100,7 @@ const ALLOWED_FIELDS = [
   'marketing_coming_soon','marketing_just_listed','marketing_open_house',
   'marketing_email_blast','marketing_price_reduction','marketing_listing_description',
   'marketing_tasks',
+  'marketing_facts','marketing_dossier','marketing_premarket_blog','marketing_premarket_email','marketing_video_script','marketing_website_description',
   'client_id','pre_listing_id','transaction_id','notes',
 ]
 
@@ -142,9 +139,12 @@ router.put('/:id', (req, res) => {
   data.updated_at = new Date().toISOString()
   const keys = Object.keys(data)
   if (!keys.length) return res.json({ success: true })
+  const before = db.get('SELECT * FROM listings WHERE id = ?', [Number(req.params.id)])
   const sets = keys.map(k => `${k} = ?`).join(', ')
   const values = [...keys.map(k => n(data[k])), Number(req.params.id)]
   db.run(`UPDATE listings SET ${sets} WHERE id = ?`, values)
+  // Hand edits to marketing copy go into version history (restore + library diffs).
+  try { recordHumanEdits(Number(req.params.id), before, data, req.user?.email) } catch (e) { console.error('[listings] version record failed:', e.message) }
   logActivity('updated', Number(req.params.id), 'Updated listing')
   res.json({ success: true })
 })
@@ -268,7 +268,7 @@ router.post('/:id/extract-pdf', async (req, res) => {
 })
 
 // Shared: fetch a URL, strip noise, ask Claude to extract listing fields
-async function fetchAndExtract(client, url) {
+export async function fetchAndExtract(client, url) {
   const fetchRes = await fetchWithTimeout(url, 20000)
   if (!fetchRes.ok) {
     const err = new Error(`HTTP ${fetchRes.status}`)
@@ -421,7 +421,7 @@ async function fetchWithTimeout(url, ms = 15000, extraHeaders = {}) {
 }
 
 // Use DuckDuckGo HTML search to find the property page on a target domain
-async function searchForListingUrl(addressQuery, domain) {
+export async function searchForListingUrl(addressQuery, domain) {
   const q = `${addressQuery} site:${domain}`
   const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(q)}`
   try {
@@ -529,77 +529,25 @@ router.post('/:id/auto-populate', async (req, res) => {
 
 // =============================================
 // AI MARKETING GENERATION
+// Every asset goes through the editorial engine (server/editorial): analysis, outline,
+// draft, critical review, rewrite, fact check, polish. The Marketing tab uses the async
+// /api/editorial runs; this synchronous endpoint is kept for any older caller and saves
+// the recommended version.
 // =============================================
 
-const ASSET_PROMPTS = {
-  description: {
-    column: 'marketing_listing_description',
-    label: 'MLS / Listing Description',
-    prompt: (l, opts) => `Write a polished MLS listing description (250-350 words) for this property. Lead with what makes it special — location, key features, lifestyle. Cedar Rapids / Linn County, Iowa context. End with a clear, warm call-to-action to schedule a tour. No bullet points; flowing prose. Do NOT include the address as a header. ${opts?.tone ? 'Tone: ' + opts.tone + '.' : ''}\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  blog_post: {
-    column: 'marketing_blog_post',
-    label: 'Blog Post',
-    prompt: (l, opts) => `Write a 700-900 word HTML blog post announcing this listing. Use <h2>, <h3>, <p>, <ul><li> tags only — NO <html>/<body>/<style>. Include: an engaging intro, 3-4 sections (location/neighborhood, the home itself, lifestyle/who it's for, why now), and a strong CTA at the bottom with this exact contact line: "Call or text Matt at (319) 431-5859 — RE/MAX Concepts, Cedar Rapids." Include 2-3 internal-link placeholders like <a href="https://www.mattsmithteam.com/cedar-rapids">Cedar Rapids homes</a>. Cedar Rapids/Marion/Linn County voice. ${opts?.angle ? 'Angle: ' + opts.angle + '.' : ''}\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  social_instagram: {
-    column: 'marketing_social_instagram',
-    label: 'Instagram Caption',
-    prompt: (l) => `Write an Instagram caption for this just-listed property (140-220 words). Hook in the first line. Use line breaks between thoughts. End with 12-18 relevant hashtags split between local (Cedar Rapids/Marion/Iowa real estate) and broad (real estate, home buying). Include 2-4 emojis tastefully. Include a CTA: link in bio or DM for tour. Don't lead with the address.\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  social_facebook: {
-    column: 'marketing_social_facebook',
-    label: 'Facebook Post',
-    prompt: (l) => `Write a Facebook post for this listing (180-280 words). Conversational, warm, neighbor-to-neighbor tone. Lead with a hook. Mention the address. End with a clear CTA: "Comment 'INFO' or call/text (319) 431-5859 to schedule a tour." No hashtags (Facebook doesn't use them well). 1-3 emojis max.\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  coming_soon: {
-    column: 'marketing_coming_soon',
-    label: 'Coming Soon Post',
-    prompt: (l) => `Write a "Coming Soon" social media post (90-130 words) for this property. Build anticipation without giving away every detail — tease 2-3 standout features, hint at the neighborhood, no specific list date if not provided. End with: "DM or call (319) 431-5859 to be the first to tour it." Include 8-12 hashtags optimized for IG/FB.\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  just_listed: {
-    column: 'marketing_just_listed',
-    label: 'Just Listed Post',
-    prompt: (l) => `Write a "JUST LISTED" social media post (110-160 words). Bold opening like "JUST LISTED!" or "NEW ON MARKET". Include address, beds/baths/sqft/price as a clean stat line. 2-3 sentences on what makes it special. CTA: "Call/text (319) 431-5859 to schedule your tour." End with 10-14 hashtags (mix local + national).\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  email_blast: {
-    column: 'marketing_email_blast',
-    label: 'Email Blast',
-    prompt: (l) => `Write a marketing email blast for this new listing. Format:\n- Subject line (under 65 chars, no all-caps spam)\n- Preview text (under 100 chars)\n- HTML email body (use <h2>, <h3>, <p>, <ul><li> only — no inline styles, no <html>/<body>). Include a property summary, 3-4 highlights as a bulleted list, and a clear CTA button-style link: <a href="tel:3194315859">Call (319) 431-5859</a> | <a href="mailto:matt@mattsmithteam.com">Email Matt</a>\n\nReturn as JSON: {"subject": "...", "preview": "...", "html": "..."}\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-  price_reduction: {
-    column: 'marketing_price_reduction',
-    label: 'Price Reduction Post',
-    prompt: (l) => `Write a "Price Improvement" / "Price Reduced" social post (100-140 words) for this listing. Avoid sounding desperate — frame as "newly improved price" or "fresh price". Include the new price, original (if known: $${l.original_list_price || 'N/A'}). Stat line: address, beds/baths/sqft. CTA to tour. 8-12 hashtags.\n\nPROPERTY:\n${summarizeListing(l)}`,
-  },
-}
-
 router.post('/:id/generate/:asset', async (req, res) => {
-  const client = getClient()
-  if (!client) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
-  const id = Number(req.params.id)
-  const asset = req.params.asset
-  const def = ASSET_PROMPTS[asset]
-  if (!def) return res.status(400).json({ error: `Unknown asset: ${asset}` })
-  const listing = getListing(id)
-  if (!listing) return res.status(404).json({ error: 'Listing not found' })
-
+  const channel = LEGACY_ASSET_TO_CHANNEL[req.params.asset] || (CHANNELS[req.params.asset] ? req.params.asset : null)
+  if (!channel) return res.status(400).json({ error: `Unknown asset: ${req.params.asset}` })
+  if (!process.env.ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' })
   try {
-    const userPrompt = def.prompt(listing, req.body || {})
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2048,
-      system: TEAM_VOICE,
-      messages: [{ role: 'user', content: userPrompt }],
-    })
-    const out = (msg.content?.[0]?.text || '').trim()
-    const stamp = new Date().toISOString()
-    db.run(`UPDATE listings SET ${def.column} = ?, updated_at = ? WHERE id = ?`, [out, stamp, id])
-    logActivity('generated', id, `Generated ${def.label}`)
-    res.json({ success: true, asset, label: def.label, content: out })
+    const { runId, promise } = startRun({ listingId: Number(req.params.id), channel, input: req.body || {}, user: req.user?.email })
+    await promise
+    const applied = applyVersion({ runId, user: req.user?.email })
+    logActivity('generated', Number(req.params.id), `Generated ${CHANNELS[channel].label} (editorial run ${runId}, version ${applied.label})`)
+    res.json({ success: true, asset: req.params.asset, label: CHANNELS[channel].label, content: applied.content, run_id: runId })
   } catch (e) {
-    console.error(`[listings] generate ${asset} failed:`, e.message)
-    res.status(500).json({ error: e.message })
+    console.error(`[listings] generate ${req.params.asset} failed:`, e.message)
+    res.status(e.status || 500).json({ error: e.message })
   }
 })
 
@@ -720,7 +668,7 @@ router.get('/:id/matched-leads', (req, res) => {
 })
 
 router.get('/_meta/assets', (_req, res) => {
-  res.json(Object.entries(ASSET_PROMPTS).map(([key, v]) => ({ key, label: v.label, column: v.column })))
+  res.json(Object.entries(CHANNELS).map(([key, c]) => ({ key, label: c.label, column: c.column })))
 })
 
 router.get('/_meta/ai-status', (_req, res) => {

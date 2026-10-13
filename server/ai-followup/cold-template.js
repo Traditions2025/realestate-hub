@@ -33,9 +33,19 @@ export async function renderColdStageTemplate(stageIndex, approvedBody, client) 
   msg = fixGreetingForTime(msg)
   msg = avoidJohnOnJohn(msg, client)
 
-  return fillTemplate(msg, client)
+  return tidyFallbackGreeting(fillTemplate(msg, client))
     .replace(/\{\{[^}]+\}\}/g, '')               // drop any unresolved merge field
     .replace(/\s{2,}/g, ' ').replace(/\s+([,.!?])/g, '$1').trim()
+}
+
+/**
+ * fillTemplate resolves {{first_name}} to "there" when the stored name is unusable — a
+ * placeholder, an email address, digits, mojibake. "Hi there!" reads fine; "Good morning,
+ * there!" does not, it reads like a broken mail merge, which is the exact impression these
+ * messages exist to avoid. Drop the name from a timed greeting in that case.
+ */
+export function tidyFallbackGreeting(text) {
+  return String(text || '').replace(/^(Good (?:morning|afternoon|evening)),\s*there!/i, '$1!')
 }
 
 /** 'morning' before noon Central, 'afternoon' to 5pm, otherwise 'evening'. */

@@ -127,12 +127,14 @@ export const AREA_OPENERS_COLD = [
  * Build the area message for a lead, or null when there is no reliable featured community.
  * Returns the raw template text; merge fields are filled by the caller.
  */
-export function buildAreaMessage(clientId, { cold = false, pick = null } = {}) {
+export function buildAreaMessage(clientId, { cold = false, pick = null, seed = 0 } = {}) {
   const area = pick || pickArea(clientId)
   if (!area) return null
   const bank = cold ? AREA_OPENERS_COLD : AREA_OPENERS
-  // Deterministic per lead so the same person does not get the same wording twice running.
-  const idx = Math.abs(Number(clientId) || 0) % bank.length
+  // Deterministic per lead AND per stage. Keyed on the lead alone, Day 17 and Day 30 handed
+  // the same person a word-for-word identical area message — the exact repetition this bank
+  // exists to avoid. `seed` is the stage index, so consecutive area messages differ.
+  const idx = (Math.abs(Number(clientId) || 0) + Math.abs(Number(seed) || 0)) % bank.length
   const text = bank[idx].replace(/\{\{area\}\}/g, area.name).replace(/\{\{url\}\}/g, area.url)
   return { text, area }
 }

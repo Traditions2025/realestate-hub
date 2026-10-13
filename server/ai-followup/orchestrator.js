@@ -399,10 +399,16 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
         try {
           const { buildAreaMessage, countUrls } = await import('./area-links.js')
           // Cold = a long-term stage, where reintroducing John is appropriate.
-          const built = buildAreaMessage(cid, { cold: idx >= 6 })
+          const built = buildAreaMessage(cid, { cold: idx >= 6, seed: idx })
           if (built) {
             const { fillTemplate } = await import('../routes/email.js')
-            const areaText = fillTemplate(built.text, client).replace(/\{\{[^}]+\}\}/g, '').replace(/\s{2,}/g, ' ').trim()
+            const { fixGreetingForTime, tidyFallbackGreeting } = await import('./cold-template.js')
+            // The area openers carry their own greeting too, so they need the same
+            // time-of-day correction as the bank messages. Without this an area message
+            // could greet a lead with "Good morning" at 4pm, which is the giveaway the
+            // whole rewrite is meant to remove.
+            const areaText = tidyFallbackGreeting(fixGreetingForTime(fillTemplate(built.text, client)))
+              .replace(/\{\{[^}]+\}\}/g, '').replace(/\s{2,}/g, ' ').trim()
             // Rule enforced, not trusted: one URL per SMS, never two area links.
             if (countUrls(areaText) === 1) templateText = areaText
           }

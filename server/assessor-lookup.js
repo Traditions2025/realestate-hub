@@ -216,7 +216,7 @@ async function lookupOn(host, street) {
     r = await go(url)
     html = await r.text()
   }
-  return { url, shown: shownAddress(html), host }
+  return { url, shown: shownAddress(html), host, html }
 }
 
 /**
@@ -226,7 +226,7 @@ async function lookupOn(host, street) {
  * address can be outside the city limits and so belong to the county assessor. Of the
  * sample, 3 of 9 only resolved after that fallback.
  */
-export async function resolveParcel(address, city) {
+export async function resolveParcel(address, city, { withHtml = false } = {}) {
   const street = streetOnly(address)
   if (!street) return { error: 'no address' }
   const first = assessorHost(city)
@@ -254,7 +254,7 @@ export async function resolveParcel(address, city) {
       if (out.error || !out.url) continue
       // Never hand back a parcel that is not the address asked for.
       if (!addressesAgree(street, out.shown)) continue
-      return { url: out.url, shown: out.shown, host: out.host, fell_back: out.host !== first }
+      return { url: out.url, shown: out.shown, host: out.host, fell_back: out.host !== first, ...(withHtml ? { html: out.html } : {}) }
     }
     return null
   }

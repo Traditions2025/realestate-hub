@@ -1,7 +1,87 @@
 {
-  "generated_at": "2026-10-09T19:08:55.792Z",
+  "generated_at": "2026-10-13T18:27:51.633Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8b9ada3",
+      "date": "2026-10-13T12:43:48-05:00",
+      "subject": "AI buyer nurture: John's rewritten copy, plus area-based value outreach",
+      "title": "AI buyer nurture: John's rewritten copy, plus area-based value outreach",
+      "body": "All 152 messages replaced with John's versions, used verbatim, across Day 1, 4,\n9, 17, 30, 50, 80, 120, 165, 210 and the ongoing 45-60 day loop. Copy now lives\nin ai-followup/buyer-messages.js so wording can be edited without touching\nprompt plumbing.\n\nThree structural changes his rewrite required:\n\n1. Messages are SELF-CONTAINED. Each carries its own greeting and the lead's\n   first name. cold-template.js used to bolt \"Good afternoon {{first_name}},\n   it's John with Matt Smith Team at RE/MAX.\" onto a bare question, which is\n   what made these read like CRM prompts.\n\n2. \"You can always browse the latest at MattSmithTeam.com\" is GONE from every\n   message. It was appended to all of them; the goal of these texts is a reply,\n   not a click.\n\n3. John is introduced on Day 1 only. After that the conversation reads as\n   continuous rather than reintroduced every time.\n\nAREA-BASED VALUE OUTREACH (ai-followup/area-links.js). On Day 17, Day 30 and the\nongoing loop, a generic message can be replaced by the newest listings for the\ncommunity the lead has actually been browsing. Selection order is strongest\nsignal first: most recent search area, then most-viewed area, then the city on\nthe lead record. Only the 11 featured communities have pages, and a lead with no\nreliable history gets no link and the ordinary message instead - a guessed area\nis worse than none. All 11 URLs verified live.\n\nONE URL PER SMS, enforced in code rather than trusted: the orchestrator counts\nURLs and falls back to the plain message if it is ever not exactly one.\n\nTwo details worth recording:\n- Apostrophes are straight ASCII throughout. A curly apostrophe is outside\n  GSM-7 and forces UCS-2, cutting an SMS segment from 160 characters to 70;\n  most of these would silently have become 3 segments instead of 1 or 2.\n- The greeting is corrected to the send time. The bank mixes \"Good morning\",\n  \"Good afternoon\" and \"Hi\", and the rotation has no idea what time it is, so\n  \"Good morning\" at 4pm was inevitable. A mismatched greeting is rewritten,\n  \"Hi\" is left alone, and in the evening a timed greeting becomes \"Hi\".\n\n24 tests. Longest message is 243 chars, all within 2 segments, none carries a\nURL, all greet by name.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b205270",
+      "date": "2026-10-13T11:25:49-05:00",
+      "subject": "Inbound-text alerts: Matt on every one, not just after 6 PM",
+      "title": "Inbound-text alerts: Matt on every one, not just after 6 PM",
+      "body": "John, 2026-10-13: \"turn on text notifications for Matt, no time specific\".\n\nThese are the EMAIL alerts sent when a lead texts the Hub, so Matt can see who\nreplied to his texts. He was added only when isOffHoursCentral() was true —\nweekday after 6 PM Central, any weekend, or a US holiday — so replies during\nthe working day never reached him.\n\nThe time-of-day test is removed outright rather than left as dead code that\nlooks like it still matters. Both recipient lists now come from settings, so\nthis never needs another deploy to change:\n\n  inbox_notify_email       main recipient(s), default John\n  inbox_notify_always_cc   always copied, default mattsmithremax@gmail.com\n\nA Set still de-duplicates, so an address in both lists is emailed once.\n\nVolume, for the record: inbound texts have run 7-24 a weekday this month and 0\nat weekends, so this is roughly 10-20 more emails a day for Matt on a weekday.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "977cb5f",
+      "date": "2026-10-13T10:25:14-05:00",
+      "subject": "Clients composer: a Clear button, because the draft survives Cancel",
+      "title": "Clients composer: a Clear button, because the draft survives Cancel",
+      "body": "John, 2026-10-13: \"the hey it's matt smith still shows though\".\n\nThat copy is not stored anywhere. I searched the repo, all 379 templates\n(including with HTML tags stripped, in case formatting split the words), the\ntransaction and prelisting templates, every drip step, and every text column of\nevery table in the database. It appears in none of them.\n\nIt is the composer holding a draft. emailForm is only reset by\nopenEmailComposer(); Cancel and the modal close leave it intact, so the body\ntyped earlier is still there the next time the composer opens. Useful when you\nmeant to come back to it, confusing when you did not, and there was no way to\nclear it short of select-all-delete.\n\nAdds a Clear button next to Edit/HTML that resets subject and body back to a\nblank email with the signature, behind a confirm so a real draft cannot be lost\nby a misclick.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "99f9239",
+      "date": "2026-10-13T10:04:54-05:00",
+      "subject": "Fix: /preview corrupted plain-text bodies by escaping the signature",
+      "title": "Fix: /preview corrupted plain-text bodies by escaping the signature",
+      "body": "Shipped a few minutes ago in the /preview rewrite, caught by checking the live\nendpoint rather than trusting the deploy.\n\nThe route appended the signature and THEN ran plainToHtml over the whole\nstring. The signature is already HTML, so it came back escaped as visible\n\"&lt;br&gt;&lt;div …\", and because that escaped text ran straight on from the\nURL with no whitespace, the link matcher swallowed it into the href:\n\n  <a href=\"https://…/v/tA6G02&lt;br&gt;&lt;br&gt;&lt;div\"> <a …> </a></a>\n\nNested anchors, corrupted URL, no preview card.\n\nHTML bodies were unaffected, which is why the composer looked right while the\nAPI was mangling plain text. Order is now: plain-to-HTML first, then signature,\nthen merge fields, then the embeds.\n\nTwo regression tests: one pins the ordering in the route, one asserts no href\never swallows markup and no anchors nest.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "d504ad3",
+      "date": "2026-10-13T10:00:08-05:00",
+      "subject": "Link preview card: Dubb layout, sized by aspect, placed with its sentence",
+      "title": "Link preview card: Dubb layout, sized by aspect, placed with its sentence",
+      "body": "Three fixes from John's review of the live result (2026-10-13).\n\n1. SIZE. The card was a fixed 560px wide. Fine for a landscape thumbnail,\n   absurd for a portrait one: Matt's phone videos are 1080x1920, which rendered\n   996px tall and swamped the email. Both dimensions are now capped (340x300)\n   and the image keeps its aspect, so portrait lands at 169x300 and landscape at\n   340x153. Width and height are written as attributes because Outlook ignores\n   CSS max-height on images.\n\n2. PLACEMENT. \"the video was not positioned next to the actual text\" — the card\n   appeared below the signature. The end-of-line test compared the next 40\n   characters against a whitelist of CLOSING tags, so \"<URL><br><br><div>\" (the\n   signature block opening) failed it, the link was judged mid-sentence, and its\n   card went to the bottom of the body. It now strips tags up to the next line\n   break and asks whether any visible text remains, which is the real question.\n\n3. LAYOUT, matching Dubb's own card: title above the thumbnail, thumbnail, then\n   a \"Watch Video (1:30)\" button. The duration comes from the JSON-LD\n   ISO 8601 \"duration\" on the page, since it is not an OG tag. A non-video page\n   gets \"Open link\" instead.\n\n32 tests, including the real portrait Dubb video end to end.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "9f21052",
+      "date": "2026-10-13T09:49:13-05:00",
+      "subject": "Email: every link previews, with the image the lead actually receives",
+      "title": "Email: every link previews, with the image the lead actually receives",
+      "body": "John, 2026-10-13: \"any link should preview in the email composer in clients\",\nthen \"this should apply to any links ... so when leads receive our email it has\nimage\", with a Dubb video link as the example.\n\nEmail has no unfurling. Slack and iMessage fetch a page and build a card; no\nmail client ever will. So the card has to be built into the HTML before the\nmessage is sent. server/link-preview.js reads Open Graph and builds one.\n\nDubb needs no special case: it publishes og:image:type image/gif and a GIF with\nthe play button already drawn on it, so a plain OG reader gets the animated\npreview for free. The same path covers Vimeo, Loom, blog posts and anything\nelse with OG tags. YouTube keeps its existing thumbnail builder because that\nneeds no network call.\n\nSSRF, since this fetches user-supplied URLs from the server: https only, DNS\nresolved and every address checked against private/loopback/link-local/CGNAT\nranges BEFORE connecting, redirects followed manually with the same check each\nhop, 8s timeout, 512KB cap, 24h cache. 169.254.169.254 and ::ffff:10.0.0.1 are\nboth covered by tests.\n\nPlacement rule: a URL at the end of its line becomes the card in place (the\nvideo-email shape); a URL mid-sentence stays an inline link and its card is\nappended after the body, because a block-level card dropped into a sentence\nbreaks the sentence. Either way the link previews. One card per unique URL.\n\nAlso fixes two things found while checking:\n- server/routes/email.js defined POST /preview TWICE. Express matches the\n  first, so the second was dead from the day it was added - which is why the\n  preview endpoint never applied the YouTube embed despite a comment saying it\n  did. The live route now runs the full send pipeline; the duplicate is gone,\n  with a test pinning that there is exactly one.\n- The Clients composer preview rendered a local approximation. It now asks the\n  server for the same HTML the recipient gets, and says so under the frame,\n  falling back to the local render if a linked site is slow or down.\n\n24 tests, including against the real Dubb link.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1aa95e4",
+      "date": "2026-10-12T11:48:28-05:00",
+      "subject": "Columbus Day is not a no-send day",
+      "title": "Columbus Day is not a no-send day",
+      "body": "John, 2026-10-12: \"columbus day is not widely celebrated as in no texting day\nso we can turn texting and email on today\".\n\nIt is a federal holiday but a normal working day for most of the people we text\nand email, so pausing on it cost a full day of touches for no benefit. The list\nis \"days our audience is not at work\", not \"days federal offices are shut\".\n\nRemoved for this year and every future year. Everything else is unchanged:\nNew Year, MLK, Presidents', Memorial, Juneteenth, Independence, Labor,\nVeterans, Thanksgiving, Christmas, and the weekend-observed dates.\n\nSide effect worth noting: 10 tests across collision-guard, compliance,\ncx-connect and fub-status-push were failing today for no reason other than this\nentry, because they call the send gate with no holiday stub. Full suite went\nfrom 14 failures to 5, and the one new name passes in isolation (known\ncross-suite DB pollution, not this change).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4948b63",
+      "date": "2026-10-12T11:35:20-05:00",
+      "subject": "FSBO: a manual exclusion holds against every automatic path",
+      "title": "FSBO: a manual exclusion holds against every automatic path",
+      "body": "John, 2026-10-12: \"make sure nothing gets them enrolled again unless done\nmanually\". Audited all 25 writes to fsbo_followups and closed the three paths\nthat could have resurrected an excluded lead.\n\nfsboManualDecision() is now the single rule ('removed' or 'paused' = an agent's\nchoice, cleared only by an agent). Every automatic path asks it instead of\nre-deriving the rule in its own SQL.\n\nThree guards on the auto-enroll sweep, not one:\n  1. the candidate query (already there)\n  2. an explicit check by client id, so a future edit to that JOIN cannot\n     re-open the door\n  3. a WHERE on the upsert itself. Without it, INSERT..ON CONFLICT DO UPDATE\n     SET status='active' would flip a 'removed' row straight back to active —\n     the one statement in the system that could undo an exclusion. An\n     OFF_MARKET 'stopped' row can still revive, which is the intended re-entry\n     path for a relisted FSBO.\n\nTwo more paths closed:\n- /api/lists/fsbo/followup/seed inserts status='active' outright. It now skips\n  leads carrying a manual decision and reports them as skipped.\n- MERGE. doMerge copies fsbo_status onto the survivor when the survivor has\n  none, so folding an excluded FSBO record into a plain lead moved the FSBO\n  identity to a record with no decision row, and the sweep would enroll it. The\n  decision belongs to the person, so carryFsboDecisionToSurvivor() moves it.\n  An exclusion wins over the survivor's active campaign (an agent saying \"do\n  not text this seller\" should stop the texting, and it is one click to undo),\n  but never overrides a decision the survivor already made, and never clears\n  attempt_count or enrolled_at.\n\n22 tests, one per path, all executing the real statements. Full suite shows no\nnew failures: its failing set varies run to run from pre-existing cross-suite\nDB pollution, and a name-level diff against a stashed baseline is empty.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f843bf9",
+      "date": "2026-10-12T11:21:22-05:00",
+      "subject": "FSBO campaign: let an agent exclude a lead before enrolment",
+      "title": "FSBO campaign: let an agent exclude a lead before enrolment",
+      "body": "A FSBO below the DOM-14 threshold has no fsbo_followups row, so pause and\nremove were UPDATEs that matched nothing and still returned ok. The lead then\nauto-enrolled the day they crossed the threshold, with no way to stop it from\nthe profile (John, 2026-10-12, on Deborah Emrich at DOM 3).\n\n- pause/remove now upsert a decision row. The evaluator already treats\n  'removed'/'paused' as excluded, and the auto-enroll sweep only picks up leads\n  with no row or an OFF_MARKET stop, so the decision holds at DOM 14 and later.\n- enrolled_at stays NULL on a pre-enrolment row, which is how an undo tells the\n  two cases apart.\n- allowBackIntoFsboCampaign deletes a pre-enrolment decision instead of\n  reactivating it: resume demands current eligibility, and a DOM-3 lead is\n  'waiting', so reactivating would refuse. Deleting returns them to the clean\n  un-decided state the sweep looks for. resume routes there automatically, so\n  one button covers both cases. An enrolled row is never deleted.\n- profile: \"Exclude from campaign\" and \"Hold\" on a waiting/eligible lead,\n  \"Allow back in\" on a removed one, and a line saying a lead excluded before\n  enrolment was never texted.\n\nTests execute the real SQL against the real schema rather than reading source,\nwhich is what let the UPDATE-with-no-row bug ship.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5f07177",
+      "date": "2026-10-09T14:09:07-05:00",
+      "subject": "Blast list is all 66: NO_MARKETING is an imported tag, not an opt-out",
+      "title": "Blast list is all 66: NO_MARKETING is an imported tag, not an opt-out",
+      "body": "I excluded ten past clients because their Hub record carried NO_MARKETING. John\nasked where that tag comes from, and the answer makes the exclusion wrong:\n\n  - nothing in this codebase creates it\n  - nothing in this codebase honours it. emailHardBlock checks email_status and\n    isBlockedEmail; a real opt-out is marketing_email_opt_out or\n    email_status='OptedOut'\n  - it arrived in the 2026-05-11 bulk import, alongside Import, Imported Stage:,\n    Fello, Dealmachine, Database REfresh\n  - it is ALWAYS paired with NO_TEXT, which is a vendor export's two columns, not\n    ten individual decisions\n  - it is on thousands of records\n\nThe source CSV had already judged this correctly: the tag sits in SoftNotes,\ndescribed as a bulk import tag, while OptOutFlags - the column for real opt-outs,\nwhich put 25 other rows on DO NOT BLAST - was empty for all ten. I treated a\ndecorative tag as authoritative over the file's own explicit classification.\n\nThe list now filters what actually blocks a send: marketing_email_opt_out, and\nemail_status in OptedOut / ReportedAsSpam / WrongAddress. All ten were re-checked\nagainst those fields before being added - all clear, nine ValidAddress and one\nTwoWayEmailing.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "612e40f",
       "date": "2026-10-09T13:45:07-05:00",
@@ -3919,86 +3999,6 @@
       "date": "2026-08-28T13:02:17-05:00",
       "subject": "AI walkthrough rule: lead with the recommendation, don't open by downplaying it",
       "title": "AI walkthrough rule: lead with the recommendation, don't open by downplaying it",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fb69675",
-      "date": "2026-08-28T13:01:08-05:00",
-      "subject": "AI prompt: always encourage seller walkthrough + move to scheduling; speak in second person",
-      "title": "AI prompt: always encourage seller walkthrough + move to scheduling; speak in second person",
-      "body": "- WALKTHROUGH rule: if a potential seller asks whether an in-person visit is\n  necessary, always encourage it as the preferred/most accurate way to value the\n  home (never 'strictly required', never 'totally optional'); once they're\n  receptive, transition straight into scheduling + hand off. Includes the team's\n  approved encouragement + scheduling scripts.\n- STYLE: always address the lead directly in second person ('you'/'your home'),\n  never third person ('if they want') when meaning the person being texted.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7fc29fa",
-      "date": "2026-08-28T12:53:02-05:00",
-      "subject": "AI: purge-past-clients from cold-buyer drip (cancel queued texts + disable AI)",
-      "title": "AI: purge-past-clients from cold-buyer drip (cancel queued texts + disable AI)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d62ad27",
-      "date": "2026-08-28T12:46:06-05:00",
-      "subject": "AI: bulk /lead-states endpoint to report AI enabled/managed/pending per lead",
-      "title": "AI: bulk /lead-states endpoint to report AI enabled/managed/pending per lead",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ccbb902",
-      "date": "2026-08-28T12:40:41-05:00",
-      "subject": "Clients: reclassify-past-client endpoint (status->closed + optional agent assign)",
-      "title": "Clients: reclassify-past-client endpoint (status->closed + optional agent assign)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "22bfcb1",
-      "date": "2026-08-28T12:26:57-05:00",
-      "subject": "Merge dry-run: add version marker to confirm deploy",
-      "title": "Merge dry-run: add version marker to confirm deploy",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6e018d7",
-      "date": "2026-08-28T12:26:26-05:00",
-      "subject": "Merge: cancel pending AI drip actions on archived (merged-away) records",
-      "title": "Merge: cancel pending AI drip actions on archived (merged-away) records",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "85f9ac9",
-      "date": "2026-08-28T12:23:59-05:00",
-      "subject": "Merge: union tags on survivor; add clustered Group-B past-client dup merger (dry-run)",
-      "title": "Merge: union tags on survivor; add clustered Group-B past-client dup merger (dry-run)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d6992d1",
-      "date": "2026-08-28T11:59:28-05:00",
-      "subject": "Audit: exclude 'Past Client Unsubscribed to E-Alerts' noise tag (keep Caves)",
-      "title": "Audit: exclude 'Past Client Unsubscribed to E-Alerts' noise tag (keep Caves)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "396922d",
-      "date": "2026-08-28T11:52:11-05:00",
-      "subject": "Audit: inspect past-client tags to separate genuine tag from automation noise",
-      "title": "Audit: inspect past-client tags to separate genuine tag from automation noise",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f2973e0",
-      "date": "2026-08-28T11:15:41-05:00",
-      "subject": "Audit: score match fields per past record; split tagged-in-new / high-confidence / weak",
-      "title": "Audit: score match fields per past record; split tagged-in-new / high-confidence / weak",
       "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }

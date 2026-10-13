@@ -2323,6 +2323,72 @@ export async function initDb() {
     console.error('[migration] listings.marketing_tasks failed:', e.message)
   }
 
+  // Editorial engine (server/editorial): new channel columns on listings, plus run history,
+  // version history (restore), the approved-copy reference library, team writing rules with
+  // an audit trail, and the feedback that turns into rules.
+  try {
+    const cols = db.all("PRAGMA table_info(listings)").map(r => r.name)
+    for (const c of ['marketing_facts', 'marketing_premarket_blog', 'marketing_premarket_email', 'marketing_video_script', 'marketing_website_description', 'marketing_editorial_settings', 'marketing_dossier']) {
+      if (!cols.includes(c)) { db.run(`ALTER TABLE listings ADD COLUMN ${c} TEXT`); console.log(`[migration] Added listings.${c}`) }
+    }
+    db.run(`CREATE TABLE IF NOT EXISTS editorial_runs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listing_id INTEGER NOT NULL,
+      channel TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'running',
+      stage TEXT,
+      settings TEXT, analysis TEXT, drafts TEXT, review TEXT, rewrite TEXT, verification TEXT, final TEXT,
+      facts_hash TEXT, model TEXT, error TEXT, created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')), finished_at TEXT
+    )`)
+    db.run('CREATE INDEX IF NOT EXISTS idx_edruns_listing ON editorial_runs(listing_id, channel)')
+    db.run(`CREATE TABLE IF NOT EXISTS editorial_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listing_id INTEGER NOT NULL,
+      channel TEXT NOT NULL,
+      content TEXT NOT NULL,
+      source TEXT NOT NULL,
+      version_label TEXT, run_id INTEGER, created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`)
+    db.run('CREATE INDEX IF NOT EXISTS idx_edver_listing ON editorial_versions(listing_id, channel)')
+    db.run(`CREATE TABLE IF NOT EXISTS editorial_library (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listing_id INTEGER,
+      channel TEXT NOT NULL DEFAULT 'mls',
+      property_type TEXT, price_positioning TEXT, key_characteristics TEXT, tone TEXT,
+      approved_text TEXT NOT NULL,
+      original_draft TEXT, human_edits TEXT, edit_reasons TEXT,
+      label TEXT NOT NULL DEFAULT 'acceptable',
+      approved_by TEXT, approved_at TEXT DEFAULT (datetime('now')),
+      created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+    )`)
+    db.run(`CREATE TABLE IF NOT EXISTS editorial_rules (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_text TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'guidance',
+      pattern TEXT, channel TEXT,
+      active INTEGER NOT NULL DEFAULT 1,
+      source TEXT, feedback_key TEXT, created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now')), updated_at TEXT DEFAULT (datetime('now'))
+    )`)
+    db.run(`CREATE TABLE IF NOT EXISTS editorial_rule_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      rule_id INTEGER NOT NULL,
+      action TEXT NOT NULL,
+      before_json TEXT, after_json TEXT, reason TEXT, changed_by TEXT,
+      changed_at TEXT DEFAULT (datetime('now'))
+    )`)
+    db.run(`CREATE TABLE IF NOT EXISTS editorial_feedback (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      listing_id INTEGER, run_id INTEGER, channel TEXT,
+      feedback_key TEXT NOT NULL, text TEXT NOT NULL, created_by TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )`)
+  } catch (e) {
+    console.error('[migration] editorial tables failed:', e.message)
+  }
+
   // Migration: add marketing_tasks column to pre_listings — the same unified
   // marketing checklist (JSON) shown in the pre-listing popup and on Active
   // transactions.

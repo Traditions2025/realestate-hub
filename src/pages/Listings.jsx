@@ -4,6 +4,8 @@ import { authFetch } from '../api'
 import Modal from '../components/Modal'
 import EmailToolbar from '../components/EmailToolbar'
 import { autoEmbedYoutubeLinks } from '../components/inlineImages'
+import EditorialStudio from '../components/EditorialStudio'
+import EditorialLibrary from '../components/EditorialLibrary'
 
 const STAGES = [
   { key: 'all', label: 'All' },
@@ -12,17 +14,6 @@ const STAGES = [
   { key: 'active', label: 'Active' },
   { key: 'under_contract', label: 'Under Contract' },
   { key: 'closed', label: 'Closed' },
-]
-
-const ASSETS = [
-  { key: 'description', label: 'MLS Description', column: 'marketing_listing_description' },
-  { key: 'blog_post', label: 'Blog Post', column: 'marketing_blog_post' },
-  { key: 'social_instagram', label: 'Instagram', column: 'marketing_social_instagram' },
-  { key: 'social_facebook', label: 'Facebook', column: 'marketing_social_facebook' },
-  { key: 'coming_soon', label: 'Coming Soon Post', column: 'marketing_coming_soon' },
-  { key: 'just_listed', label: 'Just Listed Post', column: 'marketing_just_listed' },
-  { key: 'email_blast', label: 'Email Blast', column: 'marketing_email_blast' },
-  { key: 'price_reduction', label: 'Price Reduction', column: 'marketing_price_reduction' },
 ]
 
 // Canonical marketing task checklist, grouped by stage
@@ -205,6 +196,7 @@ const emptyForm = {
   description: '', seller_name: '', seller_phone: '', seller_email: '',
   list_date: '', open_house_date: '', open_house_time: '', notes: '',
   marketing_tasks: {},
+  marketing_facts: '', marketing_editorial_settings: '',
 }
 
 const fmtPrice = (n) => n ? '$' + Number(n).toLocaleString() : ''
@@ -224,7 +216,7 @@ export default function Listings() {
   const [form, setForm] = useState(emptyForm)
   const [activeTab, setActiveTab] = useState('details')
   const [aiStatus, setAiStatus] = useState({ configured: false })
-  const [generating, setGenerating] = useState(null)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const [extracting, setExtracting] = useState(null)
   const [urlInput, setUrlInput] = useState('')
   const [featuresInput, setFeaturesInput] = useState('')
@@ -520,26 +512,13 @@ export default function Listings() {
     }
   }
 
-  const generateAsset = async (assetKey) => {
-    if (!editingId) { notify('Save the listing first.'); return }
-    if (!aiStatus.configured) { notify('AI is not configured. Set ANTHROPIC_API_KEY env var.'); return }
-    setGenerating(assetKey)
-    try {
-      // Save current form first so AI has latest data
-      await save()
-      const r = await authFetch(`/api/listings/${editingId}/generate/${assetKey}`, {
-        method: 'POST',
-        body: JSON.stringify({}),
-      })
-      const d = await r.json()
-      if (d.error) { notify('Generation failed: ' + d.error); return }
-      const asset = ASSETS.find(a => a.key === assetKey)
-      if (asset) f2(asset.column, d.content)
-    } catch (e) {
-      notify('Generation failed: ' + e.message)
-    } finally {
-      setGenerating(null)
-    }
+  // Save without closing the modal or reloading the list: the editorial studio saves the
+  // latest property details before every generation.
+  const saveQuiet = async () => {
+    if (!editingId) throw new Error('Save the listing first.')
+    const r = await authFetch(`/api/listings/${editingId}`, { method: 'PUT', body: JSON.stringify(buildPayload()) })
+    const d = await r.json().catch(() => ({}))
+    if (!r.ok || d.error) throw new Error(d.error || `HTTP ${r.status}`)
   }
 
   const buildMatchedEmail = (l) => {
@@ -1033,48 +1012,13 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
 
         {activeTab === 'marketing' && (
           <div>
-            {!editingId && (
-              <div className="warning-banner" style={{padding: '10px 14px', background: '#3a2a14', border: '1px solid #c89b4a', borderRadius: 6, color: '#f4d8a3', marginBottom: 16}}>
-                Save the listing first to enable marketing generation.
-              </div>
-            )}
-            <p className="muted" style={{marginTop: 0}}>
-              Click any button to generate. Each generation uses Claude with the team voice + property details.
-              You can edit the generated content directly in each box. Changes save when you click "Save" at the bottom.
-            </p>
-
-            {ASSETS.map(asset => (
-              <div key={asset.key} className="asset-card">
-                <div className="asset-header">
-                  <h4>{asset.label}</h4>
-                  <div className="asset-actions">
-                    <button
-                      type="button"
-                      className="btn-sm btn-secondary"
-                      disabled={!form[asset.column]}
-                      onClick={() => copy(form[asset.column])}
-                    >
-                      Copy
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-sm btn-primary"
-                      disabled={!editingId || generating === asset.key}
-                      onClick={() => generateAsset(asset.key)}
-                    >
-                      {generating === asset.key ? 'Generating...' : (form[asset.column] ? 'Regenerate' : 'Generate')}
-                    </button>
-                  </div>
-                </div>
-                <textarea
-                  rows={6}
-                  value={form[asset.column] || ''}
-                  onChange={e => f2(asset.column, e.target.value)}
-                  placeholder={`(empty — click "Generate" to create a ${asset.label.toLowerCase()})`}
-                />
-              </div>
-            ))}
-
+            <EditorialStudio
+              listingId={editingId}
+              form={form}
+              setField={f2}
+              saveQuiet={saveQuiet}
+              onOpenLibrary={() => setLibraryOpen(true)}
+            />
             <div className="form-actions">
               <button type="button" className="btn btn-secondary" onClick={() => setOpenModal(false)}>Close</button>
               <button type="button" className="btn btn-primary" onClick={save}>Save All</button>
@@ -1082,6 +1026,8 @@ ${l.mls_link ? `<p><a href="${l.mls_link}">View full listing &raquo;</a></p>` : 
           </div>
         )}
       </Modal>
+
+      <EditorialLibrary open={libraryOpen} onClose={() => setLibraryOpen(false)} />
 
       {/* Matched Leads modal */}
       <Modal

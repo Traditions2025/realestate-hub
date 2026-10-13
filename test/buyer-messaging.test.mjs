@@ -5,6 +5,7 @@
 // being introduced once rather than every message, and the one-link-per-SMS rule.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 
 import * as B from '../server/ai-followup/buyer-messages.js'
 import { COLD_BUYER_STAGES } from '../server/ai-followup/prompts.js'
@@ -187,4 +188,20 @@ test('the copy is used exactly as written', () => {
     "Hi {{first_name}}! Should I keep you posted if something good comes up, or give you some space for now?")
   assert.equal(B.ONGOING.length, 8)
   assert.equal(B.DAY1.length, 24)
+})
+
+test('consecutive area messages differ, so Day 17 and Day 30 are not word-for-word identical', async () => {
+  const { buildAreaMessage } = await import('../server/ai-followup/area-links.js')
+  const pick = { city: 'Marion', name: 'Marion', url: 'https://www.mattsmithteam.com/marion-ia-homes-for-sale/', reason: 'test' }
+  const d17 = buildAreaMessage(4242, { pick, seed: 3 })   // stage index 3 = Day 17
+  const d30 = buildAreaMessage(4242, { pick, seed: 4 })   // stage index 4 = Day 30
+  assert.notEqual(d17.text, d30.text, 'same lead, two stages, must not be the identical message')
+})
+
+test('area messages get the same time-of-day greeting correction as the bank', () => {
+  const src = fs.readFileSync(new URL('../server/ai-followup/orchestrator.js', import.meta.url), 'utf8')
+  const i = src.indexOf('buildAreaMessage')
+  const block = src.slice(i, i + 900)
+  assert.match(block, /fixGreetingForTime/,
+    'an area message carries its own greeting and must not escape the correction')
 })

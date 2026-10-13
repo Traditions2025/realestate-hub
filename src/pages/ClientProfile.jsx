@@ -1037,6 +1037,12 @@ function Communications({ client, onOpenText, onAddNote, onNotesChanged }) {
   let notes = noteLines
   if (q.trim()) { const t = q.toLowerCase(); notes = notes.filter(n2 => n2.raw.toLowerCase().includes(t)) }
   const shownNotes = notes.slice(0, limit)
+  // The All tab COUNTS notes in its badge, so it has to show them too. It did not: notes
+  // rendered only under the Notes filter, so a note added from the All tab disappeared from
+  // view and looked like it had never saved (John, 2026-10-13, on Patricia Stuckenschneider —
+  // he added the same note twice; both were in the field the whole time). Not on the Texts,
+  // Calls or Emails tabs, where a note genuinely does not belong.
+  const notesHere = filter === 'all' ? shownNotes : []
   return (
     <Section title="Communications" id="comms"
       right={<div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>{FILTERS.map(([k, l]) => <button key={k} className={`btn btn-sm ${filter === k ? 'btn-primary' : 'btn-secondary'}`} onClick={() => { setFilter(k); setLimit(15) }}>{l}</button>)}{filter === 'note'
@@ -1074,9 +1080,15 @@ function Communications({ client, onOpenText, onAddNote, onNotesChanged }) {
       ) : (
         <>
           {rows === null ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Loading…</div>
-            : shown.length === 0 ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Nothing here yet.</div>
+            : (shown.length === 0 && notesHere.length === 0) ? <div style={{ color: 'var(--text-muted)', fontSize: 15.5 }}>Nothing here yet.</div>
               : <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{shown.map(m => <CommItem key={m.id} m={m} client={client} />)}</div>}
           {items.length > shown.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more ({items.length - shown.length})</button>}
+          {notesHere.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: shown.length ? 10 : 0 }}>
+              {notesHere.map(nt => <NoteRow key={nt.index} note={nt} clientId={cid} onChanged={onNotesChanged} />)}
+            </div>
+          )}
+          {notesHere.length > 0 && notes.length > notesHere.length && <button className="btn btn-sm" style={{ marginTop: 10 }} onClick={() => setLimit(l => l + 25)}>Load more notes ({notes.length - notesHere.length})</button>}
         </>
       )}
     </Section>
