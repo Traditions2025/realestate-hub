@@ -386,7 +386,29 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
     const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
     if (client) {
       const { renderColdStageTemplate } = await import('./cold-template.js')
-      const templateText = await renderColdStageTemplate(idx, approved, client)
+      let templateText = await renderColdStageTemplate(idx, approved, client)
+
+      // AREA-BASED VALUE OUTREACH (John, 2026-10-13). On the stages where a useful link beats
+      // another question — Day 17, Day 30 and the ongoing loop — replace the generic message
+      // with the newest listings for the community the lead has actually been browsing.
+      //
+      // Only fires with real search history for a FEATURED community. No history, or an area
+      // we have no page for, means no link and the ordinary message stands: a guessed area is
+      // worse than none, because it tells the lead we are not really paying attention.
+      if (stage.areaEligible) {
+        try {
+          const { buildAreaMessage, countUrls } = await import('./area-links.js')
+          // Cold = a long-term stage, where reintroducing John is appropriate.
+          const built = buildAreaMessage(cid, { cold: idx >= 6 })
+          if (built) {
+            const { fillTemplate } = await import('../routes/email.js')
+            const areaText = fillTemplate(built.text, client).replace(/\{\{[^}]+\}\}/g, '').replace(/\s{2,}/g, ' ').trim()
+            // Rule enforced, not trusted: one URL per SMS, never two area links.
+            if (countUrls(areaText) === 1) templateText = areaText
+          }
+        } catch (e) { /* area lookup must never block the nurture message */ }
+      }
+
       if (templateText) return runOutbound(cid, { actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, nextState, templateText })
     }
   }
