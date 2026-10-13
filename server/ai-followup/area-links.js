@@ -109,18 +109,26 @@ export function pickArea(clientId, { days = DAYS } = {}) {
  * `cold` is for a lead we have not spoken to in a long time: it reintroduces John, which the
  * ordinary nurture messages deliberately do not.
  */
+// The CITY IS NOT NAMED in the text (John, 2026-10-13: "we can just send that without
+// mentioning the city"). The link still points at the right community page, so the area is
+// obvious once they tap it — but the message no longer says "I noticed you've been looking
+// around Cedar Rapids", which reads like we have been watching them. It is also shorter,
+// which matters on SMS.
+//
+// The area is still CHOSEN carefully (see pickArea). Not naming it is a wording decision,
+// not a licence to send any link: a Marion searcher still must not get a Cedar Rapids page.
 export const AREA_OPENERS = [
-  "Hi {{first_name}}! Since you've been looking around {{area}}, I thought this might come in handy. Here are the newest listings in the area: {{url}} If anything stands out, just send it my way.",
-  "Good morning, {{first_name}}! Thought I'd send this over since you've been keeping an eye on {{area}}. Here are the newest listings in the area in case something catches your attention: {{url}}",
-  "Hi {{first_name}}! I noticed you've been looking around {{area}}, so I wanted to share the newest listings there in case it's helpful. No pressure at all: {{url}}",
-  "Good afternoon, {{first_name}}! Since you've been keeping an eye on homes in {{area}}, I thought I'd send you the newest listings there in case something catches your eye: {{url}} Feel free to send me anything you want a second opinion on.",
-  "Hi {{first_name}}! Thought this might come in handy since you've been looking around {{area}}. Here are the newest listings in the area: {{url}}",
+  "Hi {{first_name}}! Thought this might come in handy. Here are the newest listings in the area: {{url}} If anything stands out, just send it my way.",
+  "Good morning, {{first_name}}! Thought I'd send this over in case it's helpful. Here are the newest listings in case something catches your attention: {{url}}",
+  "Hi {{first_name}}! Wanted to share the newest listings in case it's helpful. No pressure at all, just something easy to keep an eye on: {{url}}",
+  "Good afternoon, {{first_name}}! I thought I'd send you the newest listings in case something catches your eye: {{url}} Feel free to send me anything you want a second opinion on.",
+  "Hi {{first_name}}! Here are the newest listings in case it's useful to keep an eye on what's coming up: {{url}}",
 ]
 
 /** Cold-lead versions: reintroduce John, because it has been a long time. */
 export const AREA_OPENERS_COLD = [
-  "Hi {{first_name}}! It's John with Matt Smith Team at RE/MAX. I noticed you've looked at a few homes around {{area}}, so I wanted to send over the newest listings there in case it's useful: {{url}} No need to be actively looking, just something handy to have.",
-  "Hi {{first_name}}! Hope you've been doing well. I know we haven't talked in a while, but since you had been looking around {{area}}, I wanted to share the newest listings there in case it comes in handy: {{url}}",
+  "Hi {{first_name}}! It's John with Matt Smith Team at RE/MAX. I wanted to send over the newest listings in case it's useful: {{url}} No need to be actively looking, just something handy to have.",
+  "Hi {{first_name}}! Hope you've been doing well. I know we haven't talked in a while, but I wanted to share the newest listings in case it comes in handy: {{url}}",
 ]
 
 /**

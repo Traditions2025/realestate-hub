@@ -159,14 +159,31 @@ test('every area message carries exactly one URL', () => {
   }
 })
 
-test('area messages name the area and the lead, and vary their opener', () => {
+test('area messages greet by name, carry the link, and vary their opener', () => {
   for (const t of [...AREA_OPENERS, ...AREA_OPENERS_COLD]) {
     assert.ok(t.includes('{{first_name}}'), 'must greet by name')
-    assert.ok(t.includes('{{area}}'), 'must name the area they browsed')
     assert.ok(t.includes('{{url}}'), 'must carry the link')
   }
   const opens = AREA_OPENERS.map(t => t.slice(0, 24))
   assert.equal(new Set(opens).size, opens.length, 'openers must not all start the same way')
+})
+
+test('the city is NEVER named in the message text', () => {
+  // John, 2026-10-13: send the listings link without mentioning the city. The URL still
+  // points at the right community, so the area is obvious once they tap it, but the text
+  // does not read as though we have been watching where they browse.
+  for (const t of [...AREA_OPENERS, ...AREA_OPENERS_COLD]) {
+    assert.ok(!t.includes('{{area}}'), `area token still present in: ${t.slice(0, 50)}`)
+    for (const city of Object.values(FEATURED_COMMUNITIES))
+      assert.ok(!t.includes(city), `hardcoded city "${city}" in an area message`)
+  }
+})
+
+test('dropping the city does not loosen WHICH link is chosen', () => {
+  // Not naming the area is a wording change. A Marion searcher must still not get a Cedar
+  // Rapids page, so communityUrl stays strict about what is featured.
+  assert.equal(communityUrl('Marion'), 'https://www.mattsmithteam.com/marion-ia-homes-for-sale/')
+  assert.equal(communityUrl('Solon'), null)
 })
 
 test('only the cold versions reintroduce John', () => {
