@@ -273,3 +273,29 @@ test('a card lands with its paragraph, NOT after the signature', async (t) => {
   assert.ok(card > -1, 'a card should be built')
   assert.ok(card < sig, 'the card belongs above the signature, next to the copy it illustrates')
 })
+
+/* ---------- the plain-text ordering bug ---------- */
+// Shipped 2026-10-13: /preview ran plainToHtml AFTER appending the signature. The signature
+// is already HTML, so it came out escaped as visible "&lt;br&gt;", and because the escaped
+// text ran straight on from the URL with no whitespace, the link matcher swallowed it into
+// the href and produced nested <a> tags. HTML bodies were unaffected, which is exactly why
+// the composer looked fine while the API was broken.
+test('/preview converts a plain-text body to HTML BEFORE appending the signature', () => {
+  const src = fs.readFileSync(new URL('../server/routes/email.js', import.meta.url), 'utf8')
+  const i = src.indexOf("router.post('/preview'")
+  const route = src.slice(i, i + 1600)
+  const toHtml = route.indexOf('plainToHtml')
+  const sig = route.indexOf('{{signature}}')
+  assert.ok(toHtml > -1 && sig > -1, 'both steps must be present')
+  assert.ok(toHtml < sig, 'plainToHtml must run before the signature is appended, never after')
+})
+
+test('a URL followed by HTML does not swallow that HTML into its href', async () => {
+  // The exact shape that broke: URL, then markup, with no space between them.
+  const out = await expandLinksInHtml('See https://example.com/x<br><div>Matt</div>')
+  const hrefs = [...out.matchAll(/href="([^"]*)"/g)].map(m => m[1])
+  for (const h of hrefs) {
+    assert.doesNotMatch(h, /&lt;|<br|<div/i, `href swallowed markup: ${h}`)
+  }
+  assert.doesNotMatch(out, /<a[^>]*>\s*<a/i, 'no nested anchors')
+})

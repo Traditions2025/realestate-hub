@@ -1040,14 +1040,15 @@ router.post('/send', async (req, res) => {
 router.post('/preview', async (req, res) => {
   const { client_id, subject, body } = req.body || {}
   const client = client_id ? db.get('SELECT * FROM clients WHERE id = ?', [Number(client_id)]) : null
-  let outBody = String(body || '')
-  // Same rule as /send, so the preview is the email and not a near-miss of it.
-  if (!alreadySigned(outBody)) outBody += '<br><br>{{signature}}'
-  let html = client ? fillTemplate(outBody, client) : outBody.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
-  // The rest of the send pipeline, in the same order sendViaSendGrid applies it, so what is
-  // previewed is what is received. Previously this route did none of it and a second, dead
-  // /preview route further down claimed to.
-  if (!looksLikeHtml(body)) html = plainToHtml(html)
+  // ORDER MATTERS. A plain-text body must become HTML BEFORE the signature is appended,
+  // because the signature is already HTML: running plainToHtml over the combined string
+  // escapes it, so `<br><br><div …>` turns into visible `&lt;br&gt;…` AND the escaped text
+  // runs straight on from the URL with no whitespace, so the link-detector swallows it into
+  // the href. That shipped and produced nested anchors with corrupted URLs on any plain-text
+  // body. HTML bodies were unaffected, which is why the composer looked fine.
+  let html = looksLikeHtml(body) ? String(body || '') : plainToHtml(String(body || ''))
+  if (!alreadySigned(html)) html += '<br><br>{{signature}}'
+  html = client ? fillTemplate(html, client) : html.replace(/\{\{\s*signature\s*\}\}/gi, savedSignatureHtml())
   html = autoEmbedYoutubeLinks(html)
   try {
     const { expandLinksInHtml } = await import('../link-preview.js')
