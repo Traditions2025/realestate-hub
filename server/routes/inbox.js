@@ -144,23 +144,22 @@ async function notifyUnknownInbound(fromPhone, body) {
   } catch {}
 }
 
-// Email John (or whoever inbox_notify_email is) when a client texts the Hub.
-// Off-hours in Central: after 6 PM on a weekday, any weekend, or a US holiday.
-function isOffHoursCentral() {
-  try {
-    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short', hour: '2-digit', hour12: false }).formatToParts(new Date())
-    const wd = p.find(x => x.type === 'weekday')?.value
-    const hr = Number(p.find(x => x.type === 'hour')?.value)
-    const weekend = wd === 'Sat' || wd === 'Sun'
-    return weekend || hr >= 18 || isUsHoliday()
-  } catch { return false }
-}
+// Email the team when a client texts the Hub.
+//
+// Matt used to be added only off-hours (weekday after 6 PM Central, weekends, US holidays).
+// John, 2026-10-13: "turn on text notifications for Matt, no time specific" — he wants to
+// know who replied to his texts whenever it happens, so he is now on every alert. The
+// time-of-day test is gone rather than left as dead code pretending to still matter.
+//
+// Both addresses come from settings so this never needs another deploy to change:
+//   inbox_notify_email        — the main recipient(s), comma separated
+//   inbox_notify_always_cc    — always copied, in addition
 async function notifyInboundText(client, body, fromPhone) {
   try {
     let to = db.getSetting('inbox_notify_email', 'johnwithmattsmithteam@gmail.com') || ''
-    // Off-hours (weekday after 6 PM, weekends, holidays): also alert Matt's RE/MAX email.
+    const always = db.getSetting('inbox_notify_always_cc', 'mattsmithremax@gmail.com') || ''
     const recips = new Set(to.split(/[,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean))
-    if (isOffHoursCentral()) recips.add('mattsmithremax@gmail.com')
+    for (const a of always.split(/[,;]+/).map(s => s.trim().toLowerCase()).filter(Boolean)) recips.add(a)
     to = [...recips].join(',')
     if (!to) return
     const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromPhone
