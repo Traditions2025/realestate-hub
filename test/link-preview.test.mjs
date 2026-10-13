@@ -10,6 +10,7 @@ import fs from 'node:fs'
 
 import {
   isPrivateAddress, parseMeta, buildLinkCardHtml, expandLinksInHtml, linkPreview, clearLinkPreviewCache,
+  fitImage, parseDuration,
 } from '../server/link-preview.js'
 
 /* ---------- SSRF: the part that must not be wrong ---------- */
@@ -94,13 +95,66 @@ test('the card is table-based and fully clickable, for Outlook', () => {
 
 test('a GIF card gets no play overlay, because the GIF already has one drawn in', () => {
   const html = buildLinkCardHtml(parseMeta(DUBB_HTML, 'https://d.test/v/1'))
-  assert.doesNotMatch(html, /Watch the video/, 'Dubb bakes the play button into the GIF')
+  assert.doesNotMatch(html, /position:\s*absolute|<svg|play-overlay/i,
+    'Dubb bakes the play button into the GIF; a CSS overlay is the first thing Outlook drops')
 })
 
-test('a video page WITHOUT a gif says so in text rather than a CSS overlay', () => {
-  const d = parseMeta(`<meta property="og:type" content="video">
-    <meta property="og:title" content="X"><meta property="og:image" content="https://c.test/t.jpg">`, 'https://v.test/1')
-  assert.match(buildLinkCardHtml(d), /Watch the video/)
+test('a video card carries a Watch Video button, with the length when it is known', () => {
+  const withLen = parseMeta(DUBB_HTML + '<script>{"duration":"PT1M30S"}</script>', 'https://v.test/1')
+  assert.match(buildLinkCardHtml(withLen), /Watch Video \(1:30\)/)
+  // and degrades to a plain label when the page does not publish a duration
+  assert.match(buildLinkCardHtml(parseMeta(DUBB_HTML, 'https://v.test/1')), />Watch Video</)
+})
+
+test('a non-video page gets a neutral button, not "Watch Video"', () => {
+  const d = parseMeta('<meta property="og:title" content="A blog post"><meta property="og:image" content="https://c.test/a.jpg">', 'https://b.test/p')
+  const html = buildLinkCardHtml(d)
+  assert.match(html, />Open link</)
+  assert.doesNotMatch(html, /Watch Video/)
+})
+
+/* ---------- sizing: the bug that made a portrait video swamp the email ---------- */
+
+test('a portrait video is constrained by HEIGHT, not width', () => {
+  // 1080x1920 at the old fixed 560 wide rendered 996px tall and swamped the message.
+  const fit = fitImage(1080, 1920)
+  assert.ok(fit.h <= 300, `portrait height ${fit.h} must be capped`)
+  assert.ok(fit.w < 200, `portrait width ${fit.w} follows the aspect`)
+  assert.equal(Math.round((fit.w / fit.h) * 100), Math.round((1080 / 1920) * 100), 'aspect preserved')
+})
+
+test('a landscape video is constrained by width', () => {
+  const fit = fitImage(3342, 1504)
+  assert.ok(fit.w <= 340)
+  assert.ok(fit.h <= 300)
+  assert.equal(Math.round((fit.w / fit.h) * 10), Math.round((3342 / 1504) * 10), 'aspect preserved')
+})
+
+test('a small image is never blown UP past its natural size', () => {
+  const fit = fitImage(120, 90)
+  assert.deepEqual(fit, { w: 120, h: 90 })
+})
+
+test('unknown dimensions fall back to a width cap rather than guessing a height', () => {
+  const fit = fitImage(null, null)
+  assert.equal(fit.h, null)
+  assert.ok(fit.w > 0)
+})
+
+test('the card writes explicit width and height attributes, because Outlook ignores CSS', () => {
+  const d = { ...parseMeta(DUBB_HTML, 'https://d.test/v/1'), image_width: 1080, image_height: 1920 }
+  const html = buildLinkCardHtml(d)
+  assert.match(html, /<img [^>]*width="169"[^>]*height="300"/, 'computed server-side, not left to CSS')
+})
+
+/* ---------- duration ---------- */
+
+test('ISO 8601 durations become M:SS', () => {
+  assert.equal(parseDuration('"duration":"PT1M30S"'), '1:30')
+  assert.equal(parseDuration('"duration":"PT45S"'), '0:45')
+  assert.equal(parseDuration('"duration":"PT1H2M3S"'), '1:02:03')
+  assert.equal(parseDuration('no duration here'), '')
+  assert.equal(parseDuration('"duration":"PT0S"'), '')
 })
 
 test('card text is escaped, so a hostile title cannot inject markup', () => {
@@ -201,4 +255,21 @@ test('the live /preview route applies the same pipeline as the send path', () =>
   const route = src.slice(i, i + 1400)
   assert.match(route, /autoEmbedYoutubeLinks/)
   assert.match(route, /expandLinksInHtml/)
+})
+
+/* ---------- placement: the card must sit with its sentence ---------- */
+
+test('a card lands with its paragraph, NOT after the signature', async (t) => {
+  const d = await linkPreview('https://matt-smith-team.dubb.com/v/tA6G02')
+  if (!d.ok) return t.skip('network unavailable')
+  // The real shape: copy, link, <br><br>, then the signature block. The first version tested
+  // the next 40 chars against a whitelist of CLOSING tags, so an opening <div> for the
+  // signature made it look mid-sentence and the card was dumped at the very bottom.
+  const body = 'Looking forward to hearing back from you!  '
+    + 'https://matt-smith-team.dubb.com/v/tA6G02<br><br><div class="sig">Matt Smith</div>'
+  const out = await expandLinksInHtml(body)
+  const card = out.indexOf('<table role')
+  const sig = out.indexOf('class="sig"')
+  assert.ok(card > -1, 'a card should be built')
+  assert.ok(card < sig, 'the card belongs above the signature, next to the copy it illustrates')
 })

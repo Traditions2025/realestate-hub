@@ -148,7 +148,26 @@ export function parseMeta(html, finalUrl) {
     image_width: w, image_height: h,
     site_name: site,
     kind: meta(html, 'og:type') || '',
+    duration: parseDuration(html),
   }
+}
+
+/**
+ * Video length, for the "Watch Video (1:30)" button Dubb shows on its own card.
+ * Dubb publishes it as JSON-LD ISO 8601, e.g. "duration":"PT1M30S". Not an OG tag, so it is
+ * read from the page body. Returns "M:SS" or "H:MM:SS", or '' when absent.
+ */
+export function parseDuration(html) {
+  const m = /"duration"\s*:\s*"(PT[^"]+)"/i.exec(String(html || ''))
+  if (!m) return ''
+  const iso = m[1]
+  const h = Number((/(\d+)H/i.exec(iso) || [])[1] || 0)
+  const mi = Number((/(\d+)M/i.exec(iso) || [])[1] || 0)
+  const s = Math.round(Number((/([\d.]+)S/i.exec(iso) || [])[1] || 0))
+  const total = h * 3600 + mi * 60 + s
+  if (!total) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return h ? `${h}:${pad(mi)}:${pad(s)}` : `${mi}:${pad(s)}`
 }
 
 /** Fetch + parse one URL, cached. Never throws: returns { ok:false, error } instead. */
@@ -186,34 +205,53 @@ export function clearLinkPreviewCache() { cache.clear() }
 const esc = (s) => String(s || '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
+// The card is sized by the IMAGE's own aspect, not by a fixed width. A 560px-wide card is
+// fine for a landscape thumbnail and absurd for a portrait one: Matt's phone videos are
+// 1080x1920, which at 560 wide renders 996px tall and swamps the email (John, 2026-10-13:
+// "preview is too big it needs to be resized"). Constraining BOTH dimensions fixes it for
+// every shape. Explicit width/height attributes are computed server-side because Outlook
+// ignores CSS max-height on images.
+const CARD_MAX_W = 340
+const CARD_MAX_H = 300
+
+export function fitImage(w, h, maxW = CARD_MAX_W, maxH = CARD_MAX_H) {
+  if (!w || !h) return { w: maxW, h: null }           // unknown: fall back to width only
+  const scale = Math.min(maxW / w, maxH / h, 1)
+  return { w: Math.round(w * scale), h: Math.round(h * scale) }
+}
+
 /**
- * An email-safe preview card: table-based for Outlook, no JS, no rounded-corner tricks,
- * the whole thing clickable.
+ * An email-safe preview card, laid out like Dubb's own: title above the thumbnail, the
+ * thumbnail, then a "Watch Video (1:30)" button. Table-based for Outlook, no JS, no CSS
+ * overlay (the first thing Outlook drops), whole card clickable.
  *
- * A Dubb GIF already has a play button drawn into it, so no overlay is added — a CSS overlay
- * is the first thing Outlook drops anyway. For a video page WITHOUT a gif, a plain text line
- * says so instead, which survives every client.
+ * A Dubb GIF already has a play button drawn into it, so none is added on top.
  */
-export function buildLinkCardHtml(d, { width = 560 } = {}) {
+export function buildLinkCardHtml(d, { maxWidth = CARD_MAX_W, maxHeight = CARD_MAX_H } = {}) {
   // Reject an explicit failure, and reject data with nothing worth showing. Requiring a
   // truthy `ok` instead would refuse the output of parseMeta(), which is perfectly good data.
   if (!d || d.ok === false) return null
   if (!d.title && !d.image) return null
   const isVideo = /video/i.test(d.kind || '')
-  const showPlayLine = isVideo && !d.is_gif
+  const fit = fitImage(d.image_width, d.image_height, maxWidth, maxHeight)
+  const cardW = Math.max(fit.w, 240)
   const alt = d.is_gif ? 'Animated preview of the video. Click to watch.'
     : (isVideo ? 'Video preview. Click to watch.' : (d.title || 'Link preview'))
+  const cta = isVideo ? `Watch Video${d.duration ? ` (${esc(d.duration)})` : ''}` : 'Open link'
+  const img = d.image
+    ? `<img src="${esc(d.image)}" alt="${esc(alt)}" width="${fit.w}"${fit.h ? ` height="${fit.h}"` : ''} style="display:block;width:${fit.w}px;max-width:100%;${fit.h ? `height:${fit.h}px;` : 'height:auto;'}border:0;margin:0 auto;" />`
+    : ''
   return (
-`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0;border-collapse:collapse;max-width:${width}px;width:100%;border:1px solid #e3e6ea;">
-  <tr><td style="padding:0;">
+`<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:14px 0;border-collapse:collapse;width:${cardW}px;max-width:100%;border:1px solid #e3e6ea;background:#ffffff;">
+  <tr><td style="padding:12px 12px 10px;">
     <a href="${esc(d.url)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit;display:block;">
-      ${d.image ? `<img src="${esc(d.image)}" alt="${esc(alt)}" width="${width}" style="display:block;width:100%;max-width:${width}px;height:auto;border:0;" />` : ''}
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%"><tr><td style="padding:12px 16px 14px;background:#ffffff;">
-        ${d.site_name ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#8a9099;padding-bottom:5px;">${esc(d.site_name)}</div>` : ''}
-        ${d.title ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:16px;font-weight:bold;line-height:1.3;color:#1a2330;">${esc(d.title)}</div>` : ''}
-        ${d.description ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:1.45;color:#5b636e;padding-top:5px;">${esc(d.description)}</div>` : ''}
-        ${showPlayLine ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:13px;font-weight:bold;color:#c0392b;padding-top:7px;">&#9654; Watch the video</div>` : ''}
-      </td></tr></table>
+      ${d.title ? `<div style="font-family:Arial,Helvetica,sans-serif;font-size:15px;font-weight:bold;line-height:1.3;color:#1a2330;padding-bottom:9px;">${esc(d.title)}</div>` : ''}
+      ${img}
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" align="center" style="margin:11px auto 2px;"><tr>
+        <td style="border:1px solid #B08930;padding:8px 18px;text-align:center;">
+          <span style="font-family:Arial,Helvetica,sans-serif;font-size:14px;font-weight:bold;color:#B08930;">${esc(cta)}</span>
+        </td>
+      </tr></table>
     </a>
   </td></tr>
 </table>`
@@ -263,9 +301,23 @@ export async function expandLinksInHtml(html, { max = MAX_CARDS } = {}) {
   })
   if (!found.length) return html
 
-  // End of line = nothing but whitespace or a closing block tag after it.
-  const endsLine = (full, after) => /^(\s|<br\s*\/?>|<\/p>|<\/div>|<\/td>|<\/tr>|<\/table>)*$/i.test(
-    full.slice(after, after + 40).split('\n')[0] || '')
+  // Is the URL the last VISIBLE thing on its line?
+  //
+  // The first version tested the next 40 characters against a whitelist of closing tags, so
+  // "…from you! <URL><br><br><div>signature" failed (an OPENING <div> is not in the list) and
+  // the card was treated as mid-sentence and appended right at the bottom — under the
+  // signature, nowhere near the sentence it belonged to (John, 2026-10-13: "the video was not
+  // positioned next to the actual text").
+  //
+  // The correct question is simply whether any visible text follows before the line ends. So:
+  // take everything up to the next line break or block boundary, strip tags, and see if
+  // anything is left.
+  const endsLine = (full, after) => {
+    const rest = full.slice(after)
+    const stop = rest.search(/<br\s*\/?>|<\/p>|<\/div>|<\/li>|<\/td>|\n/i)
+    const seg = stop === -1 ? rest : rest.slice(0, stop)
+    return seg.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim() === ''
+  }
 
   const unique = [...new Set(found.map(f => f.url))].slice(0, max)
   const results = await Promise.all(unique.map(u => linkPreview(u)))
