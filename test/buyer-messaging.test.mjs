@@ -222,3 +222,64 @@ test('area messages get the same time-of-day greeting correction as the bank', (
   assert.match(block, /fixGreetingForTime/,
     'an area message carries its own greeting and must not escape the correction')
 })
+
+/* ---------- auto-pause on reply, and the wrong-person doctrine ---------- */
+
+test('any inbound reply auto-pauses the AI, gated by a setting', () => {
+  const src = fs.readFileSync(new URL('../server/ai-followup/orchestrator.js', import.meta.url), 'utf8')
+  const i = src.indexOf('export async function handleInboundText')
+  const fn = src.slice(i, i + 5000)   // must reach canSendSms, which sits ~50 lines in
+  assert.match(fn, /ai_auto_pause_on_reply/, 'must be a setting, so it can be turned back on without a deploy')
+  assert.match(fn, /'1'\)\) === '1'/, 'default is ON')
+  assert.match(fn, /HUMAN_TAKEOVER/, 'the lead is handed to a human')
+  // and it must sit BEFORE the AI composes anything
+  assert.ok(fn.indexOf('ai_auto_pause_on_reply') < fn.indexOf('canSendSms'),
+    'the pause has to short-circuit before any reply is generated')
+})
+
+test('a manual send-now can still draft for a paused lead', () => {
+  const src = fs.readFileSync(new URL('../server/ai-followup/orchestrator.js', import.meta.url), 'utf8')
+  // the guard line itself, not a comment mentioning the setting
+  const line = src.split(/\r?\n/).find(l => l.includes("getSetting?.('ai_auto_pause_on_reply'"))
+  assert.ok(line, 'the guard line should exist')
+  assert.match(line, /!force\s*&&/, 'force must bypass the auto-pause')
+})
+
+test('the wrong-person doctrine is in the system prompt for buyers and cold sellers', async () => {
+  const { buildSystemPrompt } = await import('../server/ai-followup/prompts.js')
+  for (const client of [{ id: 1, first_name: 'Scott' }, { id: 2, first_name: 'Scott', fsbo_status: 'Available' }]) {
+    const p = buildSystemPrompt({ client, lead_type: 'buyer' })
+    assert.match(p, /WRONG PERSON OR NOT LOOKING/, 'doctrine missing for one of the prompt shapes')
+  }
+})
+
+test('the doctrine bans the three things that make a bad moment worse', async () => {
+  const { NOT_INTERESTED_DOCTRINE } = await import('../server/ai-followup/prompts.js')
+  assert.match(NOT_INTERESTED_DOCTRINE, /remove you from our list/, 'must name the banned phrase')
+  assert.match(NOT_INTERESTED_DOCTRINE, /UNLESS they\s*\n?\s*explicitly asked/, 'allowed only if they ask')
+  assert.match(NOT_INTERESTED_DOCTRINE, /NEVER mention website activity/, 'never explain tracking')
+  assert.match(NOT_INTERESTED_DOCTRINE, /not ask another qualifying question/, 'no further questions')
+  assert.match(NOT_INTERESTED_DOCTRINE, /never copy these word for word/, 'examples are a tone guide, not a script')
+})
+
+/* ---------- Day 1 link ---------- */
+
+test('Day 1 carries one full tappable URL, with no "browse listings" phrasing', async () => {
+  const { renderColdStageTemplate } = await import('../server/ai-followup/cold-template.js')
+  const { DAY1, DAY4 } = await import('../server/ai-followup/buyer-messages.js')
+  const client = { id: 7, first_name: 'Sarah', city: 'Marion' }
+  const d1 = await renderColdStageTemplate(0, DAY1[0], client)
+  assert.match(d1, /https:\/\/www\.mattsmithteam\.com\//, 'a full URL, not a bare domain')
+  assert.equal((d1.match(/https?:\/\//g) || []).length, 1, 'exactly one link')
+  assert.doesNotMatch(d1, /browse/i, 'no "you can browse listings" phrasing')
+})
+
+test('no stage after Day 1 appends the website', async () => {
+  const { renderColdStageTemplate } = await import('../server/ai-followup/cold-template.js')
+  const B = await import('../server/ai-followup/buyer-messages.js')
+  const client = { id: 7, first_name: 'Sarah', city: 'Marion' }
+  for (const [i, bank] of [[1, B.DAY4], [2, B.DAY9], [5, B.DAY50], [10, B.ONGOING]]) {
+    const out = await renderColdStageTemplate(i, bank[0], client)
+    assert.doesNotMatch(out, /mattsmithteam\.com/i, `stage ${i} must carry no website link`)
+  }
+})

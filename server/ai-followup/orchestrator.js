@@ -86,6 +86,24 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
   ensureState(cid)
   if (!force) { markInbound(cid); cancelPendingScheduled(cid, 'lead replied') }   // never talk over a live reply
 
+  // AUTO-PAUSE ON ANY REPLY (John, 2026-10-13: "anyone who responds on AI let's auto pause
+  // for now until I turn it back on"). A reply hands the lead to a human: the drip is already
+  // cancelled above, and the AI does not compose an answer either.
+  //
+  // Setting-gated so turning it back on needs no deploy:
+  //   ai_auto_pause_on_reply = '1' (default, ON)  ->  reply, pause, stay quiet
+  //                            '0'                ->  the AI answers as before
+  //
+  // A manual send-now (force) still works, so an agent can deliberately have the AI draft
+  // something for a paused lead.
+  if (!force && String(db.getSetting?.('ai_auto_pause_on_reply', '1')) === '1') {
+    try {
+      const { transitionAiState } = await import('./state.js')
+      transitionAiState(cid, 'HUMAN_TAKEOVER', 'lead replied — AI auto-paused (ai_auto_pause_on_reply)')
+    } catch { /* state is best effort; the point is that we do not reply */ }
+    return logNo(cid, 'lead replied — AI auto-paused, a human answers this one')
+  }
+
   // ---- gates (HUB-controlled, never the model). A manual send-now (force) skips
   // the feature-flag + enrollment + human-handled gates but keeps hard compliance. ----
   if (!force) {

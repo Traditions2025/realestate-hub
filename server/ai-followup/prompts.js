@@ -266,6 +266,46 @@ const playbook = (leadType) => leadType === 'seller'
 // unanswered outbounds never turn the next message into a chase.
 export const FOLLOWUP_DOCTRINE = `FOLLOW-UPS NEVER PRESSURE: If they have not replied to our recent outbound messages, do NOT make this sound like a follow-up or a chase. Banned: "just following up", "circling back", "checking in on my last message", "haven't heard back", "I know I've reached out a few times", or any urgency or guilt. Write it fresh and natural, as if we simply thought of them. The feeling to leave: we're here whenever they're ready or need help, zero pressure. A warm message with no question at all is completely fine.`
 
+/**
+ * WRONG PERSON / NOT LOOKING / DOESN'T REMEMBER US. John, 2026-10-13.
+ *
+ * These leads are mostly old imported data. When someone says they are not looking, does not
+ * remember searching, says we have the wrong person, or asks why we contacted them, the only
+ * acceptable move is a short apology and a clean exit. Arguing, explaining where their
+ * information came from, or slipping in one more qualifying question all make a bad moment
+ * worse — and explaining that we can see their browsing history is the worst of the three.
+ *
+ * "I'll take you off our list" is specifically banned unless they ASK to be removed: it tells
+ * someone they were on a marketing list they never knowingly joined, and makes the whole
+ * exchange feel automated.
+ */
+export const NOT_INTERESTED_DOCTRINE = `WRONG PERSON OR NOT LOOKING — STOP IMMEDIATELY:
+If the lead says they are not looking, do not remember searching for homes, says we have the
+wrong person, or expresses confusion about why we contacted them, the buyer nurture is OVER.
+
+Reply ONCE, briefly, then stop:
+- Apologize for the mix-up.
+- Acknowledge that our information may be outdated or incorrect.
+- Thank them for letting us know, and wish them well.
+- Use their first name if we have a real one.
+
+NEVER in this reply:
+- Do not argue, correct them, or try to jog their memory.
+- Do not explain where their information came from, and NEVER mention website activity,
+  searches, tracking, or that we could see what they looked at.
+- Do not ask another qualifying question of any kind, not even a soft one.
+- Do not say "I'll remove you from our list" or "I'll take you off our list" UNLESS they
+  explicitly asked to be removed or opted out. They did not knowingly join a list, and saying
+  so makes the exchange feel automated.
+
+The tone to hit, adapted to the actual person (never copy these word for word):
+"Sorry about that, [name]. Looks like we may have had some old or incorrect information tied
+to your contact. Thanks for letting me know, and we won't bother you about a home search.
+Take care!"
+"Sorry for the mix-up, [name]. Looks like we may have had some outdated information on our
+end. Thanks for letting me know, and we'll leave you be. Hope you have a good rest of your
+day!"`
+
 // Agent-selectable follow-up angles (the ANGLE picker on AI text suggestions).
 export const FOLLOWUP_ANGLES = {
   conversation: `FOLLOW-UP ANGLE — CONTINUE THE CONVERSATION: Anchor the message on the WHOLE thread, not just their last line. First check the timestamps and what WE sent after their last message: if we already answered it and have followed up since, do NOT answer it again — pick a DIFFERENT natural anchor from the conversation (plans they shared, something they were working on, where things realistically stand after this much time). Reference it warmly, like a person who simply remembers — NEVER as a reminder that they didn't reply or didn't do something. Never repeat or rephrase a message we already sent. Do not mention website activity.`,
@@ -339,8 +379,8 @@ export function buildSystemPrompt(ctx = {}) {
   // the philosophy REPLACES the discovery ladder, objection playbook, and sales cadence.
   const cold = detectColdSeller(ctx.client)
   const blocks = cold
-    ? [PERSONA(persona), TONE, GEO, COLD_SELLER_PHILOSOPHY(cold), WALKTHROUGH, STYLE, INTENT_OVERLAP, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, HANDOFF, SECURITY, firstText]
-    : [PERSONA(persona), TONE, GEO, OBJECTIVES, REASONING, playbook(leadType), DISCOVERY, OBJECTIONS, SITUATIONS, WALKTHROUGH, STYLE, INTENT_OVERLAP, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, HANDOFF, SECURITY, firstText, revive]
+    ? [PERSONA(persona), TONE, GEO, COLD_SELLER_PHILOSOPHY(cold), WALKTHROUGH, STYLE, INTENT_OVERLAP, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, NOT_INTERESTED_DOCTRINE, HANDOFF, SECURITY, firstText]
+    : [PERSONA(persona), TONE, GEO, OBJECTIVES, REASONING, playbook(leadType), DISCOVERY, OBJECTIONS, SITUATIONS, WALKTHROUGH, STYLE, INTENT_OVERLAP, REAL_ESTATE_GUARDRAILS, ACCURACY, FAIR_HOUSING, NOT_INTERESTED_DOCTRINE, HANDOFF, SECURITY, firstText, revive]
   return [
     ...blocks,
     `OUTPUT: Return ONLY a JSON object, no prose, with exactly these keys:

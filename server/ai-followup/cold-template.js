@@ -15,6 +15,10 @@
 //   know what time it is. Sending "Good morning" at 4pm is exactly the tell that gives an
 //   automation away, so a mismatched greeting is rewritten. "Hi" is time-neutral and is left
 //   alone, which preserves the intended mix.
+// The site, as a full URL so every phone makes it tappable. A bare "MattSmithTeam.com"
+// is plain text on a lot of handsets.
+export const SITE_URL = 'https://www.mattsmithteam.com/'
+
 export async function renderColdStageTemplate(stageIndex, approvedBody, client) {
   const { fillTemplate } = await import('../routes/email.js')
 
@@ -32,6 +36,16 @@ export async function renderColdStageTemplate(stageIndex, approvedBody, client) 
 
   msg = fixGreetingForTime(msg)
   msg = avoidJohnOnJohn(msg, client)
+
+  // DAY 1 ONLY: the site, as a full tappable URL (John, 2026-10-13: "the website on day one
+  // first text can still be there but make it a full link instead with html and do not say
+  // you can browse listings here").
+  //
+  // The old bank appended "You can always browse the latest at MattSmithTeam.com" to EVERY
+  // message. Two problems: the sales phrasing, and a bare domain that many phones do not
+  // turn into a link. A full https URL is tappable everywhere and needs no sentence around
+  // it. Later stages carry no link at all — the area outreach is the only other one.
+  if (Number(stageIndex) === 0) msg = `${msg} ${SITE_URL}`
 
   return tidyFallbackGreeting(fillTemplate(msg, client))
     .replace(/\{\{[^}]+\}\}/g, '')               // drop any unresolved merge field
