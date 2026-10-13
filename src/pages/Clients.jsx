@@ -4117,6 +4117,19 @@ export default function Clients() {
             <div style={{display: 'flex', gap: 6}}>
               <button type="button" className={`btn btn-sm ${composerView === 'wysiwyg' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('wysiwyg')}>✎ Edit</button>
               <button type="button" className={`btn btn-sm ${composerView === 'html' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setComposerView('html')}>{'</>'} HTML</button>
+              {/* The composer keeps its draft: Cancel closes the modal but does not clear
+                  emailForm, so yesterday's body is still there the next time it opens. That
+                  is useful when you meant to come back to it and confusing when you did not
+                  (John, 2026-10-13: "the hey it's matt smith still shows though"). This makes
+                  clearing it explicit rather than something you have to select-all and delete. */}
+              <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.subject && !emailForm.body}
+                title="Clear the subject and message and start a fresh email"
+                onClick={async () => {
+                  if (!await confirmDialog('Clear this draft and start a fresh email?')) return
+                  const startBody = teamSignature ? `<div><br></div><div><br></div>${teamSignature}` : ''
+                  setEmailForm({ subject: '', body: startBody, template: '', attachments: [], cc: [], bcc: [] })
+                  setServerPreview(null)
+                }}>🗑 Clear</button>
               <button type="button" className="btn btn-sm btn-secondary" disabled={!emailForm.body} onClick={async () => {
                 setServerPreview(null)
                 setSingleEmailPreviewOpen(true)
