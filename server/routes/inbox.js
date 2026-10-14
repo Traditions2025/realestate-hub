@@ -1324,6 +1324,19 @@ router.get('/check-number', async (req, res) => {
     in_hub: known.map(c => ({ id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), phone: c.phone, type: c.type, status: c.status, source: c.source, opted_out: !!c.hub_text_opt_out })),
   })
 })
+// Twilio balance watch: what the alert would do right now. `dry` by default, so this can
+// be checked any time without sending anything. POST ?send=1 forces a real email.
+router.get('/balance-alert', async (req, res) => {
+  try {
+    const m = await import('../twilio-balance-alert.js')
+    const out = await m.checkTwilioBalance({ dry: true })
+    res.json({ ...out, recipients: m.alertRecipients(), threshold_setting: 'twilio_balance_alert_threshold', recipients_setting: 'twilio_balance_alert_to' })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+router.post('/balance-alert/test', async (_req, res) => {
+  try { const m = await import('../twilio-balance-alert.js'); res.json(await m.checkTwilioBalance({ force: true })) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
 // What line-type data we actually RETAINED from the lookups (read-only, no Twilio cost).
 router.get('/line-type-stats', (_req, res) => {
   const checked = db.get("SELECT COUNT(*) n FROM clients WHERE sms_line_checked_at IS NOT NULL")?.n || 0

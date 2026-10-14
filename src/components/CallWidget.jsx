@@ -24,6 +24,12 @@ export default function CallWidget() {
   // The setup effect runs once with [], so its closure would keep the FIRST regErr
   // forever. The ref is what the Call button reads to say why it could not connect.
   const regErrRef = useRef('')
+  // When the Device's current token was minted. A voice token lasts an hour, and a tab left
+  // open overnight holds an expired one: the SDK's tokenWillExpire timer is a background
+  // timer, and browsers throttle those in a hidden tab, so it can fire late or not at all.
+  // Pressing Call is the moment that matters, so the age is checked there (John, 2026-10-14,
+  // calling Karam Saba: AccessTokenExpired 20104 painted across the widget).
+  const tokenAtRef = useRef(0)
   const [ready, setReady] = useState(false)
   const [status, setStatus] = useState('idle')   // idle | incoming | connecting | active | error
   const [peer, setPeer] = useState({ number: '', name: '' })
@@ -105,13 +111,20 @@ export default function CallWidget() {
         // reconnects for up to 30s instead of killing the controls mid-call.
         const device = new Twilio.Device(tok.token, { codecPreferences: ['opus', 'pcmu'], closeProtection: true, maxCallSignalingTimeoutMs: 30000 })
         deviceRef.current = device
+        tokenAtRef.current = Date.now()
         device.on('registered', () => { setReady(true); setReg('ready'); primeMic() })
         device.on('unregistered', () => setReg('connecting'))
         device.on('error', (e) => {
           // 31005 with a live call = the signaling socket blipped; the audio and the
           // dialed leg keep going and the SDK reconnects. Don't paint the phone red.
           if (e?.code === 31005 && callRef.current) { setErr('Connection blip — reconnecting…'); return }
-          const m = e?.message || 'Phone error'; setErr(m); setRegErr(m); setReg('error'); if (e?.code === 20104 || e?.code === 31205) refreshToken()
+          // An expired access token (20104 / 31205) is NOT a fault the user can act on:
+          // we mint a new one and the Device carries on. It was still being painted across
+          // the widget in full Twilio wording, mid-call, over a call that was connecting
+          // perfectly well — John saw "AccessTokenExpired (20104)" above a live timer while
+          // calling Karam Saba. Refresh it quietly, exactly as 31005 above is handled.
+          if (e?.code === 20104 || e?.code === 31205) { refreshToken(); return }
+          const m = e?.message || 'Phone error'; setErr(m); setRegErr(m); setReg('error')
         })
         device.on('tokenWillExpire', () => refreshToken())
         device.on('incoming', async (call) => {
@@ -129,7 +142,27 @@ export default function CallWidget() {
         throw e
       }
     }
-    const refreshToken = async () => { try { const r = await authFetch('/api/voice/token'); const t = await r.json(); if (t?.token && deviceRef.current) deviceRef.current.updateToken(t.token) } catch {} }
+    const refreshToken = async () => {
+      try {
+        const r = await authFetch('/api/voice/token'); const t = await r.json()
+        if (t?.token && deviceRef.current) {
+          deviceRef.current.updateToken(t.token)
+          tokenAtRef.current = Date.now()
+          // The phone works again, so stop saying it does not.
+          if (regErrRef.current) { setRegErr(''); setReg('ready') }
+          return true
+        }
+      } catch {}
+      return false
+    }
+    // A token is good for an hour. Anything older than 50 minutes gets replaced before it
+    // is used, so expiry is never discovered by a call that is already dialling.
+    const TOKEN_MAX_AGE_MS = 50 * 60 * 1000
+    const freshenToken = async () => {
+      if (!deviceRef.current) return
+      if (Date.now() - tokenAtRef.current < TOKEN_MAX_AGE_MS) return
+      await refreshToken()
+    }
 
     // One attempt at a time; everyone waiting shares it.
     const ensureDevice = () => {
@@ -160,7 +193,10 @@ export default function CallWidget() {
     // Coming back to the tab, or back online, is the moment to try again immediately
     // rather than sitting out the rest of a backoff.
     const retryNow = () => {
-      if (cancelled || deviceRef.current || document.visibilityState === 'hidden') return
+      if (cancelled || document.visibilityState === 'hidden') return
+      // Returning to a tab that has been hidden for hours is exactly when the token has
+      // aged out behind a throttled background timer. Top it up before anything needs it.
+      if (deviceRef.current) { freshenToken(); return }
       clearTimeout(retryRef.current); retryRef.current = null
       attemptRef.current = 0
       ensureDevice().catch(() => scheduleRetry())
@@ -188,6 +224,10 @@ export default function CallWidget() {
       }
       try {
         setPeer({ number, name: name || '' }); setStatus('connecting')
+        // Replace a stale token BEFORE dialling. A tab open since this morning holds an
+        // hour-old token, and finding that out mid-dial is what put AccessTokenExpired on
+        // screen during a call that was otherwise fine.
+        await freshenToken()
         const call = await device.connect({ params: { To: number } })
         wireCall(call)
       } catch (e) { setErr(e?.message || 'Could not place call'); endLocal() }

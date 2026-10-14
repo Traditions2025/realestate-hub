@@ -868,6 +868,13 @@ export function startScheduler() {
   setInterval(() => { import('./followup-coverage.js').then(m => m.runCoverageAudit()).catch(() => {}) }, 60 * 60 * 1000)
   setTimeout(() => { import('./followup-coverage.js').then(m => m.runCoverageAudit()).catch(() => {}) }, 3 * 60 * 1000)
 
+  // Twilio balance watch. Twilio does not fail loudly when the money runs out: texts
+  // stop sending and calls stop connecting, and the first sign is a lead who never heard
+  // back. Hourly is soon enough to catch a drop long before that, and the alert itself
+  // sends at most once a day while low (John, 2026-10-14).
+  setInterval(() => { import('./twilio-balance-alert.js').then(m => m.checkTwilioBalance()).catch(() => {}) }, 60 * 60 * 1000)
+  setTimeout(() => { import('./twilio-balance-alert.js').then(m => m.checkTwilioBalance()).catch(() => {}) }, 4 * 60 * 1000)
+
   // HUB AI ISA — drain due AI actions every minute; run enqueue sweeps periodically.
   // All are cheap no-ops when the AI feature flags are off.
   setInterval(() => { import('./ai-followup/scheduler.js').then(m => m.runDueAiActions()).catch(() => {}) }, 60 * 1000)

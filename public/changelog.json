@@ -1,7 +1,39 @@
 {
-  "generated_at": "2026-10-13T18:45:34.583Z",
+  "generated_at": "2026-10-14T17:20:56.479Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "8e9cbe5",
+      "date": "2026-10-13T14:12:45-05:00",
+      "subject": "Record the wrong-person carve-out as decided and deliberately not built",
+      "title": "Record the wrong-person carve-out as decided and deliberately not built",
+      "body": "John, 2026-10-13: note it for later, but for now the pause applies to every\nreply including the wrong-person apology.\n\nSomeone who says \"you have the wrong person\" therefore gets silence until a\nhuman sees it, and NOT_INTERESTED_DOCTRINE only takes effect when the AI is\nswitched back on. That is the intended behaviour, not an oversight, so the note\nsits in orchestrator.js exactly where the exception would go — gated on its own\nsetting rather than widening ai_auto_pause_on_reply.\n\nNo behaviour change. Comment only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "af39b72",
+      "date": "2026-10-13T14:09:48-05:00",
+      "subject": "AI: auto-pause on any reply, wrong-person doctrine, Day 1 link",
+      "title": "AI: auto-pause on any reply, wrong-person doctrine, Day 1 link",
+      "body": "Three changes from John, 2026-10-13.\n\n1. AUTO-PAUSE ON REPLY. \"anyone who responds on AI let's auto pause for now\n   until I turn it back on\". An inbound reply now cancels the drip (already the\n   case) AND stops the AI composing an answer: the lead moves to HUMAN_TAKEOVER\n   and a person replies. Gated on ai_auto_pause_on_reply, default '1', so\n   turning it back on is a setting and not a deploy. A manual send-now (force)\n   still works, so an agent can have the AI draft something deliberately.\n\n2. WRONG PERSON / NOT LOOKING DOCTRINE, in the system prompt for both the buyer\n   and cold-seller shapes. If someone says they are not looking, does not\n   remember searching, says we have the wrong person, or asks why we contacted\n   them: apologize once, acknowledge the information may be outdated, thank\n   them, stop. Explicitly banned: arguing, explaining where the data came from,\n   ANY mention of website activity or tracking, another qualifying question,\n   and \"I'll remove you from our list\" unless they actually asked. John's two\n   examples are included as a tone guide, marked never to be copied verbatim so\n   every lead does not get the same sentence.\n\n3. DAY 1 LINK. The site is back on the first text only, as a full tappable\n   https URL rather than a bare \"MattSmithTeam.com\" that many phones leave as\n   plain text, and with no \"you can browse listings\" phrasing. Day 1 is the\n   only stage with a website link; the area outreach is the only other link\n   anywhere in the sequence.\n\n34 tests here, 45 across the AI suites.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "20d8828",
+      "date": "2026-10-13T14:06:48-05:00",
+      "subject": "Area outreach: send the listings link without naming the city",
+      "title": "Area outreach: send the listings link without naming the city",
+      "body": "John, 2026-10-13: \"for the listing on text we can just send that without\nmentioning the city\".\n\n\"I noticed you've been looking around Cedar Rapids\" was the line that read as\nthough we had been watching where they browse. The URL still points at the\nright community page, so the area is obvious the moment they tap it.\n\nSide benefit: each message lost 20-40 characters and one is now a single SMS\nsegment at 159 chars.\n\nChoosing WHICH link is unchanged and still strict: a Marion searcher must not\nget a Cedar Rapids page, and a city with no featured page still gets no link at\nall. Two tests pin that dropping the city from the copy did not loosen the\nselection.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b32fd04",
+      "date": "2026-10-13T13:45:50-05:00",
+      "subject": "One profile timeline, newest at the top",
+      "title": "One profile timeline, newest at the top",
+      "body": "John, 2026-10-13: \"notes should show from top to bottom newest to oldest.\"\n\nThe lists were grouped by SOURCE, not by date: imported FUB notes, then Sierra's, then\nthe profile's own free-text notes, each with its own slice and its own Load more button.\nSo a note from 2016 sat above one typed minutes ago, and on the All tab a brand-new note\nlanded underneath every email - which is why a note he had just added looked like it had\nnever saved at all.\n\nNotes, texts, calls, emails and Sierra notes now go into one list ordered newest first,\nwith one slice and one Load more, so nothing can hide behind a collapsed section.\n\nThe two timestamps are not the same kind of thing: a note's stamp is Central WALL TIME\n(\"Oct 13, 2026, 1:23 PM\"), a communication's occurred_at is a UTC instant. Both reduce to\nthe same sortable Central \"YYYY-MM-DD HH:mm\" string in src/lib/timeline-order.js.\nComparing as strings rather than instants is deliberate - turning a stamp into an instant\nneeds the correct DST offset for that stamp's own date, and one wrong offset silently\nreorders the list, while rendering an instant in Central needs no arithmetic. An\nundated note yields no key and sorts to the bottom rather than being given a date nobody\nrecorded.\n\nTexts, Calls and Emails still exclude notes. Notes stay editable wherever they appear,\nthrough the same NoteRow and handler, so the raw line index still travels with the note.\n\ntest/timeline-order.test.mjs (17) covers the keys and the merge, including Patricia\nStuckenschneider's real timeline; test/profile-notes-visible.test.mjs (10) checks the\npage is wired to it and that source-grouped rendering has not crept back.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "1b99062",
       "date": "2026-10-13T13:28:04-05:00",
@@ -3968,38 +4000,6 @@
       "subject": "Twilio Lookup line-type scrub for AI-on leads (flag landlines, drop from drip)",
       "title": "Twilio Lookup line-type scrub for AI-on leads (flag landlines, drop from drip)",
       "body": "- twilio.js lookupLineType(): Lookup V2 Line Type Intelligence; landline/fixedVoip = not textable.\n- POST /api/inbox/scrub-line-types: scan AI-on leads (ai_enabled/managed or pending drip),\n  look up each number, flag landline/fixed-voip as sms_undeliverable + cancel their pending\n  drip texts. dry_run returns count + cost estimate; processes in batches.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bef506b",
-      "date": "2026-08-28T14:42:12-05:00",
-      "subject": "Group text: fix INSERT column/value mismatch + reuse existing conversation",
-      "title": "Group text: fix INSERT column/value mismatch + reuse existing conversation",
-      "body": "- group-reply INSERT had 14 columns but 13 placeholders (\"13 values for 14\n  columns\" error when sending into a group thread) - added the missing bind.\n- group-text now reuses an existing Twilio conversation when the participant set\n  matches exactly, instead of creating a new one (Twilio binds each participant+\n  proxy to ONE conversation, so re-texting the same group errored \"binding\n  already exists\"). Falls back to creating a new conversation for a new group.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6d73cf4",
-      "date": "2026-08-28T13:47:48-05:00",
-      "subject": "Clients Filters: add Assigned Agent filter (+ Unassigned)",
-      "title": "Clients Filters: add Assigned Agent filter (+ Unassigned)",
-      "body": "- buildClientFilter: agents_include / agents_exclude params ('__unassigned__' sentinel)\n- filter-options: return distinct agents\n- Filters panel: 'Assigned Agent' multi-select with an Unassigned option; wired into\n  serialization, reset, and saved-filter load\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9a9e1bf",
-      "date": "2026-08-28T13:20:57-05:00",
-      "subject": "AI walkthrough: frame payoff as what it could realistically sell for; scheduling asks time for Matt to stop by",
-      "title": "AI walkthrough: frame payoff as what it could realistically sell for; scheduling asks time for Matt to stop by",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "bf231e9",
-      "date": "2026-08-28T13:14:19-05:00",
-      "subject": "AI walkthrough rule: keep it general (upgrades/condition/layout), don't parrot specific features",
-      "title": "AI walkthrough rule: keep it general (upgrades/condition/layout), don't parrot specific features",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
