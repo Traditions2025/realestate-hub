@@ -138,7 +138,10 @@ function currentGreeting() {
   return hour < 12 ? 'Morning' : hour < 17 ? 'Afternoon' : 'Evening'
 }
 function savedSignatureHtml() {
-  return (db.getSetting?.('email_signature', '') || '') || 'Matt Smith<br/>Matt Smith Team, RE/MAX Real Estate Concepts'
+  // Fallback is "RE/MAX Concepts" — never "RE/MAX Real Estate Concepts", which is not the
+  // brokerage's name, and always carried with "Matt Smith Team |" (John's standing rule).
+  return (db.getSetting?.('email_signature', '') || '')
+    || 'Matt Smith<br/>Matt Smith Team | RE/MAX Concepts<br/>319-431-5859'
 }
 
 // Does this body ALREADY end in a signature?
@@ -736,9 +739,20 @@ router.get('/preview/:templateId/:clientId', (req, res) => {
   if (!tpl) return res.status(404).json({ error: 'Template not found' })
   const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(req.params.clientId)])
   if (!client) return res.status(404).json({ error: 'Client not found' })
+  // SIGNATURE ON BY DEFAULT (John, 2026-10-14: Matt "shouldn't have to keep adding it").
+  //
+  // Only the composer calls this, and picking a template REPLACES the whole body — which
+  // wiped the signature the blank composer had already put there. /send and the live
+  // preview both append the signature when a body lacks one, so the composer was the one
+  // place that showed Matt an unsigned draft, and he was typing it back in by hand.
+  //
+  // Same append and the same alreadySigned() guard as /send, so what he sees is what
+  // sends, and a template carrying its own signature block still gets only one.
+  let body = tpl.body
+  if (!alreadySigned(body)) body += '<br><br>{{signature}}'
   res.json({
     subject: fillTemplate(tpl.subject, client),
-    body: fillTemplate(tpl.body, client),
+    body: fillTemplate(body, client),
   })
 })
 

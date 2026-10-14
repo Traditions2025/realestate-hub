@@ -1207,8 +1207,28 @@ export default function Clients() {
   const [savingNote, setSavingNote] = useState(false)
   const [composerView, setComposerView] = useState('wysiwyg') // 'wysiwyg' | 'html'
   const [showCcBcc, setShowCcBcc] = useState(false)
+  // The saved signature, pre-placed in a new email so it is there by default (John,
+  // 2026-10-14). Kept in a ref as well as state: openEmailComposer reads it the moment
+  // it runs, and reading state there loses a race on a fast click after page load —
+  // the composer would open unsigned and Matt would type it back in.
   const [teamSignature, setTeamSignature] = useState('')
-  useEffect(() => { authFetch('/api/settings/profile').then(r => r.json()).then(d => setTeamSignature(d.signature || '')).catch(() => {}) }, [])
+  const teamSignatureRef = useRef('')
+  const sigLoad = useRef(null)
+  const loadSignature = () => {
+    if (!sigLoad.current) {
+      sigLoad.current = authFetch('/api/settings/profile').then(r => r.json())
+        .then(d => { const s = d.signature || ''; teamSignatureRef.current = s; setTeamSignature(s); return s })
+        .catch(() => { sigLoad.current = null; return teamSignatureRef.current })
+    }
+    return sigLoad.current
+  }
+  useEffect(() => { loadSignature() }, [])
+  // A fresh body with the signature already in it, Gmail-style: two blank lines to type
+  // into, signature below. Fetches the signature first if it has not arrived yet.
+  const blankSignedBody = async () => {
+    const sig = teamSignatureRef.current || await loadSignature()
+    return sig ? `<div><br></div><div><br></div>${sig}` : ''
+  }
 
   // Move to the prev/next client in the current list without closing the modal.
   const gotoAdjacent = (dir) => {
@@ -1433,13 +1453,14 @@ export default function Clients() {
   const openEmailComposer = (templateId = '') => {
     setComposerView('wysiwyg'); setShowCcBcc(false)
     if (templateId && detail) {
+      // The template body arrives already signed — /api/email/preview appends the
+      // signature when the template lacks one, the same way /send does.
       authFetch(`/api/email/preview/${templateId}/${detail.id}`)
         .then(r => r.json())
         .then(d => setEmailForm({ subject: d.subject, body: d.body, template: templateId, attachments: [], cc: [], bcc: [] }))
     } else {
-      // New blank email — start with a couple of blank lines above the signature, Gmail-style.
-      const startBody = teamSignature ? `<div><br></div><div><br></div>${teamSignature}` : ''
-      setEmailForm({ subject: '', body: startBody, template: '', attachments: [], cc: [], bcc: [] })
+      setEmailForm({ subject: '', body: '', template: '', attachments: [], cc: [], bcc: [] })
+      blankSignedBody().then(body => setEmailForm(p => (p.template || p.body ? p : { ...p, body })))
     }
     setEmailModalOpen(true)
   }
@@ -4126,7 +4147,7 @@ export default function Clients() {
                 title="Clear the subject and message and start a fresh email"
                 onClick={async () => {
                   if (!await confirmDialog('Clear this draft and start a fresh email?')) return
-                  const startBody = teamSignature ? `<div><br></div><div><br></div>${teamSignature}` : ''
+                  const startBody = await blankSignedBody()
                   setEmailForm({ subject: '', body: startBody, template: '', attachments: [], cc: [], bcc: [] })
                   setServerPreview(null)
                 }}>🗑 Clear</button>
