@@ -272,6 +272,36 @@ router.get('/performance-all', (req, res) => {
   })
 })
 
+// ---- email frequency cap (John, 2026-10-14) -------------------------------
+// Read-only: where the caps sit, and who is currently being held by them.
+// MUST stay above '/:id' — Express takes the first matching route, and a one-segment
+// path like /email-cap matches /:id, which would make this dead code.
+router.get('/email-cap', (_req, res) => {
+  const held = db.all(`SELECT e.id, e.client_id, e.drip_id, e.next_run_at, d.name AS drip_name,
+                              c.first_name, c.last_name, c.email
+                         FROM drip_enrollments e
+                         JOIN drip_campaigns d ON d.id = e.drip_id
+                         LEFT JOIN clients c ON c.id = e.client_id
+                        WHERE e.status='active' AND e.next_run_at > datetime('now','+1 day')
+                        ORDER BY e.next_run_at ASC LIMIT 100`)
+  res.json({
+    weekly_cap: weeklyEmailCap(), daily_cap: dailyEmailCap(),
+    counts: 'every email the Hub sent the lead in the trailing 7 days — drips, campaigns, automations and manual sends',
+    exempt: 'transactional and first-contact sends (home value answer, new-lead reply, AI handoff)',
+    gated: 'automated sends only; a manual email is never blocked, but it does count',
+    held_sample: held,
+  })
+})
+router.get('/email-cap/:clientId', (req, res) => {
+  res.json(emailCapState(Number(req.params.clientId)))
+})
+router.post('/email-cap/settings', (req, res) => {
+  const w = Number(req.body?.weekly_cap), d = Number(req.body?.daily_cap)
+  if (Number.isFinite(w) && w > 0) db.setSetting('max_emails_per_week', String(Math.floor(w)))
+  if (Number.isFinite(d) && d > 0) db.setSetting('max_emails_per_day', String(Math.floor(d)))
+  res.json({ weekly_cap: weeklyEmailCap(), daily_cap: dailyEmailCap() })
+})
+
 router.get('/:id', (req, res) => {
   const d = db.get('SELECT * FROM drip_campaigns WHERE id=?', [Number(req.params.id)])
   if (!d) return res.status(404).json({ error: 'Drip not found' })
@@ -343,34 +373,6 @@ router.post('/enrollments/:eid/resume', (req, res) => {
 // (rolled forward off holidays / a passed window), so a hand-picked date still lands in-hours.
 // ---- Home Value Weekly automatic enrollment (OFF until switched on) ----
 // preview: who would go next and why everyone else would not. Sends nothing.
-// ---- email frequency cap (John, 2026-10-14) -------------------------------
-// Read-only: where the caps sit, and who is currently being held by them.
-router.get('/email-cap', (_req, res) => {
-  const held = db.all(`SELECT e.id, e.client_id, e.drip_id, e.next_run_at, d.name AS drip_name,
-                              c.first_name, c.last_name, c.email
-                         FROM drip_enrollments e
-                         JOIN drip_campaigns d ON d.id = e.drip_id
-                         LEFT JOIN clients c ON c.id = e.client_id
-                        WHERE e.status='active' AND e.next_run_at > datetime('now','+1 day')
-                        ORDER BY e.next_run_at ASC LIMIT 100`)
-  res.json({
-    weekly_cap: weeklyEmailCap(), daily_cap: dailyEmailCap(),
-    counts: 'every email the Hub sent the lead in the trailing 7 days — drips, campaigns, automations and manual sends',
-    exempt: 'transactional and first-contact sends (home value answer, new-lead reply, AI handoff)',
-    gated: 'automated sends only; a manual email is never blocked, but it does count',
-    held_sample: held,
-  })
-})
-router.get('/email-cap/:clientId', (req, res) => {
-  res.json(emailCapState(Number(req.params.clientId)))
-})
-router.post('/email-cap/settings', (req, res) => {
-  const w = Number(req.body?.weekly_cap), d = Number(req.body?.daily_cap)
-  if (Number.isFinite(w) && w > 0) db.setSetting('max_emails_per_week', String(Math.floor(w)))
-  if (Number.isFinite(d) && d > 0) db.setSetting('max_emails_per_day', String(Math.floor(d)))
-  res.json({ weekly_cap: weeklyEmailCap(), daily_cap: dailyEmailCap() })
-})
-
 router.get('/home-value/preview', async (req, res) => {
   try {
     const { homeValuePreview } = await import('../home-value-enroll.js')
