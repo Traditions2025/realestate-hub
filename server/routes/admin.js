@@ -9,6 +9,13 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// How much is left to push to FUB and Sierra, and how long it would take at each API's
+// tolerated pace. Read-only: it counts and divides, it sends nothing.
+router.get('/comm-push-scope', requirePermission('settings.view'), async (_req, res) => {
+  try { const m = await import('../comm-push-scope.js'); res.json(m.commPushScope()) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // ── Import condo properties from an MLS export ───────────────────────────────────────
 // John supplied an "Agent Single Line" export of active/pending/sold condos. This is the
 // only authoritative statement in the system of what IS a condo: FUB's property.type is
