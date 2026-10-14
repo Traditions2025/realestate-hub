@@ -211,6 +211,12 @@ async function sendCampaignSms(client, body) {
 
 async function sendCampaignEmail(client, subject, paras) {
   try {
+    // Same cross-campaign ceiling the drips obey: 1 email a day, 2 a week, counting
+    // every campaign and manual send (John, 2026-10-14). Returning ok:false lands this
+    // step in the module's own defer(), which keeps the touch and retries.
+    const { emailCapBlock } = await import('./email-cap.js')
+    const cap = emailCapBlock(client.id, 'fb_listing_campaign')
+    if (cap) return { ok: false, reason: cap.reason }
     const { sendSequenceEmail } = await import('./routes/email.js')
     const r = await sendSequenceEmail(client, { subject, body: emailHtml(String(client.first_name || '').trim() || 'there', paras) }, 'fb_listing_campaign')
     if (r?.ok === false) return { ok: false, reason: r.reason }

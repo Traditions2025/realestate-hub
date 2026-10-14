@@ -2,6 +2,7 @@ import { Router } from 'express'
 import db from '../database.js'
 import { sendSequenceEmail, previewSequenceEmail, emailHardBlock } from './email.js'
 import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
+import { emailCapBlock, emailCapState, weeklyEmailCap, dailyEmailCap } from '../email-cap.js'
 import { isStopStatus } from '../lead-sequences.js'
 import { automationTasksEnabled } from '../automation-tasks.js'
 
@@ -145,21 +146,26 @@ async function advanceDrip(enr) {
     }
   }
 
-  // ONE campaign email per person per day (John, 2026-09-29). A lead may now sit in more
-  // than one campaign, so two of them can drift onto the same day months after enrolling.
-  // Checked here, at send time, because that is the only place that knows what has already
-  // gone out today. This send waits until tomorrow; the other one keeps its slot.
-  const sentToday = db.get(
-    `SELECT e.drip_id FROM drip_executions x
-       JOIN drip_enrollments e ON e.id = x.enrollment_id
-      WHERE e.client_id = ? AND x.status = 'success'
-        AND date(x.sent_at) = date('now','localtime') AND e.id != ?
-      LIMIT 1`, [enr.client_id, enr.id])
-  if (sentToday) {
-    const tomorrow = nextSendIso(Date.now() + 86400000, { ...step, delay_days: 0 })
+  // HOW MANY EMAILS ONE PERSON MAY GET: 1 a day and 2 in a rolling 7 days, counted
+  // across EVERY campaign and manual send, not per drip (John, 2026-09-29 for the day
+  // rule, 2026-10-14 for the week). A lead can sit in several drips at once and still
+  // catch a manual listing blast on top, and nothing used to add those up.
+  //
+  // Checked here, at send time, so it covers every enrollment that already exists
+  // instead of only the ones created from now on. The capped send waits; the emails
+  // that already went keep their place. See server/email-cap.js for what counts.
+  const cap = emailCapBlock(enr.client_id, `drip_${enr.drip_id}`)
+  if (cap) {
+    // Resume the moment the window clears rather than re-checking daily for a week, then
+    // snap that instant onto this step's own send window. nextSendIso already moves off
+    // holidays. Falling back to tomorrow rather than now matters: a missing
+    // next_eligible_at must not turn into a same-tick retry that is still capped.
+    const clear = Date.parse(cap.next_eligible_at)
+    const from = Math.max(Number.isFinite(clear) ? clear : Date.now() + 86400000, Date.now())
+    const when = nextSendIso(from, { ...step, delay_days: 0 })
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-      ['drip_deferred', 'client', enr.client_id, `${drip.name} held to ${tomorrow.slice(0, 10)} — another campaign already emailed today`])
-    return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [tomorrow, enr.id])
+      ['drip_deferred', 'client', enr.client_id, `${drip.name} held to ${when.slice(0, 10)} — ${cap.reason}`])
+    return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [when, enr.id])
   }
 
   // no sends on US federal holidays — defer to the next non-holiday day
@@ -337,6 +343,34 @@ router.post('/enrollments/:eid/resume', (req, res) => {
 // (rolled forward off holidays / a passed window), so a hand-picked date still lands in-hours.
 // ---- Home Value Weekly automatic enrollment (OFF until switched on) ----
 // preview: who would go next and why everyone else would not. Sends nothing.
+// ---- email frequency cap (John, 2026-10-14) -------------------------------
+// Read-only: where the caps sit, and who is currently being held by them.
+router.get('/email-cap', (_req, res) => {
+  const held = db.all(`SELECT e.id, e.client_id, e.drip_id, e.next_run_at, d.name AS drip_name,
+                              c.first_name, c.last_name, c.email
+                         FROM drip_enrollments e
+                         JOIN drip_campaigns d ON d.id = e.drip_id
+                         LEFT JOIN clients c ON c.id = e.client_id
+                        WHERE e.status='active' AND e.next_run_at > datetime('now','+1 day')
+                        ORDER BY e.next_run_at ASC LIMIT 100`)
+  res.json({
+    weekly_cap: weeklyEmailCap(), daily_cap: dailyEmailCap(),
+    counts: 'every email the Hub sent the lead in the trailing 7 days — drips, campaigns, automations and manual sends',
+    exempt: 'transactional and first-contact sends (home value answer, new-lead reply, AI handoff)',
+    gated: 'automated sends only; a manual email is never blocked, but it does count',
+    held_sample: held,
+  })
+})
+router.get('/email-cap/:clientId', (req, res) => {
+  res.json(emailCapState(Number(req.params.clientId)))
+})
+router.post('/email-cap/settings', (req, res) => {
+  const w = Number(req.body?.weekly_cap), d = Number(req.body?.daily_cap)
+  if (Number.isFinite(w) && w > 0) db.setSetting('max_emails_per_week', String(Math.floor(w)))
+  if (Number.isFinite(d) && d > 0) db.setSetting('max_emails_per_day', String(Math.floor(d)))
+  res.json({ weekly_cap: weeklyEmailCap(), daily_cap: dailyEmailCap() })
+})
+
 router.get('/home-value/preview', async (req, res) => {
   try {
     const { homeValuePreview } = await import('../home-value-enroll.js')

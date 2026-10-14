@@ -222,6 +222,12 @@ async function runAction(node, client, ctx) {
       // address / spam complaint / blocked domain.
       const hardBlk = emailHardBlock(client)
       if (hardBlk) return `skipped (${hardBlk})`
+      // 1 email a day, 2 a week, counted across every campaign (John, 2026-10-14).
+      // An automation step is automated mail like any other, so it waits its turn —
+      // the automation run records the skip and the trigger can fire again later.
+      const { emailCapBlock } = await import('../email-cap.js')
+      const capped = emailCapBlock(client.id, `auto_${ctx.automationId}`)
+      if (capped) return `skipped (${capped.reason})`
       let subject = cfg.subject, body = cfg.body
       if (cfg.template_id) { const t = db.get('SELECT subject, body FROM templates WHERE id = ?', [Number(cfg.template_id)]); if (t) { subject = subject || t.subject; body = body || t.body } }
       if (!subject || !body) throw new Error('email missing subject/body/template')
@@ -238,6 +244,11 @@ async function runAction(node, client, ctx) {
     }
     case 'send_property_recommendation': {
       if (!client.email) throw new Error('contact has no email')
+      {
+        const { emailCapBlock } = await import('../email-cap.js')
+        const capped = emailCapBlock(client.id, `auto_${ctx.automationId}`)
+        if (capped) return `skipped (${capped.reason})`
+      }
       let cards = ''
       try { cards = await buildPropertyCardsLive(client, Number(cfg.max) || 4) } catch {}
       if (!cards) return 'skipped (no properties)'
