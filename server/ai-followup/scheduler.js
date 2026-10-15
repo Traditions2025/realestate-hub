@@ -7,6 +7,7 @@ import db from '../database.js'
 import { flag, getConfig, autopilotOn } from './flags.js'
 import { canSendSms } from './policy.js'
 import { ensureState, isExcludedFromAutopilot } from './state.js'
+import { isUsHoliday } from '../holidays.js'
 
 const nowIso = () => new Date().toISOString()
 const plusMin = (m) => new Date(Date.now() + m * 60000).toISOString()
@@ -42,7 +43,15 @@ export async function runDueAiActions() {
       // channel just failed (that's when the email matters most); the handler
       // + sendSequenceEmail apply email-side compliance.
       const gate = a.action_type === 'AI_FB_AD_EMAIL' ? { ok: true } : canSendSms(client, { channel: 'ai', mode: 'proactive' })
-      if (!gate.ok) { finish(a.id, 'canceled', gate.reason); continue }
+      if (!gate.ok) {
+        // A block that will clear on its own must POSTPONE this stage, not destroy it.
+        // Cancelling treats "not today" as "never": the stage is gone, and the next one
+        // fires days later as if it had sent. That is how Norma Walker's Day 1 - the only
+        // message that introduces us - vanished on Columbus Day and her first contact
+        // became a Day 4 continuation from a number she could not place.
+        if (isTransientBlock(gate.reason)) { defer(a, gate.reason); continue }
+        finish(a.id, 'canceled', gate.reason); continue
+      }
       // if the lead replied or a human took over since scheduling, skip
       const st = db.get('SELECT ai_state, ai_last_inbound_at, ai_last_human_contact_at FROM ai_lead_state WHERE client_id=?', [a.client_id])
       if (st && ['HUMAN_TAKEOVER', 'HUMAN_HANDOFF_REQUIRED', 'AI_DISABLED', 'NOT_INTERESTED'].includes(st.ai_state)) { finish(a.id, 'canceled', 'state ' + st.ai_state); continue }
@@ -62,9 +71,32 @@ export async function runDueAiActions() {
         res = await orch.handleColdBuyerStage(a.client_id, stage)
         if (stage >= COLD_DAYS.length - 1) scheduleColdBuyer(a.client_id, stage + 1)
       }
+      // A stage that did not send because of a passing condition is POSTPONED. Without
+      // this, quiet hours marked it 'completed' - consumed, never sent, and looking
+      // successful in every report.
+      if (!res?.sent && isTransientBlock(res?.reason)) { defer(a, res.reason); continue }
       finish(a.id, res?.sent ? 'completed' : (res?.ok ? 'completed' : 'failed'), res?.reason || null)
     } catch (e) { finish(a.id, 'failed', String(e.message).slice(0, 200)) }
   }
+}
+// Reasons that describe THIS MOMENT rather than this lead. They clear by themselves, so
+// the stage is re-dated instead of being thrown away. Anything else - opted out, DNC,
+// undeliverable, a campaign fence, a hand-added lead - is a property of the lead and
+// cancelling is right.
+const TRANSIENT = [/holiday/i, /quiet hours/i, /paused until/i, /rate limit/i, /temporarily/i]
+export function isTransientBlock(reason) {
+  const r = String(reason || '')
+  return TRANSIENT.some(re => re.test(r))
+}
+// Push a blocked stage to the next real sending slot, keeping its per-lead time offset so
+// it does not pile onto the same minute as everyone else's. Give up after 10 tries so a
+// permanent condition misread as transient cannot defer forever.
+const MAX_DEFERRALS = 10
+function defer(a, reason) {
+  if ((Number(a.attempt_count) || 0) >= MAX_DEFERRALS) { finish(a.id, 'canceled', `${reason} (deferred ${MAX_DEFERRALS}x, giving up)`); return }
+  const when = businessSlot(new Date(Date.now() + 86400000), coldSendOffsetMin(a.client_id))
+  db.run("UPDATE ai_scheduled_actions SET state='pending', execute_at=?, error=?, updated_at=? WHERE id=?",
+    [when, `postponed: ${reason}`, nowIso(), a.id])
 }
 function finish(id, state, error) { db.run("UPDATE ai_scheduled_actions SET state=?, completed_at=?, error=?, updated_at=? WHERE id=?", [state, nowIso(), error, nowIso(), id]) }
 
@@ -88,14 +120,21 @@ export function coldSendOffsetMin(clientId) { return (Math.abs(Number(clientId) 
 // A weekday date in the daytime window. Sat/Sun roll to Monday. 15:00 UTC + offsetMin lands
 // ~10am to 4pm Central, inside the approved daytime sending window.
 function businessSlot(date, offsetMin = 0) {
-  const d = new Date(date)
+  let d = new Date(date)
   d.setUTCHours(15, 0, 0, 0)
   d.setUTCMinutes(Math.max(0, Math.min(359, offsetMin || 0)))
-  for (let i = 0; i < 3; i++) {
+  // Weekends roll forward — and so do US holidays. A stage scheduled onto a holiday used
+  // to be created normally and then REFUSED at send time by the holiday rule in policy.js,
+  // which the drain recorded as canceled. Norma Walker's Day 1 was scheduled for Columbus
+  // Day 2026 and destroyed that way, so the first message she ever got was Day 4 and she
+  // replied "Yes. Who is this?". Bumping a holiday can land on a Saturday, and rolling a
+  // weekend can land on a holiday, so the two run together until both are satisfied.
+  for (let i = 0; i < 8; i++) {
     const wd = new Date(d).toLocaleString('en-US', { timeZone: 'America/Chicago', weekday: 'short' })
-    if (wd === 'Sat') d.setUTCDate(d.getUTCDate() + 2)
-    else if (wd === 'Sun') d.setUTCDate(d.getUTCDate() + 1)
-    else break
+    if (wd === 'Sat') { d.setUTCDate(d.getUTCDate() + 2); continue }
+    if (wd === 'Sun') { d.setUTCDate(d.getUTCDate() + 1); continue }
+    if (isUsHoliday(d)) { d.setUTCDate(d.getUTCDate() + 1); continue }
+    break
   }
   return d.toISOString()
 }
