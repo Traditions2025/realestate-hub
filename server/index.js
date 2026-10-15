@@ -1239,6 +1239,40 @@ async function start() {
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
 
+  // READ-ONLY: is FUB still running drips of its own? (John, 2026-10-15)
+  //
+  // FUB calls them Action Plans. This matters beyond curiosity: anything FUB sends is
+  // invisible to the Hub's email frequency cap, which counts only what the Hub itself sent.
+  // A lead on a live FUB action plan can be getting mail nobody here is counting.
+  //
+  // GET only, every call wrapped, nothing written anywhere. Several endpoint spellings are
+  // tried because the API docs and the account's plan tier do not always agree on which
+  // exist, and a 404 is itself the answer.
+  app.get('/api/fub/probe-action-plans', async (_req, res) => {
+    try {
+      const { fubGet } = await import('./fub-helper.js')
+      const out = {}
+      const probe = async (label, endpoint, params = {}) => {
+        try {
+          const b = await fubGet(endpoint, { limit: 100, ...params })
+          const key = Object.keys(b || {}).find(k => Array.isArray(b[k])) || null
+          const rows = key ? b[key] : []
+          out[label] = { ok: true, endpoint, total: b?._metadata?.total ?? null,
+                         collection: key, returned: rows.length, rows }
+        } catch (e) {
+          out[label] = { ok: false, endpoint, status: e.status || null, error: String(e.message).slice(0, 160) }
+        }
+        await new Promise(s2 => setTimeout(s2, 350))   // stay well inside FUB's rate limit
+      }
+      await probe('actionPlans', '/actionPlans')
+      await probe('actionPlansPeople', '/actionPlansPeople')
+      await probe('automations', '/automations')
+      await probe('emailTemplates', '/templates')
+      await probe('textTemplates', '/textMessageTemplates')
+      res.json(out)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   // Push Hub leads FUB does not know about. Searches FUB by email then phone first, so a
   // lead that already exists there is LINKED, never duplicated. Takes {dry:true}.
   app.post('/api/fub/push-new-leads', async (req, res) => {
