@@ -19,7 +19,7 @@
 // is plain text on a lot of handsets.
 export const SITE_URL = 'https://www.mattsmithteam.com/'
 
-export async function renderColdStageTemplate(stageIndex, approvedBody, client) {
+export async function renderColdStageTemplate(stageIndex, approvedBody, client, { firstContact = false } = {}) {
   const { fillTemplate } = await import('../routes/email.js')
 
   // {{area}} -> the lead's search city, cleaned, with a safe fallback so a message never
@@ -35,6 +35,15 @@ export async function renderColdStageTemplate(stageIndex, approvedBody, client) 
     .replace(/\[price\]/gi, 'the right price')
 
   msg = fixGreetingForTime(msg)
+
+  // The introduction and the site belong to the lead's FIRST message from us. Normally that
+  // is Day 1 - but if Day 1 never went out, the first thing they ever hear from us is a
+  // mid-sequence continuation, and they have no idea who is texting.
+  //
+  // Norma Walker, 2026-10-15: her first ever text was a Day 4 message, and she replied
+  // "Yes. Who is this?". So firstContact is honoured as well as the stage number.
+  const introHere = Number(stageIndex) === 0 || firstContact === true
+  if (introHere) msg = ensureIntroduction(msg)
   msg = avoidJohnOnJohn(msg, client)
 
   // DAY 1 ONLY: the site, as a full tappable URL (John, 2026-10-13: "the website on day one
@@ -45,7 +54,7 @@ export async function renderColdStageTemplate(stageIndex, approvedBody, client) 
   // message. Two problems: the sales phrasing, and a bare domain that many phones do not
   // turn into a link. A full https URL is tappable everywhere and needs no sentence around
   // it. Later stages carry no link at all — the area outreach is the only other one.
-  if (Number(stageIndex) === 0) msg = `${msg} ${SITE_URL}`
+  if (introHere) msg = `${msg} ${SITE_URL}`
 
   return tidyFallbackGreeting(fillTemplate(msg, client))
     .replace(/\{\{[^}]+\}\}/g, '')               // drop any unresolved merge field
@@ -106,4 +115,30 @@ export function avoidJohnOnJohn(text, client) {
     .replace(/It's John with Matt Smith Team at RE\/MAX\./i, "It's John with Matt Smith Team at RE/MAX.")
     .replace(/^(Hi|Good (?:morning|afternoon|evening)),?\s*\{\{first_name\}\}!\s*/i, (m) =>
       m.replace(/,?\s*\{\{first_name\}\}/i, ''))
+}
+
+/** The one sentence that says who is texting. Matches the three Day 1 openers that carry it. */
+export const INTRO = "It's John with Matt Smith Team at RE/MAX."
+
+/**
+ * Guarantee the introduction on a lead's first message.
+ *
+ * John's rule is that John introduces himself on Day 1 and the thread reads as continuous
+ * after that. The copy did not implement it: only 3 of the 24 Day 1 openers actually say
+ * who is texting, so 7 in 8 leads were introduced to nobody and the next thing they saw was
+ * a question from an unknown number.
+ *
+ * This does NOT rewrite John's sentences. It inserts the same introduction the three
+ * complete openers already use, immediately after the greeting, and only when the chosen
+ * message does not already introduce us. A message that says it keeps its own wording.
+ */
+export function ensureIntroduction(text) {
+  const msg = String(text || '')
+  if (/Matt Smith Team/i.test(msg)) return msg   // already introduces us; leave John's words alone
+  // Insert after the opening greeting so it reads "Hi Norma! It's John with ... RE/MAX. ..."
+  const greeting = /^((?:Hi|Hello|Hey|Good (?:morning|afternoon|evening)),?\s*\{\{first_name\}\}[!.,]?\s*)/i
+  const m = greeting.exec(msg)
+  if (m) return m[1].trimEnd() + ' ' + INTRO + ' ' + msg.slice(m[1].length)
+  // No recognisable greeting (or no name): lead with the introduction.
+  return INTRO + ' ' + msg
 }

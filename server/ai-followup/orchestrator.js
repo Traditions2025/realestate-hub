@@ -412,7 +412,15 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
     const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
     if (client) {
       const { renderColdStageTemplate } = await import('./cold-template.js')
-      let templateText = await renderColdStageTemplate(idx, approved, client)
+      // Has this lead ever heard from us at all? Day 1 carries the introduction and the
+      // site link, and nothing else does. If Day 1 never went out - it is one pre-scheduled
+      // action among ten, and a blocked one is not retried while the rest still fire on
+      // their own dates - then a later stage becomes the first message they ever see, from
+      // a number they cannot place. Norma Walker got Day 4 as her first text on 2026-10-15
+      // and replied "Yes. Who is this?".
+      const everTexted = !!db.get(
+        "SELECT 1 FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' LIMIT 1", [cid])
+      let templateText = await renderColdStageTemplate(idx, approved, client, { firstContact: !everTexted })
 
       // AREA-BASED VALUE OUTREACH (John, 2026-10-13). On the stages where a useful link beats
       // another question — Day 17, Day 30 and the ongoing loop — replace the generic message
