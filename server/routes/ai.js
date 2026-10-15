@@ -147,6 +147,24 @@ router.get('/lead/:id', (req, res) => {
 })
 
 router.get('/lead/:id/history', (req, res) => res.json(recentAiActions(Number(req.params.id), 60)))
+// Every scheduled action for a lead, with its state and why it ended that way.
+// `history` only shows actions that RAN; an action that was canceled or failed in the
+// drain leaves no ai_actions row at all, so the one question that matters after a lead
+// says "who is this?" - what happened to the stage that should have introduced us - had
+// no read-only answer. Read-only.
+router.get('/lead/:id/schedule', (req, res) => {
+  const cid = Number(req.params.id)
+  try {
+    const rows = db.all(`SELECT id, action_type, state, execute_at, created_at, completed_at,
+                                attempt_count, error, reason, payload_json, dedup_key
+                         FROM ai_scheduled_actions WHERE client_id=? ORDER BY execute_at ASC`, [cid])
+    res.json(rows.map(r => {
+      let stage = null
+      try { stage = JSON.parse(r.payload_json || '{}').stage } catch {}
+      return { ...r, stage: stage === undefined ? null : stage, day: stage === null || stage === undefined ? null : [1, 4, 9, 17, 30, 50, 80, 120, 165, 210][stage] ?? 'loop' }
+    }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 // Preview the next AI message WITHOUT sending it.
 router.post('/lead/:id/preview', async (req, res) => {
   try { const m = await import('../ai-followup/orchestrator.js'); res.json(await m.previewMessage(Number(req.params.id), { context: req.body?.context || '', approach: String(req.body?.approach || '') })) }
