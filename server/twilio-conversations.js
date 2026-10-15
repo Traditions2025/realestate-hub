@@ -77,13 +77,32 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
     .filter(r => r.phone && String(r.phone).replace(/\D/g, '').slice(-10) !== proxy10)
   if (clean.length < 2) throw new Error('A group text needs at least 2 recipients (our own Hub number is skipped automatically)')
   const sid = await ensureConversationsService()
+
+  // BEING IN SEVERAL GROUPS AT ONCE (John, 2026-10-15: "any lead or person should be in any
+  // or multiple group text").
+  //
+  // Twilio binds ONE conversation per (participant phone + proxy number) pair. With a
+  // single sending number that is a hard ceiling of one group per person, and the old code
+  // dealt with it by evicting them from the earlier group - silently, which is exactly the
+  // behaviour John hit.
+  //
+  // The ceiling is per PROXY, not per account, so a second number doubles it, a third
+  // triples it, and so on. This now walks a pool and picks the first number none of these
+  // participants is already bound to. The pool is a setting, so adding capacity is buying a
+  // number and pasting it in, with no deploy.
+  //
+  // With one number configured the behaviour is unchanged, so nothing breaks until the pool
+  // is filled.
+  const pool = groupProxyPool(proxy0)
+  const proxy = await pickFreeProxy(sid, pool, clean.map(r => r.phone))
+  if (!proxy) {
+    throw new Error(`Everyone in this group is already in another group text on all ${pool.length} sending number${pool.length === 1 ? '' : 's'}. ` +
+      `Add another number to twilio_group_proxy_numbers to allow more simultaneous groups, or end one of their existing groups.`)
+  }
+
   const conv = await tw('POST', `/Services/${sid}/Conversations`, { FriendlyName: 'Group text ' + new Date().toISOString() })
   const convSid = conv.sid
   const participants = [], skipped = []
-  // Twilio binds a phone + our proxy to ONE conversation. When someone is stuck in
-  // an OLD group (e.g. Dave in a superseded thread), pull them out of that
-  // conversation and retry — the new group wins. The old thread keeps its history;
-  // it simply stops including this participant.
   const addParticipant = (phone) => tw('POST', `/Services/${sid}/Conversations/${convSid}/Participants`, {
     'MessagingBinding.Address': phone,
     'MessagingBinding.ProxyAddress': proxy,
@@ -113,6 +132,48 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
   if (!participants.length) { try { await tw('DELETE', `/Services/${sid}/Conversations/${convSid}`) } catch {}; throw new Error('Could not add any participants: ' + (skipped[0]?.error || 'unknown')) }
   const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: author, Body: body })
   return { conversationSid: convSid, serviceSid: sid, participants, skipped, messageSid: msg.sid }
+}
+
+/**
+ * The sending numbers available for group texts, best first.
+ *
+ * `twilio_group_proxy_numbers` is a comma-separated list. The main sending number is always
+ * first and always present, so an empty setting behaves exactly as before.
+ *
+ * Every number in the pool has to be on the same A2P campaign as the main one, or carriers
+ * will filter it. Buying the number is the easy half.
+ */
+export function groupProxyPool(mainProxy) {
+  const raw = (() => { try { return db.getSetting('twilio_group_proxy_numbers', '') || '' } catch { return '' } })()
+  const extra = String(raw).split(',').map(s => toE164(s.trim())).filter(Boolean)
+  const seen = new Set()
+  return [mainProxy, ...extra].filter(p => { const k = String(p).replace(/\D/g, '').slice(-10); if (!k || seen.has(k)) return false; seen.add(k); return true })
+}
+
+/**
+ * The first proxy in the pool that none of these phones is currently bound to.
+ *
+ * Asked of Twilio rather than tracked locally, because the binding lives there: a group
+ * ended outside the Hub, or a participant removed by hand, would make a local record wrong
+ * in the direction that silently drops people.
+ */
+export async function pickFreeProxy(serviceSid, pool, phones) {
+  const want = new Set((phones || []).map(p => String(p)))
+  for (const proxy of pool) {
+    let clash = false
+    for (const phone of want) {
+      try {
+        // Twilio refuses a duplicate binding on create, so the cheap check is to ask for
+        // the participant's existing conversations on this proxy.
+        const j = await tw('GET', `/ParticipantConversations?Address=${encodeURIComponent(phone)}&PageSize=50`)
+        const rows = j.conversations || []
+        if (rows.some(r => String(r.participant_messaging_binding?.proxy_address || '') === proxy
+                        && String(r.conversation_state || '').toLowerCase() !== 'closed')) { clash = true; break }
+      } catch { /* cannot tell: treat as free and let the create call be the judge */ }
+    }
+    if (!clash) return proxy
+  }
+  return null
 }
 
 // Send a message INTO an existing group conversation (agent replying to the group).
