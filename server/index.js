@@ -1269,6 +1269,33 @@ async function start() {
       await probe('automations', '/automations')
       await probe('emailTemplates', '/templates')
       await probe('textTemplates', '/textMessageTemplates')
+
+      // "86 plans, all Active" says the plans are switched ON, not that anybody is on them.
+      // The number that matters is how many PEOPLE are mid-plan right now, because those are
+      // the ones FUB may still be mailing outside the Hub's cap. Asked with limit=1 and read
+      // off _metadata.total, so it costs one tiny call per status instead of 145 pages.
+      const byStatus = {}
+      for (const st of ['Active', 'Running', 'Paused', 'Completed', 'Removed', 'Cancelled', 'Failed']) {
+        try {
+          const b = await fubGet('/actionPlansPeople', { status: st, limit: 1 })
+          byStatus[st] = b?._metadata?.total ?? null
+        } catch (e) { byStatus[st] = `err ${e.status || ''}`.trim() }
+        await new Promise(s2 => setTimeout(s2, 350))
+      }
+      out.people_by_status = byStatus
+
+      // Which plans actually hold the live people — the list worth acting on.
+      const live = []
+      const plans = (out.actionPlans?.rows || []).slice(0, 90)
+      for (const p of plans) {
+        try {
+          const b = await fubGet('/actionPlansPeople', { actionPlanId: p.id, status: 'Active', limit: 1 })
+          const n = b?._metadata?.total ?? 0
+          if (n > 0) live.push({ id: p.id, name: p.name, active_people: n })
+        } catch {}
+        await new Promise(s2 => setTimeout(s2, 320))
+      }
+      out.plans_with_active_people = live.sort((a, b2) => b2.active_people - a.active_people)
       res.json(out)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
