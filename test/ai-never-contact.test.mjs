@@ -136,3 +136,34 @@ test('the pre-existing never-rules are intact', () => {
   const active = mkClient({ email: 'active@example.com', status: 'active' })
   assert.equal(aiForbiddenReason(active), null, "'active' must stay allowed — it is the hand-added default")
 })
+
+/* ---------- the back-fill: the email list pinned onto the lead ---------- */
+
+test('back-fill pins the exclusion onto the lead once it exists', () => {
+  NC.addAiNeverContact({ email: 'backfill@example.com', reason: 'alerts only', by: 'test' })
+  const c = mkClient({ email: 'backfill@example.com' })
+  assert.ok(!db.get('SELECT client_id FROM ai_lead_state WHERE client_id=? AND auto_enroll_excluded=1', [c.id]),
+    'not stamped before the sweep runs')
+  const r = NC.backfillAiNeverContact()
+  assert.ok(r.stamped >= 1)
+  const st = db.get('SELECT auto_enroll_excluded, auto_enroll_excluded_reason FROM ai_lead_state WHERE client_id=?', [c.id])
+  assert.equal(st.auto_enroll_excluded, 1, 'now excluded on the record itself')
+  assert.match(String(st.auto_enroll_excluded_reason), /alerts only/)
+})
+
+test('once pinned, the block survives the email being changed', () => {
+  NC.addAiNeverContact({ email: 'willchange@example.com', reason: 'alerts only', by: 'test' })
+  const c = mkClient({ email: 'willchange@example.com' })
+  NC.backfillAiNeverContact()
+  // somebody corrects the address — the email list no longer matches
+  db.run('UPDATE clients SET email=? WHERE id=?', ['corrected@example.com', c.id])
+  const after = db.get('SELECT * FROM clients WHERE id=?', [c.id])
+  assert.equal(NC.aiNeverContactMatch(after), null, 'the list alone would now miss them')
+  assert.ok(aiForbiddenReason(after), 'but the pinned flag still forbids the AI')
+})
+
+test('the back-fill is idempotent and does not restamp', () => {
+  NC.backfillAiNeverContact()
+  const again = NC.backfillAiNeverContact()
+  assert.equal(again.stamped, 0, 'nothing left to stamp on a second run')
+})

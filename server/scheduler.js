@@ -887,6 +887,11 @@ export function startScheduler() {
   // to weekdays 9AM-4PM CT + the daily cap).
   setInterval(() => { import('./ai-enrollment.js').then(m => m.freshEnrollSweep()).catch(() => {}) }, 10 * 60 * 1000)
 
+  // Pin any never-contact registration onto the lead itself once that lead exists, so the
+  // exclusion survives a later email correction and shows on the profile. The email list is
+  // already the guard; this is what keeps it from going quiet if the address changes.
+  setInterval(() => { import('./ai-never-contact.js').then(m => m.backfillAiNeverContact()).catch(() => {}) }, 10 * 60 * 1000)
+
   // FUB → Hub Facebook-ad lead watcher: every 2 min pull ONLY new Facebook lead-ad
   // events from FUB's event stream (never the people database) so ad leads reach
   // the Hub with a notification + instant AI first touch. Gated by

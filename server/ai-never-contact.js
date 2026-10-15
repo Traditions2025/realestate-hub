@@ -100,6 +100,48 @@ export function listAiNeverContact() {
 }
 
 /**
+ * Turn an email/phone registration into the ordinary per-lead exclusion once the lead has
+ * actually arrived. Runs on the same 10-minute tick as the fresh-enrolment sweep.
+ *
+ * WHY, given the list already blocks them: the list is keyed on the EMAIL, so if anyone
+ * later corrects or changes that address the match quietly stops applying and the AI is free
+ * again. Stamping auto_enroll_excluded pins the exclusion to the LEAD, where an email change
+ * cannot shake it off. It also makes the exclusion visible on the profile, which is what
+ * stops somebody switching AI on without realising — an invisible guard invites that.
+ *
+ * Both layers stay: the email list covers the window before the lead exists, the stamped
+ * flag covers them permanently afterwards. Idempotent — it only ever writes once per lead.
+ */
+export function backfillAiNeverContact() {
+  initAiNeverContact()
+  let stamped = 0
+  try {
+    const entries = db.all('SELECT id, email, phone10, reason FROM ai_never_contact')
+    for (const n of entries) {
+      const rows = db.all(
+        `SELECT c.id FROM clients c
+          WHERE c.merged_into IS NULL
+            AND ((? != '' AND lower(c.email) = ?) OR (? != '' AND replace(replace(replace(replace(replace(
+                  COALESCE(c.phone,''),'(',''),')',''),'-',''),' ',''),'+','') LIKE '%' || ?))
+            AND NOT EXISTS (SELECT 1 FROM ai_lead_state s
+                             WHERE s.client_id = c.id AND s.auto_enroll_excluded = 1)`,
+        [n.email || '', n.email || '', n.phone10 || '', n.phone10 || ''])
+      for (const r of rows) {
+        try {
+          db.run(`INSERT INTO ai_lead_state (client_id) VALUES (?)
+                  ON CONFLICT(client_id) DO NOTHING`, [r.id])
+        } catch {}
+        db.run(`UPDATE ai_lead_state SET auto_enroll_excluded=1, auto_enroll_excluded_by=?,
+                auto_enroll_excluded_at=?, auto_enroll_excluded_reason=? WHERE client_id=?`,
+          ['ai_never_contact', nowIso(), n.reason || 'AI never-contact list', r.id])
+        stamped++
+      }
+    }
+  } catch {}
+  return { stamped }
+}
+
+/**
  * Is this lead on the never-contact list? Matched on email or phone, NOT on id, so it works
  * for a record that was created seconds ago by a sync and for one that does not exist yet.
  */
