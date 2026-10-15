@@ -480,6 +480,17 @@ export async function handleFbAdEmail(clientId, { property = '' } = {}) {
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
+
+  // THE NEVER-RULES APPLY TO THE AI'S EMAIL TOO (John, 2026-10-14).
+  //
+  // Every never-rule lived behind canSendSms, which this path never calls because it sends
+  // an email, not a text. So a lead the AI was forbidden to text could still be emailed by
+  // it. "AI doesn't reach out to them" means any channel the AI speaks on, so the same
+  // forbidden.js rule is asked here — the one place the AI sends email.
+  const { aiForbiddenReason } = await import('./forbidden.js')
+  const forbidden = aiForbiddenReason(client)
+  if (forbidden) return { ok: true, sent: false, reason: forbidden }
+
   const lastOut = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND direction='outgoing' AND channel='text' ORDER BY occurred_at DESC LIMIT 1", [cid])
   const repliedSince = lastOut && db.get("SELECT id FROM communications WHERE client_id=? AND direction='incoming' AND occurred_at >= ? LIMIT 1", [cid, lastOut.occurred_at])
   if (repliedSince) return { ok: true, sent: false, reason: 'lead already responded — human owns it' }

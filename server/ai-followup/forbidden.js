@@ -18,6 +18,7 @@
 // `auto_enroll_excluded` stays enrolment-only on purpose, because an agent switching AI on
 // from the profile must mean exactly that.
 import db from '../database.js'
+import { aiNeverContactMatch } from '../ai-never-contact.js'
 
 // Statuses that mean "this is not a prospect any more", checked on every AI send.
 //
@@ -40,6 +41,18 @@ const NOT_A_PROSPECT = new Set(['closed', 'pending', 'archived'])
  */
 export function aiForbiddenReason(client) {
   if (!client) return null
+
+  // THE NEVER-CONTACT LIST (John, 2026-10-14), keyed on email and phone rather than lead id.
+  //
+  // Checked FIRST, and before the `if (!cid) return null` below, because the whole reason it
+  // exists is to cover a lead that does not have an id yet: John registers somebody before
+  // adding them in Sierra, and the exclusion has to be in force the moment the sync creates
+  // the record — not whenever a person next remembers to tick a box.
+  const never = aiNeverContactMatch(client)
+  if (never) {
+    return `on the AI never-contact list${never.reason ? ` (${never.reason})` : ''} — a person owns this conversation`
+  }
+
   const status = String(client.status || '').trim().toLowerCase()
   if (NOT_A_PROSPECT.has(status)) {
     return status === 'closed' ? 'past client (status Closed) — AI never prospects a client'

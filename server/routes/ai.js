@@ -719,6 +719,44 @@ router.post('/enrollment/settings', (req, res) => {
   if (b.source_exclude !== undefined) db.setSetting('ai_enroll_source_exclude', String(b.source_exclude))
   import('../ai-enrollment.js').then(m => res.json({ success: true, ...m.enrollmentSummary() }))
 })
+// ---- AI never-contact list (John, 2026-10-14) ------------------------------
+// Registered by EMAIL/PHONE, so somebody can be excluded BEFORE they exist in the Hub —
+// which is the point: a lead added in Sierra for listing alerts must not get an AI opener in
+// the window between the sync creating them and a person noticing. Asked at the same choke
+// point as every other never-rule (forbidden.js, on every AI send including forced).
+router.get('/never-contact', async (_req, res) => {
+  const m = await import('../ai-never-contact.js')
+  res.json({ list: m.listAiNeverContact() })
+})
+router.post('/never-contact', async (req, res) => {
+  const m = await import('../ai-never-contact.js')
+  const r = m.addAiNeverContact({
+    email: req.body?.email, phone: req.body?.phone, name: req.body?.name,
+    reason: req.body?.reason, by: req.user?.email || 'agent',
+  })
+  if (!r.ok) return res.status(400).json(r)
+  // If the lead already exists, also stamp the normal per-lead flag so the profile UI and
+  // the existing audit endpoints show it the same way as any hand-excluded lead.
+  let stamped = []
+  try {
+    for (const row of m.listAiNeverContact()) {
+      if (row.id !== r.id || !row.matched_client_ids) continue
+      for (const cid of String(row.matched_client_ids).split(',').map(Number).filter(Boolean)) {
+        ensureState(cid)
+        db.run(`UPDATE ai_lead_state SET auto_enroll_excluded=1, auto_enroll_excluded_by=?,
+                auto_enroll_excluded_at=?, auto_enroll_excluded_reason=? WHERE client_id=?`,
+          [req.user?.email || 'agent', nowIso(), String(req.body?.reason || 'AI never-contact list'), cid])
+        stamped.push(cid)
+      }
+    }
+  } catch {}
+  res.json({ ...r, stamped_client_ids: stamped })
+})
+router.delete('/never-contact/:id', async (req, res) => {
+  const m = await import('../ai-never-contact.js')
+  res.json(m.removeAiNeverContact(req.params.id))
+})
+
 // Durable per-lead auto-enrollment exclusion (an agent can still enable AI manually).
 router.post('/enrollment/exclude/:id', (req, res) => {
   const cid = Number(req.params.id)

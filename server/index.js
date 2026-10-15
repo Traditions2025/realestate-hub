@@ -205,6 +205,11 @@ function getTrackingSnippet(beaconUrl) {
 async function start() {
   await initDb()
 
+  // The AI never-contact list is read by forbidden.js on every AI send, so its table has to
+  // exist before anything can send. A missing table is tolerated (nothing registered means
+  // nothing blocked), but creating it here means the list survives a fresh database.
+  try { (await import('./ai-never-contact.js')).initAiNeverContact() } catch {}
+
   // Auto-seed vendors and partners on first boot (skipped if already exist)
   autoSeedOnBoot()
   // Migrate built-in email templates into the editable templates table (idempotent)
