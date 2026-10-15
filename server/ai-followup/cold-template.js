@@ -142,3 +142,30 @@ export function ensureIntroduction(text) {
   // No recognisable greeting (or no name): lead with the introduction.
   return INTRO + ' ' + msg
 }
+
+/**
+ * Does this message claim we have spoken before?
+ *
+ * Half the Day 1 openers do - "since we last talked", "we connected a while back", "I was
+ * looking back at our conversation". That is right for a dormant lead we really did speak
+ * to, and wrong for a lead who only ever registered on the site.
+ *
+ * Toni Cress, 2026-10-15: enrolled on the COLD_NEVER_CONNECTED lane, with zero prior
+ * communications of any kind, and her first ever message asked whether things had changed
+ * "since we last talked". She replied STOP twenty-five minutes later. The system knew we
+ * had never spoken and said we had anyway.
+ */
+export function assumesPriorContact(text) {
+  return /we last (?:talked|spoke|connected|chatted)|last time we|we connected|since we (?:talked|spoke|connected)|reconnect|when we (?:talked|spoke)|our conversation|back when you|we spoke|staying in touch after/i
+    .test(String(text || ''))
+}
+
+/**
+ * Pick the messages usable for a lead we have never actually spoken to. Falls back to the
+ * whole bank if filtering would leave nothing, because sending a slightly-off message
+ * beats sending none.
+ */
+export function bankForStranger(messages) {
+  const ok = (messages || []).filter(t => !assumesPriorContact(t))
+  return ok.length ? ok : (messages || [])
+}

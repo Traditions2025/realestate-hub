@@ -26,6 +26,7 @@ import db from './database.js'
 import { getConfig, inQuietHours } from './ai-followup/flags.js'
 import { ensureState, setEnabled, setManaged, transitionAiState, isExcludedFromAutopilot } from './ai-followup/state.js'
 import { scheduleAiAction, enrollColdBuyerSequence } from './ai-followup/scheduler.js'
+import { PROACTIVE_END_HOUR } from './fsbo-followup.js'
 
 const nowIso = () => new Date().toISOString()
 
@@ -58,11 +59,13 @@ function ctParts(d = new Date()) {
   let hh = parseInt(get('hour'), 10); if (hh === 24) hh = 0
   return { wd: get('weekday'), hour: hh }
 }
-// Reactivation enrolls only inside the weekday daytime window (9AM-4PM CT) so the
-// staggered first sends land inside approved hours, mirroring the CX Connect pattern.
+// Reactivation enrolls only inside the weekday daytime window so the staggered first
+// sends land inside approved hours, mirroring the CX Connect pattern. The end hour is
+// shared with the texting window rather than repeated, so widening one widens both
+// (John, 2026-10-15: texting now runs to 5PM).
 export function inReactivationWindow(d = new Date()) {
   const { wd, hour } = ctParts(d)
-  return !['Sat', 'Sun'].includes(wd) && hour >= 9 && hour < 16
+  return !['Sat', 'Sun'].includes(wd) && hour >= 9 && hour < PROACTIVE_END_HOUR
 }
 // First allowed send time at/after `from`: skip quiet hours in 15-min steps (max 24h).
 export function nextAllowedIso(from = new Date()) {
@@ -107,9 +110,34 @@ export function evaluateAiEnrollmentEligibility(clientId, opts = {}) {
   if (!c) return fin(EXCLUDED('NOT_FOUND', 'no such client'))
   if (c.merged_into) return fin(EXCLUDED('MERGED', 'merged into #' + c.merged_into))
 
-  // 1) THE POOL: Status = New only. (Age is NOT a factor — New can be years old.)
+  // 1) THE POOL: Status = New, plus a narrow slice of Watch.
+  //
+  // WATCH (John, 2026-10-15). Watch leads were excluded outright. They are now allowed into
+  // the AI buyer follow-up, but only the ones that are genuinely cold and genuinely buyers:
+  //
+  //   - NO ADDRESS on file. A Watch lead WITH an address is a homeowner, and John routes
+  //     those to the Home Value drip instead (see home-value-enroll.js) rather than having
+  //     the AI chase them as a buyer.
+  //   - NO TEXT CONVERSATION in the Hub in the last 6 months. If anyone has been texting
+  //     them recently the relationship is live and a person owns it.
+  //
+  // Age is NOT a factor for New: a New lead can be years old.
   const status = String(c.status || '').toLowerCase()
-  if (status !== 'new') return fin(EXCLUDED('STATUS_NOT_NEW', `status is '${c.status || '(empty)'}' — only New-status leads auto-enroll`))
+  if (status === 'watch') {
+    const hasAddress = !!String(c.address || '').trim()
+    if (hasAddress) {
+      return fin(EXCLUDED('WATCH_HAS_ADDRESS', 'Watch lead with an address — routed to the Home Value drip, not AI buyer follow-up'))
+    }
+    const since = new Date(Date.now() - 182 * 86400000).toISOString()
+    const recentText = db.get(
+      `SELECT id FROM communications
+        WHERE client_id=? AND channel='text' AND occurred_at >= ? LIMIT 1`, [cid, since])
+    if (recentText) {
+      return fin(EXCLUDED('WATCH_RECENT_TEXT', 'Watch lead texted in the last 6 months — a person owns this conversation'))
+    }
+  } else if (status !== 'new') {
+    return fin(EXCLUDED('STATUS_NOT_NEW', `status is '${c.status || '(empty)'}' — only New and qualifying Watch leads auto-enroll`))
+  }
 
   // 2) Manual per-lead auto-enroll exclusion (durable; set from the profile).
   const st = db.get('SELECT * FROM ai_lead_state WHERE client_id=?', [cid])

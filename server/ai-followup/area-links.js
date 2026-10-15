@@ -132,12 +132,25 @@ export const AREA_OPENERS_COLD = [
 ]
 
 /**
- * Build the area message for a lead, or null when there is no reliable featured community.
+ * The whole-market search, used when we cannot tell which community a lead is looking at.
+ *
+ * This replaces sending nothing (John, 2026-10-15). The old rule was that a guessed area is
+ * worse than no link, which is still true — so this does not guess. It drops the area
+ * entirely and sends the general search instead, which is accurate for everybody and still
+ * gives them something to tap.
+ */
+export const GENERAL_SEARCH_URL = 'https://www.mattsmithteam.com/property-search/results/'
+export const GENERAL_AREA = { key: '__general__', name: 'the area', url: GENERAL_SEARCH_URL, general: true }
+
+/**
+ * Build the area message for a lead. Falls back to the general search when there is no
+ * reliable featured community, so it no longer returns null.
  * Returns the raw template text; merge fields are filled by the caller.
  */
 export function buildAreaMessage(clientId, { cold = false, pick = null, seed = 0 } = {}) {
-  const area = pick || pickArea(clientId)
-  if (!area) return null
+  // No reliable community is not a reason to stay silent any more, only a reason not to
+  // name one. The openers never say the city, so the same wording works for both.
+  const area = pick || pickArea(clientId) || GENERAL_AREA
   const bank = cold ? AREA_OPENERS_COLD : AREA_OPENERS
   // Deterministic per lead AND per stage. Keyed on the lead alone, Day 17 and Day 30 handed
   // the same person a word-for-word identical area message — the exact repetition this bank

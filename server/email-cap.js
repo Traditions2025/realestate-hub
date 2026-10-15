@@ -29,6 +29,27 @@ export const DEFAULT_WEEKLY_CAP = 2
 export const DEFAULT_DAILY_CAP = 1
 const WEEK_MS = 7 * 86400000
 
+// PAST CLIENTS GET A QUIETER CAP (John, 2026-10-15: "for past clients strictly for drip
+// campaigns only 1 email in 2 weeks").
+//
+// Both Lifelong Friends drips were already 30 days apart, so the cadence was never the
+// problem. The problem is a past client sitting in SEVERAL campaigns at once: Lifelong
+// Friends every 30 days is fine on its own, but add Home Value Weekly and they are getting
+// something most weeks. A cadence cannot see across campaigns; a cap can.
+const PAST_CLIENT_WINDOW_MS = 14 * 86400000
+export const DEFAULT_PAST_CLIENT_CAP = 1
+export function pastClientCap() {
+  const n = Number(db.getSetting?.('max_emails_per_fortnight_past_client', String(DEFAULT_PAST_CLIENT_CAP)))
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_PAST_CLIENT_CAP
+}
+
+/** A past client by status or by tag, since the two do not always agree in this data. */
+export function isPastClient(client) {
+  if (!client) return false
+  if (String(client.status || '').trim().toLowerCase() === 'closed') return true
+  return /past client/i.test(String(client.tags || ''))
+}
+
 // Transactional, triggered and FIRST-CONTACT sends. These answer something the person
 // just did, or are the first thing we ever say to them, so they are never held back and
 // never counted against the cap. Somebody who asked for their home value gets the answer,
@@ -94,30 +115,44 @@ export function recentLeadEmails(clientId, { sinceMs = Date.now() - WEEK_MS } = 
 export function emailCapState(clientId, { now = Date.now() } = {}) {
   const weekly = weeklyEmailCap()
   const daily = dailyEmailCap()
-  const recent = recentLeadEmails(clientId, { sinceMs: now - WEEK_MS })
+  const client = (() => { try { return db.get('SELECT id, status, tags FROM clients WHERE id=?', [Number(clientId)]) } catch { return null } })()
+  const past = isPastClient(client)
+  const pcCap = pastClientCap()
+
+  // A past client's window is the longer of the two, so one query serves both counts.
+  const windowMs = past ? Math.max(WEEK_MS, PAST_CLIENT_WINDOW_MS) : WEEK_MS
+  const all = recentLeadEmails(clientId, { sinceMs: now - windowMs })
+  const recent = all.filter(r => Date.parse(r.sent_at) >= now - WEEK_MS)
   const today = recent.filter(r => isSameChicagoDay(r.sent_at, now))
+  const fortnight = past ? all.filter(r => Date.parse(r.sent_at) >= now - PAST_CLIENT_WINDOW_MS) : []
 
   const overWeek = recent.length >= weekly
   const overDay = today.length >= daily
+  const overPast = past && fortnight.length >= pcCap
 
   let nextEligibleIso = null
+  const bump = (iso) => { if (iso && (!nextEligibleIso || iso > nextEligibleIso)) nextEligibleIso = iso }
   if (overWeek) {
-    const pivot = recent[weekly - 1]            // recent is newest-first
-    const t = Date.parse(pivot?.sent_at)
-    if (Number.isFinite(t)) nextEligibleIso = new Date(t + WEEK_MS).toISOString()
+    const t = Date.parse(recent[weekly - 1]?.sent_at)   // recent is newest-first
+    if (Number.isFinite(t)) bump(new Date(t + WEEK_MS).toISOString())
   }
-  if (overDay) {
-    const tomorrow = new Date(now + 86400000).toISOString()
-    if (!nextEligibleIso || tomorrow > nextEligibleIso) nextEligibleIso = tomorrow
+  if (overPast) {
+    const t = Date.parse(fortnight[pcCap - 1]?.sent_at)
+    if (Number.isFinite(t)) bump(new Date(t + PAST_CLIENT_WINDOW_MS).toISOString())
   }
+  if (overDay) bump(new Date(now + 86400000).toISOString())
 
   return {
     cap: weekly, daily_cap: daily,
+    past_client: past, past_client_cap: past ? pcCap : null,
     count_week: recent.length, count_today: today.length,
-    capped: overWeek || overDay,
-    reason: overWeek
-      ? `already had ${recent.length} email${recent.length === 1 ? '' : 's'} in the last 7 days (cap ${weekly})`
-      : overDay ? `already emailed today (cap ${daily}/day)` : null,
+    count_fortnight: past ? fortnight.length : null,
+    capped: overWeek || overDay || overPast,
+    reason: overPast
+      ? `past client — already had ${fortnight.length} email${fortnight.length === 1 ? '' : 's'} in the last 14 days (cap ${pcCap})`
+      : overWeek
+        ? `already had ${recent.length} email${recent.length === 1 ? '' : 's'} in the last 7 days (cap ${weekly})`
+        : overDay ? `already emailed today (cap ${daily}/day)` : null,
     next_eligible_at: nextEligibleIso,
     recent: recent.map(r => ({ sent_at: r.sent_at, template: r.template, subject: r.subject })),
   }

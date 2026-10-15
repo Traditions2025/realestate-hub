@@ -41,20 +41,28 @@ function chi(d = new Date()) {
   const g = (t) => p.find(x => x.type === t)?.value
   return { weekday: g('weekday'), hour: Number(g('hour')) === 24 ? 0 : Number(g('hour')), minute: Number(g('minute')) }
 }
-// Weekday 9AM-4PM Central.
+// THE OUTBOUND TEXTING WINDOW. Weekdays only, 9AM until this hour, Central.
+//
+// Widened from 4PM to 5PM (John, 2026-10-15: "adjust texting time until 5PM"). One
+// constant rather than a 16 repeated in four places, because the window is also used by
+// the greeting ("Good afternoon" vs "Hello") and by AI auto-enrolment, and those drifting
+// apart is how a lead gets a "Good afternoon" at 4:45 from one system and nothing from
+// another.
+export const PROACTIVE_END_HOUR = 17
+
 export function inProactiveWindow(d = new Date()) {
   const c = chi(d)
   if (['Sat', 'Sun'].includes(c.weekday)) return false
-  return c.hour >= 9 && c.hour < 16
+  return c.hour >= 9 && c.hour < PROACTIVE_END_HOUR
 }
-// Greeting: never "evening" (we don't text then). At 4PM+ just "Hello".
-function greeting() { const h = chi().hour; return h < 12 ? 'Good morning' : h < 16 ? 'Good afternoon' : 'Hello' }
+// Greeting: never "evening" (we don't text then). At 5PM+ just "Hello".
+function greeting() { const h = chi().hour; return h < 12 ? 'Good morning' : h < PROACTIVE_END_HOUR ? 'Good afternoon' : 'Hello' }
 const dom = (c) => { const n = parseInt(String(c?.fsbo_dom || '').replace(/[^0-9]/g, ''), 10); return isNaN(n) ? 0 : n }
 const daysSince = (ts) => ts ? (Date.now() - new Date(String(ts).replace(' ', 'T') + (String(ts).includes('Z') ? '' : 'Z')).getTime()) / 86400000 : 999
 const phone10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
 
-// Next valid send slot at/after `from`: weekdays 9AM-4PM CT. Saturday rolls Mon,
-// Sunday rolls Mon, after-4PM rolls to next weekday morning at a random 9-11 time.
+// Next valid send slot at/after `from`: weekdays 9AM-5PM CT. Saturday rolls Mon,
+// Sunday rolls Mon, after-5PM rolls to next weekday morning at a random 9-11 time.
 export function nextValidSlot(from = new Date()) {
   let d = new Date(from)
   for (let i = 0; i < 10; i++) {
@@ -62,7 +70,7 @@ export function nextValidSlot(from = new Date()) {
     if (c.weekday === 'Sat') { d = new Date(d.getTime() + 2 * DAY) }
     else if (c.weekday === 'Sun') { d = new Date(d.getTime() + DAY) }
     else if (c.hour < 9) { d = new Date(d.getTime() + (9 - c.hour) * 3600000) ; continue }
-    else if (c.hour >= 16) { d = new Date(d.getTime() + (24 - c.hour + 9) * 3600000); continue }
+    else if (c.hour >= PROACTIVE_END_HOUR) { d = new Date(d.getTime() + (24 - c.hour + 9) * 3600000); continue }
     else return d
     // rolled a day: land at a random morning slot 9-11 CT
     const c2 = chi(d)
@@ -71,10 +79,14 @@ export function nextValidSlot(from = new Date()) {
   return d
 }
 // Next touch after attempt N just sent: +7d flat after attempts 1 and 2 (the approved
-// opening cadence), then every 40+ days (40-47 jitter) — a low-pressure availability
-// check roughly every 6 weeks for as long as the listing stays Available.
+// opening cadence), then an availability check every 30 days or so for as long as the
+// listing stays Available.
+//
+// Was 40-47 days. John, 2026-10-15: "after 30 days should reach out to ask if it's still
+// available". The 3-day jitter stays so a batch of leads enrolled on the same day does not
+// text them all on the same day a month later.
 export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
-  const baseDays = attemptJustSent <= 2 ? 7 : 40 + Math.floor(Math.random() * 8)   // 40-47
+  const baseDays = attemptJustSent <= 2 ? 7 : 30 + Math.floor(Math.random() * 4)   // 30-33
   let d = new Date(from.getTime() + baseDays * DAY)
   const wd = () => chi(d).weekday
   if (wd() === 'Sat') d = new Date(d.getTime() + (Math.random() < 0.5 ? -DAY : 2 * DAY))
@@ -108,7 +120,38 @@ const MSG_ANALYSIS = [
 ]
 function msgStillAvailable(c) { return `Hi ${c.first_name || 'there'}, It's John with Matt Smith Team at REMAX wanted to see if your home at ${street(c)} is still available for sale? It still shows active on Zillow site but those sites don't always tell me everything I need to know.` }
 
-// Attempt 4+ rotation (every 40+ days): availability checks only — low pressure,
+// CAME OFF THE MARKET WITHOUT SELLING (John, 2026-10-15). One message, once, when the
+// listing leaves the market unsold and nobody else has taken it.
+//
+// It does not pitch. They just failed to sell it themselves, which they know, and a pitch
+// at that moment reads as having watched them fail. It names the fact, offers the obvious
+// help once, and leaves. The word "FSBO" never appears: that is our filing term, not a
+// thing a seller calls themselves.
+const OFF_MARKET_TEXT = (c) =>
+  `Hi ${c.first_name || 'there'}, it's John with Matt Smith Team at RE/MAX. I noticed the home at ${street(c)} is no longer listed. If you decided to hold off for now, that's completely fine. If you're still open to selling at some point, I'm happy to share what we're seeing in the area whenever it's useful.`
+
+export function fsboOffMarketTextEnabled() {
+  return String(db.getSetting?.('fsbo_off_market_text_enabled', '1')) === '1'
+}
+
+// Once per listing, ever. A seller who relists and comes off again should not be told the
+// same thing twice, so the campaign log is the record rather than a flag on the client.
+async function sendOffMarketText(clientId) {
+  try {
+    const c = db.get('SELECT * FROM clients WHERE id=? AND merged_into IS NULL', [Number(clientId)])
+    if (!c || !c.phone) return { ok: false, reason: 'no phone' }
+    const already = db.get(
+      "SELECT id FROM fsbo_campaign_log WHERE client_id=? AND angle='OFF_MARKET_UNSOLD' AND event='sent' LIMIT 1",
+      [Number(clientId)])
+    if (already) return { ok: false, reason: 'already told once' }
+    const r = await sendFsbo(c, OFF_MARKET_TEXT(c), { proactive: true })
+    if (r.ok) logFsbo(Number(clientId), 'sent', { angle: 'OFF_MARKET_UNSOLD', body: OFF_MARKET_TEXT(c), comm_id: r.comm_id })
+    else logFsbo(Number(clientId), 'deferred', { angle: 'OFF_MARKET_UNSOLD', reason: r.reason })
+    return r
+  } catch (e) { return { ok: false, reason: e.message } }
+}
+
+// Attempt 4+ rotation: availability checks only — low pressure,
 // no manufactured hooks, no "we have a buyer", no "how has activity been".
 export const FSBO_ANGLES = {
   AVAILABILITY_RECHECK: { minDom: 0, text: (s) => `Hi, it's John with Matt Smith Team at RE/MAX. Just checking in, is the home at ${s} still available? MattSmithTeam.com` },
@@ -338,9 +381,28 @@ export async function runFsboFollowups() {
     const out = { enrolled: 0, sent: 0, deferred: 0, stopped: 0, window: inProactiveWindow() }
 
     // 0) Event-follow-up: actives whose listing left Available stop right away.
-    for (const r of db.all(`SELECT f.client_id, c.fsbo_status FROM fsbo_followups f JOIN clients c ON c.id=f.client_id
+    for (const r of db.all(`SELECT f.client_id, c.fsbo_status, c.mls_status FROM fsbo_followups f JOIN clients c ON c.id=f.client_id
         WHERE f.status='active' AND (c.fsbo_status IS NULL OR c.fsbo_status != 'Available')`)) {
       const reason = r.fsbo_status ? `FSBO_OFF_MARKET: listing is ${r.fsbo_status}` : 'FSBO_OFF_MARKET: dropped off the master list'
+
+      // CAME OFF THE MARKET WITHOUT SELLING (John, 2026-10-15). Before, the campaign just
+      // went quiet, which wastes the single most useful moment we get: they tried to sell
+      // it themselves, it did not happen, and nobody has taken the listing.
+      //
+      // Sent only when all three are true, because each one means something different:
+      //   fsbo_status = 'Off Market'  not Sold and not Pending, so it did not transact
+      //   no mls_status              nobody has listed it with an agent either
+      //   not 'Disregard'            the covered statuses are explicit, never a fallback
+      //
+      // "Listed with an agent" is not a value the FSBO sheet carries, so the MLS field is
+      // what stands in for it. A seller who relists through an agent shows up there.
+      const offMarketUnsold = String(r.fsbo_status || '').trim().toLowerCase() === 'off market'
+        && !String(r.mls_status || '').trim()
+      if (offMarketUnsold && fsboOffMarketTextEnabled()) {
+        const sent = await sendOffMarketText(r.client_id)
+        if (sent.ok) out.sent++
+      }
+
       db.run("UPDATE fsbo_followups SET status='stopped', stop_reason=?, next_send_at=NULL, updated_at=? WHERE client_id=?", [reason, nowIso(), r.client_id])
       logFsbo(r.client_id, 'stopped', { reason, listing_status: r.fsbo_status })
       out.stopped++

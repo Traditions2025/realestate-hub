@@ -95,6 +95,22 @@ const chDay = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chica
 export function homeValueEligibility(c, ctx = {}) {
   const status = String(c.status || '').trim().toLowerCase()
   if (EXCLUDED_STATUS.has(status)) return `status is ${c.status}`
+
+  // WATCH LEADS WITH AN ADDRESS (John, 2026-10-15). A Watch lead who has a street address
+  // is a homeowner, so they belong here rather than in the AI buyer follow-up, which now
+  // takes the address-less ones. The extra condition is that they have not WRITTEN to us in
+  // six months: a Watch lead mid-conversation by email is somebody a person is already
+  // talking to, and a six-month value drip would talk straight over them.
+  if (status === 'watch') {
+    const since = new Date(Date.now() - 182 * 86400000).toISOString()
+    let recent = null
+    try {
+      recent = db.get(`SELECT id FROM communications
+                        WHERE client_id=? AND direction='incoming' AND channel='email'
+                          AND occurred_at >= ? LIMIT 1`, [c.id, since])
+    } catch {}
+    if (recent) return 'Watch lead who emailed us in the last 6 months'
+  }
   if (!usableStreet(c.address)) return 'no usable street address'
   // A greeting is the first thing they read, so a record whose name is an email address,
   // a placeholder or import junk is left out rather than greeted as "Hi None,". 1,136

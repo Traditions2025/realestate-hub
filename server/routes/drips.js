@@ -146,6 +146,31 @@ async function advanceDrip(enr) {
     }
   }
 
+  // THEY WROTE TO US, SO THE DRIP BACKS OFF FOR A MONTH (John, 2026-10-15: "if someone
+  // responded to any of our emails or emailed us we hold on sending next plan by a month").
+  //
+  // This is NOT the same as pause_on_reply, which stops a campaign dead and hands the lead
+  // to a person. This holds the next step and then carries on by itself, so a lead who asks
+  // one question in March is not quietly dropped out of a six-month sequence.
+  //
+  // The hold expires on its own: it is measured from THEIR last email, so a second reply
+  // simply extends it, and nobody has to remember to resume anything.
+  if (!drip.pause_on_reply) {
+    const HOLD_DAYS = Number(db.getSetting('drip_hold_days_after_email_reply', '30')) || 30
+    const lastIn = db.get(
+      `SELECT occurred_at FROM communications
+        WHERE client_id=? AND direction='incoming' AND channel='email'
+        ORDER BY occurred_at DESC LIMIT 1`, [enr.client_id])
+    const lastInMs = lastIn ? Date.parse(String(lastIn.occurred_at).replace(' ', 'T')) : NaN
+    if (Number.isFinite(lastInMs) && Date.now() < lastInMs + HOLD_DAYS * 86400000) {
+      const when = nextSendIso(lastInMs + HOLD_DAYS * 86400000, { ...step, delay_days: 0 })
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        ['drip_deferred', 'client', enr.client_id,
+         `${drip.name} held to ${when.slice(0, 10)} — they emailed us on ${String(lastIn.occurred_at).slice(0, 10)}`])
+      return db.run('UPDATE drip_enrollments SET next_run_at=? WHERE id=?', [when, enr.id])
+    }
+  }
+
   // HOW MANY EMAILS ONE PERSON MAY GET: 1 a day and 2 in a rolling 7 days, counted
   // across EVERY campaign and manual send, not per drip (John, 2026-09-29 for the day
   // rule, 2026-10-14 for the week). A lead can sit in several drips at once and still
