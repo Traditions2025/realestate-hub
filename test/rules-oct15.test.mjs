@@ -112,12 +112,27 @@ test('a literal STOP moves the lead to Junk', () => {
   assert.equal(String(after.status).toLowerCase(), 'junk')
 })
 
-test('a natural-language opt-out blocks texting but does NOT junk them', () => {
+test('a natural-language opt-out junks them too (John: "move both to Junk")', () => {
   const c = mkClient({ status: 'new' })
   applyOptOut(c.id, 'stop', 'sms_reply_nl')
   const after = db.get('SELECT status, hub_text_opt_out FROM clients WHERE id=?', [c.id])
-  assert.equal(after.hub_text_opt_out, 1, 'texting still blocked')
-  assert.equal(String(after.status).toLowerCase(), 'new', 'but the status is left for a person to decide')
+  assert.equal(after.hub_text_opt_out, 1, 'texting blocked')
+  assert.equal(String(after.status).toLowerCase(), 'junk', 'and out of everything else as well')
+})
+
+test('the phrases that junk someone, and the ones that must not', async () => {
+  const { isNaturalOptOut } = await import('../server/ai-followup/policy.js')
+  for (const s of ['stop texting me', 'take me off your list', 'please stop messaging me',
+                   'remove me', 'lose my number', 'leave me alone', 'stop bothering me',
+                   "don't contact me again", 'unsubscribe me']) {
+    assert.equal(isNaturalOptOut(s), true, `should opt out: "${s}"`)
+  }
+  // Junking a live lead by mistake costs a client, so the near-misses are asserted too.
+  for (const s of ['stop by the house tomorrow', 'stop sending me listings in that range',
+                   "I don't check my text messages often", "I don't always answer texts",
+                   'can you stop at the house on your way', 'no more than 300k please']) {
+    assert.equal(isNaturalOptOut(s), false, `must NOT opt out: "${s}"`)
+  }
 })
 
 test('START does not resurrect them out of Junk', () => {

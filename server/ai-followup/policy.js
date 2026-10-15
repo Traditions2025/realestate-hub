@@ -157,24 +157,29 @@ export function applyOptOut(clientId, kind, source = 'sms_reply') {
     db.run('UPDATE clients SET hub_text_opt_out=1, updated_at=? WHERE id=?', [nowIso(), cid])
     db.run(`UPDATE communication_preferences SET sms_status='opted_out', sms_opt_out_timestamp=?, sms_opt_out_source=?, updated_at=? WHERE client_id=?`, [nowIso(), source, nowIso(), cid])
 
-    // A LITERAL "STOP" ALSO MOVES THEM TO JUNK (John, 2026-10-15: "if someone says STOP we
-    // automatically moved them to Junk").
+    // AN OPT-OUT MOVES THEM TO JUNK (John, 2026-10-15: "if someone says STOP we
+    // automatically moved them to Junk", then "move both to Junk").
     //
     // Junk is the status that pulls somebody out of EVERYTHING — every drip, every
-    // automation, and all AI — rather than just the text channel. Someone who typed STOP
-    // has told us plainly enough.
+    // automation, and all AI — rather than just the text channel.
     //
-    // Deliberately only for the literal keyword, not the natural-language opt-out
-    // ("take me off your list"), which still blocks texting alone. Junk also stops their
-    // email and pushes to Follow Up Boss, so it is kept to the unambiguous case; John can
-    // widen it if he wants the softer phrasings treated the same way.
-    if (source === 'sms_reply') {
+    // BOTH routes qualify: the literal STOP keyword and the natural-language opt-out
+    // ("take me off your list", "lose my number"). Someone asking to be left alone in
+    // plain English means it just as much as someone who typed the magic word, and
+    // leaving them emailable was the inconsistency.
+    //
+    // This leans on isNaturalOptOut staying conservative. It already requires an opt-out
+    // verb sitting next to a messaging word, and guards against "I don't check my texts"
+    // and "stop sending me listings in that range". Junking on a false positive costs a
+    // lead, so if that pattern is ever loosened, this consequence has to be re-weighed.
+    {
       try {
         const cur = db.get('SELECT status FROM clients WHERE id=?', [cid])
         if (String(cur?.status || '').toLowerCase() !== 'junk') {
           db.run('UPDATE clients SET status=?, updated_at=? WHERE id=?', ['Junk', nowIso(), cid])
           db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
-            ['status_change', 'client', cid, `Moved to Junk automatically — replied STOP (was ${cur?.status || 'unset'})`])
+            ['status_change', 'client', cid,
+             `Moved to Junk automatically — ${source === 'sms_reply_nl' ? 'asked to be left alone by text' : 'replied STOP'} (was ${cur?.status || 'unset'})`])
           // Junk means out of everything, not just texting.
           import('../lead-sequences.js')
             .then(m => m.stopSequencesForClient(cid, 'replied STOP — moved to Junk'))
