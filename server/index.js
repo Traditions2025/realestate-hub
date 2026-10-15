@@ -1284,18 +1284,38 @@ async function start() {
       }
       out.people_by_status = byStatus
 
-      // Which plans actually hold the live people — the list worth acting on.
-      const live = []
-      const plans = (out.actionPlans?.rows || []).slice(0, 90)
-      for (const p of plans) {
+      // WHO is mid-plan, named. The status to ask for is 'Running' — NOT 'Active', which
+      // returns 0 and reads as "nobody", when 'Active' is the status of the PLAN and
+      // 'Running' is the status of a person moving through one. Asking the wrong one makes a
+      // live exposure look like a clean bill of health, so both are reported side by side.
+      const planName = Object.fromEntries((out.actionPlans?.rows || []).map(p => [p.id, p.name]))
+      for (const st of ['Running', 'Paused']) {
         try {
-          const b = await fubGet('/actionPlansPeople', { actionPlanId: p.id, status: 'Active', limit: 1 })
-          const n = b?._metadata?.total ?? 0
-          if (n > 0) live.push({ id: p.id, name: p.name, active_people: n })
-        } catch {}
-        await new Promise(s2 => setTimeout(s2, 320))
+          const b = await fubGet('/actionPlansPeople', { status: st, limit: st === 'Running' ? 100 : 5 })
+          const rows = b?.actionPlansPeople || []
+          out[`people_${st.toLowerCase()}`] = {
+            total: b?._metadata?.total ?? null,
+            sample: rows.map(r => ({ id: r.id, personId: r.personId, actionPlanId: r.actionPlanId,
+              plan: planName[r.actionPlanId] || null, status: r.status, created: r.created })),
+          }
+        } catch (e) { out[`people_${st.toLowerCase()}`] = { error: String(e.message).slice(0, 140) } }
+        await new Promise(s2 => setTimeout(s2, 350))
       }
-      out.plans_with_active_people = live.sort((a, b2) => b2.active_people - a.active_people)
+
+      // Name the people who are mid-plan, so this is actionable rather than a count.
+      try {
+        const ids = (out.people_running?.sample || []).map(r => r.personId).filter(Boolean).slice(0, 10)
+        const who = []
+        for (const pid of ids) {
+          try {
+            const p = await fubGet(`/people/${pid}`, {})
+            who.push({ id: pid, name: p?.name || null, stage: p?.stage || null,
+                       emails: (p?.emails || []).map(e => e.value), created: p?.created || null })
+          } catch (e) { who.push({ id: pid, error: String(e.status || e.message).slice(0, 60) }) }
+          await new Promise(s2 => setTimeout(s2, 350))
+        }
+        out.running_people_detail = who
+      } catch {}
       res.json(out)
     } catch (e) { res.status(500).json({ error: e.message }) }
   })
