@@ -86,6 +86,30 @@ export function homeValueDrip() {
   return db.get('SELECT id, steps FROM drip_campaigns WHERE name = ?', [CAMPAIGN_NAME])
 }
 
+// PAST CLIENTS GET THEIR OWN VERSION (John, 2026-10-15).
+//
+// Same subject, different relationship. The weekly campaign is written for strangers and
+// runs every 7 days; this one is John's past-client copy spaced 3 to 4 weeks, "so it feels
+// like a useful periodic update instead of a sales sequence".
+//
+// The spacing also resolves a collision. Past clients are capped at one email per 14 days
+// (see email-cap.js), so a weekly campaign would have spent most of its life deferred and
+// arrived in a ragged order. At 21 to 28 days this sits comfortably inside the cap and
+// arrives as written.
+const PAST_CLIENT_CAMPAIGN_NAME = 'Home Value — Past Clients'
+export function homeValuePastClientDrip() {
+  return db.get('SELECT id, steps FROM drip_campaigns WHERE name = ?', [PAST_CLIENT_CAMPAIGN_NAME])
+}
+
+/** Which of the two home value campaigns this person belongs in. */
+export function homeValueDripFor(client, { main = null, past = null } = {}) {
+  const m = main || homeValueDrip()
+  const isPast = String(client?.status || '').trim().toLowerCase() === 'closed'
+    || /past client/i.test(String(client?.tags || ''))
+  if (!isPast) return m
+  return (past || homeValuePastClientDrip()) || m   // fall back rather than skip them
+}
+
 // Chicago calendar day for a timestamp — the collision check is about the DAY a person
 // receives something, which is their day, not UTC's.
 const chDay = (d) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(d))
@@ -150,7 +174,13 @@ export function homeValueEligibility(c, ctx = {}) {
 
 // Everything the eligibility check needs that is not on the client row.
 function buildContext(dripId) {
-  const enrolledIds = new Set(db.all('SELECT client_id FROM drip_enrollments WHERE drip_id = ?', [dripId]).map(r => r.client_id))
+  // BOTH home value campaigns count as "already in this campaign". They are one campaign
+  // with two cadences, so somebody in the past-client version must not be swept into the
+  // weekly one as well — which is exactly what checking a single drip id would do.
+  const hvIds = [dripId, homeValuePastClientDrip()?.id].filter(Boolean)
+  const enrolledIds = new Set(db.all(
+    `SELECT client_id FROM drip_enrollments WHERE drip_id IN (${hvIds.map(() => '?').join(',')})`, hvIds)
+    .map(r => r.client_id))
   const today = chDay(Date.now())
   const busyToday = new Set(
     db.all("SELECT client_id, next_run_at FROM drip_enrollments WHERE status='active' AND next_run_at IS NOT NULL")
@@ -170,8 +200,15 @@ function buildContext(dripId) {
   return { enrolledIds, busyToday, recentLookup, inPastDrip, excludedIds }
 }
 
-const enrolledToday = (dripId) => db.get(
-  "SELECT COUNT(*) c FROM drip_enrollments WHERE drip_id=? AND date(entered_at) = date('now')", [dripId]).c
+// Today's enrolments across BOTH home value campaigns. The daily quota exists to protect
+// the sending domain, and the domain does not care which of the two a person went into, so
+// counting one of them would quietly double the real rate.
+const enrolledToday = (dripId) => {
+  const ids = [dripId, homeValuePastClientDrip()?.id].filter(Boolean)
+  return db.get(
+    `SELECT COUNT(*) c FROM drip_enrollments WHERE drip_id IN (${ids.map(() => '?').join(',')})
+      AND date(entered_at) = date('now')`, ids).c
+}
 
 // A look at who would go next, and why the rest would not. Sends nothing.
 export function homeValuePreview({ limit = 25 } = {}) {
@@ -261,17 +298,24 @@ export async function homeValueEnrollTick({ force = false } = {}) {
   const rows = db.all("SELECT * FROM clients WHERE merged_into IS NULL AND address IS NOT NULL AND address != '' ORDER BY id")
 
   let enrolled = 0
+  let pastClients = 0
+  const pastDrip = homeValuePastClientDrip()
   const failures = []
   for (const c of rows) {
     if (enrolled >= room) break
     if (homeValueEligibility(c, ctx)) continue
     try {
+      // Past clients go to their own, slower version of this campaign; everyone else to
+      // the weekly one. Both count against the same daily quota, because the quota exists
+      // to protect the sending domain and the domain does not care which campaign it was.
+      const target = homeValueDripFor(c, { main: drip, past: pastDrip })
       // allowConcurrent: this campaign sits alongside the others rather than competing
       // with them (John), so a lead already in Before the Sign still qualifies. The rule
       // that two emails never land the same day is enforced at SEND time in advanceDrip.
-      const id = enrollInDrip(drip.id, c.id, { source: 'home_value_auto', allowConcurrent: true })
+      const id = enrollInDrip(target.id, c.id, { source: 'home_value_auto', allowConcurrent: true })
       if (id) {
         enrolled++
+        if (target.id !== drip.id) pastClients++
         ctx.enrolledIds.add(c.id)
         ctx.busyToday.add(c.id)
       } else failures.push(`${c.id}:refused`)
