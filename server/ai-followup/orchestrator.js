@@ -396,7 +396,16 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
   const cid = Number(clientId)
   const idx = Math.max(0, Number(stageIndex) || 0)
   const stage = COLD_BUYER_STAGES[Math.min(idx, COLD_BUYER_STAGES.length - 1)]
-  const bank = stage.messages || []
+  // Have we ever actually SPOKEN to this lead? An inbound message of any kind, or an
+  // outbound text or call, counts. A marketing email they never answered does not: half
+  // the Day 1 openers say "since we last talked", and saying that to someone who only ever
+  // registered on the site is the fastest route to a STOP (Toni Cress, 2026-10-15 - zero
+  // prior communications, told "since we last talked", STOP twenty-five minutes later).
+  const everConnected = !!db.get(`SELECT 1 FROM communications
+    WHERE client_id=? AND (direction='incoming' OR channel IN ('text','call','voicemail'))
+    LIMIT 1`, [cid])
+  const { bankForStranger } = await import('./cold-template.js')
+  const bank = everConnected ? (stage.messages || []) : bankForStranger(stage.messages || [])
   // Rotate this stage's approved bank so leads don't all get identical sequences.
   let approved = null
   if (bank.length) {

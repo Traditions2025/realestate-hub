@@ -68,9 +68,9 @@ export async function conversationsStatus() {
 // Returns { conversationSid, participants:[{phone,name}], messageSid, skipped:[...] }.
 export async function createGroupText({ recipients, body, author = 'Matt Smith Team' }) {
   const c = twilioConfig()
-  const proxy = toE164(c.from)
-  if (!proxy) throw new Error('No sending number configured')
-  const proxy10 = String(proxy).replace(/\D/g, '').slice(-10)
+  const proxy0 = toE164(c.from)
+  if (!proxy0) throw new Error('No sending number configured')
+  const proxy10 = String(proxy0).replace(/\D/g, '').slice(-10)
   // Never add our own Hub number as a participant (a number can't text itself) — e.g. a
   // team-directory entry that points at the Hub line.
   const clean = (recipients || []).map(r => ({ phone: toE164(r.phone), name: r.name || null, client_id: r.client_id || null }))
