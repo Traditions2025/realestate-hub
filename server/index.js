@@ -561,6 +561,24 @@ async function start() {
   // Twilio texting config. The Auth Token is write-only from the UI's side — we never
   // send it back, only whether it's set + the last 4 chars, so it can't leak via the API.
   // ---- Appearance: team default accent theme (user override lives client-side) ----
+  // ---- Auto summary of a lead's conversation (John, 2026-10-16) ------------
+  // GET returns what is stored and says whether it still matches the thread. It does NOT
+  // generate, so opening a profile never costs a model call on its own.
+  app.get('/api/clients/:id/summary', async (req, res) => {
+    try {
+      const { getLeadSummary } = await import('./lead-summary.js')
+      res.json(getLeadSummary(Number(req.params.id)))
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+  // POST builds it. Cached unless the conversation has moved, or ?force=1.
+  app.post('/api/clients/:id/summary', async (req, res) => {
+    try {
+      const { generateLeadSummary } = await import('./lead-summary.js')
+      const r = await generateLeadSummary(Number(req.params.id), { force: req.query.force === '1' || req.body?.force === true })
+      res.status(r.ok ? 200 : 400).json(r)
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   // ---- The tunable sending rules (John, 2026-10-16) ------------------------
   // READ ONLY for now, deliberately. The numbers are safe to change (server/rules.js
   // clamps every one to a hard range that lives in code), but John should see the list and
