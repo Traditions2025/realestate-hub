@@ -410,6 +410,7 @@ export default function ClientProfile() {
             // Activity timeline box was nearly always empty.
             // "Social & Research" retired (John, 2026-09-25): LinkedIn and Facebook are now
             // editable rows inside Client Details, where the rest of the contact detail lives.
+            summary: () => <ConversationSummaryCard cid={cid} />,
             coverage: () => <CoverageCard cid={cid} client={client} onChanged={load} />,
             cxcamp: () => (client.mls_status || client.off_market_date) ? <CxCampaignCard cid={cid} client={client} /> : null,
             fsbocamp: () => (client.fsbo_status || client.fsbo_listings) ? <FsboCampaignCard cid={cid} client={client} /> : null,
@@ -1464,6 +1465,116 @@ const APPT_TYPES = [['showing', 'Showing'], ['walkthrough', 'Walkthrough'], ['bu
 // ── Seller Intent card (Fix It or Skip It, John 2026-09-19) ───────────────
 // The Meta seller-ad answers, priority, exact campaign attribution and the
 // contextual-sequence state — no digging through notes or raw webhook JSON.
+/**
+ * Conversation summary (John, 2026-10-16: "it would be great if we have an auto summary
+ * based on conversation that can happen in their lead profile").
+ *
+ * Deliberately does NOT generate on load. A model call every time somebody opens a profile
+ * is money spent re-reading a thread that has not changed, so the card shows what is stored
+ * and offers a button. When new messages have arrived since it was written it says so, and
+ * the button becomes "Update" rather than pretending the text is current.
+ *
+ * Always labelled as written by the AI. It sits beside the notes a person typed and must
+ * never be mistaken for one.
+ */
+function ConversationSummaryCard({ cid }) {
+  const [d, setD] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+  const load = () => authFetch(`/api/clients/${cid}/summary`).then(r => r.json()).then(setD).catch(() => {})
+  useEffect(() => { load() }, [cid])
+
+  const build = async (force) => {
+    setBusy(true); setErr('')
+    try {
+      const r = await authFetch(`/api/clients/${cid}/summary${force ? '?force=1' : ''}`, { method: 'POST' })
+      const j = await r.json()
+      if (j.ok) await load()
+      else setErr(j.reason || 'could not build a summary')
+    } catch (e) { setErr(e.message) }
+    finally { setBusy(false) }
+  }
+
+  const has = d?.ok
+  const behind = has && d.stale ? (d.message_count - d.built_from_messages) : 0
+  const facts = d?.facts || {}
+  const chips = [
+    facts.role && facts.role !== 'unclear' ? { k: 'Role', v: facts.role } : null,
+    facts.timeline ? { k: 'Timeline', v: facts.timeline } : null,
+    facts.price_expectation ? { k: 'Price', v: facts.price_expectation } : null,
+  ].filter(Boolean)
+
+  return (
+    <section className="cp-card">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <h3 style={{ margin: 0, fontSize: 16 }}>🧠 Conversation Summary</h3>
+        <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase',
+                       color: '#8d6f14', background: '#fdf6e6', padding: '2px 7px', borderRadius: 3 }}>
+          Written by AI
+        </span>
+      </div>
+
+      {has && d.headline && (
+        <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 15.5 }}>{d.headline}</p>
+      )}
+
+      {has
+        ? <p style={{ margin: '0 0 10px', fontSize: 15, lineHeight: 1.6, color: 'var(--text)' }}>{d.summary}</p>
+        : <p style={{ margin: '0 0 10px', fontSize: 14.5, color: 'var(--text-muted)' }}>
+            {d && !d.ok && !/not generated yet/i.test(d.reason || '')
+              ? d.reason
+              : 'No summary yet. Build one from this lead’s texts, emails and notes.'}
+          </p>}
+
+      {chips.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, margin: '0 0 10px' }}>
+          {chips.map(c => (
+            <span key={c.k} style={{ fontSize: 13, background: 'var(--surface-2, #f1f2f6)', borderRadius: 3, padding: '3px 8px' }}>
+              <b style={{ color: 'var(--text-muted)', fontWeight: 600 }}>{c.k}:</b> {c.v}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {Array.isArray(facts.blockers) && facts.blockers.length > 0 && (
+        <div style={{ margin: '0 0 10px' }}>
+          <div style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-muted)', marginBottom: 3 }}>
+            In the way
+          </div>
+          <ul style={{ margin: 0, paddingLeft: 18, fontSize: 14.5 }}>
+            {facts.blockers.slice(0, 5).map((b, i) => <li key={i} style={{ marginBottom: 2 }}>{b}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {Array.isArray(facts.properties) && facts.properties.length > 0 && (
+        <div style={{ fontSize: 14.5, margin: '0 0 10px' }}>
+          <b style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Properties mentioned: </b>
+          {facts.properties.join(' · ')}
+        </div>
+      )}
+
+      {behind > 0 && (
+        <p style={{ margin: '0 0 8px', fontSize: 13.5, color: '#8d6f14' }}>
+          {behind} new message{behind === 1 ? '' : 's'} since this was written.
+        </p>
+      )}
+      {err && <p style={{ margin: '0 0 8px', fontSize: 13.5, color: '#b91c1c' }}>{err}</p>}
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button className="btn btn-sm btn-secondary" disabled={busy} onClick={() => build(has)}>
+          {busy ? 'Reading the conversation…' : has ? (behind > 0 ? 'Update summary' : 'Rebuild') : 'Build summary'}
+        </button>
+        {has && d.generated_at && (
+          <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
+            from {d.built_from_messages} message{d.built_from_messages === 1 ? '' : 's'} · {String(d.generated_at).slice(0, 10)}
+          </span>
+        )}
+      </div>
+    </section>
+  )
+}
+
 function SellerIntentCard({ cid }) {
   const [d, setD] = useState(null)
   useEffect(() => { authFetch('/api/ai/seller-campaign/' + cid).then(r => r.ok ? r.json() : null).then(setD).catch(() => {}) }, [cid])
@@ -1967,7 +2078,7 @@ function ListingInterest({ client, sub = false }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'bsprofile', 'comms', 'website'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'comms', 'summary', 'bsprofile', 'website'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {
