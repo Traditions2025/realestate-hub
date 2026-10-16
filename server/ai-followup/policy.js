@@ -4,6 +4,7 @@
 // AI adds further gates (per-lead AI enable, pause, global flag). Returns a
 // decision object with an auditable reason.
 import db from '../database.js'
+import { rule } from '../rules.js'
 import { isStopStatus } from '../lead-sequences.js'
 import { inQuietHours } from './flags.js'
 import { isUsHoliday } from '../holidays.js'
@@ -103,7 +104,8 @@ export function canSendSms(client, context = {}) {
 //   dedupMinutes: suppress if any outgoing text was sent within this window (0 = off)
 //   respectQuietHours: block during configured quiet hours (agent-initiated bulk may pass false)
 const AI_ACTIVE_STATES = ['AI_CONVERSATION_ACTIVE', 'AI_ENGAGED', 'AI_WAITING_FOR_REPLY', 'AI_HIGH_INTENT']
-export function canAutomatedSend(client, { source = 'automation', dedupMinutes = 60, respectQuietHours = true } = {}) {
+export function canAutomatedSend(client, { source = 'automation', dedupMinutes = null, respectQuietHours = true } = {}) {
+  if (dedupMinutes === null || dedupMinutes === undefined) dedupMinutes = rule('text_dedupe_minutes')
   if (!client) return deny('no client')
   const cid = client.id
   // 1) Hard compliance (STOP / do_not_text / opted-out / DNC status).
@@ -121,7 +123,7 @@ export function canAutomatedSend(client, { source = 'automation', dedupMinutes =
   const lastOut = db.get("SELECT sent_by_type, occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='outgoing' ORDER BY occurred_at DESC LIMIT 1", [cid])
   if (lastOut && (lastOut.sent_by_type === 'human' || lastOut.sent_by_type == null)) {
     const lastIn = db.get("SELECT occurred_at FROM communications WHERE client_id=? AND channel='text' AND direction='incoming' ORDER BY occurred_at DESC LIMIT 1", [cid])
-    const recent = new Date(lastOut.occurred_at).getTime() > Date.now() - 12 * 3600 * 1000
+    const recent = new Date(lastOut.occurred_at).getTime() > Date.now() - rule('human_conversation_hours') * 3600 * 1000
     if (recent && lastIn) return deny('an active human conversation is in progress')
   }
   // 5) Duplicate / stacking guard — a text already went out very recently.

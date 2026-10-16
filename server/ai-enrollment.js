@@ -23,10 +23,11 @@
 //
 // Everything is gated by ai_auto_enroll_mode: 'off' (default) | 'fresh' | 'full'.
 import db from './database.js'
+import { rule } from './rules.js'
 import { getConfig, inQuietHours } from './ai-followup/flags.js'
 import { ensureState, setEnabled, setManaged, transitionAiState, isExcludedFromAutopilot } from './ai-followup/state.js'
 import { scheduleAiAction, enrollColdBuyerSequence } from './ai-followup/scheduler.js'
-import { PROACTIVE_END_HOUR } from './fsbo-followup.js'
+import { proactiveStartHour, proactiveEndHour } from './fsbo-followup.js'
 
 const nowIso = () => new Date().toISOString()
 
@@ -44,9 +45,9 @@ export const DEFAULT_SOURCE_EXCLUDE = [
 export function enrollmentConfig() {
   return {
     mode: db.getSetting('ai_auto_enroll_mode', 'off'),                                   // off | fresh | full
-    daily_limit: Number(db.getSetting('ai_reactivation_daily_limit', '150')) || 150,
-    fresh_window_days: Number(db.getSetting('ai_fresh_window_days', '7')) || 7,
-    defer_human_hours: Number(db.getSetting('ai_enroll_defer_human_hours', '24')) || 24,
+    daily_limit: rule('ai_reactivation_daily_limit'),
+    fresh_window_days: rule('ai_fresh_window_days'),
+    defer_human_hours: rule('ai_enroll_defer_human_hours'),
     source_exclude: (db.getSetting('ai_enroll_source_exclude', DEFAULT_SOURCE_EXCLUDE) || '')
       .split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
   }
@@ -65,7 +66,7 @@ function ctParts(d = new Date()) {
 // (John, 2026-10-15: texting now runs to 5PM).
 export function inReactivationWindow(d = new Date()) {
   const { wd, hour } = ctParts(d)
-  return !['Sat', 'Sun'].includes(wd) && hour >= 9 && hour < PROACTIVE_END_HOUR
+  return !['Sat', 'Sun'].includes(wd) && hour >= proactiveStartHour() && hour < proactiveEndHour()
 }
 // First allowed send time at/after `from`: skip quiet hours in 15-min steps (max 24h).
 export function nextAllowedIso(from = new Date()) {
@@ -128,7 +129,7 @@ export function evaluateAiEnrollmentEligibility(clientId, opts = {}) {
     if (hasAddress) {
       return fin(EXCLUDED('WATCH_HAS_ADDRESS', 'Watch lead with an address — routed to the Home Value drip, not AI buyer follow-up'))
     }
-    const since = new Date(Date.now() - 182 * 86400000).toISOString()
+    const since = new Date(Date.now() - rule('watch_no_text_months') * 30.44 * 86400000).toISOString()
     const recentText = db.get(
       `SELECT id FROM communications
         WHERE client_id=? AND channel='text' AND occurred_at >= ? LIMIT 1`, [cid, since])

@@ -26,6 +26,7 @@
 //
 // Master switch: fsbo_followup_enabled (OFF by default — ships off).
 import db from './database.js'
+import { rule } from './rules.js'
 import { automationTasksEnabled } from './automation-tasks.js'
 
 const nowIso = () => new Date().toISOString()
@@ -33,7 +34,7 @@ const HUB = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.co
 const DAY = 86400000
 
 export function fsboEnabled() { return db.getSetting?.('fsbo_followup_enabled') === '1' }   // OFF until explicitly turned on (prevents an accidental mass-text)
-export function fsboDomThreshold() { return Number(db.getSetting?.('fsbo_campaign_dom_threshold') || 14) || 14 }
+export function fsboDomThreshold() { return rule('fsbo_campaign_dom_threshold') }
 
 // Central-time parts.
 function chi(d = new Date()) {
@@ -48,15 +49,21 @@ function chi(d = new Date()) {
 // the greeting ("Good afternoon" vs "Hello") and by AI auto-enrolment, and those drifting
 // apart is how a lead gets a "Good afternoon" at 4:45 from one system and nothing from
 // another.
-export const PROACTIVE_END_HOUR = 17
+// Read from the rules registry so the window can be changed without a deploy. The
+// registry clamps it to 8am-7pm whatever is stored, so no setting can push a text outside
+// daylight. Defaults are 9 and 17, which is what was hardcoded here before.
+export const proactiveStartHour = () => rule('proactive_start_hour')
+export const proactiveEndHour = () => rule('proactive_end_hour')
+// Kept as a getter-backed export because ai-enrollment.js imports it by name.
+export const PROACTIVE_END_HOUR = 17   // historical default; call proactiveEndHour() for the live value
 
 export function inProactiveWindow(d = new Date()) {
   const c = chi(d)
   if (['Sat', 'Sun'].includes(c.weekday)) return false
-  return c.hour >= 9 && c.hour < PROACTIVE_END_HOUR
+  return c.hour >= proactiveStartHour() && c.hour < proactiveEndHour()
 }
 // Greeting: never "evening" (we don't text then). At 5PM+ just "Hello".
-function greeting() { const h = chi().hour; return h < 12 ? 'Good morning' : h < PROACTIVE_END_HOUR ? 'Good afternoon' : 'Hello' }
+function greeting() { const h = chi().hour; return h < 12 ? 'Good morning' : h < proactiveEndHour() ? 'Good afternoon' : 'Hello' }
 const dom = (c) => { const n = parseInt(String(c?.fsbo_dom || '').replace(/[^0-9]/g, ''), 10); return isNaN(n) ? 0 : n }
 const daysSince = (ts) => ts ? (Date.now() - new Date(String(ts).replace(' ', 'T') + (String(ts).includes('Z') ? '' : 'Z')).getTime()) / 86400000 : 999
 const phone10 = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
@@ -69,8 +76,8 @@ export function nextValidSlot(from = new Date()) {
     const c = chi(d)
     if (c.weekday === 'Sat') { d = new Date(d.getTime() + 2 * DAY) }
     else if (c.weekday === 'Sun') { d = new Date(d.getTime() + DAY) }
-    else if (c.hour < 9) { d = new Date(d.getTime() + (9 - c.hour) * 3600000) ; continue }
-    else if (c.hour >= PROACTIVE_END_HOUR) { d = new Date(d.getTime() + (24 - c.hour + 9) * 3600000); continue }
+    else if (c.hour < proactiveStartHour()) { d = new Date(d.getTime() + (proactiveStartHour() - c.hour) * 3600000) ; continue }
+    else if (c.hour >= proactiveEndHour()) { d = new Date(d.getTime() + (24 - c.hour + proactiveStartHour()) * 3600000); continue }
     else return d
     // rolled a day: land at a random morning slot 9-11 CT
     const c2 = chi(d)
@@ -86,7 +93,7 @@ export function nextValidSlot(from = new Date()) {
 // available". The 3-day jitter stays so a batch of leads enrolled on the same day does not
 // text them all on the same day a month later.
 export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
-  const baseDays = attemptJustSent <= 2 ? 7 : 30 + Math.floor(Math.random() * 4)   // 30-33
+  const baseDays = attemptJustSent <= 2 ? 7 : rule('fsbo_availability_days') + Math.floor(Math.random() * 4)
   let d = new Date(from.getTime() + baseDays * DAY)
   const wd = () => chi(d).weekday
   if (wd() === 'Sat') d = new Date(d.getTime() + (Math.random() < 0.5 ? -DAY : 2 * DAY))

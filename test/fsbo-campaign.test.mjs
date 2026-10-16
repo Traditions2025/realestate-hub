@@ -191,7 +191,7 @@ test('S15: Saturday/after-hours threshold rolls to a valid weekday window', () =
   const wd2 = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(evening)
   assert.equal(wd2, 'Thu')
 })
-test('cadence: +7d after attempts 1-2, then 40+ days, always on weekdays', () => {
+test('cadence: +7d after attempts 1-2, then ~30 days, always on weekdays', () => {
   for (const attempt of [1, 2]) {
     const d = f.scheduleNextFsbo(attempt, new Date('2026-09-16T15:00:00Z'))
     const gap = (d - new Date('2026-09-16T15:00:00Z')) / 86400000
@@ -202,7 +202,9 @@ test('cadence: +7d after attempts 1-2, then 40+ days, always on weekdays', () =>
     const wd = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(d)
     assert.ok(!['Sat', 'Sun'].includes(wd), 'never a weekend: ' + wd)
     const gap = (d - new Date('2026-09-16T15:00:00Z')) / 86400000
-    assert.ok(gap >= 38 && gap <= 50, 'long-term gap is 40+ days: ' + gap.toFixed(1))
+    // 30 to 33 days, plus up to 2 for a weekend roll (John, 2026-10-15: "after 30 days
+    // should reach out to ask if it's still available"). Was 40-47.
+    assert.ok(gap >= 28 && gap <= 36, 'long-term gap is about 30 days: ' + gap.toFixed(1))
   }
 })
 

@@ -24,11 +24,17 @@ db.run("INSERT INTO clients (first_name,last_name,phone,type,status) VALUES ('Te
 const cid = db.get("SELECT id FROM clients WHERE phone='+13195551212'").id
 const client = () => db.get('SELECT * FROM clients WHERE id=?', [cid])
 
+// A STOP now also moves the lead to Junk, and a START deliberately does NOT undo that:
+// the status is left for a person to review (John, 2026-10-15). These compliance tests are
+// about the FLAGS, not the status, so they put the seeded status back themselves. The
+// STOP-to-Junk rule is pinned by its own test in test/rules-oct15.test.mjs.
+const unjunk = () => db.run("UPDATE clients SET status='active' WHERE id=?", [cid])
+
 test('compliance: manual text allowed with a phone; STOP blocks it', () => {
   assert.equal(canSendSms(client(), { channel: 'manual' }).ok, true)
   applyOptOut(cid, 'stop')
   assert.equal(canSendSms(client(), { channel: 'manual' }).ok, false)
-  applyOptOut(cid, 'start')
+  applyOptOut(cid, 'start'); unjunk()
   assert.equal(canSendSms(client(), { channel: 'manual' }).ok, true)
 })
 
@@ -44,6 +50,7 @@ test('compliance: do_not_text and do_not_call are INDEPENDENT', () => {
 })
 
 test('compliance: AI channel is blocked until the flags are on', () => {
+  unjunk()
   db.setSetting('ai_followup_enabled', '0'); db.setSetting('ai_responsive_text_enabled', '0')
   assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive' }).ok, false)
   db.setSetting('ai_followup_enabled', '1'); db.setSetting('ai_responsive_text_enabled', '1')
@@ -51,17 +58,18 @@ test('compliance: AI channel is blocked until the flags are on', () => {
   // a STOP still blocks AI even with flags on
   applyOptOut(cid, 'stop')
   assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive' }).ok, false)
-  applyOptOut(cid, 'start')
+  applyOptOut(cid, 'start'); unjunk()
   db.setSetting('ai_followup_enabled', '0'); db.setSetting('ai_responsive_text_enabled', '0')
 })
 
 test('manual send-now (force) bypasses feature flags but STOP still blocks it', () => {
+  unjunk()
   db.setSetting('ai_followup_enabled', '0'); db.setSetting('ai_responsive_text_enabled', '0')
   assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive' }).ok, false, 'autonomous blocked when flags off')
   assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive', force: true }).ok, true, 'manual send-now allowed')
   applyOptOut(cid, 'stop')
   assert.equal(canSendSms(client(), { channel: 'ai', mode: 'responsive', force: true }).ok, false, 'STOP still blocks even a forced send')
-  applyOptOut(cid, 'start')
+  applyOptOut(cid, 'start'); unjunk()
 })
 
 test('state machine: valid transitions apply, invalid rejected, human takeover works', () => {

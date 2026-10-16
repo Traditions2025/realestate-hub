@@ -20,6 +20,7 @@
 // landing the same day. Two emails from the same team in one day is how a warm contact
 // becomes an unsubscribe.
 import db from './database.js'
+import { rule } from './rules.js'
 import { usableStreet, usableFirstName } from './routes/email.js'
 
 const nowIso = () => new Date().toISOString()
@@ -126,7 +127,7 @@ export function homeValueEligibility(c, ctx = {}) {
   // six months: a Watch lead mid-conversation by email is somebody a person is already
   // talking to, and a six-month value drip would talk straight over them.
   if (status === 'watch') {
-    const since = new Date(Date.now() - 182 * 86400000).toISOString()
+    const since = new Date(Date.now() - rule('watch_no_text_months') * 30.44 * 86400000).toISOString()
     let recent = null
     try {
       recent = db.get(`SELECT id FROM communications
