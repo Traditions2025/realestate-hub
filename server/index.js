@@ -561,6 +561,27 @@ async function start() {
   // Twilio texting config. The Auth Token is write-only from the UI's side — we never
   // send it back, only whether it's set + the last 4 chars, so it can't leak via the API.
   // ---- Appearance: team default accent theme (user override lives client-side) ----
+  // ---- The tunable sending rules (John, 2026-10-16) ------------------------
+  // READ ONLY for now, deliberately. The numbers are safe to change (server/rules.js
+  // clamps every one to a hard range that lives in code), but John should see the list and
+  // confirm the values before anything can write to it. The edit route lands with the
+  // screen, not before it.
+  app.get('/api/rules', async (_req, res) => {
+    try {
+      const { allRules } = await import('./rules.js')
+      const rows = allRules()
+      const groups = {}
+      for (const r of rows) (groups[r.group] ||= []).push(r)
+      res.json({
+        count: rows.length,
+        editable: false,
+        note: 'Every value is clamped to the min/max shown, which live in code. A blank or unusable stored value falls back to the default, so failure is always toward less sending.',
+        guards: 'Not listed and not reachable from here. The never-rules (FSBO, expired, past clients, hard email blocks, STOP) stay in code with tests.',
+        groups,
+      })
+    } catch (e) { res.status(500).json({ error: e.message }) }
+  })
+
   app.get('/api/settings/appearance', (_req, res) => {
     res.json({ team_accent: db.getSetting('team_accent_theme', 'gold') || 'gold' })
   })
