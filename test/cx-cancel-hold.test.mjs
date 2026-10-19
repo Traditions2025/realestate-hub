@@ -19,11 +19,11 @@ const { rule, setRule, resetRule } = await import('../server/rules.js')
 
 const HOUR = 3600000
 let seq = 0
-function mkClient({ mls = 'Cancelled', off = null, phone = '3195551212', address = '1 Main St' } = {}) {
+function mkClient({ mls = 'Cancelled', off = null, phone = '3195551212', address = '1 Main St', dom = null } = {}) {
   const id = 930000 + (++seq)
-  db.run(`INSERT OR REPLACE INTO clients (id, first_name, last_name, phone, address, city, status, type, mls_status, off_market_date)
-          VALUES (?,?,?,?,?,?,?,?,?,?)`,
-    [id, 'Cx', 'Test' + seq, phone, address, 'Marion', 'new', 'seller', mls, off])
+  db.run(`INSERT OR REPLACE INTO clients (id, first_name, last_name, phone, address, city, status, type, mls_status, off_market_date, mls_dom)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, 'Cx', 'Test' + seq, phone, address, 'Marion', 'new', 'seller', mls, off, dom])
   return db.get('SELECT * FROM clients WHERE id=?', [id])
 }
 const ago = (h) => new Date(Date.now() - h * HOUR).toISOString().slice(0, 10)
@@ -153,4 +153,72 @@ test('removing an already-enrolled lead still works as before', async () => {
   const again = await CX.enrollClient(c.id, 'bulk')
   assert.equal(again.ok, false)
   assert.match(again.reason, /removed by a human/)
+})
+
+
+/* ---------- the 90 day condition ---------- */
+
+test('a cancellation under 90 days on market IS held', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 31 })
+  const r = await CX.evaluateEligibility(c, { atEnroll: true })
+  assert.equal(r.code, 'TOO_SOON_AFTER_CANCEL')
+  assert.match(r.detail, /DOM 31/)
+})
+
+test('a cancellation at 90+ days goes straight through', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 165 })
+  const r = await CX.evaluateEligibility(c, { atEnroll: true })
+  assert.equal(r.ok, true, r.detail || '')
+})
+
+test('exactly 90 is treated as long, so no hold', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 90 })
+  assert.equal((await CX.evaluateEligibility(c, { atEnroll: true })).ok, true)
+})
+
+test('89 is still short, so held', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 89 })
+  assert.equal((await CX.evaluateEligibility(c, { atEnroll: true })).code, 'TOO_SOON_AFTER_CANCEL')
+})
+
+test('DOM unknown counts as short and is held', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: null })
+  const r = await CX.evaluateEligibility(c, { atEnroll: true })
+  assert.equal(r.code, 'TOO_SOON_AFTER_CANCEL')
+  assert.match(r.detail, /DOM unknown/)
+})
+
+test('skipping the hold does NOT skip the other refusals', async () => {
+  // The long-DOM branch must not become a way past junk status or a STOP.
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 200 })
+  db.run("UPDATE clients SET status='junk' WHERE id=?", [c.id])
+  const fresh = db.get('SELECT * FROM clients WHERE id=?', [c.id])
+  const r = await CX.evaluateEligibility(fresh, { atEnroll: true })
+  assert.equal(r.ok, false, 'a junk lead must still be refused')
+  assert.equal(r.code, 'RELISTED')
+})
+
+test('an EXPIRED listing ignores DOM entirely', async () => {
+  const c = mkClient({ mls: 'Expired', off: daysAgo(0), dom: 12 })
+  assert.equal((await CX.evaluateEligibility(c, { atEnroll: true })).ok, true)
+})
+
+test('the 90 day line is a dial', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 120 })
+  assert.equal((await CX.evaluateEligibility(c, { atEnroll: true })).ok, true, '120 is long at the default 90')
+  setRule('cx_cancelled_hold_max_dom', 365, 'test')
+  assert.equal((await CX.evaluateEligibility(c, { atEnroll: true })).code, 'TOO_SOON_AFTER_CANCEL', '120 is short at 365')
+  resetRule('cx_cancelled_hold_max_dom', 'test')
+})
+
+test('DOM 0 is a real value, not "unknown"', async () => {
+  // Number(null) is 0 and 0 is finite, so unknown once read as a same-day cancellation.
+  // Both are held, but they must stay distinguishable in the reason.
+  const zero = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: 0 })
+  const r0 = await CX.evaluateEligibility(zero, { atEnroll: true })
+  assert.match(r0.detail, /DOM 0\b/, 'a genuine DOM 0 must report as 0')
+
+  const unknown = mkClient({ mls: 'Cancelled', off: daysAgo(0), dom: null })
+  const ru = await CX.evaluateEligibility(unknown, { atEnroll: true })
+  assert.match(ru.detail, /DOM unknown/, 'a missing DOM must report as unknown')
 })

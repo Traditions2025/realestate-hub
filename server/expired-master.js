@@ -134,6 +134,9 @@ export async function fetchExpiredMasterRows() {
   // 'MLS Status'. Read that one under the mls_status field name below so nothing else here
   // has to change.
   const iTags = idx('Tags'), iStatus = idx('MLS Status'), iNotes = idx('Notes'), iMls = idx('MLS #'), iOff = idx('Off Market Date'), iAgent = idx('Listing Agent')
+  // Real columns since 2026-10-19; the pipeline used to fold DOM into Notes as "DOM 31"
+  // with no colon, which is why nothing downstream could find it.
+  const iDom = idx('DOM'), iListDate = idx('List Date')
   const cell = (row, i) => i >= 0 ? String(row[i] || '').trim() : ''
   const out = []
   for (let r = 1; r < rows.length; r++) {
@@ -143,6 +146,7 @@ export async function fetchExpiredMasterRows() {
       address: cell(row, iAddr), city: cell(row, iCity), state: cell(row, iState), zip: cell(row, iZip),
       tags: cell(row, iTags), mls_status: cell(row, iStatus), notes: cell(row, iNotes),
       mls_number: cell(row, iMls), off_market_date: cell(row, iOff), listing_agent: cell(row, iAgent),
+      mls_dom: cell(row, iDom), mls_list_date: cell(row, iListDate),
     })
   }
   return out
@@ -213,10 +217,10 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
           const { first, last } = splitName(row.name)
           const email = (row.email && !/notvalidemail/i.test(row.email)) ? row.email : null
           const info = db.run(
-            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, agent_assigned, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_status, mls_list_price, register_date, mls_extract_attempted_at, created_at, updated_at)
-             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            `INSERT INTO clients (first_name, last_name, phone, email, type, status, source, agent_assigned, address, city, state, zip, tags, off_market_date, mls_number, listing_agent, mls_status, mls_list_price, mls_dom, mls_list_date, register_date, mls_extract_attempted_at, created_at, updated_at)
+             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
             [first, last, row.phone || null, email, 'seller', 'new', 'Expired/Cancelled Mls', 'Matt Smith', row.address || null, row.city || null, row.state || null, row.zip || null,
-             tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, row.mls_status || null, parseMlsListPrice(row.notes),
+             tagsJson(row, cls, row.mls_status), row.off_market_date || null, row.mls_number || null, row.listing_agent || null, row.mls_status || null, parseMlsListPrice(row.notes), (parseInt(String(row.mls_dom || '').replace(/[^0-9]/g, ''), 10) || null), row.mls_list_date || null,
              // A prospecting lead never registers on our website, so "Registered"
              // is the day it entered the Hub — a real, sortable, VISIBLE date
              // instead of a blank column (John, 2026-09-23).
@@ -266,6 +270,13 @@ export async function syncExpiredMaster({ dryRun = false } = {}) {
       // correction in the MLS flows through (never blanked when absent).
       const listPrice = parseMlsListPrice(row.notes)
       if (listPrice) { sets.push('mls_list_price=?'); vals.push(listPrice) }
+      // Days on market and list date. Only written when the sheet actually has them:
+      // 115 of 257 rows are populated (everything the daily logs cover), and blanking a
+      // known DOM because an older row arrived empty would lose the one field the
+      // Cancelled/Expired hold depends on.
+      const domNum = parseInt(String(row.mls_dom || '').replace(/[^0-9]/g, ''), 10)
+      if (Number.isFinite(domNum)) { sets.push('mls_dom=?'); vals.push(domNum) }
+      if (row.mls_list_date) { sets.push('mls_list_date=?'); vals.push(row.mls_list_date) }
       // Fill a BLANK phone from the sheet, never overwrite one that's already there — phone
       // stays Hub-owned. Without this, a lead created before the sheet row had a phone (a
       // timing race between the daily pull and the Forewarn lookup) never got one, because

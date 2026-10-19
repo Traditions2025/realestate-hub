@@ -952,6 +952,11 @@ export async function initDb() {
   try { db.run('ALTER TABLE clients ADD COLUMN mls_status TEXT') } catch {}   // cancelled/expired: MLS status (Cancelled/Expired/Withdrawn) from the master file
   try { db.run('ALTER TABLE clients ADD COLUMN fsbo_price INTEGER') } catch {}   // FSBO: list price parsed from the master file Notes blob
   try { db.run('ALTER TABLE clients ADD COLUMN mls_list_price INTEGER') } catch {}  // Cancelled/Expired: last MLS list price, parsed from the master file Notes blob
+  // Days on market and list date, now REAL columns in the expired master sheet rather than
+  // buried in the Notes blob (added by the daily pipeline, 2026-10-19). mls_dom is what the
+  // Cancelled/Expired campaign uses to decide whether the 48 hour hold applies.
+  try { db.run('ALTER TABLE clients ADD COLUMN mls_dom INTEGER') } catch {}
+  try { db.run('ALTER TABLE clients ADD COLUMN mls_list_date TEXT') } catch {}
   // Secondary emails/phones kept when merging leads ("keep both"). Comma-separated.
   try { db.run('ALTER TABLE clients ADD COLUMN alt_emails TEXT') } catch {}
   try { db.run('ALTER TABLE clients ADD COLUMN alt_phones TEXT') } catch {}

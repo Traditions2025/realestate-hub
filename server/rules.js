@@ -128,6 +128,11 @@ export const RULES = {
     def: 14, min: 1, max: 120, unit: 'days on market',
     why: 'How long a FSBO has been listed before we first reach out.',
   },
+  cx_cancelled_hold_max_dom: {
+    group: 'Who gets added', label: 'Cancelled hold applies under', type: 'int',
+    def: 90, min: 1, max: 730, unit: 'days on market',
+    why: 'A listing cancelled after longer than this is texted without waiting. Days on market unknown counts as under.',
+  },
   cx_cancelled_hold_hours: {
     group: 'Who gets added', label: 'Wait after a listing is CANCELLED', type: 'int',
     def: 48, min: 1, max: 336, unit: 'hours',

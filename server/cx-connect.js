@@ -239,23 +239,42 @@ export async function evaluateEligibility(client, { atEnroll = false, manual = f
   // NON-TERMINAL, so the lead stays enrolled and the next sweep picks them up once the
   // window passes. A terminal refusal here would drop them permanently for being early.
   //
-  // NOT IMPLEMENTED: John also asked for this to apply only when the listing was cancelled
-  // inside 90 days on market. The master file carries no DOM and no list date, in a column
-  // or in the Notes, so days-on-market cannot be known here at all. The hold is therefore
-  // applied to every Cancelled listing. That is the safe direction (a long-DOM cancellation
-  // waits two extra days rather than being texted early), and the moment DOM reaches the
-  // sheet this is one condition to add.
+  // ONLY FOR A SHORT LISTING (John, 2026-10-19: "this would only be applicable if a
+  // cancelled listing was cancelled in less than 90 days").
+  //
+  // A listing pulled after three weeks was cancelled over something live, and we should let
+  // it settle. One pulled after eight months has been winding down for a long time, and
+  // waiting two more days protects nobody.
+  //
+  // DAYS ON MARKET UNKNOWN COUNTS AS UNDER THE LINE. 74 of the 107 cancelled rows still
+  // have no DOM (the daily pipeline only started writing it on 2026-07-29), and of the 33
+  // that do, 28 are under 90. So the common case is a short listing, and holding on an
+  // unknown is both the likelier answer and the safer one.
   if (/cancel/.test(mls)) {
-    const holdHours = rule('cx_cancelled_hold_hours')
-    const off = parseOffMarket(client.off_market_date)
-    // No off-market date means no evidence of recency. These are older imported records,
-    // and holding on a date we do not have would stall them for ever.
-    if (off) {
-      const hoursSince = (Date.now() - off.getTime()) / 3600000
-      if (hoursSince < holdHours) {
-        const clear = new Date(off.getTime() + holdHours * 3600000)
-        return { ok: false, terminal: false, code: 'TOO_SOON_AFTER_CANCEL',
-          detail: `cancelled ${Math.max(0, Math.round(hoursSince))}h ago, holding ${holdHours}h until ${clear.toISOString().slice(0, 16).replace('T', ' ')}` }
+    const maxDom = rule('cx_cancelled_hold_max_dom')
+    // Number(null) is 0, and 0 is finite — so a missing DOM reads as "nought days on
+    // market", which is a REAL value in this data (a listing pulled the day it went live).
+    // Unknown and zero have to stay distinguishable, or the audit line lies and any future
+    // change to how unknown is treated silently applies to genuine same-day cancellations.
+    const domRaw = client.mls_dom
+    const dom = (domRaw === null || domRaw === undefined || String(domRaw).trim() === '')
+      ? NaN : Number(domRaw)
+    const shortListing = !Number.isFinite(dom) || dom < maxDom
+    // A long listing SKIPS THE HOLD, it does not pass eligibility. Returning ok:true here
+    // would jump the remaining checks below (junk status, opt-out, reply history), so the
+    // only thing this decides is whether to evaluate the hold at all.
+    if (shortListing) {
+      const holdHours = rule('cx_cancelled_hold_hours')
+      const off = parseOffMarket(client.off_market_date)
+      // No off-market date means no evidence of recency. These are older imported records,
+      // and holding on a date we do not have would stall them for ever.
+      if (off) {
+        const hoursSince = (Date.now() - off.getTime()) / 3600000
+        if (hoursSince < holdHours) {
+          const clear = new Date(off.getTime() + holdHours * 3600000)
+          return { ok: false, terminal: false, code: 'TOO_SOON_AFTER_CANCEL',
+            detail: `cancelled ${Math.max(0, Math.round(hoursSince))}h ago, DOM ${Number.isFinite(dom) ? dom : 'unknown'}, holding ${holdHours}h until ${clear.toISOString().slice(0, 16).replace('T', ' ')}` }
+        }
       }
     }
   }
