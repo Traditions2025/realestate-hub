@@ -84,7 +84,7 @@ test('junk names fall back to "there", never "Hi ,"', () => {
 test('a missing address falls back to "your home"', () => {
   const f = HV.mergeFieldsFor({ first_name: 'Dana', address: '' })
   assert.equal(f.street, 'your home')
-  const t = HV.HV_SMS_STEPS[0].text({ first_name: f.first_name, street: f.street })
+  const t = HV.HV_SMS_STEPS[0].text({ first_name: f.first_name, street: f.street, greeting: 'Hi' })
   assert.match(t, /updates to your home over the years/)
   assert.doesNotMatch(t, /undefined|\{\{/)
 })
@@ -276,7 +276,7 @@ test('Day 0 tokens resolve through fillTemplate, including the fallbacks', async
 test('every Day 3+ step survives a record with no name and no address', () => {
   const f = HV.mergeFieldsFor({ first_name: '', address: '' })
   for (const s of HV.HV_SMS_STEPS) {
-    const t = s.text({ first_name: f.first_name, street: f.street })
+    const t = s.text({ first_name: f.first_name, street: f.street, greeting: HV.greetingFor(0) })
     assert.doesNotMatch(t, /\{\{|undefined|null/, `${s.key} leaked a placeholder`)
     assert.ok(t.startsWith('Hi there,'), `${s.key} greeting`)
     assert.match(t, /your home/, `${s.key} should use the address fallback`)
@@ -286,6 +286,45 @@ test('every Day 3+ step survives a record with no name and no address', () => {
 test('a real street address appears verbatim in every step', () => {
   const f = HV.mergeFieldsFor({ first_name: 'Kurt', address: '2870 Hunters Ridge Rd' })
   for (const s of HV.HV_SMS_STEPS) {
-    assert.match(s.text({ first_name: f.first_name, street: f.street }), /2870 Hunters Ridge Rd/, s.key)
+    assert.match(s.text({ first_name: f.first_name, street: f.street, greeting: HV.greetingFor(0) }), /2870 Hunters Ridge Rd/, s.key)
+  }
+})
+
+/* ---------- alternating greeting ---------- */
+
+test('the greeting alternates Hi, Hello, time of day', () => {
+  assert.equal(HV.greetingFor(0), 'Hi')
+  assert.equal(HV.greetingFor(1), 'Hello')
+  assert.match(HV.greetingFor(2), /^Good (morning|afternoon)$/)
+  assert.equal(HV.greetingFor(3), 'Hi', 'and wraps')
+})
+
+test('it is never "Good evening", because we stop texting at 5', () => {
+  for (const h of [9, 12, 15, 16, 20, 23]) {
+    const at = new Date(Date.UTC(2026, 9, 20, h + 5))
+    assert.match(HV.timeGreeting(at), /^Good (morning|afternoon)$/, `${h}:00 Central`)
+  }
+})
+
+test('one lead sees all three across the sequence', () => {
+  const seen = new Set(HV.HV_SMS_STEPS.map((_, i) => {
+    const g = HV.greetingFor(i + 1)
+    return /^Good /.test(g) ? 'timeofday' : g
+  }))
+  assert.equal(seen.size, 3, 'Hi, Hello and a time-of-day greeting all appear')
+})
+
+test('no step hardcodes a greeting any more', () => {
+  for (const s of HV.HV_SMS_STEPS) {
+    const t = s.text({ first_name: 'Dana', street: '1 A St', greeting: 'ZZTEST' })
+    assert.ok(t.startsWith('ZZTEST '), `${s.key} ignores the greeting it was given`)
+  }
+})
+
+test('a forgotten greeting falls back to "Hi", never "undefined"', () => {
+  for (const s of HV.HV_SMS_STEPS) {
+    const t = s.text({ first_name: 'Dana', street: '1 A St' })   // no greeting passed
+    assert.ok(t.startsWith('Hi '), `${s.key} -> ${t.slice(0, 20)}`)
+    assert.doesNotMatch(t, /undefined/)
   }
 })

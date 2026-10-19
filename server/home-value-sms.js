@@ -31,28 +31,53 @@ export function hvSmsEnabled() {
  * `key` is stable and is what the no-duplicate check reads, so reordering or re-wording a
  * step never re-sends one somebody already had.
  */
+/**
+ * ALTERNATING GREETING (John, 2026-10-19: "use alternate hi, hello and time of day").
+ *
+ * Rotated by STEP INDEX rather than by the global {{intro}} counter, so one lead is
+ * guaranteed to see all three across their sequence instead of whatever the counter
+ * happened to be on when their turn came.
+ *
+ * Day 0 is index 0 and stays "Hi", which is John's approved wording, so the rotation
+ * starts at "Hello" on Day 3 and the whole run reads:
+ *   Hi, Hello, time-of-day, Hi, Hello, time-of-day, Hi, Hello
+ *
+ * Never "Good evening": the sending window closes at 5pm, so it could only ever be wrong.
+ */
+export function timeGreeting(now = new Date()) {
+  let h
+  try {
+    h = Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: 'numeric', hour12: false }).format(now)) % 24
+  } catch { h = now.getHours() }
+  return h < 12 ? 'Good morning' : 'Good afternoon'
+}
+export function greetingFor(stepIndex, now = new Date()) {
+  const i = ((Number(stepIndex) || 0) % 3 + 3) % 3
+  return i === 0 ? 'Hi' : i === 1 ? 'Hello' : timeGreeting(now)
+}
+
 export const HV_SMS_STEPS = [
   { key: 'day3_improvements', day: 3,
     purpose: 'Improvements that are not in public records',
-    text: (c) => `Hi ${c.first_name}, one thing that can make a difference when evaluating a home is any improvements that aren't reflected in public records. Have you made any major updates to ${c.street} over the years, like the kitchen, bathrooms, roof, or windows?` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, one thing that can make a difference when evaluating a home is any improvements that aren't reflected in public records. Have you made any major updates to ${c.street} over the years, like the kitchen, bathrooms, roof, or windows?` },
   { key: 'day7_reason', day: 7,
     purpose: 'Motivation, without assuming they are selling',
-    text: (c) => `Hi ${c.first_name}, just wanted to ask, were you mainly curious about what ${c.street} could be worth today, or is a possible move something you've been thinking about? Either way, we're happy to help you get a better understanding of the value.` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, just wanted to ask, were you mainly curious about what ${c.street} could be worth today, or is a possible move something you've been thinking about? Either way, we're happy to help you get a better understanding of the value.` },
   { key: 'day12_condition', day: 12,
     purpose: 'Updated, dated, or needing repair',
-    text: (c) => `Hi ${c.first_name}, another thing we consider when evaluating a home is its overall condition. Would you say ${c.street} is mostly move-in ready, or are there a few areas that could use some updating? That can help us better understand how it compares with other homes nearby.` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, another thing we consider when evaluating a home is its overall condition. Would you say ${c.street} is mostly move-in ready, or are there a few areas that could use some updating? That can help us better understand how it compares with other homes nearby.` },
   { key: 'day18_features', day: 18,
     purpose: 'Characteristics an automated valuation misses',
-    text: (c) => `Hi ${c.first_name}, when we evaluate a property, we look at what similar homes have actually sold for, not just what they're listed at. Is there anything about ${c.street} that you feel makes it different from other homes in the neighborhood?` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, when we evaluate a property, we look at what similar homes have actually sold for, not just what they're listed at. Is there anything about ${c.street} that you feel makes it different from other homes in the neighborhood?` },
   { key: 'day25_details', day: 25,
     purpose: 'Finished space and layout changes',
-    text: (c) => `Hi ${c.first_name}, sometimes public records don't tell the whole story, especially when it comes to finished basements or additional living space. Has anything changed with the layout or finished square footage of ${c.street} since you purchased it?` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, sometimes public records don't tell the whole story, especially when it comes to finished basements or additional living space. Has anything changed with the layout or finished square footage of ${c.street} since you purchased it?` },
   { key: 'day35_walkthrough', day: 35, offersWalkthrough: true,
     purpose: 'Offer the walkthrough as accuracy, not as a pitch',
-    text: (c) => `Hi ${c.first_name}, one reason Matt prefers seeing a home in person is that photos and public records don't always reflect its actual condition or improvements. If you're open to it, he could stop by for a quick walkthrough so we can put together a more accurate value range for ${c.street}. Would that be helpful?` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, one reason Matt prefers seeing a home in person is that photos and public records don't always reflect its actual condition or improvements. If you're open to it, he could stop by for a quick walkthrough so we can put together a more accurate value range for ${c.street}. Would that be helpful?` },
   { key: 'day45_final', day: 45, final: true,
     purpose: 'Leave the door open, then stop',
-    text: (c) => `Hi ${c.first_name}, just wanted to follow up one last time on your home value request for ${c.street}. We're happy to help whenever the timing is right, whether you're simply keeping track of your home's value or considering a move down the road. If you'd still like us to put together an estimate, just let me know!` },
+    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, just wanted to follow up one last time on your home value request for ${c.street}. We're happy to help whenever the timing is right, whether you're simply keeping track of your home's value or considering a move down the road. If you'd still like us to put together an estimate, just let me know!` },
 ]
 
 export function initHvSms() {
@@ -262,7 +287,8 @@ export async function runHvSmsSweep() {
 
 async function sendStep(client, row, step) {
   const f = mergeFieldsFor(client)
-  const body = step.text({ first_name: f.first_name, street: f.street })
+  // +1 because Day 0 already used index 0 ("Hi"), so Day 3 starts the rotation at "Hello".
+  const body = step.text({ first_name: f.first_name, street: f.street, greeting: greetingFor(row.next_step + 1) })
   try {
     const { canSendSms, canAutomatedSend } = await import('./ai-followup/policy.js')
     const gate = canSendSms(client, { channel: 'automation' })
