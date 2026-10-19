@@ -39,7 +39,8 @@ function kickSweep() {
 }
 router.post('/:clientId/enroll', async (req, res) => {
   try {
-    const r = await enrollClient(Number(req.params.clientId), req.user?.email || 'manual', { manual: true })
+    const r = await enrollClient(Number(req.params.clientId), req.user?.email || 'manual',
+      { manual: true, override: req.body?.override === true || req.query.override === '1' })
     if (r?.ok) kickSweep()
     res.json(r)
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -49,7 +50,7 @@ router.post('/:clientId/pause', (req, res) => {
 })
 router.post('/:clientId/resume', async (req, res) => {
   try {
-    const r = await resumeCampaign(Number(req.params.clientId))
+    const r = await resumeCampaign(Number(req.params.clientId), { override: req.body?.override === true || req.query.override === '1' })
     if (r?.ok) kickSweep()
     res.json(r)
   } catch (e) { res.status(500).json({ error: e.message }) }

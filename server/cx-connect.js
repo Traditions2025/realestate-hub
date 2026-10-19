@@ -372,7 +372,8 @@ export function clearNumberVerdict(client) {
 }
 
 // ---------- enrollment ----------
-export async function enrollClient(clientId, enrolledBy = 'manual', { manual = false } = {}) {
+export async function enrollClient(clientId, enrolledBy = 'manual', opts = {}) {
+  const { manual = false } = opts
   let c = db.get('SELECT * FROM clients WHERE id=?', [clientId])
   const existing = db.get('SELECT * FROM cx_campaign WHERE client_id=?', [clientId])
   if (existing && existing.status === 'active') return { ok: false, reason: 'already enrolled' }
@@ -380,6 +381,31 @@ export async function enrollClient(clientId, enrolledBy = 'manual', { manual = f
   // A human's pause/remove sticks: bulk enroll never silently re-activates those.
   // The profile card's Resume/Re-enroll button (resumeCampaign) is the explicit path back in.
   if (existing && ['paused', 'removed'].includes(existing.status)) return { ok: false, reason: `${existing.status} by a human — use Resume/Re-enroll on the lead profile` }
+  // A MANUAL ENROL ON AN UNTAGGED LEAD IS THE ONE WAY PAST THE CANCELLATION HOLD
+  // (John, 2026-10-19).
+  //
+  // The 48 hour hold reads mls_status and off_market_date. A lead the master file has not
+  // caught up with yet has neither, so the hold has nothing to measure and they look like
+  // any ordinary lead: enrol them by hand today and they are texted today, which is the
+  // exact thing the rule exists to prevent.
+  //
+  // Auto-enrolment cannot hit this, because an untagged lead is not in the Cancelled/
+  // Expired list to begin with. Only the Resume/Re-enroll button can, which is how Stephen
+  // Walters would have been texted the day his listing was cancelled.
+  //
+  // Narrow on purpose: it needs BOTH fields empty. A legacy lead carrying either one is
+  // unaffected. And it is an override, not a wall - the same needs_override shape used by
+  // Send-AI-now, so a deliberate yes still works and is recorded.
+  if (manual && c && !opts.override) {
+    const noMls = !String(c.mls_status || '').trim()
+    const noOff = !String(c.off_market_date || '').trim()
+    if (noMls && noOff) {
+      logCx(clientId, 'enroll_refused', { eligibility_result: 'NEEDS_REFRESH', suppression_reason: 'no MLS status or off-market date yet' })
+      return { ok: false, needs_override: true, reason: 'NEEDS_REFRESH',
+        detail: 'This lead has no MLS status and no off-market date yet, so the 48 hour cancellation hold cannot protect them: enrolling now would text them today. Refresh the master file first, or enrol with override to go ahead anyway.' }
+    }
+  }
+
   // Manual enroll = the human has a corrected number, so drop the old number's
   // verdict BEFORE evaluating (and before any send re-checks it).
   if (manual && c) c = clearNumberVerdict(c)
@@ -596,9 +622,17 @@ export function pauseCampaign(clientId) {
   logCx(clientId, 'paused', {})
   return db.get('SELECT * FROM cx_campaign WHERE client_id=?', [clientId])
 }
-export async function resumeCampaign(clientId) {
+export async function resumeCampaign(clientId, opts = {}) {
   const en = db.get('SELECT * FROM cx_campaign WHERE client_id=?', [clientId])
   if (!en) return { ok: false, reason: 'not enrolled' }
+  // Resume is a manual enrol by another name, so it gets the same untagged-lead check.
+  if (!opts.override) {
+    const cc = db.get('SELECT mls_status, off_market_date FROM clients WHERE id=?', [clientId])
+    if (cc && !String(cc.mls_status || '').trim() && !String(cc.off_market_date || '').trim()) {
+      return { ok: false, needs_override: true, reason: 'NEEDS_REFRESH',
+        detail: 'This lead has no MLS status and no off-market date yet, so the 48 hour cancellation hold cannot protect them: resuming now would text them today. Refresh the master file first, or resume with override.' }
+    }
+  }
   // Re-enrollment after a response (or a stop) is a deliberate HUMAN action, and
   // eligibility is re-verified from scratch.
   let c = db.get('SELECT * FROM clients WHERE id=?', [clientId])

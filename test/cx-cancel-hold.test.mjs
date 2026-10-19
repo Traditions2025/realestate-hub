@@ -222,3 +222,41 @@ test('DOM 0 is a real value, not "unknown"', async () => {
   const ru = await CX.evaluateEligibility(unknown, { atEnroll: true })
   assert.match(ru.detail, /DOM unknown/, 'a missing DOM must report as unknown')
 })
+
+/* ---------- the manual enrol foot-gun ---------- */
+
+test('a manual enrol on an UNTAGGED lead is refused, not silently sent', async () => {
+  // Stephen Walters exactly: cancelled in real life, master file not refreshed yet, so
+  // the hold has nothing to measure and he looks like any ordinary lead.
+  const c = mkClient({ mls: null, off: null, dom: null })
+  const r = await CX.enrollClient(c.id, 'john', { manual: true })
+  assert.equal(r.ok, false)
+  assert.equal(r.needs_override, true, 'must be an override, not a wall')
+  assert.equal(r.reason, 'NEEDS_REFRESH')
+  assert.match(r.detail, /Refresh the master file first/)
+})
+
+test('an explicit override still goes through', async () => {
+  const c = mkClient({ mls: null, off: null, dom: null })
+  const r = await CX.enrollClient(c.id, 'john', { manual: true, override: true })
+  assert.equal(r.ok, true, r.reason || '')
+})
+
+test('a tagged lead is unaffected by the new check', async () => {
+  const c = mkClient({ mls: 'Expired', off: daysAgo(5), dom: 40 })
+  const r = await CX.enrollClient(c.id, 'john', { manual: true })
+  assert.equal(r.ok, true, r.reason || '')
+})
+
+test('a lead with only an off-market date is unaffected', async () => {
+  // Narrow on purpose: it takes BOTH fields missing.
+  const c = mkClient({ mls: null, off: daysAgo(10), dom: null })
+  const r = await CX.enrollClient(c.id, 'john', { manual: true })
+  assert.equal(r.ok, true, r.reason || '')
+})
+
+test('AUTO enrolment is untouched by the override check', async () => {
+  const c = mkClient({ mls: null, off: null, dom: null })
+  const r = await CX.enrollClient(c.id, 'bulk')     // manual defaults to false
+  assert.equal(r.ok, true, 'the bulk path never had this exposure: ' + (r.reason || ''))
+})
