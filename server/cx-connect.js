@@ -591,10 +591,31 @@ export async function resumeCampaign(clientId) {
   logCx(clientId, 'resumed', {})
   return { ok: true }
 }
+/**
+ * Take a lead out of this campaign, and keep them out.
+ *
+ * UPSERT, not UPDATE (John, 2026-10-19: "make sure that Stephen Walters does not get any
+ * text first"). A bare UPDATE silently did nothing for somebody who was not enrolled yet,
+ * which is exactly when you most want to stop them: the lead John wants protected is
+ * usually the one the master file is about to sweep in. Writing the row in advance means
+ * enrollClient sees a human 'removed' row and refuses, instead of enrolling them for the
+ * first time an hour later.
+ *
+ * Same lesson as the FSBO pre-enrolment exclusion and the AI never-contact list: a block
+ * that only works after the thing exists is not a block.
+ */
 export function removeFromCampaign(clientId) {
-  db.run("UPDATE cx_campaign SET status='removed', next_send_at=NULL, stop_reason='HUMAN_REMOVED', stopped_at=?, updated_at=? WHERE client_id=?", [nowIso(), nowIso(), clientId])
-  logCx(clientId, 'removed', { suppression_reason: 'HUMAN_REMOVED' })
-  return { ok: true }
+  const cid = Number(clientId)
+  if (!Number.isFinite(cid)) return { ok: false, reason: 'bad client id' }
+  const existing = db.get('SELECT client_id, status FROM cx_campaign WHERE client_id=?', [cid])
+  if (existing) {
+    db.run("UPDATE cx_campaign SET status='removed', next_send_at=NULL, stop_reason='HUMAN_REMOVED', stopped_at=?, updated_at=? WHERE client_id=?", [nowIso(), nowIso(), cid])
+  } else {
+    db.run(`INSERT INTO cx_campaign (client_id, status, enrolled_at, enrolled_by, attempt_count, next_send_at, stop_reason, stopped_at, updated_at)
+            VALUES (?, 'removed', NULL, 'human_block', 0, NULL, 'HUMAN_REMOVED', ?, ?)`, [cid, nowIso(), nowIso()])
+  }
+  logCx(cid, 'removed', { suppression_reason: existing ? 'HUMAN_REMOVED' : 'HUMAN_REMOVED (blocked before enrolment)' })
+  return { ok: true, was_enrolled: !!existing, pre_enrolment: !existing }
 }
 
 // ---------- dry-run preview (never sends, never writes) ----------

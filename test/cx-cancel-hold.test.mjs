@@ -129,3 +129,28 @@ test('a cancelled lead with no phone is still refused for the phone, not the hol
   const r = await CX.evaluateEligibility(c, { atEnroll: true })
   assert.equal(r.code, 'WRONG_NUMBER', 'the harder refusal wins')
 })
+
+/* ---------- blocking somebody who is not enrolled yet ---------- */
+
+test('removing a lead who was never enrolled still blocks them', async () => {
+  const c = mkClient({ mls: 'Cancelled', off: daysAgo(5) })
+  assert.equal((await CX.evaluateEligibility(c, { atEnroll: true })).ok, true, 'eligible to start with')
+  const r = CX.removeFromCampaign(c.id)
+  assert.equal(r.ok, true)
+  assert.equal(r.pre_enrolment, true, 'a row is written even though they were never enrolled')
+  // the next auto-enrol tick must refuse them
+  const en = await CX.enrollClient(c.id, 'bulk')
+  assert.equal(en.ok, false)
+  assert.match(en.reason, /removed by a human/)
+})
+
+test('removing an already-enrolled lead still works as before', async () => {
+  const c = mkClient({ mls: 'Expired', off: daysAgo(5) })
+  const first = await CX.enrollClient(c.id, 'bulk')
+  assert.equal(first.ok, true, first.reason || '')
+  const r = CX.removeFromCampaign(c.id)
+  assert.equal(r.was_enrolled, true)
+  const again = await CX.enrollClient(c.id, 'bulk')
+  assert.equal(again.ok, false)
+  assert.match(again.reason, /removed by a human/)
+})
