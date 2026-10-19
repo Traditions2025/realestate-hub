@@ -52,6 +52,7 @@ test('every default equals the behaviour that was already live', () => {
     // hours before the first text. Recorded here so the next change to it is still caught.
     cx_cancelled_hold_hours: 48,
     cx_cancelled_hold_max_dom: 90,
+    home_value_question_delay_minutes: 2,
   }
   // Both directions: no rule is missing from the list, and no live value has drifted.
   assert.deepEqual(KEYS.slice().sort(), Object.keys(LIVE_ON_2026_10_16).sort(),

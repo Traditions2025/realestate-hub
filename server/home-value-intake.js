@@ -17,6 +17,7 @@
 // Repeat submitters are the point. A second or third look is the strongest signal in this
 // whole system, so each one is counted and logged rather than collapsed into the first.
 import db from './database.js'
+import { rule } from './rules.js'
 
 const nowIso = () => new Date().toISOString()
 export const HOME_VALUE_TAG = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
@@ -175,7 +176,80 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
     }
   } catch (e) { emailed = { ok: false, reason: e.message } }
 
-  return { client_id: client.id, created, visit: visitNo, deferred, emailed, detail }
+  // THE CONDITION QUESTION, two minutes behind the email (John, 2026-10-19).
+  //
+  // They have just asked what their home is worth, so they are at the keyboard and the
+  // single most useful thing we can get back is condition: an online estimate cannot see a
+  // remodelled kitchen or a roof that needs doing. A 1-to-10 answer is one tap to send.
+  //
+  // Only ever behind a SUCCESSFUL email. If the email did not go, this would be a text out
+  // of nowhere thanking them for a request they would not see us answering.
+  let questioned = { ok: false, reason: 'not attempted' }
+  if (emailed?.ok) {
+    try { questioned = scheduleConditionQuestion(client) }
+    catch (e) { questioned = { ok: false, reason: e.message } }
+  } else questioned = { ok: false, reason: 'email did not send, so no follow-up text' }
+
+  return { client_id: client.id, created, visit: visitNo, deferred, emailed, questioned, detail }
+}
+
+/** John's wording, verbatim. Straight apostrophes only: a curly one forces UCS-2 and cuts
+ *  the segment from 160 characters to 70. */
+export const CONDITION_QUESTION =
+  "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition."
+
+/**
+ * Queue the condition question. Returns without scheduling rather than throwing, because a
+ * missing phone is the normal case for a web form, not an error.
+ *
+ * TIMING. Two minutes, unless that lands in quiet hours, in which case it waits for the
+ * morning. Deliberately NOT pushed to the next weekday 9-to-5 slot the way proactive
+ * prospecting is: this is a reply to something they did themselves minutes ago, and holding
+ * a Saturday enquiry until Monday throws away the reason for sending it. Quiet hours are
+ * the boundary that matters here, not the working week.
+ */
+export function scheduleConditionQuestion(client) {
+  const cid = Number(client?.id)
+  if (!cid) return { ok: false, reason: 'no client' }
+  const phone = String(client.phone || '').replace(/\D/g, '')
+  if (phone.length < 10) return { ok: false, reason: 'no mobile number on file' }
+  // Hard compliance now; the runner re-checks it again at send time.
+  if (client.hub_text_opt_out) return { ok: false, reason: 'replied STOP to our number' }
+  if (client.sms_undeliverable) return { ok: false, reason: 'number is undeliverable' }
+
+  // One per person, ever. A second or third home value request is a strong signal and gets
+  // a person, not the same canned question again.
+  const asked = db.get(
+    `SELECT id FROM scheduled_texts WHERE client_id=? AND body LIKE '%overall condition%' LIMIT 1`, [cid])
+  if (asked) return { ok: false, reason: 'already asked this lead' }
+
+  const mins = (() => { try { return rule('home_value_question_delay_minutes') } catch { return 2 } })()
+  let at = new Date(Date.now() + mins * 60000)
+  at = pushOutOfQuietHours(at)
+
+  const r = db.run(`INSERT INTO scheduled_texts (client_id, phone, body, send_at, status, created_by, created_at)
+                    VALUES (?,?,?,?,'scheduled','home_value_intake',?)`,
+    [cid, client.phone, CONDITION_QUESTION, at.toISOString(), nowIso()])
+  return { ok: true, id: r.lastInsertRowid, send_at: at.toISOString(), delayed_for_quiet_hours: at.getTime() > Date.now() + (mins + 1) * 60000 }
+}
+
+/** If `d` falls inside quiet hours, move it to the morning they end. */
+export function pushOutOfQuietHours(d) {
+  const hourIn = (dt) => {
+    try {
+      return Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: '2-digit', hour12: false }).formatToParts(dt).find(p => p.type === 'hour')?.value)
+    } catch { return dt.getHours() }
+  }
+  const startH = Number(String(db.getSetting?.('ai_quiet_hours_start', '21:00')).split(':')[0]) || 21
+  const endH = Number(String(db.getSetting?.('ai_quiet_hours_end', '08:00')).split(':')[0]) || 8
+  let out = new Date(d)
+  for (let i = 0; i < 48; i++) {
+    const h = hourIn(out)
+    const quiet = startH > endH ? (h >= startH || h < endH) : (h >= startH && h < endH)
+    if (!quiet) return out
+    out = new Date(out.getTime() + 30 * 60000)   // creep forward until the window opens
+  }
+  return out
 }
 
 // Poll Matt's mailboxes for new notifications and process them.

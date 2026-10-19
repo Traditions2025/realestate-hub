@@ -128,6 +128,11 @@ export const RULES = {
     def: 14, min: 1, max: 120, unit: 'days on market',
     why: 'How long a FSBO has been listed before we first reach out.',
   },
+  home_value_question_delay_minutes: {
+    group: 'Who gets added', label: 'Condition question follows the home value email after', type: 'int',
+    def: 2, min: 1, max: 1440, unit: 'minutes',
+    why: 'Waits for the morning if that lands in quiet hours. Only sent when the email actually went.',
+  },
   cx_cancelled_hold_max_dom: {
     group: 'Who gets added', label: 'Cancelled hold applies under', type: 'int',
     def: 90, min: 1, max: 730, unit: 'days on market',
