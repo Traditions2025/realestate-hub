@@ -18,6 +18,7 @@
 // 9AM-4PM Central proactive window as the FSBO sequence. Master switch is OFF until
 // cx_campaign_enabled='1' (prevents an accidental mass-text on deploy).
 import db from './database.js'
+import { rule } from './rules.js'
 import { automationTasksEnabled } from './automation-tasks.js'
 
 const nowIso = () => new Date().toISOString()
@@ -226,6 +227,39 @@ export async function evaluateEligibility(client, { atEnroll = false, manual = f
   if (/sold|closed/.test(mls)) return { ok: false, terminal: true, code: 'SOLD', detail: `MLS status ${client.mls_status}` }
   if (/pending|contingent/.test(mls)) return { ok: false, terminal: true, code: 'PENDING', detail: `MLS status ${client.mls_status}` }
   if (/active/.test(mls)) return { ok: false, terminal: true, code: 'RELISTED', detail: `MLS status ${client.mls_status}` }
+  // A CANCELLED LISTING GETS 48 HOURS BEFORE WE SAY ANYTHING (John, 2026-10-19).
+  //
+  // Cancelling is a decision somebody made this week, often mid-conversation with their
+  // own agent. Texting the next morning reads as having watched the MLS rather than having
+  // noticed them. Two days is enough for the decision to settle.
+  //
+  // EXPIRED IS EXEMPT, deliberately: an expired listing simply reached the end of its term
+  // on a date set months earlier. There is no fresh decision to intrude on.
+  //
+  // NON-TERMINAL, so the lead stays enrolled and the next sweep picks them up once the
+  // window passes. A terminal refusal here would drop them permanently for being early.
+  //
+  // NOT IMPLEMENTED: John also asked for this to apply only when the listing was cancelled
+  // inside 90 days on market. The master file carries no DOM and no list date, in a column
+  // or in the Notes, so days-on-market cannot be known here at all. The hold is therefore
+  // applied to every Cancelled listing. That is the safe direction (a long-DOM cancellation
+  // waits two extra days rather than being texted early), and the moment DOM reaches the
+  // sheet this is one condition to add.
+  if (/cancel/.test(mls)) {
+    const holdHours = rule('cx_cancelled_hold_hours')
+    const off = parseOffMarket(client.off_market_date)
+    // No off-market date means no evidence of recency. These are older imported records,
+    // and holding on a date we do not have would stall them for ever.
+    if (off) {
+      const hoursSince = (Date.now() - off.getTime()) / 3600000
+      if (hoursSince < holdHours) {
+        const clear = new Date(off.getTime() + holdHours * 3600000)
+        return { ok: false, terminal: false, code: 'TOO_SOON_AFTER_CANCEL',
+          detail: `cancelled ${Math.max(0, Math.round(hoursSince))}h ago, holding ${holdHours}h until ${clear.toISOString().slice(0, 16).replace('T', ' ')}` }
+      }
+    }
+  }
+
   const status = String(client.status || '').toLowerCase()
   if (status === 'junk') return { ok: false, terminal: true, code: 'RELISTED', detail: 'lead junked (relisted / not a prospect)' }
   if (['closed', 'pending', 'not_in_market', 'donotcontact', 'archived', 'trash'].includes(status)) {

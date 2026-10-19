@@ -48,6 +48,9 @@ test('every default equals the behaviour that was already live', () => {
     home_value_defer_days_after_use: 90,
     fsbo_campaign_dom_threshold: 14,
     fsbo_availability_days: 30,
+    // NOT previously live. Added 2026-10-19 as a new rule: a cancelled listing waits 48
+    // hours before the first text. Recorded here so the next change to it is still caught.
+    cx_cancelled_hold_hours: 48,
   }
   // Both directions: no rule is missing from the list, and no live value has drifted.
   assert.deepEqual(KEYS.slice().sort(), Object.keys(LIVE_ON_2026_10_16).sort(),
