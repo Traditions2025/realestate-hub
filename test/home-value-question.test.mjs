@@ -29,7 +29,7 @@ const queued = (cid) => db.get('SELECT * FROM scheduled_texts WHERE client_id=? 
 
 test('the message is word for word what John wrote', () => {
   assert.equal(HV.CONDITION_QUESTION,
-    "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition.")
+    "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition. https://www.mattsmithteam.com/")
 })
 
 test('straight apostrophes only, or the text costs three segments', () => {
@@ -37,8 +37,23 @@ test('straight apostrophes only, or the text costs three segments', () => {
     'a curly apostrophe forces UCS-2 and cuts a segment from 160 characters to 70')
 })
 
-test('it carries no link, so the one-URL rule is safe', () => {
-  assert.equal((HV.CONDITION_QUESTION.match(/https?:\/\//g) || []).length, 0)
+test('exactly one link, never two (John, 2026-10-19 added the site)', () => {
+  assert.equal((HV.CONDITION_QUESTION.match(/https?:\/\//g) || []).length, 1)
+  assert.match(HV.CONDITION_QUESTION, /https:\/\/www\.mattsmithteam\.com\//)
+})
+
+test('the site is a full URL, so every phone makes it tappable', () => {
+  // A bare "www.mattsmithteam.com" is plain text on a lot of handsets, which is why the
+  // buyer nurture uses the full form too.
+  assert.doesNotMatch(HV.CONDITION_QUESTION, /[^/]www\.mattsmithteam\.com(?!\/)/)
+})
+
+test('adding the site did not cost an extra SMS segment', () => {
+  const rendered = HV.CONDITION_QUESTION
+    .replace('{{first_name}}', 'Christopher')
+    .replace('{{street_address}}', '2870 Hunters Ridge Rd')
+  const segments = rendered.length <= 160 ? 1 : Math.ceil(rendered.length / 153)
+  assert.ok(segments <= 3, `${rendered.length} chars is ${segments} segments`)
 })
 
 test('both merge fields are present and resolvable', () => {
