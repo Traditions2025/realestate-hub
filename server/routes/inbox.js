@@ -772,6 +772,12 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         // campaign forbids. Same rule as Cancelled/Expired: a human always answers.
         let fsboLead = false
         try { const f = await import('../fsbo-followup.js'); fsboLead = await f.handleFsboReply(client.id, body) } catch (e) { console.error('[fsbo-followup]', e.message) }
+        // Home Value 45-day follow-up: ANY reply ends the sequence, cancels everything
+        // queued, hands the lead to a person and keeps the AI out. Same rule as the two
+        // above, and awaited for the same reason: a fire-and-forget call here would let
+        // the AI answer before the campaign had stopped.
+        let hvLead = false
+        try { const h = await import('../home-value-sms.js'); hvLead = h.handleHvSmsInbound(client.id, body) } catch (e) { console.error('[home-value-sms]', e.message) }
         // Automation triggers: incoming text (always) + text reply (if we've texted them before)
         import('./automations.js').then(m => {
           m.emitAutomationEvent('new_message_received', client.id, { body }, 'msg_' + externalId)
@@ -779,9 +785,10 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
           if (priorOut) m.emitAutomationEvent('text_replied', client.id, { body }, 'reply_' + externalId)
         }).catch(() => {})
         // HUB AI responsive follow-up — fully gated + fail-safe; never blocks the webhook.
-        // Skipped entirely for Cancelled/Expired (cxLead) AND FSBO (fsboLead) campaign
+        // Skipped entirely for Cancelled/Expired (cxLead), FSBO (fsboLead) and the Home
+        // Value follow-up (hvLead) campaign
         // leads: the AI never replies to either, a person does.
-        if (body && !kw && !cxLead && !fsboLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
+        if (body && !kw && !cxLead && !fsboLead && !hvLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
       } else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }

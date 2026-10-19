@@ -892,6 +892,10 @@ export function startScheduler() {
   // already the guard; this is what keeps it from going quiet if the address changes.
   setInterval(() => { import('./ai-never-contact.js').then(m => m.backfillAiNeverContact()).catch(() => {}) }, 10 * 60 * 1000)
 
+  // Home Value 45-day SMS follow-up - every 15 min, self-gating: it checks the weekday
+  // 9-to-5 window itself and is a cheap no-op outside it.
+  setInterval(() => { import('./home-value-sms.js').then(m => m.runHvSmsSweep()).catch(() => {}) }, 15 * 60 * 1000)
+
   // FUB → Hub Facebook-ad lead watcher: every 2 min pull ONLY new Facebook lead-ad
   // events from FUB's event stream (never the people database) so ad leads reach
   // the Hub with a notification + instant AI first touch. Gated by

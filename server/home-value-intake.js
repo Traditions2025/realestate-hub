@@ -18,6 +18,7 @@
 // whole system, so each one is counted and logged rather than collapsed into the first.
 import db from './database.js'
 import { rule } from './rules.js'
+import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
 
 const nowIso = () => new Date().toISOString()
 export const HOME_VALUE_TAG = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
@@ -190,7 +191,17 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
     catch (e) { questioned = { ok: false, reason: e.message } }
   } else questioned = { ok: false, reason: 'email did not send, so no follow-up text' }
 
-  return { client_id: client.id, created, visit: visitNo, deferred, emailed, questioned, detail }
+  // The 45 day follow-up picks up at Day 3. Behind the email for the same reason the Day 0
+  // text is: without the email this is a sequence about a request they never saw answered.
+  let sequence = { ok: false, reason: 'not attempted' }
+  if (emailed?.ok) {
+    try {
+      const { enrollHvSms } = await import('./home-value-sms.js')
+      sequence = enrollHvSms(client.id, { requestedAt: submittedAt, emailSentAt: nowIso(), day0At: questioned?.send_at || null })
+    } catch (e) { sequence = { ok: false, reason: e.message } }
+  } else sequence = { ok: false, reason: 'email did not send' }
+
+  return { client_id: client.id, created, visit: visitNo, deferred, emailed, questioned, sequence, detail }
 }
 
 /** John's wording, verbatim. Straight apostrophes only: a curly one forces UCS-2 and cuts
@@ -224,8 +235,12 @@ export function scheduleConditionQuestion(client) {
   if (asked) return { ok: false, reason: 'already asked this lead' }
 
   const mins = (() => { try { return rule('home_value_question_delay_minutes') } catch { return 2 } })()
+  // Two minutes, but inside the permitted SMS window. John's spec, 2026-10-19: "the
+  // existing Day 0 two-minute delay must also respect permitted sending hours. If the
+  // email is sent outside the SMS window, queue the text for the next permitted time."
+  // This replaces the quiet-hours-only rule I shipped earlier the same day.
   let at = new Date(Date.now() + mins * 60000)
-  at = pushOutOfQuietHours(at)
+  if (!inProactiveWindow(at)) at = nextValidSlot(at)
 
   const r = db.run(`INSERT INTO scheduled_texts (client_id, phone, body, send_at, status, created_by, created_at)
                     VALUES (?,?,?,?,'scheduled','home_value_intake',?)`,
