@@ -221,19 +221,13 @@ function parseICal(ics) {
   return events
 }
 
-// Matt's primary calendar is his whole life. The first import pulled 74 events and 48 of
-// them were a podiatrist appointment, a massage, two haircuts, a personal legal deadline
-// and a run of marketing webinars - onto a calendar the whole team reads.
-//
-// So the import is an ALLOW-LIST, never a block-list. A title has to look like a real
-// estate appointment to come through, and anything unrecognised STAYS OUT. That is
-// deliberate: the cost of leaking a medical appointment to the team is far higher than the
-// cost of the Hub missing one event that Matt can still see in Google. Tested against all
-// 47 titles the live feed actually produced (John, 2026-10-20).
-const CALENDAR_ALLOW = /showing|walk\s*-?\s*through|walkthrough|closing|inspection|listing|appraisal|open house|evaluate home|downsizing|purchase of|under contract|lockbox|appointment with|final walk/i
-export function isTeamCalendarEvent(title) {
-  return CALENDAR_ALLOW.test(String(title || ''))
-}
+// The import is DELIBERATELY unfiltered: every event on Matt's calendar comes through with
+// its own title, so the Hub mirrors what he actually sees. A title-matching allow-list was
+// built and then removed, because the only thing separating "podiatrist" from "Showing
+// Confirmed" is a guess at the wording, and Google carries no reliable personal flag -
+// visibility=private is set on 18 of the real showings and on almost none of the personal
+// items, so it sorts them backwards. Rather than mislabel, the Hub shows the calendar as it
+// is. Matt's calendar is the master; the Hub only reflects it (John, 2026-10-20).
 
 // Google emits timed events as UTC with a trailing Z (DTSTART:20261022T140000Z). The first
 // version matched only the digits and threw the Z away, so every imported event was stored
@@ -303,7 +297,6 @@ async function syncOneCalendar(url, label) {
       // A cancelled event stays in the feed carrying STATUS:CANCELLED. Importing it puts a
       // meeting on the team calendar that is not happening (John, 2026-10-20).
       if (/^cancelled$/i.test(String(ev.status || '').trim())) continue
-      if (!isTeamCalendarEvent(ev.summary)) continue
       const startInfo = parseICalDate(ev.start)
       if (!startInfo) continue
       const startDate = new Date(startInfo.date)

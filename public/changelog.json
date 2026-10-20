@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-20T17:32:41.820Z",
+  "generated_at": "2026-10-20T18:20:16.277Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "e79f1ee",
+      "date": "2026-10-20T12:41:27-05:00",
+      "subject": "Import Matt's calendar in Central, 12-hour, appointments only",
+      "title": "Import Matt's calendar in Central, 12-hour, appointments only",
+      "body": "The iCal import went live today and pulled 74 events off Matt's primary\ncalendar. Three things were wrong with what landed.\n\nTimes were 5 hours late. Google sends DTSTART:20261022T140000Z and\nparseICalDate matched only the digits, discarding the trailing Z, so UTC\nwas stored as if it were Central. Every timed event was wrong and one\nevening showing had already slid onto the following day. The conversion\nnow goes through the America/Chicago zone rather than a fixed -5, so it\nfollows the DST switch by itself: a 14:00Z event reads 9:00am in October\nand 8:00am in December. Floating and TZID times are already local and are\nleft alone; all-day events keep their date.\n\nThe calendar showed 24-hour times. Stored values stay 24-hour, because\nthat is what sorts in SQL and what <input type=\"time\"> needs, but the\nmonth and day views now render 12-hour.\n\n48 of the 74 events were nobody else's business. Matt's primary calendar\nis his whole life: a podiatrist appointment, a massage, two haircuts, a\npersonal legal deadline with a case number, and a run of marketing\nwebinars, all landing on a calendar the whole team reads. The import is\nnow an allow-list, not a block-list, and it fails closed - a title has to\nlook like a real estate appointment to come through. Leaking a medical\nappointment to the team costs more than the Hub missing an event Matt can\nstill see in Google. Cancelled events are skipped too; they stay in the\nfeed carrying STATUS:CANCELLED and we were importing them as live.\n\nTested against the 47 distinct titles the live feed actually produced:\n14 come through, 33 stay out.\n\nKnown gaps, not addressed here: recurring events still import only their\nfirst occurrence, and events deleted in Google are never pruned.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "57605a4",
       "date": "2026-10-20T10:22:55-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "FSBO DOM: compute live from List Date on display (always current, never stale)",
       "title": "FSBO DOM: compute live from List Date on display (always current, never stale)",
       "body": "The daily sync already recomputes stored fsbo_dom from List Date; this makes the\nDISPLAYED DOM compute live (today - List Date) in the FSBO list and profile, so\nit's exact the moment the page opens even between syncs. Falls back to the stored\nvalue when there's no parseable List Date.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "eabe484",
-      "date": "2026-09-01T09:23:15-05:00",
-      "subject": "FSBO: remove a wrongly-attached listing from a lead (phone collision)",
-      "title": "FSBO: remove a wrongly-attached listing from a lead (phone collision)",
-      "body": "Adds a 'Remove FSBO' action on the profile's Property Activity section for cases\nlike a FSBO number matching the wrong person. POST /api/clients/:id/remove-fsbo\nclears all fsbo_* fields, stops the FSBO follow-up, and sets a new fsbo_excluded\nflag so syncFsboMaster never re-attaches it (excluded leads are dropped from the\nphone-match index).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
