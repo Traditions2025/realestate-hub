@@ -554,10 +554,11 @@ async function sendNextFsbo(row) {
 const OPTOUT_RE = /\b(stop|unsubscribe|not interested|remove me|leave me alone|do not contact|quit)\b/i
 const BUYER_Q_RE = /\b(buyer|do you have|are you interested|interested in|want to (see|buy|tour|view)|see the|show|tour|showing|offer|represent|are you an? agent|working with)\b/i
 
-// Handle an inbound reply from an FSBO in the campaign. RESPONSE STOPS AUTOMATION
-// FIRST, a human gets a high-priority FSBO Response task + notification, and NOTHING
-// auto-replies — every response is answered personally (John, 2026-09-14). Returns
-// true if this lead is in the campaign.
+// Handle an inbound reply from an FSBO in the campaign. The reply is RECORDED, a human
+// gets a high-priority FSBO Response task + notification, and NOTHING auto-replies —
+// every response is answered personally. The campaign KEEPS RUNNING (John, 2026-10-20,
+// reversing his 2026-09-14 rule); only a manual pause/remove, an explicit STOP, or a
+// DISQUALIFYING_REPLY ends it. Returns true if this lead is in the campaign.
 export async function handleFsboReply(clientId, body) {
   const row = fu(clientId)
   if (!row) return false
