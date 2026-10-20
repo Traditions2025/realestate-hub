@@ -14,9 +14,12 @@
 //     Available. Persistence ≠ pressure: text ten reads like text one.
 //   - Eligibility is re-verified before EVERY send (Available? still FSBO? no STOP?
 //     no response? no recent human contact? not paused/removed?).
-//   - An inbound reply STOPS AUTOMATION FIRST (state → responded), a high-priority
-//     FSBO Response task is created and the team notified. NO automated replies of
-//     any kind — every response is answered personally (John, 2026-09-14).
+//   - An inbound reply does NOT stop the campaign (John, 2026-10-20, reversing his
+//     2026-09-14 rule): it is recorded, a high-priority FSBO Response task is created
+//     and the team notified, and the schedule carries on untouched. NO automated
+//     replies of any kind — every response is answered personally. The campaign ends
+//     only on a manual pause/remove, an explicit STOP, or a DISQUALIFYING_REPLY
+//     (wrong number, sold, rented, listed with an agent, holding, not interested).
 //   - Off Market / sold / agent-listed / master-file removal stop future sends;
 //     HISTORY IS PERMANENT (fsbo_campaign_log, communications, listing history).
 //   - Manual pause/remove always wins; sweeps never silently resume or re-enroll.
@@ -201,6 +204,26 @@ const fu = (id) => db.get('SELECT * FROM fsbo_followups WHERE client_id=?', [id]
 // difference between an exclusion that holds and one that holds until somebody edits
 // a WHERE clause.
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// A REPLY NO LONGER ENDS THE CAMPAIGN (John, 2026-10-20: "even when we get a response
+// the campaign should still be on... only turned off if it was manually done").
+//
+// This reverses the 2026-09-14 rule. A seller answering a question is engagement, not a
+// reason to go quiet on them - the campaign exists to stay in touch with an FSBO until
+// they are ready to list, and a human still answers every reply personally.
+//
+// These replies DO still end it, because continuing would be wrong rather than merely
+// persistent: we are texting the wrong person, or the house is no longer theirs to sell,
+// or they have said no. An explicit STOP is handled separately and always wins.
+export const DISQUALIFYING_REPLY = new Set([
+  'WRONG_NUMBER',        // not the owner - every further text bothers an uninvolved person
+  'SOLD', 'RENTED',      // nothing left to list
+  'LISTED_WITH_AGENT',   // they have representation; continuing would be poaching
+  'HOLDING_PROPERTY',    // not selling
+  'NOT_INTERESTED',      // they said no. Persistence past a no is harassment, not follow-up
+])
+export function isDisqualifyingReply(cls) { return DISQUALIFYING_REPLY.has(String(cls || '')) }
+
 export function fsboManualDecision(clientId) {
   try {
     return db.get(`SELECT client_id, status, enrolled_at, removed_at, removed_by, paused_at, paused_by, stop_reason
@@ -234,7 +257,7 @@ export async function evaluateFsboCampaignEligibility(clientId) {
   const row = fu(cid)
   if (row?.status === 'removed') return out('excluded', 'MANUAL_REMOVAL', `removed from campaign${row.removed_by ? ' by ' + row.removed_by : ''}`)
   if (row?.status === 'paused') return out('excluded', 'MANUAL_PAUSE', 'campaign paused by an agent (manual resume required)')
-  if (row?.status === 'responded' || row?.replied) return out('excluded', 'RESPONSE_RECEIVED', 'seller already responded — humans own this conversation')
+  // (A reply alone no longer excludes — see DISQUALIFYING_REPLY. 'stopped' below still does.)
   if (row?.status === 'stopped' && row.stop_reason && !String(row.stop_reason).startsWith('FSBO_OFF_MARKET')) {
     return out('excluded', 'STOPPED', row.stop_reason)
   }
@@ -281,7 +304,8 @@ export async function evaluateFsboCampaignEligibility(clientId) {
       if (!String(text).trim()) continue
       const cls = classifyInbound(text)
       if (['WRONG_NUMBER', 'SOLD', 'RENTED', 'LISTED_WITH_AGENT', 'HOLDING_PROPERTY', 'NOT_INTERESTED'].includes(cls)) return out('excluded', 'PRIOR_' + cls, String(text).slice(0, 140))
-      return out('excluded', 'PRIOR_RESPONSE', 'seller has replied before — human follow-up, not cold automation')
+      // An ordinary prior reply no longer blocks: the campaign continues alongside the human.
+      continue
     }
   }
 
@@ -289,9 +313,14 @@ export async function evaluateFsboCampaignEligibility(clientId) {
   // reply, a voicemail — channels the SMS webhook does not route here) is a response
   // and stops cold automation, same as a text reply would.
   if (row?.enrolled_at && row.status === 'active') {
-    const inb = db.get(`SELECT id FROM communications WHERE client_id=? AND direction='incoming'
-      AND channel IN ('text','email','voicemail') AND occurred_at >= ? LIMIT 1`, [cid, row.enrolled_at])
-    if (inb) return out('excluded', 'RESPONSE_RECEIVED', 'inbound message since enrollment — humans own this conversation')
+    const inb = db.get(`SELECT body, preview, transcript FROM communications WHERE client_id=? AND direction='incoming'
+      AND channel IN ('text','email','voicemail') AND occurred_at >= ? ORDER BY occurred_at DESC LIMIT 1`, [cid, row.enrolled_at])
+    // Narrowed 2026-10-20: an inbound message since enrollment used to stop the campaign
+    // outright. Now only a disqualifying one does — an ordinary reply leaves it running.
+    const { classifyInbound: classify } = await import('./cx-connect.js')
+    if (inb && isDisqualifyingReply(classify([inb.body, inb.preview, inb.transcript].filter(Boolean).join(' ')))) {
+      return out('excluded', 'RESPONSE_RECEIVED', 'disqualifying reply since enrollment')
+    }
   }
 
   // Duplicate phone across records: only one campaign per number.
@@ -358,8 +387,8 @@ async function sendFsboSeq(client, bodies, opts = {}) {
 // One-time data migration of legacy sequence rows into campaign shape.
 function migrateLegacyRows() {
   if (db.getSetting?.('fsbo_campaign_migrated') === '1') return
-  // A prior reply = responded state (humans own it; never cold re-texted).
-  db.run("UPDATE fsbo_followups SET status='responded', responded_at=COALESCE(responded_at, updated_at) WHERE replied=1 AND status IN ('active','done')")
+  // (The old migration that moved every replier to 'responded' is gone — a reply no
+  //  longer ends the campaign. Existing 'responded' rows are reactivated deliberately.)
   // Active mid-sequence rows: carry the step into attempt_count + a due next send.
   for (const r of db.all("SELECT * FROM fsbo_followups WHERE status='active'")) {
     const attempts = Number(r.attempt_count) || Number(r.step) || 0
@@ -533,16 +562,27 @@ export async function handleFsboReply(clientId, body) {
   const row = fu(clientId)
   if (!row) return false
   const wasActive = row.status === 'active'
-  // 1) STOP FIRST — no further automated campaign text after a reply, ever.
+  let cls = null
+  try { const { classifyInbound } = await import('./cx-connect.js'); cls = classifyInbound(body) } catch {}
+  const disqualifying = isDisqualifyingReply(cls)
+
   if (wasActive) {
-    let cls = null
-    try { const { classifyInbound } = await import('./cx-connect.js'); cls = classifyInbound(body) } catch {}
-    db.run("UPDATE fsbo_followups SET status='responded', replied=1, responded_at=?, response_class=?, next_send_at=NULL, updated_at=? WHERE client_id=?",
-      [nowIso(), cls, nowIso(), clientId])
-    logFsbo(clientId, 'response', { reason: cls, body: String(body || '').slice(0, 200) })
-    flagFsboResponse(fresh(clientId), cls, body)
+    if (disqualifying) {
+      // Wrong person, nothing left to sell, already represented, or a plain no. These end it.
+      db.run("UPDATE fsbo_followups SET status='stopped', stop_reason=?, replied=1, responded_at=?, response_class=?, next_send_at=NULL, updated_at=? WHERE client_id=?",
+        [`reply: ${cls}`, nowIso(), cls, nowIso(), clientId])
+    } else {
+      // A REPLY KEEPS THE CAMPAIGN RUNNING (John, 2026-10-20). It is recorded, a person is
+      // told to answer, and the schedule is left exactly as it was — next_send_at is NOT
+      // cleared and the status stays 'active'. Only a human pausing or removing it, an
+      // explicit STOP, or a disqualifying reply ends it.
+      db.run("UPDATE fsbo_followups SET replied=1, responded_at=COALESCE(responded_at, ?), response_class=?, updated_at=? WHERE client_id=?",
+        [nowIso(), cls, nowIso(), clientId])
+    }
+    logFsbo(clientId, 'response', { reason: cls, body: String(body || '').slice(0, 200), campaign: disqualifying ? 'stopped' : 'continues' })
+    flagFsboResponse(fresh(clientId), cls, body, { stopped: disqualifying })
   } else {
-    db.run('UPDATE fsbo_followups SET replied=1, updated_at=? WHERE client_id=?', [nowIso(), clientId])
+    db.run('UPDATE fsbo_followups SET replied=1, response_class=COALESCE(response_class, ?), updated_at=? WHERE client_id=?', [cls, nowIso(), clientId])
   }
   // An opt-out phrasing additionally hard-stops the record (policy handles the number).
   if (OPTOUT_RE.test(String(body || ''))) db.run("UPDATE fsbo_followups SET status='stopped', stop_reason='STOP: opt-out reply', updated_at=? WHERE client_id=?", [nowIso(), clientId])
@@ -551,13 +591,13 @@ export async function handleFsboReply(clientId, body) {
 
 // Notify + high-priority task when an FSBO responds (mirrors the CX pattern; one
 // open task per conversation, never one per message).
-function flagFsboResponse(c, cls, detail) {
+function flagFsboResponse(c, cls, detail, { stopped = false } = {}) {
   if (!c) return
   const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || `Lead ${c.id}`
   try {
     import('./notifications.js').then(m => m.notify({
       type: 'fsbo_response', title: `FSBO RESPONSE — ${name}`,
-      body: `${cls || 'reply'}: ${String(detail || '').slice(0, 140)} — campaign stopped, human follow-up.`,
+      body: `${cls || 'reply'}: ${String(detail || '').slice(0, 140)} — ${stopped ? 'campaign stopped' : 'campaign still running'}, answer personally.`,
       link: `/clients/${c.id}`, client_id: c.id, dedupKey: `fsbo_resp_${c.id}_${Date.now()}`,
     })).catch(() => {})
   } catch {}
@@ -567,7 +607,7 @@ function flagFsboResponse(c, cls, detail) {
       if (automationTasksEnabled()) {   // Tasks tab is the team's, not the automations' (John 2026-10-05)
         db.run(`INSERT INTO tasks (title, description, priority, status, due_date, assigned_to, category, related_type, related_id)
                 VALUES (?,?,?,?,?,?,?,?,?)`,
-          [`FSBO Response: ${name}`, `FSBO seller responded (${cls || 'reply'}). The campaign has stopped — review the conversation and reply personally.\nProperty: ${[c.address, c.city].filter(Boolean).join(', ')} (DOM ${c.fsbo_dom || '?'})\nMessage: ${String(detail || '').slice(0, 300)}`,
+          [`FSBO Response: ${name}`, `FSBO seller responded (${cls || 'reply'}). ${stopped ? 'The campaign has STOPPED.' : 'The campaign is STILL RUNNING — it stops only if you pause or remove it.'} Review the conversation and reply personally.\nProperty: ${[c.address, c.city].filter(Boolean).join(', ')} (DOM ${c.fsbo_dom || '?'})\nMessage: ${String(detail || '').slice(0, 300)}`,
             'high', 'todo', new Date().toISOString().slice(0, 10), c.agent_assigned || 'Matt Smith', 'follow-up', 'client', c.id])
       }
     }
@@ -661,6 +701,44 @@ export function allowBackIntoFsboCampaign(clientId, by = 'agent') {
 }
 
 // ---- state / stats / dry-run preview (ZERO writes) ----
+// Put back the sellers the OLD rule froze out.
+//
+// Until 2026-10-20 any reply moved a record to 'responded' and cleared next_send_at. John
+// reversed that rule, so those records were turned off by a rule that no longer exists -
+// not by anyone's decision. This returns them to 'active'.
+//
+// It is NOT a blanket undo. A record whose stored response_class is disqualifying (wrong
+// number, sold, rented, listed with an agent, holding, not interested) stays off, because
+// under the new rule it would have been stopped anyway. Anyone who opted out is already
+// 'stopped' and is not touched.
+//
+// Sends are re-dated across business slots rather than all at once: 27 texts landing in
+// the same minute is a different kind of mistake.
+export function reactivateRespondedFsbo({ dry = true, by = 'agent' } = {}) {
+  const rows = db.all("SELECT client_id, response_class, responded_at FROM fsbo_followups WHERE status='responded'")
+  const resume = [], keepOff = []
+  for (const r of rows) {
+    const c = db.get('SELECT id, first_name, last_name, address, hub_text_opt_out FROM clients WHERE id=?', [r.client_id])
+    const name = c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : `#${r.client_id}`
+    if (!c) { keepOff.push({ client_id: r.client_id, name, why: 'client record missing' }); continue }
+    if (c.hub_text_opt_out) { keepOff.push({ client_id: r.client_id, name, why: 'opted out' }); continue }
+    if (isDisqualifyingReply(r.response_class)) { keepOff.push({ client_id: r.client_id, name, why: r.response_class }); continue }
+    resume.push({ client_id: r.client_id, name, address: c.address || null, response_class: r.response_class || 'unclassified', responded_at: r.responded_at })
+  }
+  if (!dry) {
+    let slot = new Date(Date.now() + 10 * 60000)
+    for (const x of resume) {
+      const when = nextValidSlot(slot).toISOString()
+      db.run("UPDATE fsbo_followups SET status='active', next_send_at=?, updated_at=? WHERE client_id=? AND status='responded'",
+        [when, nowIso(), x.client_id])
+      logFsbo(x.client_id, 'resumed', { reason: `reply no longer ends the campaign (by ${by})` })
+      x.next_send_at = when
+      slot = new Date(slot.getTime() + 3 * 60000)   // trickle, ~3 min apart
+    }
+  }
+  return { dry, would_resume: resume.length, keeping_off: keepOff.length, resume, keep_off: keepOff }
+}
+
 export function fsboCampaignState(clientId) {
   const row = fu(clientId)
   const log = db.all('SELECT * FROM fsbo_campaign_log WHERE client_id=? ORDER BY created_at DESC LIMIT 30', [clientId])

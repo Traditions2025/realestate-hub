@@ -77,8 +77,12 @@ test('S5: prior meaningful seller response blocks cold auto-enrollment', async (
   assert.match((await evalIt(sold.id)).reason_code, /^PRIOR_SOLD/)
   const agent = mkFsbo({}); addInbound(agent.id, 'we listed with an agent last week')
   assert.match((await evalIt(agent.id)).reason_code, /^PRIOR_LISTED_WITH_AGENT/)
+  // Changed 2026-10-20: an ORDINARY prior reply no longer blocks enrollment. Only the
+  // disqualifying verdicts above do. John: "even when we get a response the campaign
+  // should still be on... only turned off if it was manually done."
   const any = mkFsbo({}); addInbound(any.id, 'who is this?')
-  assert.equal((await evalIt(any.id)).reason_code, 'PRIOR_RESPONSE')
+  assert.notEqual((await evalIt(any.id)).reason_code, 'PRIOR_RESPONSE',
+    'a seller asking who we are is engagement, not a disqualification')
 })
 test('S6: STOP is hard excluded', async () => {
   assert.equal((await evalIt(mkFsbo({ hub_text_opt_out: 1 }).id)).reason_code, 'STOP')
@@ -140,19 +144,23 @@ test('S21: resume re-checks eligibility — refused when the listing left Availa
 })
 
 // ---- response stops automation FIRST (Scenario 10) ----
-test('S10: inbound reply stops the campaign first, sets responded, creates the task', async () => {
+// REWRITTEN 2026-10-20. This used to assert that a reply STOPPED the campaign. John
+// reversed that rule: "even when we get a response the campaign should still be on...
+// only turned off if it was manually done." What survives is everything else - the reply
+// is recorded, logged, and a person is told to answer it.
+test('S10: an inbound reply is recorded and tasked, and the campaign keeps running', async () => {
   const c = mkFsbo({})
   enrollActive(c.id, { attempt_count: 1 })
+  const before = db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at
   const handled = await f.handleFsboReply(c.id, 'Yes it is still available')
   assert.equal(handled, true)
   const row = db.get('SELECT * FROM fsbo_followups WHERE client_id=?', [c.id])
-  assert.equal(row.status, 'responded')
-  assert.equal(row.next_send_at, null, 'no future automated send survives a reply')
+  assert.equal(row.status, 'active', 'the campaign continues')
+  assert.equal(row.next_send_at, before, 'the schedule is untouched')
+  assert.equal(row.replied, 1)
   assert.ok(row.responded_at)
   assert.ok(db.get("SELECT id FROM fsbo_campaign_log WHERE client_id=? AND event='response'", [c.id]))
   assert.ok(db.get("SELECT id FROM tasks WHERE related_type='client' AND related_id=? AND title LIKE 'FSBO Response%'", [c.id]))
-  // and the evaluator never re-enrolls a responder
-  assert.equal((await evalIt(c.id)).reason_code, 'RESPONSE_RECEIVED')
   // a second message does not create a duplicate task
   await f.handleFsboReply(c.id, 'hello?')
   assert.equal(db.all("SELECT id FROM tasks WHERE related_type='client' AND related_id=? AND title LIKE 'FSBO Response%'", [c.id]).length, 1)
@@ -229,7 +237,8 @@ test('NO AUTO REPLY: an inbound response sends nothing back automatically', asyn
     const before = db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND direction='outgoing'", [c.id]).n
     await f.handleFsboReply(c.id, 'Yes still available, are you interested?')
     assert.equal(db.get("SELECT COUNT(*) n FROM communications WHERE client_id=? AND direction='outgoing'", [c.id]).n, before, 'zero automated outgoing messages')
-    assert.equal(db.get('SELECT status FROM fsbo_followups WHERE client_id=?', [c.id]).status, 'responded')
+    // the campaign keeps running (2026-10-20) - what matters here is that nothing was SENT
+    assert.equal(db.get('SELECT status FROM fsbo_followups WHERE client_id=?', [c.id]).status, 'active')
   } finally { db.setSetting('fsbo_followup_enabled', '0') }
 })
 

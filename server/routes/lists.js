@@ -361,6 +361,13 @@ router.get('/fsbo/followup', (_req, res) => {
 router.post('/fsbo/followup/toggle', requirePermission('settings.edit'), (req, res) => { const on = req.body?.enabled === true || req.body?.enabled === '1'; db.setSetting('fsbo_followup_enabled', on ? '1' : '0'); res.json({ enabled: on }) })
 
 // ---- FSBO AUTOMATIC TEXT FOLLOW-UP CAMPAIGN (server/fsbo-followup.js) ----
+// Put back the sellers the pre-2026-10-20 rule auto-stopped on a reply. DRY BY DEFAULT.
+router.post('/fsbo/campaign/reactivate-responded', async (req, res) => {
+  try {
+    const m = await import('../fsbo-followup.js')
+    res.json(m.reactivateRespondedFsbo({ dry: req.body?.dry !== false, by: req.user?.name || req.user?.email || 'agent' }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/fsbo/campaign/stats', async (_req, res) => {
   const m = await import('../fsbo-followup.js'); res.json(m.fsboCampaignStats())
 })
