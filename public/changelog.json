@@ -1,7 +1,263 @@
 {
-  "generated_at": "2026-10-14T17:20:56.479Z",
+  "generated_at": "2026-10-20T17:32:41.820Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "57605a4",
+      "date": "2026-10-20T10:22:55-05:00",
+      "subject": "Correct the reply handler's own doc comment",
+      "title": "the reply handler's own doc comment",
+      "body": "The file header was updated when a reply stopped ending the campaign, but\nhandleFsboReply's own comment still said \"RESPONSE STOPS AUTOMATION FIRST ... (John,\n2026-09-14)\" - the opposite of what the function now does.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "25392fc",
+      "date": "2026-10-20T10:16:28-05:00",
+      "subject": "An FSBO reply no longer ends the campaign",
+      "title": "An FSBO reply no longer ends the campaign",
+      "body": "John, 2026-10-20: \"even when we get a response the campaign should still be on, please\nmake sure FSBO campaign is only turned off if it was manually done.\"\n\nThis reverses his own 2026-09-14 rule, under which any inbound reply moved the record to\n'responded' and cleared next_send_at. A seller answering a question is engagement, not a\nreason to go quiet on them. A person still answers every reply personally - there are\nstill no automated replies of any kind - but the schedule now carries on underneath.\n\nIt was five places, not one: the reply handler, the eligibility check, the prior-reply\nhistory scan, the inbound-since-enrollment safety net, and a migration that stamped every\nreplier as 'responded'. All five now consult one exported list.\n\nFour things still end a campaign, and only four:\n  - a human pausing or removing it\n  - an explicit STOP (legal, not a preference)\n  - a DISQUALIFYING_REPLY: wrong number, sold, rented, listed with an agent, holding,\n    not interested. Continuing past these would be wrong rather than merely persistent -\n    we would be texting the wrong person, or a house that is not theirs to sell, or\n    someone who has said no.\n  - the listing leaving the market\n\nThe response task and notification now say the campaign is still running, since the old\nwording told the team the opposite.\n\nAlso adds reactivateRespondedFsbo (POST /api/lists/fsbo/campaign/reactivate-responded,\nDRY BY DEFAULT) to return the 27 records the old rule froze out. It is deliberately not a\nblanket undo: a disqualifying stored response_class stays off, and anyone opted out is\nuntouched. Resumed sends trickle ~3 minutes apart.\n\ntest/fsbo-reply-keeps-campaign.test.mjs (15). S5, S10 and the no-auto-reply test are\nupdated to the new rule; the invariant that nothing is ever sent back automatically is\nunchanged and still passing. 79 FSBO tests pass.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "32e79a6",
+      "date": "2026-10-19T14:43:34-05:00",
+      "subject": "Add the website to the Day 0 home value text",
+      "title": "the website to the Day 0 home value text",
+      "body": "John, 2026-10-19. Appended to the condition question, after the ask, so\nthe question still leads.\n\nWritten as the FULL https://www.mattsmithteam.com/ rather than a bare\nwww. domain, which a lot of handsets render as plain text rather than a\ntappable link. Same reason the buyer nurture uses the full form on its\nDay 1 message.\n\nChecked the cost before adding it: rendered for a real lead the message\ngoes from 333 to 364 characters, which is 3 GSM-7 segments either way.\nEven a long name and a long street address stays at 3. A test pins\nthat, so a future edit that tips it to 4 fails rather than quietly\ncosting more on every send.\n\nStill exactly ONE url, which is the standing SMS rule. The test that\nused to assert zero links now asserts exactly one, and that it is the\nfull form.\n\n15 tests on the Day 0 message, 48 across both home value suites.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "ba0e49a",
+      "date": "2026-10-19T14:23:18-05:00",
+      "subject": "Alternate the greeting across the home value texts",
+      "title": "Alternate the greeting across the home value texts",
+      "body": "John, 2026-10-19: \"use alternate hi, hello and time of day\".\n\nRotated by STEP INDEX rather than through the global {{intro}} counter,\nso one lead is guaranteed to see all three across their sequence\ninstead of whatever that counter happened to be on when their turn\ncame round.\n\nDay 0 keeps \"Hi\", which is John's approved wording, so the rotation\nstarts at Hello on Day 3 and the run reads:\n  Hi, Hello, time-of-day, Hi, Hello, time-of-day, Hi, Hello\n\nNever \"Good evening\": the sending window closes at 5pm, so it could\nonly ever be wrong. Morning or afternoon only, asserted across the day.\n\nThe tests caught a real one while being updated: a caller that forgot\nto pass a greeting rendered \"undefined Dana,\". Defended in the step\nitself rather than only in the callers, so no future path can ship that\nto a phone.\n\n33 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "228cd6c",
+      "date": "2026-10-19T14:10:44-05:00",
+      "subject": "Home Value: the 45 day SMS follow-up, Days 3 to 45",
+      "title": "Home Value: the 45 day SMS follow-up, Days 3 to 45",
+      "body": "John's spec, 2026-10-19. An EXTENSION of the existing Home Value\nRequest workflow, not a second campaign: the email and the Day 0\ncondition question stay where they are in home-value-intake.js and are\nnot duplicated. This picks up at Day 3.\n\nSeven steps on the days specified - 3, 7, 12, 18, 25, 35, 45 - each\nasking for one thing an automated estimate cannot see: improvements,\nmotivation, condition, unusual features, finished square footage. The\nwalkthrough is offered ONCE, at Day 35, as a way to make the number\nmore accurate rather than as a listing pitch. Day 45 leaves the door\nopen and the sequence completes.\n\nDay offsets are measured from the original REQUEST, not from the last\nsend, so a weekend delay does not push everything after it.\n\nANY REPLY ENDS IT: a rating, a question, an objection, a wrong number.\nThe sequence stops, every queued text is cancelled (including a Day 0\nquestion that has not fired), the lead moves to HUMAN_TAKEOVER, a\nperson is notified, and the AI is blocked. routes/inbox.js now gates\nthe AI hand-off on hvLead the same way it does cxLead and fsboLead, and\nfor the same reason: a fire-and-forget call there would let the AI\nanswer before the campaign had stopped.\n\nA 1-to-10 reply is parsed and stored, and the agent is shown John's\nsuggested follow-up for that band. SUGGESTIONS ONLY, never sent.\n\nAlso fixes the Day 0 timing to John's spec: two minutes, but inside the\npermitted weekday window, queued for the next permitted time if the\nemail went out after hours. That replaces the quiet-hours-only rule I\nshipped this morning.\n\nCUSTOM FIELDS VERIFIED BOTH WAYS, since two mechanisms are in play.\nDay 0 uses {{first_name}}/{{street_address}} through fillTemplate; Days\n3+ substitute in code. Checked against awkward records - no name, name\nis \"None\", name is an email address, no address, neither - and every\none resolves with a natural fallback (\"Hi there\", \"your home\"). No raw\ntoken, \"undefined\" or \"None\" can reach a phone.\n\nThird instance today of Number(null) being 0 and passing isFinite: a\nlead with NO rating was being shown the \"rated 1 to 4\" suggestions.\nValidate, do not coerce.\n\n28 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1bd0864",
+      "date": "2026-10-19T14:02:49-05:00",
+      "subject": "Condition question, texted two minutes after the home value email",
+      "title": "Condition question, texted two minutes after the home value email",
+      "body": "John, 2026-10-19, his wording verbatim. They have just asked what the\nhouse is worth, so they are at the keyboard, and condition is the one\nthing an online estimate cannot see. A 1-to-10 answer is one tap.\n\nOnly fires behind a SUCCESSFUL email. If the email did not go, the text\nwould thank them for a request they never saw us answer.\n\nTIMING: two minutes, unless that lands in quiet hours, in which case it\nwaits for the morning. Deliberately NOT pushed to the next weekday\n9-to-5 slot the way proactive prospecting is. This is a reply to\nsomething they did themselves minutes ago, and holding a Saturday\nenquiry until Monday throws away the reason for sending it. Quiet hours\nare the boundary that matters, not the working week.\n\nRides the existing scheduled_texts runner, so compliance is re-checked\nAT SEND TIME, not just now: STOP, Junk/DNC, undeliverable number, and a\nskip if the AI or a person is mid-conversation. Queueing also checks\nSTOP and undeliverable up front, so an obvious case never enters the\nqueue at all.\n\nONCE PER PERSON, EVER. A second or third home value request is a strong\nsignal that deserves a person, not the same canned question again.\n\nNo phone is a normal outcome for a web form, not an error: it returns a\nreason and queues nothing.\n\nStraight apostrophes, asserted by test. One curly apostrophe would push\nthis 330-character message out of GSM-7 and into UCS-2, turning three\nsegments into seven.\n\n13 tests. Delay is a dial (home_value_question_delay_minutes, 2).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f12ac32",
+      "date": "2026-10-19T11:36:23-05:00",
+      "subject": "A manual enrol on an untagged lead now asks before texting them",
+      "title": "A manual enrol on an untagged lead now asks before texting them",
+      "body": "John asked what I recommend. This: close the one way past the\ncancellation hold before using it on Stephen Walters, so the order of\ntwo clicks stops deciding whether a real person gets an unwanted text.\n\nThe 48 hour hold reads mls_status and off_market_date. A lead the\nmaster file has not caught up with has neither, so the hold has nothing\nto measure and they look like any ordinary lead. Enrol them by hand\ntoday and they are texted today, which is exactly what the rule exists\nto prevent. Simulated against Stephen's real record: as he stands now\nthe verdict is ELIGIBLE and he would be texted at the next weekday\nslot; with the master file refreshed it is TOO_SOON_AFTER_CANCEL,\nholding to the 21st.\n\nAuto-enrolment never had this exposure, because an untagged lead is not\nin the Cancelled/Expired list to begin with. Only Resume/Re-enroll\ncould reach it.\n\nBoth manual paths now return needs_override with a reason naming the\nfix, the same shape Send-AI-now uses, so a deliberate yes still works\nand is recorded. Narrow on purpose: it takes BOTH fields missing, so a\nlegacy lead carrying either one is unaffected, and the bulk path is\nuntouched.\n\n29 tests, including one asserting auto-enrolment still works and one\nasserting the override does.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e06f200",
+      "date": "2026-10-19T10:06:04-05:00",
+      "subject": "The 48 hour cancel hold now applies only under 90 days on market",
+      "title": "The 48 hour cancel hold now applies only under 90 days on market",
+      "body": "John's full rule, finished. The daily expired/cancelled pipeline added\nreal DOM and List Date columns to the master sheet this morning (115 of\n257 rows populated, all plain integers, verified against the live\nsheet), so the condition I said was unachievable is now buildable.\n\nI was wrong about that, and it is worth recording why: DOM was already\nin the Notes blob 116 times as \"DOM 31\" with no colon. I searched for\n\"DOM:\" and concluded it did not exist. A peer session caught it.\n\nNow:\n  Cancelled + DOM under 90   -> hold 48 hours\n  Cancelled + DOM 90 or more -> no hold, text on the normal schedule\n  Cancelled + DOM unknown    -> hold (74 of 107 cancelled rows have no\n                                DOM, and 28 of the 33 that do are under\n                                90, so short is both likelier and safer)\n  Expired, any DOM           -> no hold, as asked\n\nclients.mls_dom and clients.mls_list_date are written by the master\nsync, by header NAME, and only when the sheet has a value - blanking a\nknown DOM because an older row came through empty would lose the one\nfield this rule depends on.\n\nTwo bugs caught before they shipped:\n\n1. My first version returned ok:true for a long listing, which would\n   have jumped every remaining eligibility check below it - junk\n   status, opt-outs, reply history. A long DOM now skips the HOLD, not\n   the checks.\n2. Number(null) is 0 and 0 is finite, so an unknown DOM read as \"nought\n   days on market\". DOM 0 is a real value in this data (a listing\n   pulled the day it went live), so unknown and zero have to stay\n   distinguishable. Same coercion-versus-validation trap the rules\n   stress test caught in setRule last week.\n\nA placeholder-count check also caught the INSERT gaining two columns\nwithout two more question marks.\n\n24 tests on this rule, 51 across the related suites.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c2883aa",
+      "date": "2026-10-19T09:51:43-05:00",
+      "subject": "Block a lead from the C/E campaign BEFORE they are enrolled",
+      "title": "Block a lead from the C/E campaign BEFORE they are enrolled",
+      "body": "John, 2026-10-19: \"make sure that Stephen Walters does not get any\ntext first\".\n\nremoveFromCampaign was a bare UPDATE, so for somebody not yet enrolled\nit silently did nothing. That is exactly when you most want to stop\nthem: the lead you want protected is usually the one the master file is\nabout to sweep in an hour from now.\n\nIt upserts now. A human 'removed' row is written in advance, and\nenrollClient already refuses paused/removed rows, so the auto-enrol\ntick will not pick them up for a first text.\n\nSame lesson as the FSBO pre-enrolment exclusion and the AI\nnever-contact list: a block that only works after the thing exists is\nnot a block.\n\n2 tests, one for each direction.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1c4b621",
+      "date": "2026-10-19T09:45:56-05:00",
+      "subject": "Hold a cancelled listing for 48 hours before the first text",
+      "title": "Hold a cancelled listing for 48 hours before the first text",
+      "body": "John, 2026-10-19. Cancelling is a decision somebody made this week,\noften mid-conversation with their own agent. Texting the next morning\nreads as having watched the MLS rather than having noticed them.\n\nEXPIRED IS EXEMPT, as asked: an expired listing reached the end of a\nterm set months earlier, so there is no fresh decision to intrude on.\nmls_status distinguishes them cleanly, 74 Cancelled against 46 Expired.\n\nNon-terminal, so the lead stays enrolled and the next sweep picks them\nup when the window passes. A terminal refusal would drop them for ever\nfor the crime of being early.\n\noff_market_date is a DATE, not a timestamp, so the hold runs from\nmidnight of the day it came off market. That is what makes John's\nexample land exactly: cancelled on the 19th, clear any time on the\n21st. Both formats in the sheet are handled, ISO and US.\n\nNo off_market_date means no evidence of recency, so those are allowed\nrather than held. 71 of the 139 MLS leads carry no date, and holding on\na date we do not have would stall them permanently.\n\nTHE 90 DAY CONDITION IS NOT IMPLEMENTED, and cannot be from here. John\nasked for the hold to apply only where the listing was cancelled inside\n90 days on market. The master file has no DOM and no list date: not as\na column (22 columns checked) and not inside Notes (zero matches for\n\"DOM:\" or \"List Date:\" across all 256 rows). Days on market is simply\nnot knowable in the Hub today. The hold is therefore applied to every\nCancelled listing, which is the safe direction - a long-DOM\ncancellation waits two extra days instead of being texted early - and\nthe condition is one line to add once DOM reaches the sheet.\n\nThe hold is a dial (cx_cancelled_hold_hours, 48, clamped 1-336).\n\n13 tests. The rules-safety guard caught the new entry and made me\nrecord it, which is what it is for.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "caf4535",
+      "date": "2026-10-16T18:00:15-05:00",
+      "subject": "Conversation Summary card on the lead profile",
+      "title": "Conversation Summary card on the lead profile",
+      "body": "John asked where to see the summary. It was an endpoint only, so the\nanswer was \"you cannot\" - this is the card.\n\nIt does NOT generate on load. A model call every time somebody opens a\nprofile is money spent re-reading a thread that has not changed, so the\ncard shows what is stored and offers a button. When messages have\narrived since it was written it says how many and the button becomes\n\"Update\" rather than presenting stale text as current.\n\nAlongside the paragraph it shows the structured bits the model pulls\nout: role, timeline, price expectation, an \"In the way\" list of\nblockers, and the property addresses mentioned. Those are the parts\nworth scanning before a call.\n\nLabelled \"Written by AI\" in the header, always. It sits near the notes\na person typed and must never be mistaken for one.\n\nPlaced third in the left column by default, under the pinned Details\nand Communications. Anyone with a saved layout gets it appended to\ntheir left column instead, where it can be dragged into place.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a2bc01e",
+      "date": "2026-10-16T17:53:32-05:00",
+      "subject": "Auto summary of a lead's conversation, on the profile",
+      "title": "Auto summary of a lead's conversation, on the profile",
+      "body": "John, 2026-10-16. Reading back through forty texts to work out what\nsomebody said is the slowest part of picking up a lead, and the detail\nthat matters is buried: an address, a number they have in their head, a\ntenant's lease, a spouse who has not been asked yet.\n\nThree rules this obeys, each learned elsewhere in this system:\n\n1. IT CANNOT SEND. There is no send path in the file and none is\n   reachable from it. A test greps the source for sendSms,\n   sendViaSendGrid, sendSequenceEmail, twilio, scheduleAiAction,\n   enrollInDrip and canSendSms and fails if any appears. Summarising is\n   a read.\n2. IT NEVER TOUCHES . Client notes are one hand-written field\n   that must not be machine-stamped. The summary has its own table and\n   always reports generated:true so the UI labels it rather than\n   passing it off as something a person observed.\n3. IT CACHES. GET returns what is stored and says whether it still\n   matches the thread; it does NOT generate, so opening a profile never\n   costs a model call. POST rebuilds, and only when the conversation\n   has actually moved unless forced.\n\nThe prompt is seller/buyer aware rather than generic, because what\nmatters about a real estate lead is the property, the number, the\ntiming and who else decides. It is told to use only what is in the\ntranscript, to distinguish what the LEAD said from what WE said, and to\nsay a thing is unknown rather than infer it. The lead record goes in as\ncontext but marked stale-able: Norma Walker is typed buyer and spent\nthe whole conversation describing two properties she is selling.\n\nHTML emails are reduced to their subject, so 4KB of table markup never\nreaches the model. The transcript is capped at 120 messages, keeping\nthe most recent.\n\n15 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a27b4e6",
+      "date": "2026-10-16T13:15:44-05:00",
+      "subject": "Expose the rules registry read-only at GET /api/rules",
+      "title": "Expose the rules registry read-only at GET /api/rules",
+      "body": "Read only on purpose. The numbers are safe to change already - rules.js\nclamps every one to a range that lives in code - but John should see\nthe list and confirm the values before anything can write to it. The\nedit route lands with the screen, not ahead of it.\n\nIt also makes the registry observable, which it was not: with no\nendpoint there was no way to confirm from outside whether the deploy\ncarrying it had actually landed.\n\nGuards are not listed and not reachable from here.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4e323bd",
+      "date": "2026-10-16T10:17:39-05:00",
+      "subject": "Rules registry: the sending dials become editable, inside hard bounds",
+      "title": "Rules registry: the sending dials become editable, inside hard bounds",
+      "body": "John, 2026-10-16: he should be able to review and change these without\nasking me. Step one of that is making the numbers safe to change, which\nis the part that can hurt somebody. The screen comes next.\n\nserver/rules.js holds the 17 numbers that decide when and how often we\ncontact a person: email caps, the reply hold, texting hours, the text\ndedupe gap, AI enrolment limits, Watch thresholds, Home Value limits\nand the FSBO day-14 and 30-day cadences.\n\nTHE SAFETY MODEL, which is why this is not just a settings table:\n\n  A setting is a DIAL INSIDE A FIXED RANGE, never an override.\n\nEvery rule declares hard min/max IN CODE. A stored value outside is\nclamped; a missing, blank or unusable one falls back to the default.\nNo input and no corrupted row can widen a send window past its ceiling\nor turn a limit into \"unlimited\". Failure is always toward LESS\nsending: if settings cannot be read at all, every rule returns the\nvalue that is live today.\n\nThe guards are deliberately NOT here and cannot be reached from here.\nforbidden.js, emailHardBlock and STOP stay in code with tests, because\nfour fixes failed in that area and a guard you can switch off in a UI\nis not a guard. A test asserts no key in the registry even looks like\none.\n\n27 new tests across two files, written before the wiring:\n\n  - the stress test fuzzes all 17 rules with 33 bad inputs each\n    (empty, negative, NaN, Infinity, 1e309, hex, unicode digits,\n    objects) and asserts the value in force is always inside bounds\n  - specific harm cases: texting can never open before 8am or run past\n    7pm, caps cannot exceed 1/day and 7/week, the AI limit cannot be\n    opened to the whole database, the text gap cannot drop below 15 min\n  - the wiring test asserts each call site still produces the number it\n    had hardcoded, so introducing the registry changed NOTHING\n\nThe stress test earned its place immediately: setRule used a bare\nisFinite check, and Number('') and Number([]) are both 0 and both\nfinite, so submitting a blank field would have been read as zero and\nclamped to the minimum - silently moving \"texting stops at\" from 5pm to\nnoon. Refused rather than coerced now.\n\nTwo stale tests updated, both encoding behaviour John deliberately\nchanged: hubai's compliance tests did not expect a STOP to also set\nJunk (it does, since 10-15, and START deliberately does not undo it),\nand the FSBO cadence test still asserted the old 40-47 day gap against\nthe new 30. Neither was a code defect.\n\nFull suite: no new failures. The 4 remaining assertion failures are\nthe same ones that predate this work, and the pause_on_reply failure\nseen in a full run passes standalone - cross-suite DB pollution, not\nthis change.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "85a118c",
+      "date": "2026-10-15T12:31:13-05:00",
+      "subject": "Past clients get their own Home Value campaign, spaced 3 to 4 weeks",
+      "title": "Past clients get their own Home Value campaign, spaced 3 to 4 weeks",
+      "body": "John, 2026-10-15: \"create another version of home value drip for past\nclients which we are going to use from now and space these roughly\nevery 3 to 4 weeks so it feels like a useful periodic update instead of\na sales sequence.\"\n\nDrip 21 \"Home Value — Past Clients\", 26 emails, John's past-client copy\nverbatim, templates 386-411. Gaps rotate 21/28/24/26 days so it never\nreads as clockwork: 615 days end to end, about 20 months.\n\nSame subject, different relationship. The weekly campaign is written\nfor strangers; this one speaks to someone who already bought or sold\nwith us.\n\nThe spacing also resolves a collision shipped earlier today. Past\nclients are capped at one email per 14 days, so putting them in a\nWEEKLY campaign would have left most of its sends deferred and arriving\nout of order. At 21 to 28 days this sits inside the cap and arrives as\nwritten.\n\nRouting is by status Closed OR a \"past client\" tag, and falls back to\nthe weekly campaign if the past-client one is ever missing - a person\nwith no campaign is worse than one in the wrong campaign.\n\nTwo counters had to learn about both campaigns, or this would have\nquietly doubled our real sending rate:\n  - \"already in this campaign\" now checks BOTH drips, so somebody in\n    the past-client version is not also swept into the weekly one\n  - the 300/day quota counts BOTH, because the quota protects the\n    sending domain and the domain does not care which drip it was\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "7b93b6b",
+      "date": "2026-10-15T11:48:04-05:00",
+      "subject": "A plain-English opt-out junks them too, not just the STOP keyword",
+      "title": "A plain-English opt-out junks them too, not just the STOP keyword",
+      "body": "John, 2026-10-15: \"move both to Junk\".\n\n\"Take me off your list\" and \"lose my number\" now carry the same\nconsequence as typing STOP: the status moves to Junk, which pulls them\nout of every drip, automation and the AI rather than blocking the text\nchannel alone. Asking to be left alone in plain English means it just\nas much as using the magic word, and leaving those people emailable was\nthe inconsistency.\n\nThis leans on isNaturalOptOut staying conservative, so its guards are\nnow pinned by a test: \"stop by the house\", \"stop sending me listings in\nthat range\", \"I don't check my text messages\" and \"I don't always\nanswer texts\" must all NOT match. Junking a live lead by mistake costs\na client, so if that pattern is ever loosened the consequence has to be\nre-weighed. The activity log records which of the two routes fired.\n\n19 tests.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "528004c",
+      "date": "2026-10-15T11:14:09-05:00",
+      "subject": "Group texts: a pool of sending numbers, so one person can be in several",
+      "title": "Group texts: a pool of sending numbers, so one person can be in several",
+      "body": "John, 2026-10-15: \"any lead or person should be in any or multiple\ngroup text\".\n\nTwilio binds ONE conversation per (participant phone + proxy number)\npair. With a single sending number that is a hard ceiling of one group\nper person, and the old code handled the clash by evicting them from\nthe earlier group - silently, which is the behaviour John hit.\n\nThe ceiling is per PROXY, not per account, so each extra number adds\nanother simultaneous group per person. createGroupText now walks a pool\nand picks the first number none of the participants is already bound\nto, and refuses with a message naming the fix when they are all taken,\ninstead of quietly dropping somebody out of an older thread.\n\nMembership is asked of Twilio rather than tracked here, because the\nbinding lives there: a group ended outside the Hub would make a local\nrecord wrong in the direction that silently drops people.\n\nThe pool is the setting twilio_group_proxy_numbers, comma separated,\nwith the main number always first. Empty setting = one number = exactly\nthe old behaviour, so nothing changes until numbers are added. Each\nadded number must join the same A2P campaign or carriers filter it.\n\nGroup size was never the limit: 2 to 5 already worked.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "51a1c11",
+      "date": "2026-10-15T11:13:30-05:00",
+      "subject": "Never tell a lead we have spoken when we never have",
+      "title": "Never tell a lead we have spoken when we never have",
+      "body": "John, on Toni Cress: \"first text seems to be too blanket.\"\n\nHer Day 1 was NOT skipped - stage 0 completed and the message carried the introduction\nand the site link. What it said was the problem:\n\n  \"Hi Toni! It's John with Matt Smith Team at RE/MAX. Just thought I'd check in.\n   Has what you're looking for changed at all since we last talked?\"\n\nWe had never talked. Her record holds ZERO communications of any kind, and the system\nknew it - she was enrolled on the COLD_NEVER_CONNECTED lane. She replied STOP\ntwenty-five minutes later.\n\n12 of the 24 Day 1 openers assume a prior conversation (\"since we last talked\", \"we\nconnected a while back\", \"I was looking back at our conversation\"). That wording is right\nfor a dormant lead we really did speak to and wrong for someone who only ever registered\non the site, and nothing chose between them: it was a straight rotation across all 24, so\na stranger had a coin-flip chance of being told we had talked.\n\nhandleColdBuyerStage now asks whether a conversation ever actually happened - an inbound\nmessage of any kind, or an outbound text or call. A marketing email they never answered\ndoes not count. A lead we have never spoken to draws only from the 12 openers that make\nno such claim; a dormant lead still gets the full bank, because there the reconnect\nwording is the right wording.\n\nJohn's copy is untouched. This selects among his messages, it does not rewrite them. If\nfiltering ever left nothing, it falls back to the whole bank - a slightly-off message\nbeats no message.\n\ntest/cold-buyer-stranger.test.mjs (10).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "16cab07",
+      "date": "2026-10-15T11:12:41-05:00",
+      "subject": "John's rule changes, 2026-10-15",
+      "title": "John's rule changes, 2026-10-15",
+      "body": "Seven changes, each asked for directly.\n\n1. EMAIL REPLY HOLDS A DRIP FOR A MONTH. If a lead emails us, their next\n   drip step is pushed to 30 days after that email. Not the same as\n   pause_on_reply, which stops a campaign dead: this holds and then\n   carries on, so one question in March does not drop someone out of a\n   six-month sequence. Measured from THEIR last email, so a second reply\n   extends it and nobody has to remember to resume anything. Setting:\n   drip_hold_days_after_email_reply.\n\n2. STOP MOVES THEM TO JUNK. A literal STOP now also sets the status,\n   which pulls them out of every drip, automation and the AI rather than\n   just the text channel. Deliberately NOT applied to the\n   natural-language opt-out (\"take me off your list\"), which still blocks\n   texting alone: Junk also stops their email and pushes to FUB, so it is\n   kept to the unambiguous case. START un-blocks texting but leaves the\n   status for a person.\n\n3. TEXTING RUNS TO 5PM, was 4PM. One exported constant instead of a 16\n   repeated in four places, because the same hour decides the greeting\n   (\"Good afternoon\" vs \"Hello\") and the AI reactivation window, and\n   those drifting apart is its own bug.\n\n4. NO KNOWN AREA NOW SENDS THE GENERAL SEARCH rather than no link at all.\n   It still does not guess: it drops the area entirely and links\n   /property-search/results/, which is accurate for everyone. The openers\n   never named the city, so the same wording works.\n\n5. WATCH LEADS ARE SPLIT BY ADDRESS. Watch was refused outright. Now:\n   no address + no Hub text in 6 months  -> AI buyer follow-up\n   has address + no email from them in 6 months -> Home Value drip\n   A Watch lead with an address is a homeowner, not a buyer to chase.\n\n6. FSBO. The 30-day availability check replaces the old 40-47 day\n   rotation. And a listing that goes OFF MARKET UNSOLD now gets one\n   message, where before the campaign just went quiet - the most useful\n   moment we get, wasted. Sent only when fsbo_status is exactly 'Off\n   Market' (so not Sold, not Pending) AND there is no mls_status, which\n   is what stands in for \"listed with an agent\" since the FSBO sheet\n   carries no such value. Once per lead ever, and the word \"FSBO\" never\n   appears in it - that is our filing term, not what a seller calls\n   themselves.\n\n7. PAST CLIENTS: 1 EMAIL IN 14 DAYS. Both Lifelong Friends drips were\n   already 30 days apart, so cadence was never the problem - a past\n   client sitting in several campaigns was. A cadence cannot see across\n   campaigns; a cap can. Counts by status Closed OR a \"past client\" tag,\n   since the two disagree in this data.\n\n18 new tests, 84 existing ones still pass.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4008556",
+      "date": "2026-10-15T10:27:46-05:00",
+      "subject": "A drip stage blocked by a passing condition is postponed, not destroyed",
+      "title": "A drip stage blocked by a passing condition is postponed, not destroyed",
+      "body": "Why Norma Walker's Day 1 never sent. Her schedule says it outright:\n\n  AI_COLD_BUYER  stage=0 (Day 1)  CANCELED\n    due    2026-10-12 15:11\n    error  US holiday - automated sends paused\n\nColumbus Day was still on the holiday list at 15:11 that afternoon; it was taken off\nlater the same day. But the holiday was only the trigger. The fault is that the drain\ntreated \"not today\" as \"never\": a blocked stage was CANCELED outright, and the next one\nfired three days later as if it had sent. Day 1 is the only message that introduces us\nand the only one carrying the site link, so she met us with a Day 4 continuation from a\nnumber she could not place, and replied \"Yes. Who is this?\".\n\nWorse, quiet hours did not even cancel - logNo returns ok:true, so the stage was marked\nCOMPLETED. Consumed, never sent, and successful-looking in every report.\n\nTwo fixes:\n\n- businessSlot now rolls past US holidays as well as weekends, so a stage is never\n  scheduled onto one in the first place. Bumping a holiday can land on a Saturday and\n  rolling a weekend can land on a holiday, so both run together until settled.\n- The drain distinguishes a block that describes THIS MOMENT (holiday, quiet hours, a\n  pause with an end date) from one that describes the LEAD (opted out, DNC, undeliverable,\n  a campaign fence, hand-added). The first postpones the stage to the next real sending\n  slot keeping its per-lead offset; the second still cancels. Capped at 10 deferrals so a\n  permanent condition misread as transient cannot defer forever.\n\ntest/cold-buyer-holiday-stages.test.mjs (11). The Columbus Day assertion is deliberately\nNOT in there - that date now reads as an ordinary Monday, and asserting otherwise would\nbe asserting a bug already fixed. Thanksgiving, Christmas and an observed Independence\nDay stand in for it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "672587b",
+      "date": "2026-10-15T10:23:19-05:00",
+      "subject": "Expose a lead's scheduled AI actions, with the reason each one ended",
+      "title": "Expose a lead's scheduled AI actions, with the reason each one ended",
+      "body": "/lead/:id/history only shows actions that RAN. An action canceled or failed in the drain\nwrites no ai_actions row, so after Norma Walker asked \"who is this?\" the one question\nthat mattered - what happened to the Day 1 stage that should have introduced us - had no\nread-only answer, and I had to infer it.\n\nGET /api/ai/lead/:id/schedule returns every scheduled row with its state, error and the\ncampaign day its stage maps to. Read-only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "231a2b7",
+      "date": "2026-10-15T10:18:32-05:00",
+      "subject": "Introduce ourselves in a lead's FIRST message, whatever stage it is",
+      "title": "ourselves in a lead's FIRST message, whatever stage it is",
+      "body": "John, on Norma Walker: \"we did not introduce ourselves and no link.\"\n\nShe was auto-enrolled Monday 2026-10-12 and the first text she ever got was Thursday the\n15th - a DAY 4 message. She replied \"Yes. Who is this?\" and John answered by hand. Two\nseparate faults put her there.\n\n1. Only 3 of the 24 Day 1 openers actually introduce John. The standing rule is that John\n   introduces himself on Day 1 and the thread reads as continuous after that; the copy\n   never implemented the first half, so 7 in 8 leads were introduced to nobody and the\n   next thing they saw was a question from an unknown number. The site link was fine -\n   the renderer appends it on stage 0 - but it only exists on Day 1 too.\n\n2. Day 1 never fired for her at all. The ten stages are pre-scheduled independently at\n   enrolment; a blocked or failed one is marked and never retried, while every later\n   stage still fires on its own date. So one missed Day 1 silently becomes \"no\n   introduction, ever\" - and her action history shows exactly that: enrolled on the 12th,\n   no COLD_BUYER until the 15th, which is stage 2.\n\nThe introduction and the site are now tied to being the lead's FIRST message rather than\nto the stage number alone: the orchestrator asks whether we have ever sent this lead a\ntext, and a stage that turns out to be first behaves like Day 1.\n\nJohn's sentences are NOT rewritten. ensureIntroduction inserts the same sentence the\nthree complete openers already use, after the greeting, and only when the chosen message\ndoes not already introduce us. Mid-conversation stages are untouched - no\nre-introduction, no link - which is what keeps the thread from reading like an\nautomation.\n\ntest/cold-buyer-introduction.test.mjs (13), including her exact message as a first\ncontact. 61 related AI tests still pass.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
+    {
+      "hash": "7ee24b3",
+      "date": "2026-10-15T09:23:32-05:00",
+      "subject": "FUB probe: ask for 'Running', not 'Active' — and name who is mid-plan",
+      "title": "FUB probe: ask for 'Running', not 'Active' — and name who is mid-plan",
+      "body": "The per-plan check asked for status 'Active' and reported NONE. That\nwas my query being wrong, not a clean result: in FUB, 'Active' is the\nstatus of a PLAN and 'Running' is the status of a PERSON moving\nthrough one. The status totals showed Running=2, so two people are\nmid-plan while the per-plan loop said nobody was.\n\nNow reports Running and Paused side by side with the plan name, and\nresolves the running people to names/stages/emails so the finding is\nactionable. Paused=1516 is reported too: those are people parked\nmid-plan who would resume if anyone un-pauses the plan.\n\nStill GET-only, 350ms between calls.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "498df14",
+      "date": "2026-10-15T09:20:08-05:00",
+      "subject": "FUB probe: count people mid-plan, not just plans switched on",
+      "title": "FUB probe: count people mid-plan, not just plans switched on",
+      "body": "86 plans all report status=Active, but that means the plans are\nenabled, not that anybody is on them. The newest enrolment row in the\nfirst probe was 2025-10-07, over a year old, which points at FUB\nhaving stopped enrolling rather than still running.\n\nAdds a per-status total (limit=1, read off _metadata.total, so one\nsmall call per status instead of 145 pages) and, for each plan, how\nmany people are on it with status Active. That is the number that\ndecides whether FUB is still mailing people outside the Hub's cap.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5d818fb",
+      "date": "2026-10-15T09:17:50-05:00",
+      "subject": "Read-only probe: is FUB still running action plans?",
+      "title": "Read-only probe: is FUB still running action plans?",
+      "body": "John, 2026-10-15: \"are we able to investigate FUB if it still has\nactive drip campaigns?\"\n\nFUB calls drips Action Plans. This matters beyond curiosity: anything\nFUB sends is invisible to the email frequency cap shipped yesterday,\nwhich counts only what the HUB sent. A lead sitting on a live FUB\naction plan can be getting mail nobody here is counting, which would\nundercut the 2-a-week rule without showing up anywhere.\n\nGET /api/fub/probe-action-plans tries /actionPlans,\n/actionPlansPeople, /automations, /templates and\n/textMessageTemplates. GET only, every call wrapped, nothing written\nto FUB or the Hub, 350ms apart to stay inside the rate limit. Several\nspellings are tried because the docs and the account's plan tier do\nnot always agree on which endpoints exist, and a 404 is itself an\nanswer.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "23df1ed",
+      "date": "2026-10-15T09:03:09-05:00",
+      "subject": "Pin a never-contact registration onto the lead once it exists",
+      "title": "Pin a never-contact registration onto the lead once it exists",
+      "body": "The email list already blocks the AI, but it is keyed on the EMAIL: if\nanyone later corrects or changes that address the match quietly stops\napplying and the AI is free again. A guard that can go silent without\nanyone noticing is the failure mode this whole area keeps having.\n\nbackfillAiNeverContact() stamps auto_enroll_excluded on any matching\nlead that does not have it, on the same 10-minute tick as the fresh\nenrolment sweep. That pins the exclusion to the LEAD, where an email\nchange cannot shake it off, and makes it visible on the profile - which\nis what stops somebody switching AI on without realising.\n\nBoth layers stay: the email list covers the window before the lead\nexists, the stamped flag covers them permanently afterwards.\nIdempotent, writes once per lead.\n\n3 more tests (16 total), including one that changes the email after\npinning and asserts the AI is still refused.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "15fe1db",
+      "date": "2026-10-15T09:00:11-05:00",
+      "subject": "AI never-contact list, keyed on email before the lead exists",
+      "title": "AI never-contact list, keyed on email before the lead exists",
+      "body": "John, 2026-10-14: adding Kurt and Lori Johnson (kcoggon2@aol.com) in\nSierra for listing alerts, \"make sure that AI doesn't reach out to\nthem\" - said BEFORE the lead exists anywhere in the Hub.\n\nauto_enroll_excluded could not do this: it lives on ai_lead_state and\nneeds a client_id, so it cannot be set until the Sierra sync has\ncreated the record. In the window between the sync and a person\nremembering to tick a box, auto-enrolment runs and the AI can open a\nconversation. Closing that window is the whole request, so the\nexclusion has to exist before the lead does.\n\nserver/ai-never-contact.js registers people by EMAIL and PHONE instead\nof id. forbidden.js asks it FIRST, before its own `if (!cid) return\nnull`, so a record created seconds ago by a sync is already covered.\nThat is the same choke point canSendSms consults on every AI send -\nscheduled, responsive, forced and bulk - which is where the FSBO /\nHolly Stock / Megan Walt history says a never-rule has to live. Four\nearlier passes failed by guarding whichever door had just broken.\n\nAlso closes a real gap found on the way: every never-rule sat behind\ncanSendSms, and handleFbAdEmail never calls it because it sends EMAIL.\nA lead the AI was forbidden to text could still be emailed by it. \"AI\ndoesn't reach out\" means any channel the AI speaks on, so forbidden.js\nis now asked there too.\n\nMatching is deliberately conservative: last 10 digits for phones so\nformatting cannot evade it, case-insensitive email, and placeholder\naddresses (notvalidemail) plus sub-10-digit phones never match - two\nplaceholders are not the same person.\n\nScoped to the AI channel. These people still get their Sierra listing\nalerts, which is why they were added, and nothing here sets a\nmarketing opt-out - those stay John's to set by hand.\n\nGET/POST /api/ai/never-contact, DELETE /api/ai/never-contact/:id. The\nPOST also stamps auto_enroll_excluded on any lead that already matches,\nso the profile UI and existing audits show it like any other exclusion.\n\n13 tests, including canSendSms with force:true - the exact path that\ntexted Megan Walt twice. The existing 18-test parity suite still\npasses, and an ordinary lead is asserted to be unaffected, since a\nguard that quietly silences the AI for everyone is its own outage.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "a0eac58",
+      "date": "2026-10-14T16:14:52-05:00",
+      "subject": "Signature on by default in Matt's email composer",
+      "title": "Signature on by default in Matt's email composer",
+      "body": "John, 2026-10-14: \"make sure the email signature is default on so he\ndon't have to keep adding it.\"\n\nThe signature was already saved (and already Matt's details), and /send\nand the live preview both append it when a body lacks one. The one\nplace that did not was the template preview the composer calls - and\npicking a template REPLACES the whole body, wiping the signature the\nblank composer had put there. So Matt picked a template, saw an\nunsigned draft, and typed the signature back in by hand, not knowing\nthe send would have added it anyway.\n\nThree fixes:\n\n1. /api/email/preview/:templateId/:clientId now appends {{signature}}\n   when the template lacks one, using the SAME alreadySigned() guard as\n   /send. What the composer shows is now what sends. A template with\n   its own hand-built signature block still gets exactly one - that\n   guard exists because a lead got two \"Matt Smith\" blocks on 09-29.\n\n2. The blank composer read the signature out of React state, which\n   loses a race against the profile fetch on a fast click after load:\n   the composer would open unsigned. It now reads a ref and awaits the\n   fetch if it has not landed, so the signature is there either way.\n   Same for the Clear-draft button.\n\n3. The savedSignatureHtml() fallback said \"RE/MAX Real Estate\n   Concepts\", which is not the brokerage's name, and omitted the team\n   name. Now \"Matt Smith Team | RE/MAX Concepts\". Only reachable when\n   the setting is empty, but wrong is wrong.\n\nNote the signature is ONE team-wide setting, not per-user, so this is\nMatt's signature for every login. That matches the convention that\nemails go out as Matt. Per-user signatures would be a separate build.\n\n7 tests. Build clean.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "d79f9cc",
+      "date": "2026-10-14T15:36:08-05:00",
+      "subject": "Report what is left to push to FUB and Sierra, and how long it would take",
+      "title": "Report what is left to push to FUB and Sierra, and how long it would take",
+      "body": "John asked how long pushing every email, text and note from the Hub to both CRMs would\ntake. That is arithmetic rather than a guess - eligible rows times the pace each API\ntolerates - so this counts them with the SAME eligibility rules fub-comm-push.js uses to\nselect a batch, instead of an optimistic total of the communications table.\n\nFUB runs at 260ms a call (what the live push already uses); Sierra at 800ms, from the\n429s hit during bulk tag writes, which makes it three times the slower leg.\n\nGET /api/admin/comm-push-scope. Read-only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bb32522",
+      "date": "2026-10-14T15:30:06-05:00",
+      "subject": "Move GET /email-cap above /:id so it is not dead code",
+      "title": "Move GET /email-cap above /:id so it is not dead code",
+      "body": "Express takes the first matching route, and /email-cap is a single\nsegment, so router.get('/:id') was swallowing it — the endpoint\nreturned a drip lookup for id NaN instead of the cap state. Caught on\nthe live verify, not in the tests, because the tests exercise the cap\nfunctions directly and never hit the route.\n\nThe two-segment paths (/email-cap/:clientId, /email-cap/settings) were\nnever affected. Added the reason as a comment so the block does not\ndrift back down. Also restores the Home Value comment to its own route,\nwhich the first insertion had split.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "315c1a5",
+      "date": "2026-10-14T15:28:43-05:00",
+      "subject": "Cap every lead at 2 emails a week across all campaigns",
+      "title": "Cap every lead at 2 emails a week across all campaigns",
+      "body": "John, 2026-10-14: \"no lead should be getting no more than 2 emails in a\nweek\", applicable to all drip campaigns including active enrollments.\n\nThe old rule was 1 campaign email per person per day, counted only from\ndrip_executions. That misses the real stacking: over the 21 days to\n10-14, 138 people went over 2 in a rolling week, worst at 6, from\ndrip_20 + drip_2 plus the two manual listing sends on 10-10.\n\nserver/email-cap.js is now the single place that answers \"how many\nemails has this person had\". It reads email_log, not drip_executions,\nbecause that is the only table that sees every send. Counting:\n\n  - trailing 7 days, rolling, not a calendar week that resets Monday\n  - across EVERY campaign and manual send; the inbox does not care\n    which part of the Hub sent it\n  - matched on client_id OR the same address, since duplicate records\n    pointing at one inbox are still one inbox\n  - failed sends, bounces and drops excluded; they never arrived\n\nGated: drips, the FB listing campaign and automation email steps.\nNot gated: manual sends (a person deciding to write outranks a queue,\nthough it still counts) and transactional/first-contact mail, which is\nexempt outright and does not consume the budget either - a home value\nanswer or a new lead's first reply always goes.\n\nA capped send DEFERS, never cancels, so the touch keeps its place.\nnext_eligible_at is computed from the data (the cap-th newest email\n+ 7 days) instead of \"retry tomorrow\", so a held enrollment does not\nre-check daily for a week and fill the activity log.\n\nEnforced at send time, which is what makes it apply to the 4,000+\nenrollments that already exist rather than only new ones.\n\nCaps are settings - max_emails_per_week (2) and max_emails_per_day (1)\n- tunable without a deploy via POST /api/drips/email-cap/settings.\nGET /api/drips/email-cap shows where they sit and who is held.\n\nDry run over the live log: 220 of 9,693 emails held (2.3%), 136 people,\nmostly drip_2 and drip_20. 16 tests. No new failures - the 4 assertion\nfailures in the suite are identical before and after.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5bf1838",
+      "date": "2026-10-14T12:20:58-05:00",
+      "subject": "Stop showing AccessTokenExpired over a working call, and watch the Twilio balance",
+      "title": "Stop showing AccessTokenExpired over a working call, and watch the Twilio balance",
+      "body": "Two things John hit on 2026-10-14.\n\n1. Calling Karam Saba showed \"AccessTokenExpired (20104)\" in red across the call widget\n   while the call itself connected fine. A voice token lasts an hour, and the Device\n   refreshes it on tokenWillExpire - but that is a background timer, and browsers throttle\n   those in a hidden tab, so a tab left open all day holds an expired token and only finds\n   out when something uses it. The error was already being handled (it refreshed the token\n   and carried on) and ALSO painted across the widget in raw Twilio wording, over a call\n   that was working. 20104/31205 now refresh quietly, the same way 31005 already did.\n\n   And the expiry should not be discovered mid-dial at all: the token's age is now tracked,\n   anything older than 50 minutes is replaced before the call is placed, and returning to a\n   tab that has been hidden tops it up rather than waiting for something to fail. A\n   successful refresh also clears the error state, so the phone stops claiming to be broken\n   once it is not.\n\n2. \"We should be getting an email when balance is becoming low under $5.\" Twilio does not\n   fail loudly when the money runs out - texts stop sending, calls stop connecting, and the\n   first sign is a lead who never heard back. server/twilio-balance-alert.js checks hourly\n   and emails Matt and John below $5 (threshold and recipients are settings).\n\n   The two ways this goes wrong are both covered: an unknown balance is never treated as\n   zero, so an API blip cannot fire a \"you are out of money\" email; and it sends once on\n   the way down and then at most once a day, re-arming as soon as a top-up clears it.\n   A blank setting reads as unset rather than as 0 or nobody - a 0 threshold can never be\n   met, which is a disabled alert wearing the costume of a working one.\n\n   GET /api/inbox/balance-alert reports what it would do and cannot send.\n\ntest/twilio-balance-alert.test.mjs (15).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "8e9cbe5",
       "date": "2026-10-13T14:12:45-05:00",
@@ -3744,262 +4000,6 @@
       "subject": "FSBO: remove a wrongly-attached listing from a lead (phone collision)",
       "title": "FSBO: remove a wrongly-attached listing from a lead (phone collision)",
       "body": "Adds a 'Remove FSBO' action on the profile's Property Activity section for cases\nlike a FSBO number matching the wrong person. POST /api/clients/:id/remove-fsbo\nclears all fsbo_* fields, stops the FSBO follow-up, and sets a new fsbo_excluded\nflag so syncFsboMaster never re-attaches it (excluded leads are dropped from the\nphone-match index).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1378d07",
-      "date": "2026-08-31T18:03:51-05:00",
-      "subject": "Smart lists: viewed_24h excludes junk/past-client/FSBO/expired/cancelled/pending/closed",
-      "title": "Smart lists: viewed_24h excludes junk/past-client/FSBO/expired/cancelled/pending/closed",
-      "body": "Scope the 'Viewed within 24 hours' list to live prospects only, per request.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6fad255",
-      "date": "2026-08-31T18:03:11-05:00",
-      "subject": "Smart lists: add 'Viewed within 24 hours' (recent website/property view)",
-      "title": "Smart lists: add 'Viewed within 24 hours' (recent website/property view)",
-      "body": "Fourth smart list: any fub_activity or lead_activity view in the last 24 hours,\nthe hot-right-now segment. Backend SMART_LIST_SQL.viewed_24h (counts endpoint\npicks it up automatically) + frontend tab.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "050a3a9",
-      "date": "2026-08-31T16:48:45-05:00",
-      "subject": "Clients filters: per-value Include/Exclude toggle (status, tags, zips, cities, sources, agents)",
-      "title": "Clients filters: per-value Include/Exclude toggle (status, tags, zips, cities, sources, agents)",
-      "body": "Replaces the paired 'Include' / 'Exclude' boxes with one IncludeExcludeSelect per\ndimension: search/add a value, then flip it Include or Exclude with a per-value\ntoggle. Adds backend cities_exclude + viewed_cities_exclude (status/tags/zips/\nsources/agents excludes already existed) and frontend state/params/count/clear/\nsaved-list wiring for the new excludes.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3957cc7",
-      "date": "2026-08-31T16:28:16-05:00",
-      "subject": "Clients: FSBO Days-on-Market filter (more/less than N days)",
-      "title": "Clients: FSBO Days-on-Market filter (more/less than N days)",
-      "body": "Adds fsbo_dom_op/fsbo_dom_days to buildClientFilter (CAST(fsbo_dom AS INTEGER)\n> / < N) and a 'FSBO Days on Market' more/less control in the filter panel, next\nto Off Market Date. Wired into params, filter count, clear-all, and saved-list\nrestore.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "02bf75d",
-      "date": "2026-08-31T16:18:24-05:00",
-      "subject": "Add /api/system-metrics: disk + RAM (cgroup limit) + CPU sample",
-      "title": "/api/system-metrics: disk + RAM (cgroup limit) + CPU sample",
-      "body": "Reports real per-instance Render metrics: persistent-disk usage, RAM against the\ncontainer's cgroup limit (not the host), and this process's CPU % of a core plus\nallotted cores. Falls back to os.* only when cgroup files are absent.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "91ede25",
-      "date": "2026-08-31T16:08:42-05:00",
-      "subject": "FSBO: compute DOM from List Date (sheet DOM is a stale snapshot)",
-      "title": "FSBO: compute DOM from List Date (sheet DOM is a stale snapshot)",
-      "body": "The master file's DOM column is frozen whenever a row was last touched, so it\ndrifted 40+ days behind on ~half the active listings. List Date is reliable, so\nDOM is now computed as today - List Date at sync time (daily sync keeps it\ncurrent); sheet DOM is used only when List Date is missing.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "58b383e",
-      "date": "2026-08-31T16:01:39-05:00",
-      "subject": "Clients: 3 Smart Lists tabs (past-client return 180d, no-email 90d, most-active)",
-      "title": "Clients: 3 Smart Lists tabs (past-client return 180d, no-email 90d, most-active)",
-      "body": "Adds a Smart Lists row above the status tabs on the Clients page with server-\ncomputed segments: Past Client Returned (recent visit after 180+ days away),\nPast Client with no outgoing email in 90 days, and Most Active (20+ distinct\nlistings viewed in 30 days). New GET /api/clients/smart-lists for counts and a\n?smart= param on the list route (SMART_LIST_SQL injected in buildClientFilter,\nso counts, rows, and select-all-ids all honor it).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9a4c1ff",
-      "date": "2026-08-31T15:28:13-05:00",
-      "subject": "Email composer: signature pre-placed, Insert-field menu, live preview",
-      "title": "Email composer: signature pre-placed, Insert-field menu, live preview",
-      "body": "Full-size profile composer was a plain textarea with no visible signature and no\nway to insert merge fields. Now: body pre-fills with {{signature}} at the bottom\n(movable/removable), an 'Insert field' dropdown drops merge fields at the cursor,\nand a Preview renders the final email (signature + fields filled for the lead) via\nnew GET /api/email/merge-fields and POST /api/email/preview.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cecd630",
-      "date": "2026-08-31T15:21:15-05:00",
-      "subject": "Email: append Matt's signature on manual composer sends",
-      "title": "Email: append Matt's signature on manual composer sends",
-      "body": "The full-size profile / clients composer posted to /api/email/send with no\nsignature. Now the server appends the saved {{signature}} to the body (rendered\nvia fillTemplate), unless the body already contains one. Automated/template sends\nuse sendViaSendGrid directly and already include {{signature}}, so they're\nunaffected.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d4748db",
-      "date": "2026-08-31T15:09:55-05:00",
-      "subject": "FSBO: junk PENDING only (not Off Market); restore wrongly-junked Off Market",
-      "title": "FSBO: junk PENDING only (not Off Market); restore wrongly-junked Off Market",
-      "body": "Pending and Off Market are different: Pending = under contract (dead lead -> Junk,\noff the list); Off Market = withdrawn/expired, did NOT sell (stays on the list,\nlabeled, just not texted). normStatus now recognizes Pending. Prior run wrongly\njunked the 19 Off Market; added a one-time self-disabling restore to 'watch'.\nFSBO list filter back to Available + Off Market (Pending excluded).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "19049da",
-      "date": "2026-08-31T15:02:27-05:00",
-      "subject": "FSBO: Off Market (pending/sold) now junked + dropped from the list",
-      "title": "FSBO: Off Market (pending/sold) now junked + dropped from the list",
-      "body": "Team rule change: when a FSBO goes Off Market in the master file it should leave\nthe active list and be moved to Junk (out of all sequences), not just labeled\nOff Market. syncFsboMaster now junks every Off Market fsbo record (keeping\nfsbo_status='Off Market' as the record of why) and the FSBO list filter is now\nAvailable-only. Sellers with any still-available listing stay Available and are\nuntouched.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "041c80f",
-      "date": "2026-08-31T14:42:47-05:00",
-      "subject": "SMS: first unreachable bounce stops future texts (add 30003/21614)",
-      "title": "SMS: first unreachable bounce stops future texts (add 30003/21614)",
-      "body": "Previously only 30005/30006 (dead number / landline) marked a contact\nsms_undeliverable. Now an unreachable-handset bounce (30003, phone off/dead) or\n'not a valid mobile' (21614) on the first send also stops automated texts, since\nthose numbers don't take our texts. Deliberately excludes our-side/transient\ncodes (suspended, queue, A2P, timeout, spam-filter) so good numbers aren't killed\nby an account-level hiccup. Adds POST /api/inbox/backfill-undeliverable to apply\nthe rule to past failures.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "fe9985b",
-      "date": "2026-08-31T14:25:41-05:00",
-      "subject": "AI tone: graceful low-key exit on declines, no congratulations/gushing",
-      "title": "AI tone: graceful low-key exit on declines, no congratulations/gushing",
-      "body": "Heather Hayes declined (can't buy due to husband's position) and the AI replied\n'Congratulations on the role' which reads tone-deaf. Added a STYLE rule: on a\ndecline/bow-out, keep the exit short and plain, no congratulations or praise.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4ff7d48",
-      "date": "2026-08-31T14:03:59-05:00",
-      "subject": "Service Balances: show real Anthropic balance you enter, not a misleading estimate",
-      "title": "Service Balances: show real Anthropic balance you enter, not a misleading estimate",
-      "body": "Anthropic has no API to read remaining credit with a normal key, so the Claude\ncard now headlines a saved balance the user types off the console (with date\nstamp), and demotes the token-log estimate to a secondary 'est. Hub usage' line.\nAdds POST /api/inbox/claude-balance.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4bbd35f",
-      "date": "2026-08-31T13:55:15-05:00",
-      "subject": "Settings: Service Balances card — live Twilio balance + estimated Claude/AI spend",
-      "title": "Settings: Service Balances card — live Twilio balance + estimated Claude/AI spend",
-      "body": "Adds GET /api/inbox/service-balances (Twilio Balance.json + account status;\nClaude spend estimated from ai_actions token logs over last 30 days, model-aware\nrate) and a Settings 'Service Balances' card with a Refresh button and top-up links.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e389796",
-      "date": "2026-08-31T13:34:24-05:00",
-      "subject": "Cold template: no double-John greeting; title-case the area (MARION -> Marion)",
-      "title": "Cold template: no double-John greeting; title-case the area (MARION -> Marion)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ef15036",
-      "date": "2026-08-31T13:29:23-05:00",
-      "subject": "Preview: show cleaned area (matches the renderer's [area] handling)",
-      "title": "Preview: show cleaned area (matches the renderer's [area] handling)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4b7d05c",
-      "date": "2026-08-31T13:27:15-05:00",
-      "subject": "AI drip: send scheduled stages as templates (no Claude); Claude only for replies",
-      "title": "AI drip: send scheduled stages as templates (no Claude); Claude only for replies",
-      "body": "- cold-template.js renderColdStageTemplate(): approved bank + merge fields, with\n  cleaned [area] ({{city_of_interest}} minus ,IA / trailing comma -> 'your area').\n- Added an approved bank for the Day-260 long-term loop (was AI-composed).\n- runOutbound: new templateText path skips Claude entirely but keeps every\n  compliance gate, stale-message guard, logging, send, and state transition.\n- handleColdBuyerStage renders the template and sends it; falls back to Claude\n  only if a stage somehow has no bank. Replies (handleInboundText) still use Claude.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d6f803f",
-      "date": "2026-08-31T13:12:40-05:00",
-      "subject": "AI: no-Claude template renderer + preview endpoint for the cold-buyer sequence (review)",
-      "title": "AI: no-Claude template renderer + preview endpoint for the cold-buyer sequence (review)",
-      "body": "renderColdStageTemplate() builds each stage from the approved bank + merge fields\n([area] -> {{city_of_interest}} with a 'your area' fallback, never a blank/bracket).\nPOST /api/ai/cold-buyer/preview-templated renders the full sequence for a lead,\nno Claude, no send — so we can review exactly what would go out before switching\nthe drip to templates.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f59112b",
-      "date": "2026-08-31T11:24:30-05:00",
-      "subject": "Tasks: assignee dropdowns use live team agents (Matt/John/Hunter), not stale Matt/Leo",
-      "title": "Tasks: assignee dropdowns use live team agents (Matt/John/Hunter), not stale Matt/Leo",
-      "body": "The Edit Task, filter, note-by, and nudge dropdowns were hardcoded to Matt/Leo —\nmissing John entirely — so a task assigned to John showed 'Unassigned' and could\nbe wiped on save. All now pull /api/inbox/agents; the edit dropdown also preserves\nany existing assignee value. Nudge sender/recipient default to John.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "db7f2f4",
-      "date": "2026-08-31T11:12:34-05:00",
-      "subject": "Full-screen profile: Add Task button opens the task box (not just scroll)",
-      "title": "Full-screen profile: Add Task button opens the task box (not just scroll)",
-      "body": "The action-bar Add Task only scrolled to the tasks section; now it toggles an\ninline QuickAddTask composer like Add Note does, and the Tasks card refreshes\non the new task (cp-tasks-changed event).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4faeeac",
-      "date": "2026-08-28T17:46:38-05:00",
-      "subject": "Fix cancelled/expired MLS extraction: mark attempted (fetch each lead's notes once)",
-      "title": "cancelled/expired MLS extraction: mark attempted (fetch each lead's notes once)",
-      "body": "Candidate query now excludes mls_extract_attempted_at leads and marks each lead\nattempted after a successful Sierra fetch, so every lead is processed exactly\nonce (no re-fetch loop). dry_run returns the definitive still-missing list for\nthe session hand-off.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "f24b722",
-      "date": "2026-08-28T16:46:50-05:00",
-      "subject": "Add read-only line-type-stats (what lookup data we retained)",
-      "title": "read-only line-type-stats (what lookup data we retained)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "5083573",
-      "date": "2026-08-28T16:41:24-05:00",
-      "subject": "Twilio Lookup: hard kill-switch + daily cap (backstop after the 8/28 overspend)",
-      "title": "Twilio Lookup: hard kill-switch + daily cap (backstop after the 8/28 overspend)",
-      "body": "lookupLineType now checks a global kill-switch (twilio_lookup_disabled) and a\nper-day cap (twilio_lookup_daily_cap, default 500) before ever calling Twilio,\nso a runaway can never bill like the 12,564-lookup / $100.51 incident again.\nGET/POST /api/inbox/twilio-lookup-switch to view/flip it.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "894c7c1",
-      "date": "2026-08-28T16:28:35-05:00",
-      "subject": "Cancelled/Expired: MLS # field/column + extract MLS#/off-market-date from Sierra notes",
-      "title": "Cancelled/Expired: MLS # field/column + extract MLS#/off-market-date from Sierra notes",
-      "body": "- clients.mls_number column; editable field on profile + optional MLS # list column.\n- POST /api/clients/cancelled-expired/extract-mls: parses Sierra import notes\n  ((MLS 2603483) / MLS#: 2509112 / Off Market Date: / Expired MM/DD/YYYY) and\n  populates mls_number + off_market_date; returns leads still missing either.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "a207247",
-      "date": "2026-08-28T16:17:18-05:00",
-      "subject": "Stagger AI drip + bulk texts; Off Market Date filter + sort",
-      "title": "Stagger AI drip + bulk texts; Off Market Date filter + sort",
-      "body": "- Scheduler: per-lead time offset (coldSendOffsetMin) spreads every cold-buyer\n  send across the daytime window (10am-4pm CT) instead of one same-minute burst\n  — automatic for all future enrollments.\n- POST /api/ai/cold-buyer/stagger: re-times the existing pending cohort the same\n  way (dry_run supported).\n- Bulk text: pace between recipients is now 5-8s (jittered) and configurable via\n  pace_seconds, instead of 900ms.\n- Off Market Date: recency filter (more/less than N days) + sortable column.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cee9589",
-      "date": "2026-08-28T16:08:36-05:00",
-      "subject": "Add 'Off Market Date' custom field + optional list column (for cancelled/expired)",
-      "title": "'Off Market Date' custom field + optional list column (for cancelled/expired)",
-      "body": "- clients.off_market_date column\n- editable date field on the full-screen profile (Contact details)\n- selectable 'Off Market Date' column in the Clients list (off by default)\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "217fcdd",
-      "date": "2026-08-28T15:52:04-05:00",
-      "subject": "Profile: show phone deliverability badge (mobile / landline / disconnected + checked date)",
-      "title": "Profile: show phone deliverability badge (mobile / landline / disconnected + checked date)",
-      "body": "Surfaces sms_line_type + sms_undeliverable on the full-screen profile next to the\nphone, so agents can see at a glance whether a number is a textable mobile, a\nlandline that can't receive texts, or disconnected/undeliverable.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6565f71",
-      "date": "2026-08-28T15:46:33-05:00",
-      "subject": "AI: automatic pre-send line-type screen — skip landlines before the first drip text",
-      "title": "AI: automatic pre-send line-type screen — skip landlines before the first drip text",
-      "body": "Before the first proactive/drip AI text to a never-checked number, look up its\nline type once; if landline/fixed-VoIP, block + flag + pull from the drip so it\nnever gets an AI text. Skipped for replies and for already-checked numbers, so\nit runs at most once per number. Makes landline screening automatic for all\nfuture enrollments (sweep + Send AI), not just the one-time scrub.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "18e4c9d",
-      "date": "2026-08-28T15:38:37-05:00",
-      "subject": "Add read-only Twilio usage/balance check (actual Lookup charges)",
-      "title": "read-only Twilio usage/balance check (actual Lookup charges)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "feature"
-    },
-    {
-      "hash": "330a631",
-      "date": "2026-08-28T15:33:07-05:00",
-      "subject": "Fix line-type scrub: record sms_line_checked_at so numbers are never re-looked-up",
-      "title": "line-type scrub: record sms_line_checked_at so numbers are never re-looked-up",
-      "body": "The candidate query only excluded flagged leads, so already-checked mobiles kept\nre-entering the batch and were looked up repeatedly (cost overrun). Now every\nchecked lead is stamped sms_line_type + sms_line_checked_at and excluded next pass,\nso each number is looked up exactly once and the run terminates.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "411b436",
-      "date": "2026-08-28T15:20:22-05:00",
-      "subject": "Twilio Lookup line-type scrub for AI-on leads (flag landlines, drop from drip)",
-      "title": "Twilio Lookup line-type scrub for AI-on leads (flag landlines, drop from drip)",
-      "body": "- twilio.js lookupLineType(): Lookup V2 Line Type Intelligence; landline/fixedVoip = not textable.\n- POST /api/inbox/scrub-line-types: scan AI-on leads (ai_enabled/managed or pending drip),\n  look up each number, flag landline/fixed-voip as sms_undeliverable + cancel their pending\n  drip texts. dry_run returns count + cost estimate; processes in batches.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

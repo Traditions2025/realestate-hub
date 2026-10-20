@@ -221,14 +221,44 @@ function parseICal(ics) {
   return events
 }
 
+// Matt's primary calendar is his whole life. The first import pulled 74 events and 48 of
+// them were a podiatrist appointment, a massage, two haircuts, a personal legal deadline
+// and a run of marketing webinars - onto a calendar the whole team reads.
+//
+// So the import is an ALLOW-LIST, never a block-list. A title has to look like a real
+// estate appointment to come through, and anything unrecognised STAYS OUT. That is
+// deliberate: the cost of leaking a medical appointment to the team is far higher than the
+// cost of the Hub missing one event that Matt can still see in Google. Tested against all
+// 47 titles the live feed actually produced (John, 2026-10-20).
+const CALENDAR_ALLOW = /showing|walk\s*-?\s*through|walkthrough|closing|inspection|listing|appraisal|open house|evaluate home|downsizing|purchase of|under contract|lockbox|appointment with|final walk/i
+export function isTeamCalendarEvent(title) {
+  return CALENDAR_ALLOW.test(String(title || ''))
+}
+
+// Google emits timed events as UTC with a trailing Z (DTSTART:20261022T140000Z). The first
+// version matched only the digits and threw the Z away, so every imported event was stored
+// 5 hours late in summer and 6 in winter, and anything after 7pm Central rolled onto the
+// next day. Three cases, kept deliberately apart (John, 2026-10-20):
+//
+//   ...Z      real UTC    -> convert to Central
+//   no Z      floating or TZID local time, already Central -> leave alone
+//   date only all-day     -> no time at all
+//
+// The conversion goes through the America/Chicago ZONE, never a fixed -5/-6, so it follows
+// the DST switch by itself. Everything the Hub stores is Central, year round.
 function parseICalDate(s) {
   if (!s) return null
-  const m = s.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2}))?/)
+  const m = s.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})(\d{2})(Z)?)?/)
   if (!m) return null
-  return {
-    date: `${m[1]}-${m[2]}-${m[3]}`,
-    time: m[4] ? `${m[4]}:${m[5]}` : null,
-  }
+  if (!m[4]) return { date: `${m[1]}-${m[2]}-${m[3]}`, time: null }
+  if (!m[7]) return { date: `${m[1]}-${m[2]}-${m[3]}`, time: `${m[4]}:${m[5]}` }
+  const utc = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]))
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
+  }).formatToParts(utc)
+  const get = (t) => parts.find((p) => p.type === t).value
+  return { date: `${get('year')}-${get('month')}-${get('day')}`, time: `${get('hour')}:${get('minute')}` }
 }
 
 function guessEventType(title) {
@@ -270,6 +300,10 @@ async function syncOneCalendar(url, label) {
 
     for (const ev of events) {
       if (!ev.summary || !ev.start) continue
+      // A cancelled event stays in the feed carrying STATUS:CANCELLED. Importing it puts a
+      // meeting on the team calendar that is not happening (John, 2026-10-20).
+      if (/^cancelled$/i.test(String(ev.status || '').trim())) continue
+      if (!isTeamCalendarEvent(ev.summary)) continue
       const startInfo = parseICalDate(ev.start)
       if (!startInfo) continue
       const startDate = new Date(startInfo.date)
@@ -576,7 +610,9 @@ async function checkBackupTick() {
   }
 }
 
-export { syncGoogleCalendar, runIncrementalNow, runDigestNow, runDailyRemindersNow, watchStatusSweep }
+// parseICalDate is exported only so the timezone conversion can be tested directly; the
+// 5-hour drift it fixes was invisible until the imported times were compared to Google.
+export { syncGoogleCalendar, runIncrementalNow, runDigestNow, runDailyRemindersNow, watchStatusSweep, parseICalDate }
 
 // ---------------------------------------------------------------------------
 // FUB web-activity incremental sync — keeps each client's "Last Visit" fresh.

@@ -7,6 +7,17 @@ const eventTypes = ['Showing', 'Listing Appointment', 'Closing', 'Inspection', '
 const colorOptions = ['blue', 'green', 'red', 'purple', 'amber', 'teal', 'pink']
 const colorMap = { blue: '#3b82f6', green: '#10b981', red: '#ef4444', purple: '#8b5cf6', amber: '#f59e0b', teal: '#14b8a6', pink: '#ec4899' }
 
+// Times are STORED 24-hour ("14:00") because that is what sorts correctly in SQL and what
+// <input type="time"> requires. Everything on SCREEN is 12-hour, which is how the team
+// reads a calendar. Stored values are always Central (John, 2026-10-20).
+const fmt12 = (t) => {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(t || ''))
+  if (!m) return ''
+  const h = Number(m[1])
+  if (h > 23 || Number(m[2]) > 59) return ''
+  return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`
+}
+
 const emptyEvent = {
   title: '', event_type: 'Showing', event_date: '', start_time: '', end_time: '',
   location: '', description: '', attendees: '', reminder_minutes: 30,
@@ -145,7 +156,7 @@ export default function Calendar() {
                     {dayEvents.slice(0, 3).map(ev => (
                       <div key={ev.id} className="cal-post" style={{ borderLeftColor: colorMap[ev.color] || '#3b82f6' }}
                         onClick={e => { e.stopPropagation(); openEdit(ev) }}>
-                        <span className="cal-post-title">{ev.start_time ? ev.start_time.substring(0, 5) + ' ' : ''}{ev.title}</span>
+                        <span className="cal-post-title">{ev.start_time ? fmt12(ev.start_time) + ' ' : ''}{ev.title}</span>
                       </div>
                     ))}
                     {dayEvents.length > 3 && <div className="cal-more">+{dayEvents.length - 3} more</div>}
@@ -176,7 +187,7 @@ export default function Calendar() {
                     </div>
                     <div className="day-event-meta">
                       <span>{ev.event_type}</span>
-                      {ev.start_time && <span>{ev.start_time}{ev.end_time ? ` - ${ev.end_time}` : ''}</span>}
+                      {ev.start_time && <span>{fmt12(ev.start_time)}{ev.end_time ? ` - ${fmt12(ev.end_time)}` : ''}</span>}
                     </div>
                     {ev.location && <div className="day-event-location">{ev.location}</div>}
                     {ev.attendees && <div className="day-event-attendees">{ev.attendees}</div>}
