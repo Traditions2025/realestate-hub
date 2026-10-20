@@ -746,6 +746,51 @@ export function reactivateRespondedFsbo({ dry = true, by = 'agent' } = {}) {
   return { dry, would_resume: resume.length, keeping_off: keepOff.length, resume, keep_off: keepOff }
 }
 
+// RE-DATE ROWS SCHEDULED UNDER AN OLD CADENCE (John, 2026-10-20).
+//
+// scheduleNextFsbo only decides the gap AFTER a text goes out, so a cadence change leaves
+// every waiting row on the old clock. When Text 2 moved to DOM 30, three sellers already
+// had Text 2 booked on the old +7 rule and would have been texted at DOM 20 instead.
+//
+// DRY BY DEFAULT, and by default it will only ever push a text LATER. Pulling one earlier
+// means texting a real seller sooner than they were promised to be left alone, so that
+// needs `allow_earlier` said out loud.
+export async function resyncFsboSchedule({ dry = true, clientIds = null, allowEarlier = false, by = 'agent' } = {}) {
+  const only = Array.isArray(clientIds) && clientIds.length ? new Set(clientIds.map(Number)) : null
+  const rows = db.all("SELECT * FROM fsbo_followups WHERE status='active' AND next_send_at IS NOT NULL")
+  const out = []
+  for (const r of rows) {
+    if (only && !only.has(Number(r.client_id))) continue
+    const c = db.get('SELECT id, first_name, last_name, address FROM clients WHERE id=?', [r.client_id])
+    const name = c ? `${c.first_name || ''} ${c.last_name || ''}`.trim() : `#${r.client_id}`
+    let ev = null
+    try { ev = await evaluateFsboCampaignEligibility(r.client_id) } catch {}
+    const attempts = Number(r.attempt_count) || 0
+    // Re-run the CURRENT rule from the last text actually sent, not from today, so the
+    // seller's own clock is respected rather than restarted.
+    const from = r.last_sent_at ? new Date(r.last_sent_at) : new Date()
+    const proposed = scheduleNextFsbo(attempts, from, ev?.dom)
+    const current = new Date(r.next_send_at)
+    const deltaDays = Math.round((proposed - current) / DAY * 10) / 10
+    const row = {
+      client_id: r.client_id, name, address: c?.address || null, attempts, dom: ev?.dom ?? null,
+      current: r.next_send_at, proposed: proposed.toISOString(), delta_days: deltaDays,
+    }
+    if (Math.abs(deltaDays) < 0.5) { row.action = 'unchanged'; out.push(row); continue }
+    if (deltaDays < 0 && !allowEarlier) { row.action = 'skipped_would_be_earlier'; out.push(row); continue }
+    row.action = 'rescheduled'
+    if (!dry) {
+      db.run('UPDATE fsbo_followups SET next_send_at=?, updated_at=? WHERE client_id=? AND status=?',
+        [row.proposed, nowIso(), r.client_id, 'active'])
+      logFsbo(r.client_id, 'rescheduled', { reason: `cadence re-sync by ${by}`, dom: ev?.dom ?? null, next_send_at: row.proposed })
+    }
+    out.push(row)
+  }
+  const n = (a) => out.filter(x => x.action === a).length
+  return { dry, allow_earlier: allowEarlier, considered: out.length,
+    rescheduled: n('rescheduled'), unchanged: n('unchanged'), skipped_earlier: n('skipped_would_be_earlier'), rows: out }
+}
+
 export function fsboCampaignState(clientId) {
   const row = fu(clientId)
   const log = db.all('SELECT * FROM fsbo_campaign_log WHERE client_id=? ORDER BY created_at DESC LIMIT 30', [clientId])

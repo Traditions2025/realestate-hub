@@ -368,6 +368,20 @@ router.post('/fsbo/campaign/reactivate-responded', async (req, res) => {
     res.json(m.reactivateRespondedFsbo({ dry: req.body?.dry !== false, by: req.user?.name || req.user?.email || 'agent' }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
+// Re-date waiting rows onto the CURRENT cadence. DRY BY DEFAULT, and it will only push a
+// text later unless allow_earlier is sent. Must sit above '/fsbo/campaign/:clientId' or
+// that route swallows it.
+router.post('/fsbo/campaign/resync-schedule', async (req, res) => {
+  try {
+    const m = await import('../fsbo-followup.js')
+    res.json(await m.resyncFsboSchedule({
+      dry: req.body?.dry !== false,
+      clientIds: Array.isArray(req.body?.client_ids) ? req.body.client_ids : null,
+      allowEarlier: req.body?.allow_earlier === true,
+      by: req.user?.name || req.user?.email || 'agent',
+    }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/fsbo/campaign/stats', async (_req, res) => {
   const m = await import('../fsbo-followup.js'); res.json(m.fsboCampaignStats())
 })

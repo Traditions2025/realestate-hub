@@ -353,3 +353,80 @@ test('attempt 3 now draws from the plain availability rotation', () => {
   // attempt 1 and 2 are the two named messages; everything after falls to pickFsboAngle.
   assert.match(src, /else if \(attempt === 2\)[\s\S]{0,200}else \{ angle = pickFsboAngle/)
 })
+
+/* ---------- re-dating rows left on an old cadence (John, 2026-10-20) ---------- */
+
+// scheduleNextFsbo only sets the gap AFTER a text sends, so changing the cadence leaves
+// every waiting row on the old clock. Three real sellers had Text 2 booked on the old +7
+// rule and would have been texted at DOM 20 instead of DOM 30.
+function enrolledWithSchedule(domValue, attempts, lastSentDaysAgo, nextInDays) {
+  const c = mkFsbo({ fsbo_dom: String(domValue) })
+  db.run(`INSERT INTO fsbo_followups (client_id, status, enrolled_at, attempt_count, last_sent_at, next_send_at, updated_at)
+          VALUES (?, 'active', ?, ?, ?, ?, ?)`,
+    [c.id, nowIso(), attempts,
+      new Date(Date.now() - lastSentDaysAgo * 86400000).toISOString(),
+      new Date(Date.now() + nextInDays * 86400000).toISOString(), nowIso()])
+  return c
+}
+
+test('re-sync is DRY by default and writes nothing', async () => {
+  const c = enrolledWithSchedule(18, 1, 5, 2)        // Text 2 booked 2 days out, old +7 rule
+  const before = db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at
+  const r = await f.resyncFsboSchedule({ clientIds: [c.id] })
+  assert.equal(r.dry, true)
+  const after = db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at
+  assert.equal(after, before, 'a dry run must not move the date')
+})
+
+test('it pushes Text 2 out to DOM 30 instead of the old +7', async () => {
+  const c = enrolledWithSchedule(18, 1, 5, 2)
+  const r = await f.resyncFsboSchedule({ clientIds: [c.id], dry: false })
+  assert.equal(r.rescheduled, 1, JSON.stringify(r.rows))
+  const row = r.rows[0]
+  assert.ok(row.delta_days > 0, 'moved later, not earlier: ' + row.delta_days)
+  const after = db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at
+  assert.equal(after, row.proposed)
+})
+
+test('it refuses to pull a text EARLIER unless told to', async () => {
+  // attempt 3 under the old rule was given ~30 days; the new rule says 15. Shortening a
+  // gap means texting a real seller sooner than promised, so it needs saying out loud.
+  const c = enrolledWithSchedule(60, 3, 1, 30)
+  const dryR = await f.resyncFsboSchedule({ clientIds: [c.id] })
+  assert.equal(dryR.skipped_earlier, 1, JSON.stringify(dryR.rows))
+  assert.equal(dryR.rescheduled, 0)
+  const before = db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at
+  await f.resyncFsboSchedule({ clientIds: [c.id], dry: false })
+  assert.equal(db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at, before,
+    'still untouched without allow_earlier')
+  const r2 = await f.resyncFsboSchedule({ clientIds: [c.id], dry: false, allowEarlier: true })
+  assert.equal(r2.rescheduled, 1)
+  assert.ok(r2.rows[0].delta_days < 0)
+})
+
+test('it only touches the leads it was given', async () => {
+  const mine = enrolledWithSchedule(18, 1, 5, 2)
+  const other = enrolledWithSchedule(18, 1, 5, 2)
+  const untouched = db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [other.id]).next_send_at
+  await f.resyncFsboSchedule({ clientIds: [mine.id], dry: false })
+  assert.equal(db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [other.id]).next_send_at, untouched)
+})
+
+test('it measures from the last text sent, not from today', async () => {
+  // Same lead, same DOM, but the last text went out 10 days ago rather than 1. The new
+  // date must hang off that text, or a re-sync silently restarts everyone's clock.
+  const recent = enrolledWithSchedule(18, 2, 1, 40)
+  const older = enrolledWithSchedule(18, 2, 10, 40)
+  const a = await f.resyncFsboSchedule({ clientIds: [recent.id], allowEarlier: true })
+  const b = await f.resyncFsboSchedule({ clientIds: [older.id], allowEarlier: true })
+  assert.ok(new Date(a.rows[0].proposed) > new Date(b.rows[0].proposed),
+    'the lead texted longer ago is due sooner')
+})
+
+test('a paused or removed lead is never re-dated back into the queue', async () => {
+  const c = enrolledWithSchedule(18, 1, 5, 2)
+  db.run("UPDATE fsbo_followups SET status='removed' WHERE client_id=?", [c.id])
+  const r = await f.resyncFsboSchedule({ clientIds: [c.id], dry: false, allowEarlier: true })
+  assert.equal(r.considered, 0, 'only active rows are considered')
+  assert.equal(db.get('SELECT status FROM fsbo_followups WHERE client_id=?', [c.id]).status, 'removed')
+})
