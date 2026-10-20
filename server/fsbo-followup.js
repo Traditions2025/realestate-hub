@@ -766,6 +766,15 @@ export async function resyncFsboSchedule({ dry = true, clientIds = null, allowEa
     let ev = null
     try { ev = await evaluateFsboCampaignEligibility(r.client_id) } catch {}
     const attempts = Number(r.attempt_count) || 0
+    // NOTHING SENT YET = LEAVE IT ALONE. The cadence governs the gap BETWEEN texts; the
+    // first one is dated by enrolment. The first dry run of this caught it: seven sellers
+    // waiting on Text 1 tomorrow would have been pushed out a fortnight, because
+    // scheduleNextFsbo(0) falls through to the 15-day branch.
+    if (attempts < 1) {
+      out.push({ client_id: r.client_id, name, address: c?.address || null, attempts, dom: ev?.dom ?? null,
+        current: r.next_send_at, proposed: r.next_send_at, delta_days: 0, action: 'skipped_not_yet_texted' })
+      continue
+    }
     // Re-run the CURRENT rule from the last text actually sent, not from today, so the
     // seller's own clock is respected rather than restarted.
     const from = r.last_sent_at ? new Date(r.last_sent_at) : new Date()
@@ -788,7 +797,9 @@ export async function resyncFsboSchedule({ dry = true, clientIds = null, allowEa
   }
   const n = (a) => out.filter(x => x.action === a).length
   return { dry, allow_earlier: allowEarlier, considered: out.length,
-    rescheduled: n('rescheduled'), unchanged: n('unchanged'), skipped_earlier: n('skipped_would_be_earlier'), rows: out }
+    rescheduled: n('rescheduled'), unchanged: n('unchanged'),
+    skipped_earlier: n('skipped_would_be_earlier'), skipped_not_yet_texted: n('skipped_not_yet_texted'),
+    rows: out }
 }
 
 export function fsboCampaignState(clientId) {

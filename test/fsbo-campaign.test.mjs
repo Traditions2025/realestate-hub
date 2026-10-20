@@ -430,3 +430,19 @@ test('a paused or removed lead is never re-dated back into the queue', async () 
   assert.equal(r.considered, 0, 'only active rows are considered')
   assert.equal(db.get('SELECT status FROM fsbo_followups WHERE client_id=?', [c.id]).status, 'removed')
 })
+
+test('a lead still waiting on Text 1 is never re-dated', async () => {
+  // The first dry run against production caught this: seven sellers with attempt_count 0
+  // were due Text 1 the next morning, and the re-sync wanted to push them out a fortnight,
+  // because scheduleNextFsbo(0) falls through to the 15-day branch. The cadence governs the
+  // gap BETWEEN texts; enrolment dates the first one.
+  const c = mkFsbo({ fsbo_dom: '57' })
+  const tomorrow = new Date(Date.now() + 86400000).toISOString()
+  db.run(`INSERT INTO fsbo_followups (client_id, status, enrolled_at, attempt_count, next_send_at, updated_at)
+          VALUES (?, 'active', ?, 0, ?, ?)`, [c.id, nowIso(), tomorrow, nowIso()])
+  const r = await f.resyncFsboSchedule({ clientIds: [c.id], dry: false, allowEarlier: true })
+  assert.equal(r.skipped_not_yet_texted, 1, JSON.stringify(r.rows))
+  assert.equal(r.rescheduled, 0)
+  assert.equal(db.get('SELECT next_send_at FROM fsbo_followups WHERE client_id=?', [c.id]).next_send_at, tomorrow,
+    'Text 1 must stay exactly where enrolment put it')
+})
