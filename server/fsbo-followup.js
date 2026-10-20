@@ -88,15 +88,37 @@ export function nextValidSlot(from = new Date()) {
   }
   return d
 }
-// Next touch after attempt N just sent: +7d flat after attempts 1 and 2 (the approved
-// opening cadence), then an availability check every 30 days or so for as long as the
-// listing stays Available.
+// Next touch after attempt N just sent (John, 2026-10-20):
 //
-// Was 40-47 days. John, 2026-10-15: "after 30 days should reach out to ask if it's still
-// available". The 3-day jitter stays so a batch of leads enrolled on the same day does not
-// text them all on the same day a month later.
-export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
-  const baseDays = attemptJustSent <= 2 ? 7 : rule('fsbo_availability_days') + Math.floor(Math.random() * 4)
+//   after Text 1  -> Text 2 lands on DOM 30, floored at 15 days
+//   after Text 2  -> +15 days
+//   after Text 3  -> +15 days
+//   after that    -> every 30 days or so, for as long as the listing stays Available
+//
+// WHY THE FLOOR. "Text 2 on the 30th day DOM" is a position on the listing's clock, not a
+// gap, and on the day this changed 26 of the 40 eligible sellers were ALREADY past DOM 30
+// - several past DOM 300. Taken literally their Text 2 was due in the past, which means it
+// would have fired in the same sweep as Text 1: two cold texts back to back. The 15-day
+// floor is John's own rhythm from the rest of this sequence, and it costs nothing in the
+// normal case: a seller who enrols at the DOM 14 threshold still gets Text 2 at DOM 29-30.
+//
+// The 3-day jitter on the long gap stays, so a batch enrolled on one day does not all text
+// again on the same day a month later. The 15s are flat, as the old 7 was.
+const SECOND_TEXT_DOM = 30
+const SECOND_TEXT_MIN_GAP = 15
+export function scheduleNextFsbo(attemptJustSent, from = new Date(), domNow = null) {
+  let baseDays
+  if (attemptJustSent === 1) {
+    const d = Number(domNow)
+    // DOM unknown (the backfill path has no listing clock): assume a lead that enrolled at
+    // the threshold, which is what DOM 30 means for almost everyone.
+    const toDom30 = Number.isFinite(d) && d > 0 ? SECOND_TEXT_DOM - d : SECOND_TEXT_DOM - rule('fsbo_campaign_dom_threshold')
+    baseDays = Math.max(toDom30, SECOND_TEXT_MIN_GAP)
+  } else if (attemptJustSent <= 3) {
+    baseDays = SECOND_TEXT_MIN_GAP
+  } else {
+    baseDays = rule('fsbo_availability_days') + Math.floor(Math.random() * 4)
+  }
   let d = new Date(from.getTime() + baseDays * DAY)
   const wd = () => chi(d).weekday
   if (wd() === 'Sat') d = new Date(d.getTime() + (Math.random() < 0.5 ? -DAY : 2 * DAY))
@@ -113,21 +135,13 @@ export function scheduleNextFsbo(attemptJustSent, from = new Date()) {
 // (the still-available Text 2 copy is the one historical exception, kept as approved).
 function street(c) { return c.address || 'the property' }
 function msgStep1(c) { return `${greeting()}, I'm John with Matt Smith Team at RE/MAX. Our team noticed your place on ${street(c)} for sale, beautiful home. Just want to make sure it's still available? MattSmithTeam.com` }
-// The market-analysis message (sent as Text 3), now 2 texts.
+// THE MARKET-ANALYSIS PAIR IS GONE (John, 2026-10-20: "remove the 2 part text 3").
 //
-// REMOVED 2026-10-05 (John): the opening credibility pitch - the homes-sold count, the
-// years-of-experience line, and the claim about which weeks on market matter most. Never
-// removed before despite the memory of it; git shows it was only ever REWORDED (bf27950).
-// The exact wording is deliberately NOT quoted here, so a test can assert the phrases
-// appear nowhere in this file.
-//
-// NOTE: the first remaining text still opens "At this point," which referred to the weeks
-// described in the deleted message. Left exactly as approved rather than rewritten, because
-// this is the approved library - flagged to John to reword or drop.
-const MSG_ANALYSIS = [
-  "At this point, you might be thinking about adjusting the price. Before making a price reduction, though, it can be worth looking at whether price is actually the issue or if there are a few things that could be adjusted with the marketing or positioning first.",
-  "Our team would be happy to put together an analysis of your home and give you our perspective if that would be helpful.",
-]
+// It was the last of the old pitch-shaped copy. Its opening credibility block came out on
+// 2026-10-05, which left the survivor starting "At this point," - a reference to weeks that
+// no longer appeared anywhere. Rather than reword a dangling sentence the whole step is
+// removed, and attempt 3 onward now draws from the plain availability rotation like every
+// later touch. Nothing in this sequence pitches an analysis any more.
 function msgStillAvailable(c) { return `Hi ${c.first_name || 'there'}, It's John with Matt Smith Team at REMAX wanted to see if your home at ${street(c)} is still available for sale? It still shows active on Zillow site but those sites don't always tell me everything I need to know.` }
 
 // CAME OFF THE MARKET WITHOUT SELLING (John, 2026-10-15). One message, once, when the
@@ -373,16 +387,8 @@ async function sendFsbo(client, body, { proactive = true } = {}) {
 
 // Send several texts to the same lead in order, spaced a few seconds apart so they
 // arrive in sequence. Stops if any send is gated/fails; ok reflects the FIRST text.
-async function sendFsboSeq(client, bodies, opts = {}) {
-  let first = null
-  for (let i = 0; i < bodies.length; i++) {
-    if (i) await new Promise(r => setTimeout(r, 8000))
-    const r = await sendFsbo(client, bodies[i], opts)
-    if (i === 0) first = r
-    if (!r.ok) break
-  }
-  return first || { ok: false, reason: 'empty' }
-}
+// The two-texts-eight-seconds-apart sender existed only for the market-analysis pair and
+// went with it on 2026-10-20. Every FSBO step is a single text now.
 
 // One-time data migration of legacy sequence rows into campaign shape.
 function migrateLegacyRows() {
@@ -531,19 +537,19 @@ async function sendNextFsbo(row) {
     } catch {}
   }
   const attempt = (Number(row.attempt_count) || 0) + 1
-  let body, angle, templateKey, multi = null
+  let body, angle, templateKey
   if (attempt === 1) { body = msgStep1(c); angle = 'AVAILABILITY_CHECK'; templateKey = 'step1' }
   else if (attempt === 2) { body = msgStillAvailable(c); angle = 'STILL_AVAILABLE'; templateKey = 'step2' }
-  else if (attempt === 3) { multi = MSG_ANALYSIS; body = MSG_ANALYSIS[0]; angle = 'MARKET_ANALYSIS'; templateKey = 'step3' }
   else { angle = pickFsboAngle(cid, ev.dom); templateKey = `angle_${angle}`; body = FSBO_ANGLES[angle].text(street(c)) }
-  const r = multi ? await sendFsboSeq(c, multi) : await sendFsbo(c, body)
+  // Every step is a single text now; the only multi-text message was the removed analysis pair.
+  const r = await sendFsbo(c, body)
   if (!r.ok) {
     const push = nextValidSlot(new Date(Date.now() + DAY)).toISOString()
     db.run('UPDATE fsbo_followups SET next_send_at=?, updated_at=? WHERE client_id=?', [push, nowIso(), cid])
     logFsbo(cid, 'deferred', { reason: 'GATED: ' + r.reason, dom: ev.dom, next_send_at: push })
     return 'deferred'
   }
-  const next = scheduleNextFsbo(attempt).toISOString()
+  const next = scheduleNextFsbo(attempt, new Date(), ev.dom).toISOString()
   db.run(`UPDATE fsbo_followups SET attempt_count=?, step=?, last_sent_at=?, last_angle=?, next_send_at=?,
           first_text_at=COALESCE(first_text_at, ?), stop_reason=NULL, updated_at=? WHERE client_id=?`,
     [attempt, Math.min(attempt, 3), nowIso(), angle, next, nowIso(), nowIso(), cid])

@@ -199,14 +199,51 @@ test('S15: Saturday/after-hours threshold rolls to a valid weekday window', () =
   const wd2 = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(evening)
   assert.equal(wd2, 'Thu')
 })
-test('cadence: +7d after attempts 1-2, then ~30 days, always on weekdays', () => {
-  for (const attempt of [1, 2]) {
-    const d = f.scheduleNextFsbo(attempt, new Date('2026-09-16T15:00:00Z'))
-    const gap = (d - new Date('2026-09-16T15:00:00Z')) / 86400000
-    assert.ok(gap >= 5.5 && gap <= 8.5, `attempt ${attempt} gap ~7d: ` + gap.toFixed(1))
+// John, 2026-10-20: Text 2 moves to DOM 30, the analysis pair is gone, and the two touches
+// after Text 2 are 15 days apart before the 30-day rhythm takes over.
+const FROM = new Date('2026-09-16T15:00:00Z')
+const gapOf = (d) => (d - FROM) / 86400000
+
+test('Text 2 lands on DOM 30 for a seller who enrolled at the threshold', () => {
+  // DOM 14 at Text 1 -> 16 days later is DOM 30.
+  const gap = gapOf(f.scheduleNextFsbo(1, FROM, 14))
+  assert.ok(gap >= 15 && gap <= 18, 'about 16 days: ' + gap.toFixed(1))
+})
+
+test('Text 2 is closer when the seller enrolled later in the listing', () => {
+  // DOM 20 at Text 1 -> DOM 30 is 10 days out, but the 15-day floor applies.
+  const gap = gapOf(f.scheduleNextFsbo(1, FROM, 20))
+  assert.ok(gap >= 14 && gap <= 17, 'floored at 15 days: ' + gap.toFixed(1))
+})
+
+test('a seller already PAST DOM 30 never gets Text 2 back-to-back with Text 1', () => {
+  // This is the case that matters: on the day the rule changed, 26 of 40 eligible sellers
+  // were past DOM 30 and several were past DOM 300. Taken literally their Text 2 was due
+  // in the PAST, which would have sent it in the same sweep as Text 1.
+  for (const dom of [30, 31, 58, 189, 843]) {
+    const gap = gapOf(f.scheduleNextFsbo(1, FROM, dom))
+    // 14 rather than 15: a slot landing on a Saturday can roll back a day.
+    assert.ok(gap >= 14, `DOM ${dom} must still wait about 15 days, got ` + gap.toFixed(1))
   }
+})
+
+test('an unknown DOM falls back to the threshold assumption, never to zero', () => {
+  for (const bad of [null, undefined, '', 0, NaN, 'abc']) {
+    const gap = gapOf(f.scheduleNextFsbo(1, FROM, bad))
+    assert.ok(gap >= 15, `DOM ${JSON.stringify(bad)} gave ` + gap.toFixed(1))
+  }
+})
+
+test('the two touches after Text 2 are 15 days apart', () => {
+  for (const attempt of [2, 3]) {
+    const gap = gapOf(f.scheduleNextFsbo(attempt, FROM))
+    assert.ok(gap >= 14 && gap <= 17, `attempt ${attempt} gap ~15d: ` + gap.toFixed(1))
+  }
+})
+
+test('cadence: from attempt 4 onward it is ~30 days, always on weekdays', () => {
   for (let i = 0; i < 25; i++) {
-    const d = f.scheduleNextFsbo(3 + (i % 4), new Date('2026-09-16T15:00:00Z'))
+    const d = f.scheduleNextFsbo(4 + (i % 4), new Date('2026-09-16T15:00:00Z'))
     const wd = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(d)
     assert.ok(!['Sat', 'Sun'].includes(wd), 'never a weekend: ' + wd)
     const gap = (d - new Date('2026-09-16T15:00:00Z')) / 86400000
@@ -299,11 +336,20 @@ test('the 2,000-homes credibility pitch can never be sent again', () => {
   assert.ok(!/35\+ years/.test(src), 'no reworded survivor either')
 })
 
-test('Text 3 still sends something, and step 3 is still wired', () => {
+test('the market-analysis pair is gone, and nothing still tries to send it', () => {
+  // John, 2026-10-20: "remove the 2 part text 3". Its opening credibility block went on
+  // 2026-10-05, which left the survivor starting "At this point," - a reference to weeks
+  // that no longer appeared anywhere. The whole step is removed rather than reworded.
   const src = fs.readFileSync(new URL('../server/fsbo-followup.js', import.meta.url), 'utf8')
-  const block = /const MSG_ANALYSIS = \[([\s\S]*?)\]/.exec(src)
-  assert.ok(block, 'MSG_ANALYSIS should still exist')
-  const texts = block[1].split('\n').filter(l => l.trim().startsWith('"'))
-  assert.equal(texts.length, 2, 'two texts remain after the removal')
-  assert.match(src, /attempt === 3\) \{ multi = MSG_ANALYSIS/, 'step 3 still sends them')
+  assert.ok(!/const MSG_ANALYSIS = \[/.test(src), 'the message pair is gone')
+  assert.ok(!/attempt === 3/.test(src), 'no step 3 branch remains')
+  assert.ok(!/At this point, you might be thinking/.test(src), 'the dangling opener is gone')
+  assert.ok(!/put together an analysis of your home/.test(src))
+  assert.ok(!/sendFsboSeq\s*\(/.test(src), 'the two-text sender went with it')
+})
+
+test('attempt 3 now draws from the plain availability rotation', () => {
+  const src = fs.readFileSync(new URL('../server/fsbo-followup.js', import.meta.url), 'utf8')
+  // attempt 1 and 2 are the two named messages; everything after falls to pickFsboAngle.
+  assert.match(src, /else if \(attempt === 2\)[\s\S]{0,200}else \{ angle = pickFsboAngle/)
 })
