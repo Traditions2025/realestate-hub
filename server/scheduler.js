@@ -890,6 +890,11 @@ export function startScheduler() {
   // Group-thread safety net: heal any inbound group message whose webhook write was
   // lost (deploy swap, transient error) from Twilio's own record — every 10 minutes.
   setInterval(() => { import('./routes/inbox.js').then(m => m.resyncRecentGroupThreads()).catch(() => {}) }, 10 * 60 * 1000)
+  // Group delivery receipts: the Conversations API fires no status webhook, so an outgoing
+  // group text has no delivery_status until someone asks Twilio for it. The send schedules
+  // its own check 25 seconds out; this is the backstop for the ones that missed, including
+  // anything sent while the Hub was restarting.
+  setInterval(() => { import('./twilio-conversations.js').then(m => m.reconcileGroupReceipts({ limit: 40 })).catch(() => {}) }, 10 * 60 * 1000)
   // Follow-Up Coverage: 10-min incremental sweep (recalc leads whose tasks/comms/AI/
   // drips/transactions just changed + expire due snoozes); hourly call to the daily
   // audit, which self-throttles to one full-database pass per day.

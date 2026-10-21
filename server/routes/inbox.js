@@ -1592,10 +1592,21 @@ router.post('/group-text', async (req, res) => {
     db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, sent_by_type, conversation_sid, group_meta, occurred_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ['text', 'outgoing', null, `Group: ${names}`.slice(0, 120), '', '', body.replace(/\s+/g, ' ').slice(0, 160), body, 'conv_' + out.messageSid, 'grp_' + out.conversationSid, 'read', 'human', out.conversationSid, meta, nowIso()])
-    // Twilio binds a phone + our Hub number to ONE group conversation at a time, so
-    // someone already sitting in another group thread (e.g. Matt in the team group)
-    // can't join a second one. Never leave them out silently: send a labeled 1:1
-    // copy of the group message instead, and tell the UI who got copies.
+    // Delivery receipts land a few seconds after the send, and the Conversations API fires
+    // no status webhook, so nothing would ever fill delivery_status and the thread would sit
+    // on "no receipt" forever (John spotted exactly that on the first real send). Ask Twilio
+    // shortly after. Fire and forget: a failed reconcile must never fail a sent message, and
+    // the periodic pass will catch it anyway.
+    setTimeout(() => {
+      import('../twilio-conversations.js')
+        .then(m => m.reconcileGroupReceipts({ limit: 5 }))
+        .catch(() => {})
+    }, 25000).unref?.()
+
+    // A participant can now sit in any number of groups at once, so being "already in
+    // another group" is no longer a reason to be left out. Anyone still skipped here failed
+    // for a real reason, and a real failure should not be silent: send a labeled 1:1 copy
+    // of the group message instead, and tell the UI who got copies.
     const copies = []
     for (const s of (out.skipped || [])) {
       try {

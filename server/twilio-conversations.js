@@ -221,6 +221,64 @@ export async function sendConversationMessage(convSid, body) {
 // Per-recipient delivery receipts for a group conversation's recent outbound
 // messages — the only way to CONFIRM a group text reached each phone (the plain
 // messaging status callbacks don't fire for Conversations sends).
+// WHY A GROUP TEXT SHOWED "no receipt" (John, 2026-10-21, looking at the first real send).
+//
+// A 1:1 text gets its delivery status from Twilio's status webhook, which matches the row by
+// external_id = 'twilio_' + the SM... SID. A GROUP text goes out through the Conversations
+// API, which returns an IM... SID instead and fires no such webhook. The row is stored with
+// external_id = 'conv_' + IM..., so the webhook has nothing to match and delivery_status
+// stays empty forever. Twilio had "delivered" for both recipients the whole time; nothing
+// ever asked.
+//
+// This asks. It is deliberately a pull rather than a webhook, because receipts land a few
+// seconds after the send and there is no Conversations-side callback for them.
+//
+// A group has several recipients and the Hub has one row, so the status is a summary:
+// delivered only when everyone got it, partial when some did, undelivered when nobody did.
+// Partial is the one that matters, and it is exactly the case the old code hid.
+export async function reconcileGroupReceipts({ limit = 25, sinceDays = 3 } = {}) {
+  const rows = db.all(
+    `SELECT id, external_id, conversation_sid FROM communications
+      WHERE direction='outgoing' AND conversation_sid IS NOT NULL AND conversation_sid <> ''
+        AND (delivery_status IS NULL OR delivery_status = '')
+        AND occurred_at >= datetime('now', ?)
+      ORDER BY id DESC LIMIT ?`, [`-${Number(sinceDays) || 3} days`, Math.max(1, Number(limit) || 25)])
+  if (!rows.length) return { checked: 0, updated: 0, rows: [] }
+
+  const byConv = new Map()
+  for (const r of rows) {
+    if (!byConv.has(r.conversation_sid)) byConv.set(r.conversation_sid, [])
+    byConv.get(r.conversation_sid).push(r)
+  }
+
+  const out = []
+  let updated = 0
+  for (const [convSid, convRows] of byConv) {
+    let data = null
+    try { data = await groupDeliveryReceipts(convSid, 10) } catch (e) { out.push({ conversation: convSid, error: e.message }); continue }
+    const bySid = new Map((data.messages || []).filter(m => !m.inbound).map(m => [m.message_sid, m]))
+    for (const r of convRows) {
+      const sid = String(r.external_id || '').replace(/^conv_/, '')
+      const m = bySid.get(sid)
+      if (!m || !m.delivery) continue
+      const d = m.delivery
+      const status =
+        d.undelivered === 'all' || d.failed === 'all' ? 'undelivered'
+          : d.delivered === 'all' ? 'delivered'
+            : (d.delivered === 'some' || d.failed === 'some' || d.undelivered === 'some') ? 'partial'
+              : d.sent === 'all' ? 'sent' : null
+      if (!status) continue
+      // Name who missed it. "partial" with no names is the same dead end as no receipt.
+      const missed = (m.receipts || []).filter(x => !/delivered|read/i.test(String(x.status || ''))).map(x => x.to || x.participant_sid)
+      db.run('UPDATE communications SET delivery_status=?, error_message=? WHERE id=?',
+        [status, missed.length ? `not delivered to ${missed.join(', ')}` : null, r.id])
+      updated++
+      out.push({ id: r.id, conversation: convSid, status, total: d.total ?? null, missed })
+    }
+  }
+  return { checked: rows.length, updated, rows: out }
+}
+
 export async function groupDeliveryReceipts(convSid, limit = 3) {
   const sid = await ensureConversationsService()
   const j = await tw('GET', `/Services/${sid}/Conversations/${convSid}/Messages?Order=desc&PageSize=${Math.min(Number(limit) || 3, 10)}`)
