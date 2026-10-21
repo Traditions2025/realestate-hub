@@ -85,36 +85,27 @@ test('turning the sound on previews it, which also unlocks audio', () => {
 })
 
 // ── the email that never existed ─────────────────────────────────────────────────────
-test('an inbound text now sends an email', () => {
-  assert.match(gmailSrc, /export async function notifyNewText\(client, body, fromNumber\)/)
-  assert.match(inboxSrc, /m\.notifyNewText\(client, body, from\)/)
+// The email alert for an inbound text is notifyInboundText() in routes/inbox.js, and it
+// has existed all along. On 2026-10-21 I added a SECOND one, having searched for the
+// sender and missed the first; John's screenshot showed Matt receiving both. Removed the
+// same day. These tests now guard that there is exactly ONE.
+test('exactly one place emails on an inbound text', () => {
+  assert.match(inboxSrc, /async function notifyInboundText\(client, body, fromPhone\)/)
+  assert.ok(!/notifyNewText/.test(inboxSrc), 'the duplicate must stay gone')
+  // One definition, called from the SMS webhook and the two group-text paths. What
+  // matters is that no SECOND notifier exists alongside it.
+  assert.match(inboxSrc, /notifyInboundText\(client, body \|\| \(media\.length \? '\[media\]' : ''\), from\)/)
 })
 
-test('it goes to the same people as the inbound-email alert, John included', () => {
-  assert.match(gmailSrc, /johnwithmattsmithteam@gmail\.com/)
-  const fn = gmailSrc.slice(gmailSrc.indexOf('export async function notifyNewText'))
-  assert.match(fn, /BASE_NOTIFY_RECIPIENTS \+ ',' \+ extra/,
-    'same base pair plus the same configurable extras')
+test('its recipients are a setting that DEFAULTS to John, plus an always-CC', () => {
+  const fn = inboxSrc.slice(inboxSrc.indexOf('async function notifyInboundText'))
+  assert.match(fn, /getSetting\('inbox_notify_email', 'johnwithmattsmithteam@gmail\.com'\)/)
+  assert.match(fn, /getSetting\('inbox_notify_always_cc', 'mattsmithremax@gmail\.com'\)/)
 })
 
-test('it can be switched off without a deploy', () => {
-  assert.match(gmailSrc, /text_notify_email_enabled/)
-})
-
-test('it never blocks storing the message', () => {
-  const line = inboxSrc.split(String.fromCharCode(10)).find(l => l.includes('notifyNewText'))
-  assert.match(line, /\.catch\(\(\) => \{\}\)/, 'fire and forget')
-  assert.ok(!/await .*notifyNewText/.test(inboxSrc),
-    'awaiting it would hold up the campaign guards that run below')
-})
-
-test('a media-only text still says something useful', () => {
-  const fn = gmailSrc.slice(gmailSrc.indexOf('export async function notifyNewText'))
-  assert.match(fn, /\[photo or media\]/)
-})
-
-test('the subject carries the message, so it is readable from a lock screen', () => {
-  const fn = gmailSrc.slice(gmailSrc.indexOf('export async function notifyNewText'))
-  assert.match(fn, /\$\{name\} texted: "\$\{short\}"/)
-  assert.match(fn, /text\.length > 90/, 'truncated, or a long text wrecks the subject line')
+test('a blank setting would silently cut the main recipient — worth knowing', () => {
+  // getSetting returns the STORED value when the row exists, so an empty string is not
+  // the default. Both rows are currently absent, which is why John is still addressed.
+  const fn = inboxSrc.slice(inboxSrc.indexOf('async function notifyInboundText'))
+  assert.match(fn, /\|\| ''/, 'the fallback to empty string is the trapdoor to remember')
 })

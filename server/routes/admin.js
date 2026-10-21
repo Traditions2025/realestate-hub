@@ -51,6 +51,25 @@ router.get('/email-deliverability', requirePermission('settings.view'), async (r
        WHERE lower(to_email) LIKE ? ORDER BY id DESC LIMIT 15`, ['%' + email + '%'])
   } catch (e) { out.recent_hub_sends = { error: e.message } }
 
+  // What SendGrid actually DID with recent mail to this address. Suppression lists only
+  // say "refused in advance"; this says delivered, deferred, bounced or dropped, per
+  // message. It needs the Email Activity add-on, so a 401/403 here is a plan limit rather
+  // than an answer, and is reported as such.
+  try {
+    const q = encodeURIComponent(`to_email="${email}"`)
+    const r = await fetch(`https://api.sendgrid.com/v3/messages?limit=20&query=${q}`,
+      { headers: { Authorization: 'Bearer ' + key } })
+    if (r.ok) {
+      const j = await r.json().catch(() => ({}))
+      out.sendgrid_activity = (j.messages || []).map(m => ({
+        subject: m.subject, status: m.status, opens: m.opens_count,
+        last_event: m.last_event_time,
+      }))
+    } else {
+      out.sendgrid_activity = { unavailable: `HTTP ${r.status} — Email Activity add-on may not be on this plan` }
+    }
+  } catch (e) { out.sendgrid_activity = { error: e.message } }
+
   out.deliverable = out.suppressed_by.length === 0
   return res.json(out)
 })

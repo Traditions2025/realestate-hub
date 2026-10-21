@@ -757,12 +757,10 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         try { import('../ai-followup/behavioral.js').then(m => m.recordBehavioralEvent(client.id, 'inbound_text', { source: 'sms', ref: externalId })).catch(() => {}) } catch {}
         // P2-4: notification for the inbound text.
         try { import('../notifications.js').then(m => m.notify({ type: 'inbound_text', title: `New text from ${name}`, body: (body || '[media]').slice(0, 160), link: `/clients?open=${client.id}`, client_id: client.id, dedupKey: 'inbound_' + externalId })).catch(() => {}) } catch {}
-        // ...and by email, to the same people the inbound-EMAIL alert reaches. Until
-        // 2026-10-21 an inbound text raised the bell and a web push and nothing else, so
-        // there was no text alert email to go to anyone's address (John asked why his
-        // were not arriving — none were ever sent). Fire-and-forget: a notification must
-        // never hold up storing the message or the campaign guards below it.
-        try { import('../gmail-inbox.js').then(m => m.notifyNewText(client, body, from)).catch(() => {}) } catch {}
+        // NOTE: the email alert for an inbound text is notifyInboundText() further down
+        // this file — it has existed all along. A second one added here on 2026-10-21 was
+        // removed the same day once John's screenshot showed Matt receiving BOTH: I had
+        // searched for the sender and missed the existing one. One alert, one place.
         // Cancelled/Expired Connection Campaign: STOP FIRST, CLASSIFY SECOND.
         // Any inbound from an enrolled lead halts the campaign immediately and
         // flags human follow-up — and the AI must NEVER reply to these leads,
