@@ -100,6 +100,39 @@ export async function notifyNewInbound(client, subject, preview, fromEmail) {
   await sendViaSendGrid(recipients.join(','), 'Matt Smith Team', notifySubject, html, null, [], [], [], 'inbox_notify')
 }
 
+/**
+ * Email the team when a LEAD TEXTS US.
+ *
+ * John, 2026-10-21: "I need to see why text notification I've been getting on email did not
+ * go to my email johnwithmattsmithteam@gmail.com". The answer was that the Hub never sent
+ * one. An inbound text raised the in-app bell and a web push, and nothing else — so no
+ * address was wrong, there was simply no email to address. The text alerts he had been
+ * getting came from another system.
+ *
+ * Same recipients as the inbound-EMAIL alert, so both channels reach the same people, and
+ * the same `inbox_notify_email` setting adds anyone else. Settable off with
+ * `text_notify_email_enabled` = '0' if it ever becomes noise.
+ */
+export async function notifyNewText(client, body, fromNumber) {
+  if (String(getSetting('text_notify_email_enabled', '1')) !== '1') return
+  const extra = getSetting('inbox_notify_email', '') || ''
+  const recipients = [...new Set((BASE_NOTIFY_RECIPIENTS + ',' + extra)
+    .split(/[,;]+/).map(e => e.trim().toLowerCase()).filter(Boolean))]
+  if (!recipients.length) return
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || fromNumber || 'A lead'
+  const text = String(body || '').trim() || '[photo or media]'
+  const short = text.length > 90 ? text.slice(0, 89) + '…' : text
+  const hub = process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com'
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.5;">
+    <p style="margin:0 0 10px;"><strong>${esc(name)}</strong> just texted:</p>
+    <p style="margin:0 0 14px;font-size:16px;"><strong>&ldquo;${esc(text)}&rdquo;</strong></p>
+    <p style="margin:0 0 14px;color:#475569;"><strong>From:</strong> ${esc(fromNumber || '')}</p>
+    <p style="margin:0 0 12px;"><a href="${hub}/clients/${client.id}" style="display:inline-block;background:#B9963B;color:#241a04;font-weight:700;padding:9px 16px;border-radius:8px;text-decoration:none;">Open Lead Profile</a></p>
+    <p style="margin:0;"><a href="${hub}/inbox" style="color:#2563eb;font-weight:600;">Reply in the Hub Inbox</a></p>
+  </div>`
+  await sendViaSendGrid(recipients.join(','), 'Matt Smith Team', `${name} texted: "${short}"`, html, null, [], [], [], 'text_notify')
+}
+
 const nowIso = () => new Date().toISOString()
 const parse = (s, d) => { try { return s ? JSON.parse(s) : d } catch { return d } }
 const mkId = () => 'mb' + Math.random().toString(36).slice(2, 8)

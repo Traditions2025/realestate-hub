@@ -1,12 +1,12 @@
 // P2-4: notification center API. P2-3: web-push subscription management.
 import { Router } from 'express'
 import db from '../database.js'
-import { listNotifications, unreadCount, markRead, markAllRead } from '../notifications.js'
+import { listNotifications, unreadCount, markRead, markAllRead, latestUnread } from '../notifications.js'
 
 const router = Router()
 
 router.get('/', (req, res) => res.json({ unread: unreadCount(), items: listNotifications({ limit: Number(req.query.limit) || 30, unreadOnly: req.query.unread === '1' }) }))
-router.get('/unread-count', (_req, res) => res.json({ unread: unreadCount() }))
+router.get('/unread-count', (_req, res) => res.json({ unread: unreadCount(), latest: latestUnread() }))
 router.post('/:id/read', (req, res) => { markRead(req.params.id); res.json({ success: true }) })
 router.post('/read-all', (_req, res) => { markAllRead(); res.json({ success: true }) })
 

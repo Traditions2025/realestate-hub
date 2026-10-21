@@ -23,6 +23,12 @@ export function listNotifications({ limit = 30, unreadOnly = false } = {}) {
   return db.all(`SELECT * FROM notifications ${where} ORDER BY id DESC LIMIT ?`, [Math.min(Number(limit) || 30, 100)])
 }
 export function unreadCount() { return db.get('SELECT COUNT(*) n FROM notifications WHERE read = 0').n }
+// The newest unread notification, so the bell can tell WHAT arrived without fetching the
+// whole list every 30 seconds. The UI uses it to decide whether to make a sound: a new text
+// chirps, a backup report does not.
+export function latestUnread() {
+  return db.get('SELECT id, type, title FROM notifications WHERE read = 0 ORDER BY id DESC LIMIT 1') || null
+}
 export function markRead(id) { db.run('UPDATE notifications SET read = 1 WHERE id = ?', [Number(id)]) }
 export function markAllRead() { db.run('UPDATE notifications SET read = 1 WHERE read = 0') }
 

@@ -4,6 +4,7 @@ import LoginScreen from './components/LoginScreen'
 import ResetPassword from './components/ResetPassword'
 import CallWidget from './components/CallWidget'
 import { authFetch } from './api'
+import { chirpIfEnabled, chirp, soundEnabled, setSoundEnabled } from './lib/chirp.js'
 import { Toaster } from 'sonner'
 import { ConfirmHost } from './notify'
 
@@ -86,7 +87,20 @@ function NotificationBell() {
   const [pushOn, setPushOn] = useState(false)
   const ref = useRef(null)
   const navigate = useNavigate()
-  const poll = () => authFetch('/api/notifications/unread-count').then(r => r.json()).then(d => setUnread(d.unread || 0)).catch(() => {})
+  // The id of the newest notification we have already reacted to. Seeded on the FIRST poll
+  // rather than starting at 0, so opening the Hub with unread texts waiting does not play a
+  // sound for messages that arrived hours ago (John, 2026-10-21).
+  const lastSeenRef = useRef(null)
+  const [soundOn, setSoundOn] = useState(() => soundEnabled())
+  const poll = () => authFetch('/api/notifications/unread-count').then(r => r.json()).then(d => {
+    setUnread(d.unread || 0)
+    const latest = d.latest || null
+    const prev = lastSeenRef.current
+    lastSeenRef.current = latest ? latest.id : (prev ?? 0)
+    // Only a genuinely NEW inbound text makes a noise. A backup report or a campaign
+    // response still raises the badge silently.
+    if (prev !== null && latest && latest.id > prev && latest.type === 'inbound_text') chirpIfEnabled()
+  }).catch(() => {})
   useEffect(() => { poll(); const t = setInterval(poll, 30000); return () => clearInterval(t) }, [])
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
@@ -124,6 +138,15 @@ function NotificationBell() {
             <strong style={{ fontSize: 15.5 }}>Notifications</strong>
             <div style={{ display: 'flex', gap: 8 }}>
               {!pushOn && <button className="btn-link" style={{ fontSize: 14.5 }} onClick={enablePush}>Enable push</button>}
+              {/* Sound on/off lives here rather than in Settings: it is a per-browser
+                  preference, and the moment you want to silence it is the moment you are
+                  looking at the bell. Clicking it ON also plays the chirp, which both
+                  previews it and satisfies the browser's "audio needs a user gesture" rule
+                  so the first real text is audible. */}
+              <button className="btn-link" style={{ fontSize: 14.5 }} title={soundOn ? 'Text sound is on' : 'Text sound is off'}
+                onClick={() => { const on = setSoundEnabled(!soundOn); setSoundOn(on); if (on) chirp() }}>
+                {soundOn ? '🔊 Sound on' : '🔇 Sound off'}
+              </button>
               <button className="btn-link" style={{ fontSize: 14.5 }} onClick={markAll}>Mark all read</button>
             </div>
           </div>
