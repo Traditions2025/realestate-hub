@@ -1,7 +1,119 @@
 {
-  "generated_at": "2026-10-20T18:20:16.277Z",
+  "generated_at": "2026-10-21T21:05:17.933Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "1eb3579",
+      "date": "2026-10-21T14:27:44-05:00",
+      "subject": "A sent group text now says whether it arrived",
+      "title": "A sent group text now says whether it arrived",
+      "body": "John, looking at the first real group send: \"there's no receipt though on\ntext if it was delivered or not.\" The thread showed \"no receipt\" while\nTwilio had \"delivered\" for both recipients the whole time.\n\nA 1:1 text gets its status from Twilio's status webhook, matched on\nexternal_id = 'twilio_' + the SM... SID. A group text goes out through the\nConversations API, which returns an IM... SID and fires no such webhook.\nThe row is stored as 'conv_' + IM..., so the webhook has nothing to match\nand delivery_status stays empty forever. Everything needed was already on\nthe row; nothing ever asked Twilio for the answer.\n\nreconcileGroupReceipts asks. A pull rather than a webhook because receipts\nland a few seconds after the send and Conversations offers no callback for\nthem. The send schedules its own check 25 seconds out, and a 10-minute\nsweep is the backstop for anything that missed, including sends made while\nthe Hub was restarting.\n\nA group has several recipients and the Hub has one row, so the status is a\nsummary: delivered only when everyone got it, partial when some did,\nundelivered when nobody did. Partial also records WHO missed it, because\n\"partial\" with no names is the same dead end as no receipt at all.\n\nAlso corrected a comment that my own earlier change made false. It still\ntold the reader a phone can only be in one group at a time, which was the\nreason the 1:1 copy fallback existed. That ceiling is gone; the fallback\nnow covers genuine failures only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f02462d",
+      "date": "2026-10-21T14:12:49-05:00",
+      "subject": "The Hub has to be IN the group before it can post to one",
+      "title": "The Hub has to be IN the group before it can post to one",
+      "body": "John hit it on the first real send: \"Group text failed: Message author\nshould be among group MMS participants.\"\n\nThe conversation and every member were created correctly. The send failed\nbecause a group MMS message must be authored BY a participant, and the\nHub was passing the display string \"Matt Smith Team\", which is nobody.\n\nThis is what ProjectedAddress is actually for, and what an earlier attempt\ngot backwards by attaching it to phone numbers, which returns 50407. It is\nthe mask for a CHAT identity: \"a projected address represents a non-native\n(such as Chat) Participant so every member of a group text can see who\nsent each message.\" So the Hub joins the conversation as the identity\nmatt-smith-team wearing our Twilio number, and is then allowed to speak.\nOne stable identity, so every group shows the same sender.\n\nensureHubSeat is idempotent, because the same rule bites on the follow-up\npath too: sendConversationMessage had the identical bug, so the first\nmessage would have failed and every later message into an existing group\nwould have failed the same way. An existing seat counts as success, which\nalso lets an older group be posted into once a seat is added.\n\nIf the seat cannot be taken, the new conversation is deleted rather than\nleft behind. A group nobody can post into is worse than no group.\n\nThe author parameter is gone from both functions. It was dead once the\nidentity became the author, and leaving it would invite someone to set a\nsender that Twilio will reject.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "fa7cc29",
+      "date": "2026-10-21T14:03:08-05:00",
+      "subject": "Group texts: drop the proxy address, which was the whole ceiling",
+      "title": "Group texts: drop the proxy address, which was the whole ceiling",
+      "body": "Twilio's rule, verbatim: \"The same person (i.e., a single personal phone\nnumber) can be part of any number of conversations concurrently, as long\nas the address they are in contact with (the ProxyAddress) is unique.\"\n\nWith one sending number that reads as one group per person, and the old\ncode honoured it by evicting people from their earlier group - silently.\nThat is how four of our nine groups came to reach the wrong people, and\nwhy adding Matt to a new group kept knocking him out of the last one.\n\nThe group-texting guide gives the other form: \"You only have to specify\nthe SMS participant's own personal phone number in\nMessagingBinding.Address. When using group texting, you won't need to\nspecify proxy addresses.\" A participant added that way has no proxy, so\nthe uniqueness rule has nothing to bite on.\n\nProven live before changing anything: in a throwaway Conversations\nService, the same mobile was added to two conversations on this one\nnumber, the second add returned 201, and the first conversation still\nlisted them afterwards. The live Lucas Pietan conversation was read\nbefore and after and was untouched.\n\nAlso gone: the proxy POOL, the twilio_group_proxy_numbers setting and the\nconversation-scanning picker. They existed to buy our way around the\nceiling with extra numbers. The ceiling is gone, so they are moot, and\nnothing needs purchasing.\n\nThe eviction fallback goes too. Without a proxy there is no\ncross-conversation conflict to resolve, so a failed add is now a real\nfailure and is reported rather than papered over by moving someone.\n\nStill unproven: DELIVERY. This was a binding test and sent no messages.\nOne real send to team phones is the remaining step.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5cb541d",
+      "date": "2026-10-21T11:23:16-05:00",
+      "subject": "Remove my duplicate text alert, and ask SendGrid what it actually did",
+      "title": "my duplicate text alert, and ask SendGrid what it actually did",
+      "body": "Two things, both from John's screenshot showing Matt receiving TWO emails for one text.\n\n1. The email alert for an inbound text has existed all along - notifyInboundText() in\n   routes/inbox.js, called from the SMS webhook and both group-text paths. Yesterday I\n   searched for the sender, missed it, concluded the Hub had never sent one, and added a\n   second. Matt got both. Mine is removed; there is one alert in one place again.\n\n2. John is NOT suppressed at SendGrid - bounces, blocks, spam reports, invalid addresses\n   and global unsubscribes all came back clean for his address and Matt's. Both recipient\n   settings are absent, so the defaults apply and he IS addressed. isBlockedEmail only\n   filters throwaway domains, and both are gmail.com. So the Hub sends to both and\n   SendGrid accepts both, which moves the question to what SendGrid DID with it.\n\n   /api/admin/email-deliverability now also reports SendGrid's per-message activity -\n   delivered, deferred, bounced, dropped. That needs the Email Activity add-on, so a\n   401/403 is reported as a plan limit rather than mistaken for an answer.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "removal"
+    },
+    {
+      "hash": "916fa0a",
+      "date": "2026-10-21T11:05:03-05:00",
+      "subject": "Louder text chirp",
+      "title": "Louder text chirp",
+      "body": "John, 2026-10-21: \"make the text message sound a little more louder\". 0.18 -> 0.42.\n\nLoudness here is amplitude, not duration: the two notes stay short, so it carries across\na room without becoming something you switch off by Wednesday. The test now asserts a\nrange rather than a literal, since the exact number is a taste setting.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cd2dbf9",
+      "date": "2026-10-21T10:58:06-05:00",
+      "subject": "Probe the add format instead of assuming it",
+      "title": "Probe the add format instead of assuming it",
+      "body": "The first run sent MessagingBinding.ProjectedAddress with a real mobile\nnumber and got 50407 on every add, including the first, so it tested\nnothing. That was my error: ProjectedAddress is the mask for a CHAT\nparticipant with an Identity - \"a projected address represents a\nnon-native (such as Chat) Participant\" - not a way to add a phone number.\n\nTwilio documents two different forms for a native SMS participant and\nthey disagree with each other. The Group Texting guide says \"You only\nhave to specify the SMS participant's own personal phone number in\nMessagingBinding.Address. When using group texting, you won't need to\nspecify proxy addresses.\" The Participant resource page says Address AND\nProxyAddress are both required.\n\nThat disagreement is the whole question, because the documented ceiling\nis phrased in terms of the proxy: \"The same person can be part of any\nnumber of conversations concurrently, as long as the address they are in\ncontact with (the ProxyAddress) is unique.\" If a group participant has no\nproxy, that rule cannot bite.\n\nSo this version tries address-only first, falls back to address+proxy,\nreports which Twilio actually accepted, and only then asks the real\nquestion with whichever form worked.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4e17efc",
+      "date": "2026-10-21T10:45:46-05:00",
+      "subject": "Check whether SendGrid is refusing an address",
+      "title": "Check whether SendGrid is refusing an address",
+      "body": "Matt receives the text-notification emails and John does not, while both recipient\nsettings sit on their defaults - so the Hub IS addressing him and the problem is\ndelivery. One suppressed address on a multi-recipient send is dropped silently while the\nothers arrive, which is exactly that shape.\n\nGET /api/admin/email-deliverability?email= checks SendGrid's bounces, blocks, spam\nreports, invalid addresses and global unsubscribes, plus what the Hub's own log says it\nsent there. Read-only: lifting a suppression is a separate deliberate act and is not done\nhere.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "dc0daca",
+      "date": "2026-10-21T10:37:07-05:00",
+      "subject": "Diagnostic: can one number hold a person in two Group MMS groups",
+      "title": "Diagnostic: can one number hold a person in two Group MMS groups",
+      "body": "The whole group-texting rebuild rests on one fact Twilio does not\ndocument, and the documented evidence points two ways.\n\n50416, the rule we hit today, says a participant+proxy pair conflicts\nwith any \"active conversation\" - across conversations. That is why adding\nMatt to a second group evicts him from the first; createGroupText binds\npeople with MessagingBinding.ProxyAddress.\n\n50437, the Group MMS equivalent, scopes every cause \"in this\nconversation\", including \"A native GMMS Participant with the same Address\nexists in this conversation\". No cross-conversation rule is documented for\nGroup MMS at all.\n\nSo the case for Group MMS rests on the absence of a rule rather than the\npresence of one, which is not good enough to rebuild on.\n\nThis settles it empirically. It sends NO messages - the conflict fires\nwhen a participant is added, not when one is sent - so the question can be\nanswered without texting anybody. It works inside a throwaway Conversations\nService and deletes it in a finally block. It also reads the live\nconversation holding Matt before and after, so if a Group MMS add disturbs\nan existing proxy binding we learn that here rather than in front of a\nclient.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "70f4a8e",
+      "date": "2026-10-21T10:28:08-05:00",
+      "subject": "Show who actually receives each Hub alert",
+      "title": "Show who actually receives each Hub alert",
+      "body": "Matt was getting text-notification emails and John was not. The recipients come from\napp_settings values that merely DEFAULT to John's address, so once inbox_notify_email was\nwritten to something else the default stopped applying - and nothing in any screen showed\nit, which is why this took a code read to answer.\n\nGET /api/admin/notify-recipients reports each setting, whether it is still on its\ndefault, and the resulting recipient list per alert type. Read-only; addresses only.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "5244631",
+      "date": "2026-10-21T09:43:23-05:00",
+      "subject": "A new text makes a sound, and now sends an email that never existed",
+      "title": "A new text makes a sound, and now sends an email that never existed",
+      "body": "John, 2026-10-21, two things.\n\n1. A chirp when a text arrives. Synthesised with WebAudio rather than shipped as an audio\n   file: nothing to host, nothing for a content policy to block, no load delay before the\n   first one plays. Two short rising notes, the second higher and shorter, which is what\n   makes it read as a chirp rather than a beep; quiet and under a third of a second,\n   because it fires while someone is working.\n\n   Only a genuinely NEW inbound text chirps. /unread-count now reports the newest unread\n   notification, so the bell knows WHAT arrived - a backup report or a campaign response\n   raises the badge silently. The first poll seeds the marker instead of firing for\n   everything already waiting, so opening the Hub with unread texts is silent. Mute is a\n   per-browser toggle in the bell menu, and switching it on plays the chirp, which both\n   previews it and satisfies the browser rule that audio needs a user gesture.\n\n2. \"Why did the text notification email not go to johnwithmattsmithteam@gmail.com?\"\n   Because no address was wrong: the Hub had never sent one. An inbound text raised the\n   in-app bell and a web push and stopped there - notify() writes a row and pushes, it\n   does not email. notifyNewInbound is only ever called for the EMAIL channel. Whatever\n   text alerts he had been getting came from another system.\n\n   notifyNewText now emails on an inbound text, to the same recipients the inbound-email\n   alert uses - John and Matt always, plus the same configurable extras - with the message\n   in the subject so it reads from a lock screen. Settable off with\n   text_notify_email_enabled. Fire-and-forget, so it can never hold up storing the message\n   or the campaign guards below it.\n\ntest/text-notification.test.mjs (17).\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "43528fa",
+      "date": "2026-10-20T16:59:30-05:00",
+      "subject": "Re-sync must not push a seller's FIRST text",
+      "title": "Re-sync must not push a seller's FIRST text",
+      "body": "Caught by the first dry run against production, which is what dry runs are\nfor. Seven sellers with attempt_count 0 were due Text 1 the next morning\nand the re-sync proposed moving them to Nov 4, a fortnight later, because\nscheduleNextFsbo(0) falls through to the 15-day branch.\n\nThe cadence governs the gap BETWEEN texts. Enrolment dates the first one.\nA row with nothing sent yet is now reported as skipped_not_yet_texted and\nleft exactly where it was.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "aa704a5",
+      "date": "2026-10-20T16:57:22-05:00",
+      "subject": "FSBO: re-date rows still waiting on the old cadence",
+      "title": "FSBO: re-date rows still waiting on the old cadence",
+      "body": "scheduleNextFsbo only decides the gap AFTER a text sends, so moving Text 2\nto DOM 30 left every already-booked row on the old clock. Three sellers\nhad Text 2 sitting at the old +7 and would have been texted at DOM 20.\n\nPause/resume cannot fix it: resume sets next_send_at to the next valid\nslot, which sends immediately - the opposite of the problem.\n\nPOST /api/lists/fsbo/campaign/resync-schedule recomputes next_send_at\nunder the CURRENT rule, measured from the last text actually sent rather\nthan from today, so a re-sync never silently restarts a seller's clock.\n\nDRY BY DEFAULT, and it will only push a text LATER unless allow_earlier\nis sent explicitly. Pulling one earlier means texting a real person\nsooner than they were promised to be left alone, which is a decision, not\na correction. Only 'active' rows are considered, so a paused or removed\nlead can never be re-dated back into the queue.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "414ed65",
+      "date": "2026-10-20T16:55:28-05:00",
+      "subject": "FSBO: Text 2 moves to DOM 30, the analysis pair is cut, then 15/15/30",
+      "title": "FSBO: Text 2 moves to DOM 30, the analysis pair is cut, then 15/15/30",
+      "body": "John, 2026-10-20: \"move text 2 on the 30th day DOM then remove the 2\npart text 3 then next text again would be after 15 days 2 15 days then\nmove to 30.\"\n\nThe sequence is now:\n\n  Text 1   DOM >= 14    availability check\n  Text 2   DOM 30       still-available check\n  Text 3   +15 days     availability rotation\n  Text 4   +15 days     availability rotation\n  then     every ~30d   availability rotation\n\nText 2 is a position on the listing's clock rather than a gap, which\nneeded a floor. On the day this changed, 26 of the 40 eligible sellers\nwere ALREADY past DOM 30 and several were past DOM 300, so their Text 2\nwas due in the past - it would have gone out in the same sweep as Text 1,\ntwo cold texts back to back. The floor is 15 days, John's own rhythm from\nthe rest of this sequence, and it costs nothing normally: a seller who\nenrols at the DOM 14 threshold still lands on DOM 29-30. An unknown or\nzero DOM falls back to the threshold assumption rather than to zero.\n\nThe market-analysis pair is gone. Its opening credibility block came out\non 2026-10-05, which left the survivor starting \"At this point,\" - a\nreference to weeks that no longer appeared anywhere. Rather than reword a\ndangling sentence the whole step is removed, so attempt 3 onward draws\nfrom the plain availability rotation like every later touch. Nothing in\nthe sequence pitches an analysis any more. The two-texts-apart sender\nexisted only for that pair and went with it; every step is one text now.\n\nThree leads already have Text 2 scheduled on the old +7 rule and will be\nre-dated separately - the code only decides the NEXT gap, never a row\nalready waiting.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "49c06c7",
+      "date": "2026-10-20T13:20:29-05:00",
+      "subject": "Import Matt's calendar unfiltered, titles as he wrote them",
+      "title": "Import Matt's calendar unfiltered, titles as he wrote them",
+      "body": "The allow-list shipped an hour ago is removed. John's call, and the\nreasoning is sound: the only thing separating \"Mike O podiatrist\" from\n\"Showing Confirmed\" is a guess at the wording, and Google carries no\nreliable signal to do better. visibility=private is set on 18 of the 31\nreal showings and on only 7 of the 45 other events, so leaning on it\nwould hide the appointments and leak the rest - precisely backwards.\ncolorId is unset on all 76 events. transparency means busy/free.\n\nLabelling the remainder \"Busy - personal\" was the alternative and it was\nrejected for the right reason: we would be asserting something we cannot\ncheck. \"Need to send my EO into the commission\" and \"4th Quarter Blitz\"\nare work, not personal.\n\nSo the Hub mirrors the calendar as it is. Matt's calendar stays the\nmaster; everything deleted from the Hub returns on the next sync, because\nnothing was ever removed from Google.\n\nCancelled events are still skipped. That is not a content filter - an\nevent carrying STATUS:CANCELLED is not happening, and showing it as live\nis simply wrong data.\n\nThe timezone fix and its 10 tests are untouched.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "e79f1ee",
       "date": "2026-10-20T12:41:27-05:00",
@@ -3888,118 +4000,6 @@
       "subject": "FSBO: main address = the FSBO listing address (and Sierra sync won't clobber it)",
       "title": "FSBO: main address = the FSBO listing address (and Sierra sync won't clobber it)",
       "body": "The lead's address is what {{address}} uses in texts/emails, so it must match the\nFSBO listing or we'd reference the wrong (maybe-not-even-listed) house. FSBO sync\nnow sets address/city/state/zip to the listing on matched leads (COALESCE so a\nblank listing never wipes a good address; created leads already do this), and the\nSierra incremental sync no longer overwrites address/city/state/zip for any lead\ncarrying an fsbo_status (guards against flip-flop).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "cf0984a",
-      "date": "2026-09-01T13:48:42-05:00",
-      "subject": "Clients: opt-in columns Last Text In / Last Email In / Last Call + sort by latest",
-      "title": "Clients: opt-in columns Last Text In / Last Email In / Last Call + sort by latest",
-      "body": "Adds three comm-recency columns (last inbound text, last inbound email, last\noutbound call) computed per lead from the communications feed, addable via the\nColumns picker on any list (incl. smart lists), and sortable by latest. Default\nhidden so they don't clutter lists that don't need them.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e2a0682",
-      "date": "2026-09-01T13:31:00-05:00",
-      "subject": "FSBO list: add Price column (parsed from master-file Notes blob)",
-      "title": "FSBO list: add Price column (parsed from master-file Notes blob)",
-      "body": "The list price sits inside the FSBO master Notes as a Zillow blob; extractFsboPrice\npulls the first plausible $10k-$100M figure (ignoring /mo and /sqft). Stored as\nfsbo_price on each FSBO lead + in the listing JSON, written on create/update, and\nshown as a right-aligned Price column on the Hub FSBO list (after DOM).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d22914c",
-      "date": "2026-09-01T12:56:01-05:00",
-      "subject": "Profile AI card: show the Suggested Email draft + 'Use in Email' (prefills composer)",
-      "title": "Profile AI card: show the Suggested Email draft + 'Use in Email' (prefills composer)",
-      "body": "The follow-up AI already drafts an email (/api/followup returns email:{subject,body})\nbut the profile never rendered it. Now the AI Intelligence card shows the Suggested\nEmail (subject + body) with a 'Use in Email' button that opens the composer prefilled\n(via cp-compose-email event; EmailComposer takes an initial draft). Also reads the\nrecommendation.label/rationale shape.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3ef6c2a",
-      "date": "2026-09-01T12:46:40-05:00",
-      "subject": "Cancelled/Expired list: make its custom columns reorderable + hideable (own prefs)",
-      "title": "Cancelled/Expired list: make its custom columns reorderable + hideable (own prefs)",
-      "body": "Drag wasn't working because the list rendered a hardcoded column array while the\ndrag handlers edited the global colPrefs. Now the Cancelled/Expired list has its\nOWN persisted column prefs (order + visibility, separate localStorage key), so\ndragging MLS Status etc. reorders this list only and never disturbs the main list.\nThe column picker, resize, auto-fit, and Reset all operate on whichever list is\nactive.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "23d7fcc",
-      "date": "2026-09-01T12:38:47-05:00",
-      "subject": "Cancelled/Expired list: custom columns (drop visits/last-visit; add Off Market Date, MLS Status, MLS #)",
-      "title": "Cancelled/Expired list: custom columns (drop visits/last-visit; add Off Market Date, MLS Status, MLS #)",
-      "body": "The Cancelled/Expired saved list now renders a fixed column set instead of the\nglobal chosen columns: score, name, status, type, phone, email, address, source,\nOff Market Date, MLS Status (color-coded Cancelled/Expired/Withdrawn), MLS #.\nAdds a clients.mls_status column populated by expired-master (raw sheet col P) on\nboth matched updates and created leads.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "dac093c",
-      "date": "2026-09-01T12:21:14-05:00",
-      "subject": "Expired master: skip LLC/corporate owners on lead creation (trusts/estates allowed)",
-      "title": "Expired master: skip LLC/corporate owners on lead creation (trusts/estates allowed)",
-      "body": "Applies the team's no-LLC/corp prospecting rule to master-file lead creation:\ncompany names (LLC/Inc/Corp/Rentals/Appraisal/Realty/etc.) are flagged and NOT\ncreated; trusts and estates are allowed. Reports skipped_company.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "51761ff",
-      "date": "2026-09-01T12:19:01-05:00",
-      "subject": "Expired master: create Hub-native leads for off-market rows not yet in the Hub",
-      "title": "Expired master: create Hub-native leads for off-market rows not yet in the Hub",
-      "body": "Makes the master file the true source: an off-market row (Cancelled/Expired/\nWithdrawn) with a real name+address that has no confirmed Hub match now creates a\nHub-native seller lead (status new, MLS: Cancelled/Expired tag) so it lands on the\nCancelled/Expired list with no Sierra import. Back-on-market/Sold/unknown/nameless\nrows are never created; existing leads still just get field updates + junk logic.\nIdempotent (created leads match by address+city+name on the next run). ?dry=1\nreports would_create.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d5c8043",
-      "date": "2026-09-01T11:35:40-05:00",
-      "subject": "Smart lists: Responded to Email + Responded to Text (excl Junk/DNC)",
-      "title": "Smart lists: Responded to Email + Responded to Text (excl Junk/DNC)",
-      "body": "Two segments from the communications feed: an incoming email / incoming text from\nthe lead, with Junk and Do-Not-Contact excluded.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2bb891b",
-      "date": "2026-09-01T11:28:00-05:00",
-      "subject": "Action Plans delay: allow an exact next-send date, not just presets",
-      "title": "Action Plans delay: allow an exact next-send date, not just presets",
-      "body": "DelayMenu now has a date picker alongside the +N-day presets. Passing\n{ until: 'YYYY-MM-DD' } schedules the next email on that calendar day inside the\ncampaign's send window (holiday/passed-window rolled forward); presets still push\nout from the current schedule. Both drip and automation delay endpoints accept\nuntil.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "d09ccea",
-      "date": "2026-09-01T11:01:46-05:00",
-      "subject": "Expired master: schedule the daily/hourly refresh (verify numbers agreed)",
-      "title": "Expired master: schedule the daily/hourly refresh (verify numbers agreed)",
-      "body": "Dry-run + live run matched the brief (186 rows, 140 off-market, 32 back-on-market,\n4 sold; 88% match rate = real absences + safety skips, not a normalization bug;\n0 new junks, all 18 already junked; fields read back correctly; list held at 148).\nAdded the expired-master refresh to the Sierra tick with the same hourly throttle\nand isolation as the FSBO block.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "180d2cb",
-      "date": "2026-09-01T10:57:07-05:00",
-      "subject": "Expired/Cancelled master sync (on-demand, dry-run first; not scheduled)",
-      "title": "Expired/Cancelled master sync (on-demand, dry-run first; not scheduled)",
-      "body": "Mirrors fsbo-master.js: server/expired-master.js reads the Expired/Cancelled\nMaster File, matches clients by ADDRESS+CITY (normalized, long-forms expanded)\nwith Name-1 confirmation to avoid junking a stranger/previous owner, writes\noff_market_date/mls_number/listing_agent, and junks leads back on the market\n(Active/Pending/Contingent/Backup, or a Sold within 24 months). Never junks on\nunknown/empty status. Adds POST /api/lists/expired/sync (?dry=1) + GET\n/api/lists/expired/status and a listing_agent column. No scheduler entry yet,\npending verification of the brief's numbers.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ac651ae",
-      "date": "2026-09-01T10:53:15-05:00",
-      "subject": "Action Plans: resolve next-email subject from template when step has no inline subject",
-      "title": "Action Plans: resolve next-email subject from template when step has no inline subject",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ef8313d",
-      "date": "2026-09-01T10:50:48-05:00",
-      "subject": "Action Plans: pause/resume, delay-next, next-email info + read, real button controls",
-      "title": "Action Plans: pause/resume, delay-next, next-email info + read, real button controls",
-      "body": "Profile Action Plans now show per plan: status pill, the next email (Email N of M\n+ subject, clickable to preview the rendered email for this lead), and when it\nsends. Replaces the faint x with Pause/Resume, Delay (+1d/3d/1wk/2wk/1mo), Read,\nand Remove buttons.\n\nBackend: per-enrollment pause/resume/delay endpoints for BOTH drips and\nautomations (drip tick already skips non-active; automation due query skips\nnon active/waiting, so 'paused' halts sends; resume reschedules next_run_at,\ndelay pushes it out with holiday-bump). activeSequencesForClient now returns drip\nstatus (incl paused), next_step_number, and next_step_subject.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "12a5d26",
-      "date": "2026-09-01T10:36:35-05:00",
-      "subject": "FSBO DOM: compute live from List Date on display (always current, never stale)",
-      "title": "FSBO DOM: compute live from List Date on display (always current, never stale)",
-      "body": "The daily sync already recomputes stored fsbo_dom from List Date; this makes the\nDISPLAYED DOM compute live (today - List Date) in the FSBO list and profile, so\nit's exact the moment the page opens even between syncs. Falls back to the stored\nvalue when there's no parseable List Date.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

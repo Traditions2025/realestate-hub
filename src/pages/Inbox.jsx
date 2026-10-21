@@ -849,11 +849,36 @@ function Composer({ onClose, onSent }) {
   const add = (c) => { if (!recips.find(r => r.id === c.id)) setRecips([...recips, c]); setQ(''); setResults([]) }
   const remove = (id) => setRecips(recips.filter(r => r.id !== id))
 
+  // TEXTING SOMEONE WHO IS NOT A CLIENT (John, 2026-10-21).
+  //
+  // The people you most need to text mid-transaction are the ones who will never be leads:
+  // the inspector, the lender, the other agent, a contractor. The composer only searched the
+  // CRM, so typing their number found nothing and there was no way forward. The API has
+  // accepted raw `phones` all along; only the UI had no way to offer them.
+  //
+  // A typed 10 or 11 digit number becomes a recipient in its own right, carrying a negative
+  // id so it never collides with a client id and is easy to separate at send time.
+  const typedDigits = q.replace(/\D/g, '')
+  const typedPhone = channel === 'text' && (typedDigits.length === 10 || (typedDigits.length === 11 && typedDigits[0] === '1'))
+    ? '+1' + typedDigits.slice(-10) : null
+  const alreadyAdded = typedPhone && recips.some(r => String(r.phone || '').replace(/\D/g, '').slice(-10) === typedPhone.slice(-10))
+  const addTypedPhone = () => {
+    if (!typedPhone || alreadyAdded) return
+    setRecips([...recips, { id: -Date.now(), phone: typedPhone, raw: true, first_name: typedPhone }])
+    setQ(''); setResults([])
+  }
+
   const send = async () => {
     if (!recips.length) { notify('Add at least one recipient.'); return }
-    if (!subject.trim() || !body.trim()) { notify('Add a subject and a message.'); return }
+    if (channel === 'email' && (!subject.trim() || !body.trim())) { notify('Add a subject and a message.'); return }
+    if (channel === 'text' && !body.trim()) { notify('Add a message.'); return }
     setSending(true)
-    const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channel, client_ids: recips.map(x => x.id), subject, body }) }).then(x => x.json()).catch(e => ({ error: e.message }))
+    const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+      channel,
+      client_ids: recips.filter(x => !x.raw).map(x => x.id),
+      phones: recips.filter(x => x.raw).map(x => ({ phone: x.phone, name: x.name || null })),
+      subject, body,
+    }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setSending(false)
     if (r.error) { notify(r.error); return }
     const failed = (r.results || []).filter(x => !x.ok)
@@ -870,7 +895,7 @@ function Composer({ onClose, onSent }) {
           {[{ k: 'email', label: '✉ Email' }, { k: 'text', label: '💬 Text' }].map(c => (
             <button key={c.k} onClick={() => setChannel(c.k)} className={`btn btn-sm ${channel === c.k ? 'btn-primary' : 'btn-secondary'}`}>{c.label}</button>
           ))}
-          {channel === 'text' && <span style={{ fontSize: 14.5, color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 6 }}>Texts send via Twilio (set it up in Settings).</span>}
+          {channel === 'text' && <span style={{ fontSize: 14.5, color: 'var(--text-muted)', alignSelf: 'center', marginLeft: 6 }}>Type any phone number to text someone who is not a contact.</span>}
         </div>
 
         {/* recipients */}
@@ -879,15 +904,28 @@ function Composer({ onClose, onSent }) {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
             {recips.map(r => (
               <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 14.5 }}>
-                {`${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email}
+                {r.raw ? fmtPhoneDisp(r.phone) : (`${r.first_name || ''} ${r.last_name || ''}`.trim() || r.email)}
+                {r.raw && <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>not a contact</span>}
                 <button onClick={() => remove(r.id)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--text-muted)' }}>✕</button>
               </span>
             ))}
           </div>
           <div style={{ position: 'relative' }}>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search a client by name, email, or phone…" style={fld} />
-            {results.length > 0 && (
+            <input
+              value={q}
+              onChange={e => setQ(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && typedPhone && !alreadyAdded) { e.preventDefault(); addTypedPhone() } }}
+              placeholder={channel === 'text' ? 'Search a client, or type any phone number…' : 'Search a client by name, email, or phone…'}
+              style={fld}
+            />
+            {(results.length > 0 || typedPhone) && (
               <div style={{ position: 'absolute', zIndex: 5, top: '100%', left: 0, right: 0, background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, marginTop: 4, maxHeight: 220, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.25)' }}>
+                {typedPhone && !alreadyAdded && (
+                  <div onClick={addTypedPhone} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 15.5 }}>
+                    <div style={{ fontWeight: 600 }}>💬 Text {typedPhone}</div>
+                    <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>Not in your contacts. Sends as a normal text.</div>
+                  </div>
+                )}
                 {results.map(c => (
                   <div key={c.id} onClick={() => add(c)} style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid var(--border)', fontSize: 15.5 }}>
                     <div style={{ fontWeight: 600 }}>{`${c.first_name || ''} ${c.last_name || ''}`.trim() || '(no name)'}</div>
@@ -909,7 +947,7 @@ function Composer({ onClose, onSent }) {
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn btn-primary" onClick={send} disabled={sending || channel === 'text'}>{sending ? 'Sending…' : channel === 'text' ? 'Text (needs Twilio)' : `Send to ${recips.length || ''}`.trim()}</button>
+          <button className="btn btn-primary" onClick={send} disabled={sending || !recips.length}>{sending ? 'Sending…' : `${channel === 'text' ? '💬 Text' : '✉ Send to'} ${recips.length || ''}`.trim()}</button>
         </div>
       </div>
     </Modal>
