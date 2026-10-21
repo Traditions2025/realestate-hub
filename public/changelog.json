@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-21T21:05:17.933Z",
+  "generated_at": "2026-10-21T21:16:52.120Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "108cd6e",
+      "date": "2026-10-21T16:05:32-05:00",
+      "subject": "New Message can text a number that is not in the CRM",
+      "title": "New Message can text a number that is not in the CRM",
+      "body": "John: \"the separate new message texting anyone that is not on our contact\nlist is not working, that should function like a normal text, only\ndifference is those people we will be texting are not in our list.\"\n\nTwo things were wrong and only one of them was obvious.\n\nThe button was hardcoded `disabled={sending || channel === 'text'}` and\nlabelled \"Text (needs Twilio)\". It never checked Twilio at all. The label\nwas left over from before Twilio was connected, so the Text option in New\nMessage has never worked, long after texting started working everywhere\nelse in the Hub.\n\nUnderneath that, the composer could only address CRM records: it searched\nclients and posted client_ids, so typing an inspector's number found\nnothing and offered nothing. The API has accepted raw `phones` all along,\nwith a comment about \"team agents not in the CRM\" - it sends them, logs\nthem under thread_key u_<digits> with a null client_id, and attaches the\nsame delivery status callback. Only the UI had no way to offer it.\n\nNow a typed 10 or 11 digit number appears in the dropdown as \"Text\n+1319...\", Enter accepts it, and the chip says \"not a contact\" so nobody\nmistakes it for a lead. Raw recipients post as `phones` and clients still\npost as `client_ids`, so a single message can go to both.\n\nThe recipients carry a negative id, which cannot collide with a client id\nand keeps removal working without a second list to track.\n\nAlso: the text path no longer demands a subject. That check was written\nfor email and silently blocked every text, which would have been the next\nthing to break once the button was clickable.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "1eb3579",
       "date": "2026-10-21T14:27:44-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: POST /api/inbox/import-texts — record external (Sierra) text history onto profiles",
       "title": "Inbox: POST /api/inbox/import-texts — record external (Sierra) text history onto profiles",
       "body": "Matches each text to a lead by phone, inserts as a text communication (deduped by\ndeterministic external_id), so the Hub timeline + 'Last Text In' reflect texts\nthat happened in Sierra. Lets the team see who's been texted and when.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "6302677",
-      "date": "2026-09-01T14:06:37-05:00",
-      "subject": "FSBO: main address = the FSBO listing address (and Sierra sync won't clobber it)",
-      "title": "FSBO: main address = the FSBO listing address (and Sierra sync won't clobber it)",
-      "body": "The lead's address is what {{address}} uses in texts/emails, so it must match the\nFSBO listing or we'd reference the wrong (maybe-not-even-listed) house. FSBO sync\nnow sets address/city/state/zip to the listing on matched leads (COALESCE so a\nblank listing never wipes a good address; created leads already do this), and the\nSierra incremental sync no longer overwrites address/city/state/zip for any lead\ncarrying an fsbo_status (guards against flip-flop).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

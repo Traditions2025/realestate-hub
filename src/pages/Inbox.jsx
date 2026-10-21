@@ -839,6 +839,24 @@ function Composer({ onClose, onSent }) {
   const [subject, setSubject] = useState('')
   const [body, setBody] = useState('')
   const [sending, setSending] = useState(false)
+  // Photos for an MMS. The send route already forwards `media` to Twilio for CRM leads and
+  // raw numbers alike, so attaching a photo to an inspector or a contractor needed only the
+  // picker the reply box already had (John, 2026-10-21).
+  const [media, setMedia] = useState([])
+  const [uploading, setUploading] = useState(false)
+  const fileRef = useRef(null)
+
+  const uploadPhoto = async (file) => {
+    if (!file) return
+    setUploading(true)
+    try {
+      const fd = new FormData(); fd.append('file', file)
+      const d = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd }).then(x => x.json())
+      if (d.url) setMedia(m => [...m, { url: d.url, type: d.type }])
+      else notify(d.error || 'Upload failed')
+    } catch (e) { notify('Upload failed: ' + e.message) }
+    finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
+  }
 
   useEffect(() => {
     if (q.trim().length < 2) { setResults([]); return }
@@ -871,13 +889,16 @@ function Composer({ onClose, onSent }) {
   const send = async () => {
     if (!recips.length) { notify('Add at least one recipient.'); return }
     if (channel === 'email' && (!subject.trim() || !body.trim())) { notify('Add a subject and a message.'); return }
-    if (channel === 'text' && !body.trim()) { notify('Add a message.'); return }
+    // A photo on its own is a perfectly good text, so only demand words when there is no
+    // photo. The send route applies the same rule.
+    if (channel === 'text' && !body.trim() && !media.length) { notify('Add a message or a photo.'); return }
     setSending(true)
     const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       channel,
       client_ids: recips.filter(x => !x.raw).map(x => x.id),
       phones: recips.filter(x => x.raw).map(x => ({ phone: x.phone, name: x.name || null })),
       subject, body,
+      media: channel === 'text' ? media.map(m => m.url) : [],
     }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setSending(false)
     if (r.error) { notify(r.error); return }
@@ -944,6 +965,32 @@ function Composer({ onClose, onSent }) {
             ? <RichTextEditor value={body} onChange={setBody} minHeight={200} />
             : <textarea value={body} onChange={e => setBody(e.target.value)} rows={5} style={{ ...fld, resize: 'vertical' }} placeholder="Message" />}
         </div>
+
+        {/* MMS photos. Text only: SendGrid takes attachments a different way. */}
+        {channel === 'text' && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
+              <button className="btn btn-sm" disabled={uploading || media.length >= 10} onClick={() => fileRef.current?.click()}>
+                {uploading ? 'Uploading…' : '📎 Add photo'}
+              </button>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                {media.length ? `${media.length} photo${media.length === 1 ? '' : 's'} attached` : 'Sends as an MMS. Up to 10.'}
+              </span>
+            </div>
+            {media.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {media.map((mm, i) => (
+                  <div key={i} style={{ position: 'relative' }}>
+                    <img src={mm.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
+                    <button onClick={() => setMedia(list => list.filter((_, j) => j !== i))} title="Remove"
+                      style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14.5, lineHeight: '20px', padding: 0 }}>✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
