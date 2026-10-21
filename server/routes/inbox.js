@@ -1123,17 +1123,46 @@ router.post('/send', async (req, res) => {
         results.push({ client_id: cid, ok: true })
       } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
     }
-    // Raw phone recipients (team agents etc.) — no CRM record, no consumer compliance gate.
+    // Raw phone recipients: an inspector, a lender, the other agent. Usually nobody in the
+    // CRM, but "usually" was doing far too much work here (John, 2026-10-21).
+    //
+    // Josh the inspector WAS a lead, record 35885. Texting him by number logged the send
+    // against client_id NULL in thread u_3193897599, while his reply matched his record and
+    // landed on his profile. One conversation, two places, neither showing the other half.
+    //
+    // The old comment said "no CRM record, no consumer compliance gate", which is only true
+    // while the first half holds. If the number belongs to someone who replied STOP, typing
+    // it by hand was a way around their opt-out. So resolve the number first: a match is
+    // treated as the person they are, gates and all, and only a genuine stranger takes the
+    // ungated path.
     for (const rp of rawPhones) {
       const outText = String(body || '').replace(/\{\{[^}]+\}\}/g, '').replace(/[ \t]{2,}/g, ' ').trim()
       if (!outText && !media.length) { results.push({ phone: rp.phone, ok: false, error: 'empty message' }); continue }
+      const p10 = phoneKey(rp.phone)
+      const known = p10
+        ? db.all("SELECT id, first_name, last_name, phone, alt_phones, hub_text_opt_out, sms_undeliverable, sms_undeliverable_reason FROM clients WHERE merged_into IS NULL AND (phone LIKE ? OR alt_phones LIKE ?)", ['%' + p10.slice(-4), '%' + p10.slice(-4) + '%'])
+          .find(c => phoneKey(c.phone) === p10 || String(c.alt_phones || '').split(',').some(p => phoneKey(p.trim()) === p10))
+        : null
+      if (known?.hub_text_opt_out) {
+        results.push({ phone: rp.phone, ok: false, error: `${`${known.first_name || ''} ${known.last_name || ''}`.trim() || 'this contact'} replied STOP to our number — texting blocked (you can still call)` })
+        continue
+      }
+      if (known?.sms_undeliverable) {
+        results.push({ phone: rp.phone, ok: false, error: `this number can't receive texts — ${known.sms_undeliverable_reason || 'carrier reported it undeliverable'} (you can still call)` })
+        continue
+      }
       try {
         const r = await sendSms(rp.phone, outText, { statusCallback: hub + '/api/inbox/twilio-status', mediaUrls: media })
-        const p10 = String(rp.phone).replace(/\D/g, '').slice(-10)
+        const name = known ? (`${known.first_name || ''} ${known.last_name || ''}`.trim() || fmtPhone(rp.phone)) : (rp.name || fmtPhone(rp.phone))
         db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, agent, sent_by_type, occurred_at)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-          ['text', 'outgoing', null, rp.name || fmtPhone(rp.phone), r.from || '', rp.phone, (outText || `[${media.length} photo]`).slice(0, 160), outText, 'twilio_' + r.sid, `u_${p10}`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
-        results.push({ phone: rp.phone, ok: true })
+          ['text', 'outgoing', known ? known.id : null, name, r.from || '', rp.phone, (outText || `[${media.length} photo]`).slice(0, 160), outText, 'twilio_' + r.sid, known ? `c${known.id}_text` : `u_${p10}`, 'read', media.length ? 1 : 0, media.length ? JSON.stringify(media.map(u => ({ url: u, type: 'image' }))) : null, r.status || 'queued', req.body?.agent || null, 'human', nowIso()])
+        // A human texting an AI-managed lead means the AI stands down, same as any other
+        // send to that person. Reaching them by number instead of by record changes nothing.
+        if (known && db.get('SELECT client_id FROM ai_lead_state WHERE client_id=?', [known.id])) {
+          try { const { humanTakeover } = await import('../ai-followup/state.js'); humanTakeover(known.id, 'agent sent a text') } catch {}
+        }
+        results.push({ phone: rp.phone, ok: true, client_id: known ? known.id : null, matched: !!known })
       } catch (e) { results.push({ phone: rp.phone, ok: false, error: e.message }) }
     }
     return res.json({ sent: results.filter(r => r.ok).length, results })
