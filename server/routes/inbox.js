@@ -1502,6 +1502,20 @@ router.get('/group-roster/:convSid', async (req, res) => {
   try { const { conversationRoster } = await import('../twilio-conversations.js'); res.json(await conversationRoster(String(req.params.convSid))) }
   catch (e) { res.status(500).json({ error: e.message }) }
 })
+// One-off diagnostic: can one Twilio number hold the same person in two Group MMS
+// conversations? Sends no messages and works in a throwaway Conversations Service that it
+// deletes afterwards. See server/gmms-binding-test.js for why this cannot be read from the
+// docs. Must sit above '/group-:something' style routes.
+router.post('/gmms-binding-test', async (req, res) => {
+  try {
+    const { runGmmsBindingTest } = await import('../gmms-binding-test.js')
+    res.json(await runGmmsBindingTest({
+      matt: req.body?.matt,
+      john: req.body?.john,
+      prodConversationSid: req.body?.prod_conversation_sid || null,
+    }))
+  } catch (e) { res.status(500).json({ error: e.message, stack: String(e.stack || '').split('\n').slice(0, 4) }) }
+})
 router.get('/group-status', async (_req, res) => {
   try { const { conversationsStatus } = await import('../twilio-conversations.js'); res.json(await conversationsStatus()) }
   catch (e) { res.status(500).json({ error: e.message }) }
