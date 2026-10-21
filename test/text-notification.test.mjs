@@ -35,8 +35,11 @@ test('it fades in and out, so it does not click', () => {
   assert.match(fn, /gain\.gain\.exponentialRampToValueAtTime\(0\.0001, t \+ dur\)/)
 })
 
-test('it is short and quiet — this fires all day', () => {
-  assert.match(chirpSrc, /volume = 0\.1[0-9]/)
+test('it is short, and audible across a room without being shrill', () => {
+  // raised 0.18 -> 0.42 on 2026-10-21; the ceiling keeps it from becoming something
+  // you switch off by Wednesday
+  const vol = Number(/volume = ([\d.]+)/.exec(chirpSrc)[1])
+  assert.ok(vol >= 0.3 && vol <= 0.6, `volume ${vol} is outside the usable range`)
   const durs = [...chirpSrc.matchAll(/note\(ac, master, [^,]+, \d+, \d+, ([\d.]+)/g)].map(m => Number(m[1]))
   assert.ok(durs.length === 2 && durs.every(d => d <= 0.12), `notes too long: ${durs}`)
 })

@@ -9,8 +9,12 @@
 //
 // A real bird chirp is a fast upward frequency sweep, not a steady tone — two short rising
 // notes, the second a little higher and shorter, which is what makes it read as a chirp
-// rather than a beep. Kept quiet and under a third of a second: this fires while someone is
-// working, possibly many times an hour.
+// rather than a beep. Under a third of a second: this fires while someone is working,
+// possibly many times an hour.
+//
+// Volume raised from 0.18 to 0.42 (John, 2026-10-21: "make the text message sound a little
+// more louder"). Loudness here is amplitude, not duration — the notes stay short, so it
+// carries across a room without becoming something you want to switch off by Wednesday.
 
 let ctx = null
 function audio() {
@@ -42,7 +46,7 @@ function note(ac, out, t, fromHz, toHz, dur, peak) {
  * browsers refuse to start audio, and that refusal is not an error worth surfacing — the
  * badge and the toast still did their job.
  */
-export function chirp({ volume = 0.18 } = {}) {
+export function chirp({ volume = 0.42 } = {}) {
   const ac = audio()
   if (!ac) return false
   try {
