@@ -64,9 +64,37 @@ export async function conversationsStatus() {
   return out
 }
 
+// THE HUB'S OWN SEAT IN A GROUP.
+//
+// A group MMS message must be authored BY a participant. The Hub used to pass the display
+// string "Matt Smith Team", which is nobody, and Twilio refused the send: "Message author
+// should be among group MMS participants" (John, 2026-10-21).
+//
+// This is what ProjectedAddress is for, and what an earlier attempt got wrong by attaching
+// it to phone numbers (that returns 50407). It is the mask for a CHAT identity: "a projected
+// address represents a non-native (such as Chat) Participant so every member of a group text
+// can see who sent each message." So the Hub joins as an Identity wearing our Twilio number,
+// and is then allowed to speak. One stable identity, so every group shows the same sender.
+//
+// Idempotent: an existing seat is success, not an error, so this is safe on an older group.
+const HUB_IDENTITY = 'matt-smith-team'
+async function ensureHubSeat(serviceSid, convSid) {
+  const projected = toE164(twilioConfig().from)
+  try {
+    await tw('POST', `/Services/${serviceSid}/Conversations/${convSid}/Participants`, {
+      Identity: HUB_IDENTITY,
+      'MessagingBinding.ProjectedAddress': projected,
+    })
+    return 'joined'
+  } catch (e) {
+    if (/already exists/i.test(String(e.message || '')) || e.code === 50437) return 'already seated'
+    throw e
+  }
+}
+
 // Create a group conversation, add each recipient (bound to our number), and send `body`.
 // Returns { conversationSid, participants:[{phone,name}], messageSid, skipped:[...] }.
-export async function createGroupText({ recipients, body, author = 'Matt Smith Team' }) {
+export async function createGroupText({ recipients, body }) {
   const c = twilioConfig()
   const proxy0 = toE164(c.from)
   if (!proxy0) throw new Error('No sending number configured')
@@ -127,8 +155,31 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
     }
   }
   if (!participants.length) { try { await tw('DELETE', `/Services/${sid}/Conversations/${convSid}`) } catch {}; throw new Error('Could not add any participants: ' + (skipped[0]?.error || 'unknown')) }
-  const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: author, Body: body })
-  return { conversationSid: convSid, serviceSid: sid, participants, skipped, messageSid: msg.sid }
+
+  // OUR OWN SEAT IN THE GROUP (John, 2026-10-21: "Message author should be among group MMS
+  // participants").
+  //
+  // A group MMS message has to be authored BY a participant. The Hub was passing a display
+  // string, "Matt Smith Team", which is nobody, so Twilio refused the send even though the
+  // conversation and all its members had been created correctly.
+  //
+  // This is what ProjectedAddress is actually for, and what an earlier attempt got wrong by
+  // attaching it to phone numbers (which returns 50407). It is the mask for a CHAT identity:
+  // "a projected address represents a non-native (such as Chat) Participant so every member
+  // of a group text can see who sent each message." So the Hub joins as an Identity wearing
+  // our Twilio number, and then it is allowed to speak.
+  //
+  // The identity is stable, so every group the Hub sends into shows the same sender.
+  try { await ensureHubSeat(sid, convSid) }
+  catch (e) {
+    // A group nobody can post into is worse than no group, so tear it down rather than
+    // leave a dead conversation behind.
+    try { await tw('DELETE', `/Services/${sid}/Conversations/${convSid}`) } catch {}
+    throw new Error(`Could not join the group as the sender (${e.message}). No message was sent.`)
+  }
+
+  const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: HUB_IDENTITY, Body: body })
+  return { conversationSid: convSid, serviceSid: sid, participants, skipped, messageSid: msg.sid, author: HUB_IDENTITY }
 }
 
 // The proxy-number POOL was removed on 2026-10-21. It existed to work around the one group
@@ -139,7 +190,7 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
 
 
 // Send a message INTO an existing group conversation (agent replying to the group).
-export async function sendConversationMessage(convSid, body, author = 'Matt Smith Team') {
+export async function sendConversationMessage(convSid, body) {
   const sid = await ensureConversationsService()
   // Twilio accepts a message into a conversation that has no participants left: it stores
   // it, returns a message SID, and delivers it to nobody. Every caller treated that SID as
@@ -160,7 +211,10 @@ export async function sendConversationMessage(convSid, body, author = 'Matt Smit
     e.code = 'CONVERSATION_EMPTY'
     throw e
   }
-  const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: author, Body: body })
+  // Same rule as a new group: only a participant may author. A group created before the Hub
+  // took a seat needs one adding now, which is why this is idempotent rather than assumed.
+  await ensureHubSeat(sid, convSid)
+  const msg = await tw('POST', `/Services/${sid}/Conversations/${convSid}/Messages`, { Author: HUB_IDENTITY, Body: body })
   return { messageSid: msg.sid, deliveredTo: reachable }
 }
 
