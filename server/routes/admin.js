@@ -9,6 +9,52 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// Is SendGrid refusing to deliver to this address?
+//
+// John, 2026-10-21: Matt receives the text-notification emails, John does not — and the
+// recipient settings are both on their defaults, so the Hub IS addressing him. That leaves
+// delivery. One suppressed address on a multi-recipient send is dropped silently while the
+// others arrive, which is exactly the shape of "Matt gets it, I don't".
+//
+// Read-only: five GETs to SendGrid and the Hub's own send log. Removing a suppression is a
+// separate, deliberate act and is NOT done here.
+router.get('/email-deliverability', requirePermission('settings.view'), async (req, res) => {
+  const email = String(req.query.email || '').trim().toLowerCase()
+  if (!email.includes('@')) return res.status(400).json({ error: 'pass ?email=' })
+  const key = process.env.SENDGRID_API_KEY
+  if (!key) return res.status(500).json({ error: 'SENDGRID_API_KEY not set on this server' })
+  const lists = ['bounces', 'blocks', 'spam_reports', 'invalid_emails']
+  const out = { email, suppressed_by: [], details: {} }
+  for (const list of lists) {
+    try {
+      const r = await fetch(`https://api.sendgrid.com/v3/suppression/${list}/${encodeURIComponent(email)}`,
+        { headers: { Authorization: 'Bearer ' + key } })
+      const j = await r.json().catch(() => null)
+      const hit = Array.isArray(j) ? j.length > 0 : !!(j && (j.email || j.created))
+      out.details[list] = hit ? j : null
+      if (hit) out.suppressed_by.push(list)
+    } catch (e) { out.details[list] = { error: e.message } }
+  }
+  try {
+    const r = await fetch(`https://api.sendgrid.com/v3/asm/suppressions/global/${encodeURIComponent(email)}`,
+      { headers: { Authorization: 'Bearer ' + key } })
+    const j = await r.json().catch(() => null)
+    const hit = !!(j && (j.recipient_email || j.email))
+    out.details.global_unsubscribe = hit ? j : null
+    if (hit) out.suppressed_by.push('global_unsubscribe')
+  } catch (e) { out.details.global_unsubscribe = { error: e.message } }
+
+  // What the Hub believes it sent to this address lately.
+  try {
+    out.recent_hub_sends = db.all(
+      `SELECT subject, template, status, sent_at FROM email_log
+       WHERE lower(to_email) LIKE ? ORDER BY id DESC LIMIT 15`, ['%' + email + '%'])
+  } catch (e) { out.recent_hub_sends = { error: e.message } }
+
+  out.deliverable = out.suppressed_by.length === 0
+  return res.json(out)
+})
+
 // Who actually receives each kind of Hub alert, and where that comes from.
 //
 // John, 2026-10-21: Matt was getting text-notification emails and John was not. The
