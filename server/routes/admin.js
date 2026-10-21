@@ -9,6 +9,38 @@ import { splitNotes, stampFor } from '../client-notes.js'
 
 const router = Router()
 
+// Who actually receives each kind of Hub alert, and where that comes from.
+//
+// John, 2026-10-21: Matt was getting text-notification emails and John was not. The
+// recipients are app_settings values that merely DEFAULT to his address, so once the
+// setting was written to something else the default stopped applying and nothing in any
+// screen showed it. Read-only; no secrets, just addresses.
+router.get('/notify-recipients', requirePermission('settings.view'), (_req, res) => {
+  const split = (s) => String(s || '').split(/[,;]+/).map(x => x.trim().toLowerCase()).filter(Boolean)
+  const raw = (k) => { try { return db.getSetting(k, null) } catch { return null } }
+  const notifyEmail = raw('inbox_notify_email')
+  const alwaysCc = raw('inbox_notify_always_cc')
+  const DEFAULT_TO = 'johnwithmattsmithteam@gmail.com'
+  const DEFAULT_CC = 'mattsmithremax@gmail.com'
+  const effTo = notifyEmail === null ? DEFAULT_TO : notifyEmail
+  const effCc = alwaysCc === null ? DEFAULT_CC : alwaysCc
+  const inboundText = [...new Set([...split(effTo), ...split(effCc)])]
+  res.json({
+    settings: {
+      inbox_notify_email: { value: notifyEmail, using_default: notifyEmail === null, default: DEFAULT_TO },
+      inbox_notify_always_cc: { value: alwaysCc, using_default: alwaysCc === null, default: DEFAULT_CC },
+      text_notify_email_enabled: raw('text_notify_email_enabled'),
+    },
+    who_gets_what: {
+      inbound_text_alert: inboundText,
+      unknown_number_alert: split(effTo),
+      inbound_email_alert: [...new Set(['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com', ...split(notifyEmail)])],
+      ai_handoff: split(effTo),
+    },
+    john_gets_text_alerts: inboundText.includes('johnwithmattsmithteam@gmail.com'),
+  })
+})
+
 // How much is left to push to FUB and Sierra, and how long it would take at each API's
 // tolerated pace. Read-only: it counts and divides, it sends nothing.
 router.get('/comm-push-scope', requirePermission('settings.view'), async (_req, res) => {
