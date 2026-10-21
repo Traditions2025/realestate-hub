@@ -93,39 +93,36 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
   //
   // With one number configured the behaviour is unchanged, so nothing breaks until the pool
   // is filled.
-  const pool = groupProxyPool(proxy0)
-  const proxy = await pickFreeProxy(sid, pool, clean.map(r => r.phone))
-  if (!proxy) {
-    throw new Error(`Everyone in this group is already in another group text on all ${pool.length} sending number${pool.length === 1 ? '' : 's'}. ` +
-      `Add another number to twilio_group_proxy_numbers to allow more simultaneous groups, or end one of their existing groups.`)
-  }
-
   const conv = await tw('POST', `/Services/${sid}/Conversations`, { FriendlyName: 'Group text ' + new Date().toISOString() })
   const convSid = conv.sid
   const participants = [], skipped = []
+  // NO PROXY ADDRESS. This is the whole fix (John, 2026-10-21).
+  //
+  // Twilio's rule, verbatim: "The same person (i.e., a single personal phone number) can be
+  // part of any number of conversations concurrently, as long as the address they are in
+  // contact with (the ProxyAddress) is unique." With ONE sending number that read as one
+  // group per person, and the old code honoured it by evicting people from their earlier
+  // group - silently, which is how four of nine groups ended up reaching the wrong people.
+  //
+  // Twilio's group-texting guide gives the other form: "You only have to specify the SMS
+  // participant's own personal phone number in MessagingBinding.Address. When using group
+  // texting, you won't need to specify proxy addresses." A participant added that way has
+  // no proxy, so the uniqueness rule has nothing to bite on.
+  //
+  // Proven live on 2026-10-21 in a throwaway Conversations Service: the same mobile was
+  // added to two conversations on this one number, the second add returned 201, and the
+  // first conversation still listed them afterwards. Matt's number now works in as many
+  // groups as the team needs, on the number we already own.
   const addParticipant = (phone) => tw('POST', `/Services/${sid}/Conversations/${convSid}/Participants`, {
     'MessagingBinding.Address': phone,
-    'MessagingBinding.ProxyAddress': proxy,
   })
-  const removeFromConversation = async (oldConvSid, phone) => {
-    const j = await tw('GET', `/Services/${sid}/Conversations/${oldConvSid}/Participants?PageSize=50`)
-    const p = (j.participants || []).find(x => (x.messaging_binding?.address || '') === phone)
-    if (!p) return false
-    await tw('DELETE', `/Services/${sid}/Conversations/${oldConvSid}/Participants/${p.sid}`)
-    return true
-  }
   for (const rp of clean) {
     try {
       await addParticipant(rp.phone)
       participants.push(rp)
     } catch (e) {
-      const m = String(e.message || '').match(/already exists in Conversation (CH[a-f0-9]{32})/i)
-      if (m) {
-        try {
-          const moved = await removeFromConversation(m[1], rp.phone)
-          if (moved) { await addParticipant(rp.phone); participants.push({ ...rp, migrated_from: m[1] }); continue }
-        } catch (e2) { skipped.push({ ...rp, error: e2.message }); continue }
-      }
+      // Nobody is evicted from an existing group any more: without a proxy there is no
+      // cross-conversation conflict to resolve, so a failure here is a real failure.
       skipped.push({ ...rp, error: e.message })
     }
   }
@@ -134,47 +131,12 @@ export async function createGroupText({ recipients, body, author = 'Matt Smith T
   return { conversationSid: convSid, serviceSid: sid, participants, skipped, messageSid: msg.sid }
 }
 
-/**
- * The sending numbers available for group texts, best first.
- *
- * `twilio_group_proxy_numbers` is a comma-separated list. The main sending number is always
- * first and always present, so an empty setting behaves exactly as before.
- *
- * Every number in the pool has to be on the same A2P campaign as the main one, or carriers
- * will filter it. Buying the number is the easy half.
- */
-export function groupProxyPool(mainProxy) {
-  const raw = (() => { try { return db.getSetting('twilio_group_proxy_numbers', '') || '' } catch { return '' } })()
-  const extra = String(raw).split(',').map(s => toE164(s.trim())).filter(Boolean)
-  const seen = new Set()
-  return [mainProxy, ...extra].filter(p => { const k = String(p).replace(/\D/g, '').slice(-10); if (!k || seen.has(k)) return false; seen.add(k); return true })
-}
+// The proxy-number POOL was removed on 2026-10-21. It existed to work around the one group
+// per (phone + proxy) ceiling by spreading groups across several bought numbers. Adding
+// participants with no proxy at all removes the ceiling itself, so the pool, the
+// twilio_group_proxy_numbers setting and the conversation-scanning picker are all moot.
+// Nothing needs buying.
 
-/**
- * The first proxy in the pool that none of these phones is currently bound to.
- *
- * Asked of Twilio rather than tracked locally, because the binding lives there: a group
- * ended outside the Hub, or a participant removed by hand, would make a local record wrong
- * in the direction that silently drops people.
- */
-export async function pickFreeProxy(serviceSid, pool, phones) {
-  const want = new Set((phones || []).map(p => String(p)))
-  for (const proxy of pool) {
-    let clash = false
-    for (const phone of want) {
-      try {
-        // Twilio refuses a duplicate binding on create, so the cheap check is to ask for
-        // the participant's existing conversations on this proxy.
-        const j = await tw('GET', `/ParticipantConversations?Address=${encodeURIComponent(phone)}&PageSize=50`)
-        const rows = j.conversations || []
-        if (rows.some(r => String(r.participant_messaging_binding?.proxy_address || '') === proxy
-                        && String(r.conversation_state || '').toLowerCase() !== 'closed')) { clash = true; break }
-      } catch { /* cannot tell: treat as free and let the create call be the judge */ }
-    }
-    if (!clash) return proxy
-  }
-  return null
-}
 
 // Send a message INTO an existing group conversation (agent replying to the group).
 export async function sendConversationMessage(convSid, body, author = 'Matt Smith Team') {
