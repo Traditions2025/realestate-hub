@@ -1543,6 +1543,15 @@ router.post('/gmms-binding-test', async (req, res) => {
     }))
   } catch (e) { res.status(500).json({ error: e.message, stack: String(e.stack || '').split('\n').slice(0, 4) }) }
 })
+// What texting actually cost, straight from Twilio's billing records. Read-only.
+// Group texts bill as MMS even with no picture attached, and bill per recipient, so this
+// answers "is the group costing more" with numbers rather than an estimate.
+router.get('/twilio-costs', async (req, res) => {
+  try {
+    const { twilioCostBreakdown } = await import('../twilio-costs.js')
+    res.json(await twilioCostBreakdown({ days: Number(req.query.days) || 2, limit: Number(req.query.limit) || 200 }))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.get('/group-status', async (_req, res) => {
   try { const { conversationsStatus } = await import('../twilio-conversations.js'); res.json(await conversationsStatus()) }
   catch (e) { res.status(500).json({ error: e.message }) }
