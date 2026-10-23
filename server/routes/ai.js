@@ -263,6 +263,56 @@ router.post('/fb-campaign/:clientId/enroll', async (req, res) => {
 router.post('/fb-campaign/:clientId/pause', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.pauseFbListingCampaign(req.params.clientId)) })
 router.post('/fb-campaign/:clientId/resume', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.resumeFbListingCampaign(req.params.clientId)) })
 router.post('/fb-campaign/:clientId/remove', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.removeFromFbListingCampaign(req.params.clientId, 'agent', String(req.body?.reason || ''))) })
+// PREFLIGHT FOR A LISTING AD (John, 2026-10-23, launching 1625 Ranmar Dr Ely).
+//
+// A listing ad is spending money the moment it goes live, and the pipeline behind it is
+// four separate things that each fail silently: the FUB lead EMAIL trigger, the Gmail
+// poller that reads it, the opener bank, and the 30-day campaign with its property-status
+// check. On Springville a Gmail filter quietly hid the lead emails and two real leads were
+// missed before anyone noticed.
+//
+// So this answers one question honestly: if a lead came in off this listing right now,
+// would anything happen? Read-only, no sends, safe to run before every launch.
+router.get('/fb-campaign/readiness', async (req, res) => {
+  try {
+    const listing = String(req.query.listing || '').trim()
+    const camp = await import('../fb-listing-campaign.js')
+    const tpl = await import('../ai-followup/fb-ad-templates.js')
+
+    const trigger = db.getSetting('fb_lead_email_enabled', '0') === '1'
+    const campaignOn = camp.fbListingCampaignEnabled()
+    // The status check is only as good as the transaction behind it. No match means the
+    // campaign cannot tell active from sold, which is how a pending house keeps being
+    // pitched as available.
+    const tx = listing ? camp.findListingTransaction(listing) : null
+    const mailboxes = (() => {
+      try {
+        const raw = JSON.parse(db.getSetting('inbox_mailboxes', '[]') || '[]')
+        return raw.filter(m => m.enabled !== false && m.connected).map(m => ({ user: m.user, last_poll: m.last_poll }))
+      } catch { return [] }
+    })()
+
+    const blockers = []
+    if (!trigger) blockers.push('fb_lead_email_enabled is OFF, so FUB lead emails are ignored and no lead will ever be created')
+    if (!campaignOn) blockers.push('fb_listing_campaign_enabled is OFF, so nobody gets the 30-day follow-up')
+    if (!mailboxes.length) blockers.push('no connected mailbox, so the lead emails cannot be read')
+    if (listing && !tx) blockers.push(`no transaction matches "${listing}", so the property-status check cannot run and pending/sold would not stop the property copy`)
+
+    res.json({
+      listing: listing || null,
+      ready: blockers.length === 0,
+      blockers,
+      trigger_fb_lead_email_enabled: trigger,
+      campaign_enabled: campaignOn,
+      opener_templates: (tpl.FB_AD_TEMPLATES || []).length,
+      listing_transaction: tx ? { id: tx.id, address: tx.property_address, status: tx.property_status, state: camp.listingState(tx) } : null,
+      mailboxes_reading_lead_mail: mailboxes,
+      enrolled_on_this_listing: listing
+        ? db.all("SELECT client_id, listing_label, status, next_step, next_send_at FROM fb_listing_campaigns WHERE listing_label LIKE ?", [`%${listing.split(/\s+/)[0]}%`])
+        : [],
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.post('/fb-campaign/toggle', async (req, res) => {
   const on = req.body?.enabled === true || req.body?.enabled === '1'
   db.setSetting('fb_listing_campaign_enabled', on ? '1' : '0')
