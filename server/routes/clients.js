@@ -912,7 +912,18 @@ const SORT_OPTIONS = {
   // sorted to the bottom as blanks — the newest ones looked missing and the top
   // of the list froze at the last lead that happened to register on the website
   // (John, 2026-09-23). created_at is the final fallback so every lead sorts.
-  recent_added: "COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at) DESC NULLS LAST",
+  // SAME DAY, MOST RECENT FIRST (John, 2026-10-23).
+  //
+  // register_date is a DATE with no time: five leads off the Ranmar ad all carried
+  // "2026-10-23", so they tied on the only key the sort had and came back in whatever
+  // order SQLite felt like. They landed oldest-first under a newest-first sort.
+  //
+  // So sort by the calendar DAY first, taken from whichever source supplied it, and break
+  // the tie with the most precise timestamp that row actually has. The day is compared via
+  // substr so a row with a bare date and a row with a full timestamp are judged on the same
+  // thing; without it, anything lacking register_date would outrank the whole day. id last,
+  // so the order is total and a refresh never reshuffles equal rows.
+  recent_added: "substr(COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at),1,10) DESC NULLS LAST, replace(COALESCE(sierra_creation_date, created_at, register_date),' ','T') DESC, id DESC",
   most_visits: 'visits DESC',
   least_visits: 'visits ASC',
   fsbo_available_first: "CASE fsbo_status WHEN 'Available' THEN 0 WHEN 'Off Market' THEN 1 ELSE 2 END ASC, updated_at DESC",
@@ -935,7 +946,9 @@ const SORT_OPTIONS = {
   zip_az: "NULLIF(zip,'') ASC NULLS LAST",
   zip_za: "NULLIF(zip,'') DESC NULLS LAST",
   recent_update: 'updated_at DESC',
-  oldest_first: "COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at) ASC NULLS LAST",
+  // Mirror of recent_added, so flipping the column reverses what you were looking at
+  // rather than producing a different ordering within each day.
+  oldest_first: "substr(COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at),1,10) ASC NULLS LAST, replace(COALESCE(sierra_creation_date, created_at, register_date),' ','T') ASC, id ASC",
   // Follow Up Boss last web visit (most/least active)
   recent_fub_visit: 'last_fub_activity_at DESC NULLS LAST',
   oldest_fub_visit: 'last_fub_activity_at ASC NULLS LAST',

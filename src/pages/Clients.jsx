@@ -3178,10 +3178,20 @@ export default function Clients() {
               // the sort clearly has a date to order by (John, 2026-09-23).
               const reg = (item.register_date && item.register_date.trim()) ? item.register_date : (item.sierra_creation_date || item.created_at)
               const fromFub = !!(item.register_date && item.register_date.trim())
-              return <div key="registered" className="cl-registered" title={fromFub ? `${reg} (from FUB)` : (reg || '')}>
+              // register_date is a DATE with no time, so several leads on one day look
+              // identical and the sort order between them looks random. The precise stamp
+              // is what the sort now breaks ties on, so show it: the column explains its
+              // own order instead of being argued with (John, 2026-10-23).
+              const exact = item.sierra_creation_date || item.created_at || null
+              const when = exact ? new Date(String(exact).replace(' ', 'T')) : null
+              const time = when && !isNaN(when)
+                ? when.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+                : null
+              return <div key="registered" className="cl-registered" title={[reg, time, fromFub ? '(date from FUB)' : null].filter(Boolean).join(' ')}>
                 {reg
                   ? new Date(String(reg).replace(' ', 'T')).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                   : '—'}
+                {time && <span style={{ color: 'var(--text-muted)', fontSize: '0.85em', marginLeft: 5 }}>{time}</span>}
               </div>
             }
             case 'off_market_date':

@@ -1,7 +1,71 @@
 {
-  "generated_at": "2026-10-21T21:16:52.120Z",
+  "generated_at": "2026-10-23T20:37:06.282Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "dd6f2f1",
+      "date": "2026-10-23T15:21:09-05:00",
+      "subject": "The \"Form\" fix was dead on arrival; five leads went out wrong",
+      "title": "The \"Form\" fix was dead on arrival; five leads went out wrong",
+      "body": "John: \"look at what you sent, make sure it never happens again, do not\ninclude the word form and just use the property address.\"\n\nThe cleaner I shipped two hours ago never ran. A heredoc turned the \\b in\nits regex into a literal backspace byte, so the pattern was anchored on\n0x08 and matched nothing. It read correctly in every normal view of the\nfile, passed a test that re-declared the regex instead of calling the real\none, and silently did nothing in production.\n\nSo David Stickley, Randy Roe, Doug Farley and Danielle Hamilton were all\ntold \"You were looking at 1625 Ranmar Dr Ely Form on Facebook\", three of\nthem AFTER the fix deployed.\n\nTwo faults, both fixed properly:\n\nWRONG PLACE. The cleaner sat in fub-leads.js, which is one of three\ncallers of ingestFbLead; routes/clients.js and the events path were never\ncovered. It now lives in lead-intake.js and runs INSIDE ingestFbLead, the\nsingle point every caller passes through. One definition, no duplicate to\ndrift: fub-leads imports it.\n\nWRONG TEST. The old test grepped the source and re-declared the regex\ninline, so it passed while the shipped code was dead. The tests now import\nand call the real function, and one asserts the source contains no control\ncharacters, because a backspace in a regex is invisible in every normal\nreadout.\n\nNoticed while scanning for the same damage, NOT fixed here and not mine:\nserver/fsbo-master.js, server/fub-status-push.js and server/routes/admin.js\neach carry the identical 0x08-for-\\b corruption in live regexes, so FSBO\naddress normalisation, the SOI stage match and the admin address cleaner\nhave silently never worked.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "af5d9b7",
+      "date": "2026-10-23T14:47:22-05:00",
+      "subject": "The preflight was reading a key that does not exist",
+      "title": "The preflight was reading a key that does not exist",
+      "body": "It reported \"the whole Facebook lead pipeline is dead\" while two leads\nwere flowing through it perfectly.\n\nThe switch is fub_lead_email_enabled, with the u. The preflight I wrote an\nhour earlier read fb_lead_email_enabled without it, found nothing, took\nthe '0' default and announced a blocker. David Stickley and Brytta\nFitzgibbons had both arrived through that exact path forty minutes before,\ntheir notes still carrying the fub_email markers that prove it.\n\nA preflight exists to be trusted when it says something is broken. One\nthat cries wolf from a typo is worse than not having it, so the key is no\nlonger spelled in two places: fub-leads.js owns the switch and exports\nfubLeadEmailEnabled(), and the preflight asks it.\n\nAlso corrects the commit before this one. The readiness route was NOT\nbeing shadowed by /fb-campaign/:clientId. It returned 404 because the\ndeploy was genuinely slow, and it answered correctly from its original\nposition once that deploy landed - a minute before the reordering commit\nwas even written, which is what gives it away. Keeping the route above the\nparameterised one is still right, but the reason given was wrong.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "b6567b4",
+      "date": "2026-10-23T14:43:38-05:00",
+      "subject": "The preflight route was being swallowed by /fb-campaign/:clientId",
+      "title": "The preflight route was being swallowed by /fb-campaign/:clientId",
+      "body": "It returned 404 for twenty-five minutes and I kept reading that as a slow\ndeploy. It was not: Express matches the FIRST route that fits, and\n'/fb-campaign/:clientId' sat above it, so a request for\n'/fb-campaign/readiness' was handled as a campaign lookup for a client\ncalled \"readiness\".\n\nThird time this exact shape has bitten in one session, after /email-cap\nand /resync-schedule. The route now sits above the parameterised one, and\nthe reason is written next to it so the next person moving code around\ndoes not quietly undo it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "c37cf12",
+      "date": "2026-10-23T14:22:17-05:00",
+      "subject": "Don't cold-open a lead someone already called, and drop \"Form\"",
+      "title": "Don't cold-open a lead someone already called, and drop \"Form\"",
+      "body": "The Ranmar ad went live at 1:46 PM and produced its first lead inside\nhalf an hour. Both faults showed up on that one lead.\n\nHUMAN SPOKE FIRST, AI TEXTED ANYWAY. David Stickley arrived at 2:08:23,\nJohn called him at 2:08:52, and the AI texted \"Is there anything you'd\nlike to know about the home?\" at 2:13:55 - five minutes after a call it\nknew nothing about. Every guard in the AI watches for an INBOUND reply,\nwhich is the wrong direction: a call John places leaves an OUTGOING row\nand nothing was reading it. The opener and its ten-minute follow-up email\nnow both ask whether a human on our side has already made contact since\nthe lead arrived, and stand down if so, handing the lead to HUMAN_TAKEOVER\nrather than talking over a conversation already in progress.\n\nChecked twice rather than once, because the email is queued ten minutes\nahead and that is ample time for someone to pick up the phone in between.\n\nTHE WORD \"FORM\" REACHED A CUSTOMER. Facebook lead forms are NAMED after\nthe listing they advertise, so the form name is \"1625 Ranmar Dr Ely Form\"\nand that string is the listing label. David was told \"You were looking at\n1625 Ranmar Dr Ely Form on Facebook\". It is also the CRM tag and the label\nevery one of the eight 30-day steps prints. cleanListingLabel trims the\nwords that make it a form name, and only at the END, so a street that\ngenuinely contains one of them stays intact: \"12 Form Street\" is untouched.\n\nTests pin both in the direction that actually failed: an outgoing call\ncounts, an agent's own text counts, the AI's own text does not (or it\nwould silence itself), an inbound message is not outreach, and contact\nfrom before the lead existed is a different conversation.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e013be8",
+      "date": "2026-10-23T14:06:50-05:00",
+      "subject": "Preflight: would a lead off this listing ad actually be handled?",
+      "title": "Preflight: would a lead off this listing ad actually be handled?",
+      "body": "John launched 1625 Ranmar Dr Ely today and asked for the messaging and\nfollow-up to be set up the way Springville was.\n\nThe pipeline behind a listing ad is four separate things, and each of them\nfails silently: the FUB lead EMAIL trigger, the Gmail poller that reads\nit, the approved opener bank, and the 30-day campaign with its\nproperty-status check. On Springville a Gmail filter quietly filed the\nlead emails under a label that skipped the inbox, the poller saw nothing,\nand two real leads were missed before anyone noticed. An ad spends money\nfrom the moment it goes live, so \"probably wired up\" is not good enough.\n\nGET /api/ai/fb-campaign/readiness?listing=... answers one question: if a\nlead came in off this listing right now, would anything happen. It reports\nthe trigger switch, the campaign switch, the connected mailboxes, the\nopener count, and anyone already enrolled, then names the blockers in\nplain language rather than leaving a reader to interpret four booleans.\n\nIt checks the listing TRANSACTION specifically, because the status check\nis only as good as the transaction behind it. No match means the campaign\ncannot tell active from sold, which is exactly how a house under contract\nkeeps being pitched as available.\n\nRead-only. No sends. Safe to run before every launch.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "1c4390e",
+      "date": "2026-10-22T08:41:10-05:00",
+      "subject": "Read-only: what texting actually cost, from Twilio's records",
+      "title": "Read-only: what texting actually cost, from Twilio's records",
+      "body": "John: \"Is the MMS costing us more? like the group text from yesterday\nwith Melena and Matt, or was that just normal texting?\"\n\nA fair question with a non-obvious answer, and nothing in the Hub could\nreach the billing figures to settle it.\n\nGroup texting is MMS by protocol, not by choice. Twilio: \"Group texting,\nor more specifically Group MMS, uses the Multimedia Messaging Service\n(MMS) protocol to exchange ordinary text messages among a group of three\nor more people.\" So a group text is billed as MMS even carrying no\npicture at all, which is why the breakdown separates \"MMS (no media)\"\nfrom \"MMS (with media)\" rather than assuming media means MMS.\n\nA group also bills PER RECIPIENT. One message to a group of two is two\nbilled messages. The Hub shows that as a single row, so the cost is easy\nto underestimate by exactly the size of the group.\n\nThis reports Twilio's own `price` field rather than estimating from a\nrate card, so it is what was charged, not what we think the rate is.\nPrice lands a little after the send, so the newest messages can read null\nand are counted separately instead of being silently treated as free.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8777049",
+      "date": "2026-10-21T16:25:14-05:00",
+      "subject": "Texting a number that belongs to a lead now reaches the lead",
+      "title": "Texting a number that belongs to a lead now reaches the lead",
+      "body": "John: \"he did reply on this but it does not sync with my previous text to\nJosh, I texted him separately as a number.\"\n\nJosh the inspector was already in the CRM, record 35885. Texting him by\nnumber logged the send against client_id NULL in thread u_3193897599,\nwhile his reply matched his record and landed on his profile. One\nconversation in two places, neither half showing the other.\n\nThe raw-phone branch carried the comment \"no CRM record, no consumer\ncompliance gate\", which is only true while the first half holds. It never\nchecked. So the threading bug had a second, worse face: if the number\nbelonged to someone who had replied STOP, typing it by hand sent to them\nanyway. An opt-out that a keystroke can walk around is not an opt-out.\n\nNow the number is resolved against clients first, by primary and alt\nphone. A match is treated as the person they are: their STOP is honoured,\nan undeliverable number is refused with the same wording as anywhere else,\nthe message is logged against their record in their own thread, and the AI\nstands down exactly as it would for any other human send. Only a genuine\nstranger takes the ungated path, which is what that path was always for.\n\nThe existing split conversation was repaired separately with\n/unknown/relink-all, which found Josh and left the other 14 unknown\nthreads alone because no client matches them.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "e942d2c",
+      "date": "2026-10-21T16:17:07-05:00",
+      "subject": "New Message can attach photos to a text",
+      "title": "New Message can attach photos to a text",
+      "body": "John, right after the non-contact texting fix: \"on the text to those that\nare not on our list we should be able to add image to.\"\n\nNothing new was needed underneath. The send route already forwards `media`\nto Twilio as MMS, and it does it for raw phone recipients on the same\nfooting as CRM leads, so an inspector gets a photo exactly as a client\nwould. The reply box inside a thread already had a working uploader. The\nNew Message composer was simply the one place that had never been given\none.\n\nSo this reuses that path rather than inventing a second: the same\n/api/inbox/upload-media call, the same thumbnail strip with a remove\nbutton, the same ten-photo ceiling. The picker only appears on the text\nchannel, because an email attachment goes to SendGrid a different way and\npretending otherwise would be a quiet failure.\n\nAlso relaxed the send guard. It demanded body text, which would have\nrejected a photo sent on its own - a perfectly ordinary thing to do when\nyou are showing a contractor what you are looking at. The route already\nallowed it; now the UI does too.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "feature"
+    },
     {
       "hash": "108cd6e",
       "date": "2026-10-21T16:05:32-05:00",
@@ -3936,70 +4000,6 @@
       "subject": "AI: POST /api/ai/expired/disable-all — turn off AI for all Cancelled/Expired leads",
       "title": "AI: POST /api/ai/expired/disable-all — turn off AI for all Cancelled/Expired leads",
       "body": "Disables + unmanages each cancelled/expired lead (tag/source/mls_status match),\nsets AI_DISABLED, cancels pending scheduled AI actions.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "2ddb36c",
-      "date": "2026-09-01T15:25:28-05:00",
-      "subject": "AI: POST /api/ai/fsbo/disable-all — turn off all AI for FSBO leads",
-      "title": "AI: POST /api/ai/fsbo/disable-all — turn off all AI for FSBO leads",
-      "body": "Flips fsbo_followup_enabled off (the proactive FSBO sequence force-sends bypass\nper-lead flags, so the global switch is the true stop) and disables/unmanages every\nFSBO lead, cancels their pending scheduled AI actions, and stops active FSBO\nfollow-up enrollments.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "dcf49d3",
-      "date": "2026-09-01T15:07:11-05:00",
-      "subject": "Clients: comm-recency columns render dates in Central time (team TZ)",
-      "title": "Clients: comm-recency columns render dates in Central time (team TZ)",
-      "body": "fmtCommDate now formats to America/Chicago so a late-night text never shows as\nthe next day for a non-Central viewer (e.g. the PH-based VA).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "77b6727",
-      "date": "2026-09-01T14:58:16-05:00",
-      "subject": "Clients: selecting a saved list no longer leaves a status tab active or its filter lingering",
-      "title": "Clients: selecting a saved list no longer leaves a status tab active or its filter lingering",
-      "body": "Status tab active-state now requires no active saved list (so All+FSBO can't both\nhighlight), and clicking a status tab exits the saved list (drops its stored\nfilter) instead of layering on top of it. loadSavedList clears any smart-list\nselection. Fixes the mixed-selection where a list appeared combined with All.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "ad4a5e0",
-      "date": "2026-09-01T14:54:39-05:00",
-      "subject": "Clients: rename to 'Last Text Received' / 'Last Text Sent' (+ 'Last Text (Any)')",
-      "title": "Clients: rename to 'Last Text Received' / 'Last Text Sent' (+ 'Last Text (Any)')",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "15882de",
-      "date": "2026-09-01T14:54:10-05:00",
-      "subject": "Clients: add 'Last Text' (any direction) + 'Last Text Out' columns",
-      "title": "Clients: add 'Last Text' (any direction) + 'Last Text Out' columns",
-      "body": "Last Text In is inbound-only, so a lead you texted with no reply showed blank.\nAdds 'Last Text' (most recent text either direction) and 'Last Text Out' (last\ntext we sent), both sortable, so the list shows you've reached out even without a\nreply.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "aa3f746",
-      "date": "2026-09-01T14:47:36-05:00",
-      "subject": "Clients: POST /api/clients/fsbo-merge-dups — fold Sierra-duplicate FSBO twins onto the FSBO record",
-      "title": "Clients: POST /api/clients/fsbo-merge-dups — fold Sierra-duplicate FSBO twins onto the FSBO record",
-      "body": "The same FSBO seller imported into Sierra twice becomes two Hub records (same\nphone+name); fsbo_status lands on one, texts/activity on the other, so the FSBO\nlist looked empty of history. This name-guarded folder merges same-phone+name\ntwins into the fsbo record (doMerge reassigns communications), reuniting the\nconversation with the listing. ?dry=1 previews.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "5d0bcf8",
-      "date": "2026-09-01T14:40:54-05:00",
-      "subject": "FSBO list: dedicated always-on FSBO Status column (Available/Off Market)",
-      "title": "FSBO list: dedicated always-on FSBO Status column (Available/Off Market)",
-      "body": "FSBO Status was rendered inside the Visits column slot, so hiding Visits hid it.\nNow it's its own injected column on the FSBO list (green Available / red Off\nMarket badge, click-to-filter), always present regardless of column prefs; Visits\nrenders as real visits again.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e63f8cc",
-      "date": "2026-09-01T14:30:43-05:00",
-      "subject": "Inbox: POST /api/inbox/import-texts — record external (Sierra) text history onto profiles",
-      "title": "Inbox: POST /api/inbox/import-texts — record external (Sierra) text history onto profiles",
-      "body": "Matches each text to a lead by phone, inserts as a text communication (deduped by\ndeterministic external_id), so the Hub timeline + 'Last Text In' reflect texts\nthat happened in Sierra. Lets the team see who's been texted and when.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
