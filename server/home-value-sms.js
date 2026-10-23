@@ -56,29 +56,141 @@ export function greetingFor(stepIndex, now = new Date()) {
   return i === 0 ? 'Hi' : i === 1 ? 'Hello' : timeGreeting(now)
 }
 
-export const HV_SMS_STEPS = [
-  { key: 'day3_improvements', day: 3,
-    purpose: 'Improvements that are not in public records',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, one thing that can make a difference when evaluating a home is any improvements that aren't reflected in public records. Have you made any major updates to ${c.street} over the years, like the kitchen, bathrooms, roof, or windows?` },
-  { key: 'day7_reason', day: 7,
-    purpose: 'Motivation, without assuming they are selling',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, just wanted to ask, were you mainly curious about what ${c.street} could be worth today, or is a possible move something you've been thinking about? Either way, we're happy to help you get a better understanding of the value.` },
-  { key: 'day12_condition', day: 12,
-    purpose: 'Updated, dated, or needing repair',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, another thing we consider when evaluating a home is its overall condition. Would you say ${c.street} is mostly move-in ready, or are there a few areas that could use some updating? That can help us better understand how it compares with other homes nearby.` },
-  { key: 'day18_features', day: 18,
-    purpose: 'Characteristics an automated valuation misses',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, when we evaluate a property, we look at what similar homes have actually sold for, not just what they're listed at. Is there anything about ${c.street} that you feel makes it different from other homes in the neighborhood?` },
-  { key: 'day25_details', day: 25,
-    purpose: 'Finished space and layout changes',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, sometimes public records don't tell the whole story, especially when it comes to finished basements or additional living space. Has anything changed with the layout or finished square footage of ${c.street} since you purchased it?` },
-  { key: 'day35_walkthrough', day: 35, offersWalkthrough: true,
-    purpose: 'Offer the walkthrough as accuracy, not as a pitch',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, one reason Matt prefers seeing a home in person is that photos and public records don't always reflect its actual condition or improvements. If you're open to it, he could stop by for a quick walkthrough so we can put together a more accurate value range for ${c.street}. Would that be helpful?` },
-  { key: 'day45_final', day: 45, final: true,
-    purpose: 'Leave the door open, then stop',
-    text: (c) => `${c.greeting || 'Hi'} ${c.first_name}, just wanted to follow up one last time on your home value request for ${c.street}. We're happy to help whenever the timing is right, whether you're simply keeping track of your home's value or considering a move down the road. If you'd still like us to put together an estimate, just let me know!` },
+// THE HOME VALUE RESPONSE CAMPAIGN (John's spec, 2026-10-23).
+//
+// This is the SHORT-TERM response and qualification sequence that runs straight after
+// someone asks what their house is worth. It is not the 26-email long-term nurture; a lead
+// who reaches the end of this without replying is handed to that, and qualification never
+// restarts there.
+//
+// Its job is not to win a listing appointment. It is to learn the things an automated
+// valuation cannot see - condition, improvements, what a buyer would notice - and only much
+// later, once those questions have earned it, to ask about a possible move. Day 15 is the
+// first time intent is raised at all.
+//
+// SMS and EMAIL alternate and never carry the same content within a day. The text asks one
+// easy question; the email that follows explains WHY that question matters. That is the
+// whole reason both channels exist here instead of one being a copy of the other.
+//
+// Copy is John's, VERBATIM, including where it opens without a greeting. Earlier sequences
+// rotated Hi/Hello/time-of-day; his copy here mostly starts mid-thought on purpose, so
+// nothing is prepended to it.
+export const HV_STEPS = [
+  { key: 'day1_email', day: 1, channel: 'email',
+    purpose: 'Explain why condition is the thing the estimate cannot see',
+    subject: (c) => `One thing the estimate can't see at ${c.street}`,
+    paras: (c) => [
+      `Thanks again for requesting the value of your home at ${c.street}.`,
+      `The estimate is a useful starting point, but one thing an automated valuation can't really see is the actual condition of the home.`,
+      `Two homes with similar square footage, bedrooms and location can sell very differently depending on how they've been maintained and updated.`,
+      `That's why we asked how you would rate the home's condition from 1 to 10.`,
+      `If you have a second, just reply with a number. No explanation needed unless you'd like to give us more detail.`,
+      `Thanks!`,
+    ] },
+
+  { key: 'day3_improvements', day: 3, channel: 'sms',
+    purpose: 'Improvements, without handing them a questionnaire',
+    text: (c) => `Another thing the online estimate won't know is what you've done to the home over the years. Have you made any major updates such as the kitchen, bathrooms, roof, windows, HVAC, basement or anything else?` },
+
+  { key: 'day5_email', day: 5, channel: 'email',
+    purpose: 'Why improvements move a valuation',
+    subject: (c) => `Has anything changed at ${c.street}?`,
+    paras: (c) => [
+      `One of the biggest limitations with online home-value estimates is that they usually don't know what has actually been improved inside the property.`,
+      `A new roof, updated kitchen, finished basement, newer mechanicals, windows or other improvements can all affect how buyers compare one home to another.`,
+      `If you've made any meaningful updates to ${c.street}, just reply and let us know what you've done.`,
+      `Even a short list helps us understand whether the automated estimate is likely missing something.`,
+      `Thanks!`,
+    ] },
+
+  { key: 'day8_buyer_notice', day: 8, channel: 'sms',
+    purpose: 'Open question that surfaces condition, remodels or deferred maintenance',
+    text: (c) => `If you had to pick one thing about the house that a buyer would probably notice first, either good or bad, what would it be?` },
+
+  { key: 'day11_email', day: 11, channel: 'email',
+    purpose: 'The buyer perspective, and that it is fine for the answer to be a negative',
+    subject: (c) => `What would a buyer notice first?`,
+    paras: (c) => [
+      `When we look at home values, one thing we think about is what a buyer would notice when they first walk through the property.`,
+      `Sometimes it's a remodeled kitchen, a great backyard or an unusually nice layout.`,
+      `Other times it's something the homeowner already knows could use attention.`,
+      `Those details aren't reflected very well in an automated estimate.`,
+      `If there's one feature or condition item at ${c.street} that you think stands out most, feel free to reply and let me know.`,
+    ] },
+
+  { key: 'day15_intent', day: 15, channel: 'sms',
+    purpose: 'FIRST mention of a possible move, deliberately not before this',
+    text: (c) => `Just curious, are you mainly checking the value to keep tabs on the property, or is a move something you might consider at some point?` },
+
+  { key: 'day19_email', day: 19, channel: 'email',
+    purpose: 'Make either answer comfortable to give',
+    subject: (c) => `Just curious about your plans for ${c.street}`,
+    paras: (c) => [
+      `People check their home value for all kinds of reasons.`,
+      `Sometimes they're simply curious about how the property has changed in value.`,
+      `Other times they're thinking about moving sometime down the road and want to understand where they stand before making any decisions.`,
+      `Either reason is completely fine.`,
+      `I'm just curious which is closer to your situation with ${c.street}.`,
+      `Feel free to hit reply and let me know.`,
+    ] },
+
+  { key: 'day23_where', day: 23, channel: 'sms',
+    purpose: 'Learn real intent without assuming they are selling',
+    text: (c) => `If you ever did make a move, do you already have an idea where you'd want to go next, or is that not really on the radar yet?` },
+
+  { key: 'day28_email', day: 28, channel: 'email',
+    purpose: 'Value is one piece; offer the numbers without asking for anything',
+    subject: (c) => `Knowing the value is only part of the picture`,
+    paras: (c) => [
+      `Knowing what ${c.street} may be worth is helpful, but if a move ever becomes part of the plan, that's usually only one piece of the puzzle.`,
+      `The next questions tend to be things like:`,
+      `Where would you go next?`,
+      `What would that home cost?`,
+      `How much equity would you have available?`,
+      `Would you need to sell first, or could you buy before selling?`,
+      `There's no need to figure any of that out now.`,
+      `But if a move is something you may consider eventually, we're always happy to help you understand the numbers and options before you make any decisions.`,
+    ] },
+
+  { key: 'day32_expectation', day: 32, channel: 'sms',
+    purpose: 'The easiest possible question, to reopen a dead thread',
+    text: (c) => `One last home-value question for you :) Do you feel like the estimate you received was about what you expected, higher than expected, or lower than expected?` },
+
+  { key: 'day37_email', day: 37, channel: 'email',
+    purpose: 'Same question with the context that makes it safe to answer',
+    subject: (c) => `Did the value surprise you?`,
+    paras: (c) => [
+      `I wanted to ask one last simple question about the valuation you received for ${c.street}.`,
+      `Did the estimate feel:`,
+      `Higher than you expected?`,
+      `About what you expected?`,
+      `Or lower than you expected?`,
+      `There's no wrong answer.`,
+      `Online estimates are really just a starting point, and the actual condition, updates, location within the neighborhood and current competition can change the picture.`,
+      `If you're curious, just reply with "higher," "about right" or "lower."`,
+    ] },
+
+  { key: 'day45_sms_close', day: 45, channel: 'sms',
+    purpose: 'Soft close. No pressure language, no last chance, no appointment ask',
+    // The only step that opens with a name, so it is the only one that can print
+    // "Hi undefined". mergeFieldsFor already defaults to "there", but a close is the worst
+    // possible place to discover that a caller skipped it.
+    text: (c) => `Hi ${c.first_name || 'there'}, we'll leave things here for now. If you ever want a closer look at the value of ${c.street || 'your home'} or have any real estate questions, we're always happy to help. MattSmithTeam.com` },
+
+  { key: 'day45_email_close', day: 45, channel: 'email', final: true,
+    purpose: 'Soft close, and the handoff point to long-term nurture',
+    subject: (c) => `We'll leave things here for now`,
+    paras: (c) => [
+      `We'll leave things here for now, but I hope the home-value information was helpful.`,
+      `If you ever want us to take a closer look at ${c.street}, compare it with recent nearby sales or help you understand what the property could realistically be worth in today's market, we're always happy to help.`,
+      `No pressure and no obligation.`,
+      `You can also keep an eye on the market anytime at MattSmithTeam.com.`,
+      `Thanks again for reaching out to our team.`,
+    ] },
 ]
+
+// Kept so the sequence PDF builder and the older tests keep resolving.
+export const HV_SMS_STEPS = HV_STEPS
 
 export function initHvSms() {
   try {
@@ -240,15 +352,34 @@ export function agentSuggestions(rating) {
 }
 
 /** Why this lead may not be texted right now, or null. */
-export function hvSmsBlock(client, row) {
+// THE BLOCK RULES ARE PER CHANNEL (John's dual-channel spec, 2026-10-23).
+//
+// This used to be SMS-only, which was fine when the campaign was SMS-only. Applied
+// unchanged to the new email steps it would be wrong four separate ways: a TEXT opt-out
+// would silence email, an undeliverable mobile would silence email, a homeowner with an
+// email and no phone would receive nothing at all, and the "already texted in 20 hours"
+// rule would hold an email back for a text the campaign itself had just sent. That last
+// one matters most, because the sequence deliberately alternates the two.
+//
+// What both channels share: the record still exists, the lead has not replied, and the
+// status is one we still contact.
+export function hvSmsBlock(client, row, step = null) {
   if (!client) return 'client gone'
   if (client.merged_into) return 'merged into another record'
-  if (client.hub_text_opt_out) return 'replied STOP to our number'
-  if (client.sms_undeliverable) return 'number is undeliverable'
-  if (String(client.phone || '').replace(/\D/g, '').length < 10) return 'no mobile number'
   const st = String(client.status || '').toLowerCase()
   if (['junk', 'donotcontact', 'closed', 'archived', 'trash'].includes(st)) return `lead status ${client.status}`
   if (row && row.replied_at) return 'lead has replied'
+
+  if (step && step.channel === 'email') {
+    // Opt-out, bounce and the cross-campaign email cap are enforced by emailCapBlock and
+    // sendSequenceEmail at the point of sending, so they are not duplicated here.
+    if (!String(client.email || '').trim()) return 'no email on file'
+    return null
+  }
+
+  if (client.hub_text_opt_out) return 'replied STOP to our number'
+  if (client.sms_undeliverable) return 'number is undeliverable'
+  if (String(client.phone || '').replace(/\D/g, '').length < 10) return 'no mobile number'
   // One automated prospecting text a day, whoever queued it.
   const since = new Date(Date.now() - 20 * 3600000).toISOString()
   const already = db.get(
@@ -271,8 +402,16 @@ export async function runHvSmsSweep() {
     const c = db.get('SELECT * FROM clients WHERE id=?', [row.client_id])
     const step = HV_SMS_STEPS[row.next_step]
     if (!step) { finish(row.client_id, 'completed', 'ran out of steps'); out.completed++; continue }
-    const block = hvSmsBlock(c, row)
+    const block = hvSmsBlock(c, row, step)
     if (block) {
+      // A homeowner with a phone but no email address should still get every TEXT in the
+      // sequence. Missing one channel skips that step; it does not end the campaign.
+      if (block === 'no email on file') {
+        log(row.client_id, 'skipped', { step_key: step.key, reason: block })
+        advanceAfterSend(c, row, step, { body: '(skipped, no email on file)', commId: null })
+        out.deferred++
+        continue
+      }
       const terminal = /STOP|undeliverable|no mobile|status|merged|gone|replied/i.test(block)
       if (terminal) { finish(row.client_id, 'suppressed', block); out.stopped++ }
       else { defer(row, block); out.deferred++ }
@@ -285,11 +424,41 @@ export async function runHvSmsSweep() {
   return out
 }
 
+// John's spec signs these emails "John", unlike every other Hub email, which signs Matt.
+// Flagged to him on 2026-10-23 rather than silently changed: this is his approved copy.
+function hvEmailHtml(first, paras) {
+  const ps = paras.map(t => `<p>${t}</p>`).join('\n')
+  return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.6;">
+<p>Hi ${first},</p>
+${ps}
+<p>John<br>Matt Smith Team | RE/MAX Concepts</p></div>`
+}
+
 async function sendStep(client, row, step) {
   const f = mergeFieldsFor(client)
-  // +1 because Day 0 already used index 0 ("Hi"), so Day 3 starts the rotation at "Hello".
-  const body = step.text({ first_name: f.first_name, street: f.street, greeting: greetingFor(row.next_step + 1) })
   try {
+    // ---- EMAIL STEPS ----
+    // They obey the same cross-campaign ceiling as every other automated email: 1 a day,
+    // 2 a week, counted across drips, campaigns and manual sends. Over the cap returns
+    // ok:false, which lands in defer() and keeps the touch rather than burning it.
+    if (step.channel === 'email') {
+      if (!String(client.email || '').trim()) return { ok: false, reason: 'no email on file' }
+      const { emailCapBlock } = await import('./email-cap.js')
+      const cap = emailCapBlock(client.id, 'home_value_response')
+      if (cap) return { ok: false, reason: cap.reason }
+      const { sendSequenceEmail } = await import('./routes/email.js')
+      const subject = step.subject({ first_name: f.first_name, street: f.street })
+      const paras = step.paras({ first_name: f.first_name, street: f.street })
+      const r = await sendSequenceEmail(client, { subject, body: hvEmailHtml(f.first_name, paras) }, 'home_value_response')
+      if (r?.ok === false) return { ok: false, reason: r.reason }
+      advanceAfterSend(client, row, step, { body: subject, commId: null })
+      return { ok: true }
+    }
+
+    // ---- SMS STEPS ----
+    // No greeting is prepended. John's copy for this campaign deliberately opens
+    // mid-thought, and the Hi/Hello/time-of-day rotation would fight it.
+    const body = step.text({ first_name: f.first_name, street: f.street })
     const { canSendSms, canAutomatedSend } = await import('./ai-followup/policy.js')
     const gate = canSendSms(client, { channel: 'automation' })
     if (!gate.ok) return { ok: false, reason: gate.reason }
@@ -302,7 +471,16 @@ async function sendStep(client, row, step) {
     const ins = db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, preview, body, external_id, thread_key, status, delivery_status, agent, sent_by_type, occurred_at)
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ['text', 'outgoing', client.id, name, r.from || '', client.phone, body.replace(/\s+/g, ' ').slice(0, 160), body,
-       'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'Home Value SMS', 'home_value_sms', nowIso()])
+       'twilio_' + r.sid, `c${client.id}_text`, 'read', r.status || 'queued', 'Home Value Response', 'home_value_sms', nowIso()])
+    advanceAfterSend(client, row, step, { body, commId: ins.lastInsertRowid })
+    return { ok: true }
+  } catch (e) { return { ok: false, reason: e.message } }
+}
+
+// Shared by both channels so the schedule can never advance one way for a text and another
+// for an email.
+function advanceAfterSend(client, row, step, { body, commId }) {
+  {
     const nextIdx = row.next_step + 1
     const nextStep = HV_SMS_STEPS[nextIdx]
     const sets = {
@@ -316,10 +494,33 @@ async function sendStep(client, row, step) {
     } else {
       db.run(`UPDATE home_value_sms SET step_key=?, last_sent_at=?, next_step=?, next_send_at=NULL, status='completed', walkthrough_offered_at=?, updated_at=? WHERE client_id=?`,
         [sets.step_key, sets.last_sent_at, nextIdx, sets.walkthrough_offered_at, nowIso(), client.id])
+      // END OF THE RESPONSE CAMPAIGN, NOT THE END OF THE RELATIONSHIP (John, 2026-10-23).
+      //
+      // Someone who never replied across 45 days is not a dead lead, they are a homeowner
+      // who had nothing to say yet. They move to the long-term Home Value nurture, which
+      // is market information rather than questions. Qualification never starts again:
+      // that is the whole point of the handoff.
+      handOffToLongTermNurture(client.id)
     }
-    log(client.id, 'sent', { step_key: step.key, body, comm_id: ins.lastInsertRowid })
-    return { ok: true }
-  } catch (e) { return { ok: false, reason: e.message } }
+    log(client.id, 'sent', { step_key: step.key, body, comm_id: commId })
+  }
+}
+
+// The long-term nurture is an ordinary drip, so the handoff is an enrolment. Past clients
+// have their own version of it, and the cap rules in the drip engine still apply, so this
+// deliberately does not force anything: it asks, and logs what happened.
+function handOffToLongTermNurture(cid) {
+  try {
+    const c = db.get('SELECT id, status, tags FROM clients WHERE id=? AND merged_into IS NULL', [cid])
+    if (!c) return
+    const isPastClient = String(c.status || '').toLowerCase() === 'closed' || /past client/i.test(String(c.tags || ''))
+    const dripId = isPastClient ? 21 : 20
+    const already = db.get('SELECT id FROM drip_enrollments WHERE client_id=? AND drip_id=? AND status IN (?,?)', [cid, dripId, 'active', 'paused'])
+    if (already) { log(cid, 'handoff', { reason: `already in long-term drip ${dripId}` }); return }
+    db.run(`INSERT INTO drip_enrollments (client_id, drip_id, status, current_step, source, enrolled_at, updated_at)
+            VALUES (?,?,?,?,?,?,?)`, [cid, dripId, 'active', 0, 'home_value_response_handoff', nowIso(), nowIso()])
+    log(cid, 'handoff', { reason: `moved to long-term Home Value nurture (drip ${dripId})` })
+  } catch (e) { log(cid, 'handoff', { reason: 'handoff failed: ' + e.message }) }
 }
 
 function defer(row, reason) {

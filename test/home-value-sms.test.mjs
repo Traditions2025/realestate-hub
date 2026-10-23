@@ -32,37 +32,76 @@ const row = (cid) => db.get('SELECT * FROM home_value_sms WHERE client_id=?', [c
 
 /* ---------- the sequence itself ---------- */
 
-test('seven steps, on the days John specified', () => {
-  assert.deepEqual(HV.HV_SMS_STEPS.map(s => s.day), [3, 7, 12, 18, 25, 35, 45])
-  assert.equal(HV.HV_SMS_STEPS.length, 7)
-  assert.equal(HV.HV_SMS_STEPS.at(-1).final, true)
+const C = { first_name: 'Dana', street: '14 Oak St' }
+const smsOf = (s) => s.text(C)
+const emailOf = (s) => [s.subject(C), ...s.paras(C)].join('\n')
+const bodyOf = (s) => (s.channel === 'email' ? emailOf(s) : smsOf(s))
+
+test('thirteen steps alternating SMS and email, on the days John specified', () => {
+  assert.deepEqual(HV.HV_STEPS.map(s => s.day), [1, 3, 5, 8, 11, 15, 19, 23, 28, 32, 37, 45, 45])
+  assert.deepEqual(HV.HV_STEPS.map(s => s.channel),
+    ['email', 'sms', 'email', 'sms', 'email', 'sms', 'email', 'sms', 'email', 'sms', 'email', 'sms', 'email'])
+  assert.equal(HV.HV_STEPS.at(-1).final, true)
 })
 
 test('every message is straight-apostrophe only', () => {
-  const c = { first_name: 'Dana', street: '14 Oak St' }
-  for (const s of HV.HV_SMS_STEPS) {
-    assert.ok(!/[‘’“”]/.test(s.text(c)), `${s.key} has a curly apostrophe`)
+  // A curly apostrophe turns an SMS segment from 160 characters into 70.
+  for (const s of HV.HV_STEPS) assert.ok(!/[‘’“”]/.test(bodyOf(s)), `${s.key} has a curly apostrophe`)
+})
+
+test('only the Day 45 close carries a link, and only one', () => {
+  for (const s of HV.HV_STEPS.filter(x => x.channel === 'sms')) {
+    const links = (smsOf(s).match(/MattSmithTeam\.com|https?:\/\//gi) || []).length
+    if (s.day === 45) assert.equal(links, 1, 'the close should point somewhere, once')
+    else assert.equal(links, 0, `${s.key} should carry no link`)
   }
 })
 
-test('no message carries a link', () => {
-  const c = { first_name: 'Dana', street: '14 Oak St' }
-  for (const s of HV.HV_SMS_STEPS) assert.equal((s.text(c).match(/https?:\/\//g) || []).length, 0, s.key)
-})
-
-test('the walkthrough is offered once, at day 35, and never called mandatory', () => {
-  const offers = HV.HV_SMS_STEPS.filter(s => s.offersWalkthrough)
-  assert.equal(offers.length, 1)
-  assert.equal(offers[0].day, 35)
-  const t = offers[0].text({ first_name: 'D', street: 'X' })
-  assert.match(t, /If you're open to it/)
-  assert.doesNotMatch(t, /need to|must|required/i)
+test('intent is not raised before Day 15', () => {
+  // The whole design: earn the question first. Days 1 to 11 are about the property.
+  for (const s of HV.HV_STEPS.filter(x => x.day < 15)) {
+    // The word itself is fine in market context: John's Day 1 email says two homes "can
+    // sell very differently". What must not appear before Day 15 is the question pointed
+    // at THEM.
+    assert.doesNotMatch(bodyOf(s), /(are|were) you\b[^.?!]{0,40}(sell|mov)|thinking (about|of) (selling|moving)|plans? to (sell|move)|considering a move/i, s.key)
+  }
+  assert.match(smsOf(HV.HV_STEPS.find(s => s.day === 15)), /move/i, 'Day 15 is where intent starts')
 })
 
 test('no message asks outright whether they want to sell', () => {
-  const c = { first_name: 'Dana', street: '14 Oak St' }
-  for (const s of HV.HV_SMS_STEPS) {
-    assert.doesNotMatch(s.text(c), /are you (looking to|planning to|thinking of) sell\b/i, s.key)
+  for (const s of HV.HV_STEPS) {
+    assert.doesNotMatch(bodyOf(s), /are you (looking to|planning to|thinking of) sell\b/i, s.key)
+  }
+})
+
+test('the close applies no pressure', () => {
+  // John named the phrases he does not want: no last chance, no "still interested", no
+  // "I've been trying to reach you", no appointment ask.
+  for (const s of HV.HV_STEPS.filter(x => x.day === 45)) {
+    assert.doesNotMatch(bodyOf(s), /still interested|last chance|trying to reach|schedule an appointment/i, s.key)
+  }
+})
+
+test('email subjects avoid spam-heavy words', () => {
+  for (const s of HV.HV_STEPS.filter(x => x.channel === 'email')) {
+    assert.doesNotMatch(s.subject(C), /\$\$|\bcash\b|\bprofit\b|\bpayout\b/i, s.key)
+  }
+})
+
+test('an SMS and the email near it never carry the same copy', () => {
+  // The two channels exist to do different jobs: the text asks, the email explains why.
+  for (let i = 1; i < HV.HV_STEPS.length; i++) {
+    const a = HV.HV_STEPS[i - 1], b = HV.HV_STEPS[i]
+    if (a.channel === b.channel) continue
+    const norm = (t) => t.toLowerCase().replace(/[^a-z ]/g, '').trim()
+    assert.notEqual(norm(bodyOf(a)), norm(bodyOf(b)), `${a.key} and ${b.key} duplicate each other`)
+  }
+})
+
+test('every email signs off and greets the way John wrote it', () => {
+  for (const s of HV.HV_STEPS.filter(x => x.channel === 'email')) {
+    assert.ok(s.subject(C).length > 0 && s.paras(C).length > 0, s.key)
+    assert.ok(!s.paras(C).some(p => /^Hi /.test(p)), `${s.key} should not repeat the greeting in the body`)
   }
 })
 
@@ -84,8 +123,9 @@ test('junk names fall back to "there", never "Hi ,"', () => {
 test('a missing address falls back to "your home"', () => {
   const f = HV.mergeFieldsFor({ first_name: 'Dana', address: '' })
   assert.equal(f.street, 'your home')
-  const t = HV.HV_SMS_STEPS[0].text({ first_name: f.first_name, street: f.street, greeting: 'Hi' })
-  assert.match(t, /updates to your home over the years/)
+  const first = HV.HV_STEPS[0]                       // Day 1 is an email now
+  const t = [first.subject({ street: f.street }), ...first.paras({ first_name: f.first_name, street: f.street })].join('\n')
+  assert.match(t, /your home/)
   assert.doesNotMatch(t, /undefined|\{\{/)
 })
 
@@ -245,7 +285,7 @@ test('the state object gives the profile what it needs', () => {
   const st = HV.hvSmsState(c.id)
   assert.equal(st.status, 'replied')
   assert.equal(st.condition_rating, 7)
-  assert.equal(st.total_steps, 7)
+  assert.equal(st.total_steps, 13)
   assert.equal(st.suggestions.length, 2, 'the agent gets suggestions once a rating is known')
   assert.ok(Array.isArray(st.log) && st.log.length > 0)
 })
@@ -275,18 +315,28 @@ test('Day 0 tokens resolve through fillTemplate, including the fallbacks', async
 
 test('every Day 3+ step survives a record with no name and no address', () => {
   const f = HV.mergeFieldsFor({ first_name: '', address: '' })
-  for (const s of HV.HV_SMS_STEPS) {
-    const t = s.text({ first_name: f.first_name, street: f.street, greeting: HV.greetingFor(0) })
+  for (const s of HV.HV_STEPS) {
+    const t = s.channel === 'email'
+      ? [s.subject({ street: f.street }), ...s.paras({ first_name: f.first_name, street: f.street })].join('\n')
+      : s.text({ first_name: f.first_name, street: f.street })
     assert.doesNotMatch(t, /\{\{|undefined|null/, `${s.key} leaked a placeholder`)
-    assert.ok(t.startsWith('Hi there,'), `${s.key} greeting`)
-    assert.match(t, /your home/, `${s.key} should use the address fallback`)
   }
 })
 
 test('a real street address appears verbatim in every step', () => {
   const f = HV.mergeFieldsFor({ first_name: 'Kurt', address: '2870 Hunters Ridge Rd' })
-  for (const s of HV.HV_SMS_STEPS) {
-    assert.match(s.text({ first_name: f.first_name, street: f.street, greeting: HV.greetingFor(0) }), /2870 Hunters Ridge Rd/, s.key)
+  // Not every step names the house: Day 8 and Day 32 are deliberately generic questions.
+  // Decide by RENDERING with a marker, rather than by reading the function's source.
+  const renders = (s, street) => s.channel === 'email'
+    ? [s.subject({ street }), ...s.paras({ first_name: 'Kurt', street })].join('\n')
+    : s.text({ first_name: 'Kurt', street })
+  const naming = HV.HV_STEPS.filter(s => renders(s, 'ZZMARKERZZ').includes('ZZMARKERZZ'))
+  assert.ok(naming.length >= 8, `most steps should still name the property, got ${naming.length}`)
+  for (const s of naming) {
+    const t = s.channel === 'email'
+      ? [s.subject({ street: f.street }), ...s.paras({ first_name: f.first_name, street: f.street })].join('\n')
+      : s.text({ first_name: f.first_name, street: f.street })
+    assert.match(t, /2870 Hunters Ridge Rd/, s.key)
   }
 })
 
@@ -314,17 +364,18 @@ test('one lead sees all three across the sequence', () => {
   assert.equal(seen.size, 3, 'Hi, Hello and a time-of-day greeting all appear')
 })
 
-test('no step hardcodes a greeting any more', () => {
-  for (const s of HV.HV_SMS_STEPS) {
-    const t = s.text({ first_name: 'Dana', street: '1 A St', greeting: 'ZZTEST' })
-    assert.ok(t.startsWith('ZZTEST '), `${s.key} ignores the greeting it was given`)
+test('the SMS copy opens exactly as John wrote it, with nothing prepended', () => {
+  // The earlier campaign rotated Hi/Hello/time-of-day. This copy mostly opens mid-thought
+  // on purpose, so a greeting must NOT be bolted on in front of it.
+  for (const s of HV.HV_STEPS.filter(x => x.channel === 'sms')) {
+    const t = s.text({ first_name: 'Dana', street: '1 A St' })
+    assert.doesNotMatch(t, /^(Hi|Hello|Good (morning|afternoon|evening)) (Dana|there),? (Hi|Hello)/, s.key)
+    assert.doesNotMatch(t, /undefined/, s.key)
   }
 })
 
-test('a forgotten greeting falls back to "Hi", never "undefined"', () => {
-  for (const s of HV.HV_SMS_STEPS) {
-    const t = s.text({ first_name: 'Dana', street: '1 A St' })   // no greeting passed
-    assert.ok(t.startsWith('Hi '), `${s.key} -> ${t.slice(0, 20)}`)
-    assert.doesNotMatch(t, /undefined/)
+test('no step leaks undefined when a merge field is missing', () => {
+  for (const s of HV.HV_STEPS.filter(x => x.channel === 'sms')) {
+    assert.doesNotMatch(s.text({}), /undefined/, s.key)
   }
 })

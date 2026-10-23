@@ -28,8 +28,9 @@ const queued = (cid) => db.get('SELECT * FROM scheduled_texts WHERE client_id=? 
 /* ---------- John's wording, exactly ---------- */
 
 test('the message is word for word what John wrote', () => {
+  // Rewritten 2026-10-23 with the Home Value Response Campaign spec.
   assert.equal(HV.CONDITION_QUESTION,
-    "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition. https://www.mattsmithteam.com/")
+    "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for reaching out about the value of your home at {{street_address}}. Quick question to help us narrow down the estimate: On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being model-home condition.")
 })
 
 test('straight apostrophes only, or the text costs three segments', () => {
@@ -37,9 +38,12 @@ test('straight apostrophes only, or the text costs three segments', () => {
     'a curly apostrophe forces UCS-2 and cuts a segment from 160 characters to 70')
 })
 
-test('exactly one link, never two (John, 2026-10-19 added the site)', () => {
-  assert.equal((HV.CONDITION_QUESTION.match(/https?:\/\//g) || []).length, 1)
-  assert.match(HV.CONDITION_QUESTION, /https:\/\/www\.mattsmithteam\.com\//)
+test('no link on Day 0 — the 2026-10-23 spec dropped it', () => {
+  // UNRESOLVED, FLAGGED TO JOHN. He added the website to this text on 2026-10-19, then his
+  // 2026-10-23 Home Value Response Campaign copy omitted it. The newer, fully specified
+  // copy wins here; the Day 45 close still carries MattSmithTeam.com. If the URL should
+  // come back, this test is the place that says so out loud.
+  assert.equal((HV.CONDITION_QUESTION.match(/https?:\/\/|MattSmithTeam\.com/gi) || []).length, 0)
 })
 
 test('the site is a full URL, so every phone makes it tappable', () => {

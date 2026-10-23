@@ -206,8 +206,17 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
 
 /** John's wording, verbatim. Straight apostrophes only: a curly one forces UCS-2 and cuts
  *  the segment from 160 characters to 70. */
+// Day 0, two minutes behind the valuation email. John's wording, 2026-10-23.
+//
+// Condition is asked FIRST because it is the single thing an automated valuation cannot
+// see, and it is a one-tap answer. Nothing about selling is asked here, or anywhere until
+// Day 15; the rest of the sequence earns that question before raising it.
+//
+// NOTE: the website URL that used to end this text is gone, because John's 2026-10-23 copy
+// does not include it. Flagged to him, since he added it deliberately on 2026-10-19. The
+// Day 45 close still carries MattSmithTeam.com.
 export const CONDITION_QUESTION =
-  "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition. https://www.mattsmithteam.com/"
+  "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for reaching out about the value of your home at {{street_address}}. Quick question to help us narrow down the estimate: On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being model-home condition."
 
 /**
  * Queue the condition question. Returns without scheduling rather than throwing, because a
