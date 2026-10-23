@@ -183,8 +183,19 @@ export function parseFubLeadEmail(subject, text) {
   }
 }
 
+// ONE PLACE THAT KNOWS THE KEY'S NAME.
+//
+// The setting is fub_lead_email_enabled, with the u. A preflight built on 2026-10-23 read
+// "fb_lead_email_enabled" instead, got the '0' default for a key that does not exist, and
+// reported that the whole Facebook lead pipeline was dead - at the moment two leads were
+// flowing through it perfectly. A wrong answer delivered confidently is worse than no
+// answer, so nothing may spell this string a second time.
+export function fubLeadEmailEnabled() {
+  return db.getSetting('fub_lead_email_enabled', '0') === '1'
+}
+
 export async function handleFubLeadEmail(parsedMail) {
-  if (db.getSetting('fub_lead_email_enabled', '0') !== '1') return { skipped: 'disabled' }
+  if (!fubLeadEmailEnabled()) return { skipped: 'disabled' }
   const html = String(parsedMail.html || '')
   const lead = parseFubLeadEmail(parsedMail.subject, String(parsedMail.text || html.replace(/<[^>]+>/g, ' ')))
   if (!lead) return { skipped: 'not a watched lead source' }

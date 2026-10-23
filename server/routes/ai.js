@@ -263,7 +263,9 @@ router.get('/fb-campaign/readiness', async (req, res) => {
     const camp = await import('../fb-listing-campaign.js')
     const tpl = await import('../ai-followup/fb-ad-templates.js')
 
-    const trigger = db.getSetting('fb_lead_email_enabled', '0') === '1'
+    // Ask the module that owns the switch rather than spelling the key again here.
+    const { fubLeadEmailEnabled } = await import('../fub-leads.js')
+    const trigger = fubLeadEmailEnabled()
     const campaignOn = camp.fbListingCampaignEnabled()
     // The status check is only as good as the transaction behind it. No match means the
     // campaign cannot tell active from sold, which is how a pending house keeps being
@@ -277,7 +279,7 @@ router.get('/fb-campaign/readiness', async (req, res) => {
     })()
 
     const blockers = []
-    if (!trigger) blockers.push('fb_lead_email_enabled is OFF, so FUB lead emails are ignored and no lead will ever be created')
+    if (!trigger) blockers.push('fub_lead_email_enabled is OFF, so FUB lead emails are ignored and no lead will ever be created')
     if (!campaignOn) blockers.push('fb_listing_campaign_enabled is OFF, so nobody gets the 30-day follow-up')
     if (!mailboxes.length) blockers.push('no connected mailbox, so the lead emails cannot be read')
     if (listing && !tx) blockers.push(`no transaction matches "${listing}", so the property-status check cannot run and pending/sold would not stop the property copy`)
@@ -286,7 +288,7 @@ router.get('/fb-campaign/readiness', async (req, res) => {
       listing: listing || null,
       ready: blockers.length === 0,
       blockers,
-      trigger_fb_lead_email_enabled: trigger,
+      trigger_fub_lead_email_enabled: trigger,
       campaign_enabled: campaignOn,
       opener_templates: (tpl.FB_AD_TEMPLATES || []).length,
       listing_transaction: tx ? { id: tx.id, address: tx.property_address, status: tx.property_status, state: camp.listingState(tx) } : null,
