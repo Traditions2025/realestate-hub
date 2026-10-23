@@ -379,3 +379,28 @@ test('no step leaks undefined when a merge field is missing', () => {
     assert.doesNotMatch(s.text({}), /undefined/, s.key)
   }
 })
+
+/* ---------- email identity: Matt, on every campaign ---------- */
+
+test('the emails sign Matt, never John', () => {
+  // John wrote "John" into his own spec for this campaign, then confirmed on 2026-10-23:
+  // "always Matt on all campaigns". The rule exists because every outbound email leaves
+  // Matt's marketing address, and two real leads once got John-signed mail from it.
+  const html = HV.hvEmailHtml('Dana', ['First line.', 'Second line.'])
+  assert.match(html, /Matt Smith<br>Matt Smith Team \| RE\/MAX Concepts/)
+  assert.doesNotMatch(html, /\bJohn\b/, 'no John anywhere in an email')
+})
+
+test('no email body introduces the sender as John', () => {
+  const C2 = { first_name: 'Dana', street: '14 Oak St' }
+  for (const s of HV.HV_STEPS.filter(x => x.channel === 'email')) {
+    const body = [s.subject(C2), ...s.paras(C2)].join('\n')
+    assert.doesNotMatch(body, /\bJohn\b/, s.key)
+  }
+})
+
+test('the SMS side stays John, because that number is his', () => {
+  const C2 = { first_name: 'Dana', street: '14 Oak St' }
+  const opener = HV.HV_STEPS.filter(x => x.channel === 'sms').map(s => s.text(C2)).join('\n')
+  assert.doesNotMatch(opener, /Matt Smith Team at RE\/MAX\. I'm Matt/, 'SMS must not switch persona')
+})

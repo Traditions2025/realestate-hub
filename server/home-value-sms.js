@@ -424,14 +424,20 @@ export async function runHvSmsSweep() {
   return out
 }
 
-// John's spec signs these emails "John", unlike every other Hub email, which signs Matt.
-// Flagged to him on 2026-10-23 rather than silently changed: this is his approved copy.
-function hvEmailHtml(first, paras) {
+// EMAIL IS MATT, ON EVERY CAMPAIGN (John, 2026-10-23, confirming the standing rule).
+//
+// His written spec for this campaign signed the emails "John". Asked about it, he was
+// unambiguous: "always Matt on all campaigns". That matches why the rule exists - all
+// outbound mail leaves Matt's marketing address, so a John sign-off confuses the reader,
+// which is exactly what happened to Rich Gholston and Mark Herzberger.
+//
+// The John persona stays on SMS, where the number is his.
+export function hvEmailHtml(first, paras) {
   const ps = paras.map(t => `<p>${t}</p>`).join('\n')
   return `<div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;color:#0f172a;line-height:1.6;">
 <p>Hi ${first},</p>
 ${ps}
-<p>John<br>Matt Smith Team | RE/MAX Concepts</p></div>`
+<p>Matt Smith<br>Matt Smith Team | RE/MAX Concepts</p></div>`
 }
 
 async function sendStep(client, row, step) {

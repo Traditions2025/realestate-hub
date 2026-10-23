@@ -206,17 +206,20 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
 
 /** John's wording, verbatim. Straight apostrophes only: a curly one forces UCS-2 and cuts
  *  the segment from 160 characters to 70. */
-// Day 0, two minutes behind the valuation email. John's wording, 2026-10-23.
+// Day 0, two minutes behind the valuation email. John's wording, approved 2026-10-19 and
+// LEFT ALONE since.
 //
 // Condition is asked FIRST because it is the single thing an automated valuation cannot
 // see, and it is a one-tap answer. Nothing about selling is asked here, or anywhere until
 // Day 15; the rest of the sequence earns that question before raising it.
 //
-// NOTE: the website URL that used to end this text is gone, because John's 2026-10-23 copy
-// does not include it. Flagged to him, since he added it deliberately on 2026-10-19. The
-// Day 45 close still carries MattSmithTeam.com.
+// The 2026-10-23 response-campaign spec restated this text slightly differently and without
+// the website link. It was briefly changed to match, and John reverted it the same day:
+// "don't touch what we've already built last time, this is just additional text and
+// emails". So the Day 0 message is the Oct 19 one, URL included, and everything in the new
+// spec is additional to it.
 export const CONDITION_QUESTION =
-  "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for reaching out about the value of your home at {{street_address}}. Quick question to help us narrow down the estimate: On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being model-home condition."
+  "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition. https://www.mattsmithteam.com/"
 
 /**
  * Queue the condition question. Returns without scheduling rather than throwing, because a
