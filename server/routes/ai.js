@@ -247,22 +247,6 @@ router.get('/seller-campaign/:clientId', async (req, res) => {
 })
 
 // ---- FB listing-lead 30-day campaign (John, 2026-09-18) --------------------
-router.get('/fb-campaign/stats', async (_req, res) => {
-  const m = await import('../fb-listing-campaign.js'); res.json(m.fbListingCampaignStats())
-})
-router.get('/fb-campaign/:clientId', async (req, res) => {
-  const m = await import('../fb-listing-campaign.js')
-  const s = m.fbListingCampaignState(req.params.clientId)
-  if (!s) return res.status(404).json({ error: 'not enrolled' })
-  res.json(s)
-})
-router.post('/fb-campaign/:clientId/enroll', async (req, res) => {
-  const m = await import('../fb-listing-campaign.js')
-  res.json(m.enrollFbListingCampaign(Number(req.params.clientId), String(req.body?.listing || '').trim(), { day0Iso: req.body?.day0 || null, actor: 'api' }))
-})
-router.post('/fb-campaign/:clientId/pause', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.pauseFbListingCampaign(req.params.clientId)) })
-router.post('/fb-campaign/:clientId/resume', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.resumeFbListingCampaign(req.params.clientId)) })
-router.post('/fb-campaign/:clientId/remove', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.removeFromFbListingCampaign(req.params.clientId, 'agent', String(req.body?.reason || ''))) })
 // PREFLIGHT FOR A LISTING AD (John, 2026-10-23, launching 1625 Ranmar Dr Ely).
 //
 // A listing ad is spending money the moment it goes live, and the pipeline behind it is
@@ -313,6 +297,22 @@ router.get('/fb-campaign/readiness', async (req, res) => {
     })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
+router.get('/fb-campaign/stats', async (_req, res) => {
+  const m = await import('../fb-listing-campaign.js'); res.json(m.fbListingCampaignStats())
+})
+router.get('/fb-campaign/:clientId', async (req, res) => {
+  const m = await import('../fb-listing-campaign.js')
+  const s = m.fbListingCampaignState(req.params.clientId)
+  if (!s) return res.status(404).json({ error: 'not enrolled' })
+  res.json(s)
+})
+router.post('/fb-campaign/:clientId/enroll', async (req, res) => {
+  const m = await import('../fb-listing-campaign.js')
+  res.json(m.enrollFbListingCampaign(Number(req.params.clientId), String(req.body?.listing || '').trim(), { day0Iso: req.body?.day0 || null, actor: 'api' }))
+})
+router.post('/fb-campaign/:clientId/pause', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.pauseFbListingCampaign(req.params.clientId)) })
+router.post('/fb-campaign/:clientId/resume', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.resumeFbListingCampaign(req.params.clientId)) })
+router.post('/fb-campaign/:clientId/remove', async (req, res) => { const m = await import('../fb-listing-campaign.js'); res.json(m.removeFromFbListingCampaign(req.params.clientId, 'agent', String(req.body?.reason || ''))) })
 router.post('/fb-campaign/toggle', async (req, res) => {
   const on = req.body?.enabled === true || req.body?.enabled === '1'
   db.setSetting('fb_listing_campaign_enabled', on ? '1' : '0')
