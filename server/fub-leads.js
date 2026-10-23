@@ -73,6 +73,25 @@ function looksLikeAdEvent(e) {
   return !!matchWatchedSource(e.source) && LEAD_TYPE_RE.test(String(e.type || ''))
 }
 
+
+// THE FORM IS NAMED AFTER THE HOUSE, SO ITS NAME CARRIES THE WORD "FORM".
+//
+// Facebook lead forms get named for the listing they advertise: "1625 Ranmar Dr Ely Form".
+// That string is the listing label, so it reached a real customer inside the opener text:
+// "You were looking at 1625 Ranmar Dr Ely Form on Facebook" (David Stickley, 2026-10-23).
+// It also becomes the CRM tag and the label every 30-day step prints.
+//
+// Trim the words that make it a form name rather than an address. Deliberately only at the
+// END, so a street genuinely containing one of these words is left alone.
+function cleanListingLabel(s) {
+  return String(s || '')
+    .replace(/\s*[-|–:]\s*$/, '')
+    .replace(/(?:instant\s+)?(?:lead\s+)?(?:form|ad|campaign)\s*$/i, '')
+    .replace(/\s*[-|–:]\s*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 function extractLead(e) {
   const p = e.person || {}
   const msg = String(e.message || '')
@@ -94,7 +113,7 @@ function extractLead(e) {
   const timeline = (line(/time ?frame to (?:buy|sell|move)\??:?\s*([\w\-+ ]{2,30})/i)
     || (msg.match(/(0-3|1-3|3-6|6-12)\s*_?months|just curious[^.\n]*/i) || [''])[0]).replace(/_/g, ' ')
   const lender = line(/working with a lender\??:?\s*(yes|no)/i)
-  return { first, last, email, phone, listing: String(listing).slice(0, 80),
+  return { first, last, email, phone, listing: cleanListingLabel(String(listing).slice(0, 80)),
     portal: portalLabel(e.source),
     timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(), raw: msg.slice(0, 4000) }
 }
@@ -158,7 +177,7 @@ export function parseFubLeadEmail(subject, text) {
     kind: isNew ? 'new' : 'alert',
     portal,
     first: nm[0] || '', last: nm.slice(1).join(' ') || '',
-    phone, email, listing: String(listing).slice(0, 80),
+    phone, email, listing: cleanListingLabel(String(listing).slice(0, 80)),
     timeline: (timeline + (lender ? ` (lender: ${lender})` : '')).trim(),
     raw: String(body).slice(0, 4000),
   }

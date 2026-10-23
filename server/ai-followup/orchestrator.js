@@ -472,10 +472,47 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
 // FACEBOOK AD LEAD OPENER — approved template bank ONLY (John, 2026-09-17), no
 // Claude in the path. Same full gate stack as every AI send (flags, per-lead
 // enable, compliance, line-type screen, quiet hours, daily cap).
+// DID A PERSON ALREADY REACH OUT TO THIS LEAD?
+//
+// John, 2026-10-23: "make sure you see if I already talked to the new facebook leads, for
+// example David Stickley, that way you don't send the first text or email asking about the
+// property."
+//
+// It had already happened. David came in off the Ranmar ad at 2:08:23 PM, John called him
+// at 2:08:52, and the AI texted "Is there anything you'd like to know about the home?" at
+// 2:13:55 - five minutes after the call it knew nothing about.
+//
+// The existing guards all watch for an INBOUND reply, which is the wrong direction for
+// this. A call John places leaves an outgoing row and nothing was looking at it. So this
+// asks the only question that matters before a cold opener: has a human on our side
+// already spoken to this person since they arrived?
+export function humanAlreadyReachedOut(cid, since) {
+  try {
+    return db.get(
+      `SELECT id, channel, occurred_at FROM communications
+        WHERE client_id = ? AND direction = 'outgoing'
+          AND (sent_by_type = 'human' OR channel = 'call')
+          AND occurred_at >= ?
+        ORDER BY occurred_at DESC LIMIT 1`,
+      [Number(cid), since || '1970-01-01']) || null
+  } catch { return null }
+}
+
 export async function handleFbAdOpener(clientId, { property = '' } = {}) {
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
   if (!client) return { ok: false, reason: 'no client' }
+  // A cold "anything you'd like to know about the home?" after a real conversation makes
+  // the team look like it is not talking to itself. The lead belongs to whoever called.
+  const touched = humanAlreadyReachedOut(cid, client.created_at)
+  if (touched) {
+    try {
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+        ['fb_ad_opener_skipped', 'client', cid, `opener skipped: a human already made contact by ${touched.channel} at ${touched.occurred_at}`])
+    } catch {}
+    try { transitionAiState(cid, 'HUMAN_TAKEOVER', `human reached out by ${touched.channel} before the opener`) } catch {}
+    return { ok: false, sent: false, reason: `a human already reached out by ${touched.channel} — opener skipped` }
+  }
   const { renderFbAdOpener } = await import('./fb-ad-templates.js')
   const r = renderFbAdOpener(client, property)
   const res = await runOutbound(cid, { actionType: 'FB_AD_OPENER', flagKey: 'ai_proactive_text_enabled', nextState: 'AI_WAITING_FOR_REPLY', templateText: r.text })
@@ -496,6 +533,18 @@ export async function handleFbAdOpener(clientId, { property = '' } = {}) {
 export async function handleFbAdEmail(clientId, { property = '' } = {}) {
   const cid = Number(clientId)
   const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  // Same rule as the opener, checked again rather than assumed: this email is queued ten
+  // minutes ahead, which is ample time for someone to pick up the phone in between.
+  if (client) {
+    const touched = humanAlreadyReachedOut(cid, client.created_at)
+    if (touched) {
+      try {
+        db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+          ['fb_ad_email_skipped', 'client', cid, `follow-up email skipped: a human already made contact by ${touched.channel} at ${touched.occurred_at}`])
+      } catch {}
+      return { ok: false, sent: false, reason: `a human already reached out by ${touched.channel} — follow-up email skipped` }
+    }
+  }
   if (!client) return { ok: false, reason: 'no client' }
 
   // THE NEVER-RULES APPLY TO THE AI'S EMAIL TOO (John, 2026-10-14).
