@@ -78,25 +78,30 @@ test('a lead nobody has touched still gets the opener', () => {
 
 /* ---------- the listing label that reached a customer ---------- */
 
-test('the word "Form" is trimmed from a listing label', () => {
-  // "You were looking at 1625 Ranmar Dr Ely Form on Facebook" went to David Stickley,
-  // because the Facebook lead form is NAMED after the house.
-  const src = fs.readFileSync(new URL('../server/fub-leads.js', import.meta.url), 'utf8')
-  assert.match(src, /function cleanListingLabel/, 'the cleaner must exist')
-  assert.match(src, /listing: cleanListingLabel\(/, 'and must be applied where the label is built')
+// These call the REAL function rather than re-declaring the regex or grepping the source.
+// The first version of this test did both and passed while the shipped cleaner was dead:
+// a heredoc had turned its word boundary into a literal backspace byte, so it matched
+// nothing and five leads were told "1625 Ranmar Dr Ely Form on Facebook" anyway. A test
+// that does not execute the code under test proves nothing.
+const { cleanListingLabel } = await import('../server/lead-intake.js')
+
+test('the word "Form" is trimmed, because the FB form is named after the house', () => {
+  assert.equal(cleanListingLabel('1625 Ranmar Dr Ely Form'), '1625 Ranmar Dr Ely')
+  assert.equal(cleanListingLabel('1625 Ranmar Dr Ely - Lead Form'), '1625 Ranmar Dr Ely')
+  assert.equal(cleanListingLabel('230 Bever Lane Instant Form'), '230 Bever Lane')
 })
 
 test('a street that genuinely contains the word is left alone', () => {
   // Trimming anywhere but the END would turn "12 Form Street" into "12 Street".
-  const clean = (s) => String(s || '')
-    .replace(/\s*[-|–:]\s*$/, '')
-    .replace(/\b(?:instant\s+)?(?:lead\s+)?(?:form|ad|campaign)\s*$/i, '')
-    .replace(/\s*[-|–:]\s*$/, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-  assert.equal(clean('1625 Ranmar Dr Ely Form'), '1625 Ranmar Dr Ely')
-  assert.equal(clean('1625 Ranmar Dr Ely - Lead Form'), '1625 Ranmar Dr Ely')
-  assert.equal(clean('230 Bever Lane Instant Form'), '230 Bever Lane')
-  assert.equal(clean('12 Form Street'), '12 Form Street')
-  assert.equal(clean('510 Broadway St Springville, IA 52336'), '510 Broadway St Springville, IA 52336')
+  assert.equal(cleanListingLabel('12 Form Street'), '12 Form Street')
+  assert.equal(cleanListingLabel('510 Broadway St Springville, IA 52336'), '510 Broadway St Springville, IA 52336')
+  assert.equal(cleanListingLabel('1625 Ranmar Dr Ely'), '1625 Ranmar Dr Ely')
+})
+
+test('the cleaner contains no control characters', () => {
+  // The exact failure that shipped: \b became 0x08. Source-level, because a backspace in a
+  // regex is invisible in every normal readout and silently matches nothing.
+  const src = fs.readFileSync(new URL('../server/lead-intake.js', import.meta.url), 'utf8')
+  assert.ok(!src.includes('\u0008'), 'a literal backspace byte is in the source')
+  assert.match(src, /listing = cleanListingLabel\(listing\)/, 'and it must be applied inside ingestFbLead, where every caller passes through')
 })

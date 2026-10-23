@@ -17,7 +17,7 @@
 //   - ships DISABLED (fub_lead_watch_enabled, default '0'); preview first
 import db from './database.js'
 import { fubGet, fubConfigured } from './fub-helper.js'
-import { ingestFbLead } from './lead-intake.js'
+import { ingestFbLead, cleanListingLabel } from './lead-intake.js'
 
 const nowIso = () => new Date().toISOString()
 const LEAD_TYPE_RE = /registration|inquiry|lead/i
@@ -74,23 +74,11 @@ function looksLikeAdEvent(e) {
 }
 
 
-// THE FORM IS NAMED AFTER THE HOUSE, SO ITS NAME CARRIES THE WORD "FORM".
-//
-// Facebook lead forms get named for the listing they advertise: "1625 Ranmar Dr Ely Form".
-// That string is the listing label, so it reached a real customer inside the opener text:
-// "You were looking at 1625 Ranmar Dr Ely Form on Facebook" (David Stickley, 2026-10-23).
-// It also becomes the CRM tag and the label every 30-day step prints.
-//
-// Trim the words that make it a form name rather than an address. Deliberately only at the
-// END, so a street genuinely containing one of these words is left alone.
-function cleanListingLabel(s) {
-  return String(s || '')
-    .replace(/\s*[-|–:]\s*$/, '')
-    .replace(/(?:instant\s+)?(?:lead\s+)?(?:form|ad|campaign)\s*$/i, '')
-    .replace(/\s*[-|–:]\s*$/, '')
-    .replace(/\s{2,}/g, ' ')
-    .trim()
-}
+// cleanListingLabel lives in lead-intake.js and is applied inside ingestFbLead, which
+// every caller passes through. A local copy here was broken on arrival (a heredoc turned
+// its word-boundary into a literal backspace byte) and five leads went out wrong while it
+// looked fixed. One definition only.
+
 
 function extractLead(e) {
   const p = e.person || {}

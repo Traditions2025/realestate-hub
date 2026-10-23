@@ -46,7 +46,32 @@ async function sendFbLeadAlertEmail({ cid, name, phone, email, listing, timeline
   } catch (e) { try { console.error('[fb-lead-alert-email]', e.message) } catch {} }
 }
 
+// THE LISTING LABEL IS CUSTOMER-FACING, SO IT IS CLEANED HERE, NOT AT THE CALLERS.
+//
+// Facebook lead forms are NAMED after the listing, so the form name arrives as
+// "1625 Ranmar Dr Ely Form". That one value becomes the CRM tag, the intake note, the
+// opener's property phrase and the 30-day campaign label, so a stray word reaches a
+// customer four different ways.
+//
+// It did. Five leads off the Ranmar ad were told "You were looking at 1625 Ranmar Dr Ely
+// Form on Facebook" (John, 2026-10-23: "do not include the word form and just use the
+// property address"). The first fix cleaned ONE of the three callers, and three more leads
+// went out wrong while that fix was deploying. So it is done at the single point every
+// caller passes through instead.
+//
+// Trimmed only at the END, so a street that genuinely contains one of these words survives:
+// "12 Form Street" is left alone.
+export function cleanListingLabel(s) {
+  return String(s || '')
+    .replace(/\s*[-|–:]\s*$/, '')
+    .replace(/\b(?:instant\s+)?(?:lead\s+)?(?:form|ad|campaign)\s*$/i, '')
+    .replace(/\s*[-|–:]\s*$/, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim()
+}
+
 export function ingestFbLead({ first = '', last = '', email = null, phone = null, timeline = '', listing = '', marker = '', source = null, raw = '', portal = 'Facebook' } = {}) {
+  listing = cleanListingLabel(listing)
   // WHICH PORTAL THIS CAME FROM (John, 2026-10-01).
   //
   // The watcher used to accept Facebook only. It now also takes Zillow, Realtor.com and
