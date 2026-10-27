@@ -1407,14 +1407,21 @@ router.get('/:id/timeline', (req, res) => {
       ev.push({ type: 'ai', icon: '🤖', title: `AI ${String(a.action_type || '').replace(/_/g, ' ').toLowerCase()}`, detail: (a.output_text || a.reason || a.status || '').slice(0, 240), at: at(a.created_at) })
     for (const h of db.all("SELECT reason, urgency, status, created_at FROM ai_handoffs WHERE client_id=? ORDER BY id DESC LIMIT 40", [id]))
       ev.push({ type: 'handoff', icon: '⚑', title: `Handoff (${h.urgency || 'high'})`, detail: `${h.reason || ''} · ${h.status}`, at: at(h.created_at) })
-    for (const s of db.all("SELECT showing_date, status, address FROM showings WHERE client_id=? ORDER BY showing_date DESC LIMIT 40", [id]))
-      ev.push({ type: 'showing', icon: '🏡', title: 'Showing', detail: `${s.address || ''}${s.status ? ' · ' + s.status : ''}`, at: at(s.showing_date) })
+    // `showings` has no status column — it carries interest_level and feedback instead.
+    // Selecting a column that does not exist threw, and because the whole timeline is
+    // built inside one try/catch, the error took EVERY other section down with it: the
+    // endpoint returned {"error":"no such column: status"} for every client in the Hub.
+    // That is why a home value request could be recorded correctly and still look like it
+    // had never arrived (James Osullivan, 2026-10-27).
+    for (const s of db.all("SELECT showing_date, interest_level, address FROM showings WHERE client_id=? ORDER BY showing_date DESC LIMIT 40", [id]))
+      ev.push({ type: 'showing', icon: '🏡', title: 'Showing', detail: `${s.address || ''}${s.interest_level ? ' · ' + s.interest_level : ''}`, at: at(s.showing_date) })
     for (const b of db.all("SELECT event_type, weight, source, occurred_at FROM behavioral_events WHERE client_id=? ORDER BY occurred_at DESC LIMIT 60", [id]))
       ev.push({ type: 'behavior', icon: '📈', title: String(b.event_type || '').replace(/_/g, ' '), detail: `${b.source || ''} · weight ${b.weight}`, at: at(b.occurred_at) })
     for (const l of db.all("SELECT action, details, created_at FROM activity_log WHERE entity_type='client' AND entity_id=? ORDER BY id DESC LIMIT 80", [id]))
       ev.push({ type: 'audit', icon: '•', title: String(l.action || '').replace(/_/g, ' '), detail: (l.details || '').slice(0, 240), at: at(l.created_at) })
-    for (const t of db.all("SELECT id, status, address, updated_at, created_at FROM transactions WHERE client_id=? ORDER BY updated_at DESC LIMIT 20", [id]))
-      ev.push({ type: 'transaction', icon: '📄', title: `Transaction: ${t.status || 'open'}`, detail: t.address || '', at: at(t.updated_at || t.created_at) })
+    // The columns are property_status / property_address, not status / address.
+    for (const t of db.all("SELECT id, property_status, property_address, updated_at, created_at FROM transactions WHERE client_id=? ORDER BY updated_at DESC LIMIT 20", [id]))
+      ev.push({ type: 'transaction', icon: '📄', title: `Transaction: ${t.property_status || 'open'}`, detail: t.property_address || '', at: at(t.updated_at || t.created_at) })
   } catch (e) { return res.status(500).json({ error: e.message }) }
   ev.sort((a, b) => (b.at || '').localeCompare(a.at || ''))
   res.json(ev.slice(0, limit))

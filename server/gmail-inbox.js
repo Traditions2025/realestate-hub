@@ -215,6 +215,38 @@ async function pollOne(m) {
             try { const { handleFubLeadEmail } = await import('./fub-leads.js'); await handleFubLeadEmail(parsed) } catch (e) { console.error('[fub-lead-email]', e.message) }
             continue
           }
+          // HOME VALUE NOTIFICATIONS, answered on this pass rather than ten minutes later.
+          //
+          // The seller site emails the moment somebody submits the form. A separate poller
+          // searched All Mail for it every 10 minutes, so the wait was entirely ours:
+          // James Osullivan submitted at 20:25:47 on 2026-10-27 and was answered at
+          // 20:35:08. Nothing was broken — we simply were not looking yet, and the form
+          // said "Seller CMA Request".
+          //
+          // This pass already runs every 60 seconds, already holds the connection, and
+          // already has the message parsed, so reading one more subject costs nothing.
+          // The 10-minute All Mail sweep STAYS as the backstop: a Gmail filter that files
+          // these under a label and skips the inbox would make this interception blind,
+          // which is exactly how the FUB lead notifications above were missed on
+          // 2026-09-17. Processing twice is free — handleHomeValueSubmission dedupes on
+          // the submitted-at string inside the body, which is identical either way.
+          if (/sierrasellersites\.com/i.test(String(parsed.subject || ''))) {
+            let handled = false
+            try {
+              const { parseHomeValueEmail, handleHomeValueSubmission } = await import('./home-value-intake.js')
+              const text = String(parsed.text || (parsed.html ? parsed.html.replace(/<[^>]+>/g, ' ') : ''))
+              const sub = parseHomeValueEmail(text)
+              if (sub.email) {
+                const r = await handleHomeValueSubmission(sub, { submittedAt: (msg.internalDate || parsed.date || new Date()).toISOString() })
+                handled = true
+                if (!r?.skipped) console.log(`[home-value] answered from the inbox poll: ${sub.email} (${sub.request_type || 'request'})`)
+              }
+            } catch (e) { console.error('[home-value] inbox-poll intake failed:', e.message) }
+            // Only swallow the message if it really was a submission. A person replying
+            // on the thread carries the same subject, and their reply belongs on their
+            // profile like any other email rather than disappearing into this branch.
+            if (handled) continue
+          }
           const c = matchClientByEmail(fromEmail)
           if (!c) continue
           const extId = 'gmail_' + (parsed.messageId || `${m.user}_${msg.uid}`)

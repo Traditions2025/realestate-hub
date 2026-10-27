@@ -65,6 +65,14 @@ export function parseHomeValueEmail(text) {
     zillow_estimate: money(sub('Zillow Valuation Estimate')),
     avm_estimate: money(sub('AVM Estimate')),
     sierra_lead_id: (t.match(/lead-detail\.aspx\?id=(\d+)/) || [])[1] || null,
+    // The notification states when the form was submitted, in the site's own words:
+    //   "The following info was submitted from <site> at 10/27/2026 03:25 PM."
+    // That string is the only timestamp that is IDENTICAL no matter which door the
+    // notification comes through — IMAP internalDate and a webhook's arrival time differ
+    // by seconds, and if they straddle a minute boundary the dedupe key differs and the
+    // person gets emailed twice. Kept as the literal string: no timezone maths, nothing
+    // to get wrong across DST.
+    submitted_label: (t.match(/submitted from[\s\S]{0,200}?\bat\s+([0-9]{1,2}\/[0-9]{1,2}\/[0-9]{4}\s+[0-9]{1,2}:[0-9]{2}\s*[AP]M)/i) || [])[1] || '',
   }
 }
 
@@ -103,9 +111,18 @@ function addTag(client, tag) {
 // about a lookup they did three weeks ago.
 export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), dryRun = false, recordOnly = false } = {}) {
   if (!sub || !sub.email) return { skipped: 'no email on the submission' }
-  const key = `hv_${sub.email}_${String(submittedAt).slice(0, 16)}`
-  const seen = db.get("SELECT id FROM activity_log WHERE action='home_value_submission' AND details LIKE ?", ['%' + key + '%'])
-  if (seen) return { skipped: 'already processed', key }
+  // Two doors now lead here: the IMAP poller and the webhook (routes/drips.js). They can
+  // see the SAME notification seconds apart, so the dedupe key must not depend on which
+  // one got there first. The form's own submitted-at string does not; arrival time does.
+  const stableKey = sub.submitted_label ? `hv_${sub.email}_${sub.submitted_label.replace(/\s+/g, ' ')}` : null
+  const legacyKey = `hv_${sub.email}_${String(submittedAt).slice(0, 16)}`
+  // The legacy key is still checked so notifications processed before this change are not
+  // re-sent when the poller's 2-day window sweeps over them again.
+  for (const k of [stableKey, legacyKey].filter(Boolean)) {
+    const seen = db.get("SELECT id FROM activity_log WHERE action='home_value_submission' AND details LIKE ?", ['%' + k + '%'])
+    if (seen) return { skipped: 'already processed', key: k }
+  }
+  const key = stableKey || legacyKey
 
   let client = findLead(sub)
   let created = false
@@ -125,6 +142,24 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
     const patch = { tags: addTag(client, HOME_VALUE_TAG) }
     if (!String(client.address || '').trim() && sub.address) Object.assign(patch, { address: sub.address, city: sub.city || null, state: sub.state || null, zip: sub.zip || null })
     if (!String(client.phone || '').trim() && sub.phone) patch.phone = sub.phone
+    // A DIFFERENT number on the form is new information, not a correction. The Hub owns
+    // contact data and must not overwrite a known-good number on the strength of one web
+    // form — but throwing it away is worse: James Osullivan submitted (319) 321-0659 on
+    // 2026-10-27 while the Hub held (319) 431-4988 from a Realist import, and any Day 0
+    // text would have gone to the imported number. Keep both; let a person choose.
+    else if (sub.phone) {
+      const d10sub = d10(sub.phone)
+      const known = new Set([client.phone, ...String(client.alt_phones || '').split(',')].map(d10).filter(s => s.length === 10))
+      if (d10sub.length === 10 && !known.has(d10sub)) {
+        patch.alt_phones = [String(client.alt_phones || '').trim(), sub.phone].filter(Boolean).join(', ')
+        // alt_phone_labels is a JSON map keyed by the number, so this cannot misalign.
+        try {
+          const labels = JSON.parse(String(client.alt_phone_labels || '{}')) || {}
+          labels[sub.phone] = 'Home value form'
+          patch.alt_phone_labels = JSON.stringify(labels)
+        } catch { /* a malformed existing map must not cost us the number itself */ }
+      }
+    }
     const sets = Object.keys(patch).map(k => `${k} = ?`).join(', ')
     db.run(`UPDATE clients SET ${sets}, updated_at = ? WHERE id = ?`, [...Object.values(patch), nowIso(), client.id])
     client = db.get('SELECT * FROM clients WHERE id = ?', [client.id])
@@ -242,8 +277,15 @@ export function scheduleConditionQuestion(client) {
 
   // One per person, ever. A second or third home value request is a strong signal and gets
   // a person, not the same canned question again.
+  // "One per person, ever" has to mean one they ACTUALLY RECEIVED, or one still on its
+  // way. This used to match any row in any state, so a question that was canceled or
+  // failed — never seen by the lead — silently blocked the real one forever, and the
+  // block was invisible: scheduleConditionQuestion's {ok:false} is returned into a value
+  // nobody reads. James Osullivan asked for a CMA on 2026-10-27, had never been sent a
+  // single text in 14 messages of history, and still got no Day 0 question.
   const asked = db.get(
-    `SELECT id FROM scheduled_texts WHERE client_id=? AND body LIKE '%overall condition%' LIMIT 1`, [cid])
+    `SELECT id FROM scheduled_texts WHERE client_id=? AND body LIKE '%overall condition%'
+       AND status IN ('sent','scheduled') LIMIT 1`, [cid])
   if (asked) return { ok: false, reason: 'already asked this lead' }
 
   const mins = (() => { try { return rule('home_value_question_delay_minutes') } catch { return 2 } })()
