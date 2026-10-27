@@ -75,9 +75,23 @@ const GENERIC_TARGET = /^(watch|lead|nurture)$/i
  * Order matters: what the Hub KNOWS about the listing beats the coarse status field.
  */
 export function stageFor(client) {
+  const st0 = String(client?.status || '').trim().toLowerCase()
+  // JUNK AND DNC OUTRANK THE MLS TAG (John, 2026-10-27).
+  //
+  // MLS_TO_STAGE used to be checked first and returned immediately, so a junk lead whose
+  // mls_status still said "expired" was pushed to FUB's Expired stage - which is a
+  // WORKABLE stage. Eric Londquist (#29745) went Dead -> Expired that way, and he is junk
+  // precisely because his house went back on the market, so the MLS tag was the stale
+  // fact and the junk was the current one.
+  //
+  // The expired/cancelled rule exists for leads sitting in `watch`, where 'Watch' would
+  // throw away what the Hub knows (enforceWatchForMlsTagged, 2026-09-18). It was never
+  // meant to reopen a lead a person had deliberately closed: that same rule says junk is
+  // a human's call and must never be touched.
+  if (st0 === 'junk' || st0 === 'donotcontact') return STATUS_TO_STAGE[st0]
   const mls = String(client?.mls_status || '').trim().toLowerCase()
   if (MLS_TO_STAGE[mls]) return MLS_TO_STAGE[mls]
-  const st = String(client?.status || '').trim().toLowerCase()
+  const st = st0
   if (st === 'prime') {
     const t = String(client?.type || '').trim().toLowerCase()
     return PRIME_STAGE[t] || PRIME_STAGE.buyer

@@ -62,3 +62,29 @@ test('remaining() counts the same scope the sweep uses', () => {
   assert.ok(scoped < all, 'a scoped run must have fewer left than an unscoped one')
   assert.ok(scoped >= 2, 'our two scoped leads should be counted')
 })
+
+// A deliberate human decision outranks a stale MLS tag (John, 2026-10-27).
+//
+// Eric Londquist (#29745) is junk BECAUSE his house went back on the market, so the
+// "expired" mls_status is the out-of-date fact. stageFor checked MLS first and returned
+// immediately, pushing him Dead -> Expired: out of a closed stage and into a workable one.
+// The expired/cancelled rule itself says junk is a human's call and must never be touched
+// (see expired-watch-rule.test.mjs).
+test('junk beats an expired MLS tag — a closed lead is not reopened', () => {
+  assert.equal(FUB.stageFor({ status: 'junk', mls_status: 'expired' }), 'Dead')
+  assert.equal(FUB.stageFor({ status: 'junk', mls_status: 'cancelled' }), 'Dead')
+  assert.equal(FUB.stageFor({ status: 'donotcontact', mls_status: 'expired' }), 'Do not Contact')
+})
+
+test('a WATCH lead still gets the specific MLS stage — that rule is unchanged', () => {
+  // This is what MLS_TO_STAGE exists for: 'Watch' would throw away what the Hub knows.
+  assert.equal(FUB.stageFor({ status: 'watch', mls_status: 'expired' }), 'Expired')
+  assert.equal(FUB.stageFor({ status: 'watch', mls_status: 'cancelled' }), 'Cancelled')
+  assert.equal(FUB.stageFor({ status: 'new', mls_status: 'canceled' }), 'Cancelled')
+})
+
+test('without an MLS tag the status still decides', () => {
+  assert.equal(FUB.stageFor({ status: 'junk' }), 'Dead')
+  assert.equal(FUB.stageFor({ status: 'closed' }), 'Past Client')
+  assert.equal(FUB.stageFor({ status: 'prime', type: 'seller' }), 'High Probability Sellers')
+})
