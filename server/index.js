@@ -1388,6 +1388,10 @@ async function start() {
         limit: Math.min(Number(req.body?.limit) || 1000, 5000),
         force: !!req.body?.force,   // push even over a stage that carries history
         afterId: Number(req.body?.afterId) || 0,   // resume cursor; see candidates()
+        // Limit a run to specific Hub statuses, e.g. ["junk","donotcontact"]. Without it
+        // the sweep pushes every status, which also rewrites FUB's seller/buyer
+        // segmentation from the Hub's `type` field — see candidates().
+        onlyStatuses: Array.isArray(req.body?.statuses) ? req.body.statuses : null,
       }))
     } catch (err) { res.status(500).json({ error: err.message }) }
   })

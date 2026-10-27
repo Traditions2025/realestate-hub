@@ -186,8 +186,16 @@ export function namesAgree(a, b) {
  * attempt ran all 228 in one request, got 21 through, and then the request died with no
  * way to tell where it had stopped. id is unique, so `afterId` never skips or repeats.
  */
-export function candidates({ limit = 1000, afterId = 0 } = {}) {
-  const statuses = [...Object.keys(STATUS_TO_STAGE), 'prime']
+export function candidates({ limit = 1000, afterId = 0, onlyStatuses = null } = {}) {
+  // SCOPE (John, 2026-10-27). The full sweep pushes EVERY status, and a dry run showed what
+  // that costs: 156 junk/DNC changes, which is what was asked for, alongside 163 others -
+  // mostly leads moving OUT of "High Probability Sellers" INTO "High Probability Buyer",
+  // decided by the Hub's `type` field. That field was wrong on 52 Realist homeowners the
+  // same day, so those 163 would have overwritten real FUB segmentation using data we know
+  // is unreliable. onlyStatuses keeps a run to the statuses actually intended.
+  const statuses = (Array.isArray(onlyStatuses) && onlyStatuses.length)
+    ? onlyStatuses.map(s => String(s).toLowerCase().trim()).filter(Boolean)
+    : [...Object.keys(STATUS_TO_STAGE), 'prime']
   return db.all(
     `SELECT id, first_name, last_name, email, status, type, mls_status, fub_person_id, tags
        FROM clients
@@ -199,8 +207,10 @@ export function candidates({ limit = 1000, afterId = 0 } = {}) {
 }
 
 /** How many are left to look at from a cursor — so a caller knows when it is done. */
-export function remaining(afterId = 0) {
-  const statuses = [...Object.keys(STATUS_TO_STAGE), 'prime']
+export function remaining(afterId = 0, onlyStatuses = null) {
+  const statuses = (Array.isArray(onlyStatuses) && onlyStatuses.length)
+    ? onlyStatuses.map(s => String(s).toLowerCase().trim()).filter(Boolean)
+    : [...Object.keys(STATUS_TO_STAGE), 'prime']
   return db.get(
     `SELECT COUNT(*) n FROM clients
       WHERE merged_into IS NULL
@@ -302,8 +312,8 @@ export async function pushOne(client, { dryRun = false, force = false } = {}) {
  * Push a batch. Paced deliberately: FUB rate-limits, and this is somebody's live CRM
  * rather than a scratch database.
  */
-export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false, afterId = 0 } = {}) {
-  const rows = candidates({ limit, afterId })
+export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260, force = false, afterId = 0, onlyStatuses = null } = {}) {
+  const rows = candidates({ limit, afterId, onlyStatuses })
   const out = { considered: rows.length, updated: 0, unchanged: 0, failed: 0, missing: 0, protected: 0, kept_specific: 0, mismatched: 0,
                 results: [], dry: dryRun, after_id: Number(afterId) || 0, last_id: Number(afterId) || 0 }
   for (const c of rows) {
@@ -321,7 +331,8 @@ export async function pushStatuses({ dryRun = false, limit = 1000, delayMs = 260
     // FUB, and pacing only the writes is what hit the rate limit on 103 of 228.
     await new Promise(s => setTimeout(s, delayMs))
   }
-  out.remaining = remaining(out.last_id)
+  out.remaining = remaining(out.last_id, onlyStatuses)
+  out.only_statuses = onlyStatuses || null
   out.done = out.remaining === 0
   if (!dryRun && out.updated) {
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
