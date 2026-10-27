@@ -737,6 +737,15 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
     // Natural-language opt-out ("stop texting me", "take me off your list") — only when
     // it's NOT already a literal keyword. Blocks TEXT only (calling stays independent).
     else if (!kw && client) { try { const { isNaturalOptOut, applyOptOut } = await import('../ai-followup/policy.js'); if (isNaturalOptOut(body)) applyOptOut(client.id, 'stop', 'sms_reply_nl') } catch {} }
+    // A reply is an ownership event. Recomputing resolves to HUMAN_OWNED while the
+    // conversation is live, which stops every scheduled campaign talking over it, and
+    // lapses on its own once nobody has acted for a while so the nurture can resume.
+    if (client) {
+      try { const lc = await import('../buyer-lifecycle.js'); lc.syncOwner(client.id, { reason: 'lead replied by text' }) } catch {}
+      // Anything they told us about area, budget, beds or a home to sell is stored now,
+      // so a later message can read it instead of asking again.
+      try { const bp = await import('../buyer-reply-parse.js'); bp.captureBuyerReply(client.id, body, { source: 'sms_reply' }) } catch {}
+    }
     // Store the message whether or not the sender is a known client. Unknown
     // senders land in the Unknown queue (client_id NULL) so no inbound lead is lost.
     const externalId = 'twilio_' + (sid || `${from}_${Date.now()}`)

@@ -12,6 +12,9 @@ import { applyMemory } from './memory.js'
 import { createAiHandoff } from './handoff.js'
 import { logAiAction } from './audit.js'
 import { buildSystemPrompt, buildUserMessage, AI_PROMPT_VERSION, ALLOWED_ACTIONS, REVIVE_OPENERS, REVIVE_OPENER_BLOCK, COLD_BUYER_STAGES, COLD_STAGE_BLOCK, FOLLOWUP_DOCTRINE, FOLLOWUP_ANGLES } from './prompts.js'
+import { currentOwner } from './presend.js'
+import { renderGreeting, advanceGreetingRotation } from './greeting.js'
+import { CNC_STAGES, selectMessage, nextUsefulTopic, findBanned } from './cold-history-unknown.js'
 
 // Rotate through the revive bank so all 20 openers get used (not just one). A persistent
 // counter in settings advances every time we pick one.
@@ -388,6 +391,85 @@ export async function handleNurture(clientId, { reengage = false, attempt = 1, f
   })
 }
 
+// Stage index (the scheduler's 0..9 cadence) -> the history-neutral bank's stage key.
+// Index 10 is the perpetual loop, which picks its own topic rather than a fixed stage.
+const CNC_BY_INDEX = ['t1', 't2', 't3', 't4', 't5', 't6', 'ltn1', 'ltn2', 'ltn3', 'ltn4']
+
+/**
+ * The history-neutral cold lane (John, 2026-10-27).
+ *
+ * The Hub holds no conversation earlier than 2026-06-16 while client records go back to
+ * 2023-09-15, and only 3,544 of 30,648 clients have any communications row at all. So for
+ * most of the database "no visible reply" is a migration artifact, not a fact about the
+ * relationship. The old lane read that silence as proof nobody had ever spoken to the lead
+ * and picked copy accordingly — asserting a past that may never have happened, or denying
+ * one that did.
+ *
+ * This lane claims nothing either way. It is used wherever ownership says the history is
+ * unknown; COLD_KNOWN_CONNECTED still gets the original bank, because there a prior
+ * exchange is actually visible.
+ *
+ * Returns a runOutbound result, or null to fall through to the original path.
+ */
+async function sendHistoryNeutralStage(cid, idx, { force = false } = {}) {
+  // The loop stage chases whatever fact is still missing rather than a fixed script.
+  const key = idx >= CNC_BY_INDEX.length
+    ? (CNC_STAGES.find(s => s.asks?.includes(nextUsefulTopic(cid).field))?.key || 'ltn4')
+    : CNC_BY_INDEX[idx]
+
+  const rotKey = `ai_cnc_rot_${key}`
+  const rot = Math.abs(Number(db.getSetting?.(rotKey) || 0))
+  const picked = selectMessage(cid, key, { rotation: rot })
+  // null means every fact this stage exists to learn is already known and fresh. Skipping
+  // beats padding: a question we already have the answer to reads as not listening.
+  if (!picked) return { ok: true, sent: false, reason: `nothing left to ask at stage ${key}` }
+  try { db.setSetting?.(rotKey, String(rot + 1)) } catch {}
+
+  const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  if (!client) return null
+  const text = renderGreeting(picked.text, client)
+  // Belt and braces: the bank is scanned in tests, but a merge field could still compose a
+  // banned phrase at render time. Never send one — fall through to the original path.
+  const bad = findBanned(text)
+  if (bad.length) { logAiAction(cid, 'COLD_BUYER', 'blocked', `history-neutral copy tripped: ${bad.join(', ')}`); return null }
+  if (/\{\{[^}]+\}\}/.test(text)) return null   // an unfilled merge field must never go out
+
+  advanceGreetingRotation()
+  const nextState = idx <= 5 ? 'AI_WAITING_FOR_REPLY' : 'AI_LONG_TERM_NURTURE'
+  return runOutbound(cid, { actionType: 'COLD_BUYER', flagKey: 'ai_nurture_enabled', force, nextState, templateText: text })
+}
+
+/**
+ * PHASE 2 — the lead after their listing campaign ends (step 7).
+ *
+ * Phase 1 was about one house. Phase 2 is about whether there is still a search, and it is
+ * allowed to say so: an fb_listing_campaigns row proves this person asked about a specific
+ * property. What it must not do is drift into the generic cold bank, which would treat a
+ * recent, warm enquiry as a stranger.
+ */
+export async function handlePhase2Stage(clientId, stepIndex = 0, { force = false } = {}) {
+  const cid = Number(clientId)
+  const idx = Math.max(0, Number(stepIndex) || 0)
+  const { selectPhase2Message, phase2StageForIndex, findBannedPhase2 } = await import('./phase2.js')
+
+  const key = phase2StageForIndex(cid, idx)
+  const rotKey = `ai_phase2_rot_${key}`
+  const rot = Math.abs(Number(db.getSetting?.(rotKey) || 0))
+  const picked = selectPhase2Message(cid, key, { rotation: rot })
+  if (!picked) return { ok: true, sent: false, reason: `nothing left to ask at phase 2 ${key}` }
+  try { db.setSetting?.(rotKey, String(rot + 1)) } catch {}
+
+  const client = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  if (!client) return { ok: false, reason: 'no client' }
+  const text = renderGreeting(picked.text, client)
+  const bad = findBannedPhase2(text)
+  if (bad.length) { logAiAction(cid, 'BUYER_PHASE2', 'blocked', `phase 2 copy tripped: ${bad.join(', ')}`); return { ok: false, reason: 'banned phrase' } }
+  if (/\{\{[^}]+\}\}/.test(text)) return { ok: false, reason: 'unfilled merge field' }
+
+  advanceGreetingRotation()
+  return runOutbound(cid, { actionType: 'BUYER_PHASE2', flagKey: 'ai_nurture_enabled', force, nextState: 'AI_LONG_TERM_NURTURE', templateText: text })
+}
+
 // OLD / COLD BUYER staged drip. stageIndex 0 = Text 1 (the reconnect opener, which
 // re-introduces + adds the website via REVIVE_OPENER_BLOCK); stages 1+ are continuation
 // follow-ups from COLD_BUYER_STAGES, each rotating its approved bank. The scheduler
@@ -396,6 +478,13 @@ export async function handleColdBuyerStage(clientId, stageIndex = 0, { force = f
   const cid = Number(clientId)
   const idx = Math.max(0, Number(stageIndex) || 0)
   const stage = COLD_BUYER_STAGES[Math.min(idx, COLD_BUYER_STAGES.length - 1)]
+
+  // Where the Hub cannot see the history, say nothing about it. See sendHistoryNeutralStage.
+  if (currentOwner(cid) === 'COLD_HISTORY_UNKNOWN') {
+    const neutral = await sendHistoryNeutralStage(cid, idx, { force })
+    if (neutral) return neutral
+  }
+
   // Have we ever actually SPOKEN to this lead? An inbound message of any kind, or an
   // outbound text or call, counts. A marketing email they never answered does not: half
   // the Day 1 openers say "since we last talked", and saying that to someone who only ever

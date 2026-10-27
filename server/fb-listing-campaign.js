@@ -187,6 +187,9 @@ export function enrollFbListingCampaign(clientId, listingLabel, { day0Iso = null
     [cid, String(listingLabel || '').trim() || null, tx?.id || null, status, day0, step, nextAt,
      listingState(tx), tx?.purchase_price || null, nowIso(), nowIso()])
   logC(cid, 'enrolled', { reason: `${actor}; day0=${day0.slice(0, 10)}; starts at ${STEPS[step]?.key || 'done'}`, next_send_at: nextAt, listing_status: listingState(tx) })
+  // Enrolment is an ownership event: this campaign now owns the lead, and the pre-send
+  // gate will refuse any other campaign that tries to talk over it.
+  try { import('./buyer-lifecycle.js').then(m => m.syncOwner(cid, { reason: 'listing campaign enrolled' })).catch(() => {}) } catch {}
   return { ok: true, status, next_step: STEPS[step]?.key || null, next_send_at: nextAt }
 }
 
@@ -250,6 +253,46 @@ function skipToBroader(row) {
 }
 
 let sweeping = false
+/**
+ * A STATUS CHANGE IS AN EVENT, NOT A SCHEDULED STEP (John, 2026-10-27 — step 6).
+ *
+ * The pivot was only ever noticed when the lead's NEXT touch came due. A listing that went
+ * under contract on Monday therefore left a Day-20 enrollee waiting until their own slot
+ * came round — still believing the home was available, and in the worst case receiving a
+ * property-specific message about a home that was already gone. 1625 Ranmar went under
+ * contract with 5 enrollees mid-campaign; each would have been told on a different day,
+ * up to a week apart.
+ *
+ * This pulls the pivot FORWARD to the next valid slot. It SENDS NOTHING — that is the
+ * point of it being separate: sendNextStep still owns sending, the pre-send gate still
+ * applies, and `pivoted` still guarantees the pivot text goes out at most once. It also
+ * only ever brings a touch nearer, never pushes one out.
+ */
+export function pullForwardStatusChanges() {
+  const out = { pulled: 0, seen: 0 }
+  let rows = []
+  try { rows = db.all("SELECT * FROM fb_listing_campaigns WHERE status='active'") } catch { return out }
+  for (const r of rows) {
+    const tx = r.tx_id ? db.get('SELECT id, property_status FROM transactions WHERE id=?', [r.tx_id]) : findListingTransaction(r.listing_label)
+    const state = listingState(tx)
+    if (state !== 'pending' && state !== 'sold') continue
+    out.seen++
+    if (r.pivoted === 'sold' || r.pivoted === state) continue      // already pivoted
+    if (String(r.last_known_status || '') === state) continue      // already pulled forward
+    const soonest = nextValidSlot(new Date()).toISOString()
+    if (r.next_send_at && String(r.next_send_at) <= soonest) {
+      // Already due or overdue — nothing to bring forward, just record what we know.
+      db.run('UPDATE fb_listing_campaigns SET last_known_status=?, updated_at=? WHERE client_id=?', [state, nowIso(), r.client_id])
+      continue
+    }
+    db.run('UPDATE fb_listing_campaigns SET next_send_at=?, last_known_status=?, updated_at=? WHERE client_id=?',
+      [soonest, state, nowIso(), r.client_id])
+    logC(r.client_id, 'rescheduled', { reason: `listing went ${state} — pivot pulled forward from ${String(r.next_send_at || 'none').slice(0, 16)}`, listing_status: state, next_send_at: soonest })
+    out.pulled++
+  }
+  return out
+}
+
 export async function runFbListingCampaign() {
   if (!fbListingCampaignEnabled()) return { skipped: 'disabled' }
   if (sweeping) return { skipped: 'already running' }
@@ -267,6 +310,9 @@ export async function runFbListingCampaign() {
         out.stopped++
       }
     }
+
+    // 2) A status change is an event, not a scheduled step. See pullForwardStatusChanges.
+    out.pulled_forward = pullForwardStatusChanges().pulled
 
     if (!inProactiveWindow()) return out
     const due = db.all("SELECT * FROM fb_listing_campaigns WHERE status='active' AND next_send_at IS NOT NULL AND next_send_at <= ? ORDER BY next_send_at ASC LIMIT 30", [nowIso()])

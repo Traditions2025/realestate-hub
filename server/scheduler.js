@@ -913,7 +913,13 @@ export function startScheduler() {
   // All are cheap no-ops when the AI feature flags are off.
   setInterval(() => { import('./ai-followup/scheduler.js').then(m => m.runDueAiActions()).catch(() => {}) }, 60 * 1000)
   setInterval(() => { import('./ai-followup/scheduler.js').then(m => m.newLeadSweep()).catch(() => {}) }, 5 * 60 * 1000)
-  setInterval(() => { import('./ai-followup/scheduler.js').then(m => { m.reengagementSweep(); m.behavioralSweep() }).catch(() => {}) }, 60 * 60 * 1000)
+  // behavioralSweep is async now (it consults ownership before interrupting a lane), so an
+  // unhandled rejection here would surface as a process-level warning rather than a log.
+  setInterval(() => { import('./ai-followup/scheduler.js').then(async m => { m.reengagementSweep(); await m.behavioralSweep() }).catch(() => {}) }, 60 * 60 * 1000)
+  // Re-derive communication ownership for leads whose situation could have changed since
+  // the last pass — a campaign completing, a conversation going quiet, a reactivation
+  // hold lapsing. Cheaper and far more reliable than hooking every call site.
+  setInterval(() => { import('./buyer-lifecycle.js').then(m => m.reconcileOwners({ dryRun: false })).catch(() => {}) }, 60 * 60 * 1000)
 
   // AI auto-enrollment engine (server/ai-enrollment.js) — self-gates on
   // ai_auto_enroll_mode ('off' default = cheap no-op). Fresh lane safety sweep every

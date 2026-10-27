@@ -2038,6 +2038,19 @@ export async function initDb() {
       // overwritten by sync and is the sole thing that blocks outbound texting. Calling
       // is never blocked by any opt-out.
       ['hub_text_opt_out', 'INTEGER DEFAULT 0'],
+      // Which campaign currently owns the conversation with this lead. At most one, checked
+      // at send time by the universal pre-send gate so two campaigns can never both decide
+      // they should be texting the same person. See ai-followup/presend.js.
+      ['communication_owner', "TEXT DEFAULT 'NONE'"],
+      // BEHAVIOR_REACTIVATION is a temporary interruption, not a campaign. It parks the
+      // owner it displaced here so the lead returns to it rather than being stranded.
+      ['communication_owner_prev', 'TEXT'],
+      ['communication_owner_at', 'TEXT'],
+      // Whether the Hub can see this lead's full conversation history, or only the part
+      // that survived the FUB migration. Without this, "no reply on file" gets misread as
+      // "never replied" — and for most of the database that is simply not knowable.
+      ['history_completeness', "TEXT DEFAULT 'unknown'"],
+      ['legacy_source', 'TEXT'],
       ['ealert_opt_out', 'INTEGER DEFAULT 0'],
       // FSBO master-file status (Available | Off Market), synced from the FSBO master
       // Google Sheet by phone match. Drives the Hub FSBO list + its status column.

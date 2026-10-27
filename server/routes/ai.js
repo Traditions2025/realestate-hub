@@ -147,6 +147,31 @@ router.get('/lead/:id', (req, res) => {
 })
 
 router.get('/lead/:id/history', (req, res) => res.json(recentAiActions(Number(req.params.id), 60)))
+
+// BUYER LANE REPORT. Read-only. The one that matters is `silent`: leads owned by a lane
+// that is supposed to be talking to them, with nothing scheduled and nothing sent. A
+// cluster under one owner means that lane has stopped working, and the number is how many
+// people it stopped working for. See ai-followup/lane-report.js.
+router.get('/lanes/report', async (req, res) => {
+  try {
+    const { buyerLaneReport } = await import('../ai-followup/lane-report.js')
+    res.json(buyerLaneReport({
+      quietDays: Math.max(1, Number(req.query.quietDays) || 30),
+      days: Math.max(1, Number(req.query.days) || 7),
+    }))
+  } catch (e) { res.status(500).json({ error: String(e.message) }) }
+})
+
+// The full silent list rather than the 25-row sample the summary carries.
+router.get('/lanes/silent', async (req, res) => {
+  try {
+    const { silentLeads } = await import('../ai-followup/lane-report.js')
+    res.json(silentLeads({
+      quietDays: Math.max(1, Number(req.query.quietDays) || 30),
+      limit: Math.min(1000, Math.max(1, Number(req.query.limit) || 200)),
+    }))
+  } catch (e) { res.status(500).json({ error: String(e.message) }) }
+})
 // Every scheduled action for a lead, with its state and why it ended that way.
 // `history` only shows actions that RAN; an action that was canceled or failed in the
 // drain leaves no ai_actions row at all, so the one question that matters after a lead

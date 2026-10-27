@@ -43,6 +43,13 @@ export function recordBehavioralEvent(clientId, eventType, opts = {}) {
     const r = db.run(`INSERT OR IGNORE INTO behavioral_events (client_id, event_type, weight, source, occurred_at, metadata_json, dedup_key, created_at)
                       VALUES (?,?,?,?,?,?,?,?)`,
       [cid, eventType, weight, opts.source || 'hub', occurred, opts.metadata ? JSON.stringify(opts.metadata).slice(0, 2000) : null, key, nowIso()])
+    // A dormant lead coming back is a moment, not something to notice on the next sweep.
+    // Only on a genuinely new event — re-ingesting the same view must not re-trigger.
+    if (r.changes > 0) {
+      import('../buyer-lifecycle.js')
+        .then(m => m.maybeReactivateOnBehavior(cid, eventType, weight))
+        .catch(() => { /* reactivation must never block recording the event */ })
+    }
     return { ok: true, inserted: r.changes > 0 }
   } catch (e) { return { ok: false, error: e.message } }
 }

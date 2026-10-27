@@ -13,9 +13,17 @@ export default function DripCampaigns() {
   const [editing, setEditing] = useState(null)  // drip object being edited (or {new:true})
   const [templates, setTemplates] = useState([])
   const [activity, setActivity] = useState(null)
+  // The Home Value response sequence runs from code, not from a drip row, so it is
+  // fetched separately and shown as a view-only card alongside the real drips.
+  const [hv, setHv] = useState(null)
+  const [viewingHv, setViewingHv] = useState(false)
 
   const load = () => { setLoading(true); authFetch('/api/drips').then(r => r.json()).then(d => { setItems(Array.isArray(d) ? d : []); setLoading(false) }).catch(() => { setItems([]); setLoading(false) }) }
-  useEffect(() => { load(); authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {}) }, [])
+  useEffect(() => {
+    load()
+    authFetch('/api/templates?type=email').then(r => r.json()).then(t => setTemplates(Array.isArray(t) ? t : [])).catch(() => {})
+    authFetch('/api/drips/home-value/response-sequence').then(r => r.json()).then(d => { if (d && Array.isArray(d.steps)) setHv(d) }).catch(() => {})
+  }, [])
 
   const openNew = () => setEditing({ new: true, name: '', description: '', steps: [newStep()] })
   const openEdit = async (id) => { const d = await authFetch(`/api/drips/${id}`).then(r => r.json()); setEditing({ ...d, steps: d.steps && d.steps.length ? d.steps : [newStep()] }) }
@@ -59,11 +67,13 @@ export default function DripCampaigns() {
                 </div>
               </div>
             ))}
+            {hv && <HvSequenceCard hv={hv} onView={() => setViewingHv(true)} />}
           </div>
         )}
 
       {editing && <DripEditor drip={editing} templates={templates} setTemplates={setTemplates} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load() }} />}
       {activity && <DripActivity id={activity.id} name={activity.name} onClose={() => setActivity(null)} />}
+      {viewingHv && hv && <HvSequenceViewer hv={hv} onClose={() => setViewingHv(false)} />}
     </div>
   )
 }
@@ -243,6 +253,70 @@ function DripActivity({ id, name, onClose }) {
                 </tr>))}</tbody>
             </table>
           )}
+    </Modal>
+  )
+}
+
+// Email and text read differently at a glance, which is the whole point of showing this
+// sequence: the two channels alternate and never repeat each other within a day.
+const CH = { email: { color: '#3b82f6', icon: '✉', label: 'Email from Matt' }, sms: { color: '#10b981', icon: '💬', label: 'Text from John' } }
+
+// The Home Value response sequence as a card in the drip grid. Deliberately has no Edit,
+// Delete or Enroll: it is driven by the home value intake, not by this screen, and the
+// drip runner cannot send its text steps. View only.
+function HvSequenceCard({ hv, onView }) {
+  return (
+    <div className="detail-section" style={{ padding: 16, borderLeft: '3px solid #3b82f6' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+        <div style={{ flex: 1, cursor: 'pointer' }} onClick={onView}>
+          <div style={{ fontWeight: 600, fontSize: 16.5 }}>💧 {hv.name}</div>
+          <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 2 }}>
+            {hv.counts.email} email{hv.counts.email === 1 ? '' : 's'} + {hv.counts.sms} text{hv.counts.sms === 1 ? '' : 's'} · {hv.description}
+          </div>
+        </div>
+        <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#92400e', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap' }}>View only</span>
+      </div>
+      <div style={{ margin: '10px 0', fontSize: 14.5, color: 'var(--text-muted)' }}>
+        {hv.steps.slice(0, 5).map((s, i) => (
+          <span key={s.key}>{i > 0 && <span style={{ margin: '0 5px' }}>→</span>}<span style={{ color: CH[s.channel].color }}>{CH[s.channel].icon}</span> day {s.day}</span>
+        ))}
+        {hv.steps.length > 5 && <span style={{ margin: '0 5px' }}>→ …day {hv.steps[hv.steps.length - 1].day}</span>}
+      </div>
+      <div style={{ fontSize: 14, color: 'var(--text-muted)', margin: '4px 0 12px', lineHeight: 1.45 }}>
+        Runs from the home value request, not from this screen. Edits are made in <code style={{ fontSize: 13 }}>{hv.source_file}</code>.
+      </div>
+      <div style={{ display: 'flex', gap: 6 }}>
+        <button className="btn btn-sm btn-secondary" onClick={onView}>View copy</button>
+      </div>
+    </div>
+  )
+}
+
+function HvSequenceViewer({ hv, onClose }) {
+  return (
+    <Modal open onClose={onClose} title={`${hv.name} — ${hv.counts.email} emails + ${hv.counts.sms} texts`} wide>
+      <div style={{ padding: '0 2px 10px', fontSize: 14.5, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+        Every step in order, exactly as it sends. Merge fields are filled with a sample
+        name and address (<strong>{hv.sample.first_name}</strong>, <strong>{hv.sample.street}</strong>).
+        This sequence runs from the home value request and cannot be enrolled or edited here.
+      </div>
+      {hv.steps.map(s => (
+        <div key={s.key} style={{ borderLeft: `3px solid ${CH[s.channel].color}`, background: 'var(--bg-subtle, rgba(127,127,127,0.06))', borderRadius: 4, padding: '10px 12px', marginBottom: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+            <span style={{ fontWeight: 700, fontSize: 15 }}>Day {s.day}</span>
+            <span style={{ fontSize: 13.5, fontWeight: 600, color: CH[s.channel].color }}>{CH[s.channel].icon} {CH[s.channel].label}</span>
+          </div>
+          {s.channel === 'email' ? (
+            <>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.subject}</div>
+              {s.paras.map((p, i) => <p key={i} style={{ margin: '0 0 6px', fontSize: 14.5, lineHeight: 1.5 }}>{p}</p>)}
+            </>
+          ) : (
+            <p style={{ margin: 0, fontSize: 14.5, lineHeight: 1.5 }}>{s.text}</p>
+          )}
+          <div style={{ marginTop: 7, fontSize: 13.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>{s.purpose}</div>
+        </div>
+      ))}
     </Modal>
   )
 }

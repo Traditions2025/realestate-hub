@@ -133,11 +133,32 @@ export function ingestFbLead({ first = '', last = '', email = null, phone = null
     logActivity('created', 'client', cid, noteLine)
   }
   try { import('./routes/inbox.js').then(m => m.claimUnknownCommsForClient(cid)).catch(() => {}) } catch {}
-  // NEW leads only (John, 2026-09-17): a brand-new ad registrant gets the ~5-minute
-  // first text from JOHN'S APPROVED TEMPLATE BANK (fb-ad-templates.js — never
-  // Claude-composed), referencing the property from the ad. An EXISTING lead who
-  // re-registers gets the tag + note + notification ONLY; the team decides.
-  if (!existing && !isSellerCampaign && fromFacebook) {
+  // Ownership is recomputed from evidence at every event that could change it, so no
+  // campaign has to assert who owns a lead and two triggers landing together cannot
+  // disagree. See buyer-lifecycle.js.
+  try { import('./buyer-lifecycle.js').then(m => m.syncOwner(cid, { reason: 'lead intake' })).catch(() => {}) } catch {}
+  // An ad registrant gets the ~5-minute first text from JOHN'S APPROVED TEMPLATE BANK
+  // (fb-ad-templates.js — never Claude-composed), referencing the property from the ad.
+  //
+  // This used to be NEW leads only (John, 2026-09-17); an existing lead who re-registered
+  // got the tag, the note and the alert, and the team was left to decide. In practice
+  // nobody picked them up: David Erickson sat untouched on the Ranmar ad, then Jena Gates
+  // and Jane Griffey on 3485 Willowridge within an hour of it going live. Someone who
+  // fills the form in again is asking a second time, so they get the same answer a new
+  // lead gets (John, 2026-10-26).
+  //
+  // Guarded on the campaign row rather than on `existing`, so registering twice on the
+  // SAME listing cannot open twice, while the same person enquiring about a DIFFERENT
+  // listing still gets that listing's opener. Eligibility is still decided by
+  // evaluateAiEnrollmentEligibility, so the FSBO/expired guards keep applying.
+  let alreadyOpened = false
+  if (existing) {
+    try {
+      alreadyOpened = !!db.get('SELECT 1 FROM fb_listing_campaigns WHERE client_id=? AND listing_label=? LIMIT 1',
+        [cid, String(listing || '').trim()])
+    } catch { alreadyOpened = false }
+  }
+  if (!alreadyOpened && !isSellerCampaign && fromFacebook) {
     try {
       import('./ai-enrollment.js').then(m => {
         if ((db.getSetting('ai_auto_enroll_mode', 'off') || 'off') === 'off') return

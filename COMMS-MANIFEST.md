@@ -241,3 +241,94 @@ Rationale: fresh number + campaign, so old opt-out history doesn't suppress outr
 - **#12 Power Dialer** — dedicated page (`/dialer`): build a queue (least-recently-contacted / never-called / new leads / assigned-to-me, or a Clients selection via `?client_ids`) → **Call → log outcome → next**, with optional **auto-dial-next**. Rings through the existing browser softphone on the Hub number (no per-agent identity). `CallWidget` emits `hubcall:started` / `hubcall:ended` so the dialer advances automatically. `server/routes/dialer.js`: `GET /queue` (excludes Do Not Contact / Junk / no-phone) + `POST /outcome` (annotates the latest call log or creates one, emits `call_disposition`, "Do not call" → Do Not Contact + removes campaigns). Launch from Clients → bulk "Power Dial Selected".
 
 **Every external-review item is now delivered.** Deliberately deferred: ring-group / simultaneous-team ring (needs per-agent Twilio identities; the current model rings a single `hub` browser identity — correct for a one/two-person desk).
+
+---
+
+## 14. Buyer follow-up: ownership, lanes and the pre-send gate (2026-10-27)
+
+Eight separate paths could text a buyer, and routing was decided once, at enrolment.
+Nothing re-asked at send time whether another lane had since taken the lead over, so two
+campaigns could each believe they owned the same person. On 2026-10-26 a Willowridge ad
+lead had a cold-buyer message and a listing opener queued for the same 3:15 PM, from two
+different records.
+
+### 14.1 One gate, asked at send time
+
+`server/ai-followup/presend.js` — `preSendGate(client, { owner, source, longTerm })`.
+
+It reuses `canAutomatedSend` (compliance, quiet hours, holidays, stacking, pending actions,
+live human conversation) and adds the two things that function cannot know: **who owns the
+lead**, and **how many prospecting texts they have already had this week** (one per 7 days,
+counted across every campaign, from `communications` rather than any campaign's own idea of
+what it sent).
+
+Coverage was the other half of the problem. The campaign paths already called
+`canAutomatedSend`; the entire AI lane (`orchestrator.js`, `scheduler.js`) went straight to
+`canSendSms({channel:'ai'})` and skipped the stacking guard, the pending-action check and
+the human-conversation check. Both now go through the same gate.
+
+### 14.2 Ownership
+
+A lead has exactly one `clients.communication_owner`, **always recomputed from evidence**
+(`buyer-lifecycle.js:classifyOwner`), never asserted by whichever trigger fired last. The
+priority order settles ties:
+
+`TRANSACTIONAL` → `HUMAN_OWNED` → `BEHAVIOR_REACTIVATION` → `FB_LISTING_PHASE_1` →
+`FB_BUYER_PHASE_2` → `GENERAL_NEW_BUYER` → `COLD_KNOWN_CONNECTED` → `COLD_HISTORY_UNKNOWN` → `NONE`
+
+A lower claim never displaces a higher one while the higher one's evidence holds. An hourly
+`reconcileOwners()` re-derives ownership for leads where it could plausibly have changed.
+
+### 14.3 The history problem
+
+The Hub holds **no conversation earlier than 2026-06-16** while client records go back to
+**2023-09-15**, and only 3,544 of 30,648 clients have any communications row. Most history
+never left FUB, which does not expose message bodies.
+
+So *absence of a reply is not evidence that nobody ever replied.* Only one direction is
+provable: seeing a two-way exchange proves a relationship; not seeing one proves nothing.
+`COLD_HISTORY_UNKNOWN` is therefore the **default**, and copy in that lane
+(`cold-history-unknown.js`, 40 messages) asserts nothing about the past in either
+direction. `clients.history_completeness` records how much we can actually see.
+
+### 14.4 The lanes
+
+| Owner | Module | Cadence |
+|---|---|---|
+| `FB_LISTING_PHASE_1` | `fb-listing-campaign.js` | the listing's own ~30-day run |
+| `FB_BUYER_PHASE_2` | `ai-followup/phase2.js` | days 7, 21, 45, 75, 110, then ~55 |
+| `COLD_HISTORY_UNKNOWN` | `ai-followup/cold-history-unknown.js` | days 1, 4, 9, 17, 30, 50, 80, 120, 165, 210, then ~52 |
+| `BEHAVIOR_REACTIVATION` | `AI_REENGAGE` | event-driven, 10-day hold |
+
+Greetings render at **send** time (`ai-followup/greeting.js`), never baked into a template:
+a deferred message otherwise says "Good morning" at 7pm. Time-of-day is used only when the
+area code is local (319/563/515/641/712); otherwise Hi/Hello, because we cannot know their
+clock.
+
+Stages are **fact-aware**. A stage whose facts are already known and fresh is skipped
+rather than padded; a stale fact becomes a confirmation rather than a fresh ask. Facts come
+from replies parsed into `buyer_facts` (`buyer-profile.js`, `buyer-reply-parse.js`), an
+append-only store where a changed answer supersedes rather than overwrites.
+
+### 14.5 Status changes are events
+
+`pullForwardStatusChanges()` — a listing going under contract used to be noticed only when
+the lead's next touch came due, so a Day-20 enrollee could wait a week still believing the
+home was available. The pivot is now pulled forward to the next valid slot. It sends
+nothing; `sendNextStep` still owns sending and `pivoted` still caps the pivot at one text.
+
+Likewise re-engagement: `maybeReactivateOnBehavior()` fires when a behavioral event lands,
+not when a sweep next runs. A live listing campaign is never interrupted this way — it has
+its own behaviour hold, which notifies a human instead of texting over the top.
+
+### 14.6 The failure mode ownership created
+
+A lead can be **correctly owned by a lane that has nothing to say**. `FB_BUYER_PHASE_2` was
+assigned before the Phase 2 lane existed, so every finished listing campaign parked its
+lead somewhere permanently silent — the owner was right, the gate was right, the lead never
+heard from anyone again, and no count of leads-per-owner would have shown it.
+
+`ai-followup/lane-report.js` → `GET /api/ai/lanes/report` and `/api/ai/lanes/silent`.
+The number that matters is **`silent`**: leads owned by a sending lane with nothing
+scheduled and nothing sent. A handful is normal. A cluster under one owner means that lane
+has stopped working, and the count is how many people it stopped working for.

@@ -6,7 +6,24 @@
 import db from '../database.js'
 import { flag, getConfig, autopilotOn } from './flags.js'
 import { canSendSms } from './policy.js'
+import { preSendGate } from './presend.js'
+
+// Which campaign each scheduled action belongs to, for the ownership check.
+const OWNER_FOR_ACTION = {
+  AI_FB_AD_OPENER: 'FB_LISTING_PHASE_1',
+  AI_FB_AD_EMAIL: 'FB_LISTING_PHASE_1',
+  AI_INITIAL_OUTREACH: 'GENERAL_NEW_BUYER',
+  AI_FOLLOWUP: 'GENERAL_NEW_BUYER',
+  AI_COLD_BUYER: 'COLD_HISTORY_UNKNOWN',
+  AI_NURTURE_TOUCH: 'GENERAL_NEW_BUYER',
+  AI_REENGAGE: 'BEHAVIOR_REACTIVATION',
+  AI_BUYER_PHASE2: 'FB_BUYER_PHASE_2',
+}
+// Long-term prospecting, subject to the one-text-per-7-days budget. The first touches are
+// not: a new lead who just enquired gets answered, not rationed.
+const LONG_TERM_ACTIONS = new Set(['AI_COLD_BUYER', 'AI_NURTURE_TOUCH', 'AI_REENGAGE', 'AI_BUYER_PHASE2'])
 import { ensureState, isExcludedFromAutopilot } from './state.js'
+import { PHASE2_DAYS, PHASE2_LOOP_GAP } from './phase2.js'
 import { isUsHoliday } from '../holidays.js'
 
 const nowIso = () => new Date().toISOString()
@@ -42,7 +59,20 @@ export async function runDueAiActions() {
       // EMAIL is exempt from the SMS gate — it must still send when the text
       // channel just failed (that's when the email matters most); the handler
       // + sendSequenceEmail apply email-side compliance.
-      const gate = a.action_type === 'AI_FB_AD_EMAIL' ? { ok: true } : canSendSms(client, { channel: 'ai', mode: 'proactive' })
+      // The AI lane used to go straight to canSendSms({channel:'ai'}), which skips the
+      // stacking guard, the pending-action check and the active-human-conversation check
+      // that every campaign path already got through canAutomatedSend. It also had no way
+      // of knowing another campaign owned the lead. It now goes through the same universal
+      // gate as everything else (John, 2026-10-27).
+      const gate = a.action_type === 'AI_FB_AD_EMAIL'
+        ? { ok: true }
+        : preSendGate(client, {
+          owner: OWNER_FOR_ACTION[a.action_type] || 'GENERAL_NEW_BUYER',
+          source: 'ai',
+          // Phase 1 openers run their designed cadence; the long-term lanes are capped
+          // at one prospecting text a week across every campaign.
+          longTerm: LONG_TERM_ACTIONS.has(a.action_type),
+        })
       if (!gate.ok) {
         // A block that will clear on its own must POSTPONE this stage, not destroy it.
         // Cancelling treats "not today" as "never": the stage is gone, and the next one
@@ -71,6 +101,16 @@ export async function runDueAiActions() {
         res = await orch.handleColdBuyerStage(a.client_id, stage)
         if (stage >= COLD_DAYS.length - 1) scheduleColdBuyer(a.client_id, stage + 1)
       }
+      else if (a.action_type === 'AI_BUYER_PHASE2') {
+        // Phase 2 chains one step at a time: each send schedules the next, so a lead who
+        // replies (and is handed to a human) simply stops, with nothing left pre-scheduled
+        // on their account to fire later.
+        const step = Number(payload.step) || 0
+        res = await orch.handlePhase2Stage(a.client_id, step)
+        // A skipped stage still advances — we learned nothing new, but re-asking what we
+        // already know is exactly what the skip exists to prevent.
+        schedulePhase2(a.client_id, step + 1)
+      }
       // A stage that did not send because of a passing condition is POSTPONED. Without
       // this, quiet hours marked it 'completed' - consumed, never sent, and looking
       // successful in every report.
@@ -91,10 +131,42 @@ export function isTransientBlock(reason) {
 // Push a blocked stage to the next real sending slot, keeping its per-lead time offset so
 // it does not pile onto the same minute as everyone else's. Give up after 10 tries so a
 // permanent condition misread as transient cannot defer forever.
+// Facebook ad leads are the one case where speed is the whole point: somebody asked about
+// a specific house minutes ago. A deferred ad opener goes out the moment quiet hours lift,
+// 9:00 AM Central, with NO per-lead spread and NO weekend roll - ads run at weekends and a
+// Saturday enquiry must not wait until Monday (John, 2026-10-27). Everything else keeps
+// the spread slot, which exists to stop the whole database texting in the same minute.
+const AD_PRIORITY = new Set(['AI_FB_AD_OPENER', 'AI_FB_AD_EMAIL'])
+
+// The next 09:00 America/Chicago, today if that is still ahead of us, otherwise tomorrow.
+// Computed against the zone rather than a fixed UTC hour, so it stays 9:00 across the DST
+// change instead of drifting to 10:00 the way businessSlot does.
+function nextNineCentral(from = new Date()) {
+  const localMinutes = (d) => {
+    const p = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour12: false, hour: '2-digit', minute: '2-digit' }).formatToParts(d)
+    const g = (t) => Number((p.find(x => x.type === t) || {}).value)
+    let h = g('hour'); if (h === 24) h = 0
+    return h * 60 + g('minute')
+  }
+  // Walk forward in 15-minute steps to the first instant at or just after 09:00 local.
+  // Cheap, and a DST jump cannot fool it the way adding a fixed offset can.
+  const d = new Date(from)
+  d.setUTCSeconds(0, 0)
+  d.setUTCMinutes(Math.floor(d.getUTCMinutes() / 15) * 15)
+  for (let i = 0; i < 4 * 24 * 9; i++) {
+    const m = localMinutes(d)
+    if (m >= 540 && m < 555 && !isUsHoliday(d)) return d.toISOString()   // 09:00-09:14 local
+    d.setUTCMinutes(d.getUTCMinutes() + 15)
+  }
+  return businessSlot(new Date(Date.now() + 86400000), 0)
+}
+
 const MAX_DEFERRALS = 10
 function defer(a, reason) {
   if ((Number(a.attempt_count) || 0) >= MAX_DEFERRALS) { finish(a.id, 'canceled', `${reason} (deferred ${MAX_DEFERRALS}x, giving up)`); return }
-  const when = businessSlot(new Date(Date.now() + 86400000), coldSendOffsetMin(a.client_id))
+  const when = AD_PRIORITY.has(a.action_type)
+    ? nextNineCentral()
+    : businessSlot(new Date(Date.now() + 86400000), coldSendOffsetMin(a.client_id))
   db.run("UPDATE ai_scheduled_actions SET state='pending', execute_at=?, error=?, updated_at=? WHERE id=?",
     [when, `postponed: ${reason}`, nowIso(), a.id])
 }
@@ -167,6 +239,27 @@ export function scheduleColdBuyer(clientId, nextStage) {
   scheduleAiAction(clientId, 'AI_COLD_BUYER', when, { reason: 'cold buyer long-term loop', payload: { stage: COLD_LOOP_INDEX }, dedupKey: `coldbuyer_${clientId}_${COLD_LOOP_INDEX}_${new Date().toISOString().slice(0, 10)}` })
 }
 
+// ---- PHASE 2: the FB listing lead after their campaign ends (step 7) ----
+// Chained one step at a time rather than pre-scheduled like the cold lane. Phase 2 exists
+// to find out whether there is still a search, so each step's content depends on what the
+// previous one learned; pre-scheduling ten of them would commit to questions we may no
+// longer need to ask. It also means a lead who replies leaves nothing queued behind them.
+export function schedulePhase2(clientId, step = 0) {
+  if (!autopilotOn() || !flag('ai_nurture_enabled')) return
+  const n = Math.max(0, Number(step) || 0)
+  // PHASE2_DAYS are days since the campaign ended; chaining needs the gap between steps.
+  const gap = n === 0 ? PHASE2_DAYS[0]
+    : n < PHASE2_DAYS.length ? PHASE2_DAYS[n] - PHASE2_DAYS[n - 1]
+      : PHASE2_LOOP_GAP
+  const when = nextBusinessSlot(gap, coldSendOffsetMin(clientId))
+  scheduleAiAction(clientId, 'AI_BUYER_PHASE2', when, {
+    reason: `phase 2 step ${n + 1}`,
+    payload: { step: n },
+    // Dated so the perpetual loop can re-arm without colliding with its own past rows.
+    dedupKey: `phase2_${clientId}_${n}_${when.slice(0, 10)}`,
+  })
+}
+
 // ---- SWEEP: new leads → schedule a first touch (cursor-based; never backfills the DB) ----
 export function newLeadSweep() {
   if (!autopilotOn() || !flag('ai_followup_enabled') || !flag('ai_proactive_text_enabled')) return
@@ -227,7 +320,7 @@ export function reengagementSweep() {
 
 // ---- SWEEP: behavioral triggers from website activity (lead_activity) ----
 // Thresholds + cooldown so a single view never triggers a text.
-export function behavioralSweep() {
+export async function behavioralSweep() {
   if (!autopilotOn() || !flag('ai_followup_enabled') || !flag('ai_behavioral_enabled')) return
   let hot = []
   try {
@@ -244,8 +337,19 @@ export function behavioralSweep() {
     if (recent) continue
     const gate = canSendSms(c, { channel: 'ai', mode: 'proactive' })
     if (!gate.ok) continue
-    // raise intent + (if configured) nudge; scheduled as a nurture-style contextual touch
-    scheduleAiAction(c.id, 'AI_NURTURE_TOUCH', plusMin(3), { reason: `high site activity (${h.n} views)`, payload: { step: 0, behavioral: true, mls: h.mls }, dedupKey: `behavioral_${c.id}_${new Date().toISOString().slice(0, 10)}` })
+    // A dormant lead on a cold or phase-2 lane needs a REACTIVATION, not a nurture touch.
+    // AI_NURTURE_TOUCH is attributed to GENERAL_NEW_BUYER by the pre-send gate, so for a
+    // lead owned by any other lane it would be refused — silently, and for exactly the
+    // leads this sweep exists to catch. Try the reactivation path first; the nurture touch
+    // stays as the fallback for leads that lane genuinely owns.
+    let reactivated = false
+    try {
+      const lc = await import('../buyer-lifecycle.js')
+      reactivated = !!lc.maybeReactivateOnBehavior(c.id, 'website_return', 5)?.ok
+    } catch { /* fall through to the nurture touch */ }
+    if (!reactivated) {
+      scheduleAiAction(c.id, 'AI_NURTURE_TOUCH', plusMin(3), { reason: `high site activity (${h.n} views)`, payload: { step: 0, behavioral: true, mls: h.mls }, dedupKey: `behavioral_${c.id}_${new Date().toISOString().slice(0, 10)}` })
+    }
     try { db.run("INSERT OR IGNORE INTO ai_scheduled_actions (client_id, action_type, execute_at, state, reason, dedup_key, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)", [c.id, 'AI_BEHAVIORAL', nowIso(), 'completed', 'behavioral marker', `behmark_${c.id}_${new Date().toISOString().slice(0, 10)}`, nowIso(), nowIso()]) } catch {}
   }
 }

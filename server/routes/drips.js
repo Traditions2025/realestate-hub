@@ -404,6 +404,41 @@ router.get('/home-value/preview', async (req, res) => {
     res.json(homeValuePreview({ limit: Math.min(Number(req.query.limit) || 25, 200) }))
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
+// ---- Home Value RESPONSE sequence (READ-ONLY) ----
+// The 13-step email+text sequence that runs once someone actually asks what their home is
+// worth. It is NOT a drip row: it lives in home-value-sms.js and is driven by the intake,
+// so this screen can show it but never enroll into it.
+//
+// Why it was never modelled as a drip: runStep() sends every step through
+// sendSequenceEmail() and nothing branches on `channel`, so the seven SMS steps would have
+// gone out as emails. Until the runner learns to text, this stays in code and the UI
+// reads it from here.
+//
+// Rendered with sample merge values so the copy reads the way it sends. Sends nothing.
+router.get('/home-value/response-sequence', async (req, res) => {
+  try {
+    const { HV_STEPS } = await import('../home-value-sms.js')
+    const ctx = {
+      first_name: String(req.query.first_name || 'Sarah'),
+      street: String(req.query.street || '1234 Oak Street NE'),
+    }
+    const steps = HV_STEPS.map(s => s.channel === 'email'
+      ? { day: s.day, key: s.key, channel: 'email', purpose: s.purpose, subject: s.subject(ctx), paras: s.paras(ctx) }
+      : { day: s.day, key: s.key, channel: 'sms', purpose: s.purpose, text: s.text(ctx) })
+    res.json({
+      name: 'Home Value Response',
+      description: 'Runs after someone requests a home value',
+      read_only: true,
+      source_file: 'server/home-value-sms.js',
+      sample: ctx,
+      counts: {
+        email: steps.filter(s => s.channel === 'email').length,
+        sms: steps.filter(s => s.channel === 'sms').length,
+      },
+      steps,
+    })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
 router.post('/home-value/settings', async (req, res) => {
   const b = req.body || {}
   // Named people the team is actively working with — a listing being prepared, a
