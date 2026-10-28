@@ -702,6 +702,25 @@ const WORKABLE = `(lower(COALESCE(clients.status,'')) NOT IN ('junk','donotconta
 const CONDO_PRICE = `CAST(REPLACE(REPLACE(REPLACE(fa.prop_price,'$',''),',',''),' ','') AS REAL)`
 
 export const SMART_LIST_SQL = {
+  // EVERYONE WHO ASKED WHAT THEIR HOME IS WORTH (John, 2026-10-28).
+  //
+  // Two sources, OR'd, because neither alone is the whole set:
+  //   activity_log  - one 'home_value_submission' row per submission, written by the
+  //                   intake. This is the authoritative record and reaches back furthest.
+  //   the site tag  - added to the lead at the same moment. Kept because a lead can carry
+  //                   it from a Sierra sync without the intake ever having run.
+  // A repeat requester has several log rows and appears once, which is what EXISTS gives.
+  //
+  // Dead and DNC are excluded, as asked. Deliberately NOT the WORKABLE predicate: that also
+  // drops hub_text_opt_out, and someone who stopped our TEXTS still asked what their house
+  // is worth and still belongs on this list - the home value campaign is email.
+  home_value_requested:
+    `(lower(COALESCE(clients.status,'')) NOT IN ('junk','donotcontact','archived')
+      AND (clients.tags LIKE '%cedarrapidsmetroareahomevalue.sierrasellersites.com%'
+           OR EXISTS (SELECT 1 FROM activity_log al
+                       WHERE al.entity_type = 'client' AND al.entity_id = clients.id
+                         AND al.action = 'home_value_submission')))`,
+
   // Viewed a Marion condo between $150k and $300k, ever. A single view counts.
   // Two separate EXISTS rather than one join with an OR: an OR across two different
   // columns cannot use either index, which is what made this a full scan of 38k view

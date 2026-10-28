@@ -171,6 +171,7 @@ function fsboDomLive(listDate, stored) {
 // Smart lists = server-computed segments (see GET /api/clients/smart-lists + ?smart= on the
 // list route). Each key maps to custom SQL on the backend.
 const SMART_LISTS = [
+  { key: 'home_value_requested', label: 'Home Value · Requested', desc: 'Everyone who has asked what their home is worth online — excludes Dead and Do Not Contact. A repeat requester appears once' },
   { key: 'past_client_blast_ready', label: 'Past Client Blast · Ready', desc: 'Past clients verified ready for the Oct 2026 weekly blast — excludes real email opt-outs, bad addresses and spam reports' },
   { key: 'marion_condo_viewers', label: 'Marion Condo · Viewers', desc: 'Viewed a Marion condo $150k-$300k, ever — confirmed against the MLS condo export' },
   { key: 'marion_condo_owners', label: 'Marion Condo · Owners', desc: 'Lives at an address that is a Marion condo in the MLS export — potential sellers' },

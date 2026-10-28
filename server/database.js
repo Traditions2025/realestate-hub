@@ -1735,6 +1735,11 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // The Home Value Requested smart list asks activity_log, per client, whether that client
+  // ever submitted the form. Unindexed that is a scan of the whole log for every one of 46k
+  // clients, on every Clients page load - the same shape that once cost 6.99s of an 8.0s
+  // load before marion_condo_viewers was precomputed (John, 2026-10-28).
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_activity_entity_action ON activity_log(entity_type, entity_id, action)') } catch {}
 
   // =============================================
   // CLIENT LISTS (saved filtered groups)
