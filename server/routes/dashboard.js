@@ -297,6 +297,25 @@ router.get('/', (req, res) => {
     home_value_requested: safe(() => db.get(`SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND ${SMART_LIST_SQL.home_value_requested}`).c, 0),
   }
 
+  // ---- The home value list itself, under Cancelled/Expired (John, 2026-10-28) ----
+  // Newest request first, because the one that came in this morning is the one worth
+  // seeing. `requested_at` is the LATEST submission and `visits` counts them all: a repeat
+  // requester is a stronger signal than a first-timer and the card says so.
+  // No alias on `clients` — SMART_LIST_SQL writes `clients.` explicitly.
+  stats.home_value_requests = safe(() => db.all(`
+    SELECT clients.id, clients.first_name, clients.last_name, clients.email, clients.phone,
+           clients.status, clients.type,
+           (SELECT MAX(al.created_at) FROM activity_log al
+             WHERE al.entity_type='client' AND al.entity_id=clients.id
+               AND al.action='home_value_submission') AS requested_at,
+           (SELECT COUNT(*) FROM activity_log al2
+             WHERE al2.entity_type='client' AND al2.entity_id=clients.id
+               AND al2.action='home_value_submission') AS visits
+      FROM clients
+     WHERE clients.merged_into IS NULL AND ${SMART_LIST_SQL.home_value_requested}
+     ORDER BY requested_at IS NULL, requested_at DESC, clients.id DESC
+     LIMIT 25`), [])
+
   // ---- Today's schedule: calendar events + transaction closings/walkthroughs today ----
   const schedule = stats.todays_events.map(e => ({ time: e.start_time || '', title: e.title, kind: e.event_type, location: e.location || '', link: '/calendar' }))
   safe(() => {

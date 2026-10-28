@@ -7,7 +7,11 @@
 // v8 (2026-09-16): purges v7 caches that were poisoned with HTML stored under
 // /assets/*.js URLs (the server used to SPA-fallback missing chunks), and never
 // caches a response whose content-type doesn't match what the URL should be.
-const CACHE_NAME = 'mst-hub-v9'
+// v10 (2026-10-28): cache-name bump. v9 had not changed since 2026-09-30, and the old
+// cache is only dropped when this name changes - so every frontend deploy in between
+// shipped new chunks that returning tabs never saw. "I can't see it" had a standing cause.
+// Bump this line on any deploy whose frontend must be visible immediately.
+const CACHE_NAME = 'mst-hub-v10'
 const PRECACHE_URLS = ['/', '/index.html', '/manifest.json', '/icon-192.png', '/icon-512.png', '/apple-touch-icon.png']
 
 self.addEventListener('install', (event) => {

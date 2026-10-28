@@ -12,8 +12,15 @@ import fs from 'node:fs'
 const sw = fs.readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8')
 const main = fs.readFileSync(new URL('../src/main.jsx', import.meta.url), 'utf8')
 
-test('the cache name was bumped, so the new worker actually activates', () => {
-  assert.match(sw, /const CACHE_NAME = 'mst-hub-v9'/)
+// This used to pin the literal 'mst-hub-v9', which inverted its own point: the test failed
+// on exactly the change it exists to encourage, and passed for the thirteen months the name
+// never moved. Bumping to v10 on 2026-10-28 broke it, which is how it was found. The file
+// alone cannot prove a bump happened — there is no baseline here — so it asserts the shape
+// instead, and the purge test next to it covers what the bump is FOR.
+test('the cache has a versioned name the activate step can purge against', () => {
+  const m = sw.match(/const CACHE_NAME = 'mst-hub-v(\d+)'/)
+  assert.ok(m, "CACHE_NAME must read mst-hub-v<number> so each deploy can bump it")
+  assert.ok(Number(m[1]) >= 9, `cache version went backwards: v${m[1]}`)
 })
 
 test('old caches are purged on activate', () => {

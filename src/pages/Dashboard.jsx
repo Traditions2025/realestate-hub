@@ -114,6 +114,7 @@ export default function Dashboard() {
   const comm = data.comm_today || {}
   const coverage = data.coverage || null
   const masterUpdates = data.master_updates || { items: [] }
+  const homeValueRequests = data.home_value_requests || []
   const health = data.health || { ok: true, issues: [] }
   const business = data.business || null
 
@@ -263,6 +264,43 @@ export default function Dashboard() {
                   </div>
                 )
               })}
+            </div>}
+        </Section>
+      </div>
+
+      {/* ── Home Value Requests — the list, under Cancelled/Expired (John, 2026-10-28).
+          The tile above gives the count; this says WHO, newest request first, because the
+          one that came in this morning is the one worth acting on. ── */}
+      <div style={{ ...row, marginBottom: 14 }}>
+        <Section title={`Home Value Requests${homeValueRequests.length ? ` (${cards.home_value_requested ?? homeValueRequests.length})` : ''}`}
+          accent="#14b8a6" link="/clients?smart=home_value_requested" linkLabel="Open list →">
+          {homeValueRequests.length === 0
+            ? <Empty>Nobody has asked for a home value yet.</Empty>
+            : <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {homeValueRequests.slice(0, 8).map(h => {
+                const name = `${h.first_name || ''} ${h.last_name || ''}`.trim() || h.email || `#${h.id}`
+                return (
+                  <div key={h.id} style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '5px 0', borderBottom: '1px solid var(--border-subtle, rgba(255,255,255,.06))' }}>
+                    <Link to={`/clients/${h.id}`} style={{ fontWeight: 700, fontSize: 15.5, color: 'inherit', textDecoration: 'none' }}>{name}</Link>
+                    {h.visits > 1 && (
+                      <span title={`${h.visits} separate requests`} style={{ fontSize: 13, fontWeight: 800, color: '#14b8a6', border: '1px solid #14b8a6', borderRadius: 3, padding: '0 5px' }}>
+                        {h.visits}×
+                      </span>
+                    )}
+                    <span style={{ fontSize: 14.5, color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {h.phone || h.email || ''}
+                    </span>
+                    <span style={{ marginLeft: 'auto', fontSize: 14.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+                      {h.requested_at ? timeAgo(h.requested_at) : (h.status || '')}
+                    </span>
+                  </div>
+                )
+              })}
+              {homeValueRequests.length > 8 && (
+                <Link to="/clients?smart=home_value_requested" style={{ fontSize: 14.5, fontWeight: 600, paddingTop: 2 }}>
+                  Show all {cards.home_value_requested ?? homeValueRequests.length} →
+                </Link>
+              )}
             </div>}
         </Section>
       </div>

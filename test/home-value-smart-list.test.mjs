@@ -95,8 +95,8 @@ test('a log row for a different entity type does not leak in', () => {
 // The team's own records stay off the list (John, 2026-10-28). He test-submitted the form
 // on 2026-10-08 and landed on his own lead list. The submission row is true history and is
 // kept; the tag is what removes him, so a future test needs only the tag.
-test('a record tagged "Internal - Not a Lead" is excluded even with a real submission', () => {
-  const id = mk({ tags: JSON.stringify(['cedarrapidsmetroareahomevalue.sierrasellersites.com', 'Internal - Not a Lead']) })
+test('a record tagged "HV: Exclude" is dropped even with a real submission', () => {
+  const id = mk({ tags: JSON.stringify(['cedarrapidsmetroareahomevalue.sierrasellersites.com', 'HV: Exclude - internal test']) })
   submitted(id)
   assert.equal(inList(id), false)
 })
@@ -104,5 +104,19 @@ test('a record tagged "Internal - Not a Lead" is excluded even with a real submi
 test('the exclusion does not swallow an ordinary lead whose tags merely mention leads', () => {
   const id = mk({ tags: JSON.stringify(['Lead Ad', 'Buyer Lead', 'Website Form']) })
   submitted(id)
-  assert.equal(inList(id), true, 'only the exact "Not a Lead" phrase excludes')
+  assert.equal(inList(id), true, 'only the "HV: Exclude" marker excludes')
+})
+
+// Kim Vipond sold with another agent (John, 2026-10-28): off the home value list, but
+// still a past client. The marker is scoped to home value precisely so an exclusion here
+// cannot follow someone into the past-client lists.
+test('a past client excluded from home value keeps every other tag and status', () => {
+  const id = mk({ status: 'closed', tags: JSON.stringify([
+    'Past Clients', 'FUB Stage: Past Client', 'cedarrapidsmetroareahomevalue.sierrasellersites.com',
+    'HV: Exclude - sold with another agent']) })
+  submitted(id)
+  assert.equal(inList(id), false, 'off the home value list')
+  const c = db.get('SELECT status, tags FROM clients WHERE id=?', [id])
+  assert.equal(c.status, 'closed', 'still a past client')
+  assert.match(c.tags, /Past Clients/, 'past-client tags untouched')
 })
