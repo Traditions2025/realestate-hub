@@ -158,6 +158,9 @@ export default function Dashboard() {
     { n: cards.followups_due, label: 'Follow-Ups Due', to: '/tasks', cls: 'stat-blue' },
     { n: cards.appointments_today, label: 'Appointments Today', to: '/calendar', cls: 'stat-teal' },
     { n: cards.overdue_tasks, label: 'Overdue Tasks', to: '/tasks', cls: 'stat-rose' },
+    // Deep-links into the Clients smart list of the same name (?smart= is read there), so
+    // the number on the tile and the rows behind it come from one definition.
+    { n: cards.home_value_requested, label: 'Home Value Requests', to: '/clients?smart=home_value_requested', cls: 'stat-teal' },
   ]
 
   return (

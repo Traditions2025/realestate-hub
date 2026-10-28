@@ -160,6 +160,24 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
         } catch { /* a malformed existing map must not cost us the number itself */ }
       }
     }
+    // ASKING WHAT YOUR HOME IS WORTH IS SELLER INTENT (John, 2026-10-28).
+    //
+    // A lead created BY this intake has always been typed seller. An existing one kept
+    // whatever it arrived as, which is how ten homeowners ended up sitting on the Home
+    // Value list typed `buyer` — mostly Realist imports, where the type says where the
+    // record came from rather than what the person wants. `type` drives campaign routing
+    // and the FUB stage mapping (prime + buyer lands in High Probability BUYERS), so the
+    // wrong value is not cosmetic.
+    //
+    // Only `buyer` is switched. `both` already carries seller and flipping it would throw
+    // the buyer half away, and `seller` is already right.
+    if (String(client.type || '').trim().toLowerCase() === 'buyer') {
+      patch.type = 'seller'
+      try {
+        db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+          ['type_changed', 'client', client.id, 'buyer -> seller: requested a home value'])
+      } catch {}
+    }
     const sets = Object.keys(patch).map(k => `${k} = ?`).join(', ')
     db.run(`UPDATE clients SET ${sets}, updated_at = ? WHERE id = ?`, [...Object.values(patch), nowIso(), client.id])
     client = db.get('SELECT * FROM clients WHERE id = ?', [client.id])

@@ -109,3 +109,50 @@ test('the same number submitted again is not duplicated into alts', async () => 
   const after = db.get('SELECT alt_phones FROM clients WHERE id=?', [id])
   assert.ok(!String(after.alt_phones || '').trim(), 'same number in a different format is not an alt')
 })
+
+// ---- 4. asking what your home is worth is seller intent (John, 2026-10-28) ----
+//
+// A lead created BY the intake was always typed seller; an existing one kept whatever it
+// arrived as. That is how ten homeowners sat on the Home Value list typed `buyer`, mostly
+// Realist imports where the type records where the record came from, not what the person
+// wants. `type` drives campaign routing and the FUB stage mapping, so it is not cosmetic.
+
+const submit = (id, label) => HV.handleHomeValueSubmission({
+  email: db.get('SELECT email FROM clients WHERE id=?', [id]).email,
+  first_name: 'Hv', last_name: 'Case', submitted_label: label,
+  address: '1 Test St', city: 'Cedar Rapids', state: 'IA', zip: '52402',
+}, { submittedAt: nowIso(), recordOnly: true })
+
+const typeOf = (id) => String(db.get('SELECT type FROM clients WHERE id=?', [id]).type || '').toLowerCase()
+
+test('a buyer who requests a home value becomes a seller', async () => {
+  const id = mkLead()
+  db.run("UPDATE clients SET type='buyer' WHERE id=?", [id])
+  await submit(id, '10/28/2026 09:00 AM')
+  assert.equal(typeOf(id), 'seller')
+})
+
+test('"both" is left alone — flipping it would throw the buyer half away', async () => {
+  const id = mkLead()
+  db.run("UPDATE clients SET type='both' WHERE id=?", [id])
+  await submit(id, '10/28/2026 09:05 AM')
+  assert.equal(typeOf(id), 'both')
+})
+
+test('a seller stays a seller, and no pointless write is logged', async () => {
+  const id = mkLead()
+  db.run("UPDATE clients SET type='seller' WHERE id=?", [id])
+  await submit(id, '10/28/2026 09:10 AM')
+  assert.equal(typeOf(id), 'seller')
+  const logged = db.get("SELECT COUNT(*) c FROM activity_log WHERE entity_id=? AND action='type_changed'", [id]).c
+  assert.equal(logged, 0)
+})
+
+test('the switch is recorded, so it is visible on the timeline', async () => {
+  const id = mkLead()
+  db.run("UPDATE clients SET type='buyer' WHERE id=?", [id])
+  await submit(id, '10/28/2026 09:15 AM')
+  const row = db.get("SELECT details FROM activity_log WHERE entity_id=? AND action='type_changed'", [id])
+  assert.ok(row, 'a type change must leave a trail')
+  assert.match(row.details, /buyer -> seller/)
+})

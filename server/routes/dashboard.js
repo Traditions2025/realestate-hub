@@ -291,6 +291,10 @@ router.get('/', (req, res) => {
     appointments_today: stats.todays_events.length,
     priority_leads: new Set([...handoffs.map(h => h.client_id), ...needRows.slice(0, 50).map(r => r.id)].filter(Boolean)).size,
     new_leads_today: safe(() => db.get("SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND substr(COALESCE(NULLIF(register_date,''), sierra_creation_date, created_at),1,10) = ?", [W.day]).c, 0),
+    // Everyone who has asked what their home is worth online (John, 2026-10-28). Counted
+    // from the same SQL the Clients smart list uses, so the tile and the list can never
+    // disagree, and the tile deep-links straight into it.
+    home_value_requested: safe(() => db.get(`SELECT COUNT(*) c FROM clients WHERE merged_into IS NULL AND ${SMART_LIST_SQL.home_value_requested}`).c, 0),
   }
 
   // ---- Today's schedule: calendar events + transaction closings/walkthroughs today ----
