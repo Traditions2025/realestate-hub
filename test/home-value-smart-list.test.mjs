@@ -91,3 +91,18 @@ test('a log row for a different entity type does not leak in', () => {
     ['home_value_submission', 'transaction', id, 'not a client row'])
   assert.equal(inList(id), false)
 })
+
+// The team's own records stay off the list (John, 2026-10-28). He test-submitted the form
+// on 2026-10-08 and landed on his own lead list. The submission row is true history and is
+// kept; the tag is what removes him, so a future test needs only the tag.
+test('a record tagged "Internal - Not a Lead" is excluded even with a real submission', () => {
+  const id = mk({ tags: JSON.stringify(['cedarrapidsmetroareahomevalue.sierrasellersites.com', 'Internal - Not a Lead']) })
+  submitted(id)
+  assert.equal(inList(id), false)
+})
+
+test('the exclusion does not swallow an ordinary lead whose tags merely mention leads', () => {
+  const id = mk({ tags: JSON.stringify(['Lead Ad', 'Buyer Lead', 'Website Form']) })
+  submitted(id)
+  assert.equal(inList(id), true, 'only the exact "Not a Lead" phrase excludes')
+})

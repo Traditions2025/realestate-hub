@@ -714,8 +714,15 @@ export const SMART_LIST_SQL = {
   // Dead and DNC are excluded, as asked. Deliberately NOT the WORKABLE predicate: that also
   // drops hub_text_opt_out, and someone who stopped our TEXTS still asked what their house
   // is worth and still belongs on this list - the home value campaign is email.
+  // The team's own records are excluded by the `Internal - Not a Lead` tag (matched on
+  // the ASCII phrase, so no dash character has to survive a round trip). John test-
+  // submitted the form on 2026-10-08 and landed on his own list (2026-10-28). Deleting the
+  // submission row would have been the quick fix, but it is true history and testing the
+  // form is a thing that will keep happening — so the record keeps its log and the tag
+  // keeps it off lead lists. Tag any other staff or test record the same way.
   home_value_requested:
     `(lower(COALESCE(clients.status,'')) NOT IN ('junk','donotcontact','archived')
+      AND clients.tags NOT LIKE '%Not a Lead%'
       AND (clients.tags LIKE '%cedarrapidsmetroareahomevalue.sierrasellersites.com%'
            OR EXISTS (SELECT 1 FROM activity_log al
                        WHERE al.entity_type = 'client' AND al.entity_id = clients.id
