@@ -2094,7 +2094,15 @@ router.post('/bulk-assign-agent', (req, res) => {
   res.json({ success: true, updated: ids.length, agent })
 })
 
-// Bulk add and/or remove tags (comma-separated tags field), case-insensitive, no dupes.
+// Bulk add and/or remove tags, case-insensitive, no dupes. Tags are stored as a JSON
+// array string (same format doMerge() writes) — read with parseTags(), which also
+// tolerates a legacy comma-joined string, and always write back valid JSON so later
+// JSON.parse(tags) callers (filter-options, any tag-rename tool) never choke on this
+// field. A naive `.split(',')` on an existing JSON-array string used to shred it into
+// bracket/quote fragments and re-glue a trailing plain tag outside the array — found
+// 2026-10-29 after a bulk "Address Confirmed" tag add left hundreds of clients with
+// tags like `["a", "b"], Address Confirmed 2026-10` instead of `["a", "b", "Address
+// Confirmed 2026-10"]`, which then broke a rename pass expecting valid JSON.
 router.post('/bulk-tags', (req, res) => {
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean)
   const add = (Array.isArray(req.body?.add) ? req.body.add : []).map(s => String(s).trim()).filter(Boolean)
@@ -2108,10 +2116,10 @@ router.post('/bulk-tags', (req, res) => {
   try {
     for (const id of ids) {
       const row = db.get('SELECT tags FROM clients WHERE id=?', [id]); if (!row) continue
-      let list = String(row.tags || '').split(',').map(s => s.trim()).filter(Boolean)
+      let list = parseTags(row.tags)
       if (removeLc.length) list = list.filter(t => !removeLc.includes(t.toLowerCase()))
       for (const t of add) if (!list.some(x => x.toLowerCase() === t.toLowerCase())) list.push(t)
-      db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [list.join(', ') || null, now, id])
+      db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [list.length ? JSON.stringify(list) : null, now, id])
       updated++
     }
     logActivity('bulk_tags', 'client', 0, `Tags on ${updated} lead${updated === 1 ? '' : 's'}: +[${add.join(', ')}] -[${remove.join(', ')}]`)
