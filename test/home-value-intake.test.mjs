@@ -228,3 +228,41 @@ test('a Sierra sync pass cannot strip the home value tags', () => {
   assert.match(helper, /const keepTags = hubTags\.filter\(HUB_NATIVE_TAG\)/)
   assert.match(helper, /mergedTags = \[\.\.\.new Set\(\[\.\.\.tags, \.\.\.keepTags\]\)\]/)
 })
+
+// ── the whitelist is the only thing standing between a Hub tag and oblivion ──────────
+//
+// Measured 2026-10-29 across all 45,950 clients. Tags are Sierra-owned, and the sync
+// unions back only what this predicate matches, so a tag Sierra never sets and nothing
+// re-applies is lost the next time Sierra reports THAT lead. Not a sweep - a half-life,
+// which is why it goes unnoticed.
+//
+// Why the big tag counts are not evidence against this: Import is on 42,984 clients and
+// Realist on 15,600 because SIERRA supplies them every pass. They never needed protecting.
+// Only Hub-invented tags are exposed.
+//
+// Read this the right way round: it preserves a tag that is ON THE HUB RECORD, it does not
+// resurrect one. Removing a tag in the Hub makes it stay removed - the Hub is master. What
+// it blocks is a Sierra-side removal reaching back and deleting Hub-owned information.
+test('the sync whitelist covers every Hub-invented tag, and nothing else', () => {
+  const helper = fs.readFileSync(new URL('../server/sierra-helper.js', import.meta.url), 'utf8')
+  const m = helper.match(/const HUB_NATIVE_TAG = \(t\) =>([\s\S]*?)\n\s*let hubTags/)
+  assert.ok(m, 'the predicate should be findable')
+  // eslint-disable-next-line no-new-func
+  const pred = new Function('t', 'return (' + m[1].trim().replace(/\n/g, ' ') + ')')
+
+  for (const t of [
+    'FB Ad',                                        // bare, no property - used to slip past /^FB Ad:/
+    'FB Ad: 1625 Ranmar Dr',
+    'FB Seller Ad',
+    'Meta Lead', 'Fix It or Skip It', 'Seller',
+    'Home Value: mattsmithteam.com/home-value',
+    'cedarrapidsmetroareahomevalue.sierrasellersites.com',
+    'Address Confirmed 2026', 'Address Confirmed 2026-10', 'Address Needs Update',
+  ]) assert.equal(!!pred(t), true, `${t} is Hub-written and must survive a sync`)
+
+  for (const t of [
+    'Import', 'Realist', 'Bounced', 'Buyer', 'Y_DNC_REGISTRY_TRUE',   // Sierra resupplies these
+    'FB Adjacent',    // must not be caught by the FB Ad prefix
+    'Address', 'Addresses',   // must not be caught by the Address prefixes
+  ]) assert.equal(!!pred(t), false, `${t} is Sierra-owned and must not be force-kept`)
+})

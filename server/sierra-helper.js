@@ -188,7 +188,19 @@ export function processLead(lead, sierraStatusOverride) {
     // came back from Sierra with tags=[] for the same reason. Sierra never sets these, so
     // a sync pass had nothing to merge and replaced them with nothing. The Home Value
     // Requested smart list only kept working because it ORs in the activity row.
-    const HUB_NATIVE_TAG = (t) => /^(FB Ad:|FB Seller Ad|Home Value:)/i.test(t)
+    // The address audit's tags are Hub-written for the same reason and were decaying the
+    // same way: 491 of them applied on 2026-10-29, Sierra never sees them, and nothing
+    // re-applies them. Every one of those leads has been reported by Sierra at least once
+    // in the last year, so all 491 would have gone within a year - 8 of them within weeks.
+    //
+    // NOTE ON REMOVAL, because it is easy to read this the wrong way round: this preserves
+    // a tag that is ON THE HUB RECORD. It does not resurrect one. Remove the tag in the Hub
+    // and it stays removed; the Hub is master. What it stops is a SIERRA-side removal
+    // silently reaching back and deleting Hub-owned information.
+    //
+    // 'FB Ad' with no colon: ai.js builds 'FB Ad' + (property ? ': ' + property : ''), so a
+    // lead with no property name carried a bare 'FB Ad' that /^FB Ad:/ never matched.
+    const HUB_NATIVE_TAG = (t) => /^(FB Ad\b|FB Seller Ad|Home Value:|Address Confirmed|Address Needs Update)/i.test(t)
       || /sierrasellersites\.com$/i.test(t)
       || ['Meta Lead', 'Fix It or Skip It', 'Seller'].includes(t)
     let hubTags = []
