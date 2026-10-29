@@ -21,7 +21,25 @@ import { rule } from './rules.js'
 import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
 
 const nowIso = () => new Date().toISOString()
+// The canonical tag every requester carries, whichever door they came through. Its NAME is
+// the retired seller site, which reads oddly now the tool has moved - but it is left
+// exactly as it is on purpose: the Home Value Requested smart list matches it, and
+// renaming it would orphan every historic requester (John, 2026-10-28).
 export const HOME_VALUE_TAG = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
+// WHICH door, tagged separately so the canonical tag never has to change. Keyed on the
+// HV_Source line the native form writes, never on the page URL: the form posts through a
+// hidden iframe on /contact/ and Sierra overwrites Sent_From from its own page context, so
+// the URL says /contact/ for every submission.
+export const HV_SOURCE_TAGS = {
+  'mattsmithteam.com/home-value': 'Home Value: mattsmithteam.com/home-value',
+}
+export function sourceTagFor(sub) {
+  const src = String(sub?.source_line || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/$/, '')
+  for (const [key, tag] of Object.entries(HV_SOURCE_TAGS)) {
+    if (src === key || src.endsWith(key)) return tag
+  }
+  return null
+}
 const FOLLOWUP_TEMPLATE = 'Home Value Request — Follow-Up'
 // Subjects that mean somebody submitted the form. IMAP SEARCH takes one term, so each
 // is its own pass (see pollHomeValueSubmissions).
@@ -148,12 +166,12 @@ function findLead(sub) {
   return null
 }
 
-function addTag(client, tag) {
+function addTag(client, ...add) {
   let tags = []
   try { const a = JSON.parse(client.tags || '[]'); if (Array.isArray(a)) tags = a.map(String) } catch {
     tags = String(client.tags || '').split(',').map(s => s.trim()).filter(Boolean)
   }
-  if (!tags.includes(tag)) tags.push(tag)
+  for (const tag of add.filter(Boolean)) if (!tags.includes(tag)) tags.push(tag)
   return JSON.stringify(tags)
 }
 
@@ -194,12 +212,12 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [sub.first_name, sub.last_name, sub.email, sub.phone || null, 'seller', 'new',
        'Home Value Site', 'Matt Smith', sub.address || null, sub.city || null, sub.state || null, sub.zip || null,
-       JSON.stringify([HOME_VALUE_TAG]), nowIso().slice(0, 10), nowIso(), nowIso()])
+       JSON.stringify([HOME_VALUE_TAG, sourceTagFor(sub)].filter(Boolean)), nowIso().slice(0, 10), nowIso(), nowIso()])
     client = db.get('SELECT * FROM clients WHERE id = ?', [r.lastInsertRowid])
     created = true
   } else if (!dryRun) {
     // Hub owns contact data, so an existing address is never overwritten — only filled.
-    const patch = { tags: addTag(client, HOME_VALUE_TAG) }
+    const patch = { tags: addTag(client, HOME_VALUE_TAG, sourceTagFor(sub)) }
     if (!String(client.address || '').trim() && sub.address) Object.assign(patch, { address: sub.address, city: sub.city || null, state: sub.state || null, zip: sub.zip || null })
     if (!String(client.phone || '').trim() && sub.phone) patch.phone = sub.phone
     // A DIFFERENT number on the form is new information, not a correction. The Hub owns

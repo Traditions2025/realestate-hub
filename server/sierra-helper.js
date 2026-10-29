@@ -182,7 +182,15 @@ export function processLead(lead, sierraStatusOverride) {
     // Tags are Sierra-owned EXCEPT Hub-native campaign tags (FB Ad / FB Seller Ad /
     // Meta Lead / Fix It or Skip It), which Sierra never knows about — union those
     // back in so a sync pass can't strip a lead out of its FB campaign identity.
-    const HUB_NATIVE_TAG = (t) => /^(FB Ad:|FB Seller Ad)/i.test(t) || ['Meta Lead', 'Fix It or Skip It', 'Seller'].includes(t)
+    // Home value request tags are Hub-written too, and were being silently stripped.
+    // Found 2026-10-29: James Osullivan was tagged by the intake at 20:35 on 10-27 and a
+    // sync pass at 22:02 removed it; the three submissions from the new /home-value/ page
+    // came back from Sierra with tags=[] for the same reason. Sierra never sets these, so
+    // a sync pass had nothing to merge and replaced them with nothing. The Home Value
+    // Requested smart list only kept working because it ORs in the activity row.
+    const HUB_NATIVE_TAG = (t) => /^(FB Ad:|FB Seller Ad|Home Value:)/i.test(t)
+      || /sierrasellersites\.com$/i.test(t)
+      || ['Meta Lead', 'Fix It or Skip It', 'Seller'].includes(t)
     let hubTags = []
     try { const a = JSON.parse(existing.tags || '[]'); if (Array.isArray(a)) hubTags = a.map(x => String(x).trim()).filter(Boolean) } catch {}
     const keepTags = hubTags.filter(HUB_NATIVE_TAG)

@@ -3,6 +3,7 @@
 // is pinned against the real notification text.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import { parseHomeValueEmail } from '../server/home-value-intake.js'
 
 // verbatim shape of a real notification (2026-09-28)
@@ -168,4 +169,62 @@ test('the seller-site format is untouched by the native-form support', () => {
   assert.equal(s.email, 'matt@mattsmithteam.com')
   assert.equal(s.address, '3720 Monarch Ave')
   assert.equal(s.submission_id, '', 'the old format carries no reference')
+})
+
+// ── which door they came through, and whether the tag survives ───────────────────────
+//
+// John, 2026-10-29: "make sure we get a tagging for those who request their home value on
+// the NEW link." Two separate problems sat behind that.
+//
+// FIRST, the canonical tag was being silently stripped. Tags are Sierra-owned in
+// sierra-helper.js and only a short whitelist of Hub-native tags survives a sync pass. The
+// home value tag was not on it, so: James Osullivan was tagged by the intake at 20:35 on
+// 2026-10-27 and a sync at 22:02 removed it, and the three submissions from the new page
+// came back with tags=[] for the same reason. A home value requester therefore looked like
+// any other lead, which is exactly what John was asking about. The Home Value Requested
+// smart list survived only because it ORs in the home_value_submission activity row.
+//
+// SECOND, the canonical tag cannot answer "which door" - its name is the RETIRED seller
+// site and it is deliberately left that way, because the smart list matches it and
+// renaming it would orphan every historic requester. So the source is tagged separately.
+import { sourceTagFor, HOME_VALUE_TAG } from '../server/home-value-intake.js'
+
+test('a new-link requester gets a source tag, and nobody else does', () => {
+  const NEW = 'Home Value: mattsmithteam.com/home-value'
+  assert.equal(sourceTagFor({ source_line: 'mattsmithteam.com/home-value' }), NEW)
+  // the form writes it bare, but tolerate scheme, www and a trailing slash
+  assert.equal(sourceTagFor({ source_line: 'https://www.mattsmithteam.com/home-value/' }), NEW)
+  // the retiring seller site emits no HV_Source at all
+  assert.equal(sourceTagFor({ source_line: '' }), null)
+  assert.equal(sourceTagFor({}), null)
+  // and the Free Market Analysis page must not be mistaken for it
+  assert.equal(sourceTagFor({ source_line: 'https://www.mattsmithteam.com/sellers/free-market-analysis/' }), null)
+})
+
+test('the source tag is read from HV_Source, never from the page URL', () => {
+  // the form posts through a hidden iframe on /contact/ and Sierra overwrites Sent_From
+  // from its own page context, so every submission's URL says /contact/
+  const s = parseHomeValueEmail(NATIVE)
+  assert.equal(s.source_line, 'mattsmithteam.com/home-value')
+  assert.ok(sourceTagFor(s), 'a parsed native submission must earn the source tag')
+  const src = fs.readFileSync(new URL('../server/home-value-intake.js', import.meta.url), 'utf8')
+  assert.ok(!/sourceTagFor[\s\S]{0,400}Sent_From/.test(src), 'Sent_From must not drive the source tag')
+})
+
+test('the canonical tag keeps its old name on purpose', () => {
+  // renaming it would orphan every historic requester and the smart list that matches it
+  assert.equal(HOME_VALUE_TAG, 'cedarrapidsmetroareahomevalue.sierrasellersites.com')
+})
+
+test('a Sierra sync pass cannot strip the home value tags', () => {
+  // this is the bug: without it the intake tags a lead and the next sync removes it
+  const helper = fs.readFileSync(new URL('../server/sierra-helper.js', import.meta.url), 'utf8')
+  const m = helper.match(/const HUB_NATIVE_TAG = \(t\) =>([\s\S]*?)\n\s*let hubTags/)
+  assert.ok(m, 'the Hub-native tag predicate should be findable')
+  const pred = m[1]
+  assert.match(pred, /Home Value:/, 'the source tag must survive a sync')
+  assert.match(pred, /sierrasellersites/, 'the canonical tag must survive a sync')
+  // and the predicate must actually be applied to what gets written back
+  assert.match(helper, /const keepTags = hubTags\.filter\(HUB_NATIVE_TAG\)/)
+  assert.match(helper, /mergedTags = \[\.\.\.new Set\(\[\.\.\.tags, \.\.\.keepTags\]\)\]/)
 })
