@@ -483,7 +483,12 @@ function inlineLogo(html) {
   }
 }
 
-const VALUE_TOOL_URL = 'https://cedarrapidsmetroareahomevalue.sierrasellersites.com/'
+// The home value tool, in ONE place because 73 templates resolve through it.
+// Moved 2026-10-28 off the Sierra seller site onto the native 9-screen questionnaire
+// on our own domain. The old framed page /sellers/home-value/ was already returning
+// 404 by then, so template 384's hard-coded CTA was dead; every other template uses
+// one of the tokens below and followed this line.
+const VALUE_TOOL_URL = 'https://www.mattsmithteam.com/home-value/'
 const valueLink = (text) => `<a href="${VALUE_TOOL_URL}" style="color:#2563eb;font-weight:600;">${text}</a>`
 // Iowa-accurate seasonal maintenance blurb, chosen by the CURRENT month so the
 // "seasonal" email is always right for the season it actually sends in.

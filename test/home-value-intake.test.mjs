@@ -93,3 +93,79 @@ test('a one-word name does not produce a broken last name', () => {
   assert.equal(s.first_name, 'Cher')
   assert.equal(s.last_name, '')
 })
+
+// ── the native /home-value/ form, pinned 2026-10-29 ──────────────────────────────────
+//
+// The page drives Sierra's own /contact/ form, so the identity fields are Sierra's
+// (First_Name / Last_Name / Email / Phone) and share NO names with the seller site's
+// (*Name* / *Email Address*). Parsed against the wrong scheme the email comes out empty,
+// handleHomeValueSubmission skips, and the requester gets nothing at all - silently.
+// That is what /sellers/free-market-analysis/ has always done.
+//
+// Sierra wraps labels in asterisks in the notification mail and writes them bare in the
+// stored note, and nobody has sampled a notification from this page yet, so BOTH wrappers
+// are pinned here. Format spec: Home Value Site/home-value-form/SUBMISSION-FORMAT.md
+const NATIVE = [
+  'The following info was submitted from MattSmithTeam.com at 10/29/2026 09:26 AM.',
+  '',
+  'First_Name: Jane',
+  'Last_Name: Doe',
+  'Email: jane.doe@example.com',
+  'Phone: (319) 555-0142',
+  'HV_Submission_ID: HV-20261029-SNTN',
+  'HV_Source: mattsmithteam.com/home-value',
+  'HV_Address: 1625 RANMAR DR, ELY, IA, 52227',
+  'HV_Condition: 7',
+  'HV_Timeline: Just curious',
+  'HV_Would_Buy: unsure',
+  'Questions: HOME VALUE REQUEST',
+].join('\n')
+
+const starred = (s) => s.replace(/^([A-Za-z_]+):/gm, '*$1*:')
+
+test('the native form parses, with or without asterisk wrappers', () => {
+  for (const [label, body] of [['bare', NATIVE], ['asterisk', starred(NATIVE)]]) {
+    const s = parseHomeValueEmail(body)
+    assert.equal(s.email, 'jane.doe@example.com', label + ': email is what the skip hinges on')
+    assert.equal(s.first_name, 'Jane', label)
+    assert.equal(s.last_name, 'Doe', label)
+    assert.equal(s.phone, '(319) 555-0142', label)
+    assert.equal(s.address, '1625 RANMAR DR', label)
+    assert.equal(s.city, 'ELY', label)
+    assert.equal(s.state, 'IA', label)
+    assert.equal(s.zip, '52227', label + ': state and zip are separate comma parts here')
+    assert.equal(s.condition, '7', label)
+    assert.equal(s.submission_id, 'HV-20261029-SNTN', label)
+  }
+})
+
+test('HV_Source is what identifies this form, not the page URL', () => {
+  // Sierra overwrites Sent_From from its own page context, so the record says /contact/
+  // whatever we post. HV_Source is emitted by nothing else.
+  const s = parseHomeValueEmail(NATIVE)
+  assert.equal(s.source_line, 'mattsmithteam.com/home-value')
+  assert.equal(s.request_type, 'Home Value Request', 'the block names itself on its first line')
+})
+
+test('the submission id is the dedupe key, so asking twice is two submissions', () => {
+  // Sierra merges on email: without this, a second request months later is
+  // indistinguishable from the first and would be swallowed as "already processed".
+  const first = parseHomeValueEmail(NATIVE)
+  const again = parseHomeValueEmail(NATIVE.replace('HV-20261029-SNTN', 'HV-20270415-TRKW'))
+  assert.notEqual(first.submission_id, again.submission_id)
+  assert.equal(again.email, first.email, 'same person, different submission')
+})
+
+test('First_Name is not read as Name, nor Email as Email Address', () => {
+  // 'Name' matching inside 'First_Name' would take the wrong half of the label
+  const s = parseHomeValueEmail(NATIVE)
+  assert.equal(s.name, 'Jane Doe')
+  assert.ok(!/first/i.test(s.first_name))
+})
+
+test('the seller-site format is untouched by the native-form support', () => {
+  const s = parseHomeValueEmail(REAL)
+  assert.equal(s.email, 'matt@mattsmithteam.com')
+  assert.equal(s.address, '3720 Monarch Ave')
+  assert.equal(s.submission_id, '', 'the old format carries no reference')
+})

@@ -178,6 +178,11 @@ export function evaluateAiEnrollmentEligibility(clientId, opts = {}) {
   // after fsbo_status has been cleared (an Off Market listing clears it), and the campaign
   // still owns the conversation. Found 2026-10-05 by the parity test against forbidden.js.
   try { if (db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [cid])) return fin(EXCLUDED('FSBO', 'FSBO follow-up campaign owns this lead')) } catch {}
+  // Home value requesters: the response sequence and a person own them. The SUBMISSION
+  // is the fence, not just the campaign row - that row appears only once the day-0
+  // email has sent, and a lead whose email bounced would otherwise be enrolled.
+  try { if (db.get('SELECT client_id FROM home_value_sms WHERE client_id=?', [cid])) return fin(EXCLUDED('HOME_VALUE', 'home value response sequence owns this lead')) } catch {}
+  try { if (db.get("SELECT id FROM activity_log WHERE entity_type='client' AND entity_id=? AND action='home_value_submission' LIMIT 1", [cid])) return fin(EXCLUDED('HOME_VALUE', 'asked what their home is worth - AI never follows these up')) } catch {}
   if (c.fsbo_status || (c.fsbo_listings && c.fsbo_listings !== '[]')) return fin(EXCLUDED('FSBO', 'FSBO-tracked lead'))
   if (c.mls_status) return fin(EXCLUDED('MLS_TRACKED', `MLS-tracked (${c.mls_status})`))
 

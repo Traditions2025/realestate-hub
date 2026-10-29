@@ -85,6 +85,12 @@ export async function handleInboundText(clientId, inboundBody, { force = false }
     // was "defense in depth for every other caller" only ever covered Cancelled/Expired.
     const fsbo = db.get('SELECT client_id FROM fsbo_followups WHERE client_id=?', [cid])
     if (fsbo) return { ok: false, reason: 'FSBO follow-up campaign — AI never replies to these sellers; respond personally' }
+    // Home value requesters, same rule for the same reason: the response sequence and a
+    // person own the conversation. A reply is the whole point of that sequence, so this
+    // is the path that would otherwise fire on one.
+    const hv = db.get('SELECT client_id FROM home_value_sms WHERE client_id=?', [cid])
+      || db.get("SELECT id FROM activity_log WHERE entity_type='client' AND entity_id=? AND action='home_value_submission' LIMIT 1", [cid])
+    if (hv) return { ok: false, reason: 'home value request — AI never replies to a value requester; respond personally' }
   } catch {}
   ensureState(cid)
   if (!force) { markInbound(cid); cancelPendingScheduled(cid, 'lead replied') }   // never talk over a live reply

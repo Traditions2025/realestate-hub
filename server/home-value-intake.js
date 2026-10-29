@@ -23,45 +23,99 @@ import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
 const nowIso = () => new Date().toISOString()
 export const HOME_VALUE_TAG = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
 const FOLLOWUP_TEMPLATE = 'Home Value Request — Follow-Up'
-const NOTIFY_SUBJECT = 'cedarrapidsmetroareahomevalue.sierrasellersites.com'
+// Subjects that mean somebody submitted the form. IMAP SEARCH takes one term, so each
+// is its own pass (see pollHomeValueSubmissions).
+const NOTIFY_SUBJECTS = [
+  'cedarrapidsmetroareahomevalue.sierrasellersites.com',   // the retiring seller site
+  'Home Value Request',                                    // mattsmithteam.com/home-value
+]
 
-// The notification is a plain-text table of "*Label*: value" lines, with the interesting
-// detail bundled into Questions / Comments as its own label: value list.
+// The notification is a plain-text table of "Label: value" lines, with the interesting
+// detail bundled into one free-text field as its own label: value list.
+//
+// TWO FIELD SCHEMES reach this function, and they share no field names (2026-10-28):
+//
+//   seller site (retiring)      native /home-value/ and /sellers/free-market-analysis/
+//   *Name*                      First_Name + Last_Name
+//   *Email Address*             Email
+//   *Questions / Comments*      Questions
+//
+// Sierra wraps labels in asterisks in the notification mail and writes them bare in the
+// stored note, so each label is read with the wrapper OPTIONAL. That matters because the
+// field names were confirmed against the stored note while this function reads the mail.
+//
+// Getting this wrong is silent: field('Email Address') on a First_Name body returns '',
+// handleHomeValueSubmission sees no email and skips, and the requester gets nothing at
+// all. That is what the Free Market Analysis page has always done.
+//
+// Deliberately NOT keyed on Sent_From or the page URL: the native form posts through a
+// hidden iframe on /contact/, so both point there rather than at /home-value/.
 export function parseHomeValueEmail(text) {
   // The detail block opens on the SAME line as its label:
   //   "*Questions / Comments*: Address: 3720 Monarch Ave, Marion, IA 52302, USA"
   // so Address is not at the start of a line and a line-anchored match misses it.
-  // Break the label off first and every field below reads uniformly.
+  // Break the label off first and every field below reads uniformly. The native form's
+  // block is `Questions`, and its answers are separated by <br/> rather than newlines.
   const t = String(text || '').replace(/\r/g, '')
-    .replace(/\*\s*Questions\s*\/\s*Comments\s*\*\s*:\s*/i, '\n')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/\*?\s*Questions(\s*\/\s*Comments)?\s*\*?\s*:\s*/i, '\n')
+  // The asterisks are optional so one lookup reads the mail and the stored note alike.
+  // Anchored on a line start so `Name` cannot match inside `First_Name`.
   const field = (label) => {
-    const m = t.match(new RegExp('\\*\\s*' + label + '\\s*\\*\\s*:\\s*(.+)', 'i'))
+    const m = t.match(new RegExp('(?:^|\\n)\\s*\\*?\\s*' + label + '\\s*\\*?\\s*:[ \\t]*(.*)', 'i'))
     return m ? m[1].trim() : ''
   }
   const sub = (label) => {
-    const m = t.match(new RegExp('^\\s*' + label + '\\s*:\\s*(.+)$', 'im'))
+    const m = t.match(new RegExp('^\\s*\\*?\\s*' + label + '\\s*\\*?\\s*:\\s*(.+)$', 'im'))
     return m ? m[1].trim() : ''
   }
   const money = (s) => { const n = Number(String(s || '').replace(/[^0-9.]/g, '')); return n > 0 ? Math.round(n) : null }
 
-  const name = field('Name')
+  // Most specific first: `Email Address` before `Email`, or the looser one wins on a
+  // seller-site body and reads the wrong half of the label.
+  const firstField = field('First_Name')
+  const lastField = field('Last_Name')
+  const name = (firstField || lastField)
+    ? [firstField, lastField].filter(Boolean).join(' ')
+    : field('Name')
   const [first, ...rest] = name.split(/\s+/).filter(Boolean)
-  const addressLine = sub('Address')
-  // "3720 Monarch Ave, Marion, IA 52302, USA" -> street / city / state / zip
+  // HV_Address is the native form's own labelled field and is preferred over anything
+  // sub-parsed out of the readable block: that block is written for Matt and John to read,
+  // not to be parsed, and its wording is free to change.
+  const addressLine = sub('HV_Address') || sub('Address')
+  // "3720 Monarch Ave, Marion, IA 52302, USA" -> street / city / state / zip, and
+  // "1625 RANMAR DR, ELY, IA, 52227" where the state and zip are separate parts.
   const parts = addressLine.split(',').map(s => s.trim()).filter(s => s && !/^usa$/i.test(s))
   const street = parts[0] || ''
   const city = parts[1] || ''
-  const stZip = (parts[2] || '').match(/([A-Z]{2})\s*(\d{5})?/i)
+  const stZip = parts.slice(2).join(' ').match(/([A-Z]{2})\s*(\d{5})?/i)
 
   return {
     name, first_name: first || '', last_name: rest.join(' '),
-    email: field('Email Address').toLowerCase(),
+    email: (field('Email Address') || field('Email')).toLowerCase(),
     phone: field('Phone'),
-    request_type: field('Request Type'),
+    // The native form sends no Request Type; it names itself on the first line of the
+    // answer block instead.
+    request_type: field('Request Type') || (/^\s*HOME VALUE REQUEST\s*$/im.test(t) ? 'Home Value Request' : ''),
+    // Which door this came through. HV_Source is its own labelled field; the readable
+    // block repeats it as a plain `Source:` line, so either will do. Nothing else emits
+    // it - not the seller site, not the Free Market Analysis page - which makes it the one
+    // reliable discriminator, unlike Sent_From or the page URL (both read /contact/,
+    // because Sierra overwrites Sent_From from its own page context).
+    source_line: sub('HV_Source') || sub('Source'),
+    // Sierra merges on email, so a homeowner who asks twice lands on ONE lead and the two
+    // submissions are otherwise indistinguishable. This is per-SUBMISSION, which is what
+    // the dedupe key below really wants.
+    submission_id: sub('HV_Submission_ID') || (addressLine && (t.match(/^\s*Reference:\s*(HV-[0-9]{8}-[A-Z0-9]{4})\s*$/im) || [])[1]) || '',
+    // They answered condition on the form itself now. Captured so it is on the record and
+    // in the alert; whether it should also pre-empt the Day 0 text that asks the same
+    // question is John's call, and nothing here changes that sequence.
+    condition: sub('HV_Condition'),
+    would_buy: sub('HV_Would_Buy'),
     address: street, city, state: stZip ? stZip[1].toUpperCase() : '', zip: stZip && stZip[2] ? stZip[2] : '',
     address_full: addressLine,
-    timeframe: sub('I am Planning to Move'),
-    beds: sub('Beds'), baths: sub('Baths'),
+    timeframe: sub('I am Planning to Move') || sub('Moving_When') || sub('HV_Timeline'),
+    beds: sub('Beds') || sub('Bedrooms'), baths: sub('Baths') || sub('Bathrooms'),
     zillow_estimate: money(sub('Zillow Valuation Estimate')),
     avm_estimate: money(sub('AVM Estimate')),
     sierra_lead_id: (t.match(/lead-detail\.aspx\?id=(\d+)/) || [])[1] || null,
@@ -114,7 +168,13 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
   // Two doors now lead here: the IMAP poller and the webhook (routes/drips.js). They can
   // see the SAME notification seconds apart, so the dedupe key must not depend on which
   // one got there first. The form's own submitted-at string does not; arrival time does.
-  const stableKey = sub.submitted_label ? `hv_${sub.email}_${sub.submitted_label.replace(/\s+/g, ' ')}` : null
+  // The native form stamps every submission with its own HV-YYYYMMDD-XXXX reference, which
+  // is a better key than any timestamp: it is identical whichever door the notification
+  // comes through, and it tells two submissions from the same person apart. The
+  // submitted-at string stays as the key for the older format, which has no reference.
+  const stableKey = sub.submission_id
+    ? `hv_${sub.submission_id}`
+    : (sub.submitted_label ? `hv_${sub.email}_${sub.submitted_label.replace(/\s+/g, ' ')}` : null)
   const legacyKey = `hv_${sub.email}_${String(submittedAt).slice(0, 16)}`
   // The legacy key is still checked so notifications processed before this change are not
   // re-sent when the poller's 2-day window sweeps over them again.
@@ -196,6 +256,11 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
     sub.zillow_estimate && `Zillow $${sub.zillow_estimate.toLocaleString()}`,
     sub.avm_estimate && `AVM $${sub.avm_estimate.toLocaleString()}`,
     sub.request_type && `request: ${sub.request_type}`,
+    // They rated condition on the form, so it belongs on the record rather than only in
+    // the note Sierra holds.
+    sub.condition && `condition: ${sub.condition}/10`,
+    sub.would_buy && `would need to buy: ${sub.would_buy}`,
+    sub.source_line && `via ${sub.source_line}`,
   ].filter(Boolean).join(' · ')
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
     ['home_value_submission', 'client', client.id, detail])
@@ -388,13 +453,23 @@ async function sendSubmissionAlert({ client, sub, created, visitNo }) {
 export async function pollHomeValueSubmissions({ sinceDays = 3, max = 25, dryRun = false, recordOnly = false } = {}) {
   const { searchMailboxesBySubject } = await import('./gmail-inbox.js')
   const since = new Date(Date.now() - sinceDays * 86400000).toISOString().slice(0, 10)
-  const found = await searchMailboxesBySubject(NOTIFY_SUBJECT, { max, since })
+  let searched = 0
+  const messages = [], seen = new Set()
+  for (const subject of NOTIFY_SUBJECTS) {
+    const found = await searchMailboxesBySubject(subject, { max, since })
+    searched += found.count || 0
+    for (const m of (found.messages || [])) {
+      const key = m.mailbox + '|' + m.date
+      if (seen.has(key)) continue
+      seen.add(key); messages.push(m)
+    }
+  }
   const results = []
-  for (const m of (found.messages || [])) {
+  for (const m of messages) {
     const sub = parseHomeValueEmail(m.body)
     if (!sub.email) { results.push({ date: m.date, skipped: 'could not parse an email address' }); continue }
     const r = await handleHomeValueSubmission(sub, { submittedAt: m.date, dryRun, recordOnly })
     results.push({ date: m.date, name: sub.name, ...r })
   }
-  return { searched: found.count || 0, processed: results.length, results }
+  return { searched, processed: results.length, results }
 }

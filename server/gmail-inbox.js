@@ -230,7 +230,14 @@ async function pollOne(m) {
           // which is exactly how the FUB lead notifications above were missed on
           // 2026-09-17. Processing twice is free — handleHomeValueSubmission dedupes on
           // the submitted-at string inside the body, which is identical either way.
-          if (/sierrasellersites\.com/i.test(String(parsed.subject || ''))) {
+          // Both destinations: the retiring seller site titles its notification after
+          // its own domain, the native page after the request type. Matching only the
+          // old domain would have left every submission on the new form unanswered -
+          // no follow-up email, and so no sequence at all, since enrolment is gated on
+          // that email succeeding. A reply on either thread carries the same subject
+          // and is still handed on below, because `handled` is only set once a real
+          // submission has parsed out of the body.
+          if (/sierrasellersites\.com|home\s*value\s*request/i.test(String(parsed.subject || ''))) {
             let handled = false
             try {
               const { parseHomeValueEmail, handleHomeValueSubmission } = await import('./home-value-intake.js')

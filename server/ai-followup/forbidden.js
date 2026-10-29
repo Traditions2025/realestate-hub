@@ -87,6 +87,15 @@ export function aiForbiddenReason(client) {
     return 'FSBO follow-up campaign — AI never texts these sellers'
   if (has('SELECT client_id FROM fb_seller_followups WHERE client_id=?'))
     return 'Fix It or Skip It seller campaign owns this lead'
+  // Home value requesters (Matt, 2026-10-28: no AI follow-up for anyone who asks what
+  // their home is worth). Asked on the SUBMISSION, not only the campaign row, because
+  // that row exists only once the day-0 email succeeded - a lead whose email bounced
+  // would otherwise carry no guard at all. The activity row is written for every
+  // submission, and idx_activity_entity_action covers this lookup.
+  if (has('SELECT client_id FROM home_value_sms WHERE client_id=?'))
+    return 'home value response sequence owns this lead - AI never texts a value requester'
+  if (has("SELECT id FROM activity_log WHERE entity_type='client' AND entity_id=? AND action='home_value_submission' LIMIT 1"))
+    return 'asked what their home is worth - AI never texts a value requester'
 
   // Prospecting identities, independent of whether a campaign row exists yet. The FSBO
   // sheet and the MLS pull set these the moment a lead is identified, which is often long
