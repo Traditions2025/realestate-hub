@@ -18,6 +18,59 @@ const CHANNELS = [
   { key: 'voicemail', label: 'Voicemails', icon: '🎙', color: '#f59e0b' },
 ]
 const chMeta = (k) => CHANNELS.find(c => c.key === k) || CHANNELS[0]
+
+// ---- outgoing MMS attachments -------------------------------------------------------
+// Twilio's limits, not ours: 10 media per message, and it refuses a message whose media
+// totals more than 5MB. Checked here so an over-size pick is refused while it can still
+// be fixed, instead of coming back as a failed send.
+const MMS_MAX_FILES = 10
+const MMS_MAX_BYTES = 5 * 1024 * 1024
+const MMS_ACCEPT = 'image/*,video/mp4,video/3gpp,video/quicktime'
+const isVideoType = (t) => /^video\//i.test(String(t || ''))
+const mb = (n) => `${(n / 1048576).toFixed(1)} MB`
+
+// Upload everything the picker returned in ONE request. Returns the accepted items, or
+// [] after telling the user why nothing came back.
+async function uploadMmsFiles(fileList, already = []) {
+  const picked = Array.from(fileList || [])
+  if (!picked.length) return []
+  if (already.length + picked.length > MMS_MAX_FILES) {
+    notify(`A text can carry ${MMS_MAX_FILES} attachments. You already have ${already.length}.`)
+    return []
+  }
+  const totalNow = already.reduce((n, m) => n + (m.bytes || 0), 0)
+  const totalNew = picked.reduce((n, f) => n + f.size, 0)
+  if (totalNow + totalNew > MMS_MAX_BYTES) {
+    notify(`Too big to send as a text: ${mb(totalNow + totalNew)} total, and the limit is 5 MB. A phone video is usually the culprit — trim it or send fewer.`)
+    return []
+  }
+  const fd = new FormData()
+  for (const f of picked) fd.append('file', f)
+  const d = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd }).then(x => x.json())
+  if (d.error) { notify(d.error); return [] }
+  for (const why of (d.rejected || [])) notify(why)
+  const got = d.files || (d.url ? [{ url: d.url, type: d.type }] : [])
+  if (got.some(f => /quicktime/i.test(f.type || ''))) {
+    notify('That video is a .mov. It will send, but some carriers drop .mov — if they say it never arrived, that is why.')
+  }
+  return got
+}
+
+// One attached-but-not-yet-sent item: a thumbnail for a photo, a real frame for a video,
+// and an ✕ to drop it.
+function MediaChip({ item, onRemove }) {
+  const video = isVideoType(item.type)
+  const tile = { width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)', display: 'block', background: video ? '#000' : undefined }
+  return (
+    <div style={{ position: 'relative' }} title={item.name || (video ? 'video' : 'photo')}>
+      {video
+        ? <video src={item.url} muted playsInline preload="metadata" style={tile} />
+        : <img src={item.url} alt="" style={tile} />}
+      {video && <span style={{ position: 'absolute', left: 4, bottom: 4, fontSize: 11, color: '#fff', background: 'rgba(0,0,0,.6)', borderRadius: 4, padding: '0 4px', pointerEvents: 'none' }}>▶</span>}
+      <button onClick={onRemove} title="Remove" style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14.5, lineHeight: '20px', padding: 0 }}>✕</button>
+    </div>
+  )
+}
 const INTENT_COLORS = { 'Needs Response': '#2563eb', 'Question': '#0ea5e9', 'Scheduling Request': '#8b5cf6', 'Property Interest': '#10b981', 'High Intent': '#ef4444', 'Information Request': '#f59e0b', 'No Response Needed': '#64748b' }
 const intentBadgeStyle = (intent) => ({ fontSize: 14.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em', color: '#fff', background: INTENT_COLORS[intent] || '#64748b', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' })
 const FOLDERS = [{ key: 'inbox', label: 'Inbox' }, { key: 'sent', label: 'Sent' }, { key: 'closed', label: 'Closed' }]
@@ -374,15 +427,12 @@ export default function Inbox() {
       else notify(d.error || 'Could not schedule')
     } catch (e) { notify(e.message) } finally { setSending(false) }
   }
-  const uploadPhoto = async (file) => {
-    if (!file) return
+  const uploadPhoto = async (fileList) => {
+    if (!fileList || !fileList.length) return
     setUploadingPhoto(true)
     try {
-      const fd = new FormData(); fd.append('file', file)
-      const r = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd })
-      const d = await r.json()
-      if (d.url) setReplyMedia(m => [...m, { url: d.url, type: d.type }])
-      else notify(d.error || 'Upload failed')
+      const got = await uploadMmsFiles(fileList, replyMedia)
+      if (got.length) setReplyMedia(m => [...m, ...got])
     } catch (e) { notify('Upload failed: ' + e.message) }
     finally { setUploadingPhoto(false); if (fileRef.current) fileRef.current.value = '' }
   }
@@ -795,8 +845,8 @@ export default function Inbox() {
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
                     <TemplatePicker templates={replyTemplates} onPick={t => insertTemplate(t.id)} />
                     {replyChannel === 'text' && <>
-                      <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
-                      <button className="btn btn-sm btn-secondary" disabled={uploadingPhoto} onClick={() => fileRef.current?.click()}>{uploadingPhoto ? 'Uploading…' : '📷 Insert photo'}</button>
+                      <input ref={fileRef} type="file" accept={MMS_ACCEPT} multiple style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files)} />
+                      <button className="btn btn-sm btn-secondary" disabled={uploadingPhoto || replyMedia.length >= MMS_MAX_FILES} onClick={() => fileRef.current?.click()} title="Pick several at once. Up to 10, 5 MB in total.">{uploadingPhoto ? 'Uploading…' : '📎 Attach photos / video'}</button>
                       {/* Inserts the full URL AND attaches the branded card image as MMS. iPhones only
                           auto-load link previews from saved contacts, but MMS media always displays. */}
                       <button className="btn btn-sm btn-secondary" title="Insert the website link + branded preview image (the image always shows, even when their phone won't auto-load link previews)"
@@ -808,13 +858,14 @@ export default function Inbox() {
                     </>}
                   </div>
                   {replyMedia.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       {replyMedia.map((mm, i) => (
-                        <div key={i} style={{ position: 'relative' }}>
-                          <img src={mm.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
-                          <button onClick={() => setReplyMedia(list => list.filter((_, j) => j !== i))} title="Remove" style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14.5, lineHeight: '20px', padding: 0 }}>✕</button>
-                        </div>
+                        <MediaChip key={i} item={mm} onRemove={() => setReplyMedia(list => list.filter((_, j) => j !== i))} />
                       ))}
+                      <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                        {replyMedia.length}/{MMS_MAX_FILES}
+                        {replyMedia.some(m => m.bytes) ? ` · ${mb(replyMedia.reduce((n, m) => n + (m.bytes || 0), 0))} of 5 MB` : ''}
+                      </span>
                     </div>
                   )}
 
@@ -878,14 +929,12 @@ function Composer({ onClose, onSent }) {
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef(null)
 
-  const uploadPhoto = async (file) => {
-    if (!file) return
+  const uploadPhoto = async (fileList) => {
+    if (!fileList || !fileList.length) return
     setUploading(true)
     try {
-      const fd = new FormData(); fd.append('file', file)
-      const d = await authFetch('/api/inbox/upload-media', { method: 'POST', body: fd }).then(x => x.json())
-      if (d.url) setMedia(m => [...m, { url: d.url, type: d.type }])
-      else notify(d.error || 'Upload failed')
+      const got = await uploadMmsFiles(fileList, media)
+      if (got.length) setMedia(m => [...m, ...got])
     } catch (e) { notify('Upload failed: ' + e.message) }
     finally { setUploading(false); if (fileRef.current) fileRef.current.value = '' }
   }
@@ -1002,22 +1051,20 @@ function Composer({ onClose, onSent }) {
         {channel === 'text' && (
           <div style={{ display: 'grid', gap: 8 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <input ref={fileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files?.[0])} />
-              <button className="btn btn-sm" disabled={uploading || media.length >= 10} onClick={() => fileRef.current?.click()}>
-                {uploading ? 'Uploading…' : '📎 Add photo'}
+              <input ref={fileRef} type="file" accept={MMS_ACCEPT} multiple style={{ display: 'none' }} onChange={e => uploadPhoto(e.target.files)} />
+              <button className="btn btn-sm" disabled={uploading || media.length >= MMS_MAX_FILES} onClick={() => fileRef.current?.click()}>
+                {uploading ? 'Uploading…' : '📎 Attach photos / video'}
               </button>
               <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
-                {media.length ? `${media.length} photo${media.length === 1 ? '' : 's'} attached` : 'Sends as an MMS. Up to 10.'}
+                {media.length
+                  ? `${media.length}/${MMS_MAX_FILES} attached${media.some(m => m.bytes) ? ` · ${mb(media.reduce((n, m) => n + (m.bytes || 0), 0))} of 5 MB` : ''}`
+                  : 'Sends as an MMS. Up to 10, 5 MB in total.'}
               </span>
             </div>
             {media.length > 0 && (
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {media.map((mm, i) => (
-                  <div key={i} style={{ position: 'relative' }}>
-                    <img src={mm.url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }} />
-                    <button onClick={() => setMedia(list => list.filter((_, j) => j !== i))} title="Remove"
-                      style={{ position: 'absolute', top: -6, right: -6, width: 20, height: 20, borderRadius: '50%', border: 'none', background: '#ef4444', color: '#fff', cursor: 'pointer', fontSize: 14.5, lineHeight: '20px', padding: 0 }}>✕</button>
-                  </div>
+                  <MediaChip key={i} item={mm} onRemove={() => setMedia(list => list.filter((_, j) => j !== i))} />
                 ))}
               </div>
             )}

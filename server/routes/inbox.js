@@ -581,29 +581,79 @@ router.get('/media/:id/:idx', async (req, res) => {
   } catch { res.status(502).send('media error') }
 })
 
-// ---- upload a photo for an outgoing MMS. Stores it under /uploads (public) and
-// returns the absolute URL so Twilio can fetch it at send time. ----
+// ---- upload photos and video for an outgoing MMS. Stores them under /uploads (public)
+// and returns the absolute URLs so Twilio can fetch them at send time. ----
+//
+// Several files per request, because people send what they are looking at — four photos
+// of a water heater, not one — and video, which this refused outright before.
+//
+// The two real ceilings are Twilio's, so they are enforced here rather than discovered
+// from a failed send: at most 10 media on a message, and a message whose media totals
+// more than 5MB is rejected. Each file is also capped at 5MB on its own, since one file
+// over the total can never be sendable anyway.
+export const MMS_MAX_FILES = 10
+export const MMS_MAX_BYTES = 5 * 1024 * 1024
+// What carriers actually deliver. quicktime (.mov — what an iPhone records) is allowed
+// because refusing it would reject most phone video outright, but it is the format that
+// most often fails to arrive, so the caller is told rather than left guessing.
+const MMS_OK = /^image\/(jpeg|jpg|png|gif|webp|heic|heif)$|^video\/(mp4|3gpp|quicktime)$/i
+export const isFragileMms = (t) => /^video\/quicktime$/i.test(String(t || ''))
+// Spelled out rather than derived from the mime, because the obvious derivation is wrong
+// where it matters: video/quicktime would become ".quick", and the saved file's extension
+// is what decides the Content-Type Twilio sees when it fetches the URL.
+const MMS_EXT = {
+  'image/jpeg': 'jpg', 'image/jpg': 'jpg', 'image/png': 'png', 'image/gif': 'gif',
+  'image/webp': 'webp', 'image/heic': 'heic', 'image/heif': 'heif',
+  'video/mp4': 'mp4', 'video/3gpp': '3gp', 'video/quicktime': 'mov',
+}
+
 router.post('/upload-media', (req, res) => {
   if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return res.status(400).json({ error: 'expected an uploaded file' })
-  const bb = Busboy({ headers: req.headers, limits: { files: 1, fileSize: 5 * 1024 * 1024 } })
-  let saved = null, tooBig = false, mime = 'image/jpeg'
+  const bb = Busboy({ headers: req.headers, limits: { files: MMS_MAX_FILES, fileSize: MMS_MAX_BYTES } })
+  const files = [], rejected = []
+  let pending = 0, closed = false, replied = false
+
+  const done = () => {
+    if (replied || !closed || pending) return
+    replied = true
+    if (!files.length) return res.status(400).json({ error: rejected[0] || 'No image or video received.' })
+    const total = files.reduce((n, f) => n + f.bytes, 0)
+    res.json({
+      files, rejected, total_bytes: total,
+      over_limit: total > MMS_MAX_BYTES,
+      // the first file repeated flat, so callers written against the old single-file
+      // shape keep working unchanged
+      url: files[0].url, type: files[0].type,
+    })
+  }
+
   bb.on('file', (_n, stream, info) => {
-    mime = info?.mimeType || 'image/jpeg'
-    if (!/^image\//i.test(mime)) { stream.resume(); return }
-    const ext = (mime.split('/')[1] || 'jpg').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'jpg'
+    const mime = String(info?.mimeType || '')
+    const orig = String(info?.filename || 'file')
+    if (!MMS_OK.test(mime)) { rejected.push(`${orig}: ${mime || 'unknown type'} cannot be sent as a text attachment`); stream.resume(); return }
+    const ext = MMS_EXT[mime.toLowerCase()] || 'jpg'
     const fname = `${randomUUID().replace(/-/g, '')}.${ext}`
     const full = join(UPLOAD_DIR, fname)
     const ws = createWriteStream(full)
-    stream.on('limit', () => { tooBig = true; ws.destroy(); try { unlinkSync(full) } catch {} })
-    ws.on('finish', () => { if (!tooBig) saved = fname })
+    let bytes = 0, settled = false
+    pending++
+    // one settle per file, whichever of finish / limit / error arrives first
+    const settle = (ok, why) => {
+      if (settled) return
+      settled = true
+      if (ok) files.push({ url: `${HUB_BASE()}/uploads/${fname}`, type: mime, name: orig, bytes })
+      else { rejected.push(`${orig}: ${why}`); try { unlinkSync(full) } catch {} }
+      pending--
+      done()
+    }
+    stream.on('data', (c) => { bytes += c.length })
+    stream.on('limit', () => { ws.destroy(); settle(false, 'is over 5 MB') })
+    ws.on('finish', () => settle(true))
+    ws.on('error', () => settle(false, 'could not be saved'))
     stream.pipe(ws)
   })
-  bb.on('close', () => {
-    if (tooBig) return res.status(413).json({ error: 'Image too large (max 5 MB).' })
-    if (!saved) return res.status(400).json({ error: 'That file is not an image.' })
-    res.json({ url: `${HUB_BASE()}/uploads/${saved}`, type: mime })
-  })
-  bb.on('error', () => res.status(500).json({ error: 'upload failed' }))
+  bb.on('close', () => { closed = true; done() })
+  bb.on('error', () => { if (!replied) { replied = true; res.status(500).json({ error: 'upload failed' }) } })
   req.pipe(bb)
 })
 
