@@ -36,6 +36,40 @@ function deliveryText(m) {
 const fmtDur = (s) => { s = Number(s || 0); return s ? `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}` : '' }
 const recUrl = (id) => `/api/inbox/recording/${id}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
 const mediaUrl = (id, idx) => `/api/inbox/media/${id}/${idx}?token=${encodeURIComponent(localStorage.getItem('mst_token') || '')}`
+const dlUrl = (id, idx) => `${mediaUrl(id, idx)}&download=1`
+
+// MMS attachments. When someone sends photos the photos ARE the message, so they get real
+// size and sit in a wrapping row instead of a single narrow column — four pictures used to
+// stack as 110px slivers down the side of an empty bubble. Click opens full size. Video got
+// nothing at all before this, just the words "attachment", so it now has a player; and
+// every kind is downloadable, which is the point of someone sending it to you.
+function Attachments({ m, list }) {
+  if (!list.length) return null
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 8 }}>
+      {list.map((mm, i) => {
+        const t = String(mm.type || '')
+        const isVideo = /video/i.test(t)
+        const isImage = !isVideo && (/image/i.test(t) || !t)
+        const box = { maxWidth: 300, maxHeight: 420, width: 'auto', height: 'auto', borderRadius: 10, display: 'block' }
+        return (
+          <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {isImage && (
+              <a href={mediaUrl(m.id, i)} target="_blank" rel="noreferrer" title="Open full size">
+                <img src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }}
+                  style={{ ...box, border: '1px solid var(--border)' }} />
+              </a>
+            )}
+            {isVideo && <video controls preload="metadata" src={mediaUrl(m.id, i)} style={{ ...box, width: 300, background: '#000' }} />}
+            <a href={dlUrl(m.id, i)} download style={{ fontSize: 13.5, opacity: .8 }}>
+              Download {isVideo ? 'video' : isImage ? 'photo' : 'file'}
+            </a>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 const stripTplHtml = (s) => String(s || '').replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n\n').replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\n{3,}/g, '\n\n').trim()
 const firstUrl = (text) => { const m = String(text || '').match(/https?:\/\/[^\s<]+/); return m ? m[0].replace(/[.,)\]]+$/, '') : null }
 
@@ -676,10 +710,8 @@ export default function Inbox() {
                         {isCall || isVoicemail
                           ? <div style={{ fontSize: 15.5, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
                           : (textBody ? <div style={{ fontSize: 15.5, whiteSpace: 'pre-wrap' }}><LinkifiedText text={textBody} light={out && !missed} /></div> : null)}
-                        {/* Inline MMS photos (streamed through the auth'd media proxy) */}
-                        {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
-                          ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
-                          : <div key={i} style={{ fontSize: 14.5, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
+                        {/* Inline MMS photos and video (streamed through the auth'd media proxy) */}
+                        <Attachments m={m} list={mediaList} />
                         {isVoicemail && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                         {isVoicemail && m.transcript && <div style={{ fontSize: 14.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
                         {isCall && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
@@ -1129,9 +1161,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
                 {isCall || isVoicemail
                   ? <div style={{ fontSize: 15.5, fontWeight: missed ? 700 : 500, color: missed ? '#ef4444' : undefined }}>{missed ? '⚠ Missed call' : (m.preview || (isVoicemail ? 'Voicemail' : 'Call'))}</div>
                   : (textBody ? <div style={{ fontSize: 15.5, whiteSpace: 'pre-wrap' }}><LinkifiedText text={textBody} light={out && !missed} /></div> : null)}
-                {mediaList.map((mm, i) => (/image/i.test(mm.type || '') || !mm.type)
-                  ? <img key={i} src={mediaUrl(m.id, i)} alt="attachment" onError={e => { e.target.style.display = 'none' }} style={{ marginTop: 6, maxWidth: 220, maxHeight: 240, borderRadius: 8, display: 'block' }} />
-                  : <div key={i} style={{ fontSize: 14.5, marginTop: 4, opacity: .85 }}>📎 attachment</div>)}
+                <Attachments m={m} list={mediaList} />
                 {(isVoicemail || isCall) && m.recording_url && <audio controls src={recUrl(m.id)} style={{ marginTop: 8, width: 240, maxWidth: '100%' }} />}
                 {isVoicemail && m.transcript && <div style={{ fontSize: 14.5, marginTop: 6, fontStyle: 'italic', opacity: .9 }}>“{m.transcript}”</div>}
               </div>

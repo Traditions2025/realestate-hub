@@ -1,7 +1,135 @@
 {
-  "generated_at": "2026-10-23T20:37:06.282Z",
+  "generated_at": "2026-10-30T21:11:45.520Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "96d5a09",
+      "date": "2026-10-30T16:02:53-05:00",
+      "subject": "Recover inbound MMS that fell between the two text webhooks",
+      "title": "Recover inbound MMS that fell between the two text webhooks",
+      "body": "Kevin Lamparek sent two media-only MMS to the Hub number on 2026-10-30 at\n13:26 and 13:31 CT. Neither was stored, and nothing was logged.\n\n/twilio-inbound skipped them: isGroupParticipant() is true for his number\nbecause he sits on a group conversation, so the 1:1 handler defers to\n/conversations-webhook. That webhook never fired - the MMS never entered the\nConversations service at all, which Twilio's own conversation message list\nconfirms (it still ends at 13:19). The message fell through the gap between\nthe two handlers with no row and no notification.\n\nTwilio retains the media, so this adds the three reads needed to get it back:\n\n  GET  /api/admin/twilio-media?phone=   messages carrying media, with sids and\n                                        whether the Hub already holds each one\n  GET  /api/admin/twilio-media/file     streams one media item, so the bytes can\n                                        be fetched without the Twilio credentials\n                                        leaving the server\n  POST /api/admin/twilio-media/recover  writes the missing inbound rows, keyed on\n                                        the external_id the webhook would have\n                                        used, so it is idempotent and a later fix\n                                        to the webhooks cannot duplicate them.\n                                        ?dry=1 previews. Sends nothing.\n\nRecovery only. The webhook gap itself is untouched here and still needs fixing -\nany message from a group participant that does not route through Conversations\nis dropped the same way, plain text included.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "bc7b92e",
+      "date": "2026-10-29T11:56:34-05:00",
+      "subject": "Stop the Sierra sync stripping address-audit and bare FB Ad tags",
+      "title": "Stop the Sierra sync stripping address-audit and bare FB Ad tags",
+      "body": "John, 2026-10-29, after reading the tag durability audit: deal with the\nwider exposure, not just the home value tag.\n\nTwo of the three exposed writers are closed here because their tags have\na recognisable shape. The third - arbitrary tags from Automations and the\nbulk-tag button - cannot be pattern-matched and needs tag-origin\ntracking, which is a schema change and a separate decision.\n\nADDRESS AUDIT TAGS. 491 were applied on 2026-10-29. Sierra never sees\nthem and nothing re-applies them, so each one was due to go on its\nlead's next sync pass. Nothing has been lost yet - all 221 this session\nwrote were re-read and still present - but every one of those leads has\nbeen reported by Sierra at least once in the past year, 8 of them within\nthe last month, so the whole set would have drained within a year.\n\nBARE 'FB Ad'. ai.js builds 'FB Ad' + (property ? ': ' + property : ''),\nand the whitelist was /^FB Ad:/ with the colon, so a lead with no\nproperty name was unprotected. Two clients today. Pre-existing.\n\nON REMOVAL, because the predicate is easy to read backwards: it preserves\na tag that is ON THE HUB RECORD, it does not resurrect one. Remove the\ntag in the Hub and it stays removed - the Hub is master. What it stops is\na Sierra-side removal silently deleting Hub-owned information.\n\nWhy the large tag counts are not evidence against any of this: Import\nsits on 42,984 clients and Realist on 15,600 because SIERRA supplies them\non every pass. They never needed protecting. Only Hub-invented tags are\nexposed, which is the whole set this predicate now names.\n\nTests pin both directions - every Hub-written shape survives, and\n'FB Adjacent', 'Address' and the Sierra-supplied tags are not force-kept.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "445f424",
+      "date": "2026-10-29T11:37:02-05:00",
+      "subject": "Home value: tag the source, and stop the sync stripping the tag",
+      "title": "Home value: tag the source, and stop the sync stripping the tag",
+      "body": "John, 2026-10-29: \"make sure we get a tagging for those who request their\nhome value on the NEW link.\" Two separate problems sat behind that, and\nthe first was a silent failure rather than a missing feature.\n\nTHE TAG WAS BEING STRIPPED. Tags are Sierra-owned in sierra-helper.js:\na sync pass replaces them and only a short whitelist of Hub-native tags\nis unioned back in. The home value tag was not on that list, so every\nsync pass removed it. James Osullivan was tagged by the intake at 20:35\non 2026-10-27 and the 22:02 sync took it off; the three submissions from\nthe new /home-value/ page came back from Sierra with tags=[] for the same\nreason. A home value requester therefore looked like any other lead in\nboth systems, which is what John was asking about.\n\nThe Home Value Requested smart list kept working throughout only because\nit ORs in the home_value_submission activity row. The tag half of that\ncondition has been unreliable for as long as the whitelist has existed.\n\nWHICH DOOR, TAGGED SEPARATELY. The canonical tag cannot answer it: its\nname is the retired seller site and it is deliberately left that way,\nbecause the smart list matches it and renaming it would orphan every\nhistoric requester. So a new-link submission now also carries\n\"Home Value: mattsmithteam.com/home-value\", keyed on the HV_Source line\nthe form writes - never on the page URL, which says /contact/ for every\nsubmission because the form posts through a hidden iframe there and\nSierra overwrites Sent_From from its own page context.\n\nBoth tag shapes are now Hub-native, so neither survives at Sierra's\npleasure. The trade-off is the same one FB Ad tags already accept:\ndeleting one in Sierra no longer sticks, because the Hub re-adds it.\n\nTests: 189 pass across the home-value and AI-guard suites.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "8721c34",
+      "date": "2026-10-29T11:25:15-05:00",
+      "subject": "Fix bulk-tags corrupting the JSON-array tags field",
+      "title": "bulk-tags corrupting the JSON-array tags field",
+      "body": "A naive split(',') on an existing JSON-array tags string shredded it\ninto bracket/quote fragments and re-glued the new tag outside the\narray (e.g. [\"a\",\"b\"], New Tag instead of [\"a\",\"b\",\"New Tag\"]),\nbreaking any later JSON.parse(tags) caller. Read with parseTags()\nand always write back valid JSON.\n\nCo-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>",
+      "category": "fix"
+    },
+    {
+      "hash": "e54961e",
+      "date": "2026-10-29T11:09:20-05:00",
+      "subject": "Home value: repoint the tool, fire the intake, and guard the AI away",
+      "title": "Home value: repoint the tool, fire the intake, and guard the AI away",
+      "body": "The home value tool moved off the Sierra seller site onto the native\nquestionnaire at mattsmithteam.com/home-value. Three things had to change\nHub-side, and the first two were silent failures rather than cosmetic.\n\nTHE LINK. VALUE_TOOL_URL is the one place 73 templates resolve through\n({{home_value_url}}, {{home_value_link}}, {{cma_request_link}}), so the\nmove is a single line. Only template 384 hard-coded its CTA, at\n/sellers/home-value/, which was already returning 404 - that one was\nfixed in the live Hub rather than here.\n\nTHE INTAKE. Both doors gated on the OLD notification subject, so a\nsubmission titled \"Home Value Request\" matched neither and no follow-up\nemail was sent - and because enrollHvSms and scheduleConditionQuestion\nboth sit inside `if (emailed?.ok)`, no email meant no sequence at all.\nThe native form also shares NO field names with the seller site: it posts\nthrough Sierra's /contact/ form, so identity is First_Name / Last_Name /\nEmail / Phone, not *Name* / *Email Address*. Parsed against the wrong\nscheme the email address comes out empty and the submission is skipped\nwithout a trace, which is what /sellers/free-market-analysis/ has always\ndone. Labels are now read with the asterisk wrapper optional, because\nnotifications use *Label*: value and the stored Sierra note uses Label:.\n\nHV_Submission_ID replaces the submitted-at timestamp as the dedupe key\nwhere present. Sierra merges on email, so a homeowner asking again months\nlater was previously indistinguishable from their first submission and\nwould have been swallowed as \"already processed\". The old key is still\nchecked so nothing already handled re-sends.\n\nTHE AI GUARD. server/ai-followup/ did not mention home_value_sms\nanywhere, so nothing stopped the AI texting or answering a value\nrequester - and since earning a reply is the entire point of that\nsequence, the reply path is what would have fired. Matt's rule is that no\nAI follow-up touches anyone who asks what their home is worth, and the\nnote's \"DO NOT ENROL\" line is a label, not a guard. Same three layers\nFSBO and Cancelled/Expired got on 2026-10-05:\n\n  ai-enrollment.js  never picked up in the first place\n  forbidden.js      refused wherever a message would leave, every path\n  orchestrator.js   refused on reply, above the force gate\n\nEach asks about the SUBMISSION as well as the campaign row, because that\nrow only exists once the day-0 email succeeded - a requester whose email\nbounced would otherwise carry no guard at all.\n\nFormat spec: Home Value Site/home-value-form/SUBMISSION-FORMAT.md\nTests: 185 pass across the home-value and AI-guard suites.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "79db501",
+      "date": "2026-10-28T11:07:18-05:00",
+      "subject": "The home value list on the Dashboard, and a cache bump so it is seen",
+      "title": "The home value list on the Dashboard, and a cache bump so it is seen",
+      "body": "THE LIST. The tile gave a count; this says WHO. A \"Home Value Requests\" section\nunder Cancelled/Expired/FSBO Updates, newest request first, because the one that\ncame in this morning is the one worth acting on. A repeat requester carries a\n\"3x\" badge - asking twice is a stronger signal than asking once - and each row\nopens the client. Counts and rows come from the same SMART_LIST_SQL as the\nClients smart list, so the three views cannot disagree.\n\nEXCLUDING BY HAND. The marker moves from `Not a Lead` to `HV: Exclude - <reason>`.\nThe generic phrase was wrong the first time it met a real case: Kim Vipond is a\nPAST CLIENT who sold with another agent - not a lead to drop everywhere, just not\na home value prospect - and a generic marker would have followed her into every\nlist written later. Now scoped to this list alone.\n\nTHE CACHE. CACHE_NAME had not moved since 2026-09-30, and the old cache is only\npurged when it changes, so every frontend deploy in between shipped chunks that\nreturning tabs never saw. That is why the tile \"wasn't there\" - it was, in a\nfresh tab. Bumped to v10.\n\nIts own test pinned the literal 'mst-hub-v9', so it failed on exactly the change\nit exists to encourage and passed for the thirteen months the name never moved.\nIt now asserts the shape, which is all the file can prove.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "22fabd8",
+      "date": "2026-10-28T10:45:53-05:00",
+      "subject": "A home value request types the lead seller, and shows on the Dashboard",
+      "title": "A home value request types the lead seller, and shows on the Dashboard",
+      "body": "Two things John asked for on 2026-10-28.\n\nTYPE. A lead created BY the intake was always typed seller; an existing one kept\nwhatever it arrived as. That is how ten homeowners ended up on the Home Value\nlist typed `buyer` - mostly Realist imports, where the type records where the\nrecord came from rather than what the person wants. Asking what your own house\nis worth is seller intent, so a `buyer` is switched on submission and the change\nis written to activity_log so it shows on the timeline.\n\nOnly `buyer` is switched. `both` already carries seller and flipping it would\nthrow the buyer half away; `seller` is already right and writes nothing.\n\nThis is not cosmetic: `type` drives campaign routing and the FUB stage mapping,\nwhere prime + buyer lands a seller lead in High Probability BUYERS.\n\nDASHBOARD. A \"Home Value Requests\" tile in the action-card row, deep-linking to\n/clients?smart=home_value_requested (the Clients page already reads ?smart=).\nThe count comes from the same SMART_LIST_SQL the list uses, so the tile and the\nrows behind it cannot disagree.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "70cb3c6",
+      "date": "2026-10-28T10:20:06-05:00",
+      "subject": "Keep the team's own records off the Home Value list",
+      "title": "Keep the team's own records off the Home Value list",
+      "body": "John test-submitted the home value form on 2026-10-08 and turned up on his own\nlead list. Deleting the submission row would have been the quick fix, but it is\ntrue history, and testing the form is a thing that will keep happening.\n\nSo the record keeps its log and a tag keeps it off lead lists:\n`Internal - Not a Lead`. Matched on the ASCII phrase \"Not a Lead\" so no dash\ncharacter has to survive a round trip through the API and SQLite. Tag any other\nstaff or test record the same way and it drops off without a code change.\n\nCovered both ways: a tagged record with a real submission is excluded, and an\nordinary lead whose tags merely mention leads (\"Lead Ad\", \"Buyer Lead\") is not.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "4668eef",
+      "date": "2026-10-28T10:06:01-05:00",
+      "subject": "A smart list for everyone who asked what their home is worth",
+      "title": "A smart list for everyone who asked what their home is worth",
+      "body": "Clients > Smart Lists > \"Home Value · Requested\". Dead and Do Not Contact are\nexcluded, as asked.\n\nTwo sources OR'd, because neither alone is the whole set: the\n'home_value_submission' row the intake writes to activity_log, which is the\nauthoritative record and reaches back furthest, and the site tag it adds at the\nsame moment, kept because a lead can carry that tag from a Sierra sync without\nthe intake ever having run. On 2026-10-28 only 20 leads carried the tag, so the\ntag alone would have been a short list. A repeat requester appears once.\n\nDeliberately NOT the WORKABLE predicate: that also drops hub_text_opt_out, and\nsomeone who stopped our texts still asked what their house is worth and still\nbelongs here - the home value campaign is email.\n\nAlso adds an index on activity_log(entity_type, entity_id, action). The list\nasks the log per client, and the smart-lists endpoint counts every list on each\nClients page load; unindexed that is a scan of the whole log for every one of\n46k clients - the same shape that cost 6.99s of an 8.0s load before\nmarion_condo_viewers was precomputed.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "be3132c",
+      "date": "2026-10-27T17:48:46-05:00",
+      "subject": "Junk outranks a stale MLS tag, so a closed lead is not reopened",
+      "title": "Junk outranks a stale MLS tag, so a closed lead is not reopened",
+      "body": "stageFor() checked mls_status FIRST and returned immediately, so a junk lead\nwhose mls_status still said \"expired\" was pushed to FUB's Expired stage - a\nWORKABLE stage. Eric Londquist (#29745) went Dead -> Expired on today's run.\n\nHe is junk precisely BECAUSE his house went back on the market, which makes the\nMLS tag the out-of-date fact and the junk the current one (John, 2026-10-27).\n\nThe expired/cancelled rule exists for leads sitting in `watch`, where sending\n'Watch' would throw away what the Hub knows. It was never meant to reopen a lead\na person had deliberately closed - that same rule already says junk is a human's\ncall and must never be touched (enforceWatchForMlsTagged, 2026-09-18, and\nexpired-watch-rule.test.mjs).\n\nWatch and new leads keep the specific Expired/Cancelled stage exactly as before;\nonly junk and donotcontact now win over it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "cb52405",
+      "date": "2026-10-27T17:29:47-05:00",
+      "subject": "Let a FUB status push be scoped to the statuses you meant",
+      "title": "Let a FUB status push be scoped to the statuses you meant",
+      "body": "A dry run over all 3,317 candidates showed what an unscoped sweep would do: 156\njunk/DNC changes, which is what was asked for, and 163 others that were not.\n\nMost of those 163 move leads OUT of \"High Probability Sellers\" INTO \"High\nProbability Buyer\", decided by the Hub's `type` field - the same field we found\nwrong on 52 Realist homeowners that day. They were seller leads typed buyer\nbecause a Realist import said so. Pushing that would have overwritten real FUB\nsegmentation from data we already knew was unreliable.\n\ncandidates(), remaining() and pushStatuses() take onlyStatuses; the endpoint\ntakes `statuses: [\"junk\",\"donotcontact\"]`. Omitting it keeps the old behaviour,\nand an empty array falls back to the full sweep rather than silently selecting\nnothing.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "0ccd5e5",
+      "date": "2026-10-27T16:47:22-05:00",
+      "subject": "Answer a home value request on the next minute, not the next ten",
+      "title": "Answer a home value request on the next minute, not the next ten",
+      "body": "James Osullivan submitted a Seller CMA Request at 20:25:47 on 2026-10-27 and\nwas answered at 20:35:08. Nothing was broken; we were not looking yet.\n\n- The 60-second inbox poll already opens the connection and parses every new\n  message, so it now recognises the notification and runs the intake on that\n  pass, the same way FUB lead emails are already intercepted. The 10-minute\n  All Mail sweep stays as the backstop, because a Gmail filter that skips the\n  inbox would make the interception blind - exactly how the FUB notifications\n  were missed on 2026-09-17.\n- Deduping moves to the submitted-at string inside the email body, which is\n  identical whichever door sees it first. Arrival time is not: two doors\n  seconds apart either side of a minute boundary would have emailed the\n  person twice. The old key is still checked so nothing already processed\n  re-fires.\n- The client timeline returned {\"error\":\"no such column: status\"} for EVERY\n  client in the Hub. transactions uses property_status/property_address, and\n  showings has no status column at all; one bad column inside a single\n  try/catch took every other section down with it. This is why a request\n  could be recorded correctly and still look like it never arrived.\n- A canceled or failed condition question no longer blocks the real one\n  forever. \"One per person, ever\" now means one they actually received or one\n  still on its way.\n- A different phone number on the form is kept as an alt instead of being\n  discarded. He submitted (319) 321-0659 while the Hub held (319) 431-4988\n  from a Realist import; the known number still wins, but both survive.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "53e6d69",
+      "date": "2026-10-27T16:47:12-05:00",
+      "subject": "One owner per lead, one gate before every automated text",
+      "title": "One owner per lead, one gate before every automated text",
+      "body": "Eight paths could text a buyer and routing was decided once, at enrolment.\nNothing re-asked at send time whether another lane had taken the lead over, so\non 2026-10-26 a Willowridge ad lead had a cold-buyer message and a listing\nopener queued for the same 3:15 PM from two different records.\n\n- preSendGate() is now the single question asked before any automated\n  prospecting text. It reuses canAutomatedSend and adds ownership plus a\n  weekly prospecting budget counted across every campaign. The AI lane used\n  to skip all of it by calling canSendSms directly.\n- clients.communication_owner is always recomputed from evidence, never\n  asserted by whichever trigger fired last, with a fixed priority to settle\n  ties and an hourly reconcile.\n- Cold copy is history-neutral. The Hub holds no conversation before\n  2026-06-16 while records go back to 2023-09-15, so absence of a reply is a\n  migration artifact, not proof nobody ever replied.\n- Phase 2 exists. The owner was being assigned before the lane was built, so\n  every finished listing campaign parked its lead somewhere permanently\n  silent. rearmLane() means taking ownership also means giving the lane a\n  next touch.\n- A listing going under contract pulls the pivot forward instead of waiting\n  for the lead's next scheduled slot, and renewed site activity enters a\n  reactivation when it happens rather than when a sweep next runs.\n- GET /api/ai/lanes/silent reports leads owned by a lane that is supposed to\n  be talking to them with nothing scheduled, which is the one shape of bug\n  that ownership made possible and no per-owner count would show.\n\n45 new assertions. Verified against a clean worktree at HEAD: same three\npre-existing seller-campaign failures with and without these changes.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "f9be666",
+      "date": "2026-10-23T16:43:27-05:00",
+      "subject": "Emails sign Matt, and Day 0 goes back to the text we already had",
+      "title": "Emails sign Matt, and Day 0 goes back to the text we already had",
+      "body": "John's three answers, 2026-10-23.\n\nALWAYS MATT ON ALL CAMPAIGNS. His written spec for this campaign signed\nthe emails \"John\"; asked about it he was unambiguous. That matches why the\nrule exists: every outbound email leaves Matt's marketing address, so a\nJohn sign-off confuses the reader, which is what happened to Rich Gholston\nand Mark Herzberger. Two tests now hold it - the rendered email must sign\n\"Matt Smith / Matt Smith Team | RE/MAX Concepts\" and the word John must\nnot appear anywhere in an email, body or sign-off. SMS stays John, because\nthat number is his.\n\nRE/MAX CONCEPTS, with the slash, as his copy has it.\n\nDAY 0 IS BACK TO THE OCTOBER 19 TEXT, website link included. I had\nrestated it to match the new spec's phrasing; \"don't touch what we've\nalready built last time, this is just additional text and emails\". So the\nDay 0 message is frozen as approved, and everything in the response\ncampaign is additive to it.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "3d61faf",
+      "date": "2026-10-23T16:34:53-05:00",
+      "subject": "Home Value Response Campaign: 13 steps, SMS and email alternating",
+      "title": "Home Value Response Campaign: 13 steps, SMS and email alternating",
+      "body": "John's spec, 2026-10-23. This is the SHORT-TERM response and qualification\nsequence that runs right after someone asks what their house is worth, not\nthe 26-email long-term nurture.\n\nDay 1 email, 3 SMS, 5 email, 8 SMS, 11 email, 15 SMS, 19 email, 23 SMS,\n28 email, 32 SMS, 37 email, then a soft close on both channels at Day 45.\nDay 0 stays where it was: the valuation email, then the condition question\ntwo minutes later.\n\nThe design point is that it does not ask for a listing appointment. It\nasks the things an automated valuation cannot see - condition,\nimprovements, what a buyer would notice - and only raises a possible move\nat DAY 15, once those questions have earned it. A test fails if any\nquestion aimed at the homeowner's own plans appears before then.\n\nThe two channels do different jobs. The text asks one easy question; the\nemail that follows explains why that question matters. A test compares\neach adjacent pair and fails if they duplicate.\n\nCopy is John's VERBATIM, including where it opens mid-thought. The earlier\nsequence rotated Hi/Hello/time-of-day in front of every message; this copy\ndoes not want that, so nothing is prepended.\n\nBLOCK RULES ARE NOW PER CHANNEL. The old ones were SMS-only, and applied\nunchanged to email they were wrong four ways: a TEXT opt-out would silence\nemail, an undeliverable mobile would silence email, a homeowner with an\nemail and no phone would get nothing at all, and the \"already texted in 20\nhours\" rule would hold back an email because of a text this very campaign\nhad just sent. A missing email now skips that one step instead of ending\nthe campaign, so a phone-only homeowner still gets every text.\n\nDay 45 hands non-responders to the long-term nurture, drip 20 or drip 21\nfor past clients, and never restarts qualification.\n\nTHREE THINGS THAT NEED JOHN'S CALL, all deliberate in his spec and all\nagainst a standing rule, so none were silently changed:\n  1. These emails sign \"John\". Every other Hub email signs Matt, a rule\n     added after two leads got John-signed mail from Matt's address.\n  2. The copy writes \"RE/MAX Concepts\"; the spelling adopted 2026-10-16 is\n     \"REMAX Concepts\" with no slash.\n  3. The Day 0 text loses the website URL he added on 2026-10-19. The Day\n     45 close still carries MattSmithTeam.com.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
+    {
+      "hash": "6209c9d",
+      "date": "2026-10-23T15:37:41-05:00",
+      "subject": "Registered sorts by time within a day, and shows it",
+      "title": "Registered sorts by time within a day, and shows it",
+      "body": "John: \"the registered sort column needs to know time too, so when I sort,\nthe most recent on the same day would show at the very top.\"\n\nregister_date is a DATE with no time. The five leads off the Ranmar ad all\ncarried \"2026-10-23\", so they tied on the only key the sort had and came\nback in whatever order SQLite chose. They landed OLDEST first under a\nnewest-first sort, which is the complaint.\n\nNow the sort takes the calendar DAY from whichever source supplied it,\nthen breaks the tie on the most precise timestamp that row actually has,\nthen on id so the order is total and a refresh never reshuffles equal\nrows. oldest_first mirrors it exactly, so flipping the column reverses\nwhat you were looking at instead of producing a different order.\n\nTwo details found by running it against the real data rather than\nreasoning about it:\n\nThe day is compared through substr, because a row with a bare date and a\nrow with a full timestamp are otherwise judged on different things and\nanything lacking register_date outranks the entire day.\n\nThe separator is normalised. Sierra writes \"2026-10-23T19:07:32\" and the\nHub writes \"2026-10-23 19:46:09\" with a space, and a space sorts below \"T\"\nas a string, so a 7:46pm lead was landing beneath a 7:07pm one. Caught\nbecause the test used both shapes.\n\nThe column now prints the time beside the date. The sort breaks ties on it,\nso the column should be able to explain its own order rather than be\nargued with.\n\nCo-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "dd6f2f1",
       "date": "2026-10-23T15:21:09-05:00",
@@ -3872,134 +4000,6 @@
       "subject": "Mobile Inbox: remove the 48vh max-height cap that stopped the list ~185px short",
       "title": "Mobile Inbox: remove the 48vh max-height cap that stopped the list ~185px short",
       "body": "Diagnosed via real device-emulated measurement: the whole flex chain (.inbox-page\n-> .inbox-panes -> .inbox-list) already reached the viewport bottom (844px), but\n.inbox-list-scroll was pinned to max-height:48vh (=405px) by a leftover rule from\nthe old 3-pane-stacks-vertically mobile design (.inbox-list > div:last-child),\nending at bottom:659 and leaving a 185px blank gap. Cleared that cap and added\nmax-height:none to .inbox-list-scroll so it fills the remaining height.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "e072a7f",
-      "date": "2026-09-02T09:58:02-05:00",
-      "subject": "Inbox: collapse AI suggested text by default; expand via a Suggested-text button",
-      "title": "Inbox: collapse AI suggested text by default; expand via a Suggested-text button",
-      "body": "The reply box stays open and usable right away, but the AI suggestion no longer\npre-fills the editor or shows its header/summary/regenerate/context by default.\nA single '✨ Suggested text' button pulls the suggestion in (generating on demand\nif not cached) and expands the AI panel; '▾ Hide' collapses it again. Applies to\nboth desktop and mobile since they share the composer.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "62b4191",
-      "date": "2026-09-02T09:48:09-05:00",
-      "subject": "Mobile Inbox: make .inbox-panes a column so the list fills by flex-grow (not row stretch)",
-      "title": "Mobile Inbox: make .inbox-panes a column so the list fills by flex-grow (not row stretch)",
-      "body": "Root cause of the bottom gap: .inbox-panes is the desktop flex ROW (folders|list|\nreading), so on mobile the single visible list got its height from align-items:\nstretch, which doesn't reliably expand it. Switching .inbox-panes to a COLUMN on\nmobile gives a clean vertical grow-chain (page -> panes -> list -> scroll all\nflex:1 / min-height:0), so the conversation list + its background fill to the very\nbottom regardless of how few conversations there are.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "4e9d065",
-      "date": "2026-09-02T09:42:44-05:00",
-      "subject": "Mobile Inbox: guarantee the list scroll fills to the bottom (min-height:0 on the list column + scroll)",
-      "title": "Mobile Inbox: guarantee the list scroll fills to the bottom (min-height:0 on the list column + scroll)",
-      "body": "Belt-and-suspenders on the flex chain so the conversation list always expands to\nthe viewport bottom instead of stopping at content height.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7b1e2c2",
-      "date": "2026-09-02T09:33:38-05:00",
-      "subject": "Mobile Inbox: pin full-height (fills to bottom) + kill horizontal scroll",
-      "title": "Mobile Inbox: pin full-height (fills to bottom) + kill horizontal scroll",
-      "body": "The list left dead space at the bottom because the height calc ignored the global\nsearch row above the page. Now the Inbox is position:fixed from under the topbar to\nthe viewport bottom (flex column), so the list always reaches the bottom and gains\nthe space the redundant global search occupied. List scroll container is\noverflow-x:hidden + panes/list contained, removing the stray horizontal slider.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "94ca779",
-      "date": "2026-09-02T09:24:25-05:00",
-      "subject": "Mobile: notification bell in top-right nav bar; Inbox full-height list + no horizontal scroll; drop subtitle; merge Calls+VM",
-      "title": "Mobile: notification bell in top-right nav bar; Inbox full-height list + no horizontal scroll; drop subtitle; merge Calls+VM",
-      "body": "- Notification bell moved to the mobile top bar (top-right, clean borderless, 40px\n  tap target); rendered once (mobile topbar OR desktop header via isMobile).\n  Dropdown capped to viewport width so it never runs off-screen.\n- Inbox: removed the 'All client calls, texts...' subtitle (web + mobile).\n- Mobile Inbox now a proper flex column filling calc(100dvh - topbar): the list\n  takes flex:1/min-height:0 and scrolls vertically to the bottom (safe-area aware),\n  no leftover gap or cut-off; killed the stray horizontal scrollbar (panes\n  max-width:100%/overflow-x hidden, reading overlay uses inset:0 not 100vw).\n- Mobile channel filter: Calls + Voicemails combined into one 'Calls'.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "9afadb1",
-      "date": "2026-09-02T09:06:30-05:00",
-      "subject": "Inbox mobile: channel selector (All / Texts / Calls / Emails / Voicemails) on the list",
-      "title": "Inbox mobile: channel selector (All / Texts / Calls / Emails / Voicemails) on the list",
-      "body": "The desktop folder sidebar with channel filters is hidden on mobile, so this adds a\ncompact scrollable chip row on the mobile conversation list to view each channel\nseparately (tap one = that channel only; All = everything). Uses the existing\nchannels filter state.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3b5fe3b",
-      "date": "2026-09-02T08:53:24-05:00",
-      "subject": "Responsive foundation: shared utilities + dev overflow scanner",
-      "title": "Responsive foundation: shared utilities + dev overflow scanner",
-      "body": "Stage 1 of the mobile responsive audit. The app already had the core (global\nbox-sizing:border-box, min-width:0 flex children, .ellipsis, .table-scroll, a 768px\nbreakpoint, safe-area/PWA handling, Client Profile grid collapse). Added the missing\nshared utility classes (.wrap-anywhere, .content-shrink, .toolbar-responsive,\n.card-responsive, .table-scroll-x, .mobile-full-width, .stack-mobile, .hide-mobile)\nand a window.__overflowScan() dev helper that lists elements sticking past the\nviewport (ignoring intentional table scrollers) to drive the per-page audit.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "b893e7e",
-      "date": "2026-09-02T08:51:48-05:00",
-      "subject": "Inbox mobile: single-pane navigation (list XOR full-screen conversation)",
-      "title": "Inbox mobile: single-pane navigation (list XOR full-screen conversation)",
-      "body": "On narrow screens (<=768px) the Inbox no longer stacks the list + open conversation.\nIt shows ONLY the list; tapping a conversation opens it as a full-screen overlay\n(100dvh, safe-area aware) with a '← Inbox' back bar. Device/browser Back returns to\nthe list via history state; list scroll + All/Unread/search/filter state are\npreserved (list stays mounted, just hidden). Desktop split-pane is unchanged.\nMobile starts on the list (auto-open-latest is desktop-only).\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "02ce315",
-      "date": "2026-09-01T18:09:53-05:00",
-      "subject": "Fix: matchClient excludes merged records; repair endpoint reassigns orphaned comms to survivor",
-      "title": "Fix: matchClient excludes merged records; repair endpoint reassigns orphaned comms to survivor",
-      "body": "New inbound texts were landing on archived duplicate records (matchClient didn't\nfilter merged_into), so a merged lead's texts (and their emailed-in address) lived\non the wrong id. matchClient now excludes merged records, and POST /api/clients/\nreassign-merged-comms moves comms/activity from any merged dup to its survivor.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "fix"
-    },
-    {
-      "hash": "2e49926",
-      "date": "2026-09-01T18:03:13-05:00",
-      "subject": "Backfill FSBO emails: also match emails texted inside group/conversation rows (client_id NULL) by sender phone",
-      "title": "Backfill FSBO emails: also match emails texted inside group/conversation rows (client_id NULL) by sender phone",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "0de7558",
-      "date": "2026-09-01T18:01:10-05:00",
-      "subject": "Inbox: single-participant convos not labeled Group; backfill FSBO emails from texts; Sierra won't clobber a real email with a placeholder",
-      "title": "Inbox: single-participant convos not labeled Group; backfill FSBO emails from texts; Sierra won't clobber a real email with a placeholder",
-      "body": "- A conversation with one participant is a 1:1 (shows the person's name + links to\n  profile), not a 'Group text' (fixes Devin Barker showing as a group).\n- POST /api/inbox/backfill-fsbo-emails: reads inbound texts for an email and writes\n  it to the lead when their current email is empty/placeholder (never overwrites a\n  real one). ?dry=1, ?scope=all.\n- Sierra sync now keeps the Hub's real email instead of overwriting it with a\n  @notvalidemail placeholder, so texted emails survive the next sync.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "947aef3",
-      "date": "2026-09-01T17:04:05-05:00",
-      "subject": "Notifications + holidays: off-hours alerts to Matt; no automated sends on US holidays",
-      "title": "Notifications + holidays: off-hours alerts to Matt; no automated sends on US holidays",
-      "body": "Incoming-text email alerts now also go to Matt's RE/MAX email during off-hours\n(weekday after 6 PM Central, weekends, US holidays). And no automated texts go out\non US federal holidays: canSendSms denies every non-manual channel on a holiday\n(covers AI, automations, and bulk via canAutomatedSend), bulk-text is blocked\nupfront with a clear message, and the scheduled-text tick defers on holidays.\nManual 1:1 replies still work so you can answer a lead. Drip emails already skip\nholidays.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "f3d94f6",
-      "date": "2026-09-01T16:51:21-05:00",
-      "subject": "Inbox: reply box open by default + text-notification buttons (View in Inbox / View Lead Profile)",
-      "title": "Inbox: reply box open by default + text-notification buttons (View in Inbox / View Lead Profile)",
-      "body": "Incoming-text email notification now has 'View in Inbox' (deep-links /inbox?client=ID\nto open that thread) and 'View Lead Profile' (/clients/ID) buttons. Inbox honors\n?client= to open the thread on load, and the reply composer is open by default so\nyou can type immediately instead of clicking Reply first.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "1e81f7e",
-      "date": "2026-09-01T16:15:06-05:00",
-      "subject": "Clients: Columns picker offers ALL columns on every list (incl. fixed-set lists)",
-      "title": "Clients: Columns picker offers ALL columns on every list (incl. fixed-set lists)",
-      "body": "The Cancelled/Expired list has a fixed column set, so its picker didn't offer\ncomm-recency columns (Last Text/Email/Call). The picker now lists every column on\nany list, and toggling one on appends it to that list's order so it renders. Lets\nLast Text/Email/Call be applied on all statuses/lists.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "7876035",
-      "date": "2026-09-01T16:13:13-05:00",
-      "subject": "Clients: add sortable Zip column (group/follow-up by zipcode)",
-      "title": "Clients: add sortable Zip column (group/follow-up by zipcode)",
-      "body": "Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3a9bd0b",
-      "date": "2026-09-01T15:52:39-05:00",
-      "subject": "AI: POST /api/ai/expired/disable-all — turn off AI for all Cancelled/Expired leads",
-      "title": "AI: POST /api/ai/expired/disable-all — turn off AI for all Cancelled/Expired leads",
-      "body": "Disables + unmanages each cancelled/expired lead (tag/source/mls_status match),\nsets AI_DISABLED, cancels pending scheduled AI actions.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]

@@ -568,8 +568,15 @@ router.get('/media/:id/:idx', async (req, res) => {
     }
     const tr = await fetch(item.url, { headers })
     if (!tr.ok) return res.status(502).send('media unavailable')
-    res.set('Content-Type', tr.headers.get('content-type') || item.type || 'image/jpeg')
+    const ctype = tr.headers.get('content-type') || item.type || 'image/jpeg'
+    res.set('Content-Type', ctype)
     res.set('Cache-Control', 'private, max-age=86400')
+    // ?download=1 saves the file instead of playing it inline. A video the browser can
+    // only stream is not much use when the thing to do with it is keep it or send it on.
+    if (req.query.download) {
+      const ext = (ctype.split(';')[0].split('/')[1] || 'bin').replace(/[^a-z0-9]/gi, '').slice(0, 5) || 'bin'
+      res.set('Content-Disposition', `attachment; filename="attachment-${Number(req.params.id)}-${Number(req.params.idx)}.${ext}"`)
+    }
     res.send(Buffer.from(await tr.arrayBuffer()))
   } catch { res.status(502).send('media error') }
 })
