@@ -130,10 +130,18 @@ export const api = {
 // Export for pages that use fetch() directly
 export function authFetch(url, options = {}) {
   const token = getToken()
+  // A FormData body has to set its OWN Content-Type, because only the browser knows the
+  // multipart boundary it generated. Declaring application/json here overrode that, so
+  // every file upload in the app went out claiming to be JSON, the server tried to parse
+  // the file as JSON, and the caller got back
+  //   Unexpected token '-', "------WebK"... is not valid JSON
+  // which reads like a broken upload rather than a wrong header. Leave the header off and
+  // let fetch fill it in. An explicit options.headers still wins, as before.
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData
   return fetch(apiUrl(url), {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isForm ? null : { 'Content-Type': 'application/json' }),
       'x-auth-token': token,
       ...options.headers,
     },

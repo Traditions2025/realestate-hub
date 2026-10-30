@@ -1,7 +1,15 @@
 {
-  "generated_at": "2026-10-30T21:43:05.914Z",
+  "generated_at": "2026-10-30T22:15:37.964Z",
   "count": 500,
   "entries": [
+    {
+      "hash": "9c22ea7",
+      "date": "2026-10-30T16:43:24-05:00",
+      "subject": "Texting: attach several photos at once, and video",
+      "title": "Texting: attach several photos at once, and video",
+      "body": "The picker took one file and the upload route refused anything that was not an\nimage, so sending four photos of the same problem meant four separate texts and\nsending a video was not possible at all - while the send path underneath has\nalways passed an array and Twilio has always accepted up to ten.\n\nupload-media now takes several files in one request and accepts video (mp4,\n3gpp, and quicktime). Quicktime is allowed rather than refused because it is\nwhat an iPhone records, but the caller is warned, since it is the format\ncarriers most often drop.\n\nBoth limits are Twilio's and are now enforced where they can still be acted on,\ninstead of surfacing later as a failed send: ten attachments per message, 5 MB\ntotal. The composer shows the running count and size.\n\nThe saved file's extension is mapped from the mime type explicitly. Deriving it\nwould have written video/quicktime as \".quick\", and that extension is what\ndecides the Content-Type Twilio sees when it fetches the URL.\n\nAttachment previews now render video as a real frame with a play badge instead\nof a broken image tag, in both the reply box and the New Message modal, which\nshare one component and one uploader.\n\nNot covered: group texts still send text only - createGroupText takes no media.\n\nCo-Authored-By: Claude Opus 5 <noreply@anthropic.com>",
+      "category": "other"
+    },
     {
       "hash": "cc0d433",
       "date": "2026-10-30T16:12:13-05:00",
@@ -3992,14 +4000,6 @@
       "subject": "Inbox: stop group replies being duplicated as 1:1 texts (Twilio dual-webhook)",
       "title": "Inbox: stop group replies being duplicated as 1:1 texts (Twilio dual-webhook)",
       "body": "A Twilio Conversations (group) participant's reply arrives on the group webhook\n(conv_<IM sid>) AND, in this number config, the plain messaging webhook fires for\nthe same SMS (twilio_<SM sid>) — different MessageSids, so external_id dedup missed.\nThat created a second copy on the person's profile and a stray standalone 1:1\nconversation. Now the messaging webhook skips any sender that's a known group\nparticipant (isGroupParticipant), the group webhook sends the inbound notification\n(no AI auto-reply into groups), and a maintenance endpoint /dedupe-group-mirrors\ncleans up the historical duplicates.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
-      "category": "other"
-    },
-    {
-      "hash": "3555d56",
-      "date": "2026-09-02T10:19:04-05:00",
-      "subject": "Mobile Inbox: pin search + channel-chip header rows to natural height (flex:0 0 auto)",
-      "title": "Mobile Inbox: pin search + channel-chip header rows to natural height (flex:0 0 auto)",
-      "body": "After removing the 48vh cap, the scroll region's tall content pulled flex-shrink\noff its sibling header rows, squishing the All/Emails/Texts/Calls chips (measured:\nchip row compressed to 29px, clipping labels). Locking the non-scroll children to\nflex:0 0 auto makes only .inbox-list-scroll absorb the shrink, so the header stays\nfull height and the list still fills to the bottom.\n\nCo-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>",
       "category": "other"
     }
   ]
