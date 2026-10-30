@@ -935,6 +935,140 @@ router.get('/twilio-history', requirePermission('settings.view'), async (req, re
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// ---- RECOVER an inbound MMS that no handler stored ---------------------------------
+//
+// Kevin Lamparek, 2026-10-30: two media-only MMS reached the Hub number at 13:26 and
+// 13:31 CT and neither was stored anywhere. /twilio-inbound skipped them because
+// isGroupParticipant() is true for his number — he sits on a group conversation — on the
+// assumption that /conversations-webhook owns the message. That webhook never fired: the
+// MMS never entered the Conversations service at all (Twilio's conversation message list
+// still ends at 13:19). So the message fell through the gap between the two handlers,
+// with no row and no notification. Twilio keeps the media, so it is recoverable.
+//
+//   GET  /twilio-media?phone=      every message Twilio holds for a number that carries
+//                                  media, with its sids and whether the Hub has it
+//   GET  /twilio-media/file        streams ONE media item, so the bytes can be fetched
+//                                  without the Twilio credentials leaving the server
+//   POST /twilio-media/recover     writes the missing INBOUND rows into the timeline,
+//                                  keyed on the same external_id the webhook would have
+//                                  used, so it is idempotent and the eventual webhook fix
+//                                  cannot duplicate them. ?dry=1 previews. Sends nothing.
+function twilioCreds() {
+  const sid = (db.getSetting('twilio_account_sid', '') || '').trim()
+  const token = (db.getSetting('twilio_auth_token', '') || '').trim()
+  return { sid, token, auth: 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64') }
+}
+
+const SID34 = /^[A-Za-z0-9]{34}$/
+
+// Twilio's media URL for one item. Needs Basic auth, so it is never a link for a browser —
+// it is what /twilio-media/file fetches on the caller's behalf.
+const mediaUrl = (acct, msg, med) =>
+  `https://api.twilio.com/2010-04-01/Accounts/${acct}/Messages/${msg}/Media/${med}`
+
+// Every message for a number that carries media, newest last.
+async function mmsForPhone(d10) {
+  const { sid, token, auth } = twilioCreds()
+  if (!sid || !token) throw new Error('Twilio not configured')
+  const seen = new Map()
+  for (const dir of ['To', 'From']) {
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json?${dir}=%2B1${d10}&PageSize=200`,
+      { headers: { Authorization: auth } })
+    const j = await r.json().catch(() => ({}))
+    for (const m of (j.messages || [])) seen.set(m.sid, m)
+  }
+  const out = []
+  for (const m of seen.values()) {
+    if (!Number(m.num_media || 0)) continue
+    const items = []
+    try {
+      const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages/${m.sid}/Media.json?PageSize=50`,
+        { headers: { Authorization: auth } })
+      const j = await r.json().catch(() => ({}))
+      for (const md of (j.media_list || [])) items.push({ media_sid: md.sid, content_type: md.content_type })
+    } catch { /* a message whose media listing fails is still reported, with none */ }
+    out.push({
+      message_sid: m.sid, date: m.date_sent || m.date_created, direction: m.direction,
+      status: m.status, from: m.from, to: m.to, body: String(m.body || ''),
+      num_media: Number(m.num_media || 0), media: items,
+      in_hub: !!db.get('SELECT id FROM communications WHERE external_id = ?', ['twilio_' + m.sid]),
+    })
+  }
+  out.sort((a, b) => new Date(a.date) - new Date(b.date))
+  return out
+}
+
+router.get('/twilio-media', requirePermission('settings.view'), async (req, res) => {
+  try {
+    const d10 = String(req.query.phone || '').replace(/\D/g, '').slice(-10)
+    if (d10.length !== 10) return res.status(400).json({ error: 'phone= a 10-digit number is required' })
+    const messages = await mmsForPhone(d10)
+    res.json({ phone: d10, with_media: messages.length, messages })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+router.get('/twilio-media/file', requirePermission('settings.view'), async (req, res) => {
+  try {
+    const { sid, token, auth } = twilioCreds()
+    if (!sid || !token) return res.status(400).json({ error: 'Twilio not configured' })
+    const msg = String(req.query.message_sid || '').trim()
+    const med = String(req.query.media_sid || '').trim()
+    if (!SID34.test(msg) || !SID34.test(med)) return res.status(400).json({ error: 'message_sid and media_sid are required' })
+    const r = await fetch(mediaUrl(sid, msg, med), { headers: { Authorization: auth } })
+    if (!r.ok) return res.status(r.status).json({ error: `Twilio ${r.status}` })
+    const buf = Buffer.from(await r.arrayBuffer())
+    res.setHeader('Content-Type', r.headers.get('content-type') || 'application/octet-stream')
+    res.setHeader('Content-Length', String(buf.length))
+    res.end(buf)
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+router.post('/twilio-media/recover', requirePermission('settings.edit'), async (req, res) => {
+  try {
+    const { sid } = twilioCreds()
+    const d10 = String(req.query.phone || req.body?.phone || '').replace(/\D/g, '').slice(-10)
+    if (d10.length !== 10) return res.status(400).json({ error: 'phone= a 10-digit number is required' })
+    const dry = req.query.dry === '1' || req.query.dry === 'true' || req.body?.dry === true
+    const { phoneKey } = await import('../twilio.js')
+    const k = phoneKey(d10)
+    // Same last-10 match the inbound webhook uses, alt_phones included, never a merged dupe.
+    const client = db.all("SELECT id, first_name, last_name, phone, alt_phones FROM clients WHERE ((phone IS NOT NULL AND phone != '') OR (alt_phones IS NOT NULL AND alt_phones != '')) AND merged_into IS NULL")
+      .find(c => phoneKey(c.phone) === k || String(c.alt_phones || '').split(',').some(p => phoneKey(p.trim()) === k)) || null
+
+    const recovered = []
+    for (const m of await mmsForPhone(d10)) {
+      // Only inbound, only what is genuinely missing. An outbound MMS the Hub sent is
+      // already logged by the send path under its own row.
+      if (!String(m.direction || '').startsWith('inbound') || m.in_hub) continue
+      const media = m.media.map(x => ({ url: mediaUrl(sid, m.message_sid, x.media_sid), type: x.content_type || '' }))
+      const body = String(m.body || '')
+      const preview = (body.replace(/\s+/g, ' ').trim()
+        || (media.length ? `[${media.length} attachment${media.length === 1 ? '' : 's'}]` : '')).slice(0, 160)
+      const row = {
+        external_id: 'twilio_' + m.message_sid,
+        client_id: client ? client.id : null,
+        contact_name: client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : null,
+        from_addr: m.from, to_addr: m.to, preview,
+        occurred_at: m.date ? new Date(m.date).toISOString() : new Date().toISOString(),
+        attachments: media.length,
+      }
+      if (!dry) {
+        db.run(`INSERT OR IGNORE INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, delivery_status, occurred_at)
+                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          ['text', 'incoming', row.client_id, row.contact_name, m.from, m.to, null, preview, body,
+            row.external_id, client ? `c${client.id}_text` : `u_${d10}`, 'unread',
+            media.length ? 1 : 0, media.length ? JSON.stringify(media) : null, 'received', row.occurred_at])
+      }
+      recovered.push(row)
+    }
+    // Deliberately silent: these are hours old, and notifying now would text or email the
+    // team about a message they have already talked about on the phone.
+    res.json({ dry: !!dry, phone: d10, client_id: client ? client.id : null,
+               client: client ? `${client.first_name || ''} ${client.last_name || ''}`.trim() : null,
+               recovered: recovered.length, rows: recovered })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // Calendbook webhook URLs (shared key) — paste these into Calendbook's Webhook integration.
 router.get('/calendbook-urls', requirePermission('settings.view'), async (_req, res) => {
   const { calendbookKey } = await import('../calendbook.js')
