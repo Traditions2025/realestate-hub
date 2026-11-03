@@ -100,11 +100,19 @@ export function dripBlockReason(dripId, clientId, opts = {}) {
   // six months of weekly sends — the collision it needs to catch happens in week 14.
   const sameDrip = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND drip_id=? AND status='active' LIMIT 1", [clientId, Number(dripId)])
   if (sameDrip) return { enrolledId: sameDrip.id }
-  if (!opts.allowConcurrent) {
-    const activeOther = db.get("SELECT drip_id FROM drip_enrollments WHERE client_id=? AND status='active' LIMIT 1", [clientId])
+  // drip_campaigns.allow_concurrent makes this a property of the CAMPAIGN, so every
+  // enrollment path agrees. It used to be opts-only, which meant the Home Value sweeper
+  // could add a lead the profile's own button then refused — same campaign, same lead,
+  // different caller (Alison Graham, John 2026-11-03).
+  if (!opts.allowConcurrent && !drip.allow_concurrent) {
+    // ...and symmetrically, a concurrent campaign is not "the one drip" either. Being in
+    // Home Value must not be what blocks a lead from joining Lifelong Friends, or the
+    // exception would just move the problem one campaign along.
+    const activeOther = db.get(`SELECT e.drip_id, d.name FROM drip_enrollments e
+      JOIN drip_campaigns d ON d.id = e.drip_id
+      WHERE e.client_id = ? AND e.status = 'active' AND COALESCE(d.allow_concurrent, 0) = 0 LIMIT 1`, [clientId])
     if (activeOther) {
-      const name = db.get('SELECT name FROM drip_campaigns WHERE id = ?', [activeOther.drip_id])?.name
-      return { reason: `already in an active drip${name ? ` (${name})` : ''} — one drip per lead` }
+      return { reason: `already in an active drip${activeOther.name ? ` (${activeOther.name})` : ''} — one drip per lead` }
     }
   }
   return null

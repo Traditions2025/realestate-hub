@@ -655,6 +655,24 @@ export async function initDb() {
   // Opt-in per campaign (Fix It or Skip It, 2026-09-21): ANY inbound message from an
   // enrolled lead pauses the drip so a human owns the conversation.
   try { db.run('ALTER TABLE drip_campaigns ADD COLUMN pause_on_reply INTEGER DEFAULT 0') } catch {}
+  // A campaign that SITS ALONGSIDE the others instead of competing with them. The default
+  // is still one drip per lead; this is the documented exception, and it belongs to the
+  // CAMPAIGN rather than to whoever happens to be enrolling.
+  //
+  // The Home Value campaigns were built this way (John, 2026-09-29) and the automatic
+  // enroller passed allowConcurrent:true — but a manual enroll from a lead's profile did
+  // not, so the same campaign the sweeper adds freely was refused by hand with "already in
+  // an active drip" (Alison Graham, John 2026-11-03). Nothing about the lead differed;
+  // only the caller did.
+  //
+  // Safe because overlap is governed at SEND time, not at enrollment: server/email-cap.js
+  // caps a past client at ONE email per 14 days across EVERY campaign, which is exactly
+  // the rule written for past clients sitting in several at once.
+  try { db.run('ALTER TABLE drip_campaigns ADD COLUMN allow_concurrent INTEGER DEFAULT 0') } catch {}
+  try {
+    db.run(`UPDATE drip_campaigns SET allow_concurrent = 1
+            WHERE allow_concurrent = 0 AND name IN ('Home Value Weekly — 6 Month', 'Home Value — Past Clients')`)
+  } catch {}
   // one row per contact moving through a drip
   db.run(`
     CREATE TABLE IF NOT EXISTS drip_enrollments (
