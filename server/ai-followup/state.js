@@ -97,6 +97,46 @@ export function aiManages(clientId) {
   return !isExcludedFromAutopilot(c)
 }
 
+// ---- a block that belongs to the NUMBER, not the lead ---------------------------
+//
+// When a stranger answers a mis-keyed number ("I don't know who this Doug character
+// is"), the auto-pause-on-reply rule drops the lead into HUMAN_TAKEOVER, and
+// canSendSms then refuses every AI channel while it sits there. The state outlives
+// the number: correcting the phone left the lead permanently un-AI-able even though
+// WE NEVER HEARD FROM THEM. hub_text_opt_out and the landline verdict already shed
+// on a phone replacement (routes/clients.js); this is the same rule one layer in.
+//
+// The test is historyBlock()'s (server/cx-connect.js): a reply only counts if it came
+// from a number STILL on the record. Someone who answered on a current number keeps
+// their block exactly as before, and states an agent chose deliberately — AI_DISABLED,
+// CLOSED_CONVERTED, AI_PAUSED — are never touched.
+//
+// (Doug Riniker #26281, John 2026-11-03; same rule as Cole Hilgenberg 2026-09-22.)
+export const WRONG_NUMBER_CLEARABLE = ['HUMAN_TAKEOVER', 'NOT_INTERESTED', 'DO_NOT_TEXT']
+
+export function releaseWrongNumberBlock(clientId, { dry = false } = {}) {
+  const cid = Number(clientId)
+  const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+  const st = db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [cid])
+  if (!st || !WRONG_NUMBER_CLEARABLE.includes(st.ai_state)) return { cleared: false, why: 'not in a number-derived blocked state', ai_state: st?.ai_state || null }
+
+  const c = db.get('SELECT phone, alt_phones FROM clients WHERE id=?', [cid])
+  const current = new Set([c?.phone, ...String(c?.alt_phones || '').split(',')].map(d10).filter(s => s.length === 10))
+  const inbound = db.all(`SELECT from_addr, body, occurred_at FROM communications WHERE client_id=?
+    AND direction='incoming' AND channel IN ('text','call','voicemail')
+    ORDER BY occurred_at DESC LIMIT 200`, [cid])
+  if (!inbound.length) return { cleared: false, why: 'no inbound on file - the state was not set by a reply', ai_state: st.ai_state }
+
+  const own = inbound.find(m => { const f = d10(m.from_addr); return f.length === 10 && current.has(f) })
+  if (own) return { cleared: false, why: 'replied from a number still on file', from: own.from_addr, ai_state: st.ai_state }
+
+  const out = { cleared: true, from_state: st.ai_state, old_reply_from: inbound[0].from_addr, old_reply: String(inbound[0].body || '').slice(0, 140) }
+  if (dry) return out
+  db.run('UPDATE ai_lead_state SET ai_enabled=1, ai_pause_until=NULL, ai_pause_reason=NULL, updated_at=? WHERE client_id=?', [nowIso(), cid])
+  transitionAiState(cid, 'AI_ELIGIBLE', 'phone number replaced - the old state came from a reply by a number no longer on file')
+  return out
+}
+
 // Human takeover: pause autonomous conversation, cancel pending scheduled sends.
 export function humanTakeover(clientId, reason = 'agent sent a message') {
   const cid = Number(clientId)

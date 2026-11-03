@@ -1101,4 +1101,40 @@ router.post('/failures/resolve-all', requirePermission('settings.edit'), (req, r
   res.json(r)
 })
 
+// ---- leads stuck behind a WRONG NUMBER's reply ---------------------------------
+//
+// A stranger who answers a mis-keyed number ("I don't know who this Doug character
+// is") auto-pauses the lead into HUMAN_TAKEOVER, and canSendSms refuses every AI
+// channel while it sits there. routes/clients.js now clears that on the phone edit
+// itself, but leads whose number was corrected BEFORE that shipped are still stuck.
+// This applies the identical rule to them, once.
+//
+// The test is the same one historyBlock() uses: a reply only counts if it came from
+// a number STILL on the record. If nobody on a current number has ever answered us,
+// the block is the old number's verdict, not the lead's.
+//
+// ?dry=1 (the default) only reports. Nothing is ever sent from here.
+router.post('/ai-state/unstick-wrong-number', requirePermission('settings.edit'), async (req, res) => {
+  const dry = req.query.dry !== '0'
+  const { WRONG_NUMBER_CLEARABLE, releaseWrongNumberBlock } = await import('../ai-followup/state.js')
+
+  const rows = db.all(`SELECT s.client_id, s.ai_state, c.first_name, c.last_name, c.phone, c.status
+    FROM ai_lead_state s JOIN clients c ON c.id = s.client_id
+    WHERE s.ai_state IN (${WRONG_NUMBER_CLEARABLE.map(() => '?').join(',')}) AND c.merged_into IS NULL`,
+    WRONG_NUMBER_CLEARABLE)
+
+  const cleared = [], kept = []
+  for (const r of rows) {
+    const who = { id: r.client_id, name: `${r.first_name || ''} ${r.last_name || ''}`.trim(), ai_state: r.ai_state, phone_now: r.phone, status: r.status }
+    const out = releaseWrongNumberBlock(r.client_id, { dry })
+    if (!out.cleared) { kept.push({ ...who, why: out.why, from: out.from }); continue }
+    if (!dry) {
+      db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?, ?, ?, ?)',
+        ['updated', 'client', r.client_id, `AI block cleared (was ${r.ai_state}) - replies on file came from a number no longer on this record`])
+    }
+    cleared.push({ ...who, old_reply_from: out.old_reply_from, old_reply: out.old_reply })
+  }
+  res.json({ dry, scanned: rows.length, cleared_count: cleared.length, cleared, kept })
+})
+
 export default router

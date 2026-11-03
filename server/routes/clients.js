@@ -5,7 +5,7 @@ import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '
 import { gradeFromRealistScore } from '../sierra-helper.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { phoneSearchClauses } from '../phone-search.js'
-import { ensureState } from '../ai-followup/state.js'
+import { ensureState, releaseWrongNumberBlock } from '../ai-followup/state.js'
 import { ensureStamped, prependNote, replaceNote, removeNote, splitNotes } from '../client-notes.js'
 import { addressKey as addressKeyOf } from './admin.js'
 import { carryFsboDecisionToSurvivor } from '../fsbo-followup.js'
@@ -1709,6 +1709,18 @@ router.put('/:id', async (req, res) => {
                 sms_line_type = NULL, sms_line_checked_at = NULL, updated_at = ? WHERE id = ?`, [new Date().toISOString(), cid])
         if (row.sms_undeliverable) logActivity('updated', 'client', cid, 'Landline/undeliverable block cleared - phone number replaced (old verdict belonged to the old number; new number will be line-checked fresh)')
       }
+    }
+    // ...and the THIRD verdict that belongs to the number: the AI's own state. A
+    // wrong-number reply auto-pauses the lead into HUMAN_TAKEOVER and canSendSms
+    // then refuses every AI channel, so correcting the phone used to leave the lead
+    // permanently un-AI-able even though WE NEVER HEARD FROM THEM. Same rule, same
+    // guard as the two blocks above; releaseWrongNumberBlock owns the decision so
+    // the sweep in routes/admin.js cannot drift from it.
+    if (newPhone) {
+      try {
+        const r = releaseWrongNumberBlock(cid)
+        if (r.cleared) logActivity('updated', 'client', cid, `AI block cleared (was ${r.from_state}) - phone number replaced; nobody on a current number has ever replied`)
+      } catch {}
     }
   }
 
