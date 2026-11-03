@@ -135,3 +135,24 @@ test('tag-options actually runs and ranks against live data', async () => {
     db.run('DELETE FROM clients WHERE id=?', [id])
   }
 })
+
+// ── 6. dry must change NOTHING ───────────────────────────────────────────────────
+// A preview that still wrote the Hub row would be worse than no preview at all.
+test('a dry bulk-tags skips the Hub write entirely', () => {
+  const route = src.slice(src.indexOf("router.post('/bulk-tags'"))
+  const body = route.slice(0, route.indexOf('res.json('))
+  assert.match(body, /const dry = !!req\.body\?\.dry/, 'the flag is read')
+  assert.ok(body.indexOf('if (!dry) {') < body.indexOf("UPDATE clients SET tags=?"),
+    'the UPDATE has to sit inside the !dry guard')
+})
+
+test('dry stops AFTER the FUB read and name guard, not before', () => {
+  // the whole value of a dry run is that it proves the link is sound and shows the
+  // exact array FUB would receive — bailing early would prove nothing
+  const f = push.slice(push.indexOf('async function pushFub'))
+  assert.ok(f.indexOf('namesAgree') < f.indexOf('if (dry) return'),
+    'the name guard runs first')
+  assert.ok(f.indexOf('if (dry) return') < f.indexOf('await fubUpdatePerson'),
+    'and dry returns before the write')
+  assert.match(f, /would_send: next/, 'the preview shows the full array FUB would get')
+})

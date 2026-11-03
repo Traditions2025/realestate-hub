@@ -2161,23 +2161,30 @@ router.post('/bulk-tags', async (req, res) => {
   if (!ids.length) return res.status(400).json({ error: 'ids array required' })
   if (!add.length && !remove.length) return res.status(400).json({ error: 'add or remove tags required' })
   const now = new Date().toISOString()
+  // dry means CHANGE NOTHING — not the Hub row, not Sierra, not FUB. It exists so a
+  // bulk push can be previewed (and so the FUB half, which reads the person and
+  // checks the name link before writing, can be proven without touching a real CRM
+  // record). A dry run that still wrote the Hub row would be worse than no preview.
+  const dry = !!req.body?.dry
   let updated = 0
-  db.beginBulk?.()
-  try {
-    for (const id of ids) {
-      const row = db.get('SELECT tags FROM clients WHERE id=?', [id]); if (!row) continue
-      let list = parseTags(row.tags)
-      if (removeLc.length) list = list.filter(t => !removeLc.includes(t.toLowerCase()))
-      for (const t of add) if (!list.some(x => x.toLowerCase() === t.toLowerCase())) list.push(t)
-      db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [list.length ? JSON.stringify(list) : null, now, id])
-      updated++
-    }
-    logActivity('bulk_tags', 'client', 0, `Tags on ${updated} lead${updated === 1 ? '' : 's'}: +[${add.join(', ')}] -[${remove.join(', ')}]`)
-  } finally { db.endBulk?.() }
+  if (!dry) {
+    db.beginBulk?.()
+    try {
+      for (const id of ids) {
+        const row = db.get('SELECT tags FROM clients WHERE id=?', [id]); if (!row) continue
+        let list = parseTags(row.tags)
+        if (removeLc.length) list = list.filter(t => !removeLc.includes(t.toLowerCase()))
+        for (const t of add) if (!list.some(x => x.toLowerCase() === t.toLowerCase())) list.push(t)
+        db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [list.length ? JSON.stringify(list) : null, now, id])
+        updated++
+      }
+      logActivity('bulk_tags', 'client', 0, `Tags on ${updated} lead${updated === 1 ? '' : 's'}: +[${add.join(', ')}] -[${remove.join(', ')}]`)
+    } finally { db.endBulk?.() }
+  }
 
-  // Mirror the change into Sierra and FUB when asked. The Hub write above has already
-  // happened and is never rolled back by a push failure — the Hub is master, the push
-  // is a courtesy to the people working in the other two systems.
+  // Mirror the change into Sierra and FUB when asked. Unless this is a dry run the Hub
+  // write above has already happened, and a push failure never rolls it back — the Hub
+  // is master, the push is a courtesy to the people working in the other two systems.
   //
   // Capped and paced deliberately: Sierra 429s under bursts, so this is ~800ms per lead
   // and refuses a set big enough to blow the request budget rather than dying halfway
@@ -2190,8 +2197,8 @@ router.post('/bulk-tags', async (req, res) => {
     } else {
       const results = []
       for (const id of ids) {
-        results.push(await pushTagsForClient(id, { add, remove }))
-        if (ids.length > 1) await new Promise(r => setTimeout(r, TAG_PUSH_DELAY_MS))
+        results.push(await pushTagsForClient(id, { add, remove, dry: !!req.body?.dry }))
+        if (ids.length > 1 && !req.body?.dry) await new Promise(r => setTimeout(r, TAG_PUSH_DELAY_MS))
       }
       push = {
         sierra_ok: results.filter(r => r.sierra?.ok).length,

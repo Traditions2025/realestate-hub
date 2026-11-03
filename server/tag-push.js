@@ -29,7 +29,7 @@ const lower = (list) => list.map(s => s.toLowerCase())
 
 // Sierra is eventually consistent and rate-limited, so a failure here is reported,
 // never thrown: the Hub row is already correct and must not be rolled back.
-async function pushSierra(client, add, remove) {
+async function pushSierra(client, add, remove, dry) {
   if (!client.sierra_lead_id) return { ok: false, skipped: 'not a Sierra lead' }
   const done = []
   try {
@@ -37,6 +37,7 @@ async function pushSierra(client, add, remove) {
     const body = {}
     if (add.length) body.tags = add
     if (remove.length) body.removeTags = remove
+    if (dry) return { ok: true, dry: true, would_send: body }
     await sierraPut(`/leads/${client.sierra_lead_id}`, body)
     if (add.length) done.push('+' + add.join(', +'))
     if (remove.length) done.push('-' + remove.join(', -'))
@@ -48,7 +49,7 @@ async function pushSierra(client, add, remove) {
 
 // FUB replaces the array, so read -> merge -> write. The read is also where a wrong
 // fub_person_id link is caught, before anything is written to a stranger's record.
-async function pushFub(client, add, remove) {
+async function pushFub(client, add, remove, dry) {
   if (!client.fub_person_id) return { ok: false, skipped: 'not linked to FUB' }
   if (!fubConfigured()) return { ok: false, skipped: 'FUB not configured' }
   try {
@@ -63,8 +64,9 @@ async function pushFub(client, add, remove) {
     let next = current.filter(t => !removeLc.includes(String(t).toLowerCase()))
     for (const t of add) if (!next.some(x => String(x).toLowerCase() === t.toLowerCase())) next.push(t)
     if (next.length === current.length && next.every((t, i) => t === current[i])) {
-      return { ok: true, applied: 'already matching' }
+      return { ok: true, dry: !!dry, applied: 'already matching', current }
     }
+    if (dry) return { ok: true, dry: true, fub_name: theirName, current: current, would_send: next }
     await fubUpdatePerson(client.fub_person_id, { tags: next })   // full array: a PUT replaces it
     return { ok: true, applied: `${current.length} -> ${next.length} tags` }
   } catch (e) {
@@ -77,7 +79,7 @@ async function pushFub(client, add, remove) {
  * updated ALREADY - this only pushes outward, and a failure on either side leaves
  * the Hub correct and says so rather than unwinding anything.
  */
-export async function pushTagsForClient(clientId, { add = [], remove = [] } = {}) {
+export async function pushTagsForClient(clientId, { add = [], remove = [], dry = false } = {}) {
   const cid = Number(clientId)
   const a = clean(add), r = clean(remove)
   if (!a.length && !r.length) return { client_id: cid, skipped: 'nothing to push' }
@@ -85,8 +87,10 @@ export async function pushTagsForClient(clientId, { add = [], remove = [] } = {}
   const client = db.get('SELECT id, first_name, last_name, sierra_lead_id, fub_person_id FROM clients WHERE id = ?', [cid])
   if (!client) return { client_id: cid, error: 'client not found' }
 
-  const sierra = await pushSierra(client, a, r)
-  const fub = await pushFub(client, a, r)
+  const sierra = await pushSierra(client, a, r, dry)
+  const fub = await pushFub(client, a, r, dry)
+
+  if (dry) return { client_id: cid, dry: true, name: `${client.first_name || ''} ${client.last_name || ''}`.trim(), add: a, remove: r, sierra, fub }
 
   const bits = []
   if (sierra.ok) bits.push('Sierra ok')
