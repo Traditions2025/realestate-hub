@@ -861,11 +861,38 @@ function TagEditor({ client, onSaved }) {
   const [adding, setAdding] = useState(false)
   const [val, setVal] = useState('')
   const [busy, setBusy] = useState(false)
+  // Type-ahead over the tags already in use. Without it every typo mints a new tag —
+  // the base carries 1,696 distinct ones, with the same idea spelled several ways.
+  // Suggestions are deliberately case-insensitive and substring-wide, because a
+  // near-match ("Past Clients" when you are typing "past client") is the single most
+  // useful thing to put in front of someone about to create a duplicate.
+  const [sugg, setSugg] = useState([])
+  const [hi, setHi] = useState(0)
+  useEffect(() => {
+    if (!adding) { setSugg([]); return }
+    let dead = false
+    const t = setTimeout(() => {
+      authFetch('/api/clients/tag-options?limit=8&q=' + encodeURIComponent(val.trim()))
+        .then(r => r.json())
+        .then(d => { if (!dead) { setSugg((d.tags || []).filter(s => !tags.some(x => x.toLowerCase() === s.tag.toLowerCase()))); setHi(0) } })
+        .catch(() => { if (!dead) setSugg([]) })
+    }, 150)   // debounce: the lookup counts every lead's tags
+    return () => { dead = true; clearTimeout(t) }
+  }, [val, adding])
+
   const apply = async (add, remove) => {
     setBusy(true)
-    try { await authFetch('/api/clients/bulk-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [client.id], add, remove }) }); onSaved && onSaved() }
+    try {
+      // push: true mirrors the change into Sierra and FUB. One lead, so it is a
+      // couple of API calls and well inside both rate limits.
+      const r = await authFetch('/api/clients/bulk-tags', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: [client.id], add, remove, push: true }) }).then(x => x.json())
+      const bad = r?.push?.problems?.[0]
+      if (bad) notify(`Saved in the Hub, but the push failed: ${bad.sierra || bad.fub}`)
+      onSaved && onSaved()
+    }
     catch (e) { notify('Tag update failed: ' + e.message) } finally { setBusy(false) }
   }
+  const commit = (t) => { const v = String(t || '').trim(); if (v) apply([v], []); setVal(''); setSugg([]); setAdding(false) }
   const shown = showAll ? tags : tags.slice(0, 8)
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -875,7 +902,44 @@ function TagEditor({ client, onSaved }) {
       {tags.length > 8 && !showAll && <button className="btn btn-sm btn-secondary" onClick={() => setShowAll(true)}>+{tags.length - 8} more</button>}
       {!tags.length && <span style={{ color: 'var(--text-muted)', fontSize: 14.5 }}>No tags</span>}
       {adding
-        ? <input autoFocus value={val} onChange={e => setVal(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && val.trim()) { apply([val.trim()], []); setVal(''); setAdding(false) } if (e.key === 'Escape') { setAdding(false); setVal('') } }} onBlur={() => { if (val.trim()) apply([val.trim()], []); setVal(''); setAdding(false) }} placeholder="new tag…" style={{ padding: '2px 7px', fontSize: 14.5, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 110 }} />
+        ? (
+          <span style={{ position: 'relative', display: 'inline-block' }}>
+            <input
+              autoFocus value={val} onChange={e => setVal(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'ArrowDown') { e.preventDefault(); setHi(h => Math.min(h + 1, sugg.length - 1)) }
+                else if (e.key === 'ArrowUp') { e.preventDefault(); setHi(h => Math.max(h - 1, 0)) }
+                // Enter takes the highlighted suggestion when there is one, so picking
+                // the existing tag is the path of least resistance, not making a new one.
+                else if (e.key === 'Enter') { e.preventDefault(); commit(sugg[hi]?.tag || val) }
+                else if (e.key === 'Escape') { setAdding(false); setVal(''); setSugg([]) }
+              }}
+              // a click on a suggestion has to land before the blur closes the list
+              onBlur={() => setTimeout(() => { if (val.trim()) commit(val); else { setAdding(false); setSugg([]) } }, 150)}
+              placeholder="tag name…"
+              style={{ padding: '2px 7px', fontSize: 14.5, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 190 }}
+            />
+            {sugg.length > 0 && (
+              <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50, minWidth: 240, maxHeight: 260, overflowY: 'auto', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,.14)' }}>
+                {sugg.map((s, i) => (
+                  <div
+                    key={s.tag} onMouseDown={e => { e.preventDefault(); commit(s.tag) }} onMouseEnter={() => setHi(i)}
+                    style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '6px 10px', cursor: 'pointer', fontSize: 14.5, background: i === hi ? 'var(--bg-secondary)' : 'transparent' }}
+                  >
+                    <span>{s.tag}</span>
+                    <span style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{s.count}</span>
+                  </div>
+                ))}
+                {val.trim() && !sugg.some(s => s.tag.toLowerCase() === val.trim().toLowerCase()) && (
+                  <div onMouseDown={e => { e.preventDefault(); commit(val) }}
+                    style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 14.5, borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
+                    Create new tag “{val.trim()}”
+                  </div>
+                )}
+              </div>
+            )}
+          </span>
+        )
         : <button className="btn btn-sm" onClick={() => setAdding(true)} disabled={busy}>+ Tag</button>}
     </div>
   )

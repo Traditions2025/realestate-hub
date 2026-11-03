@@ -1509,6 +1509,29 @@ router.get('/fb-webhook-setup', (req, res) => {
   res.json({ url: `${base}/api/clients/fb-webhook?key=${key}`, fields: ['first_name', 'last_name', 'email', 'phone_number', 'timeline', 'listing (or campaign_name)'] })
 })
 
+// Tags already in use, for the type-ahead on the lead profile. Typing a tag with no
+// suggestions is how "Past Client", "past client" and "Past Clients" all end up in the
+// same database (there are 1,696 distinct tags). Ranked so the thing you are part-way
+// through typing comes first: exact, then starts-with, then contains, then by how many
+// leads carry it. Case-insensitive on purpose — a near-duplicate is exactly what the
+// person needs to SEE so they pick the existing one instead of minting another.
+router.get('/tag-options', (req, res) => {
+  const q = String(req.query.q || '').trim().toLowerCase()
+  const limit = Math.min(Number(req.query.limit) || 12, 50)
+  const counts = new Map()
+  for (const row of db.all("SELECT tags FROM clients WHERE tags IS NOT NULL AND tags != ''")) {
+    for (const t of parseTags(row.tags)) counts.set(t, (counts.get(t) || 0) + 1)
+  }
+  let list = [...counts.entries()].map(([tag, count]) => ({ tag, count }))
+  if (q) {
+    const rank = (t) => { const s = t.toLowerCase(); return s === q ? 0 : s.startsWith(q) ? 1 : s.includes(q) ? 2 : 3 }
+    list = list.filter(x => rank(x.tag) < 3).sort((a, b) => rank(a.tag) - rank(b.tag) || b.count - a.count)
+  } else {
+    list.sort((a, b) => b.count - a.count)
+  }
+  res.json({ tags: list.slice(0, limit), total_distinct: counts.size })
+})
+
 router.get('/filter-options', (req, res) => {
   const zips = db.all("SELECT DISTINCT zip FROM clients WHERE zip IS NOT NULL AND zip != '' ORDER BY zip").map(r => r.zip)
   const cities = db.all("SELECT DISTINCT city FROM clients WHERE city IS NOT NULL AND city != '' ORDER BY city").map(r => r.city)
@@ -2130,7 +2153,7 @@ router.post('/bulk-assign-agent', (req, res) => {
 // 2026-10-29 after a bulk "Address Confirmed" tag add left hundreds of clients with
 // tags like `["a", "b"], Address Confirmed 2026-10` instead of `["a", "b", "Address
 // Confirmed 2026-10"]`, which then broke a rename pass expecting valid JSON.
-router.post('/bulk-tags', (req, res) => {
+router.post('/bulk-tags', async (req, res) => {
   const ids = (Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(Boolean)
   const add = (Array.isArray(req.body?.add) ? req.body.add : []).map(s => String(s).trim()).filter(Boolean)
   const remove = (Array.isArray(req.body?.remove) ? req.body.remove : []).map(s => String(s).trim()).filter(Boolean)
@@ -2151,7 +2174,35 @@ router.post('/bulk-tags', (req, res) => {
     }
     logActivity('bulk_tags', 'client', 0, `Tags on ${updated} lead${updated === 1 ? '' : 's'}: +[${add.join(', ')}] -[${remove.join(', ')}]`)
   } finally { db.endBulk?.() }
-  res.json({ success: true, updated, added: add, removed: remove })
+
+  // Mirror the change into Sierra and FUB when asked. The Hub write above has already
+  // happened and is never rolled back by a push failure — the Hub is master, the push
+  // is a courtesy to the people working in the other two systems.
+  //
+  // Capped and paced deliberately: Sierra 429s under bursts, so this is ~800ms per lead
+  // and refuses a set big enough to blow the request budget rather than dying halfway
+  // through with no record of where it stopped (the trap fub-status-push already hit).
+  let push = null
+  if (req.body?.push) {
+    const { pushTagsForClient, TAG_PUSH_DELAY_MS, TAG_PUSH_MAX_INLINE } = await import('../tag-push.js')
+    if (ids.length > TAG_PUSH_MAX_INLINE) {
+      push = { error: `pushing ${ids.length} leads at once would trip Sierra's rate limit — the Hub tags are saved; push in batches of ${TAG_PUSH_MAX_INLINE} or fewer` }
+    } else {
+      const results = []
+      for (const id of ids) {
+        results.push(await pushTagsForClient(id, { add, remove }))
+        if (ids.length > 1) await new Promise(r => setTimeout(r, TAG_PUSH_DELAY_MS))
+      }
+      push = {
+        sierra_ok: results.filter(r => r.sierra?.ok).length,
+        fub_ok: results.filter(r => r.fub?.ok).length,
+        problems: results.filter(r => (r.sierra && !r.sierra.ok && !r.sierra.skipped) || (r.fub && !r.fub.ok && !r.fub.skipped))
+          .map(r => ({ client_id: r.client_id, name: r.name, sierra: r.sierra?.error, fub: r.fub?.error || r.fub?.skipped })),
+        results,
+      }
+    }
+  }
+  res.json({ success: true, updated, added: add, removed: remove, push })
 })
 
 // Auto-enrich newly-added FUB-linked leads (socials + register date + price) that
