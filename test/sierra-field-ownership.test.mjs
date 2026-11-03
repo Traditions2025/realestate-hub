@@ -57,8 +57,23 @@ test('sync still writes what Sierra owns: status, visits, validation, tags', () 
   const c = db.get('SELECT * FROM clients WHERE id=?', [id])
   assert.equal(String(c.status).toLowerCase(), 'junk', 'Sierra-side junk flows in (safety)')
   assert.equal(c.visits, 7)
-  assert.equal(c.email_status, 'ValidAddress')
   assert.ok(String(c.tags || '').includes('From Sierra'))
+  // NARROWED 2026-11-03. This fixture's Hub email is hub@example.com while Sierra reports
+  // sierra@example.com, so Sierra's emailStatus is a verdict on an address this lead does
+  // not use — and it is no longer applied. Writing it regardless is what put WrongAddress
+  // back onto a corrected address every sync pass and kept the lead out of every drip
+  // (Doug Riniker #26281). Sierra still owns the verdict when the addresses MATCH, which
+  // test/sierra-validation-verdicts.test.mjs covers in both directions.
+  assert.equal(c.email_status, null, "Sierra graded a different address — not ours to take")
+})
+
+test('sync DOES write the validation status when Sierra and the Hub share the address', () => {
+  const s = sid()
+  const id = mkHubClient(s, { email: 'sierra@example.com', phone: '(319) 555-9999' })
+  processLead(sierraLead(s))
+  const c = db.get('SELECT email_status, phone_status FROM clients WHERE id=?', [id])
+  assert.equal(c.email_status, 'ValidAddress', 'same address, so the verdict is about us')
+  assert.equal(c.phone_status, 'ValidPhone')
 })
 
 test('Not in Market still cannot be overwritten by Sierra status', () => {

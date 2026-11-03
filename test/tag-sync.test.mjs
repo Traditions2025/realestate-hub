@@ -165,3 +165,36 @@ test('a dry run always reports would_send, even when nothing would change', () =
   const early = f.slice(f.indexOf("applied: 'already matching'"))
   assert.match(early.slice(0, 120), /would_send/, 'the no-op path must still show the array')
 })
+
+// ── 7. the dropdown has to actually open ─────────────────────────────────────────
+// Shipped gated on sugg.length, which hid the "Create new tag" row in the two cases
+// that need it most: a tag nothing matches, and a tag the lead ALREADY has (those are
+// filtered out of the suggestions, so the list was empty and the box looked dead).
+// Candace Pardee + "Moved Out of State" hit both at once — John, 2026-11-03.
+const profile = fs.readFileSync(new URL('../src/pages/ClientProfile.jsx', import.meta.url), 'utf8')
+const editor = profile.slice(profile.indexOf('function TagEditor'), profile.indexOf('function BuyerSellerProfile'))
+
+test('the suggestion list opens on any typed text, not just on a match', () => {
+  assert.match(editor, /\{\(sugg\.length > 0 \|\| val\.trim\(\)\) && \(/,
+    'gating on sugg.length alone makes an unmatched tag unaddable')
+})
+
+test('there is always a way to commit what was typed', () => {
+  assert.match(editor, /Create new tag/, 'the create row exists')
+  assert.match(editor, /is already on this lead/, 'and the already-present case says so rather than going silent')
+})
+
+test('suggestions exclude tags the lead already has', () => {
+  assert.match(editor, /filter\(s => !tags\.some\(x => x\.toLowerCase\(\) === s\.tag\.toLowerCase\(\)\)\)/,
+    'no point offering a chip that is already on screen')
+})
+
+test('committing a tag the lead already has does nothing', () => {
+  const c = editor.slice(editor.indexOf('const commit ='), editor.indexOf('const shown ='))
+  assert.match(c, /!tags\.some\(x => x\.toLowerCase\(\) === v\.toLowerCase\(\)\)/,
+    'otherwise the blur-commit fires a pointless Sierra + FUB push')
+})
+
+test('the profile asks the server to push, so a tag reaches Sierra and FUB', () => {
+  assert.match(editor, /push: true/, 'the whole point of the feature')
+})

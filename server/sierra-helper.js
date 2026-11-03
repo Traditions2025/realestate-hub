@@ -144,7 +144,7 @@ export function processLead(lead, sierraStatusOverride) {
   const lenderStatus = n(lead.lenderStatus)
   const listingAgentStatus = n(lead.listingAgentStatus)
 
-  let existing = db.get('SELECT id, status, tags FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  let existing = db.get('SELECT id, status, tags, email, phone FROM clients WHERE sierra_lead_id = ?', [sierraId])
   let adopted = false
   if (!existing) {
     // ADOPT-DON'T-DUPLICATE (2026-09-21): FB ad leads are born in the Hub (FUB email
@@ -155,10 +155,10 @@ export function processLead(lead, sierraStatusOverride) {
     // shared lines must never be collapsed (contact-cleanup rule).
     const p10 = String(phone || '').replace(/\D/g, '').slice(-10)
     if (email && !/notvalidemail/i.test(email)) {
-      existing = db.get("SELECT id, status, tags FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND lower(email)=lower(?)", [email])
+      existing = db.get("SELECT id, status, tags, email, phone FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND lower(email)=lower(?)", [email])
     }
     if (!existing && p10.length === 10 && firstName) {
-      const cands = db.all("SELECT id, status, tags, phone, first_name FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND phone LIKE ?", ['%' + p10.slice(-4)])
+      const cands = db.all("SELECT id, status, tags, email, phone, first_name FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND phone LIKE ?", ['%' + p10.slice(-4)])
       existing = cands.find(c => String(c.phone || '').replace(/\D/g, '').slice(-10) === p10
         && String(c.first_name || '').trim().toLowerCase() === String(firstName).trim().toLowerCase()) || null
     }
@@ -198,6 +198,14 @@ export function processLead(lead, sierraStatusOverride) {
     // and it stays removed; the Hub is master. What it stops is a SIERRA-side removal
     // silently reaching back and deleting Hub-owned information.
     //
+    // Does Sierra's validation verdict still describe the contact point the Hub uses?
+    // Only then may it be written. An empty Hub field counts as a match, because the
+    // UPDATE backfills it from Sierra in the same statement — the verdict is then about
+    // the address/number the Hub is adopting.
+    const hubEmail = String(existing.email || '').trim().toLowerCase()
+    const sierraOwnsEmailVerdict = !hubEmail || hubEmail === String(email || '').trim().toLowerCase()
+    const last10 = (v) => String(v || '').replace(/\D/g, '').slice(-10)
+    const sierraOwnsPhoneVerdict = !String(existing.phone || '').trim() || last10(existing.phone) === last10(phone)
     // 'FB Ad' with no colon: ai.js builds 'FB Ad' + (property ? ': ' + property : ''), so a
     // lead with no property name carried a bare 'FB Ad' that /^FB Ad:/ never matched.
     const HUB_NATIVE_TAG = (t) => /^(FB Ad\b|FB Seller Ad|Home Value:|Address Confirmed|Address Needs Update)/i.test(t)
@@ -219,7 +227,16 @@ export function processLead(lead, sierraStatusOverride) {
       state   = CASE WHEN state   IS NULL OR state   = '' THEN ? ELSE state   END,
       zip     = CASE WHEN zip     IS NULL OR zip     = '' THEN ? ELSE zip     END,
       status=CASE WHEN status='not_in_market' THEN status ELSE ? END, -- Hub-native status: Sierra has no equivalent, never overwrite it
-      visits=?, email_status=?, phone_status=?,
+      visits=?,
+      -- emailStatus / phoneStatus are Sierra's verdicts on SIERRA'S copy of the address
+      -- and the number. The Hub is master for both fields, so the moment a Hub edit makes
+      -- them differ, Sierra is grading a contact point this lead no longer uses. Writing
+      -- it anyway is what put email_status='WrongAddress' back on a corrected address at
+      -- the next sync pass, and emailHardBlock then refused the lead from every drip
+      -- forever (Doug Riniker #26281, John 2026-11-03). Same rule as the phone verdicts
+      -- the PUT already sheds: a verdict belongs to the contact point it was made about.
+      email_status = CASE WHEN ? THEN ? ELSE email_status END,
+      phone_status = CASE WHEN ? THEN ? ELSE phone_status END,
       sierra_update_date=?, sierra_creation_date=?, pond_id=?,
       marketing_email_opt_out=?, text_opt_out=?, ealert_opt_out=?, short_summary=?,
       tags=?, lender_name=?, lender_status=?, listing_agent_status=?,
@@ -228,7 +245,9 @@ export function processLead(lead, sierraStatusOverride) {
       updated_at=datetime('now') WHERE id=?`,
       [phone, email, email, address, city, state, zip,
         statusToWrite,
-        visits, emailStatus, phoneStatus,
+        visits,
+        sierraOwnsEmailVerdict ? 1 : 0, emailStatus,
+        sierraOwnsPhoneVerdict ? 1 : 0, phoneStatus,
         sierraUpdateDate, sierraCreationDate, pondId,
         meOptOut, textOptOut, ealertOptOut, shortSummary,
         mergedTagsStr, lenderName, lenderStatus, listingAgentStatus,

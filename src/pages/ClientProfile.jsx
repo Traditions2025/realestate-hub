@@ -892,7 +892,13 @@ function TagEditor({ client, onSaved }) {
     }
     catch (e) { notify('Tag update failed: ' + e.message) } finally { setBusy(false) }
   }
-  const commit = (t) => { const v = String(t || '').trim(); if (v) apply([v], []); setVal(''); setSugg([]); setAdding(false) }
+  // A tag the lead already carries is a no-op, not a second chip. bulk-tags dedupes
+  // anyway, but this also stops the blur-commit firing a pointless Sierra + FUB push.
+  const commit = (t) => {
+    const v = String(t || '').trim()
+    if (v && !tags.some(x => x.toLowerCase() === v.toLowerCase())) apply([v], [])
+    setVal(''); setSugg([]); setAdding(false)
+  }
   const shown = showAll ? tags : tags.slice(0, 8)
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
@@ -919,7 +925,13 @@ function TagEditor({ client, onSaved }) {
               placeholder="tag name…"
               style={{ padding: '2px 7px', fontSize: 14.5, border: '1px solid var(--border)', borderRadius: 12, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 190 }}
             />
-            {sugg.length > 0 && (
+            {/* The list must open as soon as there is anything typed, NOT only when
+                there are suggestions. Gating it on sugg.length hid the "Create new tag"
+                row in exactly the case you need it — a tag nothing matches — and also on
+                a lead that already HAS the tag you are typing, because matches already on
+                the lead are filtered out. Candace Pardee + "Moved Out of State" hit both
+                at once and the box looked dead (John, 2026-11-03). */}
+            {(sugg.length > 0 || val.trim()) && (
               <div style={{ position: 'absolute', top: '100%', left: 0, marginTop: 4, zIndex: 50, minWidth: 240, maxHeight: 260, overflowY: 'auto', background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: 8, boxShadow: '0 6px 20px rgba(0,0,0,.14)' }}>
                 {sugg.map((s, i) => (
                   <div
@@ -930,12 +942,17 @@ function TagEditor({ client, onSaved }) {
                     <span style={{ color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums' }}>{s.count}</span>
                   </div>
                 ))}
-                {val.trim() && !sugg.some(s => s.tag.toLowerCase() === val.trim().toLowerCase()) && (
-                  <div onMouseDown={e => { e.preventDefault(); commit(val) }}
-                    style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 14.5, borderTop: '1px solid var(--border)', color: 'var(--text-muted)' }}>
-                    Create new tag “{val.trim()}”
+                {/* already on this lead: say so instead of offering a duplicate */}
+                {val.trim() && tags.some(x => x.toLowerCase() === val.trim().toLowerCase()) ? (
+                  <div style={{ padding: '6px 10px', fontSize: 14.5, borderTop: sugg.length ? '1px solid var(--border)' : 'none', color: 'var(--text-muted)' }}>
+                    “{val.trim()}” is already on this lead
                   </div>
-                )}
+                ) : val.trim() && !sugg.some(s => s.tag.toLowerCase() === val.trim().toLowerCase()) ? (
+                  <div onMouseDown={e => { e.preventDefault(); commit(val) }}
+                    style={{ padding: '6px 10px', cursor: 'pointer', fontSize: 14.5, borderTop: sugg.length ? '1px solid var(--border)' : 'none', color: 'var(--accent, #2563eb)', fontWeight: 600 }}>
+                    + Create new tag “{val.trim()}”
+                  </div>
+                ) : null}
               </div>
             )}
           </span>
