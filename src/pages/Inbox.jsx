@@ -1162,6 +1162,7 @@ function UnknownPane({ sel, onClose, onLinked }) {
   const [fn, setFn] = React.useState(''); const [ln, setLn] = React.useState('')
   const [q, setQ] = React.useState(''); const [results, setResults] = React.useState([])
   const [busy, setBusy] = React.useState(false)
+  const [reply, setReply] = React.useState(''); const [sending, setSending] = React.useState(false)
   const load = React.useCallback(() => { authFetch('/api/inbox/unknown-thread?key=' + encodeURIComponent(sel.key)).then(r => r.json()).then(d => setRows(Array.isArray(d) ? d : [])).catch(() => {}) }, [sel.key])
   React.useEffect(() => { load() }, [load])
   React.useEffect(() => { const t = setInterval(load, 15000); return () => clearInterval(t) }, [load])
@@ -1170,6 +1171,24 @@ function UnknownPane({ sel, onClose, onLinked }) {
     const t = setTimeout(() => authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q.trim())).then(r => r.json()).then(d => setResults(Array.isArray(d) ? d : [])).catch(() => {}), 200)
     return () => clearTimeout(t)
   }, [q])
+  // /send resolves the number against the CRM before it does anything, so a STOP or an
+  // undeliverable verdict on a record we happen to hold still blocks the send — typing a
+  // number by hand is not a way around someone's opt-out. A genuine stranger just gets
+  // the text. The send is filed under this same u_<phone10> thread, so it appears above
+  // on the next poll without the conversation having to become a lead first.
+  const sendReply = async () => {
+    const text = reply.trim()
+    if (!text || sending) return
+    setSending(true)
+    try {
+      const d = await authFetch('/api/inbox/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'text', phones: [{ phone: sel.phone }], body: text }),
+      }).then(r => r.json())
+      if (d.sent) { setReply(''); load() }
+      else notify(d.results?.[0]?.error || d.error || 'Text failed')
+    } catch (e) { notify('Text failed: ' + e.message) } finally { setSending(false) }
+  }
   const createLead = async () => {
     setBusy(true)
     try { const r = await authFetch('/api/inbox/unknown/create-lead', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: sel.key, phone: sel.phone, first_name: fn, last_name: ln }) }); const d = await r.json(); if (d.client_id) onLinked(d.client_id); else notify(d.error || 'Could not create lead') }
@@ -1218,10 +1237,30 @@ function UnknownPane({ sel, onClose, onLinked }) {
           )
         })}
       </div>
+      {/* REPLY FIRST. Being a CRM record was never a requirement for answering a text —
+          Twilio does not care, and the server has always accepted a raw phone recipient
+          (`phones: [...]` on /send) and filed the send under the same u_<phone10> thread
+          key the inbound arrived on. Only this pane insisted, so a message like "Thanks
+          John, I sent this on to Katie, Liberty's manager" sat unanswerable until someone
+          invented a lead for a number that may never be one (John, 2026-11-03).
+          Creating or linking is still here, just no longer the toll gate. */}
+      <div style={{ borderTop: '1px solid var(--border)', padding: '10px 12px', display: 'flex', gap: 8, alignItems: 'flex-end', background: 'var(--bg-primary)' }}>
+        <textarea
+          value={reply}
+          rows={2}
+          onChange={e => setReply(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply() } }}
+          ref={el => { if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, window.innerHeight * 0.4) + 'px' }}
+          placeholder={`Reply to ${fmtPhoneDisp(sel.phone)}…  (Enter sends, Shift+Enter for a new line)`}
+          style={{ flex: 1, padding: '9px 11px', border: '1px solid var(--border)', borderRadius: 8,
+            background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5,
+            lineHeight: 1.5, resize: 'none', overflowY: 'auto', fontFamily: 'inherit' }} />
+        <button className="btn btn-primary" onClick={sendReply} disabled={sending || !reply.trim()}>{sending ? '…' : 'Send'}</button>
+      </div>
       <div style={{ borderTop: '1px solid var(--border)', padding: 12, background: 'var(--bg-primary)' }}>
         {mode === null && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 14.5, color: 'var(--text-secondary)' }}>This number isn't a contact yet. Add them to reply and start a normal conversation.</span>
+            <span style={{ fontSize: 14.5, color: 'var(--text-secondary)' }}>Not a contact yet — replies still go through. Add them to keep the history on a lead.</span>
             <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} onClick={() => setMode('create')}>+ Create lead</button>
             <button className="btn btn-sm" onClick={() => setMode('link')}>Link to existing</button>
           </div>
