@@ -95,7 +95,9 @@ test('whitespace is normalised', () => {
 test('the Sierra ingest applies the same name pass', async () => {
   const src = await import('node:fs').then(fs =>
     fs.readFileSync(new URL('../server/sierra-helper.js', import.meta.url), 'utf8'))
-  assert.match(src, /import \{ tidyName \} from '\.\/routes\/email\.js'/)
+  // Other helpers now travel with it (tidyPlace, for city/street casing), so match the
+  // name in the import list rather than the whole line.
+  assert.match(src, /import \{[^}]*\btidyName\b[^}]*\} from '\.\/routes\/email\.js'/)
   assert.match(src, /const firstName = tidyName\(lead\.firstName \|\| ''\)/)
   assert.match(src, /const lastName = tidyName\(lead\.lastName \|\| ''\)/)
 })

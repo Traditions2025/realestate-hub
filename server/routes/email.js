@@ -414,6 +414,29 @@ export function tidyName(raw) {
   return s.replace(/\bMc([a-z])/g, (_, c) => 'Mc' + c.toUpperCase())
     .replace(/\bO'([a-z])/g, (_, c) => "O'" + c.toUpperCase())
 }
+
+// A place name (city or street address) arrives SHOUTING from the same places a person's
+// name does: a CSV import, or Sierra's own copy. Same rule as tidyName — re-case only a
+// value that is entirely one case, so anything typed deliberately survives untouched.
+// Directionals stay NE/SW, ordinals stay 1st/2nd, state abbreviations stay IA.
+// smartParseAddress (routes/clients.js) and the Sierra sync both case through here, so
+// a street typed into the Hub and the same street arriving from Sierra end up alike.
+function placeWord(w) {
+  if (/^(NE|NW|SE|SW|N|S|E|W)$/i.test(w)) return w.toUpperCase()
+  // State abbreviations stay ALL CAPS (IA, never Ia). Only unambiguous ones —
+  // never tokens that double as English words (in, or, me, ok, hi...).
+  if (/^(IA|IL|MN|MO|SD|WI|KS|TX|FL|AZ|CO|IA\.)$/i.test(w.replace(/,$/, ''))) return w.toUpperCase()
+  if (/^\d+(ST|ND|RD|TH)$/i.test(w)) return w.toLowerCase()
+  if (/^\d/.test(w)) return w // "52402", "123A", "18th" untouched
+  return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
+}
+export function tidyPlace(raw) {
+  const s = String(raw == null ? '' : raw).trim().replace(/\s+/g, ' ')
+  if (!s) return raw
+  if (s !== s.toUpperCase() && s !== s.toLowerCase()) return s
+  return s.split(' ').map(placeWord).join(' ')
+}
+
 export function usableFirstName(raw) {
   let n = decodeNameEntities(String(raw == null ? '' : raw))
     .replace(/[\r\n\t]+/g, ' ').replace(/\s{2,}/g, ' ').trim()

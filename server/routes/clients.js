@@ -8,6 +8,7 @@ import { phoneSearchClauses } from '../phone-search.js'
 import { ensureState, releaseWrongNumberBlock } from '../ai-followup/state.js'
 import { ensureStamped, prependNote, replaceNote, removeNote, splitNotes } from '../client-notes.js'
 import { addressKey as addressKeyOf } from './admin.js'
+import { tidyPlace } from './email.js'
 import { carryFsboDecisionToSurvivor } from '../fsbo-followup.js'
 
 const router = Router()
@@ -205,17 +206,9 @@ router.get('/breakdown', (req, res) => {
 export function smartParseAddress(raw) {
   const clean = String(raw || '').trim().replace(/\s+/g, ' ')
   if (!clean) return null
-  const titleWord = (w) => {
-    if (/^(NE|NW|SE|SW|N|S|E|W)$/i.test(w)) return w.toUpperCase()
-    // State abbreviations stay ALL CAPS (IA, never Ia). Only unambiguous ones —
-    // never tokens that double as English words (in, or, me, ok, hi...).
-    if (/^(IA|IL|MN|MO|SD|WI|KS|TX|FL|AZ|CO|IA\.)$/i.test(w.replace(/,$/, ''))) return w.toUpperCase()
-    if (/^\d+(ST|ND|RD|TH)$/i.test(w)) return w.toLowerCase()
-    if (/^\d/.test(w)) return w.toUpperCase() === w && /[A-Z]/.test(w) ? w : w // "52402", "123A" untouched
-    return w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()
-  }
-  const tc = (s) => s.split(' ').map(titleWord).join(' ')
-  const fixCase = (s) => (s === s.toUpperCase() || s === s.toLowerCase()) ? tc(s) : s
+  // The casing rule itself lives with tidyName in routes/email.js, so a street typed
+  // in here and the same street arriving from Sierra are cased by one piece of code.
+  const fixCase = tidyPlace
   const parts = clean.split(',').map(p => p.trim()).filter(Boolean)
   let street = clean, city = null, state = null, zip = null
   const stZip = /^([A-Za-z]{2}|iowa)\.?\s*(\d{5})(?:-\d{4})?$/i
@@ -1668,6 +1661,9 @@ router.put('/:id', async (req, res) => {
       for (const k of ['city', 'state', 'zip']) if (parsed[k] && !(k in fields)) fields[k] = parsed[k]
     }
   }
+  // A city set on its own never passes through the address parser above, so it kept
+  // whatever case it arrived in ("CEDAR RAPIDS" on 147 records, John 2026-11-03).
+  if (typeof fields.city === 'string' && fields.city.trim()) fields.city = tidyPlace(fields.city)
   // Every note carries a date, whoever wrote it. The UI stamps what it adds, but it is
   // not the only writer, and a note that arrives undated here would be undated forever -
   // there is no way to recover a date after the fact (John, 2026-10-05).

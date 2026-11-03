@@ -1,7 +1,7 @@
 // Shared helpers for processing Sierra leads (used by sync, scheduler, webhooks)
 import db from './database.js'
 import { stopSequencesForClient, isStopStatus } from './lead-sequences.js'
-import { tidyName } from './routes/email.js'
+import { tidyName, tidyPlace } from './routes/email.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
@@ -74,6 +74,12 @@ export function processLead(lead, sierraStatusOverride) {
     if (address && !/\b(ne|nw|se|sw)\b\s*$/i.test(address)) address = `${address} ${city.toUpperCase()}`
     city = null
   }
+  // Sierra hands these over in whatever case its own source used, and the backfill below
+  // writes them straight into any Hub field that is empty — which is how "GRAND MOUND"
+  // landed on #29902 mid-cleanup (John 2026-11-03). Same rule as the names above: only a
+  // value that is entirely one case is touched.
+  address = tidyPlace(address)
+  city = tidyPlace(city)
   const state = n(lead.state) || 'IA'
   const zip = n(lead.zip || lead.postalCode)
 
