@@ -64,7 +64,7 @@ async function pushFub(client, add, remove, dry) {
     let next = current.filter(t => !removeLc.includes(String(t).toLowerCase()))
     for (const t of add) if (!next.some(x => String(x).toLowerCase() === t.toLowerCase())) next.push(t)
     if (next.length === current.length && next.every((t, i) => t === current[i])) {
-      return { ok: true, dry: !!dry, applied: 'already matching', current }
+      return { ok: true, dry: !!dry, applied: 'already matching', fub_name: theirName, current, would_send: next }
     }
     if (dry) return { ok: true, dry: true, fub_name: theirName, current: current, would_send: next }
     await fubUpdatePerson(client.fub_person_id, { tags: next })   // full array: a PUT replaces it

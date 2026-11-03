@@ -156,3 +156,12 @@ test('dry stops AFTER the FUB read and name guard, not before', () => {
     'and dry returns before the write')
   assert.match(f, /would_send: next/, 'the preview shows the full array FUB would get')
 })
+
+test('a dry run always reports would_send, even when nothing would change', () => {
+  // The "already matching" early return used to omit it, so the preview read as
+  // "FUB would receive nothing" — indistinguishable from the tag-wipe this whole
+  // merge exists to prevent. It sent me chasing a bug that was not there.
+  const f = push.slice(push.indexOf('async function pushFub'))
+  const early = f.slice(f.indexOf("applied: 'already matching'"))
+  assert.match(early.slice(0, 120), /would_send/, 'the no-op path must still show the array')
+})
