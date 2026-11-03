@@ -122,3 +122,62 @@ test('dry run reports without writing', () => {
   assert.equal(db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [id]).ai_state, 'HUMAN_TAKEOVER',
     'a dry run must not move the state')
 })
+
+// ── the same investigation, the EMAIL side ───────────────────────────────────────
+//
+// With the AI unblocked, enrolling Doug in a drip still failed with "Not enrolled —
+// likely already in a drip, no email on file, or Do-Not-Contact." All three guesses
+// were wrong: he had an email, no active drip, and status 'new'. The real gate was
+// emailHardBlock on email_status='WrongAddress'. The toast was inventing a reason,
+// which is what sent the hunt to the phone. The server says why now.
+const { dripBlockReason } = await import('../server/routes/drips.js')
+
+const mkDrip = () => Number(db.run(
+  `INSERT INTO drip_campaigns (name, steps) VALUES (?,?)`,
+  ['Reason Test ' + (++seq), JSON.stringify([{ subject: 'hi', body: 'x', delay_days: 0, send_time: '09:00' }])],
+).lastInsertRowid)
+
+const mkClient = (over = {}) => {
+  const n = ++seq
+  const c = { first_name: 'Reason', last_name: 'Case' + n, type: 'buyer', status: 'new', email: `reason${n}@example.com`, email_status: null, ...over }
+  return Number(db.run(`INSERT INTO clients (first_name, last_name, type, status, email, email_status) VALUES (?,?,?,?,?,?)`,
+    [c.first_name, c.last_name, c.type, c.status, c.email, c.email_status]).lastInsertRowid)
+}
+
+test('a bounced address is named as the reason, not guessed at', () => {
+  const r = dripBlockReason(mkDrip(), mkClient({ email: 'doug.riniker@linncounty.org', email_status: 'WrongAddress' }))
+  assert.match(r.reason, /wrong address/i)
+  assert.match(r.reason, /doug\.riniker@linncounty\.org/, 'name the actual address so it can be fixed')
+})
+
+test('no email says so plainly, and says drips are email-only', () => {
+  const r = dripBlockReason(mkDrip(), mkClient({ email: null }))
+  assert.match(r.reason, /no email address on file/i)
+  assert.match(r.reason, /email-only/i)
+})
+
+test('Junk is reported as the status it is', () => {
+  const r = dripBlockReason(mkDrip(), mkClient({ status: 'junk' }))
+  assert.match(r.reason, /junk/i)
+})
+
+test('an existing drip is named, not left as "likely"', () => {
+  const first = mkDrip(), second = mkDrip(), cid = mkClient()
+  assert.ok(db.get('SELECT 1'), 'db up')
+  db.run(`INSERT INTO drip_enrollments (drip_id, client_id, status, current_step) VALUES (?,?,?,?)`, [first, cid, 'active', 0])
+  const r = dripBlockReason(second, cid)
+  assert.match(r.reason, /already in an active drip/i)
+  assert.match(r.reason, /Reason Test/, 'say WHICH drip')
+})
+
+test('a clean lead has no reason at all', () => {
+  assert.equal(dripBlockReason(mkDrip(), mkClient()), null)
+})
+
+test('already in THIS drip is a no-op, not a failure', () => {
+  const d = mkDrip(), cid = mkClient()
+  db.run(`INSERT INTO drip_enrollments (drip_id, client_id, status, current_step) VALUES (?,?,?,?)`, [d, cid, 'active', 0])
+  const r = dripBlockReason(d, cid)
+  assert.ok(r.enrolledId, 'the existing enrollment is returned, with no reason')
+  assert.equal(r.reason, undefined)
+})

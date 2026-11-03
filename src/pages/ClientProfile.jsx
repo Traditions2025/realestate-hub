@@ -1990,7 +1990,10 @@ function EnrollPicker({ kind, cid, onClose, onDone }) {
     const r = await authFetch(kind === 'automation' ? `/api/automations/${sel}/enroll` : `/api/drips/${sel}/enroll`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_ids: [cid] }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setBusy(false)
     if (r.error) return notify(r.error)
-    if ((r.enrolled || 0) === 0) notify('Not enrolled — likely already in a drip, no email on file, or Do-Not-Contact.')
+    // The server says WHY now. Guessing here ("likely already in a drip, no email on
+    // file, or Do-Not-Contact") sent John looking at the phone on a lead whose real
+    // problem was a bounced email address.
+    if ((r.enrolled || 0) === 0) notify('Not enrolled — ' + (r.reasons?.[0]?.reason || 'the server gave no reason.'))
     onDone()
   }
   return (

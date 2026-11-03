@@ -61,20 +61,35 @@ function nextSendIso(fromMs, step) {
 // ---------------------------------------------------------------------------
 // enrollment (called from Clients UI or the automation engine)
 // ---------------------------------------------------------------------------
-export function enrollInDrip(dripId, clientId, opts = {}) {
+// WHY a lead cannot go into this drip, in words a person can act on, or null when
+// it can. The UI used to guess ("likely already in a drip, no email on file, or
+// Do-Not-Contact"), which sent John hunting the phone on Doug Riniker #26281 when
+// the real answer was a bounced email address (2026-11-03). enrollInDrip is the
+// only caller that matters, so the reasons cannot drift from the actual gates.
+// Returns { reason } or { enrolledId } for an already-active enrollment.
+export function dripBlockReason(dripId, clientId, opts = {}) {
   const drip = db.get('SELECT * FROM drip_campaigns WHERE id = ?', [Number(dripId)])
-  if (!drip) return null
-  const steps = parse(drip.steps, [])
-  if (!steps.length) return null
+  if (!drip) return { reason: 'that campaign no longer exists' }
+  if (!parse(drip.steps, []).length) return { reason: 'that campaign has no steps yet' }
   // never enroll a lead we've been told to stop contacting (Junk / DNC), or one who
   // confirmed they're Not in Market (only the annual human recheck touches them)
   const cli = db.get('SELECT status, email, email_status FROM clients WHERE id = ?', [Number(clientId)])
-  if (cli && (isStopStatus(cli.status) || String(cli.status || '').toLowerCase() === 'not_in_market')) return null
+  if (cli && isStopStatus(cli.status)) return { reason: `lead status is ${cli.status} — that removes them from every campaign` }
+  if (cli && String(cli.status || '').toLowerCase() === 'not_in_market') return { reason: 'lead is Not in Market — only the annual human recheck touches them' }
   // drips are email-only: skip contacts we could never actually email (no address,
   // throwaway domain, prior spam complaint, known-bad address) so they don't clutter
   // the roster as enrolled-but-silent. Mirrors emailHardBlock at send time. Opt-outs
   // are NOT skipped here — team policy still emails them, tagged.
-  if (cli && emailHardBlock(cli)) return null
+  const mail = cli && emailHardBlock(cli)
+  if (mail) {
+    const say = {
+      'no email': 'no email address on file, and drips are email-only',
+      'blocked email domain': 'that email domain is blocked',
+      'reported as spam': 'that address reported us as spam',
+      'wrong address': `email ${cli.email} is marked a wrong address (it bounced) — put a good address on the record and this clears itself`,
+    }[mail] || mail
+    return { reason: say }
+  }
   // One drip per lead by default: never stack a second active campaign on a contact.
   // Already active in THIS drip -> treat as enrolled (no-op).
   //
@@ -84,11 +99,22 @@ export function enrollInDrip(dripId, clientId, opts = {}) {
   // at SEND time in advanceDrip, not here. A one-off check at enrollment cannot hold for
   // six months of weekly sends — the collision it needs to catch happens in week 14.
   const sameDrip = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND drip_id=? AND status='active' LIMIT 1", [clientId, Number(dripId)])
-  if (sameDrip) return sameDrip.id
+  if (sameDrip) return { enrolledId: sameDrip.id }
   if (!opts.allowConcurrent) {
-    const activeOther = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND status='active' LIMIT 1", [clientId])
-    if (activeOther) return null
+    const activeOther = db.get("SELECT drip_id FROM drip_enrollments WHERE client_id=? AND status='active' LIMIT 1", [clientId])
+    if (activeOther) {
+      const name = db.get('SELECT name FROM drip_campaigns WHERE id = ?', [activeOther.drip_id])?.name
+      return { reason: `already in an active drip${name ? ` (${name})` : ''} — one drip per lead` }
+    }
   }
+  return null
+}
+
+export function enrollInDrip(dripId, clientId, opts = {}) {
+  const blocked = dripBlockReason(dripId, clientId, opts)
+  if (blocked?.reason) return null
+  if (blocked?.enrolledId) return blocked.enrolledId
+  const steps = parse(db.get('SELECT steps FROM drip_campaigns WHERE id = ?', [Number(dripId)])?.steps, [])
   const next = nextSendIso(Date.now(), steps[0])
   const r = db.run('INSERT INTO drip_enrollments (drip_id, client_id, status, current_step, next_run_at, source, automation_id) VALUES (?,?,?,?,?,?,?)',
     [dripId, clientId, 'active', 0, next, opts.source || 'manual', opts.automation_id || null])
@@ -357,10 +383,17 @@ router.delete('/:id', (req, res) => {
 router.post('/:id/enroll', (req, res) => {
   const ids = req.body?.client_ids || []
   let n = 0
-  for (const cid of ids) { if (enrollInDrip(Number(req.params.id), Number(cid), { source: 'manual' })) n++ }
+  const reasons = []
+  for (const cid of ids) {
+    if (enrollInDrip(Number(req.params.id), Number(cid), { source: 'manual' })) { n++; continue }
+    // Say WHY, per lead. A bare count made the UI invent a reason, and the invented
+    // one pointed at the wrong field (Doug Riniker #26281, John 2026-11-03).
+    const b = dripBlockReason(Number(req.params.id), Number(cid), { source: 'manual' })
+    reasons.push({ client_id: Number(cid), reason: b?.reason || 'could not be enrolled' })
+  }
   // Enrollment usually PROTECTS these leads — refresh their coverage now.
   import('../followup-coverage.js').then(m => { for (const cid of ids) m.recalcCoverage(Number(cid), { actorType: 'drip' }) }).catch(() => {})
-  res.json({ success: true, enrolled: n, skipped: ids.length - n, total: ids.length })
+  res.json({ success: true, enrolled: n, skipped: ids.length - n, total: ids.length, reasons })
 })
 router.post('/enrollments/:eid/remove', (req, res) => {
   const row = db.get('SELECT client_id FROM drip_enrollments WHERE id=?', [Number(req.params.eid)])

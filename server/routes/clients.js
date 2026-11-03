@@ -1659,7 +1659,7 @@ router.put('/:id', async (req, res) => {
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
   // follow the lead once the real number is saved, so capture the pre-edit
   // state and clear the block below when the phone is actually replaced.
-  const before = db.get('SELECT phone, hub_text_opt_out, status FROM clients WHERE id = ?', [Number(req.params.id)])
+  const before = db.get('SELECT phone, email, hub_text_opt_out, status FROM clients WHERE id = ?', [Number(req.params.id)])
   // Manual Realist Score entry: normalize to digits and derive the A-F grade
   // whenever lead_score is set (or cleared) so the badge stays consistent.
   if (Object.prototype.hasOwnProperty.call(fields, 'lead_score')) {
@@ -1721,6 +1721,21 @@ router.put('/:id', async (req, res) => {
         const r = releaseWrongNumberBlock(cid)
         if (r.cleared) logActivity('updated', 'client', cid, `AI block cleared (was ${r.from_state}) - phone number replaced; nobody on a current number has ever replied`)
       } catch {}
+    }
+    // The EMAIL side of the same rule. A bounce stamps email_status='WrongAddress',
+    // emailHardBlock refuses the lead, and drips are email-only — so a lead whose
+    // address went stale stayed permanently un-drippable even after someone typed
+    // the correct address in. "Wrong address" is a verdict on the ADDRESS, and the
+    // old one is gone. Only the deliverability verdict clears: ReportedAsSpam and
+    // OptedOut are a PERSON saying stop, so those stay put and stay John's call.
+    // (Doug Riniker #26281, John 2026-11-03.)
+    const em = (e) => String(e || '').trim().toLowerCase()
+    if ('email' in fields && em(fields.email) && before && em(fields.email) !== em(before.email)) {
+      const row = db.get('SELECT email_status FROM clients WHERE id = ?', [cid])
+      if (row && row.email_status === 'WrongAddress') {
+        db.run('UPDATE clients SET email_status = NULL, updated_at = ? WHERE id = ?', [new Date().toISOString(), cid])
+        logActivity('updated', 'client', cid, 'Bad-address block cleared - email replaced (the bounce belonged to the old address; the new one will be proven by its own first send)')
+      }
     }
   }
 
