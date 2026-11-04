@@ -5,6 +5,12 @@ import { tidyName, tidyPlace } from './routes/email.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
+// The contact fields the sync fills in when the Hub's copy is blank. Clearing one of
+// these in the Hub is recorded on clients.cleared_fields so the backfill below can tell
+// a deliberate deletion from a gap, and leave it deleted. routes/clients.js writes that
+// list; keeping the field names here keeps the two halves from drifting apart.
+export const BACKFILLED_FIELDS = ['phone', 'email', 'address', 'city', 'state', 'zip']
+
 export function mapStatus(sierraStatus) {
   if (!sierraStatus) return 'active'
   return sierraStatus.toLowerCase().replace(/\s+/g, '_')
@@ -150,7 +156,7 @@ export function processLead(lead, sierraStatusOverride) {
   const lenderStatus = n(lead.lenderStatus)
   const listingAgentStatus = n(lead.listingAgentStatus)
 
-  let existing = db.get('SELECT id, status, tags, email, phone FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  let existing = db.get('SELECT id, status, tags, email, phone, cleared_fields FROM clients WHERE sierra_lead_id = ?', [sierraId])
   let adopted = false
   if (!existing) {
     // ADOPT-DON'T-DUPLICATE (2026-09-21): FB ad leads are born in the Hub (FUB email
@@ -161,10 +167,10 @@ export function processLead(lead, sierraStatusOverride) {
     // shared lines must never be collapsed (contact-cleanup rule).
     const p10 = String(phone || '').replace(/\D/g, '').slice(-10)
     if (email && !/notvalidemail/i.test(email)) {
-      existing = db.get("SELECT id, status, tags, email, phone FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND lower(email)=lower(?)", [email])
+      existing = db.get("SELECT id, status, tags, email, phone, cleared_fields FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND lower(email)=lower(?)", [email])
     }
     if (!existing && p10.length === 10 && firstName) {
-      const cands = db.all("SELECT id, status, tags, email, phone, first_name FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND phone LIKE ?", ['%' + p10.slice(-4)])
+      const cands = db.all("SELECT id, status, tags, email, phone, first_name, cleared_fields FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND phone LIKE ?", ['%' + p10.slice(-4)])
       existing = cands.find(c => String(c.phone || '').replace(/\D/g, '').slice(-10) === p10
         && String(c.first_name || '').trim().toLowerCase() === String(firstName).trim().toLowerCase()) || null
     }
@@ -225,13 +231,21 @@ export function processLead(lead, sierraStatusOverride) {
     // First (adoption) pass keeps the Hub's status: the Hub record predates Sierra
     // here, so a manual upload's default "New" must not clobber e.g. Watch.
     const statusToWrite = adopted ? existing.status : clientStatus
+    // 1 = this blank field may be filled from Sierra, 0 = it was emptied on purpose.
+    let clearedFields = []
+    try { const a = JSON.parse(existing.cleared_fields || '[]'); if (Array.isArray(a)) clearedFields = a } catch {}
+    const mayFill = (f) => clearedFields.includes(f) ? 0 : 1
     db.run(`UPDATE clients SET
-      phone   = CASE WHEN phone   IS NULL OR phone   = '' THEN ? ELSE phone   END,
-      email   = CASE WHEN (email  IS NULL OR email   = '') AND COALESCE(?, '') NOT LIKE '%notvalidemail%' THEN ? ELSE email END,
-      address = CASE WHEN address IS NULL OR address = '' THEN ? ELSE address END,
-      city    = CASE WHEN city    IS NULL OR city    = '' THEN ? ELSE city    END,
-      state   = CASE WHEN state   IS NULL OR state   = '' THEN ? ELSE state   END,
-      zip     = CASE WHEN zip     IS NULL OR zip     = '' THEN ? ELSE zip     END,
+      -- A blank contact field is filled from Sierra's copy UNLESS someone emptied it on
+      -- purpose. Without that second test the backfill cannot tell a gap from a deletion,
+      -- and an address deleted at 11:26 was back by 11:57 (Amy Oberfoell #118, John
+      -- 2026-11-03). The flags come from clients.cleared_fields, written by the PUT.
+      phone   = CASE WHEN (phone   IS NULL OR phone   = '') AND ? THEN ? ELSE phone   END,
+      email   = CASE WHEN (email  IS NULL OR email   = '') AND ? AND COALESCE(?, '') NOT LIKE '%notvalidemail%' THEN ? ELSE email END,
+      address = CASE WHEN (address IS NULL OR address = '') AND ? THEN ? ELSE address END,
+      city    = CASE WHEN (city    IS NULL OR city    = '') AND ? THEN ? ELSE city    END,
+      state   = CASE WHEN (state   IS NULL OR state   = '') AND ? THEN ? ELSE state   END,
+      zip     = CASE WHEN (zip     IS NULL OR zip     = '') AND ? THEN ? ELSE zip     END,
       status=CASE WHEN status='not_in_market' THEN status ELSE ? END, -- Hub-native status: Sierra has no equivalent, never overwrite it
       visits=?,
       -- emailStatus / phoneStatus are Sierra's verdicts on SIERRA'S copy of the address
@@ -249,7 +263,8 @@ export function processLead(lead, sierraStatusOverride) {
       search_price_min=?, search_price_max=?, search_beds_min=?, search_baths_min=?,
       search_sqft_min=?, search_regions=?, search_property_types=?, has_saved_search=?,
       updated_at=datetime('now') WHERE id=?`,
-      [phone, email, email, address, city, state, zip,
+      [mayFill('phone'), phone, mayFill('email'), email, email, mayFill('address'), address,
+        mayFill('city'), city, mayFill('state'), state, mayFill('zip'), zip,
         statusToWrite,
         visits,
         sierraOwnsEmailVerdict ? 1 : 0, emailStatus,

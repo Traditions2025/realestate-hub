@@ -668,6 +668,12 @@ export async function initDb() {
   // Safe because overlap is governed at SEND time, not at enrollment: server/email-cap.js
   // caps a past client at ONE email per 14 days across EVERY campaign, which is exactly
   // the rule written for past clients sitting in several at once.
+  // Which contact fields a person deliberately EMPTIED. The Sierra backfill fills any
+  // blank contact field from Sierra's copy, which cannot tell "we never had one" from
+  // "John deleted it this morning" — so a cleared address came straight back on the next
+  // sync pass (Amy Oberfoell #118: cleared 11:26, restored 11:57, John 2026-11-03).
+  // JSON array of column names; a field set to a real value again drops off the list.
+  try { db.run('ALTER TABLE clients ADD COLUMN cleared_fields TEXT') } catch {}
   try { db.run('ALTER TABLE drip_campaigns ADD COLUMN allow_concurrent INTEGER DEFAULT 0') } catch {}
   try {
     db.run(`UPDATE drip_campaigns SET allow_concurrent = 1

@@ -2,7 +2,7 @@ import { Router } from 'express'
 import crypto from 'crypto'
 import db from '../database.js'
 import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '../lead-sequences.js'
-import { gradeFromRealistScore } from '../sierra-helper.js'
+import { gradeFromRealistScore, BACKFILLED_FIELDS } from '../sierra-helper.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { phoneSearchClauses } from '../phone-search.js'
 import { ensureState, releaseWrongNumberBlock } from '../ai-followup/state.js'
@@ -1678,7 +1678,23 @@ router.put('/:id', async (req, res) => {
   // STOP belongs to the NUMBER, not the person. A wrong-number STOP must not
   // follow the lead once the real number is saved, so capture the pre-edit
   // state and clear the block below when the phone is actually replaced.
-  const before = db.get('SELECT phone, email, hub_text_opt_out, status FROM clients WHERE id = ?', [Number(req.params.id)])
+  const before = db.get('SELECT phone, email, address, city, state, zip, cleared_fields, hub_text_opt_out, status FROM clients WHERE id = ?', [Number(req.params.id)])
+  // Emptying a contact field is a decision, and the Sierra backfill cannot read one: it
+  // fills every blank contact field from Sierra's copy, so a cleared address was back
+  // within the hour (Amy Oberfoell #118, John 2026-11-03). Remember which fields were
+  // emptied on purpose; the sync then leaves those alone. Typing a real value in again
+  // takes the field off the list, because that is no longer a deletion.
+  if (before) {
+    const was = new Set((() => { try { return JSON.parse(before.cleared_fields || '[]') } catch { return [] } })())
+    const size = was.size
+    for (const f of BACKFILLED_FIELDS) {
+      if (!(f in fields)) continue
+      const now = String(fields[f] ?? '').trim()
+      if (!now && String(before[f] ?? '').trim()) was.add(f)
+      else if (now) was.delete(f)
+    }
+    if (was.size !== size) fields.cleared_fields = was.size ? JSON.stringify([...was]) : null
+  }
   // Manual Realist Score entry: normalize to digits and derive the A-F grade
   // whenever lead_score is set (or cleared) so the badge stays consistent.
   if (Object.prototype.hasOwnProperty.call(fields, 'lead_score')) {
