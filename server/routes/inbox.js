@@ -220,7 +220,13 @@ router.get('/', (req, res) => {
         last: r, msg_count: 0, unread_count: 0, channels: new Set(),
         unknown: !r.conversation_sid && !r.client_id, thread_key: r.thread_key || null,
         conversation_sid: r.conversation_sid || null, is_group: !!r.conversation_sid, group_meta: null,
-        phone: r.client_id ? null : (r.from_addr || r.to_addr || ''),
+        // The number of the PERSON, which is the other end of the message: to_addr on
+        // something we sent, from_addr on something we received. Reading from_addr
+        // regardless handed back our own Twilio line for any thread whose newest message
+        // is outgoing — every unknown thread in the Sent folder. "Create lead" then saved
+        // the Hub's own number as the contact's, and two strangers' texts collected on one
+        // record (Laura Steffeck / Stephanie Backen, John 2026-11-03).
+        phone: r.client_id ? null : ((r.direction === 'outgoing' ? r.to_addr : r.from_addr) || r.from_addr || r.to_addr || ''),
       })
     }
     const t = threads.get(key)
@@ -525,6 +531,26 @@ router.post('/unknown/relink-all', (_req, res) => {
     if (n) out.push({ client_id: match.id, name, phone_last10: k, linked: n })
   }
   res.json({ scanned_unknown_threads: keys.length, linked_threads: out.length, details: out })
+})
+
+// Move ONE message onto the lead it actually belongs to. relinkUnknownThread only
+// touches messages that are still unattached, so a text already filed against the wrong
+// person had no way back — and two people's texts sat on one record with no way to
+// separate them (John 2026-11-03). Takes the single message, not the thread, because
+// that is exactly the mess being undone: a thread holding more than one person.
+router.post('/comm/:id/reassign', (req, res) => {
+  const id = Number(req.params.id)
+  const m = db.get('SELECT id, channel, client_id FROM communications WHERE id=?', [id])
+  if (!m) return res.status(404).json({ error: 'message not found' })
+  const c = db.get('SELECT id, first_name, last_name FROM clients WHERE id=? AND merged_into IS NULL', [Number(req.body?.client_id)])
+  if (!c) return res.status(404).json({ error: 'client not found' })
+  const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
+  db.run('UPDATE communications SET client_id=?, contact_name=?, thread_key=? WHERE id=?',
+    [c.id, name, `c${c.id}_${m.channel}`, id])
+  for (const cid of new Set([m.client_id, c.id].filter(Boolean))) {
+    try { import('../followup-coverage.js').then(x => x.recalcCoverage(Number(cid), { actorType: 'system' })).catch(() => {}) } catch {}
+  }
+  res.json({ success: true, message_id: id, from_client_id: m.client_id || null, to_client_id: c.id, contact_name: name })
 })
 
 // Link an unknown conversation to an existing client.
