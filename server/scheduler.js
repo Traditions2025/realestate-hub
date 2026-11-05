@@ -3,17 +3,14 @@ import db from './database.js'
 import { processLead, sierraGet } from './sierra-helper.js'
 import { sendDigest, chicagoDateKey } from './transaction-digest.js'
 import { runDailyBackup } from './backup.js'
+import { hvResponsePaused } from './home-value-intake.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
-// Home Value response pause (John, 2026-11-05, while the wording is being rewritten).
-// The response runs on TWO clocks — the intake poller and the SMS sweep below — so the
-// switch is read here, where both are started, rather than inside either one. Paused is
-// not deaf: requests are still recorded and tagged, only the outbound half stops.
-// Set through POST /api/drips/home-value/settings { response_paused: true }.
-function hvResponsePaused() {
-  try { return String(db.getSetting?.('home_value_response_paused', '0')) === '1' } catch { return false }
-}
+// Home Value response pause. The switch itself lives with the intake, because that is
+// the choke point every door goes through - gating it here only covered the two clocks
+// below and let gmail-inbox.js past (John, 2026-11-05). Kept on the sweep as well so a
+// paused response does no work rather than deciding not to send, once per step.
 
 // Convert SQLite "YYYY-MM-DD HH:MM:SS" (UTC) or any ISO string to Sierra-friendly UTC ISO with Z
 function toSierraDate(input) {

@@ -22,7 +22,9 @@ const drips = src('../server/routes/drips.js')
 const intake = src('../server/home-value-intake.js')
 
 test('both clocks read the pause, so neither keeps running alone', () => {
-  assert.match(scheduler, /function hvResponsePaused\(\)/)
+  // The switch moved to home-value-intake.js, the choke point every door goes through;
+  // the scheduler imports it rather than keeping a second copy (John, 2026-11-05).
+  assert.match(scheduler, /import \{ hvResponsePaused \}/)
   assert.match(scheduler, /if \(hvResponsePaused\(\)\) return\s*\n\s*import\('\.\/home-value-sms\.js'\)/,
     'the SMS sweep does not start while paused')
   assert.match(scheduler, /pollHomeValueSubmissions\(\{ sinceDays: 2, max: 25, recordOnly: hvResponsePaused\(\) \}\)/,
@@ -56,4 +58,43 @@ test('the pause is its own switch, separate from enrolling past clients', () => 
   assert.match(drips, /db\.setSetting\('home_value_enroll_enabled', b\.enabled \? '1' : '0'\)/)
   assert.ok(!/response_paused.*enroll_enabled|enroll_enabled.*response_paused/.test(drips.replace(/\n/g, ' ').slice(0, 0) || ''),
     'they are set from different request fields')
+})
+
+// THE PAUSE MUST BE AT THE CHOKE POINT, NOT AT THE CALLERS (John, 2026-11-05).
+//
+// It was first put on the scheduler's two clocks. gmail-inbox.js is a THIRD door: it
+// intercepts the notification as it arrives and calls handleHomeValueSubmission straight
+// away, so a paused response still emailed and texted Mary Chval #46111 at 12:44 and
+// 12:47. Every door goes through that one function.
+test('the pause is read inside the handler every door goes through', () => {
+  const intake = src('../server/home-value-intake.js')
+  assert.match(intake, /export function hvResponsePaused\(\)/, 'the switch lives with the intake')
+  assert.match(intake, /if \(hvResponsePaused\(\)\) recordOnly = true/,
+    'and the handler itself honours it')
+  // it is read BEFORE anything is sent
+  const body = intake.slice(intake.indexOf('export async function handleHomeValueSubmission'))
+  assert.ok(body.indexOf('hvResponsePaused()') < body.indexOf('sendViaSendGrid') ||
+            body.indexOf('hvResponsePaused()') < body.indexOf('scheduleConditionQuestion'),
+    'checked before any send is reached')
+})
+
+test('every caller of the handler is covered by that one check', async () => {
+  // A caller that passes no options is now safe. Enumerated so a new door added later
+  // shows up here as a change rather than as a text somebody receives.
+  const { readFileSync, readdirSync } = await import('node:fs')
+  const dir = new URL('../server/', import.meta.url)
+  const callers = []
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith('.js')) continue
+    const t = readFileSync(new URL(f, dir), 'utf8')
+    if (/\bhandleHomeValueSubmission\(/.test(t.replace(/export async function handleHomeValueSubmission\(/, ''))) callers.push(f)
+  }
+  assert.deepEqual(callers.sort(), ['gmail-inbox.js', 'home-value-intake.js'],
+    'the known doors; a new one means re-checking the pause reaches it')
+})
+
+test('the scheduler uses the shared switch rather than its own copy', () => {
+  const sched = src('../server/scheduler.js')
+  assert.match(sched, /import \{ hvResponsePaused \} from '\.\/home-value-intake\.js'/)
+  assert.ok(!/function hvResponsePaused\(\)/.test(sched), 'no second definition to drift')
 })

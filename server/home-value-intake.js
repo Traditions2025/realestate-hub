@@ -22,6 +22,13 @@ import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
 import * as HVA from './home-value-answers.js'
 
 const nowIso = () => new Date().toISOString()
+
+// Is the Home Value response paused? Set through POST /api/drips/home-value/settings
+// { response_paused: true }. Paused is not deaf: a request is still parsed, the lead is
+// still created and tagged and the visit still counted - only the sending stops.
+export function hvResponsePaused() {
+  try { return String(db.getSetting?.('home_value_response_paused', '0')) === '1' } catch { return false }
+}
 // The canonical tag every requester carries, whichever door they came through. Its NAME is
 // the retired seller site, which reads oddly now the tool has moved - but it is left
 // exactly as it is on purpose: the Home Value Requested smart list matches it, and
@@ -197,6 +204,13 @@ function addTag(client, ...add) {
 // about a lookup they did three weeks ago.
 export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), dryRun = false, recordOnly = false } = {}) {
   if (!sub || !sub.email) return { skipped: 'no email on the submission' }
+  // THE PAUSE LIVES HERE, not at the callers (John, 2026-11-05). It was first put on the
+  // scheduler's two clocks - the poller and the SMS sweep - which missed the third door:
+  // gmail-inbox.js intercepts the notification as it arrives and calls this directly. So
+  // a paused response still emailed and texted Mary Chval #46111 at 12:44 and 12:47.
+  // Every door goes through this function, so gating it here is the only version that
+  // cannot be bypassed by a caller nobody remembered.
+  if (hvResponsePaused()) recordOnly = true
   // Two doors now lead here: the IMAP poller and the webhook (routes/drips.js). They can
   // see the SAME notification seconds apart, so the dedupe key must not depend on which
   // one got there first. The form's own submitted-at string does not; arrival time does.

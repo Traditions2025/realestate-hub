@@ -391,10 +391,11 @@ export default function ClientProfile() {
         )}
         {(() => {
           const renderers = {
-            details: () => (<>
-              <ClientDetails client={client} onSaved={load} />
-              <HomeValueReportCard client={client} onSent={load} />
-            </>),
+            details: () => <ClientDetails client={client} onSaved={load} />,
+            // Its own box in the right column (John, 2026-11-05). Renders nothing at all
+            // for a lead who never asked for a home value, so it costs an empty slot on
+            // every other profile rather than a heading with nothing under it.
+            homevalue: () => <HomeValueReportCard client={client} onSent={load} />,
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onNotesChanged={notes => setClient(c => ({ ...c, notes }))} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             // Four boxes became one (John, 2026-10-01): Property Activity, Listing
@@ -2287,7 +2288,7 @@ function ListingInterest({ client, sub = false }) {
 // ── Draggable section layout (rearrange boxes; persists globally for all leads) ──────────
 // 'notes' is gone as a standalone box (2026-09-11): notes live inside the Communications tab
 // strip now, so loadLayout silently drops it from any saved layout.
-const DEFAULT_LAYOUT = { left: ['details', 'comms', 'summary', 'bsprofile', 'website'], right: ['sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
+const DEFAULT_LAYOUT = { left: ['details', 'comms', 'summary', 'bsprofile', 'website'], right: ['homevalue', 'sellerintent', 'coverage', 'appts', 'cxcamp', 'fsbocamp', 'ai', 'plans', 'tasks', 'txns'] }
 // Client Details is locked: always the first box in the left column, never draggable —
 // an accidental drag can't move it out of place.
 export function lockDetailsFirst(l) {
