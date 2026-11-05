@@ -21,7 +21,9 @@ const nowIso = () => new Date().toISOString()
 const DAY = 86400000
 
 export function hvSmsEnabled() {
-  try { return String(db.getSetting?.('home_value_sms_enabled', '1')) === '1' } catch { return true }
+  try {
+    return String(db.getSetting?.('home_value_sms_enabled', '1')) === '1'
+  } catch { return true }
 }
 
 /**
@@ -443,6 +445,20 @@ ${ps}
 async function sendStep(client, row, step) {
   const f = mergeFieldsFor(client)
   try {
+    // WHAT DO WE ALREADY KNOW? The nine-screen questionnaire usually answers most of what
+    // these steps were written to ask, so the step is resolved against the stored answers
+    // before anything is composed. Three outcomes: send (possibly rewritten), skip (the
+    // question is already answered - advance without sending), or hand off to a person.
+    const { stepPlan } = await import('./home-value-steps.js')
+    const plan = stepPlan(client, step, f)
+    if (plan.action === 'skip') {
+      log(client.id, 'skipped', { step_key: step.key, reason: plan.reason })
+      advanceAfterSend(client, row, step, { body: `(skipped: ${plan.reason})`, commId: null })
+      return { ok: true, skipped: plan.reason }
+    }
+    if (plan.action === 'handoff') {
+      return await handOffToPerson(client, row, step, plan.reason)
+    }
     // ---- EMAIL STEPS ----
     // They obey the same cross-campaign ceiling as every other automated email: 1 a day,
     // 2 a week, counted across drips, campaigns and manual sends. Over the cap returns
@@ -453,8 +469,9 @@ async function sendStep(client, row, step) {
       const cap = emailCapBlock(client.id, 'home_value_response')
       if (cap) return { ok: false, reason: cap.reason }
       const { sendSequenceEmail } = await import('./routes/email.js')
-      const subject = step.subject({ first_name: f.first_name, street: f.street })
-      const paras = step.paras({ first_name: f.first_name, street: f.street })
+      // the resolver's rewrite wins where it supplied one; otherwise the written copy
+      const subject = plan.subject || step.subject({ first_name: f.first_name, street: f.street })
+      const paras = plan.paras || step.paras({ first_name: f.first_name, street: f.street })
       const r = await sendSequenceEmail(client, { subject, body: hvEmailHtml(f.first_name, paras) }, 'home_value_response')
       if (r?.ok === false) return { ok: false, reason: r.reason }
       advanceAfterSend(client, row, step, { body: subject, commId: null })
@@ -464,7 +481,7 @@ async function sendStep(client, row, step) {
     // ---- SMS STEPS ----
     // No greeting is prepended. John's copy for this campaign deliberately opens
     // mid-thought, and the Hi/Hello/time-of-day rotation would fight it.
-    const body = step.text({ first_name: f.first_name, street: f.street })
+    const body = plan.text || step.text({ first_name: f.first_name, street: f.street })
     const { canSendSms, canAutomatedSend } = await import('./ai-followup/policy.js')
     const gate = canSendSms(client, { channel: 'automation' })
     if (!gate.ok) return { ok: false, reason: gate.reason }
@@ -481,6 +498,44 @@ async function sendStep(client, row, step) {
     advanceAfterSend(client, row, step, { body, commId: ins.lastInsertRowid })
     return { ok: true }
   } catch (e) { return { ok: false, reason: e.message } }
+}
+
+/**
+ * Stop automating and put a person on it.
+ *
+ * Someone who told the form they are moving in 1-3 months has already answered the
+ * question the sequence spends six weeks working towards. Leaving them in a generic drip
+ * is the worst outcome available: the texts keep asking what they already said, and the
+ * one person who would have called them assumes the campaign has it in hand.
+ *
+ * The sequence stops rather than pauses. Nothing further sends, and the campaign cannot
+ * quietly resume underneath a conversation a person is now having.
+ */
+async function handOffToPerson(client, row, step, reason) {
+  const name = `${client.first_name || ''} ${client.last_name || ''}`.trim() || `#${client.id}`
+  db.run(`UPDATE home_value_sms SET status='handoff', next_send_at=NULL, stop_reason=?,
+          human_followup_required=1, updated_at=? WHERE client_id=?`,
+    [reason, nowIso(), client.id])
+  log(client.id, 'handoff', { step_key: step.key, reason })
+  for (const id of pendingTextIds(client.id)) {
+    db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?",
+      ['seller intent - a person takes over', id])
+  }
+  // Keep the AI out of it for the same reason the campaign steps aside.
+  try {
+    const m = await import('./ai-followup/state.js')
+    m.transitionAiState(client.id, 'HUMAN_TAKEOVER', 'home value: stated seller timeframe')
+  } catch { /* the handoff still stands without it */ }
+  try {
+    const m = await import('./notifications.js')
+    await m.notify({
+      type: 'home_value_intent',
+      title: `Seller intent: ${name}`,
+      body: `${reason}. The home value sequence has stopped so it does not talk over you.`,
+      client_id: client.id,
+    })
+  } catch { /* a missed notification must not undo the stop */ }
+  return { ok: true, handoff: reason }
 }
 
 // Shared by both channels so the schedule can never advance one way for a text and another

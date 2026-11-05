@@ -59,7 +59,9 @@ test('the weekday is derived from the Chicago date, not the UTC one', async () =
 // and nothing ever called it. Nicole Morris submitted at 5 PM on 2026-09-29 and got no
 // follow-up and no alert, because the only way to run the poller was a manual POST.
 test('the submission poller is on an interval', () => {
-  assert.match(src, /pollHomeValueSubmissions\(\{ sinceDays: 2, max: 25 \}\)/)
+  // The call now also carries recordOnly, which is how the response is paused, so match
+  // the window it polls rather than the whole argument list (John, 2026-11-05).
+  assert.match(src, /pollHomeValueSubmissions\(\{ sinceDays: 2, max: 25[,)]/)
   assert.match(src, /\}, 10 \* 60 \* 1000\)/)
 })
 

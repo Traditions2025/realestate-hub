@@ -19,6 +19,7 @@
 import db from './database.js'
 import { rule } from './rules.js'
 import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
+import * as HVA from './home-value-answers.js'
 
 const nowIso = () => new Date().toISOString()
 // The canonical tag every requester carries, whichever door they came through. Its NAME is
@@ -130,6 +131,19 @@ export function parseHomeValueEmail(text) {
     // question is John's call, and nothing here changes that sequence.
     condition: sub('HV_Condition'),
     would_buy: sub('HV_Would_Buy'),
+    // The whole submission on one line: beds, baths, update ages, remodel depth, basement
+    // and garage. Carried through raw and decoded by home-value-answers.js, so the parser
+    // stays a parser and the storage decisions live in one place.
+    HV_Data: sub('HV_Data'),
+    // Prose answers arrive as their OWN labelled fields, never inside HV_Data: homeowners
+    // write ';', '|' and '=' and HV_Data's safe() strips those as separators, which would
+    // damage the one sentence we quote back to them on the phone. HV_Condition_Gap is the
+    // name the form sends; HV_Make_It_10 is read only as a tolerant fallback and will
+    // never actually arrive.
+    condition_gap: sub('HV_Condition_Gap') || sub('HV_Make_It_10'),
+    work_notes: sub('HV_Work_Notes'),
+    basement_notes: sub('HV_Basement_Notes'),
+    other_notes: sub('HV_Notes'),
     address: street, city, state: stZip ? stZip[1].toUpperCase() : '', zip: stZip && stZip[2] ? stZip[2] : '',
     address_full: addressLine,
     timeframe: sub('I am Planning to Move') || sub('Moving_When') || sub('HV_Timeline'),
@@ -283,6 +297,15 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
   db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
     ['home_value_submission', 'client', client.id, detail])
 
+  // Keep the ANSWERS, not just a sentence about them. Until this existed the response
+  // sequence had nothing to read, so every step asked as if the nine screens had never
+  // been filled in. Stored before the email goes out, so Day 0 can already be conditional.
+  try {
+    const { initHvAnswers, saveAnswers } = await import('./home-value-answers.js')
+    initHvAnswers()
+    saveAnswers(client.id, sub, { submittedAt })
+  } catch (e) { console.error('[home-value] storing answers failed:', e.message) }
+
   if (recordOnly) return { client_id: client.id, created, visit: visitNo, recorded_only: true, detail }
 
   // Tell the team. The Sierra notification only reaches mattsmithremax@gmail.com, so a
@@ -354,8 +377,63 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
 // "don't touch what we've already built last time, this is just additional text and
 // emails". So the Day 0 message is the Oct 19 one, URL included, and everything in the new
 // spec is additional to it.
+// What a homeowner who answered everything gets instead of another question. It confirms
+// the request arrived, says their answers are being used, and sets the expectation for the
+// real reply. No question mark anywhere in it, deliberately (John's spec §5).
+//
+// It promises a reply within 24 hours, which is a commitment on the team rather than on
+// the software: nothing here sends that reply.
+export const DAY0_CONFIRMATION =
+  "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value for {{street_address}}. We received the information you shared about the property, and we'll use those details to give you a more informed look than an automated estimate alone. We'll get that over to you within 24 hours."
+
 export const CONDITION_QUESTION =
   "Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX. Thanks for requesting a home value estimate for {{street_address}}! To help us narrow down the value, I have a quick question. On a scale of 1 to 10, how would you rate your home's overall condition? 1 being it needs a complete renovation and 10 being in model-home condition. https://www.mattsmithteam.com/"
+
+/**
+ * What the Day 0 text should actually say for THIS homeowner.
+ *
+ * John's Oct 19 wording is unchanged and still used whenever the rating is missing - it is
+ * approved copy and the common case before the questionnaire existed. The other branches
+ * exist because asking someone to rate a condition they rated ninety seconds ago is the
+ * clearest possible signal that nobody read their answers.
+ *
+ * Returns '' when there is nothing worth asking, and the caller sends nothing rather than
+ * manufacturing a question to fill the slot.
+ */
+export function day0TextFor(client) {
+  const cid = Number(client?.id)
+  // Merge TOKENS, not interpolated values, exactly like CONDITION_QUESTION. The sender
+  // fills them, and that is where the junk-name guard lives - a lead called "Test" or
+  // "unknown" becomes "there". Interpolating here would bypass it and send "Hi Test,".
+  const hi = `Hi {{first_name}}, this is John with Matt Smith Team at RE/MAX.`
+  const a = HVA.latestAnswers(cid) || {}
+  const learned = HVA.learnedFacts(cid) || {}
+  const where = '{{street_address}}'
+  // A substantially complete questionnaire has earned a reply, not a tenth question
+  // (John's spec, 2026-11-05 §5). Someone who filled in nine screens gets confirmation
+  // that it arrived and is being used - the gap question below is a FALLBACK for an
+  // incomplete submission, not the default.
+  if (HVA.profileCompleteness(cid).label === 'HIGH') return DAY0_CONFIRMATION
+  if (!HVA.known(cid, 'condition', a, learned)) return CONDITION_QUESTION
+  const rating = a.condition_rating || learned.condition_rating
+  if (!HVA.known(cid, 'condition_gap', a, learned)) {
+    return `${hi} Thanks for sharing the details on ${where}. You rated the home a ${rating} out of 10. What would you say is the main thing keeping it from being a 10?`
+  }
+  const q = HVA.nextBestQuestion(cid)
+  if (q === 'update_timing') {
+    return `${hi} Thanks for sharing the details on ${where}. Roughly when was that work done? A rough estimate is completely fine.`
+  }
+  if (q === 'remodel_depth') {
+    return `${hi} Thanks for sharing the details on ${where}. Was that work more of a refresh, or a full remodel?`
+  }
+  if (q === 'best_feature') {
+    return `${hi} Thanks for sharing all the details on ${where}. One thing that is hard to tell from records: what would you say is the best feature of the home?`
+  }
+  if (!q) {
+    return `${hi} Thanks for sharing all the details on ${where}. That gives us a much better picture of the home than an online estimate alone. We will take it from here and be in touch.`
+  }
+  return `${hi} Thanks for sharing the details on ${where}. That gives us a much better picture of the home than an online estimate alone.`
+}
 
 /**
  * Queue the condition question. Returns without scheduling rather than throwing, because a
@@ -389,6 +467,14 @@ export function scheduleConditionQuestion(client) {
        AND status IN ('sent','scheduled') LIMIT 1`, [cid])
   if (asked) return { ok: false, reason: 'already asked this lead' }
 
+  // WHAT DID THEY ALREADY TELL US? They have just come off a nine-screen form, so the
+  // 1-to-10 question is usually answered before this text is even queued. Asking it anyway
+  // is the single most obvious way to look like nobody read their answers, so the Day 0
+  // text now asks for whatever is genuinely still missing - and says nothing at all when
+  // the answer is "nothing".
+  const body = day0TextFor(client)
+  if (!body) return { ok: false, reason: 'the questionnaire answered everything worth asking' }
+
   const mins = (() => { try { return rule('home_value_question_delay_minutes') } catch { return 2 } })()
   // Two minutes, but inside the permitted SMS window. John's spec, 2026-10-19: "the
   // existing Day 0 two-minute delay must also respect permitted sending hours. If the
@@ -399,7 +485,7 @@ export function scheduleConditionQuestion(client) {
 
   const r = db.run(`INSERT INTO scheduled_texts (client_id, phone, body, send_at, status, created_by, created_at)
                     VALUES (?,?,?,?,'scheduled','home_value_intake',?)`,
-    [cid, client.phone, CONDITION_QUESTION, at.toISOString(), nowIso()])
+    [cid, client.phone, body, at.toISOString(), nowIso()])
   return { ok: true, id: r.lastInsertRowid, send_at: at.toISOString(), delayed_for_quiet_hours: at.getTime() > Date.now() + (mins + 1) * 60000 }
 }
 
