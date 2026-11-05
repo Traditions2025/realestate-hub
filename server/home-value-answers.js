@@ -44,28 +44,24 @@ export function isPastClient(client) {
 }
 
 /**
- * The submission as a NOTE on the lead: what was asked, and what they said (John,
- * 2026-11-05 - "it needs to show what the question is and what the answer is").
+ * The submission as QUESTIONS AND ANSWERS, for the Home Value box on the lead profile
+ * (John, 2026-11-05 - "it needs to show what the question is and what the answer is",
+ * then "make it a separate box instead").
  *
- * Until now a submission left one run-on line in the activity log - "condition: 9/10 ·
- * would need to buy: yes" - and nothing at all in the notes, which is where anyone
- * actually looks before picking up the phone. Half the answers were not in it: beds,
- * baths, the basement, the garage, how extensive the work was.
+ * The questions are the form's own, in the form's own order, so the box reads like the
+ * conversation they just had. A question they SKIPPED stays on the list with a null
+ * answer rather than being dropped: what they did not answer is what tells you what is
+ * still worth asking, and it is the same list the response sequence reads.
  *
- * The questions are the form's own, in the form's own order, so the note reads like the
- * conversation they just had. An unanswered question stays on the list rather than being
- * dropped, because knowing what they SKIPPED is what tells you what is still worth asking.
- *
- * One note, several lines. clients.notes is one text field and a line after a stamped one
- * is a continuation of it, so this lands as a single dated note rather than twelve.
+ * Built from the STORED answers rather than the notification text, so it says the same
+ * thing whether the submission arrived live or was recorded afterwards.
  */
-export function submissionNote(sub, { visit = 1 } = {}) {
-  const a = parseHvData(sub?.HV_Data)
-  const none = '(not answered)'
-  const val = (v) => { const s = String(v == null ? '' : v).trim(); return s || none }
+export function submissionQA(clientId) {
+  const a = latestAnswers(clientId)
+  if (!a) return null
 
-  const baths = [a.bathsf ? `${a.bathsf} full` : '', a.bathsh && a.bathsh !== '0' ? `${a.bathsh} half` : '']
-    .filter(Boolean).join(', ')
+  const baths = [a.baths_full ? `${a.baths_full} full` : '',
+    a.baths_half && a.baths_half !== '0' ? `${a.baths_half} half` : ''].filter(Boolean).join(', ')
   const bedBath = [a.beds ? `${a.beds} bed` : '', baths].filter(Boolean).join(', ')
 
   const updates = Object.entries(a.updates || {})
@@ -73,9 +69,9 @@ export function submissionNote(sub, { visit = 1 } = {}) {
     .join(', ')
 
   const depth = [
-    remodelLabel('remodel_kitchen', a.lvlk) && `kitchen ${remodelLabel('remodel_kitchen', a.lvlk)}`,
-    remodelLabel('remodel_bath', a.lvlb) && `bathroom ${remodelLabel('remodel_bath', a.lvlb)}`,
-    remodelLabel('remodel_basement', a.lvlbs) && `basement ${remodelLabel('remodel_basement', a.lvlbs)}`,
+    remodelLabel('remodel_kitchen', a.remodel_kitchen) && `kitchen ${remodelLabel('remodel_kitchen', a.remodel_kitchen)}`,
+    remodelLabel('remodel_bath', a.remodel_bath) && `bathroom ${remodelLabel('remodel_bath', a.remodel_bath)}`,
+    remodelLabel('remodel_basement', a.remodel_basement) && `basement ${remodelLabel('remodel_basement', a.remodel_basement)}`,
   ].filter(Boolean).join(', ')
 
   const FINISH = { none: 'unfinished', part: 'partially finished', mostly: 'mostly finished', all: 'fully finished' }
@@ -85,25 +81,33 @@ export function submissionNote(sub, { visit = 1 } = {}) {
   const garage = [
     a.garage_stalls && a.garage_stalls !== '0' ? `${a.garage_stalls} stall` : (a.garage_stalls === '0' ? 'none' : ''),
     a.garage_type && a.garage_type !== 'unsure' ? a.garage_type : '',
+    a.parking || '',
   ].filter(Boolean).join(', ')
 
-  const lines = [
-    `HOME VALUE REQUEST · visit #${visit}${sub?.submission_id ? ` · ${sub.submission_id}` : ''}`,
-    `Your address: ${val(sub?.address_full)}`,
-    `How would you rate the overall condition of your home? ${val(sub?.condition)}${sub?.condition ? ' out of 10' : ''}`,
-    `What keeps it from being a 10? ${val(sub?.condition_gap)}`,
-    `Let's make sure we have the house itself right: ${val(bedBath)}`,
-    `What have you updated while you've owned the home? ${val(updates)}`,
-    `How extensive were those updates? ${val(depth)}`,
-    `Anything specific about the work? ${val(sub?.work_notes)}`,
-    `Tell us a little about the basement: ${val(basement)}`,
-    `Anything about the basement we should know? ${val(sub?.basement_notes)}`,
-    `What kind of garage and parking does the home have? ${val(garage)}`,
-    `I am planning to move: ${val(sub?.timeframe)}`,
-    `Would you need to buy another home? ${val(sub?.would_buy)}`,
-    `Anything else you'd like us to know? ${val(sub?.other_notes)}`,
-  ]
-  return lines.join('\n')
+  const clean = (v) => { const s = String(v == null ? '' : v).trim(); return s || null }
+  const pairs = [
+    ['How would you rate the overall condition of your home?', a.condition_rating ? `${a.condition_rating} out of 10` : null],
+    ['What keeps it from being a 10?', clean(proseForHomeowner(a.condition_gap))],
+    ["Let's make sure we have the house itself right", clean(bedBath)],
+    ["What have you updated while you've owned the home?", clean(updates)],
+    ['How extensive were those updates?', clean(depth)],
+    ['Anything specific about the work?', clean(proseForHomeowner(a.work_notes))],
+    ['Tell us a little about the basement', clean(basement)],
+    ['Anything about the basement we should know?', clean(proseForHomeowner(a.basement_notes))],
+    ['What kind of garage and parking does the home have?', clean(garage)],
+    ['I am planning to move', clean(a.timeframe)],
+    ['Would you need to buy another home?', clean(a.would_buy)],
+    ["Anything else you'd like us to know?", clean(proseForHomeowner(a.other_notes))],
+  ].map(([q, ans]) => ({ q, a: ans }))
+
+  return {
+    submission_id: a.submission_id,
+    submitted_at: a.submitted_at,
+    source: a.source,
+    answered: pairs.filter((p) => p.a).length,
+    total: pairs.length,
+    pairs,
+  }
 }
 
 export function initHvAnswers() {

@@ -20,7 +20,6 @@ import db from './database.js'
 import { rule } from './rules.js'
 import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
 import * as HVA from './home-value-answers.js'
-import { prependNote } from './client-notes.js'
 
 const nowIso = () => new Date().toISOString()
 // The canonical tag every requester carries, whichever door they came through. Its NAME is
@@ -307,12 +306,10 @@ export async function handleHomeValueSubmission(sub, { submittedAt = nowIso(), d
     saveAnswers(client.id, sub, { submittedAt })
   } catch (e) { console.error('[home-value] storing answers failed:', e.message) }
 
-  // ...and on the lead where anyone actually looks before picking up the phone, as the
-  // questions they were asked and the answers they gave (John, 2026-11-05). The activity
-  // line above is a summary; this is the record.
-  try {
-    writeSubmissionNote(client.id, sub, visitNo, submittedAt)
-  } catch (e) { console.error('[home-value] writing the note failed:', e.message) }
+  // The questions and answers are NOT written into clients.notes. They render from the
+  // stored answers in the Home Value box on the profile instead (John, 2026-11-05: "make
+  // it a separate box instead"), which keeps the notes field for what a person wrote and
+  // means a re-read of the submission cannot leave the questionnaire on the record twice.
 
   if (recordOnly) return { client_id: client.id, created, visit: visitNo, recorded_only: true, detail }
 
@@ -565,24 +562,6 @@ async function sendSubmissionAlert({ client, sub, created, visitNo }) {
 
   await sendViaSendGrid('johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com',
     'Matt Smith Team', subject, html, null, [], [], [], 'home_value_alert')
-}
-
-/**
- * Put the submission on the lead as a dated note. Shared so a backfilled submission is
- * written exactly as a live one, and idempotent on the submission id: the intake can see
- * the same notification twice and must not leave the questionnaire on the record twice.
- */
-export function writeSubmissionNote(clientId, sub, visitNo = 1, submittedAt = nowIso()) {
-  const cid = Number(clientId)
-  const row = db.get('SELECT notes FROM clients WHERE id = ?', [cid])
-  if (!row) return { ok: false, reason: 'no client' }
-  const marker = sub?.submission_id
-  if (marker && String(row.notes || '').includes(marker)) return { ok: false, reason: 'already on the record' }
-  const text = HVA.submissionNote(sub, { visit: visitNo })
-  const when = new Date(submittedAt)
-  db.run('UPDATE clients SET notes = ?, updated_at = ? WHERE id = ?',
-    [prependNote(row.notes, text, { when: isNaN(when.getTime()) ? new Date() : when, by: 'Home Value' }), nowIso(), cid])
-  return { ok: true }
 }
 
 export async function pollHomeValueSubmissions({ sinceDays = 3, max = 25, dryRun = false, recordOnly = false } = {}) {

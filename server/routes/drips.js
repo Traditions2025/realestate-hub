@@ -495,16 +495,14 @@ router.post('/home-value/answers/:clientId', async (req, res) => {
     }
     const raw = String(req.body?.raw || '')
     if (!raw.trim()) return res.status(400).json({ error: 'paste the notification text as `raw`' })
-    const { parseHomeValueEmail, writeSubmissionNote } = await import('../home-value-intake.js')
+    const { parseHomeValueEmail } = await import('../home-value-intake.js')
     const { initHvAnswers, saveAnswers, latestAnswers } = await import('../home-value-answers.js')
     const sub = parseHomeValueEmail(raw)
     if (!sub.submission_id) return res.status(400).json({ error: 'no HV_Submission_ID in that text' })
     initHvAnswers()
     const submittedAt = req.body?.submitted_at || new Date().toISOString()
     saveAnswers(cid, sub, { submittedAt })
-    // Same note a live submission writes, so a backfill leaves the same record behind.
-    const note = writeSubmissionNote(cid, sub, Number(req.body?.visit) || 1, submittedAt)
-    res.json({ success: true, client_id: cid, submission_id: sub.submission_id, note_written: !!note.ok, stored: latestAnswers(cid) || null })
+    res.json({ success: true, client_id: cid, submission_id: sub.submission_id, stored: latestAnswers(cid) || null })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
@@ -515,12 +513,14 @@ router.get('/home-value/reports/:clientId', async (req, res) => {
   const { initHvReports, latestReport } = await import('../home-value-report.js')
   initHvReports()
   const cid = Number(req.params.clientId)
-  let submission = null
+  // The whole questionnaire, as the questions they were asked and the answers they gave,
+  // so the box on the profile reads like the conversation rather than a row of fields.
+  let qa = null
   try {
-    submission = db.get(`SELECT submission_id, submitted_at, condition_rating, timeframe
-      FROM home_value_answers WHERE client_id = ? ORDER BY submitted_at DESC LIMIT 1`, [cid])
+    const { submissionQA } = await import('../home-value-answers.js')
+    qa = submissionQA(cid)
   } catch { /* the table arrives with the first submission */ }
-  res.json({ submission: submission || null, last_report: latestReport(cid) || null })
+  res.json({ submission: qa, last_report: latestReport(cid) || null })
  } catch (e) { res.status(500).json({ error: e.message }) }
 })
 

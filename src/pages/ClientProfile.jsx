@@ -1965,21 +1965,48 @@ function HomeValueReportCard({ client, onSent }) {
   }
 
   if (!state || !state.submission) return null
+  const sub = state.submission
   const sent = state.last_report && state.last_report.status === 'sent' ? state.last_report : null
   const inp = { padding: '6px 9px', fontSize: 15, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 130 }
+  // The date in full, because "when did they ask" is the first thing anyone wants and
+  // a bare 2026-11-05 makes you do the arithmetic (John, 2026-11-05).
+  const asked = (() => {
+    const d = new Date(sub.submitted_at)
+    if (isNaN(d.getTime())) return String(sub.submitted_at || '')
+    return d.toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+  })()
 
   return (
-    <Section title="🏠 Home Value — send the report">
-      <p style={{ margin: '0 0 10px', fontSize: 14.5, color: 'var(--text-secondary)' }}>
-        Asked {String(state.submission.submitted_at || '').slice(0, 10)}
-        {state.submission.condition_rating ? ` · they rated it ${state.submission.condition_rating}/10` : ''}
-        {state.submission.timeframe ? ` · ${state.submission.timeframe}` : ''}
+    <Section title="🏠 Home Value request">
+      <p style={{ margin: '0 0 2px', fontSize: 15, fontWeight: 600 }}>Asked {asked}</p>
+      <p style={{ margin: '0 0 12px', fontSize: 14, color: 'var(--text-muted)' }}>
+        {sub.answered} of {sub.total} questions answered
+        {sub.submission_id ? ` · ${sub.submission_id}` : ''}
       </p>
+
+      {/* What they were asked, and what they said. A question they skipped stays on the
+          list greyed out: what they did NOT answer is what is still worth asking. */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
+        {(sub.pairs || []).map((p, i) => (
+          <div key={i} style={{
+            display: 'flex', gap: 10, flexWrap: 'wrap', padding: '7px 10px', fontSize: 14.5,
+            background: i % 2 ? 'transparent' : 'var(--bg-secondary)',
+            borderTop: i ? '1px solid var(--border)' : 'none',
+          }}>
+            <span style={{ flex: '1 1 240px', color: 'var(--text-secondary)' }}>{p.q}</span>
+            <span style={{ flex: '1 1 200px', fontWeight: p.a ? 600 : 400, color: p.a ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+              {p.a || 'not answered'}
+            </span>
+          </div>
+        ))}
+      </div>
+
       {sent && (
         <p style={{ margin: '0 0 10px', fontSize: 14.5, color: 'var(--text-secondary)' }}>
           Last sent {String(sent.sent_at || '').slice(0, 10)}: <strong>{money(sent.value_low)} – {money(sent.value_high)}</strong>
         </p>
       )}
+      <p style={{ margin: '0 0 6px', fontSize: 14.5, fontWeight: 600 }}>Send them a value</p>
       <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
         <input style={inp} value={low} placeholder="Low" inputMode="numeric" onChange={e => setLow(e.target.value)} />
         <span style={{ color: 'var(--text-muted)' }}>to</span>
