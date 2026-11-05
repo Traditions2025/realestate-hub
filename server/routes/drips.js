@@ -494,6 +494,10 @@ router.post('/home-value/settings', async (req, res) => {
     db.setSetting('home_value_excluded_ids', ids.join(','))
   }
   if (b.enabled !== undefined) db.setSetting('home_value_enroll_enabled', b.enabled ? '1' : '0')
+  // Pause the RESPONSE (intake email + Day 0 question + the 45-day SMS sequence). Separate
+  // from `enabled`, which governs enrolling past clients into the long-term nurture. While
+  // paused, requests are still recorded and tagged; only the outbound half stops.
+  if (b.response_paused !== undefined) db.setSetting('home_value_response_paused', b.response_paused ? '1' : '0')
   if (b.daily_limit !== undefined) db.setSetting('home_value_enroll_daily_limit', String(Math.max(1, Number(b.daily_limit) || 200)))
   if (b.ramp !== undefined) db.setSetting('home_value_enroll_ramp', b.ramp ? '1' : '0')
   // The saved exclusion list is echoed back. It was write-only, so the one setting that
@@ -504,6 +508,8 @@ router.post('/home-value/settings', async (req, res) => {
   res.json({
     success: true, ...cfg,
     excluded_ids: String(db.getSetting('home_value_excluded_ids', '') || ''),
+    // Echoed back so a pause can be CONFIRMED rather than assumed.
+    response_paused: String(db.getSetting('home_value_response_paused', '0')) === '1',
     ramp_day: d ? rampDayIndex(d.id) : 0,
     todays_limit: d ? effectiveDailyLimit(cfg, d.id) : cfg.daily_limit,
     // what the ramp will allow next, so raising the ceiling does not look like nothing

@@ -6,6 +6,15 @@ import { runDailyBackup } from './backup.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
 
+// Home Value response pause (John, 2026-11-05, while the wording is being rewritten).
+// The response runs on TWO clocks — the intake poller and the SMS sweep below — so the
+// switch is read here, where both are started, rather than inside either one. Paused is
+// not deaf: requests are still recorded and tagged, only the outbound half stops.
+// Set through POST /api/drips/home-value/settings { response_paused: true }.
+function hvResponsePaused() {
+  try { return String(db.getSetting?.('home_value_response_paused', '0')) === '1' } catch { return false }
+}
+
 // Convert SQLite "YYYY-MM-DD HH:MM:SS" (UTC) or any ISO string to Sierra-friendly UTC ISO with Z
 function toSierraDate(input) {
   if (!input) return null
@@ -934,7 +943,10 @@ export function startScheduler() {
 
   // Home Value 45-day SMS follow-up - every 15 min, self-gating: it checks the weekday
   // 9-to-5 window itself and is a cheap no-op outside it.
-  setInterval(() => { import('./home-value-sms.js').then(m => m.runHvSmsSweep()).catch(() => {}) }, 15 * 60 * 1000)
+  setInterval(() => {
+    if (hvResponsePaused()) return
+    import('./home-value-sms.js').then(m => m.runHvSmsSweep()).catch(() => {})
+  }, 15 * 60 * 1000)
 
   // FUB → Hub Facebook-ad lead watcher: every 2 min pull ONLY new Facebook lead-ad
   // events from FUB's event stream (never the people database) so ad leads reach
@@ -968,7 +980,9 @@ export function startScheduler() {
   // prompt without hammering IMAP.
   setInterval(() => {
     import('./home-value-intake.js')
-      .then(m => m.pollHomeValueSubmissions({ sinceDays: 2, max: 25 }))
+      // recordOnly while the response is paused: the submission is still parsed, the lead
+      // still created and tagged, the visit still counted. Only the outbound half stops.
+      .then(m => m.pollHomeValueSubmissions({ sinceDays: 2, max: 25, recordOnly: hvResponsePaused() }))
       .then(r => { if (r?.processed) console.log(`[scheduler] Home Value intake: ${r.processed} submission(s)`) })
       .catch(e => console.error('[scheduler] Home Value intake error (non-fatal):', e.message))
   }, 10 * 60 * 1000)
