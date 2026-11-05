@@ -479,6 +479,32 @@ router.get('/home-value/reports/pending', async (_req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// Record a submission the answer store missed. The storage arrived after the response did,
+// so a request made before it exists only as a line on the timeline: Barney Foley #108
+// asked at 12:23 on 2026-11-05 and the intake, being idempotent, skipped him on the next
+// pass rather than storing his answers (John, 2026-11-05).
+//
+// Takes the notification text and runs the SAME parser the live intake uses, so a
+// backfilled submission is stored exactly as a fresh one would be rather than typed in by
+// hand. It writes to the answer store only - no email, no text, no change to the lead.
+router.post('/home-value/answers/:clientId', async (req, res) => {
+  try {
+    const cid = Number(req.params.clientId)
+    if (!db.get('SELECT id FROM clients WHERE id = ? AND merged_into IS NULL', [cid])) {
+      return res.status(404).json({ error: 'lead not found' })
+    }
+    const raw = String(req.body?.raw || '')
+    if (!raw.trim()) return res.status(400).json({ error: 'paste the notification text as `raw`' })
+    const { parseHomeValueEmail } = await import('../home-value-intake.js')
+    const { initHvAnswers, saveAnswers, latestAnswers } = await import('../home-value-answers.js')
+    const sub = parseHomeValueEmail(raw)
+    if (!sub.submission_id) return res.status(400).json({ error: 'no HV_Submission_ID in that text' })
+    initHvAnswers()
+    saveAnswers(cid, sub, { submittedAt: req.body?.submitted_at || new Date().toISOString() })
+    res.json({ success: true, client_id: cid, submission_id: sub.submission_id, stored: latestAnswers(cid) || null })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 // What the profile card needs to decide whether to show itself at all: did this lead ask
 // for a home value, and have we answered it?
 router.get('/home-value/reports/:clientId', async (req, res) => {
