@@ -22,6 +22,19 @@ export async function sendScheduledRow(s) {
     // Compliance re-check at send time.
     if (c && (c.hub_text_opt_out || isStopStatus(c.status))) { db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?", ['recipient opted out / Do Not Contact at send time', s.id]); return { ok: false, skipped: 'opted out / Do Not Contact' } }
     if (c && c.sms_undeliverable) { db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?", ['number is undeliverable (likely a landline)', s.id]); return { ok: false, skipped: 'number undeliverable' } }
+    // Past clients get the home value by EMAIL, never by text (John, 2026-11-05). The rule
+    // is applied where the text is QUEUED too, but a lead can become a past client between
+    // queueing and sending, and anything queued before the rule existed is still sitting
+    // here. Scoped to home value by created_by: it is not a rule about texting past
+    // clients in general.
+    if (c && s.created_by === 'home_value_intake') {
+      const { isPastClient } = await import('./home-value-answers.js')
+      if (isPastClient(c)) {
+        db.run("UPDATE scheduled_texts SET status='canceled', error=? WHERE id=?",
+          ['past client - home value goes by email only', s.id])
+        return { ok: false, skipped: 'past client - email only' }
+      }
+    }
     // Collision guard (light): don't fire over a live AI/human handoff.
     if (c) {
       const st = db.get('SELECT ai_state FROM ai_lead_state WHERE client_id=?', [c.id])

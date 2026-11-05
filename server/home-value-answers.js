@@ -24,6 +24,25 @@ import db from './database.js'
 
 const nowIso = () => new Date().toISOString()
 
+/**
+ * A past client, for the purposes of HOW we reach them about a home value: email only,
+ * never a text (John, 2026-11-05).
+ *
+ * They are not a prospect being qualified. They already know us, they are on the
+ * long-term Home Value nurture by email, and a text asking them to rate their house
+ * reads as cold prospecting from the one team that should know better.
+ *
+ * Same test the long-term handoff in home-value-sms.js already makes when it chooses
+ * between the past-client drip and the weekly one, so "past client" means one thing
+ * across the whole Home Value system: closed, or carrying a past-client tag.
+ */
+export function isPastClient(client) {
+  if (!client) return false
+  const status = String(client.status || '').toLowerCase()
+  if (status === 'closed') return true
+  return /past client/i.test(String(client.tags || ''))
+}
+
 export function initHvAnswers() {
   try {
     db.run(`CREATE TABLE IF NOT EXISTS home_value_answers (

@@ -15,7 +15,7 @@
 // interprets what is known or steps aside.
 import {
   latestAnswers, learnedFacts, nextBestQuestion, timeframeLane, known,
-  proseForHomeowner, remodelLabel,
+  proseForHomeowner, remodelLabel, isPastClient,
 } from './home-value-answers.js'
 
 const send = (payload) => ({ action: 'send', ...payload })
@@ -58,6 +58,14 @@ export function resolveStep(client, step, f) {
   const nextQ = nextBestQuestion(cid)
   const street = f.street
   const name = f.first_name
+
+  // PAST CLIENTS GET EMAIL, NEVER TEXT (John, 2026-11-05). They already know us and are
+  // on the long-term nurture by email; a text asking them to rate their own house reads
+  // as cold prospecting from the one team that should know better. Skipped rather than
+  // refused, so the step advances and the EMAIL half of the sequence carries on.
+  if (step.channel === 'sms' && isPastClient(client)) {
+    return skip('past client - home value goes by email only')
+  }
 
   // A stated move inside three months is not a drip problem. Whatever step is due, a
   // person takes it from here - and the generic qualification stops rather than running

@@ -450,6 +450,11 @@ export function scheduleConditionQuestion(client) {
   if (!cid) return { ok: false, reason: 'no client' }
   const phone = String(client.phone || '').replace(/\D/g, '')
   if (phone.length < 10) return { ok: false, reason: 'no mobile number on file' }
+  // PAST CLIENTS GET EMAIL, NEVER TEXT (John, 2026-11-05). Checked before the compliance
+  // guards rather than after, because this is not a question of whether we may text them:
+  // we have decided not to. The home value response still reaches them by email, and the
+  // SMS steps of the sequence are skipped by the same rule in home-value-steps.js.
+  if (HVA.isPastClient(client)) return { ok: false, reason: 'past client - home value goes by email only' }
   // Hard compliance now; the runner re-checks it again at send time.
   if (client.hub_text_opt_out) return { ok: false, reason: 'replied STOP to our number' }
   if (client.sms_undeliverable) return { ok: false, reason: 'number is undeliverable' }
