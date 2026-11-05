@@ -495,13 +495,16 @@ router.post('/home-value/answers/:clientId', async (req, res) => {
     }
     const raw = String(req.body?.raw || '')
     if (!raw.trim()) return res.status(400).json({ error: 'paste the notification text as `raw`' })
-    const { parseHomeValueEmail } = await import('../home-value-intake.js')
+    const { parseHomeValueEmail, writeSubmissionNote } = await import('../home-value-intake.js')
     const { initHvAnswers, saveAnswers, latestAnswers } = await import('../home-value-answers.js')
     const sub = parseHomeValueEmail(raw)
     if (!sub.submission_id) return res.status(400).json({ error: 'no HV_Submission_ID in that text' })
     initHvAnswers()
-    saveAnswers(cid, sub, { submittedAt: req.body?.submitted_at || new Date().toISOString() })
-    res.json({ success: true, client_id: cid, submission_id: sub.submission_id, stored: latestAnswers(cid) || null })
+    const submittedAt = req.body?.submitted_at || new Date().toISOString()
+    saveAnswers(cid, sub, { submittedAt })
+    // Same note a live submission writes, so a backfill leaves the same record behind.
+    const note = writeSubmissionNote(cid, sub, Number(req.body?.visit) || 1, submittedAt)
+    res.json({ success: true, client_id: cid, submission_id: sub.submission_id, note_written: !!note.ok, stored: latestAnswers(cid) || null })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 

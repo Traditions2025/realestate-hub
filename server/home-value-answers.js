@@ -43,6 +43,69 @@ export function isPastClient(client) {
   return /past client/i.test(String(client.tags || ''))
 }
 
+/**
+ * The submission as a NOTE on the lead: what was asked, and what they said (John,
+ * 2026-11-05 - "it needs to show what the question is and what the answer is").
+ *
+ * Until now a submission left one run-on line in the activity log - "condition: 9/10 ·
+ * would need to buy: yes" - and nothing at all in the notes, which is where anyone
+ * actually looks before picking up the phone. Half the answers were not in it: beds,
+ * baths, the basement, the garage, how extensive the work was.
+ *
+ * The questions are the form's own, in the form's own order, so the note reads like the
+ * conversation they just had. An unanswered question stays on the list rather than being
+ * dropped, because knowing what they SKIPPED is what tells you what is still worth asking.
+ *
+ * One note, several lines. clients.notes is one text field and a line after a stamped one
+ * is a continuation of it, so this lands as a single dated note rather than twelve.
+ */
+export function submissionNote(sub, { visit = 1 } = {}) {
+  const a = parseHvData(sub?.HV_Data)
+  const none = '(not answered)'
+  const val = (v) => { const s = String(v == null ? '' : v).trim(); return s || none }
+
+  const baths = [a.bathsf ? `${a.bathsf} full` : '', a.bathsh && a.bathsh !== '0' ? `${a.bathsh} half` : '']
+    .filter(Boolean).join(', ')
+  const bedBath = [a.beds ? `${a.beds} bed` : '', baths].filter(Boolean).join(', ')
+
+  const updates = Object.entries(a.updates || {})
+    .map(([item, age]) => `${item} (${/unsure/i.test(String(age)) ? 'not sure when' : String(age) + ' yrs'})`)
+    .join(', ')
+
+  const depth = [
+    remodelLabel('remodel_kitchen', a.lvlk) && `kitchen ${remodelLabel('remodel_kitchen', a.lvlk)}`,
+    remodelLabel('remodel_bath', a.lvlb) && `bathroom ${remodelLabel('remodel_bath', a.lvlb)}`,
+    remodelLabel('remodel_basement', a.lvlbs) && `basement ${remodelLabel('remodel_basement', a.lvlbs)}`,
+  ].filter(Boolean).join(', ')
+
+  const FINISH = { none: 'unfinished', part: 'partially finished', mostly: 'mostly finished', all: 'fully finished' }
+  const basement = [a.basement_type, FINISH[String(a.basement_finish || '').toLowerCase()] || a.basement_finish]
+    .filter(Boolean).join(', ')
+
+  const garage = [
+    a.garage_stalls && a.garage_stalls !== '0' ? `${a.garage_stalls} stall` : (a.garage_stalls === '0' ? 'none' : ''),
+    a.garage_type && a.garage_type !== 'unsure' ? a.garage_type : '',
+  ].filter(Boolean).join(', ')
+
+  const lines = [
+    `HOME VALUE REQUEST · visit #${visit}${sub?.submission_id ? ` · ${sub.submission_id}` : ''}`,
+    `Your address: ${val(sub?.address_full)}`,
+    `How would you rate the overall condition of your home? ${val(sub?.condition)}${sub?.condition ? ' out of 10' : ''}`,
+    `What keeps it from being a 10? ${val(sub?.condition_gap)}`,
+    `Let's make sure we have the house itself right: ${val(bedBath)}`,
+    `What have you updated while you've owned the home? ${val(updates)}`,
+    `How extensive were those updates? ${val(depth)}`,
+    `Anything specific about the work? ${val(sub?.work_notes)}`,
+    `Tell us a little about the basement: ${val(basement)}`,
+    `Anything about the basement we should know? ${val(sub?.basement_notes)}`,
+    `What kind of garage and parking does the home have? ${val(garage)}`,
+    `I am planning to move: ${val(sub?.timeframe)}`,
+    `Would you need to buy another home? ${val(sub?.would_buy)}`,
+    `Anything else you'd like us to know? ${val(sub?.other_notes)}`,
+  ]
+  return lines.join('\n')
+}
+
 export function initHvAnswers() {
   try {
     db.run(`CREATE TABLE IF NOT EXISTS home_value_answers (
