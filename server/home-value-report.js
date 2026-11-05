@@ -164,8 +164,9 @@ ${facts.map((f) => `  <li style="margin:0 0 8px;">${esc(f)}</li>`).join('\n')}
 <tr><td style="padding:16px 32px 26px;font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 ${factHtml}
 ${noteHtml}
-<p style="${P}">We give a range rather than one figure on purpose. The final number depends on how the home shows, what else is for sale at the time, and the terms of the offer, and anyone quoting a single figure from a desk is guessing at a precision that does not exist.</p>
-<p style="${P}">If you would like us to walk through it properly, we can look at the specific sales behind this and what would move it in either direction. Just reply to this email.</p>
+<p style="${P}">We provide a value range rather than one exact number because a home's market value is rarely that precise. Where it ultimately falls can be influenced by how the home presents, what comparable homes are selling for, and what other properties buyers are choosing from at the time.</p>
+<p style="${P}">The range we provided is meant to give you a more realistic picture of where the home may stand based on what we know today.</p>
+<p style="${P}">When the time comes that you're seriously considering selling, we'll walk through the home with you in person. That gives us the opportunity to see the condition, updates, layout and features firsthand so we can be much more precise about the home's value and the best pricing strategy at that time.</p>
 <p style="${P}">Matt Smith<br>Matt Smith Team | RE/MAX Concepts<br>319-431-5859</p>
 <p style="margin:18px 0 0;font-size:12px;line-height:1.6;color:#9aa0a6;border-top:1px solid #eceef1;padding-top:14px;">
 This is our opinion of value based on recent comparable sales, public records and the information you provided about the home. It is not an appraisal, and it is not a guarantee of what the property will sell for.

@@ -170,3 +170,30 @@ test('every report route answers even when something faults', async () => {
     assert.match(m[1], /catch \(e\) \{ res\.status\(500\)\.json/, 'each one answers on a fault')
   }
 })
+
+// John's wording for why the value is a range, 2026-11-05. Pinned verbatim because it is
+// the part of the email that explains the one thing a homeowner is most likely to push
+// back on, and it is his sentence, not a paraphrase.
+test("the range explanation is John's copy, word for word", () => {
+  const cid = mkLead(); answer(cid)
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  const text = HVR.buildReport(c, { low: 285000, high: 310000 }).html
+    .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ')
+  for (const sentence of [
+    "We provide a value range rather than one exact number because a home's market value is rarely that precise.",
+    'Where it ultimately falls can be influenced by how the home presents, what comparable homes are selling for, and what other properties buyers are choosing from at the time.',
+    'The range we provided is meant to give you a more realistic picture of where the home may stand based on what we know today.',
+    "When the time comes that you're seriously considering selling, we'll walk through the home with you in person.",
+    "That gives us the opportunity to see the condition, updates, layout and features firsthand so we can be much more precise about the home's value and the best pricing strategy at that time.",
+  ]) {
+    assert.ok(text.includes(sentence), `missing: ${sentence.slice(0, 60)}...`)
+  }
+})
+
+test('the old range wording is gone', () => {
+  const cid = mkLead(); answer(cid)
+  const c = db.get('SELECT * FROM clients WHERE id=?', [cid])
+  const text = HVR.buildReport(c, { low: 285000, high: 310000 }).html.replace(/<[^>]+>/g, ' ')
+  assert.ok(!/guessing at a precision/.test(text))
+  assert.ok(!/what would move it in either direction/.test(text))
+})
