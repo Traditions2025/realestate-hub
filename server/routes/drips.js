@@ -98,7 +98,12 @@ export function dripBlockReason(dripId, clientId, opts = {}) {
   // free-for-all: two emails must still never land on the same DAY, and that is enforced
   // at SEND time in advanceDrip, not here. A one-off check at enrollment cannot hold for
   // six months of weekly sends — the collision it needs to catch happens in week 14.
-  const sameDrip = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND drip_id=? AND status='active' LIMIT 1", [clientId, Number(dripId)])
+  // 'paused' counts as being on the campaign: the enrollment still exists and resuming it
+  // sends from wherever it stopped. Matching only 'active' let a paused lead be enrolled a
+  // second time, and resuming the first one then gave them two live rows on one campaign
+  // and two copies of every step. This is the same test home-value-sms.js already makes
+  // before its handoff insert, which is the other way into this table.
+  const sameDrip = db.get("SELECT id FROM drip_enrollments WHERE client_id=? AND drip_id=? AND status IN ('active','paused') LIMIT 1", [clientId, Number(dripId)])
   if (sameDrip) return { enrolledId: sameDrip.id }
   // drip_campaigns.allow_concurrent makes this a property of the CAMPAIGN, so every
   // enrollment path agrees. It used to be opts-only, which meant the Home Value sweeper
