@@ -176,8 +176,23 @@ This is our opinion of value based on recent comparable sales, public records an
   return { subject, html, facts, low: Math.round(Number(low)), high: Math.round(Number(high)) }
 }
 
-/** Home value requests with no report sent yet - the review queue. */
+/**
+ * Home value requests with no report sent yet - the review queue.
+ *
+ * home_value_answers is created by the first submission that runs through the new intake,
+ * so on a server that has not seen one yet the table is simply absent. That threw out of
+ * an async route handler, which Express does not catch, so the request hung until the
+ * caller gave up rather than returning an empty queue (found live, 2026-11-05).
+ */
 export function pendingReviews({ limit = 50 } = {}) {
+  try {
+    return listPending(limit)
+  } catch {
+    return []
+  }
+}
+
+function listPending(limit) {
   return db.all(`
     SELECT c.id, c.first_name, c.last_name, c.email, c.address, c.city,
            a.submission_id, a.submitted_at, a.condition_rating, a.timeframe

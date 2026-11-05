@@ -149,3 +149,24 @@ test('what was quoted is kept, so it can be answered for later', () => {
   assert.equal(r.status, 'sent')
   assert.ok(r.sent_at, 'stamped')
 })
+
+// A server that has never taken a submission has no home_value_answers table. That threw
+// out of an async route handler, which Express 4 does not catch, so the request hung
+// until the caller gave up instead of returning an empty queue (found live, 2026-11-05).
+test('an empty queue is an answer, not a hang', () => {
+  const real = db.all
+  db.all = () => { throw new Error('no such table: home_value_answers') }
+  try {
+    assert.deepEqual(HVR.pendingReviews({ limit: 10 }), [], 'returns empty rather than throwing')
+  } finally { db.all = real }
+})
+
+test('every report route answers even when something faults', async () => {
+  const src = await import('node:fs').then(fs =>
+    fs.readFileSync(new URL('../server/routes/drips.js', import.meta.url), 'utf8'))
+  const handlers = src.split('\n').filter(l => /router\.(get|post)\('\/home-value\/reports/.test(l))
+  assert.equal(handlers.length, 4, 'four report routes')
+  for (const m of src.matchAll(/router\.(?:get|post)\('\/home-value\/reports[^\n]*\n([\s\S]{0,2200}?)\n\}\)/g)) {
+    assert.match(m[1], /catch \(e\) \{ res\.status\(500\)\.json/, 'each one answers on a fault')
+  }
+})
