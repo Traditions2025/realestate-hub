@@ -460,6 +460,71 @@ router.get('/home-value/preview', async (req, res) => {
 // gone out as emails. Until the runner learns to text, this stays in code and the UI
 // reads it from here.
 //
+// ---------------------------------------------------------------------------
+// The value we send back. Matt or John review the submission against local sales and
+// enter a RANGE here; this builds the report email around it (John, 2026-11-05).
+//
+// The response promises a value within 24 hours and nothing in the Hub produced it, so
+// the promise was being kept by hand with no record of what was quoted to whom.
+// ---------------------------------------------------------------------------
+
+// The review queue: home value requests with no report sent since the submission.
+router.get('/home-value/reports/pending', async (_req, res) => {
+  const { initHvReports, pendingReviews } = await import('../home-value-report.js')
+  initHvReports()
+  res.json({ pending: pendingReviews({ limit: 100 }) })
+})
+
+// What the profile card needs to decide whether to show itself at all: did this lead ask
+// for a home value, and have we answered it?
+router.get('/home-value/reports/:clientId', async (req, res) => {
+  const { initHvReports, latestReport } = await import('../home-value-report.js')
+  initHvReports()
+  const cid = Number(req.params.clientId)
+  let submission = null
+  try {
+    submission = db.get(`SELECT submission_id, submitted_at, condition_rating, timeframe
+      FROM home_value_answers WHERE client_id = ? ORDER BY submitted_at DESC LIMIT 1`, [cid])
+  } catch { /* the table arrives with the first submission */ }
+  res.json({ submission: submission || null, last_report: latestReport(cid) || null })
+})
+
+// Build the email WITHOUT sending it, so the number can be read before it goes out.
+router.post('/home-value/reports/:clientId/preview', async (req, res) => {
+  const { initHvReports, buildReport, latestReport } = await import('../home-value-report.js')
+  initHvReports()
+  const client = db.get('SELECT * FROM clients WHERE id = ? AND merged_into IS NULL', [Number(req.params.clientId)])
+  if (!client) return res.status(404).json({ error: 'lead not found' })
+  const out = buildReport(client, { low: req.body?.low, high: req.body?.high, notes: req.body?.notes })
+  if (out.error) return res.status(400).json({ error: out.error })
+  res.json({ ...out, to: client.email || null, last_sent: latestReport(client.id) || null })
+})
+
+// Send it. The range is re-validated here rather than trusted from the preview, because
+// the preview and the send are two separate requests and only this one is irreversible.
+router.post('/home-value/reports/:clientId/send', async (req, res) => {
+  const { initHvReports, buildReport, saveReport } = await import('../home-value-report.js')
+  initHvReports()
+  const client = db.get('SELECT * FROM clients WHERE id = ? AND merged_into IS NULL', [Number(req.params.clientId)])
+  if (!client) return res.status(404).json({ error: 'lead not found' })
+  if (!String(client.email || '').trim()) return res.status(400).json({ error: 'no email address on this lead' })
+  const out = buildReport(client, { low: req.body?.low, high: req.body?.high, notes: req.body?.notes })
+  if (out.error) return res.status(400).json({ error: out.error })
+  // A reviewed value a homeowner is waiting for is not marketing, so it does not queue
+  // behind the weekly cap the automated steps obey. It is one person answering a request.
+  const r = await sendSequenceEmail(client, { subject: out.subject, body: out.html }, 'home_value_report')
+  if (!r.ok) return res.status(400).json({ error: r.reason || 'the email could not be sent' })
+  const id = saveReport(client.id, {
+    low: out.low, high: out.high, notes: req.body?.notes,
+    preparedBy: req.user?.email || 'hub', submissionId: req.body?.submission_id, status: 'sent',
+  })
+  // On the lead's own timeline, so what was quoted and when is on the record.
+  db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+    ['home_value_sent', 'client', client.id,
+      `Home value sent: $${out.low.toLocaleString()} - $${out.high.toLocaleString()}`])
+  res.json({ success: true, report_id: id, subject: out.subject, to: client.email })
+})
+
 // Rendered with sample merge values so the copy reads the way it sends. Sends nothing.
 router.get('/home-value/response-sequence', async (req, res) => {
   try {

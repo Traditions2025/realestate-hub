@@ -391,7 +391,10 @@ export default function ClientProfile() {
         )}
         {(() => {
           const renderers = {
-            details: () => <ClientDetails client={client} onSaved={load} />,
+            details: () => (<>
+              <ClientDetails client={client} onSaved={load} />
+              <HomeValueReportCard client={client} onSent={load} />
+            </>),
             bsprofile: () => <BuyerSellerProfile client={client} ai={ai} />,
             comms: () => <Communications client={client} onNotesChanged={notes => setClient(c => ({ ...c, notes }))} onOpenText={() => { setTextOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} onAddNote={() => { setNoteOpen(true); window.scrollTo({ top: 0, behavior: 'smooth' }) }} />,
             // Four boxes became one (John, 2026-10-01): Property Activity, Listing
@@ -1899,6 +1902,101 @@ function AiIntelligence({ ai, followup, cid }) {
         </div>
       )}
       {full && <div style={{ marginTop: 10 }}><AiIsaCard clientId={cid} /></div>}
+    </Section>
+  )
+}
+
+// ── Home Value: enter the reviewed range and send the report ─────────────
+//
+// The response tells a homeowner they will have a value within 24 hours. Matt or John do
+// that review by hand, so this is where the number goes in and the report goes out
+// (John, 2026-11-05). Shows itself only for a lead who actually asked.
+//
+// A RANGE, not a figure: Matt's standing rule on every value we present. The server
+// refuses a single number, a backwards range, a dropped digit and a range so wide it says
+// nothing - and refuses them again on send, because the preview and the send are two
+// requests and only one of them is irreversible.
+function HomeValueReportCard({ client, onSent }) {
+  const cid = client?.id
+  const [state, setState] = useState(null)      // { submission, last_report }
+  const [low, setLow] = useState('')
+  const [high, setHigh] = useState('')
+  const [notes, setNotes] = useState('')
+  const [preview, setPreview] = useState(null)
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    if (!cid) return
+    authFetch(`/api/drips/home-value/reports/${cid}`).then(r => r.json())
+      .then(d => { setState(d); if (d?.last_report) { setLow(String(d.last_report.value_low)); setHigh(String(d.last_report.value_high)) } })
+      .catch(() => setState({ submission: null, last_report: null }))
+  }, [cid])
+
+  const money = (n) => '$' + Number(n || 0).toLocaleString('en-US')
+  const body = () => ({ low: Number(String(low).replace(/[^0-9]/g, '')), high: Number(String(high).replace(/[^0-9]/g, '')), notes, submission_id: state?.submission?.submission_id })
+
+  const doPreview = async () => {
+    setBusy(true); setErr(''); setPreview(null)
+    try {
+      const d = await authFetch(`/api/drips/home-value/reports/${cid}/preview`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body()),
+      }).then(r => r.json())
+      if (d.error) setErr(d.error); else setPreview(d)
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  const doSend = async () => {
+    // A value email to a real homeowner is not undoable, so it is confirmed with the
+    // number and the address in the question rather than a bare "are you sure".
+    const ok = await confirmDialog(`Send ${money(body().low)} to ${money(body().high)} for ${client.address || 'this home'} to ${client.email}?`)
+    if (!ok) return
+    setBusy(true); setErr('')
+    try {
+      const d = await authFetch(`/api/drips/home-value/reports/${cid}/send`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body()),
+      }).then(r => r.json())
+      if (d.error) { setErr(d.error); return }
+      notify('✓ Home value sent to ' + d.to)
+      setPreview(null)
+      authFetch(`/api/drips/home-value/reports/${cid}`).then(r => r.json()).then(setState).catch(() => {})
+      onSent && onSent()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+
+  if (!state || !state.submission) return null
+  const sent = state.last_report && state.last_report.status === 'sent' ? state.last_report : null
+  const inp = { padding: '6px 9px', fontSize: 15, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', width: 130 }
+
+  return (
+    <Section title="🏠 Home Value — send the report">
+      <p style={{ margin: '0 0 10px', fontSize: 14.5, color: 'var(--text-secondary)' }}>
+        Asked {String(state.submission.submitted_at || '').slice(0, 10)}
+        {state.submission.condition_rating ? ` · they rated it ${state.submission.condition_rating}/10` : ''}
+        {state.submission.timeframe ? ` · ${state.submission.timeframe}` : ''}
+      </p>
+      {sent && (
+        <p style={{ margin: '0 0 10px', fontSize: 14.5, color: 'var(--text-secondary)' }}>
+          Last sent {String(sent.sent_at || '').slice(0, 10)}: <strong>{money(sent.value_low)} – {money(sent.value_high)}</strong>
+        </p>
+      )}
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginBottom: 8 }}>
+        <input style={inp} value={low} placeholder="Low" inputMode="numeric" onChange={e => setLow(e.target.value)} />
+        <span style={{ color: 'var(--text-muted)' }}>to</span>
+        <input style={inp} value={high} placeholder="High" inputMode="numeric" onChange={e => setHigh(e.target.value)} />
+      </div>
+      <textarea style={{ ...inp, width: '100%', minHeight: 60 }} value={notes} placeholder="Anything you want said in your words (optional)" onChange={e => setNotes(e.target.value)} />
+      {err && <p style={{ margin: '8px 0 0', fontSize: 14.5, color: '#ef4444' }}>{err}</p>}
+      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+        <button className="btn btn-sm" disabled={busy} onClick={doPreview}>{busy ? '…' : 'Preview'}</button>
+        <button className="btn btn-sm btn-primary" disabled={busy || !preview} onClick={doSend} title={preview ? '' : 'Preview it first'}>Send to {client.email || 'no email'}</button>
+      </div>
+      {preview && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 600, marginBottom: 6 }}>{preview.subject}</div>
+          <iframe title="Home value report preview" srcDoc={preview.html} style={{ width: '100%', height: 420, border: '1px solid var(--border)', borderRadius: 8, background: '#fff' }} />
+        </div>
+      )}
     </Section>
   )
 }
