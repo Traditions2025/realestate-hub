@@ -24,6 +24,18 @@ let seq = 0
 const sid = () => '9' + String(Date.now()).slice(-7) + String(++seq).padStart(3, '0')
 const uniq = () => String(Date.now()).slice(-6) + String(++seq).padStart(2, '0')
 
+
+// A number no other record holds. A fixed prefix plus four digits collides with leads
+// left behind by other suites in the shared test database, and a collision reads as a
+// duplicate - which is the very thing these tests are about.
+function freePhone(prefix) {
+  for (let i = 0; i < 500; i++) {
+    const p = `(319) ${prefix}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
+    if (!db.get('SELECT 1 x FROM clients WHERE phone = ?', [p])) return p
+  }
+  throw new Error('no free phone for the fixture')
+}
+
 const lead = (id, over = {}) => ({
   id, firstName: 'Barney', lastName: 'Foley', leadStatus: 'New', leadType: 'buyer',
   email: null, phone: null, tags: [], ...over,
@@ -36,7 +48,7 @@ const mkPastClient = (over = {}) => db.run(
 ).lastInsertRowid
 
 test('a second Sierra lead for the same person does NOT create a twin', () => {
-  const phone = '(319) 423-' + uniq().slice(-4)
+  const phone = freePhone('423')
   const first = mkPastClient({ phone })
   const before = db.get('SELECT COUNT(*) n FROM clients').n
   const second = sid()
@@ -49,7 +61,7 @@ test('a second Sierra lead for the same person does NOT create a twin', () => {
 
 test('the original Sierra id still resolves to him', () => {
   // Re-pointing would orphan the first lead and its next sync would make the duplicate.
-  const phone = '(319) 423-' + uniq().slice(-4)
+  const phone = freePhone('423')
   const original = sid()
   const first = mkPastClient({ phone, sierra: original })
   processLead(lead(sid(), { phone }))
@@ -58,7 +70,7 @@ test('the original Sierra id still resolves to him', () => {
 })
 
 test('the second id resolves to him too, on every later sync', () => {
-  const phone = '(319) 423-' + uniq().slice(-4)
+  const phone = freePhone('423')
   const first = mkPastClient({ phone })
   const second = sid()
   processLead(lead(second, { phone }))
@@ -83,7 +95,7 @@ test('an email match is enough on its own', () => {
 test('a household sharing a phone is never collapsed', () => {
   // Martin Cram and Katie Cram are two people on one number, and there are hundreds of
   // those pairs in the file. Same surname is not the same person.
-  const phone = '(319) 431-' + uniq().slice(-4)
+  const phone = freePhone('431')
   mkPastClient({ first: 'Martin', last: 'Cram', phone })
   const before = db.get('SELECT COUNT(*) n FROM clients').n
   const katie = sid()
@@ -93,7 +105,7 @@ test('a household sharing a phone is never collapsed', () => {
 })
 
 test('a shared line with a different surname is two people as well', () => {
-  const phone = '(319) 366-' + uniq().slice(-4)
+  const phone = freePhone('366')
   mkPastClient({ first: 'Kim', last: 'McIrvin', phone })
   const before = db.get('SELECT COUNT(*) n FROM clients').n
   processLead(lead(sid(), { firstName: 'Brandon', lastName: 'Scheel', phone }))
@@ -103,13 +115,13 @@ test('a shared line with a different surname is two people as well', () => {
 test('a genuinely new person is still inserted', () => {
   const before = db.get('SELECT COUNT(*) n FROM clients').n
   const s = sid()
-  processLead(lead(s, { firstName: 'Nobody', lastName: 'Known' + uniq(), phone: '(319) 999-' + uniq().slice(-4), email: `new${uniq()}@example.com` }))
+  processLead(lead(s, { firstName: 'Nobody', lastName: 'Known' + uniq(), phone: freePhone('999'), email: `new${uniq()}@example.com` }))
   assert.equal(db.get('SELECT COUNT(*) n FROM clients').n, before + 1)
   assert.ok(db.get('SELECT id FROM clients WHERE sierra_lead_id=?', [s]))
 })
 
 test('a merged-away record is never adopted onto', () => {
-  const phone = '(319) 423-' + uniq().slice(-4)
+  const phone = freePhone('423')
   const dead = mkPastClient({ phone })
   db.run('UPDATE clients SET merged_into=? WHERE id=?', [1, dead])
   const before = db.get('SELECT COUNT(*) n FROM clients').n

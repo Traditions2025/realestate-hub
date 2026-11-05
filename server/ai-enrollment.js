@@ -28,6 +28,7 @@ import { getConfig, inQuietHours } from './ai-followup/flags.js'
 import { ensureState, setEnabled, setManaged, transitionAiState, isExcludedFromAutopilot } from './ai-followup/state.js'
 import { scheduleAiAction, enrollColdBuyerSequence } from './ai-followup/scheduler.js'
 import { proactiveStartHour, proactiveEndHour } from './fsbo-followup.js'
+import { duplicateTwin } from './ai-followup/forbidden.js'
 
 const nowIso = () => new Date().toISOString()
 
@@ -263,6 +264,17 @@ export function evaluateAiEnrollmentEligibility(clientId, opts = {}) {
   const warnings = []
   if (!anyOutbound && createdMs && createdMs < Date.now() - 365 * 86400e3) warnings.push('never contacted and over a year old')
   if (!src) warnings.push('no source recorded')
+  // LAST GATE: a lead that might be somebody we already have. Placed here rather than at
+  // the top so every more specific exclusion still reports itself - a closed lead reads as
+  // closed, not as a duplicate. Only an otherwise-eligible lead is stopped by this.
+  // Refused at enrolment AND at send time (ai-followup/forbidden.js), because a twin can
+  // appear after a lead is enrolled, which is exactly how Barney Foley's arrived.
+  {
+    const twin = duplicateTwin(c)
+    if (twin) return fin(EXCLUDED('POSSIBLE_DUPLICATE',
+      `shares a ${twin.on} with #${twin.id} ${twin.name}${twin.status ? ` (${twin.status})` : ''}`))
+  }
+
   return fin({ decision: 'eligible', reason_code: 'ELIGIBLE', reason: classification.toLowerCase().replace(/_/g, ' '), classification, lane, priority_score: score, warnings })
 }
 

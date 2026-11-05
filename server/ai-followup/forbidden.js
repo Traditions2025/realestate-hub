@@ -35,6 +35,49 @@ import { aiNeverContactMatch } from '../ai-never-contact.js'
 // The Past Client Nurture DRIP is unaffected - this is scoped to the AI channel only.
 const NOT_A_PROSPECT = new Set(['closed', 'pending', 'archived'])
 
+// A number that is not really a number: nobody's actual line, so sharing it means nothing.
+const PLACEHOLDER_PHONE = (p) => {
+  const t = String(p || '').slice(-7)
+  return /^(\d)\1{6}$/.test(t) || t === '5555555' || t === '1234567' || t === '0000000'
+}
+
+/**
+ * Another live record holding the same phone or email.
+ *
+ * THE AI STAYS OUT OF AMBIGUITY (John, 2026-11-05). Barney Foley is a past client, #108.
+ * Sierra opened a second lead for him, the Hub mirrored it into #46176 as a brand-new
+ * buyer, and the AI texted him a buyer opener six minutes later. Nothing was broken: that
+ * record really was a new buyer lead. The history was simply on the other one.
+ *
+ * So a lead that might be somebody we already know is not a lead the AI may speak to.
+ * Deliberately WIDER than the merge rule in sierra-helper.js, which needs the names to
+ * agree before it will join two records: merging the wrong pair damages the file, while
+ * declining to text is free. A shared line that turns out to be a household costs one
+ * quiet lead; getting it wrong costs a past client being prospected.
+ */
+export function duplicateTwin(client) {
+  const cid = Number(client?.id)
+  if (!cid) return null
+  const d10 = (p) => String(p || '').replace(/\D/g, '').slice(-10)
+  const name = (c) => `${c.first_name || ''} ${c.last_name || ''}`.trim() || `#${c.id}`
+
+  const email = String(client.email || '').trim().toLowerCase()
+  if (email && !/notvalidemail/i.test(email)) {
+    const hit = db.get(`SELECT id, first_name, last_name, status FROM clients
+      WHERE id != ? AND merged_into IS NULL AND lower(email) = ? LIMIT 1`, [cid, email])
+    if (hit) return { id: hit.id, name: name(hit), status: hit.status, on: 'email address' }
+  }
+
+  const p10 = d10(client.phone)
+  if (p10.length === 10 && !PLACEHOLDER_PHONE(p10)) {
+    const hit = db.all(`SELECT id, first_name, last_name, status, phone FROM clients
+      WHERE id != ? AND merged_into IS NULL AND phone LIKE ?`, [cid, '%' + p10.slice(-4)])
+      .find((c) => d10(c.phone) === p10)
+    if (hit) return { id: hit.id, name: name(hit), status: hit.status, on: 'phone number' }
+  }
+  return null
+}
+
 /**
  * Why the AI may not text this lead, or null if it may.
  * `client` is a clients row; only the id is strictly required.
@@ -51,6 +94,15 @@ export function aiForbiddenReason(client) {
   const never = aiNeverContactMatch(client)
   if (never) {
     return `on the AI never-contact list${never.reason ? ` (${never.reason})` : ''} — a person owns this conversation`
+  }
+
+  // A lead that might be somebody we already have. Checked before the status rules below,
+  // because the whole problem is that the TWIN carries the status that would have stopped
+  // this: the duplicate reads as a new buyer while the person is a past client.
+  const twin = duplicateTwin(client)
+  if (twin) {
+    return `shares a ${twin.on} with #${twin.id} ${twin.name}`
+      + `${twin.status ? ` (${twin.status})` : ''} — possibly the same person, so a human decides before the AI speaks`
   }
 
   const status = String(client.status || '').trim().toLowerCase()

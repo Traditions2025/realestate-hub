@@ -10,13 +10,25 @@ await initDb()
 const eng = await import('../server/ai-enrollment.js')
 
 let seq = 0
+// A number no other record holds, so a fixture is never mistaken for a duplicate.
+function freePhone() {
+  for (let i = 0; i < 500; i++) {
+    const p = `(319) ${200 + Math.floor(Math.random() * 799)}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`
+    if (!db.get('SELECT 1 x FROM clients WHERE phone = ?', [p])) return p
+  }
+  throw new Error('could not find a free phone number for the fixture')
+}
 function mkClient(fields = {}) {
   const tag = `${Date.now()}${++seq}`
   // letters-only name tag (digits in a name now fail the NAME_QUALITY gate)
   const alphaTag = tag.replace(/\d/g, d => 'abcdefghij'[Number(d)])
   const cols = {
     first_name: 'Tessa', last_name: 'Enroll' + alphaTag, type: fields.type ?? 'buyer',
-    phone: fields.phone === null ? null : (fields.phone || '(319) 555-' + tag.slice(-4)),
+    // A phone NOBODY else in the file has. '(319) 555-' + 4 digits gave 10,000 numbers
+    // shared with every lead left behind by earlier runs, so fixtures collided with each
+    // other and read as possible duplicates once the AI duplicate guard landed
+    // (2026-11-05). Asking the database is the only way to be sure.
+    phone: fields.phone === null ? null : (fields.phone || freePhone()),
     status: fields.status ?? 'new', source: fields.source ?? 'Mattsmithteam.com',
     created_at: fields.created_at || new Date().toISOString(),
     ...Object.fromEntries(Object.entries(fields).filter(([k]) => !['type', 'phone', 'status', 'source', 'created_at'].includes(k))),
