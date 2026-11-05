@@ -156,7 +156,14 @@ export function processLead(lead, sierraStatusOverride) {
   const lenderStatus = n(lead.lenderStatus)
   const listingAgentStatus = n(lead.listingAgentStatus)
 
-  let existing = db.get('SELECT id, status, tags, email, phone, cleared_fields FROM clients WHERE sierra_lead_id = ?', [sierraId])
+  const COLS = 'id, status, tags, email, phone, first_name, last_name, sierra_lead_id, alt_sierra_ids, cleared_fields'
+  let existing = db.get(`SELECT ${COLS} FROM clients WHERE sierra_lead_id = ?`, [sierraId])
+  // A second Sierra lead already claimed by this person resolves to the same Hub record,
+  // so the pair cannot ping-pong between two ids on alternating syncs.
+  if (!existing) {
+    existing = db.all(`SELECT ${COLS} FROM clients WHERE merged_into IS NULL AND alt_sierra_ids LIKE ?`, ['%' + sierraId + '%'])
+      .find(c => String(c.alt_sierra_ids || '').split(',').map(s => s.trim()).includes(String(sierraId))) || null
+  }
   let adopted = false
   if (!existing) {
     // ADOPT-DON'T-DUPLICATE (2026-09-21): FB ad leads are born in the Hub (FUB email
@@ -165,19 +172,38 @@ export function processLead(lead, sierraStatusOverride) {
     // Hub already had (4 dup pairs from the 09-18 upload). Match by exact email, or
     // by phone last-10 PLUS same first name — never bare phone, because household /
     // shared lines must never be collapsed (contact-cleanup rule).
+    // WIDENED 2026-11-05 (John): a record that ALREADY has a Sierra id is now a candidate
+    // too. The old rule only matched Hub-born records, so when Sierra minted a SECOND
+    // lead for somebody it already had, nothing matched and the Hub made a twin with no
+    // history - which the AI then texted as a new buyer six minutes later.
     const p10 = String(phone || '').replace(/\D/g, '').slice(-10)
     if (email && !/notvalidemail/i.test(email)) {
-      existing = db.get("SELECT id, status, tags, email, phone, cleared_fields FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND lower(email)=lower(?)", [email])
+      existing = db.get(`SELECT ${COLS} FROM clients WHERE merged_into IS NULL AND lower(email)=lower(?) ORDER BY id ASC LIMIT 1`, [email])
     }
-    if (!existing && p10.length === 10 && firstName) {
-      const cands = db.all("SELECT id, status, tags, email, phone, first_name, cleared_fields FROM clients WHERE merged_into IS NULL AND (sierra_lead_id IS NULL OR sierra_lead_id='') AND phone LIKE ?", ['%' + p10.slice(-4)])
-      existing = cands.find(c => String(c.phone || '').replace(/\D/g, '').slice(-10) === p10
-        && String(c.first_name || '').trim().toLowerCase() === String(firstName).trim().toLowerCase()) || null
+    if (!existing && p10.length === 10) {
+      // Phone needs the NAME to agree, because a shared line is usually a household and
+      // not one person. Barney Foley / Barney Foley is the same man; Martin Cram / Katie
+      // Cram are two people on one number, and there are hundreds of those in the file.
+      const same = (a, b) => String(a || '').trim().toLowerCase() === String(b || '').trim().toLowerCase()
+      existing = db.all(`SELECT ${COLS} FROM clients WHERE merged_into IS NULL AND phone LIKE ?`, ['%' + p10.slice(-4)])
+        .find(c => String(c.phone || '').replace(/\D/g, '').slice(-10) === p10
+          && same(c.first_name, firstName) && same(c.last_name, lastName)) || null
     }
     if (existing) {
       adopted = true
-      db.run("UPDATE clients SET sierra_lead_id=?, updated_at=datetime('now') WHERE id=?", [sierraId, existing.id])
-      try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['updated', 'client', existing.id, `Sierra lead ${sierraId} matched this existing Hub record (adopted, no duplicate created)`]) } catch {}
+      const prior = String(existing.sierra_lead_id || '').trim()
+      if (prior && prior !== String(sierraId)) {
+        // Keep the id this record already answers to and ADD the new one, rather than
+        // re-pointing: overwriting would orphan the original lead, and its next sync
+        // would create the very duplicate this is here to prevent.
+        const alts = new Set(String(existing.alt_sierra_ids || '').split(',').map(s => s.trim()).filter(Boolean))
+        alts.add(String(sierraId))
+        db.run("UPDATE clients SET alt_sierra_ids=?, updated_at=datetime('now') WHERE id=?", [[...alts].join(','), existing.id])
+        try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['updated', 'client', existing.id, `Sierra opened a second lead (${sierraId}) for this person; attached to this record instead of creating a duplicate`]) } catch {}
+      } else {
+        db.run("UPDATE clients SET sierra_lead_id=?, updated_at=datetime('now') WHERE id=?", [sierraId, existing.id])
+        try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['updated', 'client', existing.id, `Sierra lead ${sierraId} matched this existing Hub record (adopted, no duplicate created)`]) } catch {}
+      }
     }
   }
   if (existing) {

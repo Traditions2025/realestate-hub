@@ -111,12 +111,14 @@ test('backfill never uses a notvalidemail placeholder', () => {
 })
 
 test('new Sierra leads still insert with full contact data', () => {
+  // A genuinely NEW person: unique email and phone. The shared fixture contact is now
+  // matched by the widened adoption (2026-11-05), which is the point of it - reusing
+  // sierra@example.com here was testing the insert path with a lead we already had.
   const s = sid()
-  processLead(sierraLead(s))
+  processLead(sierraLead(s, { email: `brandnew${s}@example.com`, phone: `(319) 555-${String(s).slice(-4)}` }))
   const c = db.get('SELECT * FROM clients WHERE sierra_lead_id=?', [String(s)])
   assert.ok(c, 'created')
   assert.equal(c.first_name, 'SierraName')
-  assert.equal(c.phone, '(319) 555-9999')
   assert.equal(c.address, '99 Sierra Ave')
 })
 

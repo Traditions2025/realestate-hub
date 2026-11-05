@@ -668,6 +668,13 @@ export async function initDb() {
   // Safe because overlap is governed at SEND time, not at enrollment: server/email-cap.js
   // caps a past client at ONE email per 14 days across EVERY campaign, which is exactly
   // the rule written for past clients sitting in several at once.
+  // Sierra sometimes mints a SECOND lead for somebody it already has - a past client
+  // fills in a web form and comes back as a brand-new buyer. The Hub mirrored that
+  // faithfully and made a twin with no history, which the AI then texted as a new lead
+  // (Barney Foley, John 2026-11-05: #108 closed + #46176 new on one phone, AI text six
+  // minutes later). One Hub record can now answer to more than one Sierra id, so the
+  // second lead lands on the person we already know instead of beside them.
+  try { db.run('ALTER TABLE clients ADD COLUMN alt_sierra_ids TEXT') } catch {}
   // Which contact fields a person deliberately EMPTIED. The Sierra backfill fills any
   // blank contact field from Sierra's copy, which cannot tell "we never had one" from
   // "John deleted it this morning" — so a cleared address came straight back on the next
