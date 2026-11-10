@@ -1544,7 +1544,8 @@ function Research({ client }) {
 // ── Add Appointment (John, 2026-09-17): type + date/time + title + notes.
 // Walkthrough auto-titles "Walkthrough - {address} - {name}"; notes always carry
 // the Hub profile link; saving emails John + Matt a real calendar invite (ICS).
-const APPT_TYPES = [['showing', 'Showing'], ['walkthrough', 'Walkthrough'], ['buyer_meeting', 'Buyer Meeting']]
+const APPT_TYPES = [['showing', 'Showing'], ['walkthrough', 'Walkthrough'], ['buyer_meeting', 'Buyer Meeting'],
+  ['listing_appointment', 'Listing Appt'], ['buyer_consult', 'Buyer Consult']]
 
 
 // ── Seller Intent card (Fix It or Skip It, John 2026-09-19) ───────────────

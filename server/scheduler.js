@@ -313,9 +313,45 @@ async function syncOneCalendar(url, label) {
       const color = colorForEventType(eventType)
       const uniqueId = ev.uid ? `${label}:${ev.uid}` : null
 
-      const existing = uniqueId ? db.get('SELECT id FROM calendar_events WHERE google_event_id = ?', [uniqueId]) : null
+      // AN APPOINTMENT OF OURS COMING BACK FROM GOOGLE IS THE SAME APPOINTMENT.
+      //
+      // The Hub emails an ICS invite with UID hubappt-<row id>@mattsmithteam.com. When Matt
+      // accepts it, the event lands on his Google Calendar still carrying that UID, the feed
+      // hands it straight back, and - because the Hub's own row has no google_event_id -
+      // this importer filed it as a brand new event. Every Hub appointment Matt accepted
+      // became TWO rows: ours, typed and linked to the client, and Google's copy, typed by
+      // keyword and linked to nobody. That is why the file holds both 'walkthrough' (ours)
+      // and 'Walkthrough' (Google's), and it would have made every appointment count double.
+      //
+      // Claim our own row by the id in the UID instead. After this the ordinary
+      // google_event_id path matches it, so this only ever runs once per appointment.
+      const mine = String(ev.uid || '').match(/^hubappt-(\d+)@/)
+      if (mine && uniqueId) {
+        const own = db.get('SELECT id FROM calendar_events WHERE id = ? AND google_event_id IS NULL', [Number(mine[1])])
+        if (own) {
+          // Google owns WHEN it happens, because Matt may have dragged it. The Hub owns what
+          // it IS - type, client, appointment status - so none of that is touched here.
+          db.run(`UPDATE calendar_events SET event_date=?, start_time=?, end_time=COALESCE(?, end_time),
+            google_event_id=?, updated_at=datetime('now') WHERE id=?`,
+            [startInfo.date, startInfo.time, endInfo?.time || null, uniqueId, own.id])
+          updated++
+          continue
+        }
+      }
+
+      const existing = uniqueId ? db.get('SELECT id, is_sales_appointment FROM calendar_events WHERE google_event_id = ?', [uniqueId]) : null
 
       if (existing) {
+        // Same reasoning as above: on a real appointment the feed may move the time, but it
+        // must never re-type it from its summary text or recolour it. guessEventType would
+        // turn a Listing Appointment back into whatever its title happens to read like.
+        if (existing.is_sales_appointment) {
+          db.run(`UPDATE calendar_events SET event_date=?, start_time=?, end_time=COALESCE(?, end_time),
+            location=COALESCE(?, location), updated_at=datetime('now') WHERE id=?`,
+            [startInfo.date, startInfo.time, endInfo?.time || null, ev.location || null, existing.id])
+          updated++
+          continue
+        }
         db.run(`UPDATE calendar_events SET title=?, event_type=?, event_date=?, start_time=?,
           end_time=?, location=?, description=?, color=?, updated_at=datetime('now') WHERE id=?`,
           [ev.summary, eventType, startInfo.date, startInfo.time, endInfo?.time || null,

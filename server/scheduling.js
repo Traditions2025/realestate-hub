@@ -116,7 +116,27 @@ export function initScheduling() {
     ['attribution_json', 'TEXT'], ['source', 'TEXT'], ['campaign', 'TEXT'],
     ['cancelled_at', 'TEXT'], ['cancelled_by', 'TEXT'], ['cancel_reason', 'TEXT'],
     ['rescheduled_from', 'TEXT'],
+
+    // APPOINTMENT COMMAND CENTER, phase 1 (John, 2026-11-10).
+    //
+    // is_sales_appointment is the eligibility gate, and it is the single most important
+    // control in the whole thing. The calendar holds 198 rows of which 175 are Matt's
+    // Google feed - alarm notifications, CEU classes, an AAA hearing reminder - and 96 are
+    // typed "Other". Counting calendar rows would produce a number that means nothing.
+    // Nothing is an appointment unless something deliberately said so, so this DEFAULTS TO
+    // 0 and every row that exists today stays 0 without a backfill touching them.
+    //
+    // appt_outcome is kept separate from appt_status on purpose: a meeting that happened is
+    // not a meeting that produced an agreement, and the spec is explicit about it. Status
+    // says where the booking got to; outcome says what the meeting did.
+    ['is_sales_appointment', 'INTEGER DEFAULT 0'],
+    ['appt_outcome', 'TEXT'],          // held | no_show | cancelled_by_client | cancelled_by_us
+    ['outcome_recorded_by', 'TEXT'],   // a PERSON, always. Never inferred, never AI.
+    // When it was first booked, which a reschedule must not move - otherwise rescheduling
+    // twice looks like three appointments set.
+    ['booked_at', 'TEXT'],
   ]) { try { db.run(`ALTER TABLE calendar_events ADD COLUMN ${col} ${type}`) } catch {} }
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_cal_sales_appt ON calendar_events(is_sales_appointment, event_date)') } catch {}
   try { db.run('CREATE UNIQUE INDEX IF NOT EXISTS idx_cal_manage_token ON calendar_events(manage_token)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_cal_appt_day ON calendar_events(event_date, appt_status)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_appt_rem_due ON appointment_reminders(state, due_at)') } catch {}
@@ -498,4 +518,106 @@ export function setAppointmentStatus(eventId, status, { by = 'staff' } = {}) {
 
 export function trackBookingEvent(slug, event, session, meta = null) {
   try { db.run('INSERT INTO booking_page_events (slug, event, session, meta) VALUES (?,?,?,?)', [String(slug || '').slice(0, 80), String(event || '').slice(0, 40), String(session || '').slice(0, 64), meta ? JSON.stringify(meta).slice(0, 800) : null]) } catch {}
+}
+
+// ---------------------------------------------------------------------------
+// WHAT COUNTS AS AN APPOINTMENT (John, 2026-11-10)
+// ---------------------------------------------------------------------------
+// One definition, in one place, so every screen and every report agrees. The Hub has been
+// through this before with bounces and with lead lanes: once two places each decide what a
+// number means, they drift, and then nobody trusts either of them.
+//
+// ELIGIBILITY is `is_sales_appointment = 1` and nothing else. The calendar holds 198 rows,
+// 175 of them Matt's Google feed - alarm notifications, CEU classes, an AAA hearing
+// reminder - and being on a calendar has never made something a sales appointment.
+//
+// SET is counted on `booked_at`, not on `event_date` and not on when the row appeared.
+// Booking on Monday for a Friday meeting is an appointment set on MONDAY, because Monday is
+// the day the work happened. It also makes rescheduling free: a reschedule moves event_date
+// and leaves booked_at alone, so moving a meeting three times is still one appointment set.
+//
+// HELD is counted on `event_date`, because that is the day it happened, and only from an
+// outcome a PERSON recorded. An appointment whose day has passed with no outcome is not
+// held and not missed - it is UNRECORDED, and it is reported that way rather than guessed
+// in either direction. Guessing is how a no-show quietly becomes a held appointment.
+const nextDay = (d) => { const t = new Date(`${d}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + 1); return t.toISOString().slice(0, 10) }
+
+/** Central-day window [from, to] as real UTC instants, for comparing against booked_at. */
+export function ctWindow(from, to) {
+  return { startUtc: ctToUtc(from, '00:00').toISOString(), endUtc: ctToUtc(nextDay(to), '00:00').toISOString() }
+}
+
+/**
+ * Appointment numbers for a Central-time date range, inclusive of both ends.
+ * `from` and `to` are YYYY-MM-DD local Central dates.
+ */
+export function appointmentCounts(from, to) {
+  const { startUtc, endUtc } = ctWindow(from, to)
+  const one = (sql, params) => db.get(sql, params)?.n || 0
+  const ELIGIBLE = 'is_sales_appointment = 1'
+
+  // Set: by the day it was booked.
+  const set = one(
+    `SELECT COUNT(*) n FROM calendar_events
+      WHERE ${ELIGIBLE} AND booked_at IS NOT NULL AND booked_at >= ? AND booked_at < ?`,
+    [startUtc, endUtc])
+
+  // Everything below is by the day the meeting falls on.
+  const onDay = (extra, params = []) => one(
+    `SELECT COUNT(*) n FROM calendar_events
+      WHERE ${ELIGIBLE} AND event_date >= ? AND event_date <= ? ${extra}`, [from, to, ...params])
+
+  const held = onDay("AND appt_outcome = 'held'")
+  const no_show = onDay("AND appt_outcome = 'no_show'")
+  const cancelled = onDay("AND appt_status = 'cancelled'")
+  // Past its day, not cancelled, and nobody has said what happened. This is the number that
+  // keeps the rest honest: while it is above zero, held and no-show are both incomplete.
+  const unrecorded = onDay(
+    "AND (appt_outcome IS NULL OR appt_outcome = '') AND COALESCE(appt_status,'') != 'cancelled' AND event_date < ?",
+    [ctParts().date])
+
+  return { from, to, set, held, no_show, cancelled, unrecorded }
+}
+
+/** Booked, in the future, and nobody has confirmed it yet. */
+export function needsConfirming(withinDays = 2) {
+  const today = ctParts().date
+  let end = today; for (let i = 0; i < withinDays; i++) end = nextDay(end)
+  return db.all(
+    `SELECT e.id, e.title, e.event_date, e.start_time, e.event_type, e.related_id client_id,
+            c.first_name, c.last_name, c.phone
+       FROM calendar_events e LEFT JOIN clients c ON c.id = e.related_id
+      WHERE e.is_sales_appointment = 1 AND e.appt_status = 'scheduled'
+        AND e.event_date >= ? AND e.event_date <= ?
+      ORDER BY e.event_date ASC, e.start_time ASC LIMIT 50`, [today, end])
+}
+
+/** Appointments whose day has passed with no outcome recorded. Phase 2 prompts on these. */
+export function awaitingOutcome(limit = 50) {
+  return db.all(
+    `SELECT e.id, e.title, e.event_date, e.start_time, e.event_type, e.related_id client_id,
+            c.first_name, c.last_name
+       FROM calendar_events e LEFT JOIN clients c ON c.id = e.related_id
+      WHERE e.is_sales_appointment = 1 AND e.event_date < ?
+        AND (e.appt_outcome IS NULL OR e.appt_outcome = '')
+        AND COALESCE(e.appt_status,'') != 'cancelled'
+      ORDER BY e.event_date DESC LIMIT ?`, [ctParts().date, limit])
+}
+
+export const APPT_OUTCOMES = ['held', 'no_show', 'cancelled_by_client', 'cancelled_by_us']
+
+/** Record what the meeting DID. A person only - never AI, never inferred from a status. */
+export function recordOutcome(eventId, outcome, { by } = {}) {
+  if (!APPT_OUTCOMES.includes(outcome)) throw new Error('bad outcome')
+  if (!by) throw new Error('an outcome needs the person recording it')
+  const e = db.get('SELECT * FROM calendar_events WHERE id = ?', [Number(eventId)])
+  if (!e) throw new Error('not found')
+  if (!e.is_sales_appointment) throw new Error('not a sales appointment')
+  db.run('UPDATE calendar_events SET appt_outcome = ?, outcome_recorded_by = ?, updated_at = ? WHERE id = ?',
+    [outcome, String(by).slice(0, 80), nowIso(), Number(eventId)])
+  try {
+    db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
+      ['appointment', 'client', e.related_id, `Appointment ${outcome.replace(/_/g, ' ')} — ${e.title} — recorded by ${by}`])
+  } catch {}
+  return { ok: true, id: Number(eventId), outcome }
 }

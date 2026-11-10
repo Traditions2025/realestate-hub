@@ -40,7 +40,15 @@ router.post('/', (req, res) => {
 // time, title, notes. Walkthrough auto-titles "Walkthrough - {address} - {name}".
 // Notes always carry the lead's Hub profile link. Saved on the Hub calendar AND
 // emailed to John + Matt as a real calendar invite (ICS, shows Yes/No in Gmail).
-const APPT_TYPES = { showing: 'Showing', walkthrough: 'Walkthrough', buyer_meeting: 'Buyer Meeting' }
+// Listing Appointment and Buyer Consultation added 2026-11-10: those are the two meetings
+// that produce a signed agreement, and neither could be recorded before.
+const APPT_TYPES = {
+  showing: 'Showing',
+  walkthrough: 'Walkthrough',
+  buyer_meeting: 'Buyer Meeting',
+  listing_appointment: 'Listing Appointment',
+  buyer_consult: 'Buyer Consultation',
+}
 const icsEsc = (s) => String(s || '').replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
 router.post('/appointment', async (req, res) => {
   try {
@@ -68,9 +76,23 @@ router.post('/appointment', async (req, res) => {
     const pad = (x) => String(x).padStart(2, '0')
     const endLocal = `${endDate.getFullYear()}-${pad(endDate.getMonth() + 1)}-${pad(endDate.getDate())}T${pad(endDate.getHours())}:${pad(endDate.getMinutes())}:00`
     const attendees = ['johnwithmattsmithteam@gmail.com', 'mattsmithremax@gmail.com']
-    const ins = db.run(`INSERT INTO calendar_events (title, event_type, event_date, start_time, end_time, location, description, attendees, related_type, related_id, reminder_minutes, color)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [title, typeKey, b.date, `${b.time}`, endLocal.slice(11, 16), address || null, description, attendees.join(','), 'client', cid, 30, 'gold'])
+    // A BOOKING MADE HERE IS A COUNTABLE APPOINTMENT (John, 2026-11-10).
+    //
+    // This route has been live since September and has created five appointments, and not
+    // one of them could be counted: it wrote the calendar row but never appt_status, so the
+    // appointment reporting saw an empty table and the dashboard sat on "appointments today:
+    // 0" while real appointments were being booked through it.
+    //
+    // is_sales_appointment = 1 is what makes it eligible. booked_at records WHEN it was
+    // booked, separately from when it happens, so a reschedule moves the meeting without
+    // moving the day it counts against.
+    const bookedAt = new Date().toISOString()
+    const bookedBy = req.user?.name || req.user?.email || 'Hub'
+    const ins = db.run(`INSERT INTO calendar_events (title, event_type, event_date, start_time, end_time, location, description, attendees, related_type, related_id, reminder_minutes, color,
+            appt_status, is_sales_appointment, team_member, duration_min, booked_at, source)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [title, typeKey, b.date, `${b.time}`, endLocal.slice(11, 16), address || null, description, attendees.join(','), 'client', cid, 30, 'gold',
+        'scheduled', 1, String(b.team_member || 'Matt Smith'), durationMin, bookedAt, `manual:${bookedBy}`])
     try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['appointment', 'client', cid, `${title} — ${b.date} ${b.time}`]) } catch {}
     // ICS invite (METHOD:REQUEST) → Gmail renders Add-to-calendar with Yes/No/Maybe.
     const fmtIcs = (s) => s.replace(/[-:]/g, '')
