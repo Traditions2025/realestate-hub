@@ -642,3 +642,112 @@ export function recordOutcome(eventId, outcome, { by } = {}) {
   } catch {}
   return { ok: true, id: Number(eventId), outcome }
 }
+
+// ---------------------------------------------------------------------------
+// THE SCOREBOARD (John, 2026-11-10)
+// ---------------------------------------------------------------------------
+// The dashboard question is not "how many appointments exist", it is "am I going to hit
+// the number this week, and if not, by how much am I short right now". So the board is
+// built around four values, and every one of them is derived from appointmentCounts()
+// above rather than from its own query, because a scoreboard that disagrees with the
+// client profile is worse than no scoreboard.
+//
+//   TARGET     what we said we would set. Stored, never guessed.
+//   SET        appointmentCounts().set for the period.
+//   REMAINING  target - set, floored at zero. What is left to do.
+//   BEHIND     target x (days FINISHED / days in period), minus set.
+//
+// BEHIND deliberately uses days FINISHED, not days elapsed. Monday at 8am counts zero
+// days, so the board does not open the week by telling you that you are already behind.
+// On the last day of the period the two are the same thing anyway.
+//
+// NO TARGET MEANS NO DEFICIT. Until somebody sets a number, target/remaining/behind come
+// back null and the card says so. An invented target produces an invented deficit, and a
+// deficit nobody agreed to is a number the team learns to ignore.
+const TARGET_KEYS = { week: 'appt_target_weekly', month: 'appt_target_monthly' }
+
+export function getApptTargets() {
+  const read = (k) => { const v = db.getSetting(k, null); const n = Number(v); return v === null || v === '' || !Number.isFinite(n) || n <= 0 ? null : Math.round(n) }
+  return { week: read(TARGET_KEYS.week), month: read(TARGET_KEYS.month) }
+}
+
+export function setApptTargets({ week, month } = {}) {
+  const write = (k, v) => {
+    if (v === undefined) return
+    if (v === null || v === '' || Number(v) <= 0) return db.setSetting(k, '')   // cleared = no target
+    const n = Number(v)
+    if (!Number.isFinite(n) || n > 1000) throw new Error('target must be a number between 1 and 1000')
+    db.setSetting(k, String(Math.round(n)))
+  }
+  write(TARGET_KEYS.week, week)
+  write(TARGET_KEYS.month, month)
+  return getApptTargets()
+}
+
+const addDays = (d, n) => { const t = new Date(`${d}T12:00:00Z`); t.setUTCDate(t.getUTCDate() + n); return t.toISOString().slice(0, 10) }
+
+/** Monday-start Central week containing `date`. The team's week runs Mon-Sun. */
+function weekBounds(date, weekday) {
+  const back = (weekday + 6) % 7            // ctParts weekday: 0=Sun .. 6=Sat
+  const from = addDays(date, -back)
+  return { from, to: addDays(from, 6), days: 7 }
+}
+
+function monthBounds(date) {
+  const [y, m] = date.split('-').map(Number)
+  const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+  return { from: `${date.slice(0, 7)}-01`, to: `${date.slice(0, 7)}-${String(days).padStart(2, '0')}`, days }
+}
+
+/** One period of the board: the counts, the target, and how the two compare right now. */
+function period(label, { from, to, days }, target, today) {
+  const counts = appointmentCounts(from, to)
+  // Days finished before today. Clamped so a past or future period reads sensibly.
+  const idx = Math.round((Date.parse(`${today}T12:00:00Z`) - Date.parse(`${from}T12:00:00Z`)) / DAY)
+  const finished = Math.max(0, Math.min(days, idx))
+  const daysLeft = Math.max(0, days - finished)       // today counts as still available
+  const out = {
+    label, from, to, days, days_finished: finished, days_left: daysLeft,
+    ...counts,
+    target: target ?? null, remaining: null, behind: null, ahead: null, per_day_needed: null, pct: null,
+  }
+  if (target) {
+    const expected = Math.round(target * finished / days)
+    out.remaining = Math.max(0, target - counts.set)
+    out.behind = Math.max(0, expected - counts.set)
+    out.ahead = Math.max(0, counts.set - expected)
+    out.expected_by_now = expected
+    out.per_day_needed = daysLeft > 0 ? Math.ceil(out.remaining / daysLeft) : out.remaining
+    out.pct = Math.min(100, Math.round(counts.set / target * 100))
+  }
+  return out
+}
+
+/** Everything the dashboard's Appointments board needs, in one call. */
+export function appointmentScoreboard() {
+  initScheduling()
+  const { date: today, weekday } = ctParts()
+  const t = getApptTargets()
+  const wk = weekBounds(today, weekday)
+  const mo = monthBounds(today)
+  const prevWk = weekBounds(addDays(wk.from, -1), 0)   // the Sunday before this week
+  const prevMoEnd = addDays(mo.from, -1)
+  const prevMo = monthBounds(prevMoEnd)
+
+  const upcoming = db.get(
+    `SELECT COUNT(*) n FROM calendar_events
+      WHERE is_sales_appointment = 1 AND event_date >= ?
+        AND COALESCE(appt_status,'') NOT IN ('cancelled','no_show','completed')`, [today])?.n || 0
+
+  return {
+    today,
+    week: period('This week', wk, t.week, today),
+    month: period('This month', mo, t.month, today),
+    prev_week_set: appointmentCounts(prevWk.from, prevWk.to).set,
+    prev_month_set: appointmentCounts(prevMo.from, prevMo.to).set,
+    upcoming,
+    needs_confirming: needsConfirming(2).length,
+    awaiting_outcome: awaitingOutcome(50),
+    targets: t,
+  }
+}

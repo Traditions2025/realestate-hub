@@ -63,6 +63,170 @@ function Chip({ to, label, value, tone }) {
   return to ? <Link to={to} style={{ textDecoration: 'none' }}>{inner}</Link> : inner
 }
 
+// ============================================================================
+// APPOINTMENTS BOARD (John, 2026-11-10)
+// ----------------------------------------------------------------------------
+// Answers one question on sight: are we going to hit the number this week, and if not,
+// how far behind are we RIGHT NOW. Every value is served by /api/scheduling/scoreboard
+// (carried on the dashboard payload) - the page does no arithmetic of its own, so the
+// board, the client profile and Reporting cannot drift apart.
+//
+// With no target set, the card shows the count and says there is no target. It does NOT
+// invent one, because an invented target produces an invented deficit and the team learns
+// within a week to ignore the whole board.
+// ============================================================================
+const TONE = { red: '#dc2626', amber: '#d97706', green: '#059669', muted: 'var(--text-muted)' }
+
+function PeriodCard({ p, prevSet, prevLabel, onSetTarget }) {
+  if (!p) return null
+  const hasTarget = p.target != null
+  const met = hasTarget && p.remaining === 0
+  // One status line, and it is the headline of the card.
+  const status = !hasTarget ? { text: 'No target set', tone: 'muted' }
+    : met ? { text: `Target met — ${p.set} of ${p.target}`, tone: 'green' }
+    : p.behind > 0 ? { text: `Behind by ${p.behind}`, tone: 'red' }
+    : p.ahead > 0 ? { text: `Ahead by ${p.ahead}`, tone: 'green' }
+    : { text: 'On pace', tone: 'green' }
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: '12px 14px', background: 'var(--bg-secondary)' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 6 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, letterSpacing: '.06em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>{p.label}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 13, color: 'var(--text-muted)' }}>{fmtDay(p.from)} – {fmtDay(p.to)}</span>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+        <span style={{ fontSize: 38, fontWeight: 800, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>{p.set}</span>
+        <span style={{ fontSize: 15.5, color: 'var(--text-secondary)', paddingBottom: 4 }}>
+          {hasTarget ? `set of ${p.target}` : 'set'}
+        </span>
+        <span style={{ marginLeft: 'auto', paddingBottom: 4, fontSize: 15, fontWeight: 700, color: TONE[status.tone] }}>{status.text}</span>
+      </div>
+
+      {/* Progress against the target. No bar at all when there is no target to measure. */}
+      {hasTarget && (
+        <div style={{ height: 7, borderRadius: 4, background: 'var(--border)', margin: '9px 0 8px', overflow: 'hidden' }}>
+          <div style={{ width: `${p.pct}%`, height: '100%', borderRadius: 4, background: met ? TONE.green : p.behind > 0 ? TONE.amber : TONE.green, transition: 'width .3s' }} />
+        </div>
+      )}
+
+      <div style={{ fontSize: 14.5, color: 'var(--text-secondary)', display: 'flex', flexWrap: 'wrap', gap: '2px 10px' }}>
+        {hasTarget ? (
+          met
+            ? <span>Nothing left to set this {p.days === 7 ? 'week' : 'month'}.</span>
+            : <>
+                <span><strong style={{ color: 'var(--text-primary)' }}>{p.remaining}</strong> remaining</span>
+                {p.days_left > 0 && <span>· {p.per_day_needed}/day over {p.days_left} {p.days_left === 1 ? 'day' : 'days'} left</span>}
+                {p.days_left === 0 && <span>· period is over</span>}
+              </>
+        ) : (
+          <button onClick={onSetTarget} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--accent, #2563eb)', cursor: 'pointer', fontSize: 14.5, fontWeight: 600 }}>
+            Set a target →
+          </button>
+        )}
+        {prevSet != null && <span style={{ color: 'var(--text-muted)' }}>· {prevLabel}: {prevSet}</span>}
+      </div>
+    </div>
+  )
+}
+
+function AppointmentBoard({ board, onChanged }) {
+  const [editing, setEditing] = useState(false)
+  const [wk, setWk] = useState('')
+  const [mo, setMo] = useState('')
+  const [err, setErr] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [outcomeBusy, setOutcomeBusy] = useState(null)
+
+  if (!board) return null
+  const openEdit = () => { setWk(board.targets?.week ?? ''); setMo(board.targets?.month ?? ''); setErr(''); setEditing(true) }
+  const save = async () => {
+    setBusy(true); setErr('')
+    try {
+      const r = await authFetch('/api/scheduling/targets', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ week: wk === '' ? null : Number(wk), month: mo === '' ? null : Number(mo) }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'could not save')
+      setEditing(false); onChanged()
+    } catch (e) { setErr(e.message) } finally { setBusy(false) }
+  }
+  // Recording an outcome from here is what keeps "held" honest: without it the board
+  // reports appointments set and nothing about whether they happened.
+  const record = async (id, outcome) => {
+    setOutcomeBusy(id)
+    try {
+      const r = await authFetch(`/api/scheduling/appointments/${id}/outcome`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ outcome }),
+      })
+      if (!r.ok) { const d = await r.json().catch(() => ({})); throw new Error(d.error || 'could not record') }
+      onChanged()
+    } catch (e) { setErr(e.message) } finally { setOutcomeBusy(null) }
+  }
+
+  const awaiting = board.awaiting_outcome || []
+  const m = board.month || {}
+
+  return (
+    <Section title="Appointments" link="/calendar" linkLabel="Calendar →" accent="#0d9488">
+      {editing ? (
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 12, padding: '10px 12px', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <label style={{ fontSize: 14.5 }}>Per week <input type="number" min="0" max="1000" value={wk} onChange={e => setWk(e.target.value)} style={{ width: 70, marginLeft: 6 }} /></label>
+          <label style={{ fontSize: 14.5 }}>Per month <input type="number" min="0" max="1000" value={mo} onChange={e => setMo(e.target.value)} style={{ width: 70, marginLeft: 6 }} /></label>
+          <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
+          <button className="btn btn-sm" onClick={() => setEditing(false)}>Cancel</button>
+          <span style={{ fontSize: 13.5, color: 'var(--text-muted)' }}>Blank or 0 = no target.</span>
+          {err && <span style={{ fontSize: 13.5, color: TONE.red }}>{err}</span>}
+        </div>
+      ) : (
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: -6, marginBottom: 6 }}>
+          <button onClick={openEdit} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--text-muted)', cursor: 'pointer', fontSize: 13.5 }}>Edit targets</button>
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 12 }}>
+        <PeriodCard p={board.week} prevSet={board.prev_week_set} prevLabel="last week" onSetTarget={openEdit} />
+        <PeriodCard p={board.month} prevSet={board.prev_month_set} prevLabel="last month" onSetTarget={openEdit} />
+      </div>
+
+      {/* What happened to them, and what is still on the books. Month to date. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        <Chip to="/calendar" label="Upcoming" value={board.upcoming} tone="blue" />
+        <Chip label="Held this month" value={m.held} tone="green" />
+        <Chip label="No-shows" value={m.no_show} tone={m.no_show ? 'red' : undefined} />
+        <Chip label="Cancelled" value={m.cancelled} />
+        {board.needs_confirming > 0 && <Chip to="/calendar" label="To confirm" value={board.needs_confirming} tone="amber" />}
+      </div>
+
+      {/* The honesty check. While this list has rows, "held" is incomplete and says so. */}
+      {awaiting.length > 0 && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border)', paddingTop: 10 }}>
+          <div style={{ fontSize: 14.5, fontWeight: 700, color: TONE.amber, marginBottom: 6 }}>
+            {awaiting.length} {awaiting.length === 1 ? 'appointment has' : 'appointments have'} passed with no outcome recorded
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {awaiting.slice(0, 5).map(a => (
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 14.5 }}>
+                <span style={{ color: 'var(--text-muted)', minWidth: 54, fontVariantNumeric: 'tabular-nums' }}>{fmtDay(a.event_date)}</span>
+                {a.client_id
+                  ? <Link to={`/clients/${a.client_id}`} style={{ fontWeight: 600 }}>{a.title}</Link>
+                  : <span style={{ fontWeight: 600 }}>{a.title}</span>}
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <button className="btn btn-sm" disabled={outcomeBusy === a.id} onClick={() => record(a.id, 'held')}>Held</button>
+                  <button className="btn btn-sm" disabled={outcomeBusy === a.id} onClick={() => record(a.id, 'no_show')}>No-show</button>
+                </span>
+              </div>
+            ))}
+          </div>
+          {awaiting.length > 5 && <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 6 }}>+{awaiting.length - 5} more on the Calendar.</div>}
+          {err && <div style={{ fontSize: 13.5, color: TONE.red, marginTop: 6 }}>{err}</div>}
+        </div>
+      )}
+    </Section>
+  )
+}
+
 const ATTN_META = {
   handoff: { badge: '🤖 AI HANDOFF', color: '#ef4444' },
   need_response: { badge: '💬 NEEDS REPLY', color: '#d97706' },
@@ -117,6 +281,7 @@ export default function Dashboard() {
   const homeValueRequests = data.home_value_requests || []
   const health = data.health || { ok: true, issues: [] }
   const business = data.business || null
+  const apptBoard = data.appointments || null
 
   // Central-time greeting + date line.
   const ctNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Chicago' }))
@@ -187,6 +352,9 @@ export default function Dashboard() {
               </Link>
         ))}
       </div>
+
+      {/* ── Appointments board: set vs target, week and month ─── */}
+      {apptBoard && <div style={{ marginBottom: 14 }}><AppointmentBoard board={apptBoard} onChanged={load} /></div>}
 
       {/* ── Row 2: Needs Attention + Today's Schedule ─────────────── */}
       <div style={{ ...row, gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))' }}>

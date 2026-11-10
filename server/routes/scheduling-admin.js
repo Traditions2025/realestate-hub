@@ -8,6 +8,8 @@ import {
   initScheduling, getType, availableDays, slotsForDate, bookAppointment,
   sendBookingConfirmations, rescheduleAppointment, cancelAppointment,
   setAppointmentStatus, fmtCtPretty,
+  appointmentScoreboard, appointmentCounts, getApptTargets, setApptTargets,
+  recordOutcome, APPT_OUTCOMES,
 } from '../scheduling.js'
 
 const router = express.Router()
@@ -168,6 +170,49 @@ router.get('/stats', (_req, res) => {
     by_campaign: by(`SELECT COALESCE(e.campaign,'—') campaign, COUNT(*) c FROM calendar_events e WHERE e.appt_status IS NOT NULL GROUP BY e.campaign`),
     page_funnel: by(`SELECT slug, event, COUNT(DISTINCT session) c FROM booking_page_events GROUP BY slug, event`),
   })
+})
+
+// ---- the scoreboard: set vs target for this week and this month ----
+// Read-only, and the single source for the dashboard board. Any other screen that wants
+// these numbers calls this rather than writing its own SQL.
+router.get('/scoreboard', (_req, res) => {
+  try { res.json(appointmentScoreboard()) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// An arbitrary window, for Reporting and for "how did last month actually go".
+router.get('/counts', (req, res) => {
+  const ok = (d) => /^\d{4}-\d{2}-\d{2}$/.test(String(d || ''))
+  const { from, to } = req.query
+  if (!ok(from) || !ok(to)) return res.status(400).json({ error: 'from and to must be YYYY-MM-DD' })
+  if (to < from) return res.status(400).json({ error: 'to is before from' })
+  try { res.json(appointmentCounts(from, to)) }
+  catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+router.get('/targets', (_req, res) => res.json(getApptTargets()))
+
+// The target is a commitment, so changing it is a settings-level action and it is logged.
+router.put('/targets', requirePermission('settings.edit'), (req, res) => {
+  try {
+    const before = getApptTargets()
+    const after = setApptTargets({ week: req.body?.week, month: req.body?.month })
+    const by = req.user?.name || req.user?.email || 'staff'
+    try {
+      db.run('INSERT INTO activity_log (action, entity_type, details) VALUES (?,?,?)',
+        ['appointment_target', 'settings',
+         `Appointment target: week ${before.week ?? 'none'} -> ${after.week ?? 'none'}, month ${before.month ?? 'none'} -> ${after.month ?? 'none'} (by ${by})`])
+    } catch {}
+    res.json(after)
+  } catch (e) { res.status(400).json({ error: e.message }) }
+})
+
+// Record what a meeting DID. A person, always - the route refuses to guess.
+router.post('/appointments/:id/outcome', (req, res) => {
+  const by = req.user?.name || req.user?.email
+  if (!by) return res.status(401).json({ error: 'sign in to record an outcome' })
+  try { res.json(recordOutcome(Number(req.params.id), String(req.body?.outcome || ''), { by })) }
+  catch (e) { res.status(400).json({ error: e.message, allowed: APPT_OUTCOMES }) }
 })
 
 export default router

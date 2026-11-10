@@ -2,6 +2,7 @@ import { Router } from 'express'
 import db from '../database.js'
 import { SMART_LIST_SQL } from './clients.js'
 import { fetchTodaysDeadlines } from '../daily-reminders.js'
+import { appointmentScoreboard } from '../scheduling.js'
 
 // ---- Central-time day boundaries. occurred_at is stored as UTC ISO, so "today" counts must
 // use the America/Chicago day window, never the raw UTC date. ----
@@ -483,6 +484,11 @@ router.get('/', (req, res) => {
       expired_sync_last: db.getSetting('expired_master_last_sync', null),
     }
   }, { ok: true, issues: [] })
+
+  // ---- Appointments board: set vs target, this week and this month (John, 2026-11-10).
+  // appointmentScoreboard() is the ONLY place these numbers are worked out; the dashboard
+  // just carries them, so the board and the client profile can never drift apart. ----
+  stats.appointments = safe(() => appointmentScoreboard(), null)
 
   res.json(stats)
 })
