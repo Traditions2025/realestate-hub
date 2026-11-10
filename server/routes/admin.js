@@ -44,6 +44,39 @@ router.get('/email-deliverability', requirePermission('settings.view'), async (r
     if (hit) out.suppressed_by.push('global_unsubscribe')
   } catch (e) { out.details.global_unsubscribe = { error: e.message } }
 
+  // WHEN it landed on the global unsubscribe list (John, 2026-11-10, Jeffrey Nance).
+  //
+  // The single-address lookup above answers "is it suppressed" and nothing else, so a
+  // year-old opt-out and an entry added this morning look identical — and they are
+  // completely different problems. One is the person's choice and must be respected; the
+  // other is a mistake to undo.
+  //
+  // Worth reading next to /api/email/sendgrid-settings: this account has Subscription
+  // Tracking OFF and no ASM groups, so our mail carries no unsubscribe link and nobody can
+  // add THEMSELVES by clicking one. Anything on this list was put there by hand or by an
+  // import, which is exactly why the date is the thing that matters.
+  //
+  // The date only exists on the list itself, so page through it until the address turns up.
+  if (out.suppressed_by.includes('global_unsubscribe')) {
+    out.global_unsubscribe_added = 'not found in the first 5,000 entries'
+    try {
+      for (let offset = 0; offset < 5000; offset += 500) {
+        const r = await fetch(`https://api.sendgrid.com/v3/suppression/unsubscribes?limit=500&offset=${offset}`,
+          { headers: { Authorization: 'Bearer ' + key } })
+        if (!r.ok) { out.global_unsubscribe_added = `lookup failed: HTTP ${r.status}`; break }
+        const page = await r.json().catch(() => [])
+        if (!Array.isArray(page) || !page.length) break
+        const hit = page.find(u => String(u.email || '').toLowerCase() === email)
+        if (hit) {
+          out.global_unsubscribe_added = hit.created
+            ? new Date(hit.created * 1000).toISOString()
+            : 'on the list, but SendGrid recorded no date'
+          break
+        }
+      }
+    } catch (e) { out.global_unsubscribe_added = 'lookup failed: ' + e.message }
+  }
+
   // What the Hub believes it sent to this address lately.
   try {
     out.recent_hub_sends = db.all(
