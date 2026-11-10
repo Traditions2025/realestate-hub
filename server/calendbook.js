@@ -139,13 +139,18 @@ export async function handleCalendbookWebhook(kind, payload) {
   const type = db.get('SELECT * FROM appointment_types WHERE lower(name) = lower(?) OR lower(public_title) = lower(?)', [typeName, typeName])
   const title = `${typeName} - ${name}`
   const ins = db.run(`INSERT INTO calendar_events (title, event_type, event_date, start_time, end_time, description, attendees, related_type, related_id,
-          reminder_minutes, color, appt_type_id, appt_status, manage_token, team_member, source, attribution_json)
-          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          reminder_minutes, color, appt_type_id, appt_status, manage_token, team_member, source, attribution_json,
+          is_sales_appointment, booked_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [title, 'appointment', dateStr || ctParts().date, timeStr, endStr,
      `Booked via Calendbook${mined.notes ? `\n\n${mined.notes}` : ''}`,
      'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com', 'client', client_id,
      30, type?.color || 'gold', type?.id || null, 'scheduled', crypto.randomBytes(24).toString('base64url'), 'Matt Smith',
-     'Calendbook', JSON.stringify({ calendbook_id: mined.external_id || null })])
+     'Calendbook', JSON.stringify({ calendbook_id: mined.external_id || null }),
+     // A Calendbook booking is a real appointment someone chose a time for, so it counts
+     // like any other. booked_at is NOW rather than the meeting time: it is the moment the
+     // booking arrived, which is the day the work happened.
+     1, new Date().toISOString()])
   try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['appointment', 'client', client_id, `Appointment Booked (Calendbook) — ${typeName}${dateStr && timeStr ? ` — ${fmtCtPretty(dateStr, timeStr)}` : ''}`]) } catch {}
   emitEvent('appointment.booked', client_id, ins.lastInsertRowid, { at: `${dateStr}T${timeStr}`, type: typeName })
   notifyTeam(`Calendbook booking: ${name}`, `${typeName}${dateStr && timeStr ? ` — ${fmtCtPretty(dateStr, timeStr)}` : ''} (lead ${matched})`, client_id)

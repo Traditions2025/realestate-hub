@@ -1736,7 +1736,14 @@ function AppointmentsCard({ cid, client }) {
           {past.slice(0, 6).map(r => <Row key={r.id} r={r} />)}
         </>
       )}
-      {open && <ScheduleTypedModal client={client} onClose={() => { setOpen(false); load() }} />}
+      {/* The MANUAL recorder, not the availability-slot flow (John, 2026-11-10: appointments
+          are set by call, text, email or in person, by whoever is talking to them).
+          ScheduleTypedModal only lists ACTIVE appointment types, and the sole type is the
+          parked Fix It or Skip It, so this button opened a modal with an empty dropdown and
+          could not book anything at all. Slot-picking is for the public booking page, where
+          the lead needs to see real availability; recording a time already agreed on the
+          phone just needs a date and a time. */}
+      {open && <AppointmentModal client={client} onClose={() => { setOpen(false); load() }} />}
     </section>
   )
 }

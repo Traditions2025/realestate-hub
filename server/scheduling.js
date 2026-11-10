@@ -308,12 +308,20 @@ export function bookAppointment({ type, dateStr, time, client_id, propertyAddres
     const endMin = toMin(time) + dur
     const description = `Hub profile: ${HUB}/clients/${client_id}${c?.phone ? `\nPhone: ${c.phone}` : ''}${notes ? `\n\n${notes}` : ''}`
     const ins = db.run(`INSERT INTO calendar_events (title, event_type, event_date, start_time, end_time, location, description, attendees, related_type, related_id,
-            reminder_minutes, color, appt_type_id, appt_status, manage_token, team_member, duration_min, answers_json, attribution_json, source, campaign)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+            reminder_minutes, color, appt_type_id, appt_status, manage_token, team_member, duration_min, answers_json, attribution_json, source, campaign,
+            is_sales_appointment, booked_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [t, 'appointment', dateStr, time, hm(endMin), propertyAddress, description,
        'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com', 'client', client_id,
        30, type.color || 'gold', type.id, 'scheduled', token, member, dur,
-       answers ? JSON.stringify(answers) : null, attribution ? JSON.stringify(attribution) : null, source, campaign])
+       answers ? JSON.stringify(answers) : null, attribution ? JSON.stringify(attribution) : null, source, campaign,
+       // EVERY WRITE PATH, NOT JUST THE ONE IN FRONT OF ME (John, 2026-11-10).
+       // The Hub has been bitten by guarding one endpoint at a time before - the hand-added
+       // lead rule was honoured by auto-enrolment and walked straight past by "Send AI now".
+       // There are three ways an appointment gets created (this one, the profile's manual
+       // record, and Calendbook) and an appointment that does not count is worse than no
+       // appointment, because the number looks real and is quietly short.
+       1, nowIso()])
     return { id: ins.lastInsertRowid, token, member, title: t }
   })()
   const r = tx
@@ -509,7 +517,20 @@ export function setAppointmentStatus(eventId, status, { by = 'staff' } = {}) {
   if (!['confirmed', 'completed', 'no_show'].includes(status)) throw new Error('bad status')
   const e = db.get('SELECT * FROM calendar_events WHERE id = ?', [eventId])
   if (!e) throw new Error('not found')
-  db.run('UPDATE calendar_events SET appt_status = ?, updated_at = ? WHERE id = ?', [status, nowIso(), eventId])
+  // A PERSON PRESSING "Completed" IS A PERSON RECORDING THE OUTCOME.
+  //
+  // Status and outcome stay separate columns because they answer different questions, and
+  // a status arriving from a sync or an import must never imply the meeting happened. But
+  // when a human clicks Completed or No-show on the profile, that IS them saying what the
+  // meeting did, and making them say it twice would mean the held count silently stayed at
+  // zero while the team thought they were recording it.
+  const outcome = status === 'completed' ? 'held' : status === 'no_show' ? 'no_show' : null
+  if (outcome) {
+    db.run('UPDATE calendar_events SET appt_status = ?, appt_outcome = ?, outcome_recorded_by = ?, updated_at = ? WHERE id = ?',
+      [status, outcome, String(by).slice(0, 80), nowIso(), eventId])
+  } else {
+    db.run('UPDATE calendar_events SET appt_status = ?, updated_at = ? WHERE id = ?', [status, nowIso(), eventId])
+  }
   if (['completed', 'no_show'].includes(status)) cancelReminders(eventId)
   try { db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)', ['appointment', 'client', e.related_id, `Appointment ${status.replace('_', '-')} — ${e.title}`]) } catch {}
   emitApptEvent('appointment.' + status, e.related_id, eventId, { by })

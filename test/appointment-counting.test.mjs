@@ -11,6 +11,7 @@
 // must never count at all.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import db, { initDb } from '../server/database.js'
 await initDb()
 const S = await import('../server/scheduling.js')
@@ -157,4 +158,55 @@ test('only unconfirmed future appointments ask to be confirmed', () => {
   const ids = S.needsConfirming(2).map(r => r.id)
   assert.ok(ids.includes(id), 'the unconfirmed one is asked about')
   assert.ok(!ids.includes(confirmed), 'the confirmed one is left alone')
+})
+
+// ---- every write path, not just the one in front of me ---------------------------
+
+test('every way of creating an appointment produces a countable one', () => {
+  // Three routes create appointments: the profile's manual recorder, the typed/slot
+  // booking engine, and Calendbook. The Hub has been bitten before by a rule that one
+  // endpoint honoured and another walked straight past, so this asserts the INSERT in each
+  // source file carries the eligibility flag rather than trusting that it does.
+  const files = ['../server/scheduling.js', '../server/calendbook.js', '../server/routes/calendar.js']
+  for (const f of files) {
+    const src = readFileSync(new URL(f, import.meta.url), 'utf8')
+    const hasInsert = /INSERT INTO calendar_events/.test(src)
+    assert.ok(hasInsert, `${f} should insert calendar events`)
+    assert.match(src, /is_sales_appointment/, `${f} must set the eligibility flag`)
+    assert.match(src, /booked_at/, `${f} must record when it was booked`)
+  }
+})
+
+test('pressing Completed on the profile records held, not just a status', () => {
+  // The button used to set appt_status only, so the held count stayed at zero while the
+  // team believed they were recording outcomes.
+  const past = '2024-03-06'
+  const b = S.appointmentCounts(past, past)
+  const id = mkAppt({ event_date: past })
+  S.setAppointmentStatus(id, 'completed', { by: 'John Solamo' })
+  const row = db.get('SELECT appt_status, appt_outcome, outcome_recorded_by o FROM calendar_events WHERE id=?', [id])
+  assert.equal(row.appt_status, 'completed')
+  assert.equal(row.appt_outcome, 'held')
+  assert.equal(row.o, 'John Solamo', 'and it records who said so')
+  assert.equal(S.appointmentCounts(past, past).held, b.held + 1)
+})
+
+test('pressing No-show records a no-show, and never a held', () => {
+  const past = '2024-03-07'
+  const b = S.appointmentCounts(past, past)
+  const id = mkAppt({ event_date: past })
+  S.setAppointmentStatus(id, 'no_show', { by: 'John Solamo' })
+  const a = S.appointmentCounts(past, past)
+  assert.equal(a.no_show, b.no_show + 1)
+  assert.equal(a.held, b.held, 'held does not move')
+})
+
+test('confirming an appointment is not an outcome', () => {
+  const past = '2024-03-08'
+  const b = S.appointmentCounts(past, past)
+  const id = mkAppt({ event_date: past })
+  S.setAppointmentStatus(id, 'confirmed', { by: 'John Solamo' })
+  const row = db.get('SELECT appt_outcome FROM calendar_events WHERE id=?', [id])
+  assert.equal(row.appt_outcome, null, 'confirmed says nothing about whether it happened')
+  assert.equal(S.appointmentCounts(past, past).held, b.held)
 })
