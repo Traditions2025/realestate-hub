@@ -181,6 +181,39 @@ async function notifyInboundText(client, body, fromPhone) {
 const CHANNELS = ['email', 'text', 'call', 'voicemail']
 
 // ---- list: grouped into conversations by contact (like the FUB inbox) ----
+// ---------------------------------------------------------------------------
+// WHAT THE INBOX LIST SENDS (John, 2026-11-11 - the Render bandwidth bill)
+// ---------------------------------------------------------------------------
+// This route used to `SELECT *`, which meant every conversation row carried the FULL
+// body of its last message. For a text that is 100 bytes. For an email imported from
+// Gmail it is the entire HTML document including inline base64 images - one open-house
+// email in the list was 3.0 MB on its own.
+//
+// Measured 2026-11-11: the response was 4.25 MB, and 98.6% of it was message bodies.
+// The list renders `subject || preview` and NEVER the body. The Inbox page re-polls this
+// every 45 seconds while it is open, so an open tab was spending about 230 MB an hour to
+// re-send email bodies nobody looks at - roughly the whole 5 GB monthly Render allowance
+// in a day of having the tab open.
+//
+// So the list query asks for every column EXCEPT the big free-text ones. Doing it by
+// subtraction from the live schema (rather than a hand-written column list) means a new
+// column still appears in the list automatically, which is how the rest of this codebase
+// treats the communications table. The full body is still one click away: the thread
+// endpoints below return it for the conversation actually being read.
+const INBOX_LIST_SKIP = new Set(['body', 'transcript', 'call_summary', 'notes'])
+let _listCols = null
+function listColumns() {
+  if (_listCols) return _listCols
+  try {
+    const cols = db.all('PRAGMA table_info(communications)')
+      .map(c => String(c.name))
+      // Only ever interpolate plain identifiers - never a quoted or user-supplied string.
+      .filter(c => /^[A-Za-z_][A-Za-z0-9_]*$/.test(c) && !INBOX_LIST_SKIP.has(c))
+    _listCols = cols.length ? cols.join(', ') : '*'
+  } catch { _listCols = '*' }
+  return _listCols
+}
+
 router.get('/', (req, res) => {
   const folder = req.query.folder || 'inbox'         // inbox | sent | closed
   const unreadOnly = req.query.unread === '1'
@@ -194,7 +227,7 @@ router.get('/', (req, res) => {
   else where.push("direction = 'incoming' AND status != 'closed'")   // inbox
   if (unreadOnly) where.push("status = 'unread'")
   if (channels.length) { where.push(`channel IN (${channels.map(() => '?').join(',')})`); params.push(...channels) }
-  const sql = `SELECT * FROM communications WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC LIMIT 1000`
+  const sql = `SELECT ${listColumns()} FROM communications WHERE ${where.join(' AND ')} ORDER BY occurred_at DESC LIMIT 1000`
   let rows = db.all(sql, params)
   if (q) {
     // Search matches property context too (John, 2026-09-22): one cheap batched
