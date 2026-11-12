@@ -20,11 +20,32 @@ const TASK_NOTIFY_RECIPIENTS = (process.env.TASK_NOTIFY_RECIPIENTS ||
   'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com')
   .split(',').map(s => s.trim()).filter(Boolean)
 
+// PAUSED, NOT REMOVED (John, 2026-11-12): Matt asked to stop getting an email every time a
+// task is ticked off. Only the completion email is muted, and only for the addresses listed
+// here - Matt still gets task created / updated / note-added / deleted, and John still gets
+// the completion email, so nothing stops being recorded and nobody else loses anything.
+//
+// The mute fires ONLY on the transition into done (see the PUT handler). A note added to a
+// task that was already finished is not a completion, so it still goes to everyone.
+//
+// To UNPAUSE: set TASK_DONE_MUTE to an empty string in the Render environment - no deploy
+// needed, just a restart - or delete this constant and the filter in notifyTaskChange().
+const TASK_DONE_MUTE = (process.env.TASK_DONE_MUTE === undefined
+  ? 'mattsmithremax@gmail.com'
+  : process.env.TASK_DONE_MUTE)
+  .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
+
 const HUB_TASKS_URL = (process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com') + '/tasks'
 
 async function notifyTaskChange(action, task, opts = {}) {
   if (!TASK_NOTIFY_RECIPIENTS.length) return
   if (opts.silent) return
+  // `opts.completed` is set only by the caller that saw the task move INTO done, so this
+  // never has to guess a completion from the status field alone.
+  const recipients = opts.completed
+    ? TASK_NOTIFY_RECIPIENTS.filter(a => !TASK_DONE_MUTE.includes(a.toLowerCase()))
+    : TASK_NOTIFY_RECIPIENTS
+  if (!recipients.length) return
   try {
     const verb =
       action === 'created'    ? 'created' :
@@ -56,7 +77,7 @@ async function notifyTaskChange(action, task, opts = {}) {
     lines.push('<p style="font-size:11px;color:#9ca3af;">— Matt Smith Team Hub</p>')
 
     await sendViaSendGrid(
-      TASK_NOTIFY_RECIPIENTS,
+      recipients,
       'Matt Smith Team',
       subject,
       lines.filter(Boolean).join('\n'),
@@ -167,6 +188,7 @@ router.put('/:id', (req, res) => {
   fields.updated_at = new Date().toISOString()
 
   // Auto-stamp completion: when status changes, set/clear completed_at
+  let justCompleted = false
   if ('status' in fields) {
     const current = db.get('SELECT status, completed_at FROM tasks WHERE id = ?', [id])
     if (current) {
@@ -175,6 +197,7 @@ router.put('/:id', (req, res) => {
       if (isDone && !wasDone) {
         // Just marked done — capture timestamp
         fields.completed_at = new Date().toISOString()
+        justCompleted = true
       } else if (!isDone && wasDone) {
         // Moved out of done — clear the completion timestamp
         fields.completed_at = null
@@ -226,7 +249,7 @@ router.put('/:id', (req, res) => {
     ? changedKeys.map(k => `${k} → ${String(fields[k] || '').slice(0, 60)}`).join('; ')
     : 'minor update'
   const after = db.get('SELECT * FROM tasks WHERE id = ?', [id])
-  notifyTaskChange('updated', after, { silent: !!req.body?.silent, changeSummary }).catch(() => {})
+  notifyTaskChange('updated', after, { silent: !!req.body?.silent, changeSummary, completed: justCompleted }).catch(() => {})
   res.json({ success: true })
 })
 
