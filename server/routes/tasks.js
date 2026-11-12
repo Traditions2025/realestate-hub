@@ -20,19 +20,26 @@ const TASK_NOTIFY_RECIPIENTS = (process.env.TASK_NOTIFY_RECIPIENTS ||
   'johnwithmattsmithteam@gmail.com,mattsmithremax@gmail.com')
   .split(',').map(s => s.trim()).filter(Boolean)
 
-// PAUSED, NOT REMOVED (John, 2026-11-12): Matt asked to stop getting an email every time a
-// task is ticked off. Only the completion email is muted, and only for the addresses listed
-// here - Matt still gets task created / updated / note-added / deleted, and John still gets
-// the completion email, so nothing stops being recorded and nobody else loses anything.
+// PAUSED, NOT REMOVED (John, 2026-11-12): Matt asked to stop getting task notification
+// email. This started as a completion-only mute the same day, but John updated a task that
+// afternoon (#88, Marilyn Tormey - never completed, still "todo") and Matt was emailed
+// anyway, because an edit is not a completion. The narrow reading was wrong, so the pause
+// now covers EVERY per-change task email: created, updated, note added, deleted.
 //
-// The mute fires ONLY on the transition into done (see the PUT handler). A note added to a
-// task that was already finished is not a completion, so it still goes to everyone.
+// What this does NOT touch, deliberately:
+//   - John still gets all of them, so nothing stops being recorded.
+//   - The 9am daily reminder of tasks DUE (daily-reminders.js) is a different system and
+//     still reaches Matt. That one is a digest he asked for, not per-change churn.
+//   - The manual "Nudge" button still emails whoever it is aimed at. Somebody choosing to
+//     send a message is not a notification.
 //
-// To UNPAUSE: set TASK_DONE_MUTE to an empty string in the Render environment - no deploy
-// needed, just a restart - or delete this constant and the filter in notifyTaskChange().
-const TASK_DONE_MUTE = (process.env.TASK_DONE_MUTE === undefined
+// To UNPAUSE: set TASK_NOTIFY_MUTE to an empty string in the Render environment - no code
+// change and no deploy, just the restart Render does on its own. To pause someone else
+// instead, set it to their address. To bring Matt back for only some events, this is the
+// one place to add that condition.
+const TASK_NOTIFY_MUTE = (process.env.TASK_NOTIFY_MUTE === undefined
   ? 'mattsmithremax@gmail.com'
-  : process.env.TASK_DONE_MUTE)
+  : process.env.TASK_NOTIFY_MUTE)
   .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 
 const HUB_TASKS_URL = (process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.onrender.com') + '/tasks'
@@ -40,11 +47,7 @@ const HUB_TASKS_URL = (process.env.HUB_BASE_URL || 'https://realestate-hub-1rzu.
 async function notifyTaskChange(action, task, opts = {}) {
   if (!TASK_NOTIFY_RECIPIENTS.length) return
   if (opts.silent) return
-  // `opts.completed` is set only by the caller that saw the task move INTO done, so this
-  // never has to guess a completion from the status field alone.
-  const recipients = opts.completed
-    ? TASK_NOTIFY_RECIPIENTS.filter(a => !TASK_DONE_MUTE.includes(a.toLowerCase()))
-    : TASK_NOTIFY_RECIPIENTS
+  const recipients = TASK_NOTIFY_RECIPIENTS.filter(a => !TASK_NOTIFY_MUTE.includes(a.toLowerCase()))
   if (!recipients.length) return
   try {
     const verb =
@@ -188,7 +191,6 @@ router.put('/:id', (req, res) => {
   fields.updated_at = new Date().toISOString()
 
   // Auto-stamp completion: when status changes, set/clear completed_at
-  let justCompleted = false
   if ('status' in fields) {
     const current = db.get('SELECT status, completed_at FROM tasks WHERE id = ?', [id])
     if (current) {
@@ -197,7 +199,6 @@ router.put('/:id', (req, res) => {
       if (isDone && !wasDone) {
         // Just marked done — capture timestamp
         fields.completed_at = new Date().toISOString()
-        justCompleted = true
       } else if (!isDone && wasDone) {
         // Moved out of done — clear the completion timestamp
         fields.completed_at = null
@@ -249,7 +250,7 @@ router.put('/:id', (req, res) => {
     ? changedKeys.map(k => `${k} → ${String(fields[k] || '').slice(0, 60)}`).join('; ')
     : 'minor update'
   const after = db.get('SELECT * FROM tasks WHERE id = ?', [id])
-  notifyTaskChange('updated', after, { silent: !!req.body?.silent, changeSummary, completed: justCompleted }).catch(() => {})
+  notifyTaskChange('updated', after, { silent: !!req.body?.silent, changeSummary }).catch(() => {})
   res.json({ success: true })
 })
 
