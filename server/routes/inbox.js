@@ -1702,6 +1702,15 @@ router.post('/group-text', async (req, res) => {
       const c = db.get('SELECT * FROM clients WHERE id=?', [Number(r.client_id)])
       if (!c || !(r.phone || c.phone)) { blocked.push({ ...r, reason: 'no phone' }); continue }
       if (c.hub_text_opt_out) { blocked.push({ name: `${c.first_name || ''} ${c.last_name || ''}`.trim(), reason: 'replied STOP' }); continue }
+      // The 1:1 send has always refused a number the carrier says cannot receive a text.
+      // This path skipped that check, which barely showed while the group button was the
+      // only way in; from 2026-11-13 the composer routes EVERY multi-recipient text through
+      // here, so the same gate has to hold.
+      if (c.sms_undeliverable) {
+        blocked.push({ name: `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone,
+          reason: c.sms_undeliverable_reason || 'carrier says this number cannot receive texts' })
+        continue
+      }
       // r.phone (when given) is WHICH of the lead's saved numbers to use — the
       // composer's picker choice (e.g. the Additional "Liz" number, not the primary).
       recipients.push({ phone: r.phone || c.phone, name: r.name || `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.phone, client_id: c.id })
@@ -1710,6 +1719,12 @@ router.post('/group-text', async (req, res) => {
     }
   }
   if (recipients.length < 2) return res.status(400).json({ error: 'A group text needs at least 2 eligible recipients.', blocked })
+  // Twilio's group MMS holds 10 participants including our own number. The composer stops
+  // before this, but the rule belongs here too - a cap enforced only in the browser is not
+  // a cap.
+  if (recipients.length > 9) {
+    return res.status(400).json({ error: `A group text holds at most 9 people (this one has ${recipients.length}). Send it as separate texts, or split the group.`, blocked })
+  }
   try {
     // Twilio binds each participant+proxy pair to ONE conversation, so re-texting the SAME
     // group must reuse the existing conversation instead of creating a new one (which errors

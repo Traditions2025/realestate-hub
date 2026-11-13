@@ -49,7 +49,14 @@ test('only participants with a real SMS binding count as reachable', () => {
 })
 
 // ── the reuse decision must consult Twilio, not the snapshot ─────────────────────────
-const gt = inbox.slice(inbox.indexOf("router.post('/group-text'"), inbox.indexOf("router.post('/group-text'") + 4200)
+// The whole route, found by its own boundaries. This used to be a fixed 4,200-character
+// window, which quietly stopped covering the send when the route grew (2026-11-13), so the
+// ordering assertion below passed on an indexOf of -1 instead of on the real code.
+const gt = (() => {
+  const start = inbox.indexOf("router.post('/group-text'")
+  const after = inbox.indexOf('\nrouter.', start + 10)
+  return inbox.slice(start, after === -1 ? inbox.length : after)
+})()
 
 test('group-text checks the LIVE roster before reusing a conversation', () => {
   assert.match(gt, /conversationRoster\(reuseSid\)/)

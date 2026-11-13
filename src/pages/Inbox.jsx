@@ -945,6 +945,8 @@ function Composer({ onClose, onSent }) {
     return () => clearTimeout(t)
   }, [q])
 
+  // Twilio group MMS holds 10 participants INCLUDING our own sending number.
+  const GROUP_MAX = 9
   const add = (c) => { if (!recips.find(r => r.id === c.id)) setRecips([...recips, c]); setQ(''); setResults([]) }
   const remove = (id) => setRecips(recips.filter(r => r.id !== id))
 
@@ -967,13 +969,56 @@ function Composer({ onClose, onSent }) {
     setQ(''); setResults([])
   }
 
+  // MULTIPLE PEOPLE ON A TEXT = ONE GROUP TEXT (John, 2026-11-13).
+  //
+  // Picking two people here used to send two separate 1:1 texts: neither person saw the
+  // other, and replies came back as two unrelated threads. John asked for the opposite -
+  // one conversation everybody is in - which is what /api/inbox/group-text already does for
+  // the group button, so this routes to it rather than growing a second implementation.
+  //
+  // Two cases deliberately stay on the 1:1 path, because the group path cannot carry them:
+  //
+  //   PHOTOS. The Conversations API send takes a body and nothing else, so attaching a
+  //   photo to a group would drop it silently. Sending individually at least delivers the
+  //   photo, and the banner says so before you hit send.
+  //
+  //   MORE THAN 9 PEOPLE. Twilio's group MMS holds 10 participants including our own
+  //   number. Past that Twilio rejects the group, and a 20-person group text is not what
+  //   anyone wants anyway - everyone would see every number and every reply-all.
+  //
+  // Whatever it is about to do, the banner above the recipients says it in plain words
+  // first. A send that quietly shows nine strangers each other's numbers is not something
+  // to discover afterwards.
+  const textRecips = channel === 'text' ? recips : []
+  const asGroup = channel === 'text' && textRecips.length >= 2
+    && textRecips.length <= GROUP_MAX && media.length === 0
+
   const send = async () => {
     if (!recips.length) { notify('Add at least one recipient.'); return }
     if (channel === 'email' && (!subject.trim() || !body.trim())) { notify('Add a subject and a message.'); return }
     // A photo on its own is a perfectly good text, so only demand words when there is no
     // photo. The send route applies the same rule.
     if (channel === 'text' && !body.trim() && !media.length) { notify('Add a message or a photo.'); return }
+    if (asGroup && !body.trim()) { notify('A group text needs a message.'); return }
     setSending(true)
+
+    if (asGroup) {
+      const r = await authFetch('/api/inbox/group-text', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
+        body,
+        recipients: recips.map(x => x.raw
+          ? { phone: x.phone, name: x.name || null }
+          : { client_id: x.id, phone: x.phone || null, name: `${x.first_name || ''} ${x.last_name || ''}`.trim() || null }),
+      }) }).then(x => x.json()).catch(e => ({ error: e.message }))
+      setSending(false)
+      if (r.error) { notify(r.error + ((r.blocked || []).length ? ` (${r.blocked.map(b => `${b.name || b.phone}: ${b.reason}`).join(', ')})` : '')); return }
+      const bits = [`Group text sent to ${r.sent_to} people.`]
+      if ((r.blocked || []).length) bits.push(`${r.blocked.length} left out (${r.blocked.map(b => `${b.name || b.phone}: ${b.reason}`).join(', ')}).`)
+      if ((r.copies || []).length) bits.push(`${r.copies.length} got a 1:1 copy instead.`)
+      notify(bits.join(' '))
+      onSent()
+      return
+    }
+
     const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({
       channel,
       client_ids: recips.filter(x => !x.raw).map(x => x.id),
@@ -1003,6 +1048,18 @@ function Composer({ onClose, onSent }) {
         {/* recipients */}
         <div>
           <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginBottom: 4 }}>To ({channel === 'email' ? 'client emails' : 'client phones'})</div>
+          {/* Say what the send is about to be, before it happens. */}
+          {channel === 'text' && recips.length >= 2 && (
+            <div style={{ fontSize: 14.5, borderRadius: 8, padding: '7px 10px', marginBottom: 7,
+              border: '1px solid var(--border)',
+              background: asGroup ? 'rgba(37,99,235,.10)' : 'rgba(217,119,6,.10)' }}>
+              {asGroup
+                ? <><strong>One group text.</strong> All {recips.length} people are in the same conversation — they will see each other&rsquo;s numbers and every reply.</>
+                : media.length
+                  ? <><strong>{recips.length} separate texts.</strong> A group text can&rsquo;t carry a photo, so each person gets their own copy. Remove the photo to send it as one group.</>
+                  : <><strong>{recips.length} separate texts.</strong> A group holds at most {GROUP_MAX} people, so these go out one by one — nobody sees anyone else.</>}
+            </div>
+          )}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
             {recips.map(r => (
               <span key={r.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 14, padding: '3px 10px', fontSize: 14.5 }}>
