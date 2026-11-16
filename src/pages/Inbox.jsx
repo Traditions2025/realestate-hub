@@ -29,6 +29,63 @@ const MMS_ACCEPT = 'image/*,video/mp4,video/3gpp,video/quicktime'
 const isVideoType = (t) => /^video\//i.test(String(t || ''))
 const mb = (n) => `${(n / 1048576).toFixed(1)} MB`
 
+// ---- outgoing EMAIL attachments -----------------------------------------------------
+// A real file on an email, which is a different thing from an MMS photo: SendGrid takes
+// attachments inline as base64 in the send request, so there is no upload step and nothing
+// is hosted anywhere. The file is read in the browser and goes out with the send.
+//
+// John, 2026-11-16: people reply to the walkthrough drip asking for the checklist, and the
+// reply needs to carry the PDF without leaving the Hub.
+const EMAIL_MAX_FILES = 5
+const EMAIL_MAX_BYTES = 10 * 1024 * 1024
+const EMAIL_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.csv,.txt,image/*'
+
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const r = new FileReader()
+  r.onload = () => resolve(String(r.result).split(',')[1] || '')
+  r.onerror = () => reject(new Error(`Could not read ${file.name}`))
+  r.readAsDataURL(file)
+})
+
+// Returns the accepted attachments, or [] after saying why none came back. Limits are
+// checked HERE, while the pick can still be changed, rather than surfacing as a failed send.
+async function readEmailAttachments(fileList, already = []) {
+  const picked = Array.from(fileList || [])
+  if (!picked.length) return []
+  if (already.length + picked.length > EMAIL_MAX_FILES) {
+    notify(`An email can carry ${EMAIL_MAX_FILES} attachments. You already have ${already.length}.`)
+    return []
+  }
+  const total = already.reduce((n, a) => n + (a.bytes || 0), 0) + picked.reduce((n, f) => n + f.size, 0)
+  if (total > EMAIL_MAX_BYTES) {
+    notify(`Too big to email: ${mb(total)} in total and the limit is 10 MB. Send a link instead.`)
+    return []
+  }
+  try {
+    return await Promise.all(picked.map(async (f) => ({
+      filename: f.name,
+      type: f.type || 'application/octet-stream',
+      bytes: f.size,
+      content_base64: await fileToBase64(f),
+    })))
+  } catch (e) { notify(e.message); return [] }
+}
+
+// Only the 3 fields the server wants. `bytes` is for the chip and stays in the browser.
+const attachPayload = (list) => list.map(({ filename, type, content_base64 }) => ({ filename, type, content_base64 }))
+
+function FileChip({ item, onRemove }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', fontSize: 14,
+      background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6 }}>
+      <span>{/pdf/i.test(item.type) ? '📄' : /^image\//i.test(item.type) ? '🖼' : '📎'}</span>
+      <span style={{ maxWidth: 190, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.filename}</span>
+      <span style={{ color: 'var(--text-muted)' }}>{mb(item.bytes || 0)}</span>
+      <button onClick={onRemove} title="Remove" style={{ background: 'none', border: 0, cursor: 'pointer', color: 'var(--text-muted)', fontSize: 15, lineHeight: 1 }}>×</button>
+    </span>
+  )
+}
+
 // Upload everything the picker returned in ONE request. Returns the accepted items, or
 // [] after telling the user why nothing came back.
 async function uploadMmsFiles(fileList, already = []) {
@@ -231,11 +288,13 @@ export default function Inbox() {
   const [aiApproach, setAiApproach] = useState('')   // follow-up angle: '' auto | conversation | activity | checkin
   const [openMsgs, setOpenMsgs] = useState({})        // per-message expand overrides (Gmail-style thread collapse)
   const [replyMedia, setReplyMedia] = useState([])    // outgoing MMS photos: [{url,type}]
+  const [replyFiles, setReplyFiles] = useState([])    // outgoing EMAIL attachments: [{filename,type,bytes,content_base64}]
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [replyTemplates, setReplyTemplates] = useState([])
   const [schedOpen, setSchedOpen] = useState(false)
   const [sendAt, setSendAt] = useState('')
   const fileRef = React.useRef(null)
+  const emailFileRef = React.useRef(null)
   // Mobile single-pane navigation: show the list OR the open conversation, never both stacked.
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches)
   useEffect(() => { const mq = window.matchMedia('(max-width: 767px)'); const h = e => setIsMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h) }, [])
@@ -302,7 +361,7 @@ export default function Inbox() {
     if (!clientId) return
     setUnknownSel(null); setGroupSel(null)
     setSel(clientId)
-    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setAiOpen(false); setAiApproach(''); setOpenMsgs({}); setReplyMedia([])
+    setAi(null); setReply({ subject: '', body: '' }); setAiCtx(''); setReplyOpen(true); setAiOpen(false); setAiApproach(''); setOpenMsgs({}); setReplyMedia([]); setReplyFiles([])
     // Load the lead's saved numbers so the text reply can pick WHICH number to send to
     // (and keep the record for the header's FSBO / Cancelled / Expired status pill).
     setToPhone(''); setSelNums([]); setSelLead(null)
@@ -377,7 +436,7 @@ export default function Inbox() {
     if (ai?.suggestion && !ai.stale && (ai.suggestion.body || ai.suggestion.subject)) useSuggested()
     else generateSuggestion(sel, true)
   }
-  const clearDraft = () => { setReply({ subject: '', body: '' }); setReplyMedia([]) }
+  const clearDraft = () => { setReply({ subject: '', body: '' }); setReplyMedia([]); setReplyFiles([]) }
   // Which channel the reply sends on: mirrors the last message VISIBLE in the thread
   // (so with the Texts filter on, a reply is a text even if the client also emailed).
   // The Inbox shows only the CURRENT email exchange per conversation: their newest
@@ -439,7 +498,7 @@ export default function Inbox() {
   const sendReply = async () => {
     if (!sel) return
     const hasBody = !!reply.body.trim()
-    if (!hasBody && !(replyChannel === 'text' && replyMedia.length)) { notify('Write a reply first.'); return }
+    if (!hasBody && !(replyChannel === 'text' && replyMedia.length) && !(replyChannel === 'email' && replyFiles.length)) { notify('Write a reply first.'); return }
     setSending(true)
     try {
       let payload
@@ -448,14 +507,14 @@ export default function Inbox() {
       } else {
         const subject = reply.subject.trim() || 'Re: your message'
         const html = reply.body.split(/\n{2,}/).map(p => `<div>${p.replace(/\n/g, '<br>')}</div>`).join('<div><br></div>')
-        payload = { channel: 'email', client_ids: [sel], subject, body: html }
+        payload = { channel: 'email', client_ids: [sel], subject, body: html, attachments: attachPayload(replyFiles) }
       }
       const r = await authFetch('/api/inbox/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
       const d = await r.json()
       if (d.error || !(d.sent > 0)) { notify(d.error || 'Send failed: ' + ((d.results || [])[0]?.error || 'unknown')); return }
       // clear the draft, refresh the thread + list
       await authFetch(`/api/inbox/thread/${sel}/draft`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ subject: '', body: '' }) }).catch(() => {})
-      setReply({ subject: '', body: '' }); setReplyMedia([])
+      setReply({ subject: '', body: '' }); setReplyMedia([]); setReplyFiles([])
       authFetch(`/api/inbox/thread/${sel}`).then(x => x.json()).then(d => { if (Array.isArray(d)) setThread(d) }).catch(() => {})
       load()
     } catch (e) { notify(e.message) }
@@ -856,7 +915,24 @@ export default function Inbox() {
                           setReplyMedia(list => list.some(m => m.url === cardUrl) ? list : [...list, { url: cardUrl, type: 'image/jpeg' }])
                         }}>🌐 Insert website</button>
                     </>}
+                    {replyChannel === 'email' && <>
+                      <input ref={emailFileRef} type="file" accept={EMAIL_ACCEPT} multiple style={{ display: 'none' }}
+                        onChange={async e => { const got = await readEmailAttachments(e.target.files, replyFiles); if (got.length) setReplyFiles(f => [...f, ...got]); e.target.value = '' }} />
+                      <button className="btn btn-sm btn-secondary" disabled={replyFiles.length >= EMAIL_MAX_FILES}
+                        onClick={() => emailFileRef.current?.click()}
+                        title="Attach a PDF or document. Up to 5 files, 10 MB in total.">📎 Attach file</button>
+                    </>}
                   </div>
+                  {replyFiles.length > 0 && (
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      {replyFiles.map((f, i) => (
+                        <FileChip key={i} item={f} onRemove={() => setReplyFiles(list => list.filter((_, j) => j !== i))} />
+                      ))}
+                      <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                        {replyFiles.length}/{EMAIL_MAX_FILES} · {mb(replyFiles.reduce((n, f) => n + (f.bytes || 0), 0))} of 10 MB
+                      </span>
+                    </div>
+                  )}
                   {replyMedia.length > 0 && (
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                       {replyMedia.map((mm, i) => (
@@ -900,7 +976,7 @@ export default function Inbox() {
                         {selNums.map((p, i) => <option key={p} value={p}>to {p} ({(selLead && phoneLabelMap(selLead)[phoneD10(p)]) || (i === 0 ? 'main' : 'additional')})</option>)}
                       </select>
                     )}
-                    <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || (!reply.body.trim() && !(replyChannel === 'text' && replyMedia.length))} onClick={sendReply}>{sending ? 'Sending…' : replyChannel === 'text' ? '💬 Send text' : '✉ Send reply'}</button>
+                    <button className="btn btn-primary btn-sm" style={{ marginLeft: 'auto' }} disabled={sending || (!reply.body.trim() && !(replyChannel === 'text' && replyMedia.length) && !(replyChannel === 'email' && replyFiles.length))} onClick={sendReply}>{sending ? 'Sending…' : replyChannel === 'text' ? '💬 Send text' : '✉ Send reply'}</button>
                   </div>
                 </div>
               )}
@@ -926,6 +1002,8 @@ function Composer({ onClose, onSent }) {
   // raw numbers alike, so attaching a photo to an inspector or a contractor needed only the
   // picker the reply box already had (John, 2026-10-21).
   const [media, setMedia] = useState([])
+  const [files, setFiles] = useState([])      // EMAIL attachments (see readEmailAttachments)
+  const emailFileRef = useRef(null)
   const [uploading, setUploading] = useState(false)
   const fileRef = useRef(null)
 
@@ -999,6 +1077,7 @@ function Composer({ onClose, onSent }) {
     // A photo on its own is a perfectly good text, so only demand words when there is no
     // photo. The send route applies the same rule.
     if (channel === 'text' && !body.trim() && !media.length) { notify('Add a message or a photo.'); return }
+    if (channel === 'email' && !body.trim() && !files.length) { notify('Add a message or a file.'); return }
     if (asGroup && !body.trim()) { notify('A group text needs a message.'); return }
     setSending(true)
 
@@ -1025,6 +1104,7 @@ function Composer({ onClose, onSent }) {
       phones: recips.filter(x => x.raw).map(x => ({ phone: x.phone, name: x.name || null })),
       subject, body,
       media: channel === 'text' ? media.map(m => m.url) : [],
+      attachments: channel === 'email' ? attachPayload(files) : [],
     }) }).then(x => x.json()).catch(e => ({ error: e.message }))
     setSending(false)
     if (r.error) { notify(r.error); return }
@@ -1103,6 +1183,27 @@ function Composer({ onClose, onSent }) {
             ? <RichTextEditor value={body} onChange={setBody} minHeight={200} />
             : <textarea value={body} onChange={e => setBody(e.target.value)} rows={5} style={{ ...fld, resize: 'vertical' }} placeholder="Message" />}
         </div>
+
+        {/* EMAIL attachments. A different path from MMS: no upload, the file rides with the send. */}
+        {channel === 'email' && (
+          <div style={{ display: 'grid', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <input ref={emailFileRef} type="file" accept={EMAIL_ACCEPT} multiple style={{ display: 'none' }}
+                onChange={async e => { const got = await readEmailAttachments(e.target.files, files); if (got.length) setFiles(f => [...f, ...got]); e.target.value = '' }} />
+              <button className="btn btn-sm" disabled={files.length >= EMAIL_MAX_FILES} onClick={() => emailFileRef.current?.click()}>📎 Attach file</button>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>
+                {files.length
+                  ? `${files.length}/${EMAIL_MAX_FILES} attached · ${mb(files.reduce((n, f) => n + (f.bytes || 0), 0))} of 10 MB`
+                  : 'PDF or document. Up to 5 files, 10 MB in total.'}
+              </span>
+            </div>
+            {files.length > 0 && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {files.map((f, i) => <FileChip key={i} item={f} onRemove={() => setFiles(list => list.filter((_, j) => j !== i))} />)}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* MMS photos. Text only: SendGrid takes attachments a different way. */}
         {channel === 'text' && (

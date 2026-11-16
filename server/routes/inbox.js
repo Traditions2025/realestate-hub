@@ -1193,6 +1193,51 @@ router.get('/contacts', (req, res) => {
 })
 
 // ---- compose + send (Email now; Text arrives with Twilio) ----
+// ---- outgoing EMAIL attachments -----------------------------------------------------
+// Unlike MMS, these never touch /upload-media: SendGrid takes attachments inline as base64
+// in the send request, so there is nothing to host and nothing left on disk afterwards.
+//
+// The base64 is handed STRAIGHT to SendGrid and deliberately never written to
+// communications.body. Inline base64 in that column is what grew the database to 660MB and
+// burned a month of Render bandwidth in November, so only the FILENAMES are recorded here.
+const EMAIL_MAX_FILES = 5
+const EMAIL_MAX_BYTES = 10 * 1024 * 1024        // raw bytes, before base64 inflates by ~33%
+// Types that mail providers reject outright. Letting one through produces a send that looks
+// fine in the Hub and is silently dropped before it reaches anyone.
+const EMAIL_BAD_EXT = /\.(exe|bat|cmd|com|scr|pif|msi|msp|jar|vbs|vbe|js|jse|ps1|sh|lnk|reg)$/i
+
+export function cleanEmailAttachments(raw) {
+  const list = Array.isArray(raw) ? raw : []
+  if (!list.length) return { ok: [], error: null }
+  if (list.length > EMAIL_MAX_FILES) {
+    return { ok: [], error: `An email can carry ${EMAIL_MAX_FILES} attachments (this one has ${list.length}).` }
+  }
+  const ok = []
+  let total = 0
+  for (const a of list) {
+    // A filename reaches a mail header, so strip anything that could break out of one.
+    const filename = String(a?.filename || '').replace(/[\r\n"\\]/g, '').trim().slice(0, 120)
+    const b64 = String(a?.content_base64 || a?.content || '').replace(/\s+/g, '')
+    if (!filename) return { ok: [], error: 'An attachment arrived with no filename.' }
+    if (!b64) return { ok: [], error: `${filename} arrived empty.` }
+    if (EMAIL_BAD_EXT.test(filename)) {
+      return { ok: [], error: `${filename} is a file type email providers block. Zip it, or send a link instead.` }
+    }
+    if (!/^[A-Za-z0-9+/]+={0,2}$/.test(b64)) return { ok: [], error: `${filename} is not valid base64.` }
+    total += Math.floor(b64.length * 3 / 4)
+    ok.push({
+      filename,
+      type: String(a?.type || 'application/octet-stream').replace(/[\r\n]/g, '').slice(0, 100),
+      content_base64: b64,
+      disposition: 'attachment',
+    })
+  }
+  if (total > EMAIL_MAX_BYTES) {
+    return { ok: [], error: `Attachments total ${(total / 1048576).toFixed(1)} MB and the limit is 10 MB. Send a link instead.` }
+  }
+  return { ok, error: null }
+}
+
 router.post('/send', async (req, res) => {
   const { channel, subject, body } = req.body || {}
   const client_ids = Array.isArray(req.body?.client_ids) ? req.body.client_ids : []
@@ -1200,6 +1245,12 @@ router.post('/send', async (req, res) => {
   const rawPhones = Array.isArray(req.body?.phones) ? req.body.phones.map(p => (typeof p === 'string' ? { phone: p } : p)).filter(p => p && p.phone) : []
   // media: array of public https URLs (from /upload-media) to attach as MMS
   const media = Array.isArray(req.body?.media) ? req.body.media.filter(Boolean).slice(0, 10) : []
+  // attachments: real email attachments, base64 inline (see cleanEmailAttachments).
+  const att = cleanEmailAttachments(req.body?.attachments)
+  if (att.error) return res.status(400).json({ error: att.error })
+  if (att.ok.length && channel !== 'email') {
+    return res.status(400).json({ error: 'A text cannot carry a file attachment. Send it as an email, or attach a photo instead.' })
+  }
   if (!client_ids.length && !rawPhones.length) return res.status(400).json({ error: 'Add at least one recipient.' })
   if (!body && !(channel === 'text' && media.length)) return res.status(400).json({ error: 'A message is required.' })
 
@@ -1304,11 +1355,17 @@ router.post('/send', async (req, res) => {
     const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
     try {
       const { withPersonalBcc } = await import('./email.js')
-      await sendViaSendGrid(c.email, name, subject, body, null, [], [], withPersonalBcc([], c.email), 'inbox_compose')
-      const preview = String(body).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
-      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
-              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        ['email', 'outgoing', c.id, name, 'matt@mattsmithteam.com', c.email, subject, preview, body, `out_${Date.now()}_${c.id}`, `c${c.id}_email`, 'read', nowIso()])
+      await sendViaSendGrid(c.email, name, subject, body, null, [], att.ok, withPersonalBcc([], c.email), 'inbox_compose')
+      let preview = String(body).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
+      if (att.ok.length) preview = `${preview} [${att.ok.map(a => a.filename).join(', ')}]`.slice(0, 200)
+      db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, occurred_at)
+              VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        ['email', 'outgoing', c.id, name, 'matt@mattsmithteam.com', c.email, subject, preview, body, `out_${Date.now()}_${c.id}`, `c${c.id}_email`, 'read',
+          att.ok.length ? 1 : 0,
+          // Filenames only. The base64 went to SendGrid and is not kept: see the note on
+          // cleanEmailAttachments about what inline base64 did to this table.
+          att.ok.length ? JSON.stringify(att.ok.map(a => ({ filename: a.filename, type: a.type }))) : null,
+          nowIso()])
       results.push({ client_id: cid, ok: true })
     } catch (e) { results.push({ client_id: cid, ok: false, error: e.message }) }
   }
