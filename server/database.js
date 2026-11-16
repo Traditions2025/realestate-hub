@@ -968,6 +968,14 @@ export async function initDb() {
   // reply share a conversation_sid, so the Inbox can render them as ONE thread.
   try { db.run('ALTER TABLE communications ADD COLUMN conversation_sid TEXT') } catch {}
   try { db.run('ALTER TABLE communications ADD COLUMN group_meta TEXT') } catch {}   // JSON: { participants:[{phone,name}] }
+  // Keyword search (see server/comm-search.js). The message with the markup and the inlined
+  // base64 removed, capped short. Searching `body` means reading 368MB per query; searching
+  // this reads a few MB. Filled by the backfill sweep, not at insert time, so every one of
+  // the many places that writes a communications row stays untouched.
+  try { db.run('ALTER TABLE communications ADD COLUMN search_text TEXT') } catch {}
+  // Finds the not-yet-indexed rows cheaply. A plain index cannot help a LIKE '%x%' scan,
+  // but it makes the sweep's own lookup instant instead of a full table scan every minute.
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_search_pending ON communications(id) WHERE search_text IS NULL') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_conversation ON communications(conversation_sid)') } catch {}
   // Landline / undeliverable SMS: set when a send hard-fails (carrier landline/unknown
   // handset). Automated texts skip these; cleared automatically if the contact ever texts us.
@@ -1957,6 +1965,11 @@ export async function initDb() {
     ['delivered_at', 'TEXT'], ['first_opened_at', 'TEXT'], ['last_opened_at', 'TEXT'],
     ['open_count', 'INTEGER DEFAULT 0'], ['first_clicked_at', 'TEXT'], ['last_clicked_at', 'TEXT'],
     ['click_count', 'INTEGER DEFAULT 0'], ['last_clicked_url', 'TEXT'], ['delivery_status', 'TEXT'],
+    // What was attached, so the Hub can SHOW it afterwards (John, 2026-11-16: "if something
+    // is attached it needs to show something like file attached so I can know"). JSON array
+    // of { filename, type } and a flag to make the list query cheap. FILENAMES ONLY: the
+    // base64 goes to SendGrid and is never stored, same rule as communications.
+    ['attachments', 'TEXT'], ['has_attachment', 'INTEGER DEFAULT 0'],
   ]) { try { db.run(`ALTER TABLE email_log ADD COLUMN ${name} ${type}`) } catch {} }
   db.run(`
     CREATE TABLE IF NOT EXISTS email_events (

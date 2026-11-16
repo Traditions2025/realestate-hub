@@ -698,15 +698,21 @@ export function emailOptOutTag(client) {
 // we send a client, not just Inbox replies, shows up under Sent and threads with
 // that client. Best-effort: never let logging break a send. Skips no-client /
 // no-email sends (team notifications, digests, etc. pass no client).
-export function logSentToInbox(client, subject, body, externalId) {
+export function logSentToInbox(client, subject, body, externalId, attachments = []) {
   try {
     if (!client || !client.id || !client.email) return
     const name = `${client.first_name || ''} ${client.last_name || ''}`.trim()
     const preview = String(body || '').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160)
-    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, occurred_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    // FILENAMES ONLY in media_url. The base64 went to SendGrid; storing it here is what
+    // grew this table to 368MB.
+    const att = Array.isArray(attachments) ? attachments : []
+    db.run(`INSERT INTO communications (channel, direction, client_id, contact_name, from_addr, to_addr, subject, preview, body, external_id, thread_key, status, has_attachment, media_url, occurred_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       ['email', 'outgoing', client.id, name, FROM_EMAIL, client.email, subject || '', preview, body || '',
-        externalId || `out_${Date.now()}_${client.id}_${Math.floor(Math.random() * 1e6)}`, `c${client.id}_email`, 'read', new Date().toISOString()])
+        externalId || `out_${Date.now()}_${client.id}_${Math.floor(Math.random() * 1e6)}`, `c${client.id}_email`, 'read',
+        att.length ? 1 : 0,
+        att.length ? JSON.stringify(att.map(a => ({ filename: a.filename, type: a.type }))) : null,
+        new Date().toISOString()])
   } catch { /* logging must never break a send */ }
 }
 
@@ -1068,13 +1074,17 @@ router.post('/send', async (req, res) => {
       category || null
     )
     db.run(`INSERT INTO email_log (client_id, to_email, from_email, from_name, subject, body,
-      template, status, provider, provider_message_id, sent_by) VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
+      template, status, provider, provider_message_id, sent_by, attachments, has_attachment)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [n(client_id), recipient, FROM_EMAIL, FROM_NAME, filledSubject, filledBody,
-        n(template), 'sent', 'sendgrid', n(result.messageId), n(req.body.sent_by) || 'team'])
+        n(template), 'sent', 'sendgrid', n(result.messageId), n(req.body.sent_by) || 'team',
+        att.ok.length ? JSON.stringify(att.ok.map(a => ({ filename: a.filename, type: a.type }))) : null,
+        att.ok.length ? 1 : 0])
     db.run('INSERT INTO activity_log (action, entity_type, entity_id, details) VALUES (?,?,?,?)',
       ['email_sent', 'client', client_id || null, `Email sent to ${recipient}: ${filledSubject}`])
-    if (client) logSentToInbox(client, filledSubject, filledBody)   // show under Inbox → Sent
-    res.json({ success: true, messageId: result.messageId })
+    if (client) logSentToInbox(client, filledSubject, filledBody, null, att.ok)   // show under Inbox → Sent
+    res.json({ success: true, messageId: result.messageId,
+      attachments: att.ok.map(a => a.filename) })
   } catch (err) {
     db.run(`INSERT INTO email_log (client_id, to_email, subject, body, template, status, error)
       VALUES (?,?,?,?,?,?,?)`,

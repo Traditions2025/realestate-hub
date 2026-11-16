@@ -4,8 +4,9 @@ import { createWriteStream, mkdirSync, unlinkSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { randomUUID, createHash } from 'crypto'
-import db from '../database.js'
-import { cleanEmailAttachments } from '../email-attachments.js'
+import db from '../database.js'
+import { cleanEmailAttachments } from '../email-attachments.js'
+import { searchMessages, backfillSearchText, searchIndexStatus } from '../comm-search.js'
 import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
 import { getAiClient, gatherFub, gatherSierraNotes, buildDossier, noDash, AI_MODEL } from './followup.js'
 import { notifyNewInbound } from '../gmail-inbox.js'
@@ -361,6 +362,44 @@ router.get('/', (req, res) => {
 // ---- REAL-TIME stream (Server-Sent Events). Pushes a 'changed' event whenever a
 // new communication row appears, so the inbox updates near-instantly instead of
 // waiting on the poll. EventSource can't set headers → token comes via ?token=. ----
+// ---- keyword search across every message -------------------------------------------
+// The list route above filters the latest 1000 rows of one folder on contact_name, subject
+// and preview. This searches the whole table, both directions, every channel, on the full
+// text of each message. See server/comm-search.js for why it reads a derived column
+// instead of `body`.
+router.get('/search', (req, res) => {
+  // Keep the index current without a scheduler. Once the backfill has run this finds
+  // nothing and costs a single indexed lookup; before then, searching also makes progress.
+  let topUp = null
+  try { topUp = backfillSearchText(300) } catch (e) { topUp = { error: e.message } }
+  try {
+    const out = searchMessages(req.query.q, {
+      limit: Number(req.query.limit) || 200,
+      channel: String(req.query.channel || '').trim(),
+      clientId: req.query.client_id || null,
+    })
+    // Tell the caller when results are incomplete, rather than quietly showing a short list
+    // and letting someone conclude the message does not exist.
+    const st = searchIndexStatus()
+    res.json({ ...out, index: { ready: st.ready, pending: st.pending, total: st.total }, topped_up: topUp?.indexed || 0 })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+router.get('/search/status', (_req, res) => {
+  try { res.json(searchIndexStatus()) } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// Build the index in batches. Safe to call repeatedly: it only touches rows that have no
+// search_text yet, so it resumes rather than restarting.
+router.post('/search/reindex', (req, res) => {
+  const batch = Math.min(Math.max(Number(req.body?.batch) || 2000, 100), 10000)
+  try {
+    const t0 = Date.now()
+    const r = backfillSearchText(batch)
+    res.json({ ...r, ms: Date.now() - t0 })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/stream', (req, res) => {
   res.set({ 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache, no-transform', Connection: 'keep-alive', 'X-Accel-Buffering': 'no' })
   if (res.flushHeaders) res.flushHeaders()

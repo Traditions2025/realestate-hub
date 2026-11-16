@@ -167,3 +167,52 @@ test('attachments are cleared when the thread changes, so they cannot follow the
   // Leaving a PDF attached to the next conversation would send it to the wrong client.
   assert.match(UI, /setReplyMedia\(\[\]\); setReplyFiles\(\[\]\)/)
 })
+
+// ---- "so I can know": the Hub has to SHOW that a file went ---------------------------
+//
+// John, 2026-11-16, after sending the checklist to Marvalee: "if something is attached it
+// needs to show something like file attached so I can know". The send worked (confirmed in
+// Matt's BCC copy: a real application/pdf part), but nothing in the Hub said so. The client
+// profile composer closed in silence, email_log had no column for it, and the thread row
+// was written with has_attachment = 0.
+
+test('email_log has somewhere to record what was attached', () => {
+  const DB = readFileSync(new URL('../server/database.js', import.meta.url), 'utf8')
+  assert.match(DB, /\['attachments', 'TEXT'\], \['has_attachment', 'INTEGER DEFAULT 0'\]/)
+})
+
+test('a send through /api/email/send records the filenames', () => {
+  assert.match(EMAIL_API, /sent_by, attachments, has_attachment\)/)
+  assert.match(EMAIL_API, /att\.ok\.map\(a => \(\{ filename: a\.filename, type: a\.type \}\)\)/)
+})
+
+test('and the thread row is flagged, so the message shows it later', () => {
+  // logSentToInbox used to take no attachment argument at all, which is why the Marvalee
+  // email landed in the thread with has_attachment = 0.
+  assert.match(EMAIL_API, /export function logSentToInbox\(client, subject, body, externalId, attachments = \[\]\)/)
+  assert.match(EMAIL_API, /logSentToInbox\(client, filledSubject, filledBody, null, att\.ok\)/)
+  assert.match(EMAIL_API, /has_attachment, media_url, occurred_at/)
+})
+
+test('stored attachment records are filenames, never the file', () => {
+  // Same rule as communications.body. The base64 goes to SendGrid and nowhere else.
+  const log = EMAIL_API.slice(EMAIL_API.indexOf('INSERT INTO email_log (client_id, to_email, from_email'))
+  assert.ok(!/content_base64/.test(log.slice(0, 900)), 'no base64 into email_log')
+})
+
+test('the send response tells the composer what went with it', () => {
+  assert.match(EMAIL_API, /attachments: att\.ok\.map\(a => a\.filename\)/)
+})
+
+test('every place an email appears says when a file is attached', () => {
+  assert.match(PROFILE, /with \$\{names\.length\} file attached/, 'client profile confirms on send')
+  assert.match(CLIENTS, /Email sent with \$\{names\.length\} file attached/, 'Clients confirms on send')
+  assert.match(CLIENTS, /e\.has_attachment \?/, 'Clients email history shows it')
+  assert.match(UI, /m\.has_attachment \?/, 'the inbox thread shows it')
+})
+
+test('a missing or broken filename list still shows that something was attached', () => {
+  // media_url is JSON written by several paths over the years. A parse failure must not
+  // hide the fact that the email carried a file.
+  for (const src of [UI, CLIENTS]) assert.match(src, /catch \{ return 'file attached' \}/)
+})

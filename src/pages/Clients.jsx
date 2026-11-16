@@ -1784,7 +1784,10 @@ export default function Clients() {
       if (d.error) {
         notify('Send failed: ' + d.error)
       } else {
-        notify('Email sent!')
+        {
+          const names = Array.isArray(d.attachments) ? d.attachments : []
+          notify(names.length ? `Email sent with ${names.length} file attached: ${names.join(', ')}` : 'Email sent!')
+        }
         setEmailModalOpen(false)
         // Refresh history
         authFetch(`/api/email/history/${detail.id}`).then(r => r.json()).then(d => setEmailHistory(Array.isArray(d) ? d : [])).catch(() => {})
@@ -3947,6 +3950,11 @@ export default function Clients() {
                         <span>{e.subject}</span>
                         <span className="email-history-date">{new Date(e.sent_at).toLocaleDateString()}</span>
                       </div>
+                      {e.has_attachment ? (
+                        <div style={{fontSize: 13.5, color: 'var(--text-muted)', marginTop: 2}}>
+                          📎 {(() => { try { return (JSON.parse(e.attachments || '[]')).map(a => a.filename).join(', ') || 'file attached' } catch { return 'file attached' } })()}
+                        </div>
+                      ) : null}
                       {e.error && <div className="email-error">{e.error}</div>}
                     </div>
                   ))}

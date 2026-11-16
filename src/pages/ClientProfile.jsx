@@ -1402,7 +1402,16 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     try {
       const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, to_email: toEmail || undefined, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>'), attachments: attachPayload(files) }) })
       const d = await r.json().catch(() => ({}))
-      if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else notify('Email not sent: ' + (d.error || 'unknown'))
+      if (r.ok && d.success !== false) {
+        // Say what actually went, attachment included. This composer used to close in
+        // silence, so there was no way to tell whether the file made it onto the email.
+        const names = Array.isArray(d.attachments) ? d.attachments : []
+        notify(names.length
+          ? `Email sent to ${client.first_name || 'this lead'} with ${names.length} file attached: ${names.join(', ')}`
+          : `Email sent to ${client.first_name || 'this lead'}.`)
+        setFiles([])
+        onSent && onSent(); onClose()
+      } else notify('Email not sent: ' + (d.error || 'unknown'))
     } catch (e) { notify('Email failed: ' + e.message) } finally { setSending(false) }
   }
   const inputStyle = { width: '100%', padding: '7px 9px', marginBottom: 6, border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-primary,#fff)', color: 'var(--text-primary)', fontSize: 15.5 }

@@ -734,6 +734,13 @@ export default function Inbox() {
                         <div onClick={total > 1 ? toggle : undefined} title={total > 1 ? 'Click to collapse' : undefined} style={{ padding: '8px 12px', background: 'var(--bg-secondary)', borderBottom: '1px solid var(--border)', fontSize: 14.5, color: 'var(--text-muted)', cursor: total > 1 ? 'pointer' : 'default' }}>
                           <span style={{ color: meta.color, fontVariantEmoji: 'text' }}>{meta.icon}</span> {out ? `You → ${m.contact_name}` : `${m.contact_name} → You`} · {fmtDate(m.occurred_at)}
                           {m.subject && <span style={{ fontWeight: 700, color: 'var(--text-primary)', marginLeft: 8 }}>{m.subject}</span>}
+                          {/* What rode along with it. The filenames are on the row; the file
+                              itself was never stored, so this names it rather than linking it. */}
+                          {m.has_attachment ? (
+                            <span style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>
+                              📎 {(() => { try { const a = JSON.parse(m.media_url || '[]'); return a.map(x => x.filename).filter(Boolean).join(', ') || 'file attached' } catch { return 'file attached' } })()}
+                            </span>
+                          ) : null}
                         </div>
                         {isHtml
                           ? <iframe title={`email-${m.id}`} srcDoc={frameHtml} sandbox="allow-same-origin" onLoad={autoSizeFrame} style={{ width: '100%', maxWidth: '100%', border: 0, background: '#fff', minHeight: 220, display: 'block' }} />
