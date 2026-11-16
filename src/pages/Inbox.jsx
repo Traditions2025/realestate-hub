@@ -20,6 +20,47 @@ const CHANNELS = [
 ]
 const chMeta = (k) => CHANNELS.find(c => c.key === k) || CHANNELS[0]
 
+// Results of a full-text search: one row per MESSAGE, not per conversation, because the
+// question being asked is "where did we talk about Woodland", not "who did I talk to".
+function DeepResults({ rows, busy, info, term, onOpen }) {
+  if (busy && !rows.length) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Searching every message…</div>
+  if (info?.error) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--danger)' }}>{info.error}</div>
+  if (term.length < 2) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>Type a word to search every message.</div>
+  if (!rows.length) return <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>No message mentions “{term}”.</div>
+  // Highlight the term so the eye lands on why the row matched.
+  const mark = (text) => {
+    const i = String(text).toLowerCase().indexOf(term.toLowerCase())
+    if (i < 0) return text
+    return (<>{text.slice(0, i)}<mark style={{ background: '#fde68a', color: '#000', padding: '0 1px' }}>{text.slice(i, i + term.length)}</mark>{text.slice(i + term.length)}</>)
+  }
+  return (
+    <>
+      <div style={{ padding: '8px 14px', fontSize: 14.5, color: 'var(--text-muted)', borderBottom: '1px solid var(--border)' }}>
+        {info?.count || rows.length} message{(info?.count || rows.length) === 1 ? '' : 's'} mention “{term}”
+        {info?.truncated ? ' (showing the newest 200)' : ''}
+        {info?.index && !info.index.ready ? ` · still indexing, ${info.index.pending} to go` : ''}
+      </div>
+      {rows.map(r => {
+        const m = chMeta(r.channel)
+        return (
+          <div key={r.id} onClick={() => onOpen(r)}
+            style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', cursor: r.client_id ? 'pointer' : 'default' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span title={m.label} style={{ color: m.color, fontSize: 14.5, fontVariantEmoji: 'text' }}>{m.icon}</span>
+              <span style={{ fontWeight: 600, fontSize: 15.5 }}>{r.contact_name || '(unknown)'}</span>
+              <span style={{ fontSize: 14, color: 'var(--text-muted)' }}>{r.direction === 'outgoing' ? '↗ you' : '↙ them'}</span>
+              <span style={{ marginLeft: 'auto', fontSize: 14.5, color: 'var(--text-muted)' }}>{fmtDate(r.occurred_at)}</span>
+            </div>
+            {r.subject && <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{mark(r.subject)}</div>}
+            <div style={{ fontSize: 14.5, color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 }}>{mark(r.snippet || '')}</div>
+            {!r.client_id && <div style={{ fontSize: 13.5, color: 'var(--text-muted)', marginTop: 2 }}>not linked to a lead</div>}
+          </div>
+        )
+      })}
+    </>
+  )
+}
+
 // ---- outgoing MMS attachments -------------------------------------------------------
 // Twilio's limits, not ours: 10 media per message, and it refuses a message whose media
 // totals more than 5MB. Checked here so an over-size pick is refused while it can still
@@ -209,6 +250,16 @@ export default function Inbox() {
   const [prospectCounts, setProspectCounts] = useState({ cx: 0, fsbo: 0 })
   useEffect(() => { try { localStorage.setItem('inbox_prospect', prospect) } catch {} }, [prospect])
   const [q, setQ] = useState('')
+  // Deep search: every message ever, not just the threads on screen.
+  //
+  // The list above filters the latest 1000 rows of ONE folder on contact_name + subject +
+  // preview, and preview is the first 160 characters. A word further into a message, or in
+  // an older one, simply could not be found. This asks the server instead, which reads a
+  // stripped copy of each message (see server/comm-search.js).
+  const [deep, setDeep] = useState(false)
+  const [deepRows, setDeepRows] = useState([])
+  const [deepBusy, setDeepBusy] = useState(false)
+  const [deepInfo, setDeepInfo] = useState(null)
   const [convos, setConvos] = useState(null)
   const [loadError, setLoadError] = useState(false)
   const [totalUnread, setTotalUnread] = useState(0)
@@ -380,6 +431,23 @@ export default function Inbox() {
     if (ai?.suggestion && !ai.stale && (ai.suggestion.body || ai.suggestion.subject)) useSuggested()
     else generateSuggestion(sel, true)
   }
+  // Debounced so typing "woodland" is one request, not eight.
+  useEffect(() => {
+    if (!deep) { setDeepRows([]); setDeepInfo(null); return }
+    const term = q.trim()
+    if (term.length < 2) { setDeepRows([]); setDeepInfo(null); return }
+    let dead = false
+    setDeepBusy(true)
+    const t = setTimeout(() => {
+      authFetch(`/api/inbox/search?q=${encodeURIComponent(term)}&limit=200`)
+        .then(r => r.json())
+        .then(d => { if (dead) return; setDeepRows(Array.isArray(d.results) ? d.results : []); setDeepInfo(d) })
+        .catch(e => { if (!dead) { setDeepRows([]); setDeepInfo({ error: e.message }) } })
+        .finally(() => { if (!dead) setDeepBusy(false) })
+    }, 300)
+    return () => { dead = true; clearTimeout(t) }
+  }, [deep, q])
+
   const clearDraft = () => { setReply({ subject: '', body: '' }); setReplyMedia([]); setReplyFiles([]) }
   // Which channel the reply sends on: mirrors the last message VISIBLE in the thread
   // (so with the Texts filter on, a reply is a text even if the client also emailed).
@@ -520,7 +588,11 @@ export default function Inbox() {
               <button onClick={() => setUnreadOnly(false)} style={toggleBtn(!unreadOnly)}>All</button>
               <button onClick={() => setUnreadOnly(true)} style={toggleBtn(unreadOnly)}>Unread</button>
             </div>
-            <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search name, address, MLS #…" style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5 }} />
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder={deep ? 'Search every message for a word…' : 'Search name, address, MLS #…'} style={{ flex: 1, padding: '7px 9px', border: '1px solid var(--border)', borderRadius: 6, background: 'var(--bg-secondary)', color: 'var(--text-primary)', fontSize: 15.5 }} />
+            <button className={`btn btn-sm ${deep ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setDeep(v => !v)}
+              title="Search the full text of every message ever sent or received, both directions, every channel">
+              {deep ? '🔎 All messages' : '🔎 All messages'}
+            </button>
           </div>
           {/* Prospecting filter: a second dimension on top of All/Unread — Cancelled/Expired
               and FSBO conversations stay in the ONE unified inbox, this just isolates them. */}
@@ -572,6 +644,9 @@ export default function Inbox() {
                   </div>
                   <div style={{ fontSize: 15.5, marginTop: 6 }}>Incoming client texts, calls, and emails will show up here once texting is connected. Only messages from a matched client appear.</div>
                 </div>
+              ) : deep ? (
+                <DeepResults rows={deepRows} busy={deepBusy} info={deepInfo} term={q.trim()}
+                  onOpen={r => { if (r.client_id) openConvo({ client_id: r.client_id, contact_name: r.contact_name }) }} />
               ) : convos.map(c => {
                 const m = chMeta(c.last?.channel)
                 const isSelected = c.unknown ? unknownSel?.key === c.thread_key : sel === c.client_id
