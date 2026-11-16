@@ -209,10 +209,20 @@ test('every place an email appears says when a file is attached', () => {
   assert.match(CLIENTS, /Email sent with \$\{names\.length\} file attached/, 'Clients confirms on send')
   assert.match(CLIENTS, /e\.has_attachment \?/, 'Clients email history shows it')
   assert.match(UI, /m\.has_attachment \?/, 'the inbox thread shows it')
+  // The lead profile draws the same thread rows through its OWN component (CommItem), so
+  // changing Inbox.jsx did nothing there. That is the gap John hit.
+  assert.match(PROFILE, /m\.has_attachment \?/, 'the lead profile timeline shows it')
+})
+
+test('one helper names the attachment everywhere it is shown', () => {
+  assert.match(SHARED, /export function attachmentLabel/)
+  for (const [name, src] of [['Inbox', UI], ['ClientProfile', PROFILE]]) {
+    assert.match(src, /attachmentLabel\(m\)/, name + ' uses the shared helper')
+  }
 })
 
 test('a missing or broken filename list still shows that something was attached', () => {
   // media_url is JSON written by several paths over the years. A parse failure must not
   // hide the fact that the email carried a file.
-  for (const src of [UI, CLIENTS]) assert.match(src, /catch \{ return 'file attached' \}/)
+  for (const src of [SHARED, CLIENTS]) assert.match(src, /catch \{ return 'file attached' \}/)
 })

@@ -4,7 +4,7 @@ import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
-import { EmailAttachBar, attachPayload } from '../components/emailAttachments.jsx'
+import { EmailAttachBar, attachPayload, attachmentLabel } from '../components/emailAttachments.jsx'
 import { centralKey, stampKey, newestFirst } from '../lib/timeline-order.js'
 import TemplatePicker from '../components/TemplatePicker'
 import {
@@ -1273,6 +1273,13 @@ function CommItem({ m, client }) {
         </span>
       </div>
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
+      {/* A file that went with the message. Named, not linked: the attachment itself is
+          handed to SendGrid and never stored, so there is nothing here to download. */}
+      {m.has_attachment ? (
+        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 3 }}>
+          📎 {attachmentLabel(m)}
+        </div>
+      ) : null}
       {/* Long messages are clamped to six lines so every card is the same height and the
           list stays scannable (John, 2026-10-01). -webkit-line-clamp is what gives a clean
           cut mid-line; a height in px would slice a line in half. Short messages are left

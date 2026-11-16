@@ -1,5 +1,5 @@
 import { notify, confirmDialog, LoadErrorBanner } from '../notify'
-import { EMAIL_MAX_FILES, EMAIL_ACCEPT, readEmailAttachments, attachPayload, FileChip, EmailAttachBar } from '../components/emailAttachments.jsx'
+import { EMAIL_MAX_FILES, EMAIL_ACCEPT, readEmailAttachments, attachPayload, FileChip, EmailAttachBar, attachmentLabel } from '../components/emailAttachments.jsx'
 import DeliveryStatus from '../components/DeliveryStatus.jsx'
 import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
@@ -737,9 +737,7 @@ export default function Inbox() {
                           {/* What rode along with it. The filenames are on the row; the file
                               itself was never stored, so this names it rather than linking it. */}
                           {m.has_attachment ? (
-                            <span style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>
-                              📎 {(() => { try { const a = JSON.parse(m.media_url || '[]'); return a.map(x => x.filename).filter(Boolean).join(', ') || 'file attached' } catch { return 'file attached' } })()}
-                            </span>
+                            <span style={{ marginLeft: 8, color: 'var(--text-secondary)' }}>📎 {attachmentLabel(m)}</span>
                           ) : null}
                         </div>
                         {isHtml

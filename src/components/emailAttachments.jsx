@@ -56,6 +56,21 @@ export async function readEmailAttachments(fileList, already = []) {
 export const attachPayload = (list) =>
   (list || []).map(({ filename, type, content_base64 }) => ({ filename, type, content_base64 }))
 
+// What to show on a message that carried a file.
+//
+// The filenames live in media_url as JSON, written by several paths over several years, so
+// a parse failure must never hide the fact that something was attached: the point of this
+// is that John can tell at a glance, and "nothing" is the one answer that misleads.
+export function attachmentLabel(m) {
+  if (!m || !m.has_attachment) return ''
+  try {
+    const names = JSON.parse(m.media_url || '[]')
+      .map(a => (typeof a === 'string' ? a : a?.filename))
+      .filter(Boolean)
+    return names.length ? names.join(', ') : 'file attached'
+  } catch { return 'file attached' }
+}
+
 export function FileChip({ item, onRemove }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 8px', fontSize: 14,
