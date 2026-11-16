@@ -12,10 +12,16 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { cleanEmailAttachments } from '../server/routes/inbox.js'
+import { cleanEmailAttachments } from '../server/email-attachments.js'
 
 const UI = readFileSync(new URL('../src/pages/Inbox.jsx', import.meta.url), 'utf8')
 const API = readFileSync(new URL('../server/routes/inbox.js', import.meta.url), 'utf8')
+// The picker, the limits and the base64 reader live in one shared module, because there are
+// four email composers and three copies of a size limit is three limits that drift apart.
+const SHARED = readFileSync(new URL('../src/components/emailAttachments.jsx', import.meta.url), 'utf8')
+const PROFILE = readFileSync(new URL('../src/pages/ClientProfile.jsx', import.meta.url), 'utf8')
+const CLIENTS = readFileSync(new URL('../src/pages/Clients.jsx', import.meta.url), 'utf8')
+const EMAIL_API = readFileSync(new URL('../server/routes/email.js', import.meta.url), 'utf8')
 
 const b64 = (s) => Buffer.from(s).toString('base64')
 const one = (over = {}) => [{ filename: 'checklist.pdf', type: 'application/pdf', content_base64: b64('hello'), ...over }]
@@ -98,15 +104,51 @@ test('a text cannot carry a file attachment', () => {
 
 // ---- the composer ---------------------------------------------------------------------
 
-test('both places you can write an email can attach a file', () => {
-  assert.equal((UI.match(/readEmailAttachments\(e\.target\.files/g) || []).length, 2,
-    'the thread reply AND the new-message composer')
-  assert.match(UI, /attachments: attachPayload\(replyFiles\)/, 'the reply sends them')
-  assert.match(UI, /attachments: channel === 'email' \? attachPayload\(files\) : \[\]/, 'the composer sends them')
+test('EVERY email composer can attach a file', () => {
+  // John, 2026-11-16, looking at the client profile: "does not show where to attach".
+  // The first pass only covered the two composers in the Inbox. There are four.
+  assert.match(UI, /attachments: attachPayload\(replyFiles\)/, 'Inbox thread reply')
+  assert.match(UI, /attachments: channel === 'email' \? attachPayload\(files\) : \[\]/, 'Inbox new message')
+  assert.match(PROFILE, /attachments: attachPayload\(files\)/, 'client profile composer')
+  assert.match(PROFILE, /<EmailAttachBar files=\{files\} setFiles=\{setFiles\} \/>/, 'and it shows the control')
+  assert.match(CLIENTS, /attachments: emailForm\.attachments \|\| \[\]/, 'Clients list composer')
+})
+
+test('the control lives inside the composer, not in some other component', () => {
+  // It was first anchored on a muted-text div that appears several times in the file and
+  // landed in a component where `files` does not exist.
+  const composer = PROFILE.slice(PROFILE.indexOf('function EmailComposer'))
+  assert.ok(composer.includes('<EmailAttachBar'), 'EmailAttachBar must be inside EmailComposer')
+  assert.equal((PROFILE.match(/<EmailAttachBar/g) || []).length, 1, 'exactly once')
 })
 
 test('only the 3 fields the server wants are sent, not the local byte count', () => {
-  assert.match(UI, /const attachPayload = \(list\) => list\.map\(\(\{ filename, type, content_base64 \}\)/)
+  assert.match(SHARED, /export const attachPayload = \(list\) =>/)
+  assert.match(SHARED, /\.map\(\(\{ filename, type, content_base64 \}\)/)
+})
+
+test('one shared module holds the limits, so they cannot drift apart', () => {
+  for (const [name, src] of [['Inbox', UI], ['ClientProfile', PROFILE]]) {
+    assert.match(src, /from '\.\.\/components\/emailAttachments\.jsx'/, `${name} imports the shared module`)
+  }
+  // And nothing re-declares them locally.
+  assert.ok(!/const EMAIL_MAX_BYTES\s*=/.test(UI), 'Inbox must not keep its own copy')
+  assert.ok(!/const EMAIL_MAX_BYTES\s*=/.test(PROFILE), 'ClientProfile must not keep its own copy')
+})
+
+test('BOTH send routes validate, not just the inbox one', () => {
+  // Clients.jsx posts attachments straight to /api/email/send, which checked nothing: no
+  // cap, no blocked types, no filename sanitising.
+  assert.match(EMAIL_API, /import \{ cleanEmailAttachments \} from '\.\.\/email-attachments\.js'/)
+  assert.match(EMAIL_API, /const att = cleanEmailAttachments\(attachments\)/)
+  assert.match(EMAIL_API, /if \(att\.error\) return res\.status\(400\)/)
+  assert.ok(!/Array\.isArray\(attachments\) \? attachments : \[\],/.test(EMAIL_API),
+    'the unchecked pass-through must be gone')
+})
+
+test('the rule has exactly one definition', () => {
+  assert.ok(!/export function cleanEmailAttachments/.test(API),
+    'inbox.js must import it, not keep a second copy that drifts')
 })
 
 test('an attachment on its own is enough to send an email', () => {
@@ -116,7 +158,7 @@ test('an attachment on its own is enough to send an email', () => {
 })
 
 test('the picker does not offer file types the server will refuse', () => {
-  const accept = (UI.match(/const EMAIL_ACCEPT = '([^']+)'/) || [])[1] || ''
+  const accept = (SHARED.match(/EMAIL_ACCEPT = '([^']+)'/) || [])[1] || ''
   assert.ok(accept.includes('.pdf'), 'PDF is the whole point')
   for (const bad of ['.exe', '.bat', '.js', '.ps1']) assert.ok(!accept.includes(bad), `${bad} must not be offered`)
 })

@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import fsSync from 'fs'
 import db from '../database.js'
+import { cleanEmailAttachments } from '../email-attachments.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
 import { buildDigest, sendDigest } from '../transaction-digest.js'
@@ -1033,6 +1034,11 @@ router.post('/send', async (req, res) => {
 
   if (!recipient) return res.status(400).json({ error: 'No recipient email' })
   if (!subject || !body) return res.status(400).json({ error: 'Subject and body required' })
+  // Clients.jsx posts attachments straight here, so the same rules that guard the
+  // inbox composer have to hold on this route: a cap enforced in one composer is
+  // not a cap.
+  const att = cleanEmailAttachments(attachments)
+  if (att.error) return res.status(400).json({ error: att.error })
 
   // Opt-outs are allowed (tagged, not blocked). Only hard-block undeliverable /
   // spam-complaint / bad-address cases.
@@ -1057,7 +1063,7 @@ router.post('/send', async (req, res) => {
       filledBody,
       REPLY_TO,
       Array.isArray(cc) ? cc : [],
-      Array.isArray(attachments) ? attachments : [],
+      att.ok,
       withPersonalBcc(Array.isArray(bcc) ? bcc : [], recipient),
       category || null
     )

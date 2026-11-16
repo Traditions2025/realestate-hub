@@ -4,6 +4,7 @@ import Endpoints from '../components/Endpoints.jsx'
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { authFetch } from '../api'
+import { EmailAttachBar, attachPayload } from '../components/emailAttachments.jsx'
 import { centralKey, stampKey, newestFirst } from '../lib/timeline-order.js'
 import TemplatePicker from '../components/TemplatePicker'
 import {
@@ -658,7 +659,7 @@ function CallActionButton({ client, name }) {
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--bg-hover)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
               <div style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>{num}</div>
-              <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
+          <div style={{ fontSize: 14.5, color: 'var(--text-muted)' }}>{phoneLabelMap(client)[phoneD10(num)] || (num === String(client.phone || '').trim() ? 'Primary' : 'Additional')}</div>
             </button>
           ))}
         </div>
@@ -1337,6 +1338,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState(null)   // {subject, html} or null
   const [previewing, setPreviewing] = useState(false)
+  const [files, setFiles] = useState([])      // email attachments, see emailAttachments.jsx
   // AI suggested reply — the SAME engine as the Inbox (thread-aware, cold-seller +
   // follow-up doctrine, angle picker). Collapsed until the user asks for it.
   const [aiOpen, setAiOpen] = useState(false)
@@ -1393,10 +1395,12 @@ function EmailComposer({ client, onClose, onSent, initial }) {
     } catch (e) { notify('Preview failed: ' + e.message) } finally { setPreviewing(false) }
   }
   const send = async () => {
-    if (!stripHtml(body).trim()) return
+    // A file on its own is a perfectly good email: sending the checklist with no
+    // covering note is a normal thing to do.
+    if (!stripHtml(body).trim() && !files.length) return
     setSending(true)
     try {
-      const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, to_email: toEmail || undefined, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>') }) })
+      const r = await authFetch('/api/email/send', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ client_id: client.id, to_email: toEmail || undefined, subject: subject || '(no subject)', body: body.replace(/\n/g, '<br>'), attachments: attachPayload(files) }) })
       const d = await r.json().catch(() => ({}))
       if (r.ok && d.success !== false) { onSent && onSent(); onClose() } else notify('Email not sent: ' + (d.error || 'unknown'))
     } catch (e) { notify('Email failed: ' + e.message) } finally { setSending(false) }
@@ -1476,6 +1480,9 @@ function EmailComposer({ client, onClose, onSent, initial }) {
       <div style={{ fontSize: 14.5, color: 'var(--text-muted)', marginTop: 4 }}>
         Fields like <code>{'{{first_name}}'}</code> and <code>{'{{signature}}'}</code> fill in automatically when the email is sent. Use Preview to see the final version for {client.first_name || 'this lead'}.
       </div>
+      <div style={{ marginTop: 8 }}>
+        <EmailAttachBar files={files} setFiles={setFiles} />
+      </div>
       {preview && (
         <div style={{ marginTop: 8, border: '1px solid var(--border)', borderRadius: 6, background: '#fff' }}>
           <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--text-muted)', padding: '6px 9px', borderBottom: '1px solid var(--border)' }}>PREVIEW · Subject: {preview.subject || '(no subject)'}</div>
@@ -1485,7 +1492,7 @@ function EmailComposer({ client, onClose, onSent, initial }) {
       <div style={{ display: 'flex', gap: 6, marginTop: 6, justifyContent: 'flex-end' }}>
         <button className="btn btn-secondary btn-sm" onClick={onClose}>Cancel</button>
         <button className="btn btn-secondary btn-sm" onClick={doPreview} disabled={previewing}>{previewing ? 'Loading…' : (preview ? 'Refresh Preview' : 'Preview')}</button>
-        <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || !stripHtml(body).trim()}>{sending ? 'Sending…' : 'Send Email'}</button>
+        <button className="btn btn-primary btn-sm" onClick={send} disabled={sending || (!stripHtml(body).trim() && !files.length)}>{sending ? 'Sending…' : 'Send Email'}</button>
       </div>
     </div>
   )
