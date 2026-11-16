@@ -5,7 +5,7 @@ import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { randomUUID, createHash } from 'crypto'
 import db from '../database.js'
-import { cleanEmailAttachments } from '../email-attachments.js'
+import { cleanEmailAttachments } from '../email-attachments.js'
 import { searchMessages, backfillSearchText, searchIndexStatus } from '../comm-search.js'
 import { sendViaSendGrid, emailHardBlock, fillTemplate } from './email.js'
 import { getAiClient, gatherFub, gatherSierraNotes, buildDossier, noDash, AI_MODEL } from './followup.js'
@@ -383,6 +383,17 @@ router.get('/search', (req, res) => {
     const st = searchIndexStatus()
     res.json({ ...out, index: { ready: st.ready, pending: st.pending, total: st.total }, topped_up: topUp?.indexed || 0 })
   } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
+// ---- did the file really go? ---------------------------------------------------------
+// Reads the delivered copy out of the BCC mailbox and reports its actual MIME parts. The
+// has_attachment flag alone only says what the Hub tried to attach; this says what landed.
+// Slow on purpose (an IMAP round trip), so it is an explicit action, not part of a list.
+router.post('/:id/verify-attachment', async (req, res) => {
+  try {
+    const { verifySentAttachment } = await import('../verify-sent-attachment.js')
+    res.json(await verifySentAttachment(Number(req.params.id)))
+  } catch (e) { res.status(500).json({ ok: false, verdict: 'error', detail: e.message }) }
 })
 
 router.get('/search/status', (_req, res) => {

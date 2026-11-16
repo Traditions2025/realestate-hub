@@ -503,6 +503,14 @@ export async function searchMailboxesBySubject(subject, { max = 40, since = null
             from: p.from?.text || '', to: p.to?.text || '', subject: p.subject || '(no subject)',
             messageId: p.messageId || `${m.user}_${msg.uid}`,
             body: body.slice(0, 4000),
+            // The attachment parts as they exist ON THE DELIVERED MESSAGE. This is the
+            // only honest answer to "was the PDF really attached": everything else in the
+            // Hub records what we MEANT to send.
+            attachments: (p.attachments || []).map(a => ({
+              filename: a.filename || '(unnamed)',
+              type: a.contentType || '',
+              bytes: a.size || (a.content ? a.content.length : 0),
+            })),
           })
           found++
         }

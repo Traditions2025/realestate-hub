@@ -1209,6 +1209,60 @@ function EmailEngagement({ eng }) {
 
 const CLAMP_LINES = 6
 
+// Proof, not intention.
+//
+// John, 2026-11-16: "how would I know if the pdf was really attached on the email". The
+// has_attachment flag is written by the sender from its own send call, so it says what we
+// meant to do. This reads the copy that was actually delivered (every send BCCs Matt, and
+// that mailbox is connected) and reports the real MIME parts.
+function SentAttachment({ m }) {
+  const [busy, setBusy] = React.useState(false)
+  const [res, setRes] = React.useState(null)
+  const verifiedAt = res?.verified_at || m.attachment_verified_at
+  const verdict = res?.verdict || m.attachment_verdict
+  const names = res?.attachments?.length
+    ? res.attachments.map(a => a.filename).join(', ')
+    : attachmentLabel(m)
+
+  const check = async () => {
+    setBusy(true)
+    try {
+      const r = await authFetch(`/api/inbox/${m.id}/verify-attachment`, { method: 'POST' })
+      const d = await r.json()
+      setRes(d)
+      if (d.mismatch) notify('The Hub recorded a file on this email, but the sent copy has none.')
+      else if (d.verdict === 'attached') notify(`Confirmed on the sent email: ${d.attachments.map(a => a.filename).join(', ')}`)
+      else if (d.verdict === 'no_attachment') notify('The sent email carried no attachment.')
+      else notify(d.detail || 'Could not check this one.')
+    } catch (e) { notify(e.message) } finally { setBusy(false) }
+  }
+
+  const line = { fontSize: 14, marginBottom: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }
+  if (verdict === 'attached') return (
+    <div style={{ ...line, color: '#047857' }}>
+      <span>📎 {names}</span>
+      <span title={`Checked against the delivered email ${verifiedAt ? 'on ' + new Date(verifiedAt).toLocaleString() : ''}`}
+        style={{ fontWeight: 700 }}>✓ on the sent email</span>
+    </div>
+  )
+  if (verdict === 'no_attachment') return (
+    <div style={{ ...line, color: '#b91c1c', fontWeight: 600 }}>
+      ⚠ No file on the sent email{m.has_attachment ? ' (the Hub recorded one)' : ''}
+    </div>
+  )
+  return (
+    <div style={{ ...line, color: 'var(--text-secondary)' }}>
+      {m.has_attachment ? <span>📎 {names}</span> : null}
+      <button onClick={check} disabled={busy}
+        title="Open the copy that was actually delivered and read its attachments"
+        style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', color: 'var(--accent, #2563eb)', fontSize: 14, fontWeight: 600 }}>
+        {busy ? 'Checking the sent email…' : m.has_attachment ? 'Verify it really went' : 'Check for an attachment'}
+      </button>
+      {res && !res.ok && <span style={{ color: 'var(--text-muted)' }}>{res.detail}</span>}
+    </div>
+  )
+}
+
 function CommItem({ m, client }) {
   const meta = COMM_META[m.channel] || { icon: '•', label: m.channel, color: 'var(--text-muted)' }
   const [expanded, setExpanded] = useState(false)
@@ -1273,13 +1327,11 @@ function CommItem({ m, client }) {
         </span>
       </div>
       {m.channel === 'email' && m.subject && <div style={{ fontSize: 14.5, fontWeight: 700, marginBottom: 2 }}>{commToText(m.subject)}</div>}
-      {/* A file that went with the message. Named, not linked: the attachment itself is
-          handed to SendGrid and never stored, so there is nothing here to download. */}
-      {m.has_attachment ? (
-        <div style={{ fontSize: 14, color: 'var(--text-secondary)', marginBottom: 3 }}>
-          📎 {attachmentLabel(m)}
-        </div>
-      ) : null}
+      {/* What went with the message, and whether that has been checked against the email
+          that actually landed. The flag alone records what the Hub TRIED to attach. */}
+      {(m.has_attachment || (m.channel === 'email' && m.direction === 'outgoing')) && (
+        <SentAttachment m={m} />
+      )}
       {/* Long messages are clamped to six lines so every card is the same height and the
           list stays scannable (John, 2026-10-01). -webkit-line-clamp is what gives a clean
           cut mid-line; a height in px would slice a line in half. Short messages are left

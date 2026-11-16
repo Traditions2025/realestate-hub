@@ -973,6 +973,10 @@ export async function initDb() {
   // this reads a few MB. Filled by the backfill sweep, not at insert time, so every one of
   // the many places that writes a communications row stays untouched.
   try { db.run('ALTER TABLE communications ADD COLUMN search_text TEXT') } catch {}
+  // When the sent copy was actually inspected, and what was found on it. has_attachment on
+  // its own only records what the Hub TRIED to attach; this records what really went.
+  try { db.run('ALTER TABLE communications ADD COLUMN attachment_verified_at TEXT') } catch {}
+  try { db.run('ALTER TABLE communications ADD COLUMN attachment_verdict TEXT') } catch {}
   // Finds the not-yet-indexed rows cheaply. A plain index cannot help a LIKE '%x%' scan,
   // but it makes the sweep's own lookup instant instead of a full table scan every minute.
   try { db.run('CREATE INDEX IF NOT EXISTS idx_comm_search_pending ON communications(id) WHERE search_text IS NULL') } catch {}
