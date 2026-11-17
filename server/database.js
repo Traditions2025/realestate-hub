@@ -1301,6 +1301,44 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // ---- WHEN DID THIS TAG ARRIVE? (John, 2026-11-17) ---------------------------------
+  // "when I hover the tag it should give me the info/date on when it was added."
+  //
+  // clients.tags is a flat JSON array of names with no timestamps, and 14 different places
+  // write it - the Sierra sync, automations, bulk tagging, merges, the seller campaign,
+  // bounce policy, lead intake. Patching each one would miss the next one somebody adds,
+  // which is the whack-a-mole the AI guards already taught us not to repeat. So the record
+  // goes where EVERY write has to pass: a trigger on the column itself.
+  //
+  // Both sides of the change are stored rather than a computed diff, because SQL cannot
+  // diff two JSON arrays and because old+new also captures removals and reorderings.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS client_tag_history (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER NOT NULL,
+      old_tags TEXT,
+      new_tags TEXT,
+      changed_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_tag_hist_client ON client_tag_history(client_id, changed_at)') } catch {}
+  // WHEN old.tags IS NOT new.tags: a sync that rewrites the same value must not log a change.
+  // IS NOT rather than != so a NULL on either side still compares correctly.
+  try {
+    db.run(`
+      CREATE TRIGGER IF NOT EXISTS trg_client_tags_history
+      AFTER UPDATE OF tags ON clients
+      WHEN old.tags IS NOT new.tags
+      BEGIN
+        INSERT INTO client_tag_history (client_id, old_tags, new_tags, changed_at)
+        VALUES (new.id, old.tags, new.tags, datetime('now'));
+      END
+    `)
+  } catch (e) { console.error('[tag history] trigger not installed:', e.message) }
+  // The day tracking began. Everything already on a record predates it and must be shown as
+  // "added before this date" rather than given a made-up one.
+  try { if (!db.getSetting?.('tag_history_since')) db.setSetting?.('tag_history_since', new Date().toISOString()) } catch {}
+
   try { db.run('CREATE INDEX IF NOT EXISTS idx_leadevt_client ON lead_events(client_id, event_timestamp)') } catch {}
   try { db.run('CREATE INDEX IF NOT EXISTS idx_leadevt_type ON lead_events(event_type, event_timestamp)') } catch {}
   // Full audit of every autonomous AI action ("why did AI send this?").

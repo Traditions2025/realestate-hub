@@ -904,11 +904,36 @@ function TagEditor({ client, onSaved }) {
     if (v && !tags.some(x => x.toLowerCase() === v.toLowerCase())) apply([v], [])
     setVal(''); setSugg([]); setAdding(false)
   }
+  // WHEN DID EACH TAG ARRIVE (John, 2026-11-17: "when I hover the tag it should give me
+  // the info/date on when it was added"). Nothing recorded this before today, so tags
+  // already on the record come back dateless and say so rather than borrowing a date from
+  // somewhere else and looking authoritative.
+  const [tagHist, setTagHist] = useState(null)
+  useEffect(() => {
+    if (!client?.id || !tags.length) return
+    let dead = false
+    authFetch(`/api/clients/${client.id}/tag-history`)
+      .then(r => r.json())
+      .then(d => { if (!dead) setTagHist(d) })
+      .catch(() => {})
+    return () => { dead = true }
+  }, [client?.id, tags.length])
+
+  const tagTitle = (t) => {
+    const info = tagHist?.tags?.[t]
+    if (!info) return `${t}\n(checking when this was added…)`
+    if (info.status === 'tracked' && info.added_at) {
+      return `${t}\nAdded ${new Date(info.added_at + 'Z').toLocaleString()}`
+    }
+    const since = tagHist?.since ? new Date(tagHist.since).toLocaleDateString() : null
+    return `${t}\nAlready on this lead before tag history started${since ? ' on ' + since : ''}, so there is no recorded date for it.`
+  }
+
   const shown = showAll ? tags : tags.slice(0, 8)
   return (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
       {shown.map(t => (
-        <span key={t} className="cp-tagchip">{t}<button title="Remove tag" disabled={busy} onClick={() => apply([], [t])} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', marginLeft: 4, fontSize: 14.5, opacity: 0.7 }}>×</button></span>
+        <span key={t} className="cp-tagchip" title={tagTitle(t)}>{t}<button title="Remove tag" disabled={busy} onClick={() => apply([], [t])} style={{ border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', marginLeft: 4, fontSize: 14.5, opacity: 0.7 }}>×</button></span>
       ))}
       {tags.length > 8 && !showAll && <button className="btn btn-sm btn-secondary" onClick={() => setShowAll(true)}>+{tags.length - 8} more</button>}
       {!tags.length && <span style={{ color: 'var(--text-muted)', fontSize: 14.5 }}>No tags</span>}

@@ -1564,6 +1564,16 @@ router.get('/:id/assessor', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
+// When each tag on this lead arrived. Declared BEFORE /:id so the literal path wins.
+// Pre-2026-11-17 tags come back as pre_existing with no date, because none was ever
+// recorded and guessing one would be a confident wrong answer.
+router.get('/:id/tag-history', async (req, res) => {
+  try {
+    const { tagHistoryFor } = await import('../tag-history.js')
+    res.json(tagHistoryFor(Number(req.params.id)))
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.get('/:id', (req, res) => {
   const id = Number(req.params.id)
   const row = db.get('SELECT * FROM clients WHERE id = ?', [id])
