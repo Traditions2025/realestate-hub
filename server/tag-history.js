@@ -22,9 +22,23 @@ const parse = (s) => {
   return String(s).split(',').map(x => x.trim()).filter(Boolean)
 }
 
-/** The day the trigger went in. Anything older than this is undatable, not undated. */
+/**
+ * The day tracking began. Anything older than this is undatable, not undated.
+ *
+ * Stamped lazily rather than during database init: getSetting is not reliably available
+ * that early (the same ordering problem that makes followup's table init warn on boot), so
+ * the value written there came back null. The earliest recorded change is a better answer
+ * than "now" when one exists, because that IS when the trigger first saw something.
+ */
 export function trackingSince() {
-  try { return db.getSetting?.('tag_history_since', null) || null } catch { return null }
+  try {
+    const stored = db.getSetting?.('tag_history_since', null)
+    if (stored) return stored
+    const first = db.get('SELECT MIN(changed_at) m FROM client_tag_history')?.m
+    const since = first ? new Date(first + 'Z').toISOString() : new Date().toISOString()
+    try { db.setSetting?.('tag_history_since', since) } catch {}
+    return since
+  } catch { return null }
 }
 
 /**
