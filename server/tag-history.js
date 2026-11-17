@@ -48,6 +48,24 @@ export function trackingSince() {
  * record before tracking began. The difference matters: showing a lead's import date as if
  * it were the tag's date would be a confident wrong answer, which is worse than no answer.
  */
+/**
+ * Claim the change that was just made, so its date can be trusted and shown.
+ *
+ * Called by the deliberate tag actions only - somebody pressing + Tag, or removing one.
+ * Everything else (the Sierra sync above all) leaves source NULL and stays undated.
+ * Stamps the newest unclaimed row for this client, which the trigger has just written.
+ */
+export function attributeTagChange(clientId, source = 'hub') {
+  const cid = Number(clientId)
+  if (!cid) return
+  try {
+    db.run(`UPDATE client_tag_history SET source = ?
+             WHERE id = (SELECT id FROM client_tag_history
+                          WHERE client_id = ? AND source IS NULL
+                          ORDER BY id DESC LIMIT 1)`, [String(source).slice(0, 40), cid])
+  } catch { /* the date is a nicety; never break a tag edit over it */ }
+}
+
 export function tagHistoryFor(clientId) {
   const cid = Number(clientId)
   const since = trackingSince()
@@ -55,7 +73,7 @@ export function tagHistoryFor(clientId) {
   if (!cid) return out
 
   const rows = db.all(
-    'SELECT old_tags, new_tags, changed_at FROM client_tag_history WHERE client_id = ? ORDER BY id ASC',
+    'SELECT old_tags, new_tags, changed_at, source FROM client_tag_history WHERE client_id = ? ORDER BY id ASC',
     [cid])
 
   // Everything present before the first recorded change predates tracking. When there are
@@ -68,8 +86,17 @@ export function tagHistoryFor(clientId) {
     const before = new Set(parse(r.old_tags))
     for (const t of parse(r.new_tags)) {
       if (before.has(t)) continue
+      // A DATE ONLY WHEN SOMEBODY CLAIMED THE CHANGE (John, 2026-11-17: "do not put the
+      // sync date then since it's not accurate").
+      //
+      // The trigger catches every write, including the Sierra sync pulling tags a lead has
+      // carried for months. Dating those by the day we happened to sync them would be a
+      // confident wrong answer, which is worse than no answer. So an unclaimed change
+      // records that the tag arrived without claiming to know WHEN it was really applied.
       // Re-added after a removal: the latest arrival is the honest answer.
-      out.tags[t] = { added_at: r.changed_at, status: 'tracked' }
+      out.tags[t] = r.source
+        ? { added_at: r.changed_at, status: 'tracked', source: r.source }
+        : { added_at: null, status: 'undated_sync' }
     }
     const after = new Set(parse(r.new_tags))
     for (const t of before) {

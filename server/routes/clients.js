@@ -5,6 +5,7 @@ import { stopSequencesForClient, isStopStatus, activeSequencesForClient } from '
 import { gradeFromRealistScore, BACKFILLED_FIELDS } from '../sierra-helper.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { phoneSearchClauses } from '../phone-search.js'
+import * as tagHistory from '../tag-history.js'
 import { ensureState, releaseWrongNumberBlock } from '../ai-followup/state.js'
 import { ensureStamped, prependNote, replaceNote, removeNote, splitNotes } from '../client-notes.js'
 import { addressKey as addressKeyOf } from './admin.js'
@@ -2198,6 +2199,9 @@ router.post('/bulk-tags', async (req, res) => {
         if (removeLc.length) list = list.filter(t => !removeLc.includes(t.toLowerCase()))
         for (const t of add) if (!list.some(x => x.toLowerCase() === t.toLowerCase())) list.push(t)
         db.run('UPDATE clients SET tags=?, updated_at=? WHERE id=?', [list.length ? JSON.stringify(list) : null, now, id])
+        // A person pressed + Tag, so this date IS the day the tag was applied and can be
+        // shown. A sync rewriting the same column claims nothing and stays undated.
+        try { tagHistory.attributeTagChange(id, 'hub') } catch {}
         updated++
       }
       logActivity('bulk_tags', 'client', 0, `Tags on ${updated} lead${updated === 1 ? '' : 's'}: +[${add.join(', ')}] -[${remove.join(', ')}]`)

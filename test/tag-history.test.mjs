@@ -76,3 +76,44 @@ test('the chip carries the tooltip and the wording is honest', () => {
 test('the history is only fetched when there are tags to explain', () => {
   assert.match(UI, /if \(!client\?\.id \|\| !tags\.length\) return/)
 })
+
+// ---- a date is only shown when somebody claimed the change -------------------------
+//
+// John, 2026-11-17: "do not put the sync date then since it's not accurate". Sierra and FUB
+// both return tags as flat arrays of strings with no dates (verified against both APIs), so
+// the day a sync pulls a tag is NOT the day it was applied. Dating it by the sync would be a
+// confident wrong answer, which is worse than no answer.
+
+test('an unclaimed change yields no date', () => {
+  // The branch is chosen by the row's source, and the dateless side carries no date.
+  assert.match(HIST, /r\.source\s*\n?\s*\?\s*\{ added_at: r\.changed_at, status: 'tracked'/)
+  assert.match(HIST, /:\s*\{ added_at: null, status: 'undated_sync' \}/)
+  // source has to be selected, or every row would look unclaimed
+  assert.match(HIST, /SELECT old_tags, new_tags, changed_at, source FROM client_tag_history/)
+})
+
+test('only a deliberate action can claim a change', () => {
+  assert.match(HIST, /export function attributeTagChange/)
+  // and it only ever fills a row nobody has claimed yet
+  assert.match(HIST, /WHERE client_id = \? AND source IS NULL/)
+})
+
+test('the + Tag button claims its change, so that date is real', () => {
+  assert.match(ROUTE, /attributeTagChange\(id, 'hub'\)/)
+})
+
+test('the sync claims nothing', () => {
+  // Nothing in the Sierra sync may call attributeTagChange, or the sync date comes back.
+  const SYNC = readFileSync(new URL('../server/sierra-helper.js', import.meta.url), 'utf8')
+  assert.ok(!/attributeTagChange/.test(SYNC), 'the sync must never claim a tag change')
+})
+
+test('failing to claim never breaks a tag edit', () => {
+  const fn = HIST.slice(HIST.indexOf('export function attributeTagChange'))
+  assert.match(fn.slice(0, 700), /catch \{/)
+})
+
+test('the tooltip does not dress a sync up as a date', () => {
+  assert.match(UI, /undated_sync/)
+  assert.match(UI, /do not send a date for a tag/)
+})

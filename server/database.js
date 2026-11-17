@@ -1322,6 +1322,11 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_tag_hist_client ON client_tag_history(client_id, changed_at)') } catch {}
+  // WHO made the change. NULL means nobody claimed it, and an unclaimed change is NOT a
+  // date we will show (John, 2026-11-17: "do not put the sync date then since it's not
+  // accurate"). The Sierra sync rewrites tags a lead has carried for months, so the day we
+  // happened to pull it is not the day it was tagged. Only a deliberate action stamps this.
+  try { db.run('ALTER TABLE client_tag_history ADD COLUMN source TEXT') } catch {}
   // WHEN old.tags IS NOT new.tags: a sync that rewrites the same value must not log a change.
   // IS NOT rather than != so a NULL on either side still compares correctly.
   try {

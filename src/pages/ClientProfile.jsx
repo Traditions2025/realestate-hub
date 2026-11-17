@@ -922,8 +922,13 @@ function TagEditor({ client, onSaved }) {
   const tagTitle = (t) => {
     const info = tagHist?.tags?.[t]
     if (!info) return `${t}\n(checking when this was added…)`
+    // Only a date somebody CLAIMED. The Sierra sync rewrites tags a lead has carried for
+    // months, so the day we pulled it is not the day it was tagged (John, 2026-11-17).
     if (info.status === 'tracked' && info.added_at) {
       return `${t}\nAdded ${new Date(info.added_at + 'Z').toLocaleString()}`
+    }
+    if (info.status === 'undated_sync') {
+      return `${t}\nCame in from Sierra or FUB, which do not send a date for a tag, so when it was actually applied is not known.`
     }
     const since = tagHist?.since ? new Date(tagHist.since).toLocaleDateString() : null
     return `${t}\nAlready on this lead before tag history started${since ? ' on ' + since : ''}, so there is no recorded date for it.`
