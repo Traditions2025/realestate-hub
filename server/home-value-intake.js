@@ -20,6 +20,9 @@ import db from './database.js'
 import { rule } from './rules.js'
 import { inProactiveWindow, nextValidSlot } from './fsbo-followup.js'
 import * as HVA from './home-value-answers.js'
+// One definition of "is home value texting on". No cycle: home-value-sms.js imports only
+// database.js and fsbo-followup.js, not this file.
+import { hvSmsEnabled } from './home-value-sms.js'
 
 const nowIso = () => new Date().toISOString()
 
@@ -467,6 +470,14 @@ export function day0TextFor(client) {
 export function scheduleConditionQuestion(client) {
   const cid = Number(client?.id)
   if (!cid) return { ok: false, reason: 'no client' }
+  // THE HOME VALUE TEXT SWITCH COVERS THIS ONE TOO (John, 2026-11-17: "the questionnaire
+  // are almost covering all of the items, we don't need to send any more of these
+  // messages, so disable the texting part of that for now").
+  //
+  // home_value_sms_enabled already gated the 45-day sequence runner, but NOT this Day 0
+  // question, so turning the sequence off still left the first text going out. One switch
+  // now means one switch. The email and the report are untouched: only the texting stops.
+  if (!hvSmsEnabled()) return { ok: false, reason: 'home value texting is turned off' }
   const phone = String(client.phone || '').replace(/\D/g, '')
   if (phone.length < 10) return { ok: false, reason: 'no mobile number on file' }
   // PAST CLIENTS GET EMAIL, NEVER TEXT (John, 2026-11-05). Checked before the compliance
