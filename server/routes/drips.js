@@ -602,6 +602,11 @@ router.post('/home-value/settings', async (req, res) => {
   // from `enabled`, which governs enrolling past clients into the long-term nurture. While
   // paused, requests are still recorded and tagged; only the outbound half stops.
   if (b.response_paused !== undefined) db.setSetting('home_value_response_paused', b.response_paused ? '1' : '0')
+  // TEXTING ONLY (John, 2026-11-17: "the questionnaire are almost covering all of the
+  // items... disable the texting part of that for now"). Narrower than response_paused:
+  // the answer email and the report still go, only the Day 0 condition question and the
+  // 45-day SMS sequence stop. Both read home_value_sms_enabled.
+  if (b.texting_enabled !== undefined) db.setSetting('home_value_sms_enabled', b.texting_enabled ? '1' : '0')
   if (b.daily_limit !== undefined) db.setSetting('home_value_enroll_daily_limit', String(Math.max(1, Number(b.daily_limit) || 200)))
   if (b.ramp !== undefined) db.setSetting('home_value_enroll_ramp', b.ramp ? '1' : '0')
   // The saved exclusion list is echoed back. It was write-only, so the one setting that
@@ -614,6 +619,7 @@ router.post('/home-value/settings', async (req, res) => {
     excluded_ids: String(db.getSetting('home_value_excluded_ids', '') || ''),
     // Echoed back so a pause can be CONFIRMED rather than assumed.
     response_paused: String(db.getSetting('home_value_response_paused', '0')) === '1',
+    texting_enabled: String(db.getSetting('home_value_sms_enabled', '1')) === '1',
     ramp_day: d ? rampDayIndex(d.id) : 0,
     todays_limit: d ? effectiveDailyLimit(cfg, d.id) : cfg.daily_limit,
     // what the ramp will allow next, so raising the ceiling does not look like nothing
