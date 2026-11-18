@@ -405,6 +405,46 @@ export async function evaluateEligibility(client, { atEnroll = false, manual = f
 }
 
 // ---------- enrollment ----------
+
+/** How many FIRST texts may leave on one day. */
+export const NEW_PER_DAY = 5
+
+/**
+ * When this lead's first text should go.
+ *
+ * Enrolling the pool used to set every lead to now + 60 seconds, and the sweep runs every
+ * 15 minutes with a limit of 25 - so all 15 would have left the same number inside one
+ * minute, fifteen near-identical cold texts in a row. That is the shape carriers score as
+ * spam, and the whole number carries the consequence, including the conversations that
+ * matter.
+ *
+ * So first sends are spread: at most NEW_PER_DAY a day, each at its own random time inside
+ * the window, filling the next weekday that still has room. 15 leads become 3 quiet days
+ * instead of one burst. Later texts are spaced by scheduleNext and never bunch like this.
+ */
+export function firstSendSlot() {
+  for (let dayOffset = 0; dayOffset < 60; dayOffset++) {
+    const base = nextValidSlot(new Date(Date.now() + Math.max(dayOffset, 0) * DAY + 60000))
+    const dayKey = base.toISOString().slice(0, 10)
+    let taken = 0
+    try {
+      taken = db.get(`SELECT COUNT(*) n FROM fsbo_om_campaign
+                       WHERE attempt_count = 0 AND next_send_at IS NOT NULL
+                         AND substr(next_send_at, 1, 10) = ?`, [dayKey])?.n || 0
+    } catch {}
+    if (taken >= NEW_PER_DAY) continue
+    // A random time inside 9:00-15:59 Central, so the day's handful are not consecutive.
+    let d = new Date(base)
+    const hour = 9 + Math.floor(Math.random() * 7)
+    d = new Date(d.getTime() + (hour - chi(d).hour) * 3600000)
+    d = new Date(d.getTime() + (Math.floor(Math.random() * 60) - d.getUTCMinutes()) * 60000)
+    // Never in the past: a slot earlier today has already gone.
+    if (d.getTime() < Date.now() + 60000) continue
+    return d.toISOString()
+  }
+  return nextValidSlot(new Date(Date.now() + DAY)).toISOString()
+}
+
 export async function enrollClient(clientId, by = 'auto') {
   const c = db.get('SELECT * FROM clients WHERE id=?', [Number(clientId)])
   if (!c) return { ok: false, reason: 'client not found' }
@@ -421,7 +461,7 @@ export async function enrollClient(clientId, by = 'auto') {
   if (!ev.ok) { logOm(c.id, 'enroll_refused', { eligibility_result: ev.code, stop_reason: ev.detail }); return { ok: false, reason: `${ev.code}: ${ev.detail}` } }
 
   const days = listingAgeDays(c)
-  const first = nextValidSlot(new Date(Date.now() + 60000)).toISOString()
+  const first = firstSendSlot()
   db.run(`INSERT INTO fsbo_om_campaign (client_id, status, attempt_count, enrolled_at, enrolled_by,
             next_send_at, age_bucket_at_enroll, off_market_date, updated_at)
           VALUES (?,?,?,?,?,?,?,?,?)

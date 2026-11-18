@@ -374,3 +374,38 @@ test('an old listing can never be told it came off market recently', () => {
     assert.ok(!/no longer listed|was for sale recently/.test(msg), `recent wording reached a ${b} listing`)
   }
 })
+
+// ---- first sends are spread, not fired in one burst ------------------------------------
+//
+// Enrolling the pool used to set every lead to now + 60s. The sweep runs every 15 minutes
+// with a limit of 25, so all 15 would have left the same Twilio number inside one minute.
+// Fifteen near-identical cold texts in a row is the pattern carriers score as spam, and the
+// number carries that for every conversation on it.
+
+test('no more than a handful of first texts may land on one day', () => {
+  assert.equal(OM.NEW_PER_DAY, 5)
+  assert.match(SRC, /attempt_count = 0 AND next_send_at IS NOT NULL/)
+  assert.match(SRC, /if \(taken >= NEW_PER_DAY\) continue/)
+})
+
+test('enrollment uses the staggered slot, not "one minute from now"', () => {
+  const fn = SRC.slice(SRC.indexOf('export async function enrollClient'))
+  assert.match(fn, /const first = firstSendSlot\(\)/)
+  assert.ok(!/Date\.now\(\) \+ 60000\)\)\.toISOString\(\)[\s\S]{0,80}INSERT INTO fsbo_om_campaign/.test(fn),
+    'the old immediate slot must be gone')
+})
+
+test('a first send is never scheduled in the past', () => {
+  assert.match(SRC, /if \(d\.getTime\(\) < Date\.now\(\) \+ 60000\) continue/)
+})
+
+test('a staggered slot still respects the weekday window', () => {
+  const hr = (d) => Number(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', hour: '2-digit', hour12: false }).format(d))
+  const wd = (d) => new Intl.DateTimeFormat('en-US', { timeZone: 'America/Chicago', weekday: 'short' }).format(d)
+  for (let i = 0; i < 40; i++) {
+    const d = new Date(OM.firstSendSlot())
+    assert.ok(hr(d) >= 9 && hr(d) < 16, `slot at ${hr(d)}:00 Central`)
+    assert.ok(!['Sat', 'Sun'].includes(wd(d)), `slot on ${wd(d)}`)
+    assert.ok(d.getTime() > Date.now(), 'slot must be in the future')
+  }
+})
