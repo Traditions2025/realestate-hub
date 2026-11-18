@@ -1332,6 +1332,10 @@ export async function initDb() {
     )
   `)
   try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbo_om_due ON fsbo_om_campaign(status, next_send_at)') } catch {}
+  // What a person chose to forgive for this lead, so the SEND-TIME eligibility check
+  // honours it too. Enrolling with an override and then re-checking without one stopped
+  // eight leads at send time on 2026-11-18; the decision has to live on the row.
+  try { db.run('ALTER TABLE fsbo_om_campaign ADD COLUMN history_override TEXT') } catch {}
   db.run(`
     CREATE TABLE IF NOT EXISTS fsbo_om_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,

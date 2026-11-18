@@ -261,7 +261,11 @@ test('only one seller campaign owns a lead at a time (§26)', () => {
 
 test('eligibility runs again before every send, not just at enrollment', () => {
   const sweep = SRC.slice(SRC.indexOf('export async function runSweep'))
-  assert.match(sweep, /await evaluateEligibility\(c, \{\}\)/)
+  const call = sweep.slice(sweep.indexOf('await evaluateEligibility'))
+  assert.match(call.slice(0, 120), /await evaluateEligibility\(c, \{/)
+  // atEnroll must NOT be set here, or the send-time-only checks (attempt cap, recent manual
+  // contact, a scheduled text already waiting) would be skipped on every send.
+  assert.ok(!/atEnroll/.test(call.slice(0, 120)), 'the send-time check must not run in enrol mode')
 })
 
 test('any prior meaningful reply blocks the campaign', () => {
@@ -465,4 +469,34 @@ test('STOP can never be overridden', () => {
   const fn = SRC.slice(SRC.indexOf('export async function evaluateEligibility'))
   const dnc = fn.slice(fn.indexOf('hub_text_opt_out'), fn.indexOf('hub_text_opt_out') + 160)
   assert.ok(!/override/.test(dnc), 'the opt-out check must not consult the override')
+})
+
+// An override that only applies at enrolment is worse than none: on 2026-11-18 eight leads
+// were enrolled with one and then stopped by the send-time check minutes later, because the
+// sweep re-evaluated them without it. The decision has to be stored and re-read.
+
+test('the override is stored on the row, not just used once at enrolment', () => {
+  const fn = SRC.slice(SRC.indexOf('export async function enrollClient'))
+  assert.match(fn, /history_override/, 'enrolment must persist the override')
+  assert.match(fn, /const overrideNote = ev\.overrode \?/, 'it must record WHAT was forgiven and by whom')
+})
+
+test('the send-time check reads the stored override', () => {
+  const sweep = SRC.slice(SRC.indexOf('export async function runSweep'))
+  const call = sweep.slice(sweep.indexOf('await evaluateEligibility'))
+  assert.match(call.slice(0, 120), /override: !!en\.history_override/,
+    'the sweep must pass the row\'s stored override, or every overridden lead is stopped on its first pass')
+})
+
+test('an override cannot reopen a lead who declined in reply to OUR text', () => {
+  const fn = SRC.slice(SRC.indexOf('export async function enrollClient'), SRC.indexOf('export function eligiblePool'))
+  const reopen = fn.slice(fn.indexOf('const reopenable'), fn.indexOf('const ev = await evaluateEligibility'))
+  // Never texted by this campaign is the whole condition: it is what separates a verdict
+  // from an earlier conversation, which a person can read and forgive, from a reply to us.
+  assert.match(reopen, /attempt_count \|\| 0\) === 0/)
+  assert.match(reopen, /existing\.status === 'not_interested'/)
+  // dnc, sold and listed_with_agent are facts, not opinions, and stay closed either way.
+  for (const s of ['dnc', 'sold', 'listed_with_agent']) {
+    assert.ok(!new RegExp(`status === '${s}'`).test(reopen), `${s} must not be reopenable`)
+  }
 })

@@ -493,7 +493,16 @@ export async function enrollClient(clientId, by = 'auto', { override = false } =
   }
   const manual = by !== 'auto'
   // §25: a manual restart is refused for the outcomes that must never be reopened.
-  if (existing && ['dnc', 'not_interested', 'listed_with_agent', 'sold'].includes(existing.status) && manual) {
+  //
+  // An override reopens exactly one of them, not_interested, and only when THIS campaign
+  // has never texted the lead - meaning the verdict came from an earlier conversation a
+  // person has read. A lead who declined in reply to one of our own messages stays closed,
+  // override or not, and dnc/sold/listed_with_agent are facts rather than opinions, so no
+  // override reaches them.
+  const reopenable = override && existing && (existing.attempt_count || 0) === 0
+    && existing.status === 'not_interested'
+  if (existing && ['dnc', 'not_interested', 'listed_with_agent', 'sold'].includes(existing.status)
+      && manual && !reopenable) {
     return { ok: false, reason: `cannot restart a lead marked ${existing.status}` }
   }
   const ev = await evaluateEligibility(c, { atEnroll: true, manual, override })
@@ -501,13 +510,16 @@ export async function enrollClient(clientId, by = 'auto', { override = false } =
 
   const days = listingAgeDays(c)
   const first = firstSendSlot()
+  const overrideNote = ev.overrode ? `${ev.overrode} forgiven by ${by} on ${nowIso().slice(0, 10)}` : null
   db.run(`INSERT INTO fsbo_om_campaign (client_id, status, attempt_count, enrolled_at, enrolled_by,
-            next_send_at, age_bucket_at_enroll, off_market_date, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?)
+            next_send_at, age_bucket_at_enroll, off_market_date, history_override, updated_at)
+          VALUES (?,?,?,?,?,?,?,?,?,?)
           ON CONFLICT(client_id) DO UPDATE SET status='active', attempt_count=0, enrolled_at=excluded.enrolled_at,
             enrolled_by=excluded.enrolled_by, next_send_at=excluded.next_send_at, stop_reason=NULL,
-            response_class=NULL, responded_at=NULL, updated_at=excluded.updated_at`,
-    [c.id, 'active', 0, nowIso(), by, first, ageBucket(days), listedDate(c)?.toISOString() || null, nowIso()])
+            response_class=NULL, responded_at=NULL, history_override=excluded.history_override,
+            updated_at=excluded.updated_at`,
+    [c.id, 'active', 0, nowIso(), by, first, ageBucket(days), listedDate(c)?.toISOString() || null,
+      overrideNote, nowIso()])
   logOm(c.id, 'enrolled', { age_bucket: ageBucket(days), days_off_market: days, scheduled_for: first,
     eligibility_result: ev.overrode ? `ok (override: ${ev.overrode} forgiven by ${by})` : 'ok' })
   if (ev.overrode) logOm(c.id, 'override', { stop_reason: `${ev.overrode} forgiven by ${by}`, eligibility_result: ev.overrode })
@@ -554,7 +566,9 @@ export async function runSweep({ limit = 25, dryRun = false } = {}) {
     const bucket = ageBucket(days)
     const attempt = (en.attempt_count || 0) + 1
 
-    const ev = await evaluateEligibility(c, {})
+    // The override lives on the row, so the send-time check sees the same decision the
+    // enrolment did. Without this every overridden lead is stopped on its first sweep.
+    const ev = await evaluateEligibility(c, { override: !!en.history_override })
     if (!ev.ok) {
       if (ev.terminal) {
         const status = ev.code === 'EXHAUSTED' ? 'exhausted' : (CLASS_OUTCOME[ev.code]?.status || 'human_removed')
