@@ -353,7 +353,8 @@ export function historyBlock(client) {
 // ---------- eligibility (§2, §18, §19) ----------
 // Run at enrollment AND before EVERY send. terminal:true stops the campaign; terminal:false
 // defers and keeps the lead enrolled.
-export async function evaluateEligibility(client, { atEnroll = false, manual = false } = {}) {
+export async function evaluateEligibility(client, { atEnroll = false, manual = false, override = false } = {}) {
+  let overrodeHistory = null
   if (!client) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'client not found' }
   if (client.merged_into) return { ok: false, terminal: true, code: 'HUMAN_REMOVED', detail: 'merged into another record' }
 
@@ -396,12 +397,23 @@ export async function evaluateEligibility(client, { atEnroll = false, manual = f
   const owner = ownedElsewhere(client.id)
   if (owner) return { ok: false, terminal: true, code: 'OTHER_WORKFLOW', detail: owner }
 
+  // WHAT THE LEAD HAS ALREADY SAID.
+  //
+  // A manual enroll forgives WRONG_NUMBER on its own, because the only reason to enroll by
+  // hand is a corrected number. Everything else here is the lead speaking, so it takes an
+  // explicit override from a person who has READ the reply (John, 2026-11-18: "I reviewed
+  // all those who responded and they are still eligible").
+  //
+  // The override covers history verdicts ONLY. Everything above this point - STOP, opt-out,
+  // junk, sold, pending, relisted, another workflow - is unreachable by it. An override is
+  // a judgement about one conversation, never a way around a compliance gate.
   const hist = historyBlock(client)
-  if (hist && !(manual && hist.code === 'WRONG_NUMBER')) {
+  if (hist && !(manual && hist.code === 'WRONG_NUMBER') && !override) {
     return { ok: false, terminal: true, code: hist.code, detail: hist.detail }
   }
+  if (hist && override) overrodeHistory = hist.code
 
-  if (atEnroll) return { ok: true }
+  if (atEnroll) return { ok: true, overrode: overrodeHistory }
 
   // ---- send-time only ----
   const en = db.get('SELECT attempt_count FROM fsbo_om_campaign WHERE client_id=?', [client.id])
@@ -428,7 +440,7 @@ export async function evaluateEligibility(client, { atEnroll = false, manual = f
     const terminal = /STOP|opted out|do_not_text|blocked|status/i.test(gate.reason)
     return { ok: false, terminal, code: terminal ? 'DNC' : 'COLLISION', detail: gate.reason }
   }
-  return { ok: true }
+  return { ok: true, overrode: overrodeHistory }
 }
 
 // ---------- enrollment ----------
@@ -472,7 +484,7 @@ export function firstSendSlot() {
   return nextValidSlot(new Date(Date.now() + DAY)).toISOString()
 }
 
-export async function enrollClient(clientId, by = 'auto') {
+export async function enrollClient(clientId, by = 'auto', { override = false } = {}) {
   const c = db.get('SELECT * FROM clients WHERE id=?', [Number(clientId)])
   if (!c) return { ok: false, reason: 'client not found' }
   const existing = db.get('SELECT * FROM fsbo_om_campaign WHERE client_id=?', [c.id])
@@ -484,7 +496,7 @@ export async function enrollClient(clientId, by = 'auto') {
   if (existing && ['dnc', 'not_interested', 'listed_with_agent', 'sold'].includes(existing.status) && manual) {
     return { ok: false, reason: `cannot restart a lead marked ${existing.status}` }
   }
-  const ev = await evaluateEligibility(c, { atEnroll: true, manual })
+  const ev = await evaluateEligibility(c, { atEnroll: true, manual, override })
   if (!ev.ok) { logOm(c.id, 'enroll_refused', { eligibility_result: ev.code, stop_reason: ev.detail }); return { ok: false, reason: `${ev.code}: ${ev.detail}` } }
 
   const days = listingAgeDays(c)
@@ -496,7 +508,9 @@ export async function enrollClient(clientId, by = 'auto') {
             enrolled_by=excluded.enrolled_by, next_send_at=excluded.next_send_at, stop_reason=NULL,
             response_class=NULL, responded_at=NULL, updated_at=excluded.updated_at`,
     [c.id, 'active', 0, nowIso(), by, first, ageBucket(days), listedDate(c)?.toISOString() || null, nowIso()])
-  logOm(c.id, 'enrolled', { age_bucket: ageBucket(days), days_off_market: days, scheduled_for: first, eligibility_result: 'ok' })
+  logOm(c.id, 'enrolled', { age_bucket: ageBucket(days), days_off_market: days, scheduled_for: first,
+    eligibility_result: ev.overrode ? `ok (override: ${ev.overrode} forgiven by ${by})` : 'ok' })
+  if (ev.overrode) logOm(c.id, 'override', { stop_reason: `${ev.overrode} forgiven by ${by}`, eligibility_result: ev.overrode })
   return { ok: true, client_id: c.id, next_send_at: first }
 }
 

@@ -436,3 +436,33 @@ test('the pacing check sits after the dry-run return, so a preview is never pace
   const sweep = SRC.slice(SRC.indexOf('export async function runSweep'))
   assert.ok(sweep.indexOf('would_send') < sweep.indexOf('const wait = gapRemainingMs()'))
 })
+
+// ---- the override forgives words, never compliance -------------------------------------
+//
+// John reviewed the replies himself and judged those leads still worth contacting. The code
+// refused them, correctly, so the way through is an explicit logged override rather than a
+// weaker default - the same pattern the AI guards use for a hand-added lead.
+
+test('an override exists and is recorded against whoever used it', () => {
+  assert.match(SRC, /export async function enrollClient\(clientId, by = 'auto', \{ override = false \} = \{\}\)/)
+  assert.match(SRC, /logOm\(c\.id, 'override'/)
+  assert.match(SRC, /forgiven by \$\{by\}/)
+})
+
+test('it forgives ONLY what the lead previously said', () => {
+  // The guard sits on the history block, which is the last check in eligibility. Every
+  // compliance gate - STOP, opt-out, junk, sold, pending, relisted, another workflow -
+  // is evaluated and returned BEFORE it, so an override cannot reach any of them.
+  const fn = SRC.slice(SRC.indexOf('export async function evaluateEligibility'))
+  const overridePoint = fn.indexOf('&& !override')
+  for (const gate of ["code: 'DNC'", "code: 'SOLD'", "code: 'PENDING'", "code: 'LISTED_WITH_AGENT'", "lead junked"]) {
+    const at = fn.indexOf(gate)
+    assert.ok(at > 0 && at < overridePoint, `${gate} must be checked before the override point`)
+  }
+})
+
+test('STOP can never be overridden', () => {
+  const fn = SRC.slice(SRC.indexOf('export async function evaluateEligibility'))
+  const dnc = fn.slice(fn.indexOf('hub_text_opt_out'), fn.indexOf('hub_text_opt_out') + 160)
+  assert.ok(!/override/.test(dnc), 'the opt-out check must not consult the override')
+})

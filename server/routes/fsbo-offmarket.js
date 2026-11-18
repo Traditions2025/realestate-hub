@@ -106,7 +106,20 @@ router.post('/toggle', (req, res) => {
 
 router.post('/enroll', async (req, res) => {
   try {
-    if (req.body?.client_id) return res.json(await OM.enrollClient(Number(req.body.client_id), req.user?.email || 'agent'))
+    // override:true forgives what the lead has previously SAID (already replied, not
+    // interested in listing, keeping it, renting it) and nothing else. It never reaches
+    // STOP, opt-out, junk, sold, pending or relisted. Whoever sets it is recorded.
+    const override = req.body?.override === true
+    const by = req.user?.email || 'agent'
+    if (req.body?.client_id) return res.json(await OM.enrollClient(Number(req.body.client_id), by, { override }))
+    if (Array.isArray(req.body?.client_ids)) {
+      const out = { enrolled: [], skipped: [] }
+      for (const id of req.body.client_ids) {
+        const r = await OM.enrollClient(Number(id), by, { override })
+        r.ok ? out.enrolled.push(Number(id)) : out.skipped.push({ id: Number(id), reason: r.reason })
+      }
+      return res.json({ enrolled: out.enrolled.length, ids: out.enrolled, skipped: out.skipped })
+    }
     res.json(await OM.bulkEnroll())
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
