@@ -42,6 +42,7 @@ import templatesRouter from './routes/templates.js'
 import automationsRouter from './routes/automations.js'
 import reportingRouter from './routes/reporting.js'
 import dripsRouter from './routes/drips.js'
+import fsboOffMarketRouter from './routes/fsbo-offmarket.js'
 import campaignMatchRouter from './routes/campaign-match.js'
 import inboxRouter from './routes/inbox.js'
 import dialerRouter from './routes/dialer.js'
@@ -353,6 +354,7 @@ async function start() {
   app.use('/api/automations', automationsRouter)
   app.use('/api/reporting', reportingRouter)
   app.use('/api/drips', dripsRouter)
+  app.use('/api/fsbo-offmarket', fsboOffMarketRouter)
   app.use('/api/campaign-match', campaignMatchRouter)
   app.use('/api/inbox', inboxRouter)
   app.use('/api/dialer', dialerRouter)

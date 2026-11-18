@@ -1301,6 +1301,62 @@ export async function initDb() {
       created_at TEXT DEFAULT (datetime('now'))
     )
   `)
+  // ---- FSBO CONNECT: OFF MARKET (John's build spec, 2026-11-18) ---------------------
+  // A property advertised for sale by owner, no longer advertised, no recorded sale. One
+  // row per enrolled lead plus a full audit row per event. Separate from cx_campaign on
+  // purpose: a FSBO owner chose not to use an agent, so the library, the cadence and the
+  // stop rules all differ. See server/fsbo-offmarket.js.
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fsbo_om_campaign (
+      client_id INTEGER PRIMARY KEY,
+      status TEXT DEFAULT 'active',        -- active|deferred|response_received|future_timing|sold|
+                                           -- rented|listed_with_agent|holding|selling_myself|
+                                           -- price_trigger|not_interested|wrong_number|dnc|
+                                           -- exhausted|human_removed
+      attempt_count INTEGER DEFAULT 0,
+      enrolled_at TEXT,
+      enrolled_by TEXT,
+      last_sent_at TEXT,
+      next_send_at TEXT,
+      last_angle TEXT,
+      age_bucket_at_enroll TEXT,
+      off_market_date TEXT,
+      responded_at TEXT,
+      response_class TEXT,
+      response_comm_id INTEGER,
+      seller_price_threshold INTEGER,      -- "I'd sell at 300k" -> 300000
+      paused_at TEXT, paused_by TEXT,
+      removed_at TEXT, removed_by TEXT,
+      stop_reason TEXT,
+      updated_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbo_om_due ON fsbo_om_campaign(status, next_send_at)') } catch {}
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fsbo_om_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_id INTEGER,
+      event TEXT,                          -- enrolled|enroll_refused|sent|deferred|stopped|
+                                           -- exhausted|response|paused|resumed|removed|send_failed
+      attempt INTEGER,
+      angle TEXT,
+      template_key TEXT,
+      age_bucket TEXT,
+      days_off_market INTEGER,
+      eligibility_result TEXT,
+      stop_reason TEXT,
+      defer_reason TEXT,
+      response_class TEXT,
+      phone TEXT,
+      comm_id INTEGER,
+      body TEXT,
+      scheduled_for TEXT,
+      created_at TEXT DEFAULT (datetime('now'))
+    )
+  `)
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbo_om_log_client ON fsbo_om_log(client_id, id)') } catch {}
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_fsbo_om_log_event ON fsbo_om_log(event, created_at)') } catch {}
+
   // ---- WHEN DID THIS TAG ARRIVE? (John, 2026-11-17) ---------------------------------
   // "when I hover the tag it should give me the info/date on when it was added."
   //

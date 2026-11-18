@@ -979,6 +979,10 @@ export function startScheduler() {
   setInterval(() => {
     if (hvResponsePaused()) return
     import('./home-value-sms.js').then(m => m.runHvSmsSweep()).catch(() => {})
+    // FSBO Connect - Off Market. The sweep returns immediately while
+    // fsbo_offmarket_enabled is off, which is the default, so wiring it here sends
+    // nothing until somebody deliberately turns the campaign on.
+    import('./fsbo-offmarket.js').then(m => m.runSweep({ limit: 25 })).catch(() => {})
   }, 15 * 60 * 1000)
 
   // FUB → Hub Facebook-ad lead watcher: every 2 min pull ONLY new Facebook lead-ad

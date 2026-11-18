@@ -952,6 +952,15 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         // campaign forbids. Same rule as Cancelled/Expired: a human always answers.
         let fsboLead = false
         try { const f = await import('../fsbo-followup.js'); fsboLead = await f.handleFsboReply(client.id, body) } catch (e) { console.error('[fsbo-followup]', e.message) }
+        // FSBO Connect - Off Market: same rule as the two above. Any inbound stops the
+        // campaign, classifies it, raises a task, and GATES THE AI. A FSBO owner is never
+        // answered by automation - that is the breach this pattern exists to prevent.
+        let fsboOmLead = false
+        try {
+          const om = await import('../fsbo-offmarket.js')
+          const lastComm = db.get('SELECT id FROM communications WHERE external_id=?', [externalId])
+          fsboOmLead = om.handleInbound(client.id, body, lastComm?.id || null)
+        } catch (e) { console.error('[fsbo-offmarket]', e.message) }
         // Home Value 45-day follow-up: ANY reply ends the sequence, cancels everything
         // queued, hands the lead to a person and keeps the AI out. Same rule as the two
         // above, and awaited for the same reason: a fire-and-forget call here would let
@@ -968,7 +977,7 @@ router.post('/twilio-inbound', twilioWebhookGuard, async (req, res) => {
         // Skipped entirely for Cancelled/Expired (cxLead), FSBO (fsboLead) and the Home
         // Value follow-up (hvLead) campaign
         // leads: the AI never replies to either, a person does.
-        if (body && !kw && !cxLead && !fsboLead && !hvLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
+        if (body && !kw && !cxLead && !fsboLead && !fsboOmLead && !hvLead) import('../ai-followup/orchestrator.js').then(m => m.handleInboundText(client.id, body)).catch(e => console.error('[hubai]', e.message))
       } else notifyUnknownInbound(from, body || (media.length ? '[media]' : '')).catch(() => {})
     }
   } catch (e) { console.error('[twilio-inbound] error:', e.message) }
