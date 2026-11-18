@@ -37,6 +37,33 @@ export function fsboOmEnabled() {
 
 export const MAX_ATTEMPTS = 8
 
+/**
+ * Minimum minutes between ANY two sends in this campaign.
+ *
+ * John, 2026-11-18: "push all today just put timing say 5 minutes each before sending to
+ * next one." Spacing the scheduled times alone does not achieve that: the sweep runs every
+ * 15 minutes with a limit of 25, so it collects everything due and sends it back to back.
+ * The gap has to be a property of the campaign, not of the timestamps, or any sweep -
+ * scheduled, manual or a retry - can still produce a burst.
+ *
+ * Settable, so the spacing can be changed without a deploy.
+ */
+export function minGapMinutes() {
+  const v = Number(db.getSetting?.('fsbo_offmarket_min_gap_minutes', '5'))
+  return Number.isFinite(v) && v >= 0 ? v : 5
+}
+
+/** How long until the campaign may send again, in ms. 0 when it may send now. */
+export function gapRemainingMs() {
+  try {
+    const last = db.get("SELECT created_at FROM fsbo_om_log WHERE event='sent' ORDER BY id DESC LIMIT 1")
+    if (!last?.created_at) return 0
+    const since = Date.now() - Date.parse(last.created_at)
+    const need = minGapMinutes() * 60000
+    return since >= need ? 0 : need - since
+  } catch { return 0 }
+}
+
 const chi = (d = new Date()) => {
   const p = new Intl.DateTimeFormat('en-US', {
     timeZone: 'America/Chicago', hour: '2-digit', hour12: false, weekday: 'short',
@@ -540,6 +567,17 @@ export async function runSweep({ limit = 25, dryRun = false } = {}) {
 
     const { body, angle, templateKey } = composeFor(c, attempt, bucket)
     if (dryRun) { out.results.push({ client_id: en.client_id, action: 'would_send', attempt, angle, body }); continue }
+
+    // PACING. Stop the sweep rather than skip the lead: the queue is ordered by due time,
+    // so whoever is next stays next and simply goes on the following pass. Checked here,
+    // immediately before the send, so it holds for a scheduled sweep, a manual run and a
+    // retry alike.
+    const wait = gapRemainingMs()
+    if (wait > 0) {
+      out.paced = Math.ceil(wait / 1000)
+      out.results.push({ client_id: en.client_id, action: 'paced', wait_seconds: out.paced })
+      break
+    }
 
     try {
       const { sendSms } = await import('./twilio.js')

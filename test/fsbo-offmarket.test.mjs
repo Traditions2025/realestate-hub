@@ -418,3 +418,21 @@ test('the board selects the columns the age is derived from', () => {
   assert.match(q, /c\.fsbo_dom/)
   assert.match(q, /c\.fsbo_list_date/)
 })
+
+test('a minimum gap between sends is enforced at send time', () => {
+  // Spacing the scheduled times is not enough: the sweep runs every 15 minutes with a
+  // limit of 25, so it collects everything due and sends it back to back. The gap has to
+  // belong to the campaign, or any sweep can still produce a burst.
+  assert.match(SRC, /export function gapRemainingMs/)
+  assert.match(SRC, /fsbo_offmarket_min_gap_minutes/)
+  const sweep = SRC.slice(SRC.indexOf('export async function runSweep'))
+  assert.match(sweep, /const wait = gapRemainingMs\(\)/)
+  // It must BREAK, not continue: the queue is due-ordered, so skipping would let a later
+  // lead jump the one in front of it.
+  assert.match(sweep, /if \(wait > 0\) \{[\s\S]{0,220}break/)
+})
+
+test('the pacing check sits after the dry-run return, so a preview is never paced', () => {
+  const sweep = SRC.slice(SRC.indexOf('export async function runSweep'))
+  assert.ok(sweep.indexOf('would_send') < sweep.indexOf('const wait = gapRemainingMs()'))
+})

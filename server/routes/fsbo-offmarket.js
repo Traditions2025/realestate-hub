@@ -81,6 +81,23 @@ router.get('/preview', async (_req, res) => {
 })
 
 // ---- control -------------------------------------------------------------------------
+/** Re-time the queue: make every unsent lead due now, spaced by the pacing gap.
+ *  Used to collapse a multi-day stagger into one session. Writes times only, sends nothing. */
+router.post('/retime', (req, res) => {
+  try {
+    const startIn = Math.max(Number(req.body?.start_in_minutes) || 1, 0)
+    const rows = db.all("SELECT client_id FROM fsbo_om_campaign WHERE status='active' AND attempt_count=0 ORDER BY next_send_at ASC")
+    const base = Date.now() + startIn * 60000
+    rows.forEach((r, i) => {
+      // One minute apart on the clock; the real spacing is enforced by the pacing gap at
+      // send time, so these only need to be due in the right ORDER.
+      db.run('UPDATE fsbo_om_campaign SET next_send_at=?, updated_at=? WHERE client_id=?',
+        [new Date(base + i * 60000).toISOString(), new Date().toISOString(), r.client_id])
+    })
+    res.json({ retimed: rows.length, first_due: new Date(base).toISOString() })
+  } catch (e) { res.status(500).json({ error: e.message }) }
+})
+
 router.post('/toggle', (req, res) => {
   const on = req.body?.enabled === true || req.body?.enabled === '1'
   db.setSetting('fsbo_offmarket_enabled', on ? '1' : '0')
