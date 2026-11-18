@@ -677,8 +677,12 @@ export function anglePerformance() {
 
 /** Everything §20 asks to see per enrolled lead. */
 export function board() {
+  // fsbo_dom and fsbo_list_date are what listingAgeDays() reads. Leaving them out of the
+  // join made every row report a null age and fall back to the `old` bucket, so the board
+  // showed one bucket for everybody while the send path - which loads the whole client
+  // row - was bucketing correctly. A derived column needs its inputs selected.
   return db.all(`SELECT e.*, c.first_name, c.last_name, c.address, c.phone, c.status AS lead_status,
-                        c.fsbo_status, c.fsbo_status_at, c.mls_status
+                        c.fsbo_status, c.fsbo_dom, c.fsbo_list_date, c.mls_status
                    FROM fsbo_om_campaign e JOIN clients c ON c.id = e.client_id
                   ORDER BY CASE e.status WHEN 'active' THEN 0 ELSE 1 END, e.next_send_at ASC`)
     .map(r => {

@@ -409,3 +409,12 @@ test('a staggered slot still respects the weekday window', () => {
     assert.ok(d.getTime() > Date.now(), 'slot must be in the future')
   }
 })
+
+test('the board selects the columns the age is derived from', () => {
+  // It did not, so every row reported a null age and fell back to `old`. The board showed
+  // one bucket for everybody while the send path, which loads the whole client row, was
+  // bucketing correctly - a dashboard quietly disagreeing with what actually goes out.
+  const q = SRC.slice(SRC.indexOf('export function board'))
+  assert.match(q, /c\.fsbo_dom/)
+  assert.match(q, /c\.fsbo_list_date/)
+})
