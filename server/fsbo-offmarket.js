@@ -51,17 +51,37 @@ function salutation() {
 }
 
 // ---------- age buckets (§6) ----------
-// Measured from when the FSBO listing stopped being advertised. fsbo_status_at is when the
-// master-file sync recorded the change, which is the closest thing to that date we hold.
-export function offMarketDate(client) {
-  const raw = client?.fsbo_status_at || client?.off_market_date || null
-  if (!raw) return null
-  const t = Date.parse(raw)
-  return Number.isNaN(t) ? null : new Date(t)
+//
+// WE DO NOT KNOW WHEN A FSBO CAME OFF MARKET, and the field that looks like it does is a
+// trap. fsbo_status_at is written on EVERY master-file sync, not when the status changed,
+// so every off-market FSBO reads as "today" and the whole pool would be bucketed `recent`.
+// The first batch would have told 15 owners their listing came off the market today, some
+// of whom listed in January.
+//
+// fsbo_dom is the honest signal. It is recomputed each sync as days since fsbo_list_date
+// (checked: list 2026-02-18 + dom 273 = today; list 2026-08-17 + dom 93 = today), so it is
+// the age of the LISTING, not of the disappearance. That is the better thing to bucket on
+// anyway: a FSBO first advertised in January is an old situation whenever it vanished, and
+// a FSBO advertised three weeks ago is a fresh one.
+export function listingAgeDays(client) {
+  // Number(null) is 0, and 0 is FINITE. Taking Number() straight off the field turns every
+  // missing DOM into "nought days on market", which buckets as `recent` and tells the owner
+  // their listing just came off - the precise mistake this function exists to prevent. The
+  // CX module carries the same warning for the same reason. Unknown and zero must stay
+  // distinguishable: zero is real (a listing pulled the day it went live).
+  const raw = client?.fsbo_dom
+  const dom = (raw === null || raw === undefined || String(raw).trim() === '') ? NaN : Number(raw)
+  if (Number.isFinite(dom) && dom >= 0) return Math.floor(dom)
+  // No DOM: derive it from the list date. fsbo_list_date arrives as M/D/YYYY.
+  const t = Date.parse(client?.fsbo_list_date || '')
+  if (!Number.isNaN(t)) return Math.max(0, Math.floor((Date.now() - t) / DAY))
+  return null
 }
-export function daysOffMarket(client) {
-  const d = offMarketDate(client)
-  return d ? Math.max(0, Math.floor((Date.now() - d.getTime()) / DAY)) : null
+/** The listing date, for display. Deliberately not called an off-market date: we do not
+ *  have one, and naming it that is how the wrong field got used in the first place. */
+export function listedDate(client) {
+  const t = Date.parse(client?.fsbo_list_date || '')
+  return Number.isNaN(t) ? null : new Date(t)
 }
 /** Unknown reads as OLD, never as recent: calling a year-old listing "recent" is the single
  *  most obvious tell that nobody actually looked. */
@@ -385,7 +405,7 @@ export async function enrollClient(clientId, by = 'auto') {
   const ev = await evaluateEligibility(c, { atEnroll: true, manual })
   if (!ev.ok) { logOm(c.id, 'enroll_refused', { eligibility_result: ev.code, stop_reason: ev.detail }); return { ok: false, reason: `${ev.code}: ${ev.detail}` } }
 
-  const days = daysOffMarket(c)
+  const days = listingAgeDays(c)
   const first = nextValidSlot(new Date(Date.now() + 60000)).toISOString()
   db.run(`INSERT INTO fsbo_om_campaign (client_id, status, attempt_count, enrolled_at, enrolled_by,
             next_send_at, age_bucket_at_enroll, off_market_date, updated_at)
@@ -393,7 +413,7 @@ export async function enrollClient(clientId, by = 'auto') {
           ON CONFLICT(client_id) DO UPDATE SET status='active', attempt_count=0, enrolled_at=excluded.enrolled_at,
             enrolled_by=excluded.enrolled_by, next_send_at=excluded.next_send_at, stop_reason=NULL,
             response_class=NULL, responded_at=NULL, updated_at=excluded.updated_at`,
-    [c.id, 'active', 0, nowIso(), by, first, ageBucket(days), offMarketDate(c)?.toISOString() || null, nowIso()])
+    [c.id, 'active', 0, nowIso(), by, first, ageBucket(days), listedDate(c)?.toISOString() || null, nowIso()])
   logOm(c.id, 'enrolled', { age_bucket: ageBucket(days), days_off_market: days, scheduled_for: first, eligibility_result: 'ok' })
   return { ok: true, client_id: c.id, next_send_at: first }
 }
@@ -434,7 +454,7 @@ export async function runSweep({ limit = 25, dryRun = false } = {}) {
   const out = { considered: due.length, sent: 0, deferred: 0, stopped: 0, exhausted: 0, results: [] }
   for (const en of due) {
     const c = db.get('SELECT * FROM clients WHERE id=?', [en.client_id])
-    const days = daysOffMarket(c)
+    const days = listingAgeDays(c)
     const bucket = ageBucket(days)
     const attempt = (en.attempt_count || 0) + 1
 
@@ -607,7 +627,7 @@ export function board() {
                    FROM fsbo_om_campaign e JOIN clients c ON c.id = e.client_id
                   ORDER BY CASE e.status WHEN 'active' THEN 0 ELSE 1 END, e.next_send_at ASC`)
     .map(r => {
-      const days = daysOffMarket(r)
+      const days = listingAgeDays(r)
       const prior = db.all("SELECT angle FROM fsbo_om_log WHERE client_id=? AND event='sent' AND angle IS NOT NULL ORDER BY id DESC LIMIT 4", [r.client_id]).map(x => x.angle)
       const lastMsg = db.get("SELECT body, created_at FROM fsbo_om_log WHERE client_id=? AND event='sent' ORDER BY id DESC LIMIT 1", [r.client_id])
       const manual = db.get(`SELECT occurred_at FROM communications WHERE client_id=? AND direction='outgoing'
@@ -618,7 +638,7 @@ export function board() {
         name: `${r.first_name || ''} ${r.last_name || ''}`.trim(),
         address: r.address, phone: r.phone,
         campaign_status: r.status,
-        age_bucket: ageBucket(days), days_off_market: days, off_market_date: r.off_market_date,
+        age_bucket: ageBucket(days), listing_age_days: days, listed_date: r.off_market_date,
         sends: r.attempt_count || 0, of_max: MAX_ATTEMPTS,
         last_message: lastMsg?.body || null, last_sent_at: r.last_sent_at,
         next_send_at: r.next_send_at,

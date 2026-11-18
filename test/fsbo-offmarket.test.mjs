@@ -319,3 +319,49 @@ test('angles never repeat inside three sends', () => {
   assert.match(SRC, /ORDER BY id DESC LIMIT 3/)
   assert.match(SRC, /if \(last3\.includes\(key\)\) continue/)
 })
+
+// ---- age comes from DOM, not from a sync timestamp -------------------------------------
+//
+// The first build bucketed on fsbo_status_at, which the master-file sync rewrites on EVERY
+// run. Every off-market FSBO therefore read as 0 days old, and the first batch would have
+// told 15 owners their listing came off the market today - several of whom listed in
+// January. John caught it: "Are you not able to detect DOM? as HUB has DOM on each FSBO."
+
+const lead = (dom, listed) => ({ fsbo_dom: dom, fsbo_list_date: listed })
+
+test('a sync timestamp is never used as the age', () => {
+  assert.ok(!/fsbo_status_at/.test(SRC.slice(SRC.indexOf('export function listingAgeDays'), SRC.indexOf('export function ageBucket'))),
+    'fsbo_status_at is the last sync time, not an event date')
+})
+
+test('DOM drives the bucket', () => {
+  assert.equal(OM.listingAgeDays(lead(273, '2/18/2026')), 273)
+  assert.equal(OM.ageBucket(OM.listingAgeDays(lead(273, '2/18/2026'))), 'old')
+  assert.equal(OM.ageBucket(OM.listingAgeDays(lead(12, '11/6/2026'))), 'recent')
+  assert.equal(OM.ageBucket(OM.listingAgeDays(lead(400, '1/1/2025'))), 'ancient')
+})
+
+test('a MISSING dom is unknown, not zero', () => {
+  // Number(null) is 0 and 0 is finite, so a naive Number() read turns every missing DOM
+  // into "listed today" and sends the recent wording to an old listing. Zero has to stay
+  // real, because a listing can genuinely be pulled the day it goes live.
+  assert.equal(OM.listingAgeDays(lead(0, '11/18/2026')), 0, 'zero is a real value')
+  assert.equal(OM.ageBucket(OM.listingAgeDays(lead(0, '11/18/2026'))), 'recent')
+  assert.equal(OM.listingAgeDays(lead(null, null)), null, 'unknown stays unknown')
+  assert.equal(OM.ageBucket(OM.listingAgeDays(lead(null, null))), 'old', 'unknown is never recent')
+  assert.equal(OM.ageBucket(OM.listingAgeDays(lead('', null))), 'old')
+})
+
+test('no DOM falls back to the list date rather than giving up', () => {
+  const age = OM.listingAgeDays(lead(null, '5/6/2026'))
+  assert.ok(age > 150 && age < 400, `derived ${age} days from the list date`)
+  assert.equal(OM.ageBucket(age), 'old')
+})
+
+test('an old listing can never be told it came off market recently', () => {
+  for (const c of [lead(273, '2/18/2026'), lead(null, null), lead(200, '5/1/2026')]) {
+    const b = OM.ageBucket(OM.listingAgeDays(c))
+    const msg = OM.INTRO[b]('123 Main St', 'Hi, good morning :)')
+    assert.ok(!/no longer showing as available/.test(msg), `recent wording reached a ${b} listing`)
+  }
+})

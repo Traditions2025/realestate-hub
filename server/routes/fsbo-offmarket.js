@@ -56,7 +56,7 @@ router.get('/lead/:clientId/preview-next', (req, res) => {
     if (!c) return res.status(404).json({ error: 'client not found' })
     const en = db.get('SELECT attempt_count FROM fsbo_om_campaign WHERE client_id=?', [cid])
     const attempt = (en?.attempt_count || 0) + 1
-    const bucket = OM.ageBucket(OM.daysOffMarket(c))
+    const bucket = OM.ageBucket(OM.listingAgeDays(c))
     if (attempt > OM.MAX_ATTEMPTS) return res.json({ attempt, bucket, capped: true, body: null })
     res.json({ attempt, bucket, capped: false, ...OM.composeFor(c, attempt, bucket) })
   } catch (e) { res.status(500).json({ error: e.message }) }
@@ -68,10 +68,10 @@ router.get('/preview', async (_req, res) => {
     const rows = []
     for (const c of OM.eligiblePool()) {
       const ev = await OM.evaluateEligibility(c, { atEnroll: true })
-      const bucket = OM.ageBucket(OM.daysOffMarket(c))
+      const bucket = OM.ageBucket(OM.listingAgeDays(c))
       rows.push({
         client_id: c.id, name: `${c.first_name || ''} ${c.last_name || ''}`.trim(),
-        address: c.address, bucket, days_off_market: OM.daysOffMarket(c),
+        address: c.address, bucket, listing_age_days: OM.listingAgeDays(c), listed: c.fsbo_list_date || null,
         eligible: ev.ok, reason: ev.ok ? null : `${ev.code}: ${ev.detail}`,
         first_text: ev.ok ? OM.composeFor(c, 1, bucket).body : null,
       })
