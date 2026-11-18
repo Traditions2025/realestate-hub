@@ -17,6 +17,7 @@ const SRC = readFileSync(new URL('../server/fsbo-offmarket.js', import.meta.url)
 const INBOX = readFileSync(new URL('../server/routes/inbox.js', import.meta.url), 'utf8')
 const SCHED = readFileSync(new URL('../server/scheduler.js', import.meta.url), 'utf8')
 const DB = readFileSync(new URL('../server/database.js', import.meta.url), 'utf8')
+const ROUTE = readFileSync(new URL('../server/routes/fsbo-offmarket.js', import.meta.url), 'utf8')
 
 const BUCKETS = ['recent', 'mid', 'old', 'ancient']
 const everyMessage = () => [
@@ -499,4 +500,40 @@ test('an override cannot reopen a lead who declined in reply to OUR text', () =>
   for (const s of ['dnc', 'sold', 'listed_with_agent']) {
     assert.ok(!new RegExp(`status === '${s}'`).test(reopen), `${s} must not be reopenable`)
   }
+})
+
+// ---- retiming the queue must stay inside the texting window -----------------------------
+//
+// Retiming is the deliberate override of NEW_PER_DAY: a person asking for the whole batch
+// promptly. What it must never do is make never-contacted sellers due outside 9-5, which
+// the first version would have done at 4:17pm on 2026-11-18.
+
+test('every retimed slot is clamped into the texting window', () => {
+  const fn = SRC.slice(SRC.indexOf('export function retimeQueue'))
+  const body = fn.slice(0, fn.indexOf('\n}'))
+  assert.match(body, /const base = nextValidSlot\(/, 'the start of the queue must be clamped')
+  assert.match(body, /const at = nextValidSlot\(new Date\(base\.getTime\(\) \+ i \* 60000\)\)/,
+    'each slot must be clamped, not just the first: a long queue can run past the end hour')
+  // Never in the past either, or everything retimed is instantly due at once.
+  assert.match(body, /Date\.now\(\) \+ 60000/)
+})
+
+test('the retime route does no date arithmetic of its own', () => {
+  const r = ROUTE.slice(ROUTE.indexOf("router.post('/retime'"))
+  const body = r.slice(0, r.indexOf('\n})'))
+  assert.match(body, /OM\.retimeQueue\(/)
+  assert.ok(!/Date\.now\(\) \+/.test(body) && !/new Date\(base/.test(body),
+    'the route must not compute send times; the window helper lives in the campaign module')
+})
+
+test('the window helper really does push an evening time to the next morning', async () => {
+  const { nextValidSlot, inProactiveWindow } = await import('../server/fsbo-followup.js')
+  // 9pm on a Tuesday, and 7am on a Wednesday: both outside, both must come back inside.
+  for (const iso of ['2026-11-17T03:00:00.000Z', '2026-11-18T13:00:00.000Z']) {
+    const at = nextValidSlot(new Date(iso))
+    assert.ok(inProactiveWindow(at), `${iso} was not clamped into the window (got ${at.toISOString()})`)
+  }
+  // A time already inside the window is returned untouched, so an ordered queue stays ordered.
+  const inside = new Date('2026-11-18T16:30:00.000Z')   // 10:30am Central, a Wednesday
+  assert.equal(nextValidSlot(inside).getTime(), inside.getTime())
 })

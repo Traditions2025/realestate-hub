@@ -484,6 +484,34 @@ export function firstSendSlot() {
   return nextValidSlot(new Date(Date.now() + DAY)).toISOString()
 }
 
+/**
+ * Pull every unsent first text into one ordered queue. This is the deliberate override of
+ * NEW_PER_DAY, for when a person wants the whole batch out promptly instead of spread over
+ * several days.
+ *
+ * EVERY slot is clamped into the texting window. The first version of this did the
+ * arithmetic raw, which on 2026-11-18 at 4:17pm would have made ten never-contacted sellers
+ * due immediately and let the scheduled sweep text them through the evening. The window is
+ * applied when SCHEDULING, so anything that writes next_send_at has to apply it too.
+ *
+ * The slots are one minute apart. Real spacing is the pacing gap at send time, so these
+ * only have to be due in the right ORDER.
+ */
+export function retimeQueue({ startInMinutes = 1, startAt = null } = {}) {
+  const rows = db.all("SELECT client_id FROM fsbo_om_campaign WHERE status='active' AND attempt_count=0 ORDER BY next_send_at ASC")
+  const asked = startAt ? new Date(startAt) : new Date(Date.now() + Math.max(Number(startInMinutes) || 0, 0) * 60000)
+  const from = Number.isNaN(asked.getTime()) ? new Date() : asked
+  const base = nextValidSlot(new Date(Math.max(from.getTime(), Date.now() + 60000)))
+  const queue = []
+  rows.forEach((r, i) => {
+    const at = nextValidSlot(new Date(base.getTime() + i * 60000))
+    db.run('UPDATE fsbo_om_campaign SET next_send_at=?, updated_at=? WHERE client_id=?',
+      [at.toISOString(), nowIso(), r.client_id])
+    queue.push({ client_id: r.client_id, next_send_at: at.toISOString() })
+  })
+  return { retimed: rows.length, first_due: queue[0]?.next_send_at || null, queue }
+}
+
 export async function enrollClient(clientId, by = 'auto', { override = false } = {}) {
   const c = db.get('SELECT * FROM clients WHERE id=?', [Number(clientId)])
   if (!c) return { ok: false, reason: 'client not found' }
