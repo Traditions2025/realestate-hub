@@ -99,11 +99,19 @@ export function ageBucket(days) {
 const ID = 'This is John with Matt Smith Team at RE/MAX.'
 const IDH = 'Hi, this is John with Matt Smith Team at RE/MAX.'
 
+// John, 2026-11-18, on the first draft: "that does sound wrong... dont say been offered
+// also we don't say all the time that it was for sale by owner, if we say for sale that's
+// understandable."
+//
+// So: "was for sale", never "had previously been offered for sale by owner". The FSBO part
+// is dropped from the wording entirely. It tells the owner nothing they do not know, and
+// saying it back to them every time is what made these read like a database record rather
+// than a person who noticed the house.
 export const INTRO = {
-  recent: (s, sal) => `${sal} ${ID} I came across the home at ${s} that had been offered for sale by owner and noticed it's no longer showing as available. Did you end up getting it sold? MattSmithTeam.com`,
-  mid: (s, sal) => `${sal} ${ID} I came across the previous for-sale-by-owner listing for ${s} and wasn't sure where things ended up. Did the property ever sell? MattSmithTeam.com`,
-  old: (s, sal) => `${sal} ${ID} I came across where ${s} had previously been offered for sale by owner and wasn't sure where things ended up. Did you ever get it sold? MattSmithTeam.com`,
-  ancient: (s, sal) => `${sal} ${ID} I know it's been quite a while, but I came across where ${s} had previously been offered for sale by owner. Did you ever end up selling it? MattSmithTeam.com`,
+  recent: (s, sal) => `${sal} ${ID} I came across the home at ${s} that was for sale recently and noticed it's no longer listed. Did you end up getting it sold? MattSmithTeam.com`,
+  mid: (s, sal) => `${sal} ${ID} I came across the home at ${s} that was for sale a couple of months back and wasn't sure where things ended up. Did it ever sell? MattSmithTeam.com`,
+  old: (s, sal) => `${sal} ${ID} I came across the home at ${s} that was for sale a while back and wasn't sure where things ended up. Did you ever get it sold? MattSmithTeam.com`,
+  ancient: (s, sal) => `${sal} ${ID} I know it's been a long time, but I came across the home at ${s} that was for sale at one point. Did you ever end up selling it? MattSmithTeam.com`,
 }
 
 export const FOLLOW_UP = {
@@ -123,7 +131,7 @@ export const ANGLES = {
   FUTURE_TIMING: { buckets: ['recent', 'mid', 'old', 'ancient'], text: (s) => `${IDH} Is selling ${s} something that may come back up later, or are you planning to hold onto it for now?` },
   STILL_OPEN: { buckets: ['recent', 'mid', 'old', 'ancient'], text: (s) => `${IDH} Just keeping an eye on ${s}. If selling is still something you'd consider at some point, feel free to let me know.` },
   RIGHT_OFFER: { buckets: ['recent', 'mid', 'old', 'ancient'], text: (s) => `${IDH} If the right offer came along for ${s}, would selling still be something you'd consider?` },
-  LONG_TERM_CHECK: { buckets: ['old', 'ancient'], text: (s) => `${IDH} I know it's been a while since ${s} was offered for sale. Has selling it come back onto the radar at all?` },
+  LONG_TERM_CHECK: { buckets: ['old', 'ancient'], text: (s) => `${IDH} I know it's been a while since ${s} was for sale. Has selling it come back onto the radar at all?` },
   // §11: deliberately last, so the sequence ends by stepping back rather than pressing.
   OPEN_DOOR: { buckets: ['recent', 'mid', 'old', 'ancient'], text: (s) => `${IDH} Just keeping the door open regarding ${s}. If anything changes with the property, feel free to let me know.` },
 }

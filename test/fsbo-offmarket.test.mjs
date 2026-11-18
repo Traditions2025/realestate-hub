@@ -121,10 +121,19 @@ test('an unknown date is OLD, never recent', () => {
   assert.ok(!/recently/.test(OM.INTRO.old('123 Main St', 'Hi, good morning :)')))
 })
 
-test('only the recent message may say "no longer showing as available"', () => {
-  assert.match(OM.INTRO.recent('X', 'S'), /no longer showing as available/)
+test('only the recent message may claim the listing just came down', () => {
+  assert.match(OM.INTRO.recent('X', 'S'), /no longer listed/)
   for (const b of ['mid', 'old', 'ancient']) {
-    assert.ok(!/no longer showing as available/.test(OM.INTRO[b]('X', 'S')))
+    assert.ok(!/no longer listed|recently/.test(OM.INTRO[b]('X', 'S')), `recency claim in ${b}`)
+  }
+})
+
+test('nothing says "been offered" or repeats "for sale by owner"', () => {
+  // John, 2026-11-18: "dont say been offered also we don't say all the time that it was for
+  // sale by owner, if we say for sale that's understandable."
+  for (const m of everyMessage()) {
+    assert.ok(!/been offered/i.test(m), `"been offered" in: ${m}`)
+    assert.ok(!/by owner|for-sale-by-owner|FSBO/i.test(m), `FSBO phrasing in: ${m}`)
   }
 })
 
@@ -362,6 +371,6 @@ test('an old listing can never be told it came off market recently', () => {
   for (const c of [lead(273, '2/18/2026'), lead(null, null), lead(200, '5/1/2026')]) {
     const b = OM.ageBucket(OM.listingAgeDays(c))
     const msg = OM.INTRO[b]('123 Main St', 'Hi, good morning :)')
-    assert.ok(!/no longer showing as available/.test(msg), `recent wording reached a ${b} listing`)
+    assert.ok(!/no longer listed|was for sale recently/.test(msg), `recent wording reached a ${b} listing`)
   }
 })
