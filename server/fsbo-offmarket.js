@@ -107,11 +107,18 @@ const IDH = 'Hi, this is John with Matt Smith Team at RE/MAX.'
 // is dropped from the wording entirely. It tells the owner nothing they do not know, and
 // saying it back to them every time is what made these read like a database record rather
 // than a person who noticed the house.
+//
+// "YOUR HOME AT X" IS DELIBERATE, and John's call (2026-11-18). The build spec's §4 warned
+// that a FSBO number can come from skip tracing and may not reach the owner, which is why
+// the first draft said "the home at X" and why the Cancelled/Expired library avoids "your
+// home" entirely. He read that and chose the warmer wording for this campaign. Names are
+// still never used: "your home at <address>" addresses the property, and anyone who is not
+// the owner can see immediately that the text is not meant for them.
 export const INTRO = {
-  recent: (s, sal) => `${sal} ${ID} I came across the home at ${s} that was for sale recently and noticed it's no longer listed. Did you end up getting it sold? MattSmithTeam.com`,
-  mid: (s, sal) => `${sal} ${ID} I came across the home at ${s} that was for sale a couple of months back and wasn't sure where things ended up. Did it ever sell? MattSmithTeam.com`,
-  old: (s, sal) => `${sal} ${ID} I came across the home at ${s} that was for sale a while back and wasn't sure where things ended up. Did you ever get it sold? MattSmithTeam.com`,
-  ancient: (s, sal) => `${sal} ${ID} I know it's been a long time, but I came across the home at ${s} that was for sale at one point. Did you ever end up selling it? MattSmithTeam.com`,
+  recent: (s, sal) => `${sal} ${ID} I came across your home at ${s} that was for sale recently and noticed it's no longer listed. Did you end up getting it sold? MattSmithTeam.com`,
+  mid: (s, sal) => `${sal} ${ID} I came across your home at ${s} that was for sale a couple of months back and wasn't sure where things ended up. Did it ever sell? MattSmithTeam.com`,
+  old: (s, sal) => `${sal} ${ID} I came across your home at ${s} that was for sale a while back and wasn't sure where things ended up. Did you ever get it sold? MattSmithTeam.com`,
+  ancient: (s, sal) => `${sal} ${ID} I know it's been a long time, but I came across your home at ${s} that was for sale at one point. Did you ever end up selling it? MattSmithTeam.com`,
 }
 
 export const FOLLOW_UP = {
