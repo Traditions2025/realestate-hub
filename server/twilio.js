@@ -131,6 +131,52 @@ export async function updateCallTwiml(callSid, twiml) {
   return data
 }
 
+// Originate a new outbound leg that fetches its TwiML from `url`. Used to pull a
+// third party into a live conference: a leg created this way joins (and if need be
+// creates) the room, so it does not depend on the conference already existing, which
+// a Participants API call would.
+export async function createCall({ to, from, url, statusCallback = null, timeout = 30, machineDetection = null }) {
+  const c = twilioConfig()
+  if (!c.sid || !c.token) throw new Error('Twilio is not connected.')
+  const params = new URLSearchParams()
+  params.set('To', to)
+  params.set('From', from)
+  params.set('Url', url)
+  params.set('Timeout', String(timeout))
+  if (statusCallback) {
+    params.set('StatusCallback', statusCallback)
+    params.set('StatusCallbackMethod', 'POST')
+    for (const ev of ['initiated', 'ringing', 'answered', 'completed']) params.append('StatusCallbackEvent', ev)
+  }
+  if (machineDetection) params.set('MachineDetection', machineDetection)
+  const resp = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Calls.json`, {
+    method: 'POST',
+    headers: { 'Authorization': 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: params.toString(),
+  })
+  const data = await resp.json().catch(() => ({}))
+  if (!resp.ok) throw new Error(data.message || `Twilio error ${resp.status}`)
+  return data
+}
+
+// Remove one participant from an in-progress conference, leaving the rest connected.
+// `room` is the conference's FriendlyName, which is what we name our rooms by.
+export async function removeConferenceParticipant(room, callSid) {
+  const c = twilioConfig()
+  if (!c.sid || !c.token) throw new Error('Twilio is not connected.')
+  const auth = 'Basic ' + Buffer.from(`${c.sid}:${c.token}`).toString('base64')
+  const list = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Conferences.json?FriendlyName=${encodeURIComponent(room)}&Status=in-progress`, { headers: { Authorization: auth } })
+  const lj = await list.json().catch(() => ({}))
+  const conf = (lj.conferences || [])[0]
+  if (!conf) throw new Error('that conference is no longer running')
+  const del = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${c.sid}/Conferences/${conf.sid}/Participants/${callSid}.json`, { method: 'DELETE', headers: { Authorization: auth } })
+  if (!del.ok && del.status !== 404) {
+    const d = await del.json().catch(() => ({}))
+    throw new Error(d.message || `Twilio error ${del.status}`)
+  }
+  return { ok: true, conference_sid: conf.sid }
+}
+
 // Point a Twilio phone number's inbound SMS webhook (and delivery status callback)
 // at the Hub, so incoming texts land in the Hub inbox. Repoints away from whatever
 // it was wired to before (e.g. GoHighLevel/LeadConnector). Returns before/after so

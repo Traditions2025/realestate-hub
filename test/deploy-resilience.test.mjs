@@ -99,7 +99,10 @@ test('coming back to the tab or back online retries immediately', () => {
 })
 
 test('the listeners and the pending timer are cleaned up', () => {
-  const cleanup = widget.slice(widget.lastIndexOf('return () => {'))
+  // Anchored to the SETUP effect's own cleanup (the one that destroys the Device) rather
+  // than to the last cleanup in the file, which any effect added later would win.
+  const anchor = widget.indexOf('window.hubCall = undefined')
+  const cleanup = widget.slice(widget.lastIndexOf('return () => {', anchor), anchor + 120)
   assert.match(cleanup, /clearTimeout\(retryRef\.current\)/)
   assert.match(cleanup, /removeEventListener\('online', retryNow\)/)
   assert.match(cleanup, /removeEventListener\('visibilitychange', retryNow\)/)

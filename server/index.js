@@ -14,6 +14,7 @@ import gdriveRouter from './routes/gdrive.js'
 import routingRouter from './routes/routing.js'
 import seedRouter, { autoSeedOnBoot } from './routes/seed.js'
 import { startScheduler } from './scheduler.js'
+import { twimlRouter as confTwimlRouter, controlRouter as confControlRouter } from './routes/conference.js'
 import { purgeStopStatusEnrollments } from './lead-sequences.js'
 import { businessOpen } from './comms-logic.js'
 import transactionsRouter from './routes/transactions.js'
@@ -827,8 +828,18 @@ async function start() {
     const recAttr = rec ? ` record="record-from-answer-dual" recordingStatusCallback="${HUB_BASE}/api/voice/recording"` : ''
     // statusCallback on the callee leg lets us capture its CallSid for voicemail drop.
     const cb = ` statusCallbackEvent="initiated ringing answered completed" statusCallback="${HUB_BASE}/api/voice/child-status" statusCallbackMethod="POST"`
-    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"${recAttr}><Number${cb}>${escXml(to)}</Number></Dial>`)
+    // The `action` is what makes three-way calling possible. When the callee leg is
+    // redirected into a conference this Dial ends, and without an action the agent's call
+    // would simply end with it. The handler re-joins the agent to the room, or hangs up
+    // exactly as before when no conference is pending.
+    const act = ` action="${HUB_BASE}/api/voice/outbound-dial-complete"`
+    xml(res, `<Dial answerOnBridge="true" callerId="${escXml(from)}"${recAttr}${act}><Number${cb}>${escXml(to)}</Number></Dial>`)
   })
+  // Three-way calling (John, 2026-11-20). Two mounts, because requireAuth decides what is
+  // public BY PATH: it exempts the whole /api/voice/ prefix for Twilio's signature-validated
+  // webhooks, so the controls a person presses have to live somewhere else.
+  app.use('/api/voice', confTwimlRouter)        // Twilio: TwiML + status + recording
+  app.use('/api/conference', confControlRouter) // the browser softphone, behind requireAuth
   // Callee-leg status → remember its CallSid keyed by the parent (browser) call,
   // so a voicemail drop can redirect that leg to play a recording.
   app.post('/api/voice/child-status', twGuard, async (req, res) => {

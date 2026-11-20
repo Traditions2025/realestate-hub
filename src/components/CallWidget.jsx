@@ -44,6 +44,12 @@ export default function CallWidget() {
   const [vmMenu, setVmMenu] = useState(false)
   const [dropping, setDropping] = useState(false)
   const parentSidRef = useRef('')
+  // Three-way: the panel, what is being added, and the live roster from the server.
+  const [addOpen, setAddOpen] = useState(false)
+  const [addQ, setAddQ] = useState('')
+  const [addHits, setAddHits] = useState([])
+  const [adding, setAdding] = useState(false)
+  const [conf, setConf] = useState({ conference: false, participants: [] })
 
   const fmt = (n) => { const d = String(n || '').replace(/\D/g, '').slice(-10); return d.length === 10 ? `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}` : (n || '') }
   const startTimer = () => { setSeconds(0); clearInterval(timerRef.current); timerRef.current = setInterval(() => setSeconds(s => s + 1), 1000) }
@@ -72,6 +78,7 @@ export default function CallWidget() {
   }
   const endLocal = () => {
     stopTimer(); setStatus('idle'); setMuted(false); setKeypad(false); setVmMenu(false); setPeer({ number: '', name: '' }); callRef.current = null; parentSidRef.current = ''
+    setAddOpen(false); setAddQ(''); setAddHits([]); setAdding(false); setConf({ conference: false, participants: [] })
     // Let the Power Dialer (or any listener) know a call finished + whether it connected.
     try { window.dispatchEvent(new CustomEvent('hubcall:ended', { detail: { connected: connectedRef.current } })) } catch {}
     connectedRef.current = false
@@ -264,6 +271,70 @@ export default function CallWidget() {
   const hangup = () => { try { callRef.current?.disconnect() } catch {}; endLocal() }
   const toggleMute = () => { const m = !muted; setMuted(m); try { callRef.current?.mute(m) } catch {} }
 
+  // ---- three-way ------------------------------------------------------------------
+  // The roster is polled rather than pushed because the truth lives in Twilio's
+  // conference callbacks, not in this tab: a participant can drop for reasons the browser
+  // never sees (they hang up, the carrier fails the leg, the number was wrong).
+  const refreshConf = async () => {
+    const sid = parentSidRef.current
+    if (!sid) return
+    try {
+      const r = await authFetch('/api/conference/state/' + encodeURIComponent(sid))
+      const d = await r.json()
+      if (d && typeof d === 'object') setConf({ conference: !!d.conference, participants: Array.isArray(d.participants) ? d.participants : [] })
+    } catch {}
+  }
+  useEffect(() => {
+    if (status !== 'active' || !conf.conference) return
+    const t = setInterval(refreshConf, 3000)
+    return () => clearInterval(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, conf.conference])
+  // Type a name to find a lead, or type a number for somebody who is not in the Hub at
+  // all - the city water department is the case this was built for.
+  useEffect(() => {
+    const q = addQ.trim()
+    if (!addOpen || q.length < 2 || /^[\d\s()+.-]+$/.test(q)) { setAddHits([]); return }
+    let dead = false
+    const t = setTimeout(async () => {
+      try {
+        const r = await authFetch('/api/inbox/contacts?q=' + encodeURIComponent(q))
+        const a = await r.json()
+        if (!dead) setAddHits((Array.isArray(a) ? a : []).filter(x => x.phone).slice(0, 5))
+      } catch {}
+    }, 250)
+    return () => { dead = true; clearTimeout(t) }
+  }, [addQ, addOpen])
+
+  const addToCall = async (number, name = '') => {
+    const num = String(number || '').trim()
+    if (!num) return
+    setAdding(true)
+    try {
+      const r = await authFetch('/api/conference/add', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_sid: parentSidRef.current, number: num, name }),
+      })
+      const d = await r.json()
+      if (!d.ok) { notify(d.error || 'Could not add that number'); return }
+      setAddQ(''); setAddHits([]); setAddOpen(false)
+      setConf(c => ({ ...c, conference: true }))
+      notify(`Calling ${name || num} into the call…`)
+      setTimeout(refreshConf, 1200)
+    } catch (e) { notify(e.message) } finally { setAdding(false) }
+  }
+  const dropParticipant = async (callSid) => {
+    try {
+      const r = await authFetch('/api/conference/drop', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ parent_sid: parentSidRef.current, call_sid: callSid }),
+      })
+      const d = await r.json()
+      if (!d.ok) notify(d.error || 'Could not drop that line')
+      refreshConf()
+    } catch (e) { notify(e.message) }
+  }
+
   // Idle: no persistent status chip — the softphone stays invisible until a call
   // starts (outbound via window.hubCall) or arrives (incoming). Mic is primed
   // silently on registration so audio bridges instantly when a call connects.
@@ -296,6 +367,53 @@ export default function CallWidget() {
           </>
         )}
       </div>
+      {status === 'active' && conf.conference && conf.participants.length > 0 && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border, #e5e7eb)', paddingTop: 10 }}>
+          <div style={{ fontSize: 14.5, textTransform: 'uppercase', letterSpacing: '.05em', color: 'var(--text-muted, #6b7280)', marginBottom: 6 }}>On this call</div>
+          {conf.participants.map(p => (
+            <div key={p.call_sid} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 15.5 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: p.on ? '#10b981' : '#f59e0b', flexShrink: 0 }} title={p.on ? 'Connected' : 'Ringing'} />
+              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {p.name || fmt(p.number) || (p.kind === 'party' ? (peer.name || fmt(peer.number)) : 'Line')}
+              </span>
+              {p.kind !== 'agent' && (
+                <button onClick={() => dropParticipant(p.call_sid)} title="Hang up this line only"
+                  style={{ border: 'none', background: 'none', color: '#ef4444', fontSize: 14.5, fontWeight: 600, cursor: 'pointer', padding: 0 }}>Drop</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {status === 'active' && (
+        <div style={{ marginTop: 10 }}>
+          <button onClick={() => setAddOpen(o => !o)} disabled={adding}
+            style={{ border: 'none', background: 'none', color: 'var(--text-muted, #6b7280)', fontSize: 14.5, cursor: 'pointer', fontWeight: 600 }}>
+            {adding ? 'Adding…' : addOpen ? '\u25be Add call' : '\u25b8 Add call'}
+          </button>
+          {addOpen && (
+            <div style={{ marginTop: 8 }}>
+              <input value={addQ} onChange={e => setAddQ(e.target.value)} autoFocus
+                onKeyDown={e => { if (e.key === 'Enter' && addQ.trim()) addToCall(addQ.trim()) }}
+                placeholder="Name or phone number…"
+                style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: '1px solid var(--border, #e5e7eb)', background: 'var(--bg-primary, #fff)', color: 'var(--text-primary, #111)', fontSize: 15.5, boxSizing: 'border-box' }} />
+              {addHits.map(h => (
+                <button key={h.id} onClick={() => addToCall(h.phone, `${h.first_name || ''} ${h.last_name || ''}`.trim())}
+                  style={{ display: 'block', width: '100%', textAlign: 'left', padding: '8px 10px', marginTop: 4, border: '1px solid var(--border, #e5e7eb)', borderRadius: 8, background: 'var(--bg-secondary, #f8fafc)', color: 'var(--text-primary, #111)', cursor: 'pointer', fontSize: 15.5 }}>
+                  {`${h.first_name || ''} ${h.last_name || ''}`.trim() || fmt(h.phone)}
+                  <span style={{ color: 'var(--text-muted, #6b7280)' }}>{'  '}{fmt(h.phone)}</span>
+                </button>
+              ))}
+              <button onClick={() => addToCall(addQ.trim())} disabled={!addQ.trim() || adding}
+                style={{ width: '100%', marginTop: 6, padding: '9px 0', borderRadius: 10, border: 'none', background: addQ.trim() ? '#10b981' : '#9ca3af', color: '#fff', fontWeight: 700, fontSize: 15.5, cursor: addQ.trim() ? 'pointer' : 'default' }}>
+                Add to call
+              </button>
+              <div style={{ fontSize: 14, color: 'var(--text-muted, #6b7280)', marginTop: 6, lineHeight: 1.35 }}>
+                Everyone hears a tone when the new line joins. Tell the person you are with before you add someone.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
       {status === 'active' && vms.length > 0 && (
         <div style={{ marginTop: 10, position: 'relative' }}>
           <button onClick={() => setVmMenu(m => !m)} disabled={dropping}
