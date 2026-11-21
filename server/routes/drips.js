@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import db from '../database.js'
 import { sendSequenceEmail, previewSequenceEmail, emailHardBlock } from './email.js'
+import { suppressedCampaignReason } from '../suppressed-campaigns.js'
 import { bumpPastHolidays, isUsHoliday } from '../holidays.js'
 import { emailCapBlock, emailCapState, weeklyEmailCap, dailyEmailCap } from '../email-cap.js'
 import { isStopStatus } from '../lead-sequences.js'
@@ -73,9 +74,14 @@ export function dripBlockReason(dripId, clientId, opts = {}) {
   if (!parse(drip.steps, []).length) return { reason: 'that campaign has no steps yet' }
   // never enroll a lead we've been told to stop contacting (Junk / DNC), or one who
   // confirmed they're Not in Market (only the annual human recheck touches them)
-  const cli = db.get('SELECT status, email, email_status FROM clients WHERE id = ?', [Number(clientId)])
+  const cli = db.get('SELECT status, email, email_status, tags FROM clients WHERE id = ?', [Number(clientId)])
   if (cli && isStopStatus(cli.status)) return { reason: `lead status is ${cli.status} — that removes them from every campaign` }
   if (cli && String(cli.status || '').toLowerCase() === 'not_in_market') return { reason: 'lead is Not in Market — only the annual human recheck touches them' }
+  // A landing-page campaign owns this lead: keep them OUT of the drip altogether,
+  // rather than enrolling them and having sendSequenceEmail refuse every step - which
+  // would leave them on the roster looking nurtured while nothing was ever sent.
+  const ownedDrip = cli && suppressedCampaignReason(cli)
+  if (ownedDrip) return { reason: ownedDrip }
   // drips are email-only: skip contacts we could never actually email (no address,
   // throwaway domain, prior spam complaint, known-bad address) so they don't clutter
   // the roster as enrolled-but-silent. Mirrors emailHardBlock at send time. Opt-outs

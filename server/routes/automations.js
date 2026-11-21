@@ -4,6 +4,7 @@ import { prependNote } from '../client-notes.js'
 import { getSetting, setSetting } from '../database.js'
 import { buildClientFilter } from './clients.js'
 import { sendViaSendGrid, buildPropertyCardsLive, logSentToInbox, emailHardBlock } from './email.js'
+import { suppressedCampaignReason } from '../suppressed-campaigns.js'
 import { enrollInDrip } from './drips.js'
 import { stopSequencesForClient, isStopStatus } from '../lead-sequences.js'
 import { isUsHoliday, bumpPastHolidays } from '../holidays.js'
@@ -222,6 +223,10 @@ async function runAction(node, client, ctx) {
       // address / spam complaint / blocked domain.
       const hardBlk = emailHardBlock(client)
       if (hardBlk) return `skipped (${hardBlk})`
+      // These two actions call sendViaSendGrid directly rather than going through
+      // sendSequenceEmail, so the campaign-owned check has to be repeated here.
+      const ownedEmail = suppressedCampaignReason(client)
+      if (ownedEmail) return `skipped (${ownedEmail})`
       // 1 email a day, 2 a week, counted across every campaign (John, 2026-10-14).
       // An automation step is automated mail like any other, so it waits its turn —
       // the automation run records the skip and the trigger can fire again later.
@@ -248,6 +253,10 @@ async function runAction(node, client, ctx) {
         const { emailCapBlock } = await import('../email-cap.js')
         const capped = emailCapBlock(client.id, `auto_${ctx.automationId}`)
         if (capped) return `skipped (${capped.reason})`
+      }
+      {
+        const ownedRec = suppressedCampaignReason(client)
+        if (ownedRec) return `skipped (${ownedRec})`
       }
       let cards = ''
       try { cards = await buildPropertyCardsLive(client, Number(cfg.max) || 4) } catch {}

@@ -5,6 +5,7 @@ import { cleanEmailAttachments } from '../email-attachments.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
 import { buildDigest, sendDigest } from '../transaction-digest.js'
+import { autoEmailSuppressedReason, suppressedCampaignReason } from '../suppressed-campaigns.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -719,6 +720,12 @@ export function logSentToInbox(client, subject, body, externalId, attachments = 
 export async function sendSequenceEmail(client, cfg = {}, category = null) {
   const hard = emailHardBlock(client)
   if (hard) return { ok: false, reason: hard }
+  // Campaign-owned leads get no automated email. Checked HERE because this is the
+  // shared sender behind every drip step, listing alert and sequence email, while the
+  // manual composers in this file deliberately do not consult it. The category decides
+  // what still gets through: an appointment confirmation is an answer, not a campaign.
+  const owned = autoEmailSuppressedReason(client, category)
+  if (owned) return { ok: false, reason: owned }
   // Opted-out contacts are allowed through (tagged), per team policy.
   let subject = cfg.subject, body = cfg.body
   if (cfg.template_id) {
@@ -1157,6 +1164,9 @@ async function runBulkSend(client_ids, subject, body, template) {
     for (const id of client_ids) {
       const client = db.get('SELECT * FROM clients WHERE id = ?', [Number(id)])
       if (emailHardBlock(client)) { _bulkState.skipped++; _bulkState.done++; continue }
+      // A bulk blast is marketing mail, so a campaign-owned lead swept in by a list
+      // filter is skipped and counted, exactly as a hard-blocked address would be.
+      if (suppressedCampaignReason(client)) { _bulkState.skipped++; _bulkState.done++; continue }
       // Opted-out contacts are included (tagged), per team policy.
 
       const filledSubject = fillTemplate(subject, client)

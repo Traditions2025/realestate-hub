@@ -483,7 +483,9 @@ async function sendStep(client, row, step) {
     // mid-thought, and the Hi/Hello/time-of-day rotation would fight it.
     const body = plan.text || step.text({ first_name: f.first_name, street: f.street })
     const { canSendSms, canAutomatedSend } = await import('./ai-followup/policy.js')
-    const gate = canSendSms(client, { channel: 'automation' })
+    // transactional: this sequence only runs because the lead asked what their home is
+    // worth, so it answers them rather than prospecting them.
+    const gate = canSendSms(client, { channel: 'automation', transactional: true })
     if (!gate.ok) return { ok: false, reason: gate.reason }
     const auto = canAutomatedSend(client, { source: 'drip' })
     if (!auto.ok) return { ok: false, reason: auto.reason }

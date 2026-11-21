@@ -19,6 +19,7 @@
 // from the profile must mean exactly that.
 import db from '../database.js'
 import { aiNeverContactMatch } from '../ai-never-contact.js'
+import { suppressedCampaignReason } from '../suppressed-campaigns.js'
 
 // Statuses that mean "this is not a prospect any more", checked on every AI send.
 //
@@ -160,6 +161,13 @@ export function aiForbiddenReason(client) {
   // Meta seller-ad leads: the seller sequence and a human own them.
   if (String(client.tags || '').includes('FB Seller Ad'))
     return 'Meta seller-ad lead — the seller campaign and a human own it'
+
+  // Landing-page campaigns that own the lead outright, keyed on a fixed Sierra tag
+  // rather than a Hub campaign row - these leads arrive as ordinary status-New
+  // website registrations and have no row to ask about. See
+  // server/suppressed-campaigns.js for which tags and why.
+  const owned = suppressedCampaignReason(client)
+  if (owned) return owned
 
   return null
 }

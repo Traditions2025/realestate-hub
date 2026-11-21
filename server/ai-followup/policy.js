@@ -9,6 +9,7 @@ import { isStopStatus } from '../lead-sequences.js'
 import { inQuietHours } from './flags.js'
 import { isUsHoliday } from '../holidays.js'
 import { aiForbiddenReason } from './forbidden.js'
+import { suppressedCampaignReason } from '../suppressed-campaigns.js'
 
 const nowIso = () => new Date().toISOString()
 export const phoneKey = (p) => { const d = String(p || '').replace(/\D/g, ''); return d.length >= 10 ? d.slice(-10) : null }
@@ -74,6 +75,16 @@ export function canSendSms(client, context = {}) {
   // by a seller campaign AFTER enrolment stays AI-managed and the fence never runs again.
   // That is how the AI came to answer Joseph Green, a FSBO seller enrolled months earlier as
   // a cold buyer. Shared with enrolment through forbidden.js so the two cannot drift apart.
+  // A landing-page campaign owns this lead: no automated text on ANY channel, not
+  // just the AI one. aiForbiddenReason below would only cover channel 'ai', and the
+  // whole point of Leon's instruction is that the drips and automations stay quiet too.
+  // `transactional` is the narrow exception for a message the lead themselves set off
+  // (the reminder for an appointment they booked). A human send is never touched.
+  if (channel !== 'manual' && !context.transactional) {
+    const owned = suppressedCampaignReason(client)
+    if (owned) return deny(owned)
+  }
+
   if (channel === 'ai') {
     const why = aiForbiddenReason(client)
     if (why) return deny(why)

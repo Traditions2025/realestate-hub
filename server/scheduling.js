@@ -395,7 +395,10 @@ export async function runAppointmentReminders() {
 // ---------------------------------------------------------------------------
 async function sendApptSms(client, body) {
   const { canSendSms } = await import('./ai-followup/policy.js')
-  const gate = canSendSms(client, { channel: 'automation' })
+  // transactional: the lead booked this appointment, so the confirmation and the
+  // reminder are answers to something they did, not campaign traffic. Compliance
+  // (STOP / do_not_text / DNC) still applies exactly as before.
+  const gate = canSendSms(client, { channel: 'automation', transactional: true })
   if (!gate.ok) return { ok: false, reason: gate.reason }
   const { sendSms } = await import('./twilio.js')
   const r = await sendSms(client.phone, body, { statusCallback: HUB + '/api/inbox/twilio-status' })
