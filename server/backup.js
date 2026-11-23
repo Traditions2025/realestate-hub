@@ -17,7 +17,7 @@
 
 import {
   readFileSync, writeFileSync, existsSync, mkdirSync,
-  statSync, readdirSync, unlinkSync,
+  statSync, readdirSync, unlinkSync, copyFileSync,
 } from 'fs'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -53,7 +53,12 @@ export function backupDbToDisk(prefix = 'daily') {
   if (stats.size < 8 * 1024) return { skipped: 'db-too-small', size: stats.size }
   const filename = `realestate-hub.db.${prefix}-${tsLabel()}`
   const dest = join(BACKUP_DIR, filename)
-  writeFileSync(dest, readFileSync(DB_PATH))
+  // copyFileSync, not writeFileSync(readFileSync(...)): the read allocated a Node
+  // Buffer the size of the ENTIRE database (~1 GB) before anything was written. This
+  // function runs on every boot via the pre-boot snapshot in database.js, so that put
+  // a 1 GB allocation on the startup path of a 2 GB instance. copyFileSync hands the
+  // copy to the OS and holds no buffer at all.
+  copyFileSync(DB_PATH, dest)
   return { path: dest, filename, size: stats.size, prefix }
 }
 
@@ -133,9 +138,9 @@ export function restoreFromFile(sourcePath) {
   const ts = tsLabel()
   const aside = `${DB_PATH}.replaced-${ts}`
   if (existsSync(DB_PATH)) {
-    writeFileSync(aside, readFileSync(DB_PATH))
+    copyFileSync(DB_PATH, aside)
   }
-  writeFileSync(DB_PATH, readFileSync(sourcePath))
+  copyFileSync(sourcePath, DB_PATH)
   return { restoredFrom: sourcePath, backedUpAs: aside, size: stat.size }
 }
 
@@ -145,6 +150,27 @@ export async function backupDbViaEmail() {
   if (!existsSync(DB_PATH)) return { skipped: 'db-missing' }
   const stats = statSync(DB_PATH)
   if (stats.size < 8 * 1024) return { skipped: 'db-too-small', size: stats.size }
+
+  // THE 2 AM CRASH (found 2026-11-23). Below, this used to readFileSync the whole
+  // database and gzipSync it, and only THEN compare the result against the 25 MB email
+  // limit. At ~1 GB that is a 1 GB raw buffer plus the gzip output plus zlib's own
+  // state on a 2 GB instance: Render logged "Ran out of memory (used over 2GB)" four or
+  // five times every night, each kill left a 0-byte file in backups/, and the work was
+  // discarded anyway because the result could never fit in an email.
+  //
+  // The size is known from stat without reading anything, so the hopeless cases now
+  // cost nothing. The multiplier is deliberately generous - gzip on SQLite gets roughly
+  // 3-4x - so any database that could plausibly still fit gets a real attempt.
+  const EMAIL_MAX_RAW_BYTES = MAX_EMAIL_ATTACHMENT_BYTES * 8
+  if (stats.size > EMAIL_MAX_RAW_BYTES) {
+    return {
+      skipped: 'too-large-raw',
+      rawSize: stats.size,
+      limit: MAX_EMAIL_ATTACHMENT_BYTES,
+      maxRaw: EMAIL_MAX_RAW_BYTES,
+      note: 'database too large to email; the on-disk snapshot and the Render disk snapshot are the backups',
+    }
+  }
 
   const recipients = (process.env.BACKUP_RECIPIENTS || 'mattsmithremax@gmail.com')
     .split(',').map(s => s.trim()).filter(Boolean)
