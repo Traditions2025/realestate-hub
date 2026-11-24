@@ -1204,7 +1204,7 @@ async function runBulkSend(client_ids, subject, body, template) {
 router.post('/bulk', (req, res) => {
   const { client_ids, subject, body, template } = req.body
   if (!Array.isArray(client_ids) || client_ids.length === 0) return res.status(400).json({ error: 'client_ids required' })
-  if (client_ids.length > 2000) return res.status(400).json({ error: 'Max 2000 recipients per bulk send. Send in batches.' })
+  if (client_ids.length > 5000) return res.status(400).json({ error: 'Max 5000 recipients per bulk send. Send in batches.' })
   if (_bulkState.running) return res.json({ success: true, alreadyRunning: true, progress: _bulkState })
   runBulkSend(client_ids, subject, body, template).catch(() => { _bulkState.running = false; _bulkState.finishedAt = new Date().toISOString() })
   res.json({ success: true, started: true, total: client_ids.length })
