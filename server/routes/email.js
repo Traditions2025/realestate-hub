@@ -463,7 +463,7 @@ export function usableFirstName(raw) {
 // password_reset, appointment, inbox_notify, inbox_compose, ai_handoff, fb_lead_alert —
 // is transactional, internal, or a message one person wrote to one person, and must not
 // gain an opt-out footer.
-const BULK_CATEGORY = /^(drip|drip_test|auto|campaign|bulk)_/i
+const BULK_CATEGORY = /^(drip|drip_test|auto|campaign|camp|bulk)_/i
 // Marketing sends whose name does not fit the <prefix>_<id> convention, so the regex above
 // would miss them. home_value_followup is the auto-response to a home value form
 // submission: it answers something the person asked for, but it also invites further
