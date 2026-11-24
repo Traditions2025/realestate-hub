@@ -1204,7 +1204,9 @@ async function runBulkSend(client_ids, subject, body, template) {
 router.post('/bulk', (req, res) => {
   const { client_ids, subject, body, template } = req.body
   if (!Array.isArray(client_ids) || client_ids.length === 0) return res.status(400).json({ error: 'client_ids required' })
-  if (client_ids.length > 5000) return res.status(400).json({ error: 'Max 5000 recipients per bulk send. Send in batches.' })
+  // No recipient cap (Leon, 2026-11-24). The send loop is sequential either way, so a cap
+  // only split the operator's work. Nothing here stops a full-list send: the audience the
+  // composer passes in is the control.
   if (_bulkState.running) return res.json({ success: true, alreadyRunning: true, progress: _bulkState })
   runBulkSend(client_ids, subject, body, template).catch(() => { _bulkState.running = false; _bulkState.finishedAt = new Date().toISOString() })
   res.json({ success: true, started: true, total: client_ids.length })
