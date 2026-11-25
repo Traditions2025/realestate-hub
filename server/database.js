@@ -173,7 +173,7 @@ export async function initDb() {
       const snap = backupDbToDisk('pre-boot')
       if (snap.path) {
         console.log(`[db] pre-boot snapshot saved: ${snap.filename} (${(snap.size/1024).toFixed(0)} KB)`)
-        rotateBackups('pre-boot', 3)   // 10GB disk since 2026-09-21; ~200MB/snapshot — 3 is plenty, Drive has history
+        rotateBackups('pre-boot', 1)   // 1, not 3: a snapshot is ~1.7GB now, not the ~200MB this was sized for
       }
     } catch (e) {
       console.error(`[db] pre-boot snapshot failed: ${e.message}`)

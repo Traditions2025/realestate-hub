@@ -6,7 +6,8 @@
 // refresh token in app_settings; from then on the daily backup uploads automatically.
 // Inert until connected. No new npm deps — raw REST via fetch.
 import db from './database.js'
-import { readFileSync, existsSync, statSync } from 'fs'
+import { readFileSync, existsSync, statSync, createReadStream, createWriteStream, unlinkSync } from 'fs'
+import { pipeline } from 'stream/promises'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 import zlib from 'zlib'
@@ -92,7 +93,9 @@ export async function ensureBackupFolder() {
   const render = await ensureFolder(SUB_FOLDER, root)
   return { root, render }
 }
-async function uploadResumable(name, buffer, mimeType, parentId) {
+// Upload a FILE, streamed. The old signature took a Buffer, which meant the caller had
+// to hold the whole gzipped database in memory before the request even started.
+async function uploadResumable(name, filePath, mimeType, parentId) {
   const tok = await accessToken()
   const init = await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable', {
     method: 'POST', headers: { Authorization: 'Bearer ' + tok, 'Content-Type': 'application/json' },
@@ -100,7 +103,13 @@ async function uploadResumable(name, buffer, mimeType, parentId) {
   })
   if (!init.ok) throw new Error('resumable init failed: ' + init.status)
   const uploadUrl = init.headers.get('location')
-  const put = await fetch(uploadUrl, { method: 'PUT', headers: { 'Content-Type': mimeType, 'Content-Length': String(buffer.length) }, body: buffer })
+  const size = statSync(filePath).size
+  const put = await fetch(uploadUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': mimeType, 'Content-Length': String(size) },
+    body: createReadStream(filePath),
+    duplex: 'half',           // undici requires this for a stream body
+  })
   const j = await put.json().catch(() => ({}))
   if (!put.ok) throw new Error('upload failed: ' + put.status)
   return j
@@ -110,20 +119,32 @@ async function uploadResumable(name, buffer, mimeType, parentId) {
 export async function backupDbToGDrive() {
   if (!gdriveConnected()) return { skipped: 'not-connected' }
   if (!existsSync(DB_PATH)) return { skipped: 'db-missing' }
-  const raw = readFileSync(DB_PATH)
-  if (raw.length < 8 * 1024) return { skipped: 'db-too-small' }
-  const gz = zlib.gzipSync(raw, { level: 9 })
-  const { render } = await ensureBackupFolder()
-  const name = `realestate-hub.db.${new Date().toISOString().replace(/[:.]/g, '-')}.gz`
-  const file = await uploadResumable(name, gz, 'application/gzip', render)
+  // STREAMED, never buffered. The old version did readFileSync(DB_PATH) followed by
+  // zlib.gzipSync: on a 2 GB instance that allocated the whole ~1.7 GB database plus the
+  // gzip output, ran out of memory, and the error was swallowed into result.gdriveError.
+  // That is why off-site backups silently stopped on 2026-11-17.
+  const rawSize = statSync(DB_PATH).size
+  if (rawSize < 8 * 1024) return { skipped: 'db-too-small' }
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+  const name = `realestate-hub.db.${stamp}.gz`
+  const tmp = join(DB_DIR, `gdrive-staging-${stamp}.gz`)
+  let file, gzSize
+  try {
+    await pipeline(createReadStream(DB_PATH), zlib.createGzip({ level: 6 }), createWriteStream(tmp))
+    gzSize = statSync(tmp).size
+    const { render } = await ensureBackupFolder()
+    file = await uploadResumable(name, tmp, 'application/gzip', render)
+  } finally {
+    try { unlinkSync(tmp) } catch {}
+  }
   db.setSetting('gdrive_last_backup_at', new Date().toISOString())
   db.setSetting('gdrive_last_backup_name', name)
-  db.setSetting('gdrive_last_backup_kb', String(Math.round(gz.length / 1024)))
+  db.setSetting('gdrive_last_backup_kb', String(Math.round(gzSize / 1024)))
   try {
     const list = await drive('GET', '/files', { query: { q: `'${render}' in parents and trashed=false`, fields: 'files(id,name,createdTime)', orderBy: 'createdTime desc', pageSize: '100' } })
     for (const f of (list.files || []).slice(KEEP)) await drive('DELETE', '/files/' + f.id).catch(() => {})
   } catch {}
-  return { uploaded: name, fileId: file.id, sizeKb: Math.round(gz.length / 1024), rawMb: Math.round(raw.length / 1024 / 1024 * 10) / 10 }
+  return { uploaded: name, fileId: file.id, sizeKb: Math.round(gzSize / 1024), rawMb: Math.round(rawSize / 1024 / 1024 * 10) / 10 }
 }
 
 export function gdriveStatus() {

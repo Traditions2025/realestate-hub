@@ -2332,7 +2332,7 @@ ${signature}
       const { source } = req.body || {}
       if (!source) return res.status(400).json({ error: 'source path required' })
       const { restoreFromFile } = await import('./backup.js')
-      const result = restoreFromFile(source)
+      const result = await restoreFromFile(source)
       res.json({
         ...result,
         next_step: 'Restart the service so the new file is loaded into memory (Render: Manual Deploy → Deploy latest commit).',

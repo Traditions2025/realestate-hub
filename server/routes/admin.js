@@ -844,7 +844,7 @@ router.get('/health', requirePermission('settings.view'), async (_req, res) => {
   try {
     const { getBackupHealth } = await import('../backup.js')
     const { gdriveStatus } = await import('../gdrive-backup.js')
-    res.json({ failures: failureCounts(), backup: getBackupHealth(), gdrive: gdriveStatus() })
+    res.json({ failures: failureCounts(), backup: await getBackupHealth(), gdrive: gdriveStatus() })
   } catch (e) { res.status(500).json({ error: e.message }) }
 })
 
@@ -937,8 +937,8 @@ router.post('/disk/cleanup', requirePermission('settings.edit'), async (req, res
   try {
     const { rotateBackups } = await import('../backup.js')
     const out = {
-      preboot: rotateBackups('pre-boot', Number(req.query.keep_preboot) || 2),
-      daily: rotateBackups('daily', Number(req.query.keep_daily) || 4),
+      preboot: rotateBackups('pre-boot', Number(req.query.keep_preboot) || 1),
+      daily: rotateBackups('daily', Number(req.query.keep_daily) || 3),
       prerestore: rotateBackups('pre-restore', 1),
       hourly: rotateBackups('hourly', 2),
     }
