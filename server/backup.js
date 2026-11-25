@@ -417,7 +417,11 @@ export async function runDailyBackup() {
     // leave the freshly-taken backup in a worse state than uncompressed.
     try {
       result.compressDaily = await compressOldBackups('daily', 1)
-      result.compressPreboot = await compressOldBackups('pre-boot', 1)
+      // keepRaw 0, not 1. Retention keeps only ONE pre-boot, so a keepRaw of 1 meant the
+      // single pre-boot was never compressed and sat at 1.7GB permanently. The newest
+      // DAILY is the emergency copy and stays raw; a pre-boot is a roll-back-the-deploy
+      // copy and can afford a ~15s decompress.
+      result.compressPreboot = await compressOldBackups('pre-boot', 0)
     } catch (e) { result.compressError = e.message }
     try { result.sidecars = pruneStaleSidecars(30) } catch (e) { result.sidecarError = e.message }
   } catch (err) {
