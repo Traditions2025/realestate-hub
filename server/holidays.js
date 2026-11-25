@@ -39,6 +39,10 @@ function holidaysForYear(y) {
   // This list is "days our audience is not at work", not "days federal offices are shut".
   addFixed(s, y, 11, 11)                     // Veterans Day
   s.add(fmt(y, 11, nthWeekday(y, 11, 4, 4))) // Thanksgiving — 4th Thu Nov
+  // The day after Thanksgiving. Not a federal holiday, but nobody we email or text
+  // is at work, which is the test this list applies (Leon, 2026-11-25: nothing goes
+  // out 26 or 27 Nov). Same reasoning that removed Columbus Day, inverted.
+  s.add(fmt(y, 11, nthWeekday(y, 11, 4, 4) + 1))
   addFixed(s, y, 12, 25)                     // Christmas Day
   if (dow(y + 1, 1, 1) === 6) s.add(fmt(y, 12, 31)) // next New Year observed on Dec 31
   _cache[y] = s

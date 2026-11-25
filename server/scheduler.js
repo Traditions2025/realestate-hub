@@ -3,6 +3,7 @@ import db from './database.js'
 import { processLead, sierraGet } from './sierra-helper.js'
 import { sendDigest, chicagoDateKey } from './transaction-digest.js'
 import { runDailyBackup } from './backup.js'
+import { isUsHoliday } from './holidays.js'
 import { hvResponsePaused } from './home-value-intake.js'
 
 const n = (v) => v === undefined || v === '' ? null : v
@@ -982,7 +983,7 @@ export function startScheduler() {
     // FSBO Connect - Off Market. The sweep returns immediately while
     // fsbo_offmarket_enabled is off, which is the default, so wiring it here sends
     // nothing until somebody deliberately turns the campaign on.
-    import('./fsbo-offmarket.js').then(m => m.runSweep({ limit: 25 })).catch(() => {})
+    if (!isUsHoliday()) import('./fsbo-offmarket.js').then(m => m.runSweep({ limit: 25 })).catch(() => {})
   }, 15 * 60 * 1000)
 
   // FUB → Hub Facebook-ad lead watcher: every 2 min pull ONLY new Facebook lead-ad
@@ -1028,7 +1029,7 @@ export function startScheduler() {
   setInterval(checkFsboDailyTick, 60 * 1000)
 
   // FSBO smart follow-up sequence - every 15 min (self-gates to weekdays 9AM-4PM CT).
-  setInterval(() => { import('./fsbo-followup.js').then(m => m.runFsboFollowups()).catch(() => {}) }, 15 * 60 * 1000)
+  setInterval(() => { if (isUsHoliday()) return; import('./fsbo-followup.js').then(m => m.runFsboFollowups()).catch(() => {}) }, 15 * 60 * 1000)
 
   // FB listing-lead 30-day follow-up - every 15 min (self-gates: master switch,
   // window, response-stops-first, property-status check before every send).
@@ -1052,7 +1053,7 @@ export function startScheduler() {
 
   // Cancelled/Expired Connection Campaign - every 15 min (self-gates: master switch,
   // weekdays 9AM-4PM CT window, per-send eligibility re-verification).
-  setInterval(() => { import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)
+  setInterval(() => { if (isUsHoliday()) return; import('./cx-connect.js').then(m => m.runCxSweep()).catch(() => {}) }, 15 * 60 * 1000)
 
   // Slack deadline alert - check every minute, fires at 10 AM CT (idempotent)
   setInterval(checkSlackDeadlineTick, 60 * 1000)

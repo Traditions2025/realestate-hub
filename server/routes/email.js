@@ -5,7 +5,8 @@ import { cleanEmailAttachments } from '../email-attachments.js'
 import { fubGet, fubConfigured } from '../fub-helper.js'
 import { TRANSACTION_TEMPLATES, PRELISTING_TEMPLATES, fillMergeVars, buildMergeVars, lookupCloser } from '../transaction-email-templates.js'
 import { buildDigest, sendDigest } from '../transaction-digest.js'
-import { autoEmailSuppressedReason, suppressedCampaignReason } from '../suppressed-campaigns.js'
+import { autoEmailSuppressedReason, suppressedCampaignReason, isLeadInitiatedEmail } from '../suppressed-campaigns.js'
+import { isUsHoliday } from '../holidays.js'
 
 const router = Router()
 const n = (v) => v === undefined || v === '' ? null : v
@@ -726,6 +727,10 @@ export async function sendSequenceEmail(client, cfg = {}, category = null) {
   // what still gets through: an appointment confirmation is an answer, not a campaign.
   const owned = autoEmailSuppressedReason(client, category)
   if (owned) return { ok: false, reason: owned }
+  // No marketing or campaign email on a holiday. A reply to something the lead just
+  // did still goes: an appointment confirmation or a home value answer is not a
+  // nurture queue. Mirrors the SMS rule in ai-followup/policy.js.
+  if (isUsHoliday() && !isLeadInitiatedEmail(category)) return { ok: false, reason: 'US holiday - automated email paused' }
   // Opted-out contacts are allowed through (tagged), per team policy.
   let subject = cfg.subject, body = cfg.body
   if (cfg.template_id) {
